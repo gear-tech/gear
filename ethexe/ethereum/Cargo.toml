@@ -12,7 +12,7 @@ gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring"
 ethexe-common = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gear-core-errors.workspace = true
-gprimitives = { workspace = true, features = ["std"] }
+gprimitives = { workspace = true, features = ["std", "ethexe"] }
 anyhow.workspace = true
 async-trait.workspace = true
 alloy = { workspace = true, features = [

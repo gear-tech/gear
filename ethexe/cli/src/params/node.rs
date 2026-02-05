@@ -25,7 +25,7 @@ use ethexe_common::{
     consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
 };
-use ethexe_processor::DEFAULT_CHUNK_PROCESSING_THREADS;
+use ethexe_processor::DEFAULT_CHUNK_SIZE;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
@@ -131,7 +131,7 @@ impl NodeParams {
             blocking_threads: self.blocking_threads.map(|v| v.get()),
             chunk_processing_threads: self
                 .chunk_processing_threads
-                .unwrap_or(DEFAULT_CHUNK_PROCESSING_THREADS)
+                .unwrap_or(DEFAULT_CHUNK_SIZE)
                 .get(),
             block_gas_limit: self
                 .block_gas_limit
