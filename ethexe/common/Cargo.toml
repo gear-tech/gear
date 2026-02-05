@@ -35,6 +35,7 @@ gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gprimitives = { workspace = true, features = ["ethexe"] }
+serde_json.workspace = true
 
 [features]
 default = ["std"]
