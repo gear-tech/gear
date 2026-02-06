@@ -225,6 +225,6 @@ impl ObserverService {
     }
 
     pub fn router_query(&self) -> RouterQuery {
-        RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
+        RouterQuery::from_provider(self.config.router_address, self.provider.clone())
     }
 }

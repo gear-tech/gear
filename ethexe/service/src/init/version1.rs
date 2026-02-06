@@ -132,6 +132,7 @@ pub async fn initialize_empty_db<'a, 'b>(config: &Config, db: DatabaseRef<'a, 'b
         router_address: config.ethereum.router_address,
         timelines: storage_view.protocol_timelines(),
         genesis_block_hash,
+        genesis_announce_hash,
     };
 
     // NOTE: start block and announce could be changed later by fast-sync
@@ -182,7 +183,7 @@ pub async fn migration_from_version0<'a, 'b>(
         pub prepared_block_hash: H256,
         pub computed_announce_hash: HashOf<Announce>,
         pub genesis_block_hash: H256,
-        pub _genesis_announce_hash: HashOf<Announce>,
+        pub genesis_announce_hash: HashOf<Announce>,
         pub start_block_hash: H256,
         pub start_announce_hash: HashOf<Announce>,
     }
@@ -217,6 +218,7 @@ pub async fn migration_from_version0<'a, 'b>(
         router_address: config.ethereum.router_address,
         timelines,
         genesis_block_hash: latest_data.genesis_block_hash,
+        genesis_announce_hash: latest_data.genesis_announce_hash,
     };
 
     db.set_config(db_config);

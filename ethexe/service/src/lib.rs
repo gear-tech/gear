@@ -221,7 +221,7 @@ impl Service {
         )
         .with_context(|| "failed to open database")?;
 
-        init::version1::initialize_db(
+        init::initialize_db(
             config,
             DatabaseRef {
                 cas: &rocks_db,

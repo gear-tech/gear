@@ -473,8 +473,6 @@ impl Database {
             .as_ref(),
         )?;
 
-        // TODO +_+_+: implement verifier and clean up
-
         let db = Self {
             cas: cas.clone_boxed(),
             kv: kv.clone_boxed(),
@@ -500,7 +498,6 @@ impl Database {
     pub fn memory() -> Self {
         let mem_db = MemDb::default();
 
-        // +_+_+
         // set default config and globals
         let config = DBConfig {
             version: VERSION,
@@ -510,6 +507,7 @@ impl Database {
             genesis_block_hash: H256::zero(),
             genesis_announce_hash: HashOf::zero(),
         };
+
         let globals = DBGlobals {
             start_block: H256::zero(),
             start_announce_hash: HashOf::zero(),

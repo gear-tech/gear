@@ -343,17 +343,17 @@ pub struct RouterQuery {
 }
 
 impl RouterQuery {
-    pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
+    pub async fn new(rpc_url: &str, router_address: impl Into<Address>) -> Result<Self> {
         let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self {
-            instance: QueryInstance::new(Address::new(router_address.0), provider),
+            instance: QueryInstance::new(router_address.into(), provider),
         })
     }
 
-    pub fn from_provider(router_address: Address, provider: RootProvider) -> Self {
+    pub fn from_provider(router_address: impl Into<Address>, provider: RootProvider) -> Self {
         Self {
-            instance: QueryInstance::new(router_address, provider),
+            instance: QueryInstance::new(router_address.into(), provider),
         }
     }
 

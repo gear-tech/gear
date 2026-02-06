@@ -1521,7 +1521,7 @@ async fn send_injected_tx() {
     env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
-    let reference_block = node0.db.globals().prepared_block_hash;
+    let reference_block = node0.db.globals().latest_prepared_block_hash;
 
     // Prepare tx data
     let tx = InjectedTransaction {

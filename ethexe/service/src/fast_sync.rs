@@ -20,7 +20,7 @@ use crate::Service;
 use anyhow::{Context, Result};
 use ethexe_common::{
     Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, StateHashWithQueueSize,
+    StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
         ComputedAnnounceData, OnChainStorageRW, PreparedBlockData,
@@ -712,17 +712,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let storage_view = observer.router_query().storage_view_at(block_hash).await?;
 
-    // +_+_+ todo remove
-    let timelines = ProtocolTimelines {
-        genesis_ts: storage_view.genesisBlock.timestamp.to::<u64>(),
-        election: storage_view.timelines.election.to::<u64>(),
-        era: storage_view.timelines.era.to::<u64>(),
-        slot: 12,
-    };
-
     // Since we get storage view at `block_hash`
     // then latest committed era is for the largest `useFromTimestamp`
-    let latest_era_with_committed_validators = timelines.era_from_ts(max(
+    let latest_era_with_committed_validators = storage_view.protocol_timelines().era_from_ts(max(
         storage_view
             .validationSettings
             .validators0
@@ -737,7 +729,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     // TODO: #5020 whether we need to setup validators here?
 
-    ethexe_common::setup_start_block_in_db(
+    ethexe_common::setup_block_in_db(
         db,
         block_hash,
         PreparedBlockData {
@@ -754,6 +746,10 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             last_committed_batch: latest_committed_batch,
             last_committed_announce: announce_hash,
         },
+    );
+
+    ethexe_common::setup_announce_in_db(
+        db,
         ComputedAnnounceData {
             announce,
             program_states,
@@ -762,7 +758,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             outcome: Default::default(),
             schedule: schedule.clone(),
         },
-        timelines,
     );
 
     log::info!(
