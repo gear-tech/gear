@@ -39,12 +39,6 @@ use tokio::{
 const PEER_BLOCKED_THRESHOLD: i8 = i8::MIN / 3;
 const PEER_FORGET_TIME: Duration = Duration::from_hours(1);
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::From)]
-pub(crate) enum ScoreChangeReason {
-    Decrease(ScoreDecreaseReason),
-    Increase,
-}
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum ScoreDecreaseReason {
     UnsupportedProtocol,
@@ -102,15 +96,6 @@ pub(crate) enum Event {
     PeerUnblocked {
         /// Peer we blocked
         peer_id: PeerId,
-    },
-    /// Peer score has been changed
-    ScoreChanged {
-        /// Peer whose score has been changed
-        peer_id: PeerId,
-        /// Reason why score is changed
-        reason: ScoreChangeReason,
-        /// Current peer score
-        score: i8,
     },
 }
 
@@ -225,6 +210,10 @@ impl Behaviour {
         self.handle.clone()
     }
 
+    fn get_score(&self, peer_id: PeerId) -> Option<i8> {
+        self.peers.get(&peer_id).map(|entry| entry.score)
+    }
+
     fn on_driver_tick(&mut self) {
         self.peers.retain(|&peer_id, entry| {
             // remove the peer score entry if it is not updated for a long time
@@ -234,18 +223,8 @@ impl Behaviour {
             }
 
             let was_blocked = entry.is_blocked();
-            let old_score = entry.score;
             entry.decay_score(self.config.decay);
             let now_blocked = entry.is_blocked();
-            let new_score = entry.score;
-
-            if old_score != new_score {
-                self.pending_events.push_back(Event::ScoreChanged {
-                    peer_id,
-                    reason: ScoreChangeReason::Increase,
-                    score: entry.score,
-                });
-            }
 
             if was_blocked && !now_blocked {
                 self.block_list.unblock_peer(peer_id);
@@ -263,12 +242,6 @@ impl Behaviour {
         let was_blocked = entry.is_blocked();
         entry.add_score(reason.to_i8(&self.config));
         let now_blocked = entry.is_blocked();
-
-        self.pending_events.push_back(Event::ScoreChanged {
-            peer_id,
-            reason: reason.into(),
-            score: entry.score,
-        });
 
         if !was_blocked && now_blocked {
             self.block_list.block_peer(peer_id);
@@ -393,6 +366,7 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
+    use futures::future;
     use libp2p::{Swarm, swarm::SwarmEvent};
     use libp2p_swarm_test::SwarmExt;
     use tokio::time;
@@ -423,39 +397,23 @@ mod tests {
         let handle = alice.behaviour_mut().handle();
         handle.excessive_data(chad_peer_id);
 
-        let event = alice.next_behaviour_event().await;
+        let event = future::poll_immediate(alice.next_behaviour_event()).await;
+        assert_eq!(event, None);
         assert_eq!(
-            event,
-            Event::ScoreChanged {
-                peer_id: chad_peer_id,
-                reason: ScoreDecreaseReason::ExcessiveData.into(),
-                score: EXCESSIVE_DATA,
-            }
+            alice.behaviour().get_score(chad_peer_id),
+            Some(EXCESSIVE_DATA)
         );
 
         handle.excessive_data(chad_peer_id);
 
-        let event = alice.next_behaviour_event().await;
+        let event = future::poll_immediate(alice.next_behaviour_event()).await;
+        assert_eq!(event, None);
         assert_eq!(
-            event,
-            Event::ScoreChanged {
-                peer_id: chad_peer_id,
-                reason: ScoreDecreaseReason::ExcessiveData.into(),
-                score: EXCESSIVE_DATA * 2,
-            }
+            alice.behaviour().get_score(chad_peer_id),
+            Some(2 * EXCESSIVE_DATA)
         );
 
         handle.excessive_data(chad_peer_id);
-
-        let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
-            Event::ScoreChanged {
-                peer_id: chad_peer_id,
-                reason: ScoreDecreaseReason::ExcessiveData.into(),
-                score: EXCESSIVE_DATA * 3,
-            }
-        );
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -464,6 +422,10 @@ mod tests {
                 peer_id: chad_peer_id,
                 last_reason: ScoreDecreaseReason::ExcessiveData
             }
+        );
+        assert_eq!(
+            alice.behaviour().get_score(chad_peer_id),
+            Some(3 * EXCESSIVE_DATA)
         );
 
         let event = alice.next_swarm_event().await;
@@ -484,19 +446,13 @@ mod tests {
         let event = alice.next_behaviour_event().await;
         assert_eq!(
             event,
-            Event::ScoreChanged {
-                peer_id: chad_peer_id,
-                reason: ScoreChangeReason::Increase,
-                score: EXCESSIVE_DATA * 3 + alice_config.decay,
-            }
-        );
-
-        let event = alice.next_behaviour_event().await;
-        assert_eq!(
-            event,
             Event::PeerUnblocked {
                 peer_id: chad_peer_id,
             }
+        );
+        assert_eq!(
+            alice.behaviour().get_score(chad_peer_id),
+            Some(EXCESSIVE_DATA * 3 + alice_config.decay)
         );
     }
 }
