@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import {Script} from "forge-std/Script.sol";
 import {IRouter} from "../../src/IRouter.sol";
 import {Router} from "../../src/Router.sol";
+import {Script} from "forge-std/Script.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 contract RouterScript is Script {
     function setUp() public {}

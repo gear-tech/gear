@@ -19,7 +19,7 @@
 //! Common db types and traits.
 
 use crate::{
-    Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
+    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
     Schedule, SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
@@ -34,6 +34,7 @@ use gear_core::{
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
+use gsigner::secp256k1::Signature;
 use parity_scale_codec::{Decode, Encode};
 
 /// Ethexe metadata associated with an on-chain block.
@@ -137,6 +138,9 @@ pub trait InjectedStorageRO {
 
     /// Returns the promise by its transaction hash.
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
+
+    ///
+    fn promise_signature(&self, hash: HashOf<InjectedTransaction>) -> Option<(Signature, Address)>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -144,6 +148,13 @@ pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
 
     fn set_promise(&self, promise: Promise);
+
+    fn set_promise_signature(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+        address: Address,
+        signature: Signature,
+    );
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]

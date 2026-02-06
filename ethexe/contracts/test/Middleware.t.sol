@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {IMiddleware} from "../src/IMiddleware.sol";
+import {Middleware} from "../src/Middleware.sol";
+import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
+import {Base} from "./Base.t.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Vm} from "forge-std/Vm.sol";
-
-import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
-import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {IVaultFactory} from "symbiotic-core/src/interfaces/IVaultFactory.sol";
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
-
-import {Middleware} from "../src/Middleware.sol";
-import {IMiddleware} from "../src/IMiddleware.sol";
-import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
-import {Base} from "./Base.t.sol";
+import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
+import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
 
 contract MiddlewareTest is Base {
     using MessageHashUtils for address;

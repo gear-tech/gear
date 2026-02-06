@@ -19,7 +19,7 @@
 use crate::{RpcEvent, errors};
 use dashmap::DashMap;
 use ethexe_common::{
-    HashOf, SignedMessage, Announce,
+    Announce, HashOf, SignedMessage,
     db::{AnnounceStorageRO, InjectedStorageRO},
     injected::{
         AddressedInjectedTransaction, CompactSignedPromise, InjectedTransaction,
@@ -56,6 +56,12 @@ pub trait Injected {
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
+
+    #[method(name = "getTransactionPromise")]
+    async fn get_transaction_promise(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> RpcResult<Option<SignedPromise>>;
 }
 
 type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
@@ -117,6 +123,28 @@ impl InjectedServer for InjectedApi {
 
         Ok(())
     }
+
+    async fn get_transaction_promise(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> RpcResult<Option<SignedPromise>> {
+        let Some(promise) = self.db.promise(hash) else {
+            tracing::trace!(?tx_hash, "promise not found for injected transaction");
+            return Ok(None);
+        };
+
+        let Some((signature, address)) = self.db.promise_signature(tx_hash) else {
+            return Ok(None);
+        };
+
+        match SignedMessage::try_from_parts(promise, signature, address) {
+            Ok(message) => Ok(Some(message)),
+            Err(err) => {
+                tracing::trace!("");
+                Ok(None)
+            }
+        }
+    }
 }
 
 impl InjectedApi {
@@ -135,7 +163,6 @@ impl InjectedApi {
             false => todo!("put hashes into pending and wait for announce computation"),
         }
     }
-    
 
     pub fn send_promise(&self, signed_hash: CompactSignedPromise) {
         let (tx_hash, address, signature) = signed_hash.into_parts();

@@ -7,6 +7,8 @@ import {Gear} from "./libraries/Gear.sol";
 /// @notice The Router interface provides basic co-processor functionalities, such as WASM submission, program creation, and result settlement, acting as an authority for acknowledged programs, driven by validator signature verification.
 /// @dev The Router serves as the primary entry point representing a co-processor instance. It emits two types of events: *informational* events, which are intended to notify external users of actions that have occurred within the co-processor, and *requesting* events, which are intended to request processing logic from validator nodes.
 interface IRouter {
+    // # Structs.
+
     struct StorageView {
         /// @notice Genesis block information for this router.
         Gear.GenesisBlockInfo genesisBlock;
@@ -52,6 +54,8 @@ interface IRouter {
         Gear.ProtocolData protocolData;
     }
 
+    // # Events.
+
     /// @notice Emitted when batch of commitments has been applied.
     /// @dev This is an *informational* event, signaling that all commitments in batch has been applied.
     /// @param hash Batch keccak256 hash, see Gear.batchCommitmentHash.
@@ -93,6 +97,66 @@ interface IRouter {
     /// @notice Emitted when the router's storage slot has been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
     event StorageSlotChanged(bytes32 slot);
+
+    // # Errors.
+
+    error InvalidTimestamp();
+
+    error InvalidElectionDuration();
+
+    error EraDurationTooShort();
+
+    error ValidationDelayTooBig();
+
+    error GenesisHashAlreadySet();
+
+    error GenesisHashNotFound();
+
+    error BlobNotFound();
+
+    error RouterGenesisHashNotInitialized();
+
+    error CodeAlreadyOnValidationOrValidated();
+
+    error PredecessorBlockNotFound();
+
+    error BatchTimestampNotInPast();
+
+    error InvalidPreviousCommittedBatchHash();
+
+    error BatchTimestampTooEarly();
+
+    error SignatureVerificationFailed();
+
+    error CodeNotValidated();
+
+    error TooManyChainCommitments();
+
+    error CodeValidationNotRequested();
+
+    error TooManyRewardsCommitments();
+
+    error RewardsCommitmentTimestampNotInPast();
+
+    error RewardsCommitmentPredatesGenesis();
+
+    error RewardsCommitmentEraNotPrevious();
+
+    error TooManyValidatorsCommitments();
+
+    error EmptyValidatorsList();
+
+    error CommitmentEraNotNext();
+
+    error ElectionNotStarted();
+
+    error ValidatorsAlreadyScheduled();
+
+    error UnknownProgram();
+
+    error InvalidFROSTAggregatedPublicKey();
+
+    error ZeroValueTransfer();
 
     // # Views.
     function genesisBlockHash() external view returns (bytes32);
