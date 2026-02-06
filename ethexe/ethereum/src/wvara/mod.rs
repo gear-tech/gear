@@ -26,9 +26,9 @@ use alloy::{
     rpc::types::TransactionReceipt,
 };
 use anyhow::Result;
-use ethexe_common::Address;
-use events::{ApprovalEventBuilder, TransferEventBuilder};
-use gprimitives::{H256, U256};
+use events::{AllEventsBuilder, ApprovalEventBuilder, TransferEventBuilder};
+use gprimitives::{ActorId, H256, U256};
+use gsigner::Address;
 
 pub mod events;
 
@@ -43,7 +43,7 @@ impl WVara {
     }
 
     pub fn address(&self) -> Address {
-        Address(*self.0.address().0)
+        (*self.0.address()).into()
     }
 
     pub fn query(&self) -> WVaraQuery {
@@ -53,7 +53,7 @@ impl WVara {
         ))
     }
 
-    pub async fn transfer(&self, to: Address, value: u128) -> Result<H256> {
+    pub async fn transfer(&self, to: ActorId, value: u128) -> Result<H256> {
         self.transfer_with_receipt(to, value)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
@@ -61,7 +61,7 @@ impl WVara {
 
     pub async fn transfer_with_receipt(
         &self,
-        to: Address,
+        to: ActorId,
         value: u128,
     ) -> Result<TransactionReceipt> {
         let builder = self.0.transfer(to.into(), AlloyU256::from(value));
@@ -73,7 +73,7 @@ impl WVara {
         Ok(receipt)
     }
 
-    pub async fn transfer_from(&self, from: Address, to: Address, value: u128) -> Result<H256> {
+    pub async fn transfer_from(&self, from: ActorId, to: ActorId, value: u128) -> Result<H256> {
         self.transfer_from_with_receipt(from, to, value)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
@@ -81,8 +81,8 @@ impl WVara {
 
     pub async fn transfer_from_with_receipt(
         &self,
-        from: Address,
-        to: Address,
+        from: ActorId,
+        to: ActorId,
         value: u128,
     ) -> Result<TransactionReceipt> {
         let builder = self
@@ -96,7 +96,7 @@ impl WVara {
         Ok(receipt)
     }
 
-    pub async fn approve(&self, spender: Address, value: u128) -> Result<H256> {
+    pub async fn approve(&self, spender: ActorId, value: u128) -> Result<H256> {
         self.approve_with_receipt(spender, value)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
@@ -104,25 +104,25 @@ impl WVara {
 
     pub async fn approve_with_receipt(
         &self,
-        spender: Address,
+        spender: ActorId,
         value: u128,
     ) -> Result<TransactionReceipt> {
         self._approve_with_receipt(spender, U256::from(value)).await
     }
 
-    pub async fn approve_all(&self, spender: Address) -> Result<H256> {
+    pub async fn approve_all(&self, spender: ActorId) -> Result<H256> {
         self.approve_all_with_receipt(spender)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
     }
 
-    pub async fn approve_all_with_receipt(&self, spender: Address) -> Result<TransactionReceipt> {
+    pub async fn approve_all_with_receipt(&self, spender: ActorId) -> Result<TransactionReceipt> {
         self._approve_with_receipt(spender, U256::MAX).await
     }
 
     async fn _approve_with_receipt(
         &self,
-        spender: Address,
+        spender: ActorId,
         value: U256,
     ) -> Result<TransactionReceipt> {
         let builder = self
@@ -136,13 +136,13 @@ impl WVara {
         Ok(receipt)
     }
 
-    pub async fn mint(&self, to: Address, amount: u128) -> Result<H256> {
+    pub async fn mint(&self, to: ActorId, amount: u128) -> Result<H256> {
         self.mint_with_receipt(to, amount)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
     }
 
-    pub async fn mint_with_receipt(&self, to: Address, amount: u128) -> Result<TransactionReceipt> {
+    pub async fn mint_with_receipt(&self, to: ActorId, amount: u128) -> Result<TransactionReceipt> {
         let builder = self.0.mint(to.into(), AlloyU256::from(amount));
         let receipt = builder
             .send()
@@ -200,7 +200,7 @@ impl WVaraQuery {
             .map_err(Into::into)
     }
 
-    pub async fn balance_of(&self, address: Address) -> Result<u128> {
+    pub async fn balance_of(&self, address: ActorId) -> Result<u128> {
         self.0
             .balanceOf(address.into())
             .call()
@@ -209,7 +209,7 @@ impl WVaraQuery {
             .map_err(Into::into)
     }
 
-    pub async fn allowance(&self, owner: Address, spender: Address) -> Result<U256> {
+    pub async fn allowance(&self, owner: ActorId, spender: ActorId) -> Result<U256> {
         self.0
             .allowance(owner.into(), spender.into())
             .call()
@@ -224,6 +224,10 @@ pub struct WVaraEvents<'a> {
 }
 
 impl<'a> WVaraEvents<'a> {
+    pub fn all(&self) -> AllEventsBuilder<'a> {
+        AllEventsBuilder::new(self.query)
+    }
+
     pub fn transfer(&self) -> TransferEventBuilder<'a> {
         TransferEventBuilder::new(self.query)
     }

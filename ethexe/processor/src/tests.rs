@@ -21,7 +21,11 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData,
     db::*,
-    events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
+    events::{
+        BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
+        mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
+        router::ProgramCreatedEvent,
+    },
     mock::*,
 };
 use ethexe_runtime_common::{RUNTIME_ID, state::MessageQueue};
@@ -153,22 +157,27 @@ async fn ping_init() {
     let actor_id = ActorId::from(42);
 
     let create_program_events = vec![
-        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated { actor_id, code_id }),
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        })),
         BlockRequestEvent::Mirror {
             actor_id,
-            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
-            },
+            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 10_000_000_000,
+                },
+            ),
         },
         BlockRequestEvent::Mirror {
             actor_id,
-            event: MirrorRequestEvent::MessageQueueingRequested {
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: H256::random().0.into(),
                 source: H256::random().0.into(),
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         },
     ];
 
@@ -195,13 +204,13 @@ async fn ping_init() {
 
     let send_message_event = BlockRequestEvent::Mirror {
         actor_id,
-        event: MirrorRequestEvent::MessageQueueingRequested {
+        event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
             id: H256::random().0.into(),
             source: H256::random().0.into(),
             payload: b"PING".to_vec(),
             value: 0,
             call_reply: false,
-        },
+        }),
     };
 
     // Process for block3
@@ -275,41 +284,46 @@ async fn ping_pong() {
     let mut handler = setup_handler(processor.db.clone(), block1);
 
     handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
         .expect("failed to create new program");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 150_000_000_000,
-            },
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 150_000_000_000,
+                },
+            ),
         )
         .expect("failed to top up balance");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: MessageId::from(1),
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: MessageId::from(2),
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -351,60 +365,64 @@ async fn async_and_ping() {
     let async_id = ActorId::from(0x20000000);
 
     handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated {
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
             actor_id: ping_id,
             code_id: ping_code_id,
-        })
+        }))
         .expect("failed to create new program");
 
     handler
         .handle_mirror_event(
             ping_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 350_000_000_000,
-            },
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
         )
         .expect("failed to top up balance");
 
     handler
         .handle_mirror_event(
             ping_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: get_next_message_id(),
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
     handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated {
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
             actor_id: async_id,
             code_id: upload_code_id,
-        })
+        }))
         .expect("failed to create new program");
 
     handler
         .handle_mirror_event(
             async_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 1_500_000_000_000,
-            },
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 1_500_000_000_000,
+                },
+            ),
         )
         .expect("failed to top up balance");
 
     handler
         .handle_mirror_event(
             async_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: get_next_message_id(),
                 source: user_id,
                 payload: ping_id.encode(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -413,13 +431,13 @@ async fn async_and_ping() {
     handler
         .handle_mirror_event(
             async_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: wait_for_reply_to,
                 source: user_id,
                 payload: demo_async::Command::Common.encode(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -487,31 +505,33 @@ async fn many_waits() {
         let program_id = ActorId::from(i);
 
         handler
-            .handle_router_event(RouterRequestEvent::ProgramCreated {
+            .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
                 actor_id: program_id,
                 code_id,
-            })
+            }))
             .expect("failed to create new program");
 
         handler
             .handle_mirror_event(
                 program_id,
-                MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                    value: 150_000_000_000,
-                },
+                MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                    ExecutableBalanceTopUpRequestedEvent {
+                        value: 150_000_000_000,
+                    },
+                ),
             )
             .expect("failed to top up balance");
 
         handler
             .handle_mirror_event(
                 program_id,
-                MirrorRequestEvent::MessageQueueingRequested {
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                     id: H256::random().0.into(),
                     source: H256::random().0.into(),
                     payload: Default::default(),
                     value: 0,
                     call_reply: false,
-                },
+                }),
             )
             .expect("failed to send message");
     }
@@ -532,13 +552,13 @@ async fn many_waits() {
         handler
             .handle_mirror_event(
                 pid,
-                MirrorRequestEvent::MessageQueueingRequested {
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                     id: H256::random().0.into(),
                     source: H256::random().0.into(),
                     payload: Default::default(),
                     value: 0,
                     call_reply: false,
-                },
+                }),
             )
             .expect("failed to send message");
     }
@@ -612,46 +632,50 @@ async fn overlay_execution() {
 
     let events = vec![
         // Create ping program, top up balance and send init message.
-        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
             actor_id: ping_id,
             code_id: ping_code_id,
-        }),
+        })),
         BlockRequestEvent::Mirror {
             actor_id: ping_id,
-            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 400_000_000_000,
-            },
+            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 400_000_000_000,
+                },
+            ),
         },
         BlockRequestEvent::Mirror {
             actor_id: ping_id,
-            event: MirrorRequestEvent::MessageQueueingRequested {
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: get_next_message_id(),
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         },
         // Create async program, top up balance and send init message.
-        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
             actor_id: async_id,
             code_id: async_code_id,
-        }),
+        })),
         BlockRequestEvent::Mirror {
             actor_id: async_id,
-            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 1_500_000_000_000,
-            },
+            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 1_500_000_000_000,
+                },
+            ),
         },
         BlockRequestEvent::Mirror {
             actor_id: async_id,
-            event: MirrorRequestEvent::MessageQueueingRequested {
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: get_next_message_id(),
                 source: user_id,
                 payload: ping_id.encode(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         },
     ];
 
@@ -702,13 +726,13 @@ async fn overlay_execution() {
     handler
         .handle_mirror_event(
             ping_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: ping_mid1,
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -716,13 +740,13 @@ async fn overlay_execution() {
     handler
         .handle_mirror_event(
             ping_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: ping_mid2,
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -730,13 +754,13 @@ async fn overlay_execution() {
     handler
         .handle_mirror_event(
             async_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: async_mid1,
                 source: user_id,
                 payload: demo_async::Command::Common.encode().encode(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -744,13 +768,13 @@ async fn overlay_execution() {
     handler
         .handle_mirror_event(
             async_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: async_mid2,
                 source: user_id,
                 payload: demo_async::Command::Common.encode().encode(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -758,13 +782,13 @@ async fn overlay_execution() {
     handler
         .handle_mirror_event(
             async_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: async_mid3,
                 source: user_id,
                 payload: demo_async::Command::Common.encode().encode(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -835,28 +859,33 @@ async fn injected_ping_pong() {
     let mut handler = setup_handler(processor.db.clone(), block1);
 
     handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
         .expect("failed to create new program");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 200_000_000_000,
-            },
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 200_000_000_000,
+                },
+            ),
         )
         .expect("failed to top up balance");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: MessageId::from(1),
                 source: user_1,
                 payload: b"INIT".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -868,13 +897,13 @@ async fn injected_ping_pong() {
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: MessageId::from(2),
                 source: user_1,
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -920,28 +949,33 @@ async fn injected_prioritized_over_canonical() {
     let mut handler = setup_handler(processor.db.clone(), block1);
 
     handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
         .expect("failed to create new program");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 500_000_000_000_000,
-            },
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 500_000_000_000_000,
+                },
+            ),
         )
         .expect("failed to top up balance");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: H256::random().0.into(),
                 source: canonical_user,
                 payload: b"INIT".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -955,13 +989,13 @@ async fn injected_prioritized_over_canonical() {
         handler
             .handle_mirror_event(
                 actor_id,
-                MirrorRequestEvent::MessageQueueingRequested {
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                     id: H256::random().0.into(),
                     source: canonical_user,
                     payload: b"PING".to_vec(),
                     value: 0,
                     call_reply: false,
-                },
+                }),
             )
             .expect("failed to send message");
     }
@@ -1002,15 +1036,20 @@ async fn executable_balance_charged() {
     let actor_id = ActorId::from(0x10000);
 
     handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
         .expect("failed to create new program");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 80_000_000_000,
-            },
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 80_000_000_000,
+                },
+            ),
         )
         .expect("failed to top up balance");
 
@@ -1020,13 +1059,13 @@ async fn executable_balance_charged() {
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: MessageId::from(1),
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 
@@ -1084,15 +1123,20 @@ async fn executable_balance_injected_panic_not_charged() {
     let mut handler = setup_handler(processor.db.clone(), block1);
 
     handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
         .expect("failed to create new program");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: INITIAL_EXECUTABLE_BALANCE,
-            },
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: INITIAL_EXECUTABLE_BALANCE,
+                },
+            ),
         )
         .expect("failed to top up balance");
 
@@ -1103,13 +1147,13 @@ async fn executable_balance_injected_panic_not_charged() {
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: H256::random().0.into(),
                 source: user_id,
                 payload: ActorId::zero().encode(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .unwrap();
     handler.transitions = processor
@@ -1144,13 +1188,13 @@ async fn executable_balance_injected_panic_not_charged() {
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: MessageId::from(3),
                 source: user_id,
                 payload: vec![],
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
     let transitions = processor
@@ -1188,15 +1232,20 @@ async fn insufficient_executable_balance_still_charged() {
     let actor_id = ActorId::from(0x10000);
 
     handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
         .expect("failed to create new program");
 
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: INSUFFICIENT_EXECUTABLE_BALANCE,
-            },
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: INSUFFICIENT_EXECUTABLE_BALANCE,
+                },
+            ),
         )
         .expect("failed to top up balance");
 
@@ -1204,13 +1253,13 @@ async fn insufficient_executable_balance_still_charged() {
     handler
         .handle_mirror_event(
             actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id: MessageId::from(1),
                 source: user_id,
                 payload: b"PING".to_vec(),
                 value: 0,
                 call_reply: false,
-            },
+            }),
         )
         .expect("failed to send message");
 

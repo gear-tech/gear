@@ -22,18 +22,19 @@ use crate::{
         IRouter,
         utils::{uint48_to_u64, uint256_to_u256},
     },
+    router::events::AllEventsBuilder,
     wvara::WVara,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     eips::BlockId,
-    primitives::{Address, Bytes},
+    primitives::{Address as AlloyAddress, Bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::TransactionReceipt,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address as LocalAddress, Digest, ValidatorsVec,
+    Address, Digest, ValidatorsVec,
     ecdsa::ContractSignature,
     events::router::CodeGotValidatedEvent,
     gear::{
@@ -60,7 +61,7 @@ type QueryInstance = IRouter::IRouterInstance<RootProvider>;
 #[derive(Clone)]
 pub struct Router {
     instance: Instance,
-    wvara_address: Address,
+    wvara_address: AlloyAddress,
 }
 
 impl Router {
@@ -69,15 +70,19 @@ impl Router {
     /// Huge gas limit is necessary so that the transaction is more likely to be picked up
     const HUGE_GAS_LIMIT: u64 = 10_000_000;
 
-    pub(crate) fn new(address: Address, wvara_address: Address, provider: AlloyProvider) -> Self {
+    pub(crate) fn new(
+        address: AlloyAddress,
+        wvara_address: AlloyAddress,
+        provider: AlloyProvider,
+    ) -> Self {
         Self {
             instance: Instance::new(address, provider),
             wvara_address,
         }
     }
 
-    pub fn address(&self) -> LocalAddress {
-        LocalAddress(*self.instance.address().0)
+    pub fn address(&self) -> Address {
+        Address(*self.instance.address().0)
     }
 
     pub fn query(&self) -> RouterQuery {
@@ -93,17 +98,14 @@ impl Router {
         WVara::new(self.wvara_address, self.instance.provider().clone())
     }
 
-    pub async fn set_mirror(&self, new_mirror: LocalAddress) -> Result<H256> {
+    pub async fn set_mirror(&self, new_mirror: Address) -> Result<H256> {
         self.set_mirror_with_receipt(new_mirror)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
     }
 
-    pub async fn set_mirror_with_receipt(
-        &self,
-        new_mirror: LocalAddress,
-    ) -> Result<TransactionReceipt> {
-        let new_mirror = Address::new(new_mirror.0);
+    pub async fn set_mirror_with_receipt(&self, new_mirror: Address) -> Result<TransactionReceipt> {
+        let new_mirror = AlloyAddress::new(new_mirror.0);
         let builder = self.instance.setMirror(new_mirror);
         let receipt = builder
             .send()
@@ -213,8 +215,8 @@ impl Router {
             salt.to_fixed_bytes().into(),
             override_initializer
                 .map(|initializer| {
-                    let initializer = LocalAddress::try_from(initializer).expect("infallible");
-                    Address::new(initializer.0)
+                    let initializer = Address::try_from(initializer).expect("infallible");
+                    AlloyAddress::new(initializer.0)
                 })
                 .unwrap_or_default(),
         );
@@ -263,16 +265,16 @@ impl Router {
         override_initializer: Option<ActorId>,
         abi_interface: ActorId,
     ) -> Result<(TransactionReceipt, ActorId)> {
-        let abi_interface = LocalAddress::try_from(abi_interface).expect("infallible");
-        let abi_interface = Address::new(abi_interface.0);
+        let abi_interface = Address::try_from(abi_interface).expect("infallible");
+        let abi_interface = AlloyAddress::new(abi_interface.0);
 
         let builder = self.instance.createProgramWithAbiInterface(
             code_id.into_bytes().into(),
             salt.to_fixed_bytes().into(),
             override_initializer
                 .map(|initializer| {
-                    let initializer = LocalAddress::try_from(initializer).expect("infallible");
-                    Address::new(initializer.0)
+                    let initializer = Address::try_from(initializer).expect("infallible");
+                    AlloyAddress::new(initializer.0)
                 })
                 .unwrap_or_default(),
             abi_interface,
@@ -343,15 +345,15 @@ pub struct RouterQuery {
 }
 
 impl RouterQuery {
-    pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
+    pub async fn new(rpc_url: &str, router_address: Address) -> Result<Self> {
         let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self {
-            instance: QueryInstance::new(Address::new(router_address.0), provider),
+            instance: QueryInstance::new(AlloyAddress::new(router_address.0), provider),
         })
     }
 
-    pub fn from_provider(router_address: Address, provider: RootProvider) -> Self {
+    pub fn from_provider(router_address: AlloyAddress, provider: RootProvider) -> Self {
         Self {
             instance: QueryInstance::new(router_address, provider),
         }
@@ -412,7 +414,7 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn mirror_impl(&self) -> Result<LocalAddress> {
+    pub async fn mirror_impl(&self) -> Result<Address> {
         self.instance
             .mirrorImpl()
             .call()
@@ -421,7 +423,7 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn wvara_address(&self) -> Result<LocalAddress> {
+    pub async fn wvara_address(&self) -> Result<Address> {
         self.instance
             .wrappedVara()
             .call()
@@ -430,7 +432,7 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn middleware_address(&self) -> Result<LocalAddress> {
+    pub async fn middleware_address(&self) -> Result<Address> {
         self.instance
             .middleware()
             .call()
@@ -462,9 +464,9 @@ impl RouterQuery {
 
     pub async fn are_validators(
         &self,
-        validators: impl IntoIterator<Item = LocalAddress>,
+        validators: impl IntoIterator<Item = Address>,
     ) -> Result<bool> {
-        let addresses: Vec<Address> = validators.into_iter().map(|addr| addr.into()).collect();
+        let addresses: Vec<AlloyAddress> = validators.into_iter().map(|addr| addr.into()).collect();
         self.instance
             .areValidators(addresses)
             .call()
@@ -472,8 +474,8 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn is_validator(&self, validator: LocalAddress) -> Result<bool> {
-        let address: Address = validator.into();
+    pub async fn is_validator(&self, validator: Address) -> Result<bool> {
+        let address: AlloyAddress = validator.into();
         self.instance
             .isValidator(address)
             .call()
@@ -501,7 +503,7 @@ impl RouterQuery {
             .call()
             .block(id.into_block_id())
             .await
-            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map(|res| res.into_iter().map(|v| Address(v.into())).collect())
             .map_err(Into::<anyhow::Error>::into)?;
         validators.try_into().map_err(Into::into)
     }
@@ -579,8 +581,8 @@ impl RouterQuery {
     }
 
     pub async fn program_code_id(&self, program_id: ActorId) -> Result<Option<CodeId>> {
-        let program_id = LocalAddress::try_from(program_id).expect("infallible");
-        let program_id = Address::new(program_id.0);
+        let program_id = Address::try_from(program_id).expect("infallible");
+        let program_id = AlloyAddress::new(program_id.0);
         let code_id = self.instance.programCodeId(program_id).call().await?;
         let code_id = Some(CodeId::new(code_id.0)).filter(|&code_id| code_id != CodeId::zero());
         Ok(code_id)
@@ -595,8 +597,8 @@ impl RouterQuery {
                 program_ids
                     .into_iter()
                     .map(|p| {
-                        let program_id = LocalAddress::try_from(p).expect("infallible");
-                        Address::new(program_id.0)
+                        let program_id = Address::try_from(p).expect("infallible");
+                        AlloyAddress::new(program_id.0)
                     })
                     .collect(),
             )
@@ -616,8 +618,8 @@ impl RouterQuery {
                 program_ids
                     .into_iter()
                     .map(|p| {
-                        let program_id = LocalAddress::try_from(p).expect("infallible");
-                        Address::new(program_id.0)
+                        let program_id = Address::try_from(p).expect("infallible");
+                        AlloyAddress::new(program_id.0)
                     })
                     .collect(),
             )
@@ -675,6 +677,10 @@ pub struct RouterEvents<'a> {
 }
 
 impl<'a> RouterEvents<'a> {
+    pub fn all(&self) -> AllEventsBuilder<'a> {
+        AllEventsBuilder::new(self.query)
+    }
+
     pub fn batch_committed(&self) -> BatchCommittedEventBuilder<'a> {
         BatchCommittedEventBuilder::new(self.query)
     }

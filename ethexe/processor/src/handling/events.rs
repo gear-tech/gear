@@ -21,7 +21,15 @@ use crate::{ProcessorError, Result};
 use ethexe_common::{
     ScheduledTask,
     db::CodesStorageRO,
-    events::{MirrorRequestEvent, RouterRequestEvent},
+    events::{
+        MirrorRequestEvent, RouterRequestEvent,
+        mirror::{
+            ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent,
+            OwnedBalanceTopUpRequestedEvent, ReplyQueueingRequestedEvent,
+            ValueClaimingRequestedEvent,
+        },
+        router::ProgramCreatedEvent,
+    },
     gear::{MessageType, ValueClaim},
     injected::InjectedTransaction,
 };
@@ -62,7 +70,7 @@ impl ProcessingHandler {
 
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
-            RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
+            RouterRequestEvent::ProgramCreated(ProgramCreatedEvent { actor_id, code_id }) => {
                 if !self.db.code_valid(code_id).unwrap_or(false) {
                     return Err(ProcessorError::MissingCode { actor_id, code_id });
                 }
@@ -95,7 +103,9 @@ impl ProcessingHandler {
         }
 
         match event {
-            MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
+            MirrorRequestEvent::OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequestedEvent {
+                value,
+            }) => {
                 self.update_state(actor_id, |state, _, _| {
                     state.balance = state
                         .balance
@@ -103,7 +113,9 @@ impl ProcessingHandler {
                         .expect("Overflow in state.balance += value");
                 });
             }
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent { value },
+            ) => {
                 self.update_state(actor_id, |state, _, _| {
                     state.executable_balance = state
                         .executable_balance
@@ -111,13 +123,13 @@ impl ProcessingHandler {
                         .expect("Overflow in state.executable_balance += value");
                 });
             }
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id,
                 source,
                 payload,
                 value,
                 call_reply,
-            } => {
+            }) => {
                 self.update_state(actor_id, |state, storage, _| -> Result<()> {
                     let is_init = state.requires_init_message();
 
@@ -139,12 +151,12 @@ impl ProcessingHandler {
                     Ok(())
                 })?;
             }
-            MirrorRequestEvent::ReplyQueueingRequested {
+            MirrorRequestEvent::ReplyQueueingRequested(ReplyQueueingRequestedEvent {
                 replied_to,
                 source,
                 payload,
                 value,
-            } => {
+            }) => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
                     let Some(Expiring {
                         value:
@@ -191,7 +203,10 @@ impl ProcessingHandler {
                     Ok(())
                 })?;
             }
-            MirrorRequestEvent::ValueClaimingRequested { claimed_id, source } => {
+            MirrorRequestEvent::ValueClaimingRequested(ValueClaimingRequestedEvent {
+                claimed_id,
+                source,
+            }) => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
                     let Some(Expiring {
                         value:
