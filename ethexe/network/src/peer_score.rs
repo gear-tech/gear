@@ -36,6 +36,7 @@ use tokio::{
     time::{Instant, Interval},
 };
 
+const PEER_BLOCKED_THRESHOLD: i8 = i8::MIN / 3;
 const PEER_FORGET_TIME: Duration = Duration::from_hours(1);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::From)]
@@ -52,7 +53,7 @@ pub(crate) enum ScoreDecreaseReason {
 }
 
 impl ScoreDecreaseReason {
-    fn to_u8(self, config: &Config) -> u8 {
+    fn to_i8(self, config: &Config) -> i8 {
         match self {
             ScoreDecreaseReason::UnsupportedProtocol => config.unsupported_protocol,
             ScoreDecreaseReason::ExcessiveData => config.excessive_data,
@@ -109,7 +110,7 @@ pub(crate) enum Event {
         /// Reason why score is changed
         reason: ScoreChangeReason,
         /// Current peer score
-        score: u8,
+        score: i8,
     },
 }
 
@@ -118,20 +119,20 @@ pub(crate) enum Event {
 /// All values represented by number that will be subtracted from peer score.
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
-    unsupported_protocol: u8,
-    excessive_data: u8,
-    invalid_data: u8,
-    healing_increment: u8,
+    unsupported_protocol: i8,
+    excessive_data: i8,
+    invalid_data: i8,
+    decay: i8,
     driver_time: Duration,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            unsupported_protocol: u8::MAX,
-            excessive_data: u8::MAX / 5,
-            invalid_data: u8::MAX / 3,
-            healing_increment: u8::MAX / 17,
+            unsupported_protocol: i8::MIN, // TODO: consider to remove
+            excessive_data: i8::MIN / 5,
+            invalid_data: i8::MIN / 3,
+            decay: i8::MAX / 17,
             driver_time: Duration::from_secs(1),
         }
     }
@@ -140,20 +141,57 @@ impl Default for Config {
 #[cfg(test)] // used only in tests yet
 impl Config {
     #[allow(dead_code)] // not used anywhere yet
-    pub(crate) fn with_unsupported_protocol(mut self, value: u8) -> Self {
+    pub(crate) fn with_unsupported_protocol(mut self, value: i8) -> Self {
         self.unsupported_protocol = value;
         self
     }
 
-    pub(crate) fn with_excessive_data(mut self, value: u8) -> Self {
+    pub(crate) fn with_excessive_data(mut self, value: i8) -> Self {
         self.excessive_data = value;
         self
     }
 }
 
-enum ScoreEntry {
-    Normal { score: u8 },
-    Banned { at: Instant },
+struct ScoreEntry {
+    score: i8,
+    updated_at: Instant,
+}
+
+impl Default for ScoreEntry {
+    fn default() -> Self {
+        Self {
+            score: 0,
+            updated_at: Instant::now(),
+        }
+    }
+}
+
+impl ScoreEntry {
+    fn is_expired(&self) -> bool {
+        self.score == 0 && self.updated_at + PEER_FORGET_TIME <= Instant::now()
+    }
+
+    fn is_blocked(&self) -> bool {
+        self.score <= PEER_BLOCKED_THRESHOLD
+    }
+
+    fn add_score(&mut self, score: i8) {
+        self.updated_at = Instant::now();
+        self.score = self.score.saturating_add(score);
+    }
+
+    // NOTE: we don't change the `updated_at` field because we assume decay happens on its own
+    fn decay_score(&mut self, decay: i8) {
+        // must be always positive to change peer score toward to 0
+        debug_assert!(decay.is_positive());
+
+        // we always decay to 0, so in case of overflow/underflow, we clamp the score to 0
+        self.score = if self.score.is_positive() {
+            self.score.saturating_add(-decay).clamp(0, i8::MAX)
+        } else {
+            self.score.saturating_add(decay).clamp(i8::MIN, 0)
+        };
+    }
 }
 
 type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedPeers>;
@@ -188,37 +226,31 @@ impl Behaviour {
     }
 
     fn on_driver_tick(&mut self) {
-        let now = Instant::now();
-
         self.peers.retain(|&peer_id, entry| {
-            let score = match entry {
-                ScoreEntry::Normal { score } => score,
-                ScoreEntry::Banned { at } => {
-                    if *at + PEER_FORGET_TIME <= now {
-                        return false;
-                    }
+            // remove the peer score entry if it is not updated for a long time
+            if entry.is_expired() {
+                self.block_list.unblock_peer(peer_id);
+                return false;
+            }
 
-                    *entry = ScoreEntry::Normal { score: u8::MIN };
-                    let ScoreEntry::Normal { score } = entry else {
-                        unreachable!()
-                    };
+            let was_blocked = entry.is_blocked();
+            let old_score = entry.score;
+            entry.decay_score(self.config.decay);
+            let now_blocked = entry.is_blocked();
+            let new_score = entry.score;
 
-                    self.block_list.unblock_peer(peer_id);
-                    self.pending_events
-                        .push_back(Event::PeerUnblocked { peer_id });
-
-                    score
-                }
-            };
-
-            if let Some(new_score) = score.checked_add(self.config.healing_increment) {
-                *score = new_score;
-
+            if old_score != new_score {
                 self.pending_events.push_back(Event::ScoreChanged {
                     peer_id,
                     reason: ScoreChangeReason::Increase,
-                    score: *score,
+                    score: entry.score,
                 });
+            }
+
+            if was_blocked && !now_blocked {
+                self.block_list.unblock_peer(peer_id);
+                self.pending_events
+                    .push_back(Event::PeerUnblocked { peer_id });
             }
 
             true
@@ -226,34 +258,24 @@ impl Behaviour {
     }
 
     fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) {
-        let entry = self
-            .peers
-            .entry(peer_id)
-            .or_insert(ScoreEntry::Normal { score: u8::MAX });
+        let entry = self.peers.entry(peer_id).or_default();
 
-        match entry {
-            ScoreEntry::Normal { score: peer_score } => {
-                *peer_score = peer_score.saturating_sub(reason.to_u8(&self.config));
+        let was_blocked = entry.is_blocked();
+        entry.add_score(reason.to_i8(&self.config));
+        let now_blocked = entry.is_blocked();
 
-                self.pending_events.push_back(Event::ScoreChanged {
-                    peer_id,
-                    reason: reason.into(),
-                    score: *peer_score,
-                });
+        self.pending_events.push_back(Event::ScoreChanged {
+            peer_id,
+            reason: reason.into(),
+            score: entry.score,
+        });
 
-                if *peer_score == u8::MIN {
-                    *entry = ScoreEntry::Banned { at: Instant::now() };
-
-                    self.block_list.block_peer(peer_id);
-                    self.pending_events.push_back(Event::PeerBlocked {
-                        peer_id,
-                        last_reason: reason,
-                    });
-                }
-            }
-            ScoreEntry::Banned { at: _ } => {
-                // nothing to decrease, peer is already banned
-            }
+        if !was_blocked && now_blocked {
+            self.block_list.block_peer(peer_id);
+            self.pending_events.push_back(Event::PeerBlocked {
+                peer_id,
+                last_reason: reason,
+            });
         }
     }
 }
@@ -370,6 +392,7 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::tests::init_logger;
     use libp2p::{Swarm, swarm::SwarmEvent};
     use libp2p_swarm_test::SwarmExt;
     use tokio::time;
@@ -384,11 +407,13 @@ mod tests {
         new_swarm_with_config(Config::default()).await
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn peer_blocked() {
-        const EXCESSIVE_DATA_ABS_DIFF: u8 = u8::MAX / 3;
+    #[tokio::test]
+    async fn smoke() {
+        const EXCESSIVE_DATA: i8 = PEER_BLOCKED_THRESHOLD / 3 - 1;
 
-        let alice_config = Config::default().with_excessive_data(EXCESSIVE_DATA_ABS_DIFF);
+        init_logger();
+
+        let alice_config = Config::default().with_excessive_data(EXCESSIVE_DATA);
         let mut alice = new_swarm_with_config(alice_config.clone()).await;
         let mut chad = new_swarm().await;
         let chad_peer_id = *chad.local_peer_id();
@@ -404,7 +429,7 @@ mod tests {
             Event::ScoreChanged {
                 peer_id: chad_peer_id,
                 reason: ScoreDecreaseReason::ExcessiveData.into(),
-                score: u8::MAX - EXCESSIVE_DATA_ABS_DIFF,
+                score: EXCESSIVE_DATA,
             }
         );
 
@@ -416,7 +441,7 @@ mod tests {
             Event::ScoreChanged {
                 peer_id: chad_peer_id,
                 reason: ScoreDecreaseReason::ExcessiveData.into(),
-                score: u8::MAX - 2 * EXCESSIVE_DATA_ABS_DIFF,
+                score: EXCESSIVE_DATA * 2,
             }
         );
 
@@ -428,7 +453,7 @@ mod tests {
             Event::ScoreChanged {
                 peer_id: chad_peer_id,
                 reason: ScoreDecreaseReason::ExcessiveData.into(),
-                score: 0,
+                score: EXCESSIVE_DATA * 3,
             }
         );
 
@@ -454,7 +479,17 @@ mod tests {
             "{event:?}"
         );
 
-        time::advance(alice_config.driver_time).await;
+        time::sleep(alice_config.driver_time).await;
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
+            Event::ScoreChanged {
+                peer_id: chad_peer_id,
+                reason: ScoreChangeReason::Increase,
+                score: EXCESSIVE_DATA * 3 + alice_config.decay,
+            }
+        );
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
@@ -463,19 +498,5 @@ mod tests {
                 peer_id: chad_peer_id,
             }
         );
-
-        for i in 0..u8::MAX / alice_config.healing_increment {
-            let event = alice.next_behaviour_event().await;
-            assert_eq!(
-                event,
-                Event::ScoreChanged {
-                    peer_id: chad_peer_id,
-                    reason: ScoreChangeReason::Increase,
-                    score: alice_config.healing_increment * (i + 1)
-                }
-            );
-
-            time::advance(alice_config.driver_time).await;
-        }
     }
 }
