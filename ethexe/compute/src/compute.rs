@@ -21,7 +21,7 @@ use ethexe_common::{
     Announce, ComputedAnnounce, HashOf, SimpleBlockData,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW,
-        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        InjectedStorageRW, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
 };
@@ -200,6 +200,11 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             data.computed_announce_hash = announce_hash;
         })
         .ok_or(ComputeError::LatestDataNotFound)?;
+
+        // TODO: remove in this PR ComputedAnnounce struct.
+        promises.clone().into_iter().for_each(|promise| {
+            db.set_promise(promise);
+        });
 
         Ok(ComputedAnnounce {
             announce_hash,

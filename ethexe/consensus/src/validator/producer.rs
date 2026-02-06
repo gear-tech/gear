@@ -24,11 +24,14 @@ use crate::{
     announces::{self, DBAnnouncesExt},
     validator::DefaultProcessing,
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{ Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, network::ValidatorMessage,
+    Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec,
+    db::BlockMetaStorageRO,
+    gear::BatchCommitment,
+    injected::{CompactSignedPromise, PromisesNetworkBundle},
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -82,17 +85,22 @@ impl StateHandler for Producer {
                 if *expected == computed_data.announce_hash =>
             {
                 if !computed_data.promises.is_empty() {
-                    let signed_promises = computed_data
+                    let promises = computed_data
                         .promises
                         .into_iter()
                         .map(|promise| {
-                            self.ctx
-                                .sign_message(promise)
-                                .context("producer: failed to sign promise")
+                            CompactSignedPromise::create(
+                                &self.ctx.core.signer,
+                                self.ctx.core.pub_key,
+                                promise,
+                            )
                         })
                         .collect::<Result<_, _>>()?;
-
-                    self.ctx.output(ConsensusEvent::Promises(signed_promises));
+                    let bundle = PromisesNetworkBundle {
+                        announce: computed_data.announce_hash,
+                        promises,
+                    };
+                    self.ctx.output(ConsensusEvent::Promises(bundle));
                 }
 
                 // Aggregate commitment for the block and use `announce_hash` as head for chain commitment.

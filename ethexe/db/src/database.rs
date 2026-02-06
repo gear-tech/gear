@@ -33,7 +33,7 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
 
 use ethexe_runtime_common::state::{
@@ -76,7 +76,9 @@ enum Key {
     Timelines = 15,
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    LatestEraValidatorsCommitted(H256),
+    LatestEraValidatorsCommitted(H256) = 16,
+
+    Promise(HashOf<InjectedTransaction>) = 17,
 }
 
 impl Key {
@@ -103,7 +105,9 @@ impl Key {
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
-            Self::InjectedTransaction(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            Self::InjectedTransaction(hash) | Self::Promise(hash) => {
+                [prefix.as_ref(), hash.inner().as_ref()].concat()
+            }
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -619,6 +623,12 @@ impl InjectedStorageRO for Database {
                     .expect("Failed to decode data into `SignedInjectedTransaction`")
             })
     }
+
+    fn promise(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<Promise> {
+        self.kv.get(&Key::Promise(tx_hash).to_bytes()).map(|data| {
+            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into Promise")
+        })
+    }
 }
 
 impl InjectedStorageRW for Database {
@@ -628,6 +638,13 @@ impl InjectedStorageRW for Database {
         tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
         self.kv
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
+    }
+
+    fn set_promise(&self, promise: Promise) {
+        tracing::trace!(promise_tx_hash = ?promise.tx_hash, "Set promise for injected transaction");
+
+        self.kv
+            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
     }
 }
 

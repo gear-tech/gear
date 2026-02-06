@@ -23,7 +23,7 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{Address, injected::SignedPromise, network::SignedValidatorMessage};
+use ethexe_common::{Address, injected::PromisesNetworkBundle, network::SignedValidatorMessage};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -44,21 +44,21 @@ use std::{
 pub enum Message {
     // TODO: rename to `Validators`
     Commitments(SignedValidatorMessage),
-    Promise(SignedPromise),
+    PromisesBundle(PromisesNetworkBundle),
 }
 
 impl Message {
     fn topic_hash(&self, behaviour: &Behaviour) -> TopicHash {
         match self {
             Message::Commitments(_) => behaviour.commitments_topic.hash(),
-            Message::Promise(_) => behaviour.promises_topic.hash(),
+            Message::PromisesBundle(_) => behaviour.promises_topic.hash(),
         }
     }
 
     fn encode(&self) -> Vec<u8> {
         match self {
             Message::Commitments(message) => message.encode(),
-            Message::Promise(message) => message.encode(),
+            Message::PromisesBundle(message) => message.encode(),
         }
     }
 }
@@ -177,7 +177,7 @@ impl Behaviour {
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.promises_topic.hash() {
-                    SignedPromise::decode(&mut &data[..]).map(Message::Promise)
+                    PromisesNetworkBundle::decode(&mut &data[..]).map(Message::PromisesBundle)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };

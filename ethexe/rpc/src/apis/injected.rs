@@ -19,12 +19,14 @@
 use crate::{RpcEvent, errors};
 use dashmap::DashMap;
 use ethexe_common::{
-    HashOf,
+    HashOf, SignedMessage, Announce,
+    db::{AnnounceStorageRO, InjectedStorageRO},
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedPromise,
+        AddressedInjectedTransaction, CompactSignedPromise, InjectedTransaction,
+        InjectedTransactionAcceptance, PromisesNetworkBundle, SignedPromise,
     },
 };
+use ethexe_db::Database;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
@@ -57,14 +59,19 @@ pub trait Injected {
 }
 
 type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
+type PendingAnnouncePromises = Arc<DashMap<HashOf<Announce>, Vec<CompactSignedPromise>>>;
 
 /// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    /// The database for protocol data.
+    db: Database,
     /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
     promise_waiters: PromiseWaiters,
+    ///
+    _pending_promises: PendingAnnouncePromises,
 }
 
 #[async_trait]
@@ -113,14 +120,34 @@ impl InjectedServer for InjectedApi {
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
+            db,
             rpc_sender,
             promise_waiters: PromiseWaiters::default(),
+            _pending_promises: PendingAnnouncePromises::default(),
         }
     }
 
-    pub fn send_promise(&self, promise: SignedPromise) {
+    pub fn receive_promises_bundle(&self, bundle: PromisesNetworkBundle) {
+        match self.db.announce_meta(bundle.announce).computed {
+            true => todo!("go to send promises to receivers"),
+            false => todo!("put hashes into pending and wait for announce computation"),
+        }
+    }
+    
+
+    pub fn send_promise(&self, signed_hash: CompactSignedPromise) {
+        let (tx_hash, address, signature) = signed_hash.into_parts();
+
+        let Some(p) = self.db.promise(tx_hash) else {
+            todo!("Handle this case")
+        };
+
+        let Ok(promise) = SignedMessage::try_from_parts(p, signature, address) else {
+            todo!("handle invalid signature case")
+        };
+
         let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
             tracing::warn!(promise = ?promise, "receive unregistered promise");
             return;

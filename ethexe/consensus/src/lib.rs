@@ -36,7 +36,9 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, ComputedAnnounce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    injected::{SignedInjectedTransaction, SignedPromise},
+    injected::{
+         PromisesNetworkBundle, SignedInjectedTransaction, 
+    },
     network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
@@ -124,5 +126,5 @@ pub enum ConsensusEvent {
     Warning(String),
     /// Promises for [`ethexe_common::injected::InjectedTransaction`]s execution in some announce.
     #[from]
-    Promises(Vec<SignedPromise>),
+    Promises(PromisesNetworkBundle),
 }

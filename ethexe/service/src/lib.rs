@@ -597,9 +597,9 @@ impl Service {
                                 let _res = response_sender.send(acceptance);
                             }
                         },
-                        NetworkEvent::PromiseMessage(promise) => {
+                        NetworkEvent::PromisesBundle(bundle) => {
                             if let Some(rpc) = &rpc {
-                                rpc.provide_promise(promise);
+                                rpc.provide_promises_bundle(bundle);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
@@ -702,19 +702,17 @@ impl Service {
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }
-                    ConsensusEvent::Promises(promises) => {
+                    ConsensusEvent::Promises(bundle) => {
                         if rpc.is_none() && network.is_none() {
                             panic!("Promise without network or rpc");
                         }
 
                         if let Some(rpc) = &rpc {
-                            rpc.provide_promises(promises.clone());
+                            rpc.provide_promises_bundle(bundle.clone());
                         }
 
                         if let Some(network) = &mut network {
-                            for promise in promises {
-                                network.publish_promise(promise);
-                            }
+                            network.publish_promises_bundle(bundle);
                         }
                     }
                 },

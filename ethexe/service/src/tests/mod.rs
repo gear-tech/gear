@@ -2490,10 +2490,14 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
-                && !promises.is_empty()
+            if let TestingEvent::Consensus(ConsensusEvent::Promises(bundle)) = event
+                && !bundle.promises.is_empty()
             {
-                let promise = promises.first().unwrap().data();
+                let promise_tx_hash = bundle.promises.first().unwrap().tx_hash();
+                let promise = node
+                    .db
+                    .promise(promise_tx_hash)
+                    .expect("promise exists in db");
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,

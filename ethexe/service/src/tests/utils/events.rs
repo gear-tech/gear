@@ -27,7 +27,7 @@ use ethexe_common::{
     events::BlockEvent,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedPromise,
+        PromisesNetworkBundle, SignedInjectedTransaction,
     },
     network::VerifiedValidatorMessage,
 };
@@ -85,7 +85,7 @@ impl TestingNetworkInjectedEvent {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
-    PromiseMessage(SignedPromise),
+    PromisesBundle(PromisesNetworkBundle),
     ValidatorIdentityUpdated(Address),
     InjectedTransaction(TestingNetworkInjectedEvent),
     PeerBlocked(PeerId),
@@ -96,7 +96,7 @@ impl TestingNetworkEvent {
     fn new(event: &NetworkEvent) -> Self {
         match event {
             NetworkEvent::ValidatorMessage(message) => Self::ValidatorMessage(message.clone()),
-            NetworkEvent::PromiseMessage(message) => Self::PromiseMessage(message.clone()),
+            NetworkEvent::PromisesBundle(message) => Self::PromisesBundle(message.clone()),
             NetworkEvent::ValidatorIdentityUpdated(address) => {
                 Self::ValidatorIdentityUpdated(*address)
             }

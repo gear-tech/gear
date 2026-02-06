@@ -24,8 +24,11 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
+use ethexe_common::{
+    Announce, HashOf,
+    injected::{
+        AddressedInjectedTransaction, InjectedTransactionAcceptance, PromisesNetworkBundle,
+    },
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -112,7 +115,7 @@ impl RpcServer {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
-            injected: InjectedApi::new(rpc_sender),
+            injected: InjectedApi::new(self.db.clone(), rpc_sender),
         };
         let injected_api = server_apis.injected.clone();
 
@@ -148,17 +151,25 @@ impl RpcService {
         }
     }
 
-    /// Provides a promise inside RPC service to be sent to subscribers.
-    pub fn provide_promise(&self, promise: SignedPromise) {
-        self.injected_api.send_promise(promise);
+    pub fn receive_computed_announce(&self, _announce_hash: HashOf<Announce>) {
+        todo!("Handle the variant when announce computed and we can send promises")
     }
 
-    /// Provides a bundle of promises inside RPC service to be sent to subscribers.
-    pub fn provide_promises(&self, promises: Vec<SignedPromise>) {
-        promises.into_iter().for_each(|promise| {
-            self.provide_promise(promise);
-        });
+    pub fn provide_promises_bundle(&self, bundle: PromisesNetworkBundle) {
+        self.injected_api.receive_promises_bundle(bundle);
     }
+
+    // Provides a promise inside RPC service to be sent to subscribers.
+    // pub fn provide_promise(&self, promise: CompactSignedPromise) {
+    //     self.injected_api.send_promise(promise);
+    // }
+
+    // Provides a bundle of promises inside RPC service to be sent to subscribers.
+    // pub fn provide_promises(&self, promises: Vec<CompactSignedPromise>) {
+    //     promises.into_iter().for_each(|promise| {
+    //         self.provide_promise(promise);
+    //     });
+    // }
 }
 
 impl Stream for RpcService {

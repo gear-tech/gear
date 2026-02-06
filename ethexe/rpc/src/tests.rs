@@ -20,19 +20,19 @@ use crate::{
     InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
     RpcService,
 };
-
 use ethexe_common::{
+    HashOf,
+    db::InjectedStorageRW,
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, SignedPromise},
+    injected::{
+        AddressedInjectedTransaction, CompactSignedPromise, Promise, PromisesNetworkBundle,
+    },
     mock::Mock,
 };
 use ethexe_db::Database;
 use futures::StreamExt;
-use gear_core::{
-    message::{ReplyCode, SuccessReplyReason},
-    rpc::ReplyInfo,
-};
+use gear_core::message::{ReplyCode, SuccessReplyReason};
 use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
@@ -42,13 +42,15 @@ use tokio::task::{JoinHandle, JoinSet};
 struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
+    db: Database,
 }
 
 impl MockService {
     /// Creates a new mock service which runs an RPC server listening on the given address.
     pub async fn new(listen_addr: SocketAddr) -> Self {
+        let db = Database::memory();
         let (handle, rpc) = start_new_server(listen_addr).await;
-        Self { rpc, handle }
+        Self { rpc, handle, db }
     }
 
     pub fn injected_api(&self) -> InjectedApi {
@@ -67,8 +69,8 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = tx_batch.drain(..).map(Self::create_promise_for).collect();
-                        self.rpc.provide_promises(promises);
+                        let bundle = self.create_promises_bundle(tx_batch.drain(..));
+                        self.rpc.provide_promises_bundle(bundle);
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -84,16 +86,22 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: AddressedInjectedTransaction) -> SignedPromise {
-        let promise = Promise {
-            tx_hash: tx.tx.data().to_hash(),
-            reply: ReplyInfo {
-                payload: vec![],
-                value: 0,
-                code: ReplyCode::Success(SuccessReplyReason::Manual),
-            },
-        };
-        SignedPromise::create(PrivateKey::random(), promise).expect("Signing promise will succeed")
+    fn create_promises_bundle(
+        &self,
+        txs: impl IntoIterator<Item = AddressedInjectedTransaction>,
+    ) -> PromisesNetworkBundle {
+        let pk = PrivateKey::random();
+        let promises = txs
+            .into_iter()
+            .map(|tx| {
+                let promise = Promise::mock(tx.tx.data().to_hash());
+                self.db.set_promise(promise.clone());
+                CompactSignedPromise::create_from_private_key(&pk, promise).unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let announce = HashOf::random();
+        PromisesNetworkBundle { announce, promises }
     }
 }
 
