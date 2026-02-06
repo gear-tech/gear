@@ -31,6 +31,7 @@ use ethexe_common::{
     gear::BatchCommitment, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
+use ethexe_tx_pool::SelectionOutput;
 use futures::{FutureExt, future::BoxFuture};
 use gsigner::secp256k1::Secp256k1SignerExt;
 use std::task::{Context, Poll};
@@ -188,7 +189,10 @@ impl Producer {
             self.ctx.core.commitment_delay_limit,
         )?;
 
-        let injected_transactions = self
+        let SelectionOutput {
+            selected_txs,
+            removed_txs,
+        } = self
             .ctx
             .core
             .injected_pool
@@ -198,8 +202,13 @@ impl Producer {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
-            injected_transactions,
+            injected_transactions: selected_txs,
         };
+
+        if !removed_txs.is_empty() {
+            self.ctx
+                .output(ConsensusEvent::TransactionsRemoved(removed_txs));
+        }
 
         let (announce_hash, newly_included) =
             self.ctx.core.db.include_announce(announce.clone())?;

@@ -32,7 +32,7 @@ use ethexe_ethereum::{
         MirrorQuery as EthereumMirrorQuery, ReplyInfo,
     },
 };
-use ethexe_rpc::{FullProgramState, InjectedClient, ProgramClient};
+use ethexe_rpc::{FullProgramState, InjectedClient, ProgramClient, PromiseOrNotification};
 use ethexe_runtime_common::state::ProgramState;
 use futures::TryFutureExt;
 use gprimitives::{CodeId, H256, MessageId, U256};
@@ -228,14 +228,16 @@ impl<'a> Mirror<'a> {
             .await
             .with_context(|| "failed to send injected transaction and subscribe to it's promise")?;
 
-        let promise = subscription
+        let maybe_promise = subscription
             .next()
             .await
             .ok_or_else(|| anyhow!("no promise received from subscription"))?
-            .with_context(|| "failed to receive transaction promise")?
-            .into_data();
+            .with_context(|| "failed to receive transaction promise")?;
+        let PromiseOrNotification::Promise(promise) = maybe_promise else {
+            anyhow::bail!("Transaction was removed from pool without promise")
+        };
 
-        Ok((message_id, promise))
+        Ok((message_id, promise.into_data()))
     }
 
     pub async fn wait_for_reply(&self, message_id: MessageId) -> Result<ReplyInfo> {

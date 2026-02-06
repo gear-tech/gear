@@ -14,6 +14,7 @@ gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring"
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 ethexe-runtime-common.workspace = true
+ethexe-tx-pool.workspace = true
 gprimitives = { workspace = true, features = ["codec", "std", "ethexe"] }
 
 async-trait.workspace = true

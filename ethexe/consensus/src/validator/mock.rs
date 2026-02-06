@@ -161,7 +161,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             db: db.clone(),
             committer: Box::new(ethereum.clone()),
             middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
-            injected_pool: InjectedTxPool::new(db.clone()),
+            injected_pool: TransactionPool::new(db.clone()),
             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             producer_delay: Duration::from_millis(1),

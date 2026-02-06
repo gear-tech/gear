@@ -25,15 +25,28 @@ use ethexe_common::{
         SignedPromise,
     },
 };
+use ethexe_tx_pool::RemovalNotification;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
-    types::error::ErrorObjectOwned,
+    types::{ErrorCode, error::ErrorObjectOwned},
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
+/// The enum representing either a promise or a removal notification for user.
+#[derive(
+    Debug, Clone, serde::Serialize, serde::Deserialize, derive_more::From, derive_more::Unwrap,
+)]
+pub enum PromiseOrNotification {
+    /// The signed by validator promise for the injected transaction.
+    #[from]
+    Promise(SignedPromise),
+    /// Notification that the injected transaction was removed from the pool.
+    #[from]
+    Notification(RemovalNotification),
+}
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
 pub trait Injected {
@@ -48,7 +61,7 @@ pub trait Injected {
     #[subscription(
         name = "sendTransactionAndWatch",
         unsubscribe = "sendTransactionAndWatchUnsubscribe",
-        item = SignedPromise
+        item = PromiseOrNotification
     )]
     async fn send_transaction_and_watch(
         &self,
@@ -56,7 +69,8 @@ pub trait Injected {
     ) -> SubscriptionResult;
 }
 
-type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
+type PromiseWaiters =
+    Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<PromiseOrNotification>>>;
 
 /// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
@@ -97,12 +111,32 @@ impl InjectedServer for InjectedApi {
             );
         }
 
-        let _acceptance = self.forward_transaction(transaction).await?;
+        let subscription_sink = match self.forward_transaction(transaction).await {
+            Ok(InjectedTransactionAcceptance::Accept) => {
+                pending.accept().await.inspect_err(|err| {
+                    tracing::warn!(
+                        "failed to accept subscription for injected transaction promise: {err}"
+                    );
+                })?
+            }
+            Ok(InjectedTransactionAcceptance::Reject { reason }) => {
+                tracing::trace!(
+                    "subscription for injected transaction promise was rejected because of: {reason}"
+                );
+                let e = ErrorObjectOwned::from(ErrorCode::InvalidParams);
+                // pending.reject(errors::bad_request(reason)).await;
+                tracing::error!("rejecting transaction here");
+                pending.reject(e).await;
+                return Ok(());
+            }
+            Err(err) => {
+                tracing::trace!("subscription for promise was rejected because of error: {err}");
+                pending.reject(err).await;
+                return Ok(());
+            }
+        };
 
         // Try accept subscription, if some errors occur, just log them and return error to client.
-        let subscription_sink = pending.accept().await.inspect_err(|err| {
-            tracing::warn!("failed to accept subscription for injected transaction promise: {err}");
-        })?;
 
         let (promise_sender, promise_receiver) = oneshot::channel();
         self.promise_waiters.insert(tx_hash, promise_sender);
@@ -121,14 +155,25 @@ impl InjectedApi {
     }
 
     pub fn send_promise(&self, promise: SignedPromise) {
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
+        let Some((_, waiter)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
             tracing::warn!(promise = ?promise, "receive unregistered promise");
             return;
         };
 
-        if let Err(promise) = promise_sender.send(promise) {
+        if let Err(promise) = waiter.send(PromiseOrNotification::Promise(promise)) {
             tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
         }
+    }
+
+    pub fn notify_transactions_removed(&self, notifications: Vec<RemovalNotification>) {
+        notifications.into_iter().for_each(|notification| {
+            if let Some((_, waiter)) = self.promise_waiters.remove(&notification.tx_hash)
+                && let Err(unsent_value) =
+                    waiter.send(PromiseOrNotification::Notification(notification))
+            {
+                tracing::trace!("rpc promise receiver dropped for removed tx: {unsent_value:?}");
+            }
+        })
     }
 
     /// Returns the number of current promise subscribers waiting for promises.
@@ -151,9 +196,7 @@ impl InjectedApi {
                 value = transaction.tx.data().value,
                 "Injected transaction with non-zero value is not supported"
             );
-            return Err(errors::bad_request(
-                "Injected transactions with non-zero value are not supported",
-            ));
+            return Err(ErrorObjectOwned::from(ErrorCode::InvalidParams));
         }
 
         let event = RpcEvent::InjectedTransaction {
@@ -186,7 +229,7 @@ impl InjectedApi {
     fn spawn_promise_waiter(
         &self,
         sink: SubscriptionSink,
-        receiver: oneshot::Receiver<SignedPromise>,
+        receiver: oneshot::Receiver<PromiseOrNotification>,
         tx_hash: HashOf<InjectedTransaction>,
     ) {
         // This clone is cheap, as it only increases the ref count.

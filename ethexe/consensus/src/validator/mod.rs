@@ -47,7 +47,6 @@ use crate::{
         participant::Participant,
         producer::Producer,
         subordinate::Subordinate,
-        tx_pool::InjectedTxPool,
     },
 };
 use anyhow::{Result, anyhow};
@@ -63,6 +62,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
+use ethexe_tx_pool::{TransactionAdditionStatus, TransactionPool};
 use futures::{
     Stream, StreamExt,
     future::BoxFuture,
@@ -85,7 +85,6 @@ mod initial;
 mod participant;
 mod producer;
 mod subordinate;
-mod tx_pool;
 
 #[cfg(test)]
 mod mock;
@@ -148,7 +147,7 @@ impl ValidatorService {
                 db: db.clone(),
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
-                injected_pool: InjectedTxPool::new(db),
+                injected_pool: TransactionPool::new(db),
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
@@ -191,6 +190,21 @@ impl ValidatorService {
             self.inner = Some(inner);
         })
     }
+
+    fn update_inner_return_param<T>(
+        &mut self,
+        update: impl FnOnce(ValidatorState) -> Result<(T, ValidatorState)>,
+    ) -> Result<T> {
+        let inner = self
+            .inner
+            .take()
+            .unwrap_or_else(|| unreachable!("inner must be Some"));
+
+        update(inner).map(|(value, inner)| {
+            self.inner = Some(inner);
+            value
+        })
+    }
 }
 
 impl ConsensusService for ValidatorService {
@@ -230,8 +244,11 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_announces_response(response))
     }
 
-    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
-        self.update_inner(|inner| inner.process_injected_transaction(tx))
+    fn receive_injected_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<TransactionAdditionStatus> {
+        self.update_inner_return_param(|inner| inner.process_injected_transaction(tx))
     }
 }
 
@@ -340,7 +357,10 @@ where
         DefaultProcessing::announces_response(self, _response)
     }
 
-    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
+    fn process_injected_transaction(
+        self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<(TransactionAdditionStatus, ValidatorState)> {
         DefaultProcessing::injected_transaction(self, tx)
     }
 
@@ -432,7 +452,10 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => poll_next_state(cx))
     }
 
-    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
+    fn process_injected_transaction(
+        self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<(TransactionAdditionStatus, ValidatorState)> {
         delegate_call!(self => process_injected_transaction(tx))
     }
 }
@@ -514,10 +537,12 @@ impl DefaultProcessing {
     fn injected_transaction(
         s: impl Into<ValidatorState>,
         tx: SignedInjectedTransaction,
-    ) -> Result<ValidatorState> {
+    ) -> Result<(TransactionAdditionStatus, ValidatorState)> {
         let mut s = s.into();
-        s.context_mut().core.process_injected_transaction(tx)?;
-        Ok(s)
+        s.context_mut()
+            .core
+            .process_injected_transaction(tx)
+            .map(|status| (status, s))
     }
 }
 

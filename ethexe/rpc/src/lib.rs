@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub use crate::apis::PromiseOrNotification;
 #[cfg(feature = "client")]
 pub use crate::apis::{BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient};
 
@@ -29,6 +30,7 @@ use ethexe_common::injected::{
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
+use ethexe_tx_pool::RemovalNotification;
 use futures::{Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{
@@ -146,6 +148,11 @@ impl RpcService {
             receiver,
             injected_api,
         }
+    }
+
+    /// Notifies senders about removed transactions from the pool.
+    pub fn notify_transactions_removed_from_pool(&self, notifications: Vec<RemovalNotification>) {
+        self.injected_api.notify_transactions_removed(notifications);
     }
 
     /// Provides a promise inside RPC service to be sent to subscribers.

@@ -1,0 +1,259 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2026 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::tx_status::{InvalidityReason, TransactionStatus, TransactionStatusResolver};
+use anyhow::Result;
+use ethexe_common::{
+    Announce, HashOf,
+    db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
+    injected::{InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction},
+};
+use ethexe_db::Database;
+use ethexe_runtime_common::state::Storage;
+use gprimitives::H256;
+use std::collections::HashSet;
+
+/// [`TransactionPool`] is a local pool of [`InjectedTransaction`]s, which validator can include in announces.
+#[derive(Clone)]
+pub struct TransactionPool<DB = Database> {
+    inner: HashSet<HashOf<InjectedTransaction>>,
+    db: DB,
+}
+
+/// Error returned when adding transaction to the pool.
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
+pub enum AddTransactionError {
+    #[error("Injected transaction with the same hash {0} is already present in the pool")]
+    Duplicate(HashOf<InjectedTransaction>),
+    // TODO: #5083 support non zero value transactions.
+    #[error("Injected transaction with hash {0} has non-zero value")]
+    NonZeroValue(HashOf<InjectedTransaction>),
+}
+
+/// The result of adding a transaction to the [`TransactionPool`].
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::IsVariant)]
+pub enum TransactionAdditionStatus {
+    /// Transaction was successfully added to the [`TransactionPool`]
+    Added,
+    /// Transaction was not added to the [`TransactionPool`] due to the error.
+    NotAdded(AddTransactionError),
+    /// Transaction was received by not a validator.
+    NotValidator,
+}
+
+impl From<TransactionAdditionStatus> for InjectedTransactionAcceptance {
+    fn from(value: TransactionAdditionStatus) -> Self {
+        match value {
+            TransactionAdditionStatus::Added => Self::Accept,
+            TransactionAdditionStatus::NotAdded(error) => Self::Reject {
+                reason: error.to_string(),
+            },
+            TransactionAdditionStatus::NotValidator => Self::Reject {
+                reason: "Transaction rejected: recipient is not a validator.".to_string(),
+            },
+        }
+    }
+}
+
+/// Removal notification for the transaction sender from the pool.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RemovalNotification {
+    /// Removed transaction hash
+    pub tx_hash: HashOf<InjectedTransaction>,
+    /// The reason it has been removed
+    pub reason: InvalidityReason,
+}
+
+/// The output of [`TransactionPool::select_for_announce`].
+#[derive(Debug, Clone, Default)]
+pub struct SelectionOutput {
+    /// Selected transactions to be included in announce.
+    pub selected_txs: Vec<SignedInjectedTransaction>,
+    /// Removed transactions notifications.
+    pub removed_txs: Vec<RemovalNotification>,
+}
+
+impl<DB> TransactionPool<DB>
+where
+    DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Storage + Clone,
+{
+    pub fn new(db: DB) -> Self {
+        Self {
+            inner: HashSet::new(),
+            db,
+        }
+    }
+    /// Adds a new injected transaction to the pool.
+    /// Returns an error if transaction is already present in the pool.
+    pub fn add_transaction(&mut self, tx: SignedInjectedTransaction) -> TransactionAdditionStatus {
+        let tx_hash = tx.data().to_hash();
+        tracing::trace!(?tx_hash, reference_block = ?tx.data().reference_block, "tx pool received new injected transaction");
+
+        if tx.data().value != 0 {
+            return TransactionAdditionStatus::NotAdded(AddTransactionError::NonZeroValue(tx_hash));
+        }
+
+        if self.inner.insert(tx_hash) {
+            // Write tx in database only if its not already contains in pool.
+            self.db.set_injected_transaction(tx);
+            return TransactionAdditionStatus::Added;
+        }
+
+        TransactionAdditionStatus::NotAdded(AddTransactionError::Duplicate(tx_hash))
+    }
+
+    /// Returns the injected transactions that are valid and can be included to announce.
+    pub fn select_for_announce(
+        &mut self,
+        block_hash: H256,
+        parent_announce: HashOf<Announce>,
+    ) -> Result<SelectionOutput> {
+        tracing::trace!(block = ?block_hash, "start collecting injected transactions");
+
+        let resolver = TransactionStatusResolver::new_for_announce(
+            self.db.clone(),
+            block_hash,
+            parent_announce,
+        )?;
+
+        let mut output = SelectionOutput::default();
+        let mut remove_txs = vec![];
+
+        for tx_hash in self.inner.iter() {
+            let Some(tx) = self.db.injected_transaction(*tx_hash) else {
+                // This must not happen, as we store txs in db when adding to pool.
+                anyhow::bail!("injected tx not found in db: {tx_hash}");
+            };
+
+            match resolver.resolve(&tx)? {
+                TransactionStatus::Valid => {
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
+                    // TODO kuzmindev: Revisit removal timing. If announce inclusion fails (e.g., duplicate),
+                    // selected txs are dropped without promises/removal notifications. Consider deferring removal.
+                    // Note: remove tx from pool because of now we don't support transaction re-inclusion after reorgs.
+                    output.selected_txs.push(tx);
+                    remove_txs.push(*tx_hash);
+                }
+                TransactionStatus::Pending(status) => {
+                    tracing::trace!(tx_hash = ?tx_hash, state = %status, "tx is in pending status, keeping in pool")
+                }
+                TransactionStatus::Invalid(reason) => {
+                    tracing::trace!(tx_hash = ?tx_hash, invalidity_reason = %reason, "tx is invalid, removing from pool");
+                    output.removed_txs.push(RemovalNotification {
+                        tx_hash: *tx_hash,
+                        reason,
+                    });
+                    remove_txs.push(*tx_hash)
+                }
+            }
+        }
+
+        remove_txs.into_iter().for_each(|tx_hash| {
+            self.inner.remove(&tx_hash);
+        });
+
+        Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
+    use ethexe_runtime_common::state::{Program, ProgramState, Storage};
+    use gprimitives::ActorId;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+
+    #[test]
+    fn test_select_for_announce() {
+        let db = Database::memory();
+
+        let state_hash = db.write_program_state(
+            // Make not required init message by setting terminated state.
+            ProgramState::zero()
+                .tap_mut(|s| s.program = Program::Terminated(ActorId::from([2; 32]))),
+        );
+        let program_id = ActorId::from([1; 32]);
+
+        let chain = BlockChain::mock(10)
+            .tap_mut(|c| {
+                // set 2 last announces as not computed
+                c.block_top_announce_mut(10).computed = None;
+                c.block_top_announce_mut(9).computed = None;
+
+                // append program to the announce at height 8
+                c.block_top_announce_mut(8)
+                    .as_computed_mut()
+                    .program_states
+                    .insert(
+                        program_id,
+                        StateHashWithQueueSize {
+                            hash: state_hash,
+                            canonical_queue_size: 0,
+                            injected_queue_size: 0,
+                        },
+                    );
+            })
+            .setup(&db);
+
+        let mut tx_pool = TransactionPool::new(db.clone());
+
+        let signer = Signer::memory();
+        let key = signer.generate().unwrap();
+        let tx = InjectedTransaction {
+            reference_block: chain.blocks[9].hash,
+            destination: program_id,
+            ..InjectedTransaction::mock(())
+        };
+        let tx_hash = tx.to_hash();
+        let signed_tx = signer.signed_message(key, tx, None).unwrap();
+
+        assert!(tx_pool.add_transaction(signed_tx.clone()).is_added());
+
+        assert!(
+            db.injected_transaction(tx_hash).is_some(),
+            "tx should be stored in db"
+        );
+
+        // Append another tx with non-zero value, should be removed during selection.
+        let tx2 = InjectedTransaction {
+            value: 100,
+            ..InjectedTransaction::mock(())
+        };
+        assert!(
+            tx_pool
+                .add_transaction(signer.signed_message(key, tx2, None).unwrap())
+                .is_not_added(),
+        );
+
+        let output = tx_pool
+            .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
+            .unwrap();
+        assert!(output.removed_txs.is_empty(), "no tx should be removed");
+        assert_eq!(
+            output.selected_txs,
+            vec![signed_tx],
+            "tx should be selected for announce"
+        );
+        assert_eq!(
+            tx_pool.inner.len(),
+            0,
+            "no txs should remain in the pool after selection"
+        );
+    }
+}

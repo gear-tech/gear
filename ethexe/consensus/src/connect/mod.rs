@@ -34,6 +34,7 @@ use ethexe_common::{
     network::{AnnouncesRequest, AnnouncesResponse},
 };
 use ethexe_db::Database;
+use ethexe_tx_pool::TransactionAdditionStatus;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use lru::LruCache;
@@ -272,10 +273,13 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+    fn receive_injected_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<TransactionAdditionStatus> {
         // In "connect-node" we do not process injected transactions.
         tracing::trace!("Received injected transaction: {tx:?}. Ignoring it.");
-        Ok(())
+        Ok(TransactionAdditionStatus::NotValidator)
     }
 
     fn receive_validation_request(&mut self, _batch: VerifiedValidationRequest) -> Result<()> {

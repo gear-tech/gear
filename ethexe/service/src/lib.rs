@@ -582,7 +582,7 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
-                                let res = consensus.receive_injected_transaction(transaction);
+                                let res = consensus.receive_injected_transaction(transaction)?;
                                 channel
                                     .send(res.into())
                                     .expect("channel must never be closed");
@@ -655,7 +655,7 @@ impl Service {
 
                             if is_zero_address || is_our_address {
                                 let acceptance = consensus
-                                    .receive_injected_transaction(transaction.tx)
+                                    .receive_injected_transaction(transaction.tx)?
                                     .into();
                                 let _res = response_sender.send(acceptance);
                             } else {
@@ -688,6 +688,11 @@ impl Service {
                     }
                     ConsensusEvent::CommitmentSubmitted(info) => {
                         log::info!("{info}");
+                    }
+                    ConsensusEvent::TransactionsRemoved(notifications) => {
+                        if let Some(ref mut rpc) = rpc {
+                            rpc.notify_transactions_removed_from_pool(notifications);
+                        }
                     }
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");

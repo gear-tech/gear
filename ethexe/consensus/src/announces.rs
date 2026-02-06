@@ -88,7 +88,6 @@
 //!    then `announce1` is strict predecessor of `announce` and is predecessor of each
 //!    announce from `lpb.announces`.
 
-use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
@@ -100,6 +99,7 @@ use ethexe_common::{
 };
 use ethexe_ethereum::primitives::map::HashMap;
 use ethexe_runtime_common::state::Storage;
+use ethexe_tx_pool::{TransactionStatus, tx_status::TransactionStatusResolver};
 use gprimitives::H256;
 use std::collections::{BTreeSet, VecDeque};
 
@@ -677,8 +677,8 @@ pub enum AnnounceRejectionReason {
     },
     #[display("Announce {_0} is already included")]
     AlreadyIncluded(HashOf<Announce>),
-    #[display("Invalid transactions: {_0:?}")]
-    TxValidity(TxValidity),
+    #[display("Announce contains not valid injected transaction with status({_0})")]
+    InvalidTransaction(TransactionStatus),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -710,25 +710,23 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
     }
 
     // Verify for parent announce, because of the current is not processed.
-    let tx_checker = TxValidityChecker::new_for_announce(db, announce.block_hash, announce.parent)?;
+    let resolver =
+        TransactionStatusResolver::new_for_announce(db, announce.block_hash, announce.parent)?;
 
     for tx in announce.injected_transactions.iter() {
-        let validity_status = tx_checker.check_tx_validity(tx)?;
-
-        match validity_status {
-            TxValidity::Valid => {
+        match resolver.resolve(tx)? {
+            TransactionStatus::Valid => {
                 db.set_injected_transaction(tx.clone());
             }
-
-            validity => {
+            status => {
                 tracing::trace!(
                     announce = ?announce.to_hash(),
-                    "announce contains invalid transition with status {validity_status:?}, rejecting announce."
+                    "announce contains not a valid transaction with status {status:?}, rejecting announce."
                 );
 
                 return Ok(AnnounceStatus::Rejected {
                     announce,
-                    reason: AnnounceRejectionReason::TxValidity(validity),
+                    reason: AnnounceRejectionReason::InvalidTransaction(status),
                 });
             }
         }

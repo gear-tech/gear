@@ -21,7 +21,6 @@
 use crate::{
     announces,
     utils::{self, CodeNotValidatedError},
-    validator::tx_pool::InjectedTxPool,
 };
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
@@ -37,6 +36,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
+use ethexe_tx_pool::{TransactionAdditionStatus, TransactionPool};
 use gprimitives::{CodeId, H256};
 use gsigner::secp256k1::Signer;
 use hashbrown::{HashMap, HashSet};
@@ -60,7 +60,7 @@ pub struct ValidatorCore {
     #[debug(skip)]
     pub middleware: MiddlewareWrapper,
     #[debug(skip)]
-    pub injected_pool: InjectedTxPool,
+    pub injected_pool: TransactionPool,
 
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
     pub chain_deepness_threshold: u32,
@@ -429,10 +429,12 @@ impl ValidatorCore {
         Ok(ValidationStatus::Accepted(digest))
     }
 
-    pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+    pub fn process_injected_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<TransactionAdditionStatus> {
         tracing::trace!(tx = ?tx, "Receive new injected transaction");
-        self.injected_pool.handle_tx(tx);
-        Ok(())
+        Ok(self.injected_pool.add_transaction(tx))
     }
 }
 

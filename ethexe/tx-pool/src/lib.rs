@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,18 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use jsonrpsee::types::ErrorObject;
+/// Transaction pool related types.
+pub mod pool;
+pub use pool::{RemovalNotification, SelectionOutput, TransactionAdditionStatus, TransactionPool};
 
-// TODO #4364: https://github.com/gear-tech/gear/issues/4364
-
-pub fn db(err: &'static str) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Database error", Some(err))
-}
-
-pub fn runtime(err: impl ToString) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(err.to_string()))
-}
-
-pub fn internal() -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Internal error", None::<&str>)
-}
+/// Status resolution for injected transactions in pool.
+pub mod tx_status;
+pub use tx_status::{
+    InvalidityReason, PendingStatus, TransactionStatus, TransactionStatusResolver,
+};
