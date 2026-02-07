@@ -238,13 +238,16 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "f166621e42d95b7cc32174caad897b8371a581b0ecbdae8479302e5882664908";
+            "608a1e0af6ae724c1cde0ec3f191f54817bf70f22f3c26376a849662a921cc72";
 
         let types = [
             meta_type::<BlockMeta>(),
+            meta_type::<InstrumentedCode>(),
+            meta_type::<CodeMetadata>(),
             meta_type::<BlockHeader>(),
             meta_type::<BlockEvent>(),
             meta_type::<CodeBlobInfo>(),
+            meta_type::<ValidatorsVec>(),
             meta_type::<ProtocolTimelines>(),
             meta_type::<HashOf<InjectedTransaction>>(),
             meta_type::<SignedInjectedTransaction>(),

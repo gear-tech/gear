@@ -25,14 +25,17 @@ use alloc::{format, string::String};
 use core::hash::{Hash, Hasher};
 use derive_more::{Debug, Display};
 use k256::ecdsa::{self, RecoveryId};
-#[cfg(feature = "codec")]
-use parity_scale_codec::{
-    Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
-};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sha3::{Digest as _, Keccak256};
 use sp_core::ecdsa::{Pair as SpPair, Public as SpPublic, Signature as SpSignature};
+#[cfg(feature = "codec")]
+use {
+    parity_scale_codec::{
+        Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
+    },
+    scale_info::{TypeInfo, build::Fields},
+};
 
 /// Result type used throughout signature helpers.
 pub type SignResult<T> = Result<T, SignerError>;
@@ -229,6 +232,17 @@ impl Encode for Signature {
     }
 }
 
+#[cfg(feature = "codec")]
+impl TypeInfo for Signature {
+    type Identity = Self;
+
+    fn type_info() -> scale_info::Type {
+        scale_info::Type::builder()
+            .path(scale_info::Path::new("Signature", module_path!()))
+            .composite(Fields::unnamed().field(|f| f.ty::<SignatureBytes>()))
+    }
+}
+
 #[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Signature {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -262,7 +276,7 @@ impl Serialize for Signature {
 
 /// A signed data structure that contains the data and its signature.
 #[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
-#[cfg_attr(feature = "codec", derive(Encode))]
+#[cfg_attr(feature = "codec", derive(Encode, TypeInfo))]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 #[display("SignedData({data}, {signature})")]
 pub struct SignedData<T: Sized> {
@@ -403,7 +417,8 @@ impl<T> VerifiedData<T> {
 
 /// A signed according to EIP-191 message,that contains the data and its signature.
 /// Always valid after construction.
-#[derive(Clone, Encode, TypeInfo, PartialEq, Eq, Debug, Display, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
+#[cfg_attr(feature = "codec", derive(Encode, TypeInfo))]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[display("SignedMessage({data}, {signature}, {address})")]
 pub struct SignedMessage<T: Sized> {
