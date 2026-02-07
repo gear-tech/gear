@@ -51,7 +51,7 @@ use ethexe_common::{
 };
 use ethexe_compute::ComputeConfig;
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
-use ethexe_db::{Database, verifier::IntegrityVerifier};
+use ethexe_db::verifier::IntegrityVerifier;
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_prometheus::PrometheusConfig;
@@ -1234,7 +1234,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::memory();
+    node.db = env.new_initialized_db();
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING").await.unwrap();

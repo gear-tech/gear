@@ -1,5 +1,4 @@
-use super::{DB_VERSION_0, DB_VERSION_1};
-use crate::init::InitConfig;
+use super::{DB_VERSION_0, DB_VERSION_1, InitConfig};
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{

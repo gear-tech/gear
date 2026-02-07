@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    config::{Config, ConfigPublicKey},
-    init::InitConfig,
-};
+use crate::config::{Config, ConfigPublicKey};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
@@ -33,6 +30,7 @@ use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, DatabaseRef, RocksDatabase};
+use ethexe_db_init::InitConfig;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
@@ -61,7 +59,6 @@ use tokio::sync::oneshot;
 pub mod config;
 
 mod fast_sync;
-mod init;
 #[cfg(test)]
 mod tests;
 
@@ -224,7 +221,7 @@ impl Service {
         )
         .with_context(|| "failed to open database")?;
 
-        init::initialize_db(
+        ethexe_db_init::initialize_db(
             InitConfig {
                 ethereum_rpc: config.ethereum.rpc.clone(),
                 router_address: config.ethereum.router_address,

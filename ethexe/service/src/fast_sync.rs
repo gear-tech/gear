@@ -20,10 +20,11 @@ use crate::Service;
 use anyhow::{Context, Result};
 use ethexe_common::{
     Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
-    StateHashWithQueueSize,
+    SimpleBlockData, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
-        ComputedAnnounceData, ConfigStorageRO, OnChainStorageRW, PreparedBlockData,
+        ComputedAnnounceData, ConfigStorageRO, GlobalsStorageRW, OnChainStorageRW,
+        PreparedBlockData,
     },
     events::{
         BlockEvent, RouterEvent,
@@ -759,6 +760,17 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             schedule: schedule.clone(),
         },
     );
+
+    db.globals_mutate(|globals| {
+        globals.start_block = block_hash;
+        globals.start_announce_hash = announce_hash;
+        globals.latest_synced_block = SimpleBlockData {
+            hash: block_hash,
+            header,
+        };
+        globals.latest_prepared_block_hash = block_hash;
+        globals.latest_computed_announce_hash = announce_hash;
+    });
 
     log::info!(
         "Fast synchronization done: synced to {block_hash:?}, height {:?}",

@@ -1,0 +1,31 @@
+[package]
+name = "ethexe-db-init"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+ethexe-common = { workspace = true, features = ["std"] }
+ethexe-runtime-common = { workspace = true, features = ["std"] }
+ethexe-db.workspace = true
+ethexe-ethereum.workspace = true
+gear-core = { workspace = true, features = ["std"] }
+gprimitives = { workspace = true, features = ["std"] }
+gsigner.workspace = true
+
+anyhow.workspace = true
+parity-scale-codec.workspace = true
+derive_more.workspace = true
+log.workspace = true
+alloy.workspace = true
+
+# hakari
+gear-workspace-hack.workspace = true
+
+
+[features]
+default = ["mock"]
+mock = ["ethexe-common/mock"]

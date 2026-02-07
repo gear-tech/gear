@@ -5088,6 +5088,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-db-init"
+version = "1.10.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "derive_more 2.1.1",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "ethexe-runtime-common",
+ "gear-core",
+ "gear-workspace-hack",
+ "gprimitives",
+ "gsigner",
+ "log",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "ethexe-ethereum"
 version = "1.10.0"
 dependencies = [
@@ -5150,6 +5169,7 @@ dependencies = [
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-db-init",
  "ethexe-ethereum",
  "futures",
  "gear-utils",
@@ -5311,6 +5331,7 @@ dependencies = [
  "ethexe-compute",
  "ethexe-consensus",
  "ethexe-db",
+ "ethexe-db-init",
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",

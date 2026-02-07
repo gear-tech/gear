@@ -18,7 +18,6 @@
 
 use crate::{
     RouterDataProvider, Service,
-    init::InitConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
         events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
@@ -46,6 +45,7 @@ use ethexe_common::{
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::{Database, DatabaseRef, MemDb};
+use ethexe_db_init::InitConfig;
 use ethexe_ethereum::{
     Ethereum,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
@@ -361,12 +361,7 @@ impl TestEnv {
 
         let db = match db {
             Some(db) => db,
-            None => new_empty_initialized_memory_db(InitConfig {
-                ethereum_rpc: self.eth_cfg.rpc.clone(),
-                router_address: self.eth_cfg.router_address,
-                slot_duration_secs: self.eth_cfg.block_time.as_secs(),
-            })
-            .unwrap(),
+            None => self.new_initialized_db(),
         };
 
         let (network_address, network_bootstrap_address) = self
@@ -405,6 +400,15 @@ impl TestEnv {
             commitment_delay_limit: self.commitment_delay_limit,
             running_service_handle: None,
         }
+    }
+
+    pub fn new_initialized_db(&self) -> Database {
+        new_empty_initialized_memory_db(InitConfig {
+            ethereum_rpc: self.eth_cfg.rpc.clone(),
+            router_address: self.eth_cfg.router_address,
+            slot_duration_secs: self.eth_cfg.block_time.as_secs(),
+        })
+        .unwrap()
     }
 
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
@@ -1329,7 +1333,7 @@ pub fn new_empty_initialized_memory_db(config: InitConfig) -> anyhow::Result<Dat
     let db = MemDb::default();
     let handle = tokio::runtime::Handle::current();
     tokio::task::block_in_place(|| {
-        handle.block_on(crate::init::initialize_empty_db(
+        handle.block_on(ethexe_db_init::initialize_empty_db(
             config,
             DatabaseRef { kv: &db, cas: &db },
         ))

@@ -39,3 +39,5 @@ gear-workspace-hack.workspace = true
 gear-utils.workspace = true
 wasmparser.workspace = true
 wat.workspace = true
+ethexe-db = { workspace = true, features = ["mock"] }
+ethexe-db-init = { workspace = true, features = ["mock"] }
