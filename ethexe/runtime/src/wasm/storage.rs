@@ -18,7 +18,6 @@
 
 use super::interface::database_ri;
 use alloc::vec::Vec;
-use core_processor::configs::BlockInfo;
 use ethexe_common::HashOf;
 use ethexe_runtime_common::{
     RuntimeInterface,
@@ -32,9 +31,9 @@ use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gprimitives::H256;
 
 #[derive(Debug, Clone)]
-pub struct RuntimeInterfaceStorage;
+pub struct NativeRuntimeInterface;
 
-impl Storage for RuntimeInterfaceStorage {
+impl Storage for NativeRuntimeInterface {
     fn program_state(&self, hash: H256) -> Option<ProgramState> {
         if hash.is_zero() {
             Some(ProgramState::zero())
@@ -136,18 +135,8 @@ impl Storage for RuntimeInterfaceStorage {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct NativeRuntimeInterface {
-    pub(crate) block_info: BlockInfo,
-    pub(crate) storage: RuntimeInterfaceStorage,
-}
-
-impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
+impl RuntimeInterface for NativeRuntimeInterface {
     type LazyPages = LazyPagesRuntimeInterface;
-
-    fn block_info(&self) -> BlockInfo {
-        self.block_info
-    }
 
     fn init_lazy_pages(&self) {
         assert!(Self::LazyPages::try_to_enable_lazy_pages(Default::default()))
@@ -156,10 +145,6 @@ impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
     fn random_data(&self) -> (Vec<u8>, u32) {
         // TODO: set real value
         Default::default()
-    }
-
-    fn storage(&self) -> &RuntimeInterfaceStorage {
-        &self.storage
     }
 
     fn update_state_hash(&self, hash: &H256) {

@@ -454,7 +454,7 @@ pub struct Dispatch {
 }
 
 impl Dispatch {
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn new<S: Storage + ?Sized>(
         storage: &S,
         id: MessageId,

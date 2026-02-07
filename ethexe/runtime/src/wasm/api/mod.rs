@@ -44,23 +44,9 @@ extern "C" fn run(arg_ptr: i32, arg_len: i32) -> i64 {
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
 fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
-    let (
-        program_id,
-        state_root,
-        queue_kind,
-        maybe_instrumented_code,
-        maybe_code_metadata,
-        gas_allowance,
-    ) = Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
+    let ctx = Decode::decode(&mut unsafe { get_slice(arg_ptr, arg_len) }).unwrap();
 
-    let (program_journals, gas_spent) = run::run(
-        program_id,
-        state_root,
-        queue_kind,
-        maybe_instrumented_code,
-        maybe_code_metadata,
-        gas_allowance,
-    );
+    let (program_journals, gas_spent) = run::run(ctx);
 
     // Split to chunks to prevent alloc limit (32MiB)
     let res: Vec<_> = program_journals
@@ -86,7 +72,7 @@ fn get_vec(ptr: i32, len: i32) -> Vec<u8> {
     unsafe { Vec::from_raw_parts(ptr as _, len as usize, len as usize) }
 }
 
-fn get_slice<'a>(ptr: i32, len: i32) -> &'a [u8] {
+unsafe fn get_slice<'a>(ptr: i32, len: i32) -> &'a [u8] {
     unsafe { core::slice::from_raw_parts(ptr as _, len as usize) }
 }
 

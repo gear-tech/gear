@@ -45,6 +45,7 @@ use state::{Dispatch, ProgramState, Storage};
 pub use core_processor::configs::BlockInfo;
 use gear_core::code::InstrumentedCodeAndMetadata;
 pub use journal::NativeJournalHandler as JournalHandler;
+use parity_scale_codec::{Decode, Encode};
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
@@ -61,13 +62,24 @@ pub const RUNTIME_ID: u32 = 1;
 
 pub type ProgramJournals = Vec<(Vec<JournalNote>, MessageType, bool)>;
 
-pub trait RuntimeInterface<S: Storage> {
+/// Context passed to the runtime in order to
+/// run message queue processing for specified program.
+#[derive(Debug, Encode, Decode)]
+pub struct RuntimeRunContext {
+    pub program_id: ActorId,
+    pub state_root: H256,
+    pub queue_type: MessageType,
+    pub instrumented_code: InstrumentedCode,
+    pub code_metadata: CodeMetadata,
+    pub gas_allowance: GasAllowanceCounter,
+    pub block_info: BlockInfo,
+}
+
+pub trait RuntimeInterface: Storage {
     type LazyPages: LazyPagesInterface + 'static;
 
-    fn block_info(&self) -> BlockInfo;
     fn init_lazy_pages(&self);
     fn random_data(&self) -> (Vec<u8>, u32);
-    fn storage(&self) -> &S;
     fn update_state_hash(&self, state_hash: &H256);
 }
 
@@ -116,21 +128,18 @@ impl<S: Storage + ?Sized> TransitionController<'_, S> {
     }
 }
 
-pub fn process_queue<S, RI>(
-    program_id: ActorId,
-    mut program_state: ProgramState,
-    queue_type: MessageType,
-    instrumented_code: Option<InstrumentedCode>,
-    code_metadata: Option<CodeMetadata>,
-    ri: &RI,
-    gas_allowance: u64,
-) -> (ProgramJournals, u64)
+pub fn process_queue<RI>(mut ctx: RuntimeRunContext, ri: &RI) -> (ProgramJournals, u64)
 where
-    S: Storage,
-    RI: RuntimeInterface<S>,
-    <RI as RuntimeInterface<S>>::LazyPages: Send,
+    RI: RuntimeInterface,
+    RI::LazyPages: Send,
 {
-    let block_info = ri.block_info();
+    let mut program_state = ri.program_state(ctx.state_root).unwrap();
+
+    let RuntimeRunContext {
+        program_id,
+        queue_type,
+        ..
+    } = ctx;
 
     log::trace!("Processing {queue_type:?} queue for program {program_id}");
 
@@ -147,16 +156,12 @@ where
     let queue = program_state
         .queue_from_msg_type(queue_type)
         .hash
-        .map(|hash| {
-            ri.storage()
-                .message_queue(hash)
-                .expect("Cannot get message queue")
-        })
+        .map(|hash| ri.message_queue(hash).expect("Cannot get message queue"))
         .expect("Queue cannot be empty at this point");
 
     // TODO: must be set by some runtime configuration
     let block_config = BlockConfig {
-        block_info,
+        block_info: ctx.block_info,
         forbidden_funcs: [
             // Deprecated
             SyscallName::CreateProgramWGas,
@@ -197,7 +202,7 @@ where
     };
 
     let mut mega_journal = Vec::new();
-    let mut queue_gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
+    let initial_gas_allowance = ctx.gas_allowance.left();
 
     ri.init_lazy_pages();
 
@@ -206,22 +211,13 @@ where
         let call_reply = dispatch.call;
         let is_first_execution = dispatch.context.is_none();
 
-        let journal = process_dispatch(
-            dispatch,
-            &block_config,
-            program_id,
-            &program_state,
-            &instrumented_code,
-            &code_metadata,
-            ri,
-            queue_gas_allowance_counter.left(),
-        );
+        let journal = process_dispatch(dispatch, &block_config, &program_state, &ctx, ri);
         let mut handler = RuntimeJournalHandler {
-            storage: ri.storage(),
+            storage: ri,
             program_state: &mut program_state,
-            gas_allowance_counter: &mut queue_gas_allowance_counter,
+            gas_allowance_counter: &mut ctx.gas_allowance,
             gas_multiplier: &block_config.gas_multiplier,
-            message_type: queue_type,
+            message_type: ctx.queue_type,
             is_first_execution,
             stop_processing: false,
         };
@@ -239,28 +235,23 @@ where
         }
     }
 
-    let gas_spent = gas_allowance
-        .checked_sub(queue_gas_allowance_counter.left())
+    let gas_spent = initial_gas_allowance
+        .checked_sub(ctx.gas_allowance.left())
         .expect("cannot spend more gas than allowed");
 
     (mega_journal, gas_spent)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn process_dispatch<S, RI>(
+fn process_dispatch<RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
-    program_id: ActorId,
     program_state: &ProgramState,
-    instrumented_code: &Option<InstrumentedCode>,
-    code_metadata: &Option<CodeMetadata>,
+    ctx: &RuntimeRunContext,
     ri: &RI,
-    gas_allowance: u64,
 ) -> Vec<JournalNote>
 where
-    S: Storage,
-    RI: RuntimeInterface<S>,
-    <RI as RuntimeInterface<S>>::LazyPages: Send,
+    RI: RuntimeInterface,
+    RI::LazyPages: Send,
 {
     let Dispatch {
         id: dispatch_id,
@@ -273,7 +264,14 @@ where
         ..
     } = dispatch;
 
-    let payload = payload.query(ri.storage()).expect("failed to get payload");
+    let &RuntimeRunContext {
+        program_id,
+        instrumented_code: ref code,
+        ref code_metadata,
+        ..
+    } = ctx;
+
+    let payload = payload.query(ri).expect("failed to get payload");
 
     let gas_limit = block_config
         .gas_multiplier
@@ -285,7 +283,7 @@ where
 
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
-    let context = ContextCharged::new(program_id, dispatch, gas_allowance);
+    let context = ContextCharged::new(program_id, dispatch, ctx.gas_allowance.left());
 
     let context = match context.charge_for_program(block_config) {
         Ok(context) => context,
@@ -327,24 +325,15 @@ where
         Err(journal) => return journal,
     };
 
-    let code = instrumented_code
-        .as_ref()
-        .expect("Instrumented code must be provided if program is active");
-    let code_metadata = code_metadata
-        .as_ref()
-        .expect("Code metadata must be provided if program is active");
-
     let context =
         match context.charge_for_instrumented_code(block_config, code.bytes().len() as u32) {
             Ok(context) => context,
             Err(journal) => return journal,
         };
 
-    let allocations = active_state.allocations_hash.map_or_default(|hash| {
-        ri.storage()
-            .allocations(hash)
-            .expect("Cannot get allocations")
-    });
+    let allocations = active_state
+        .allocations_hash
+        .map_or_default(|hash| ri.allocations(hash).expect("Cannot get allocations"));
 
     let context = match context.charge_for_allocations(block_config, allocations.tree_len()) {
         Ok(context) => context,

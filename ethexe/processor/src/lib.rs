@@ -244,14 +244,13 @@ impl Processor {
         block: SimpleBlockData,
         gas_allowance: u64,
     ) -> Result<InBlockTransitions> {
-        self.creator.set_chain_head(block);
-
         CommonRunContext::new(
             self.db.clone(),
             self.creator.clone(),
             transitions,
             gas_allowance,
             self.config.chunk_size,
+            block.header,
         )
         .run()
         .await
@@ -359,8 +358,6 @@ impl OverlaidProcessor {
             gas_allowance,
         } = executable;
 
-        self.0.creator.set_chain_head(block);
-
         let state_hash = program_states
             .get(&program_id)
             .ok_or(ExecuteForReplyError::ProgramStateHashNotFound(program_id))?
@@ -407,6 +404,7 @@ impl OverlaidProcessor {
             gas_allowance,
             self.0.config.chunk_size,
             self.0.creator.clone(),
+            block.header,
         )
         .run()
         .await?;

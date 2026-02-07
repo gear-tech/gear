@@ -17,13 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::common::JournalNote;
-use ethexe_common::{SimpleBlockData, gear::MessageType};
+use ethexe_common::gear::MessageType;
 use ethexe_db::CASDatabase;
-use ethexe_runtime_common::{ProgramJournals, unpack_i64_to_u32};
-use gear_core::{
-    code::{CodeMetadata, InstrumentedCode},
-    ids::ActorId,
-};
+use ethexe_runtime_common::{ProgramJournals, RuntimeRunContext, unpack_i64_to_u32};
+use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
@@ -87,11 +84,6 @@ pub type Store = wasmtime::Store<StoreData>;
 pub(crate) struct InstanceCreator {
     engine: wasmtime::Engine,
     instance_pre: Arc<wasmtime::InstancePre<StoreData>>,
-
-    /// Current chain head hash.
-    ///
-    /// NOTE: must be preset each time processor start to process new chain head.
-    chain_head: Option<SimpleBlockData>,
 }
 
 impl InstanceCreator {
@@ -125,7 +117,6 @@ impl InstanceCreator {
         Ok(Self {
             engine,
             instance_pre,
-            chain_head: None,
         })
     }
 
@@ -134,11 +125,7 @@ impl InstanceCreator {
 
         let instance = self.instance_pre.instantiate(&mut store)?;
 
-        let mut instance_wrapper = InstanceWrapper {
-            instance,
-            store,
-            chain_head: self.chain_head,
-        };
+        let mut instance_wrapper = InstanceWrapper { instance, store };
 
         let memory = instance_wrapper.memory()?;
         let table = instance_wrapper.table()?;
@@ -148,16 +135,11 @@ impl InstanceCreator {
 
         Ok(instance_wrapper)
     }
-
-    pub fn set_chain_head(&mut self, chain_head: SimpleBlockData) {
-        self.chain_head = Some(chain_head);
-    }
 }
 
 pub(crate) struct InstanceWrapper {
     instance: wasmtime::Instance,
     store: Store,
-    chain_head: Option<SimpleBlockData>,
 }
 
 impl InstanceWrapper {
@@ -183,31 +165,15 @@ impl InstanceWrapper {
     /// The `run` function actually executed program's queue in accordance to
     /// the gear protocol. The returned sequence of `JournalNote`s is later
     /// processed out of the wasm module.
-    #[allow(clippy::too_many_arguments)]
     pub fn run(
         &mut self,
         db: Box<dyn CASDatabase>,
-        program_id: ActorId,
-        state_hash: H256,
-        queue_type: MessageType,
-        maybe_instrumented_code: Option<InstrumentedCode>,
-        maybe_code_metadata: Option<CodeMetadata>,
-        gas_allowance: u64,
+        ctx: RuntimeRunContext,
     ) -> Result<(ProgramJournals, H256, u64)> {
-        let chain_head = self.chain_head.expect("chain head must be set before run");
-        threads::set(db, chain_head, state_hash);
-
-        let arg = (
-            program_id,
-            state_hash,
-            queue_type,
-            maybe_instrumented_code,
-            maybe_code_metadata,
-            gas_allowance,
-        );
+        threads::set(db, ctx.state_root);
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
-        let (ptr_lens, gas_spent): (Vec<i64>, i64) = self.call("run", arg.encode())?;
+        let (ptr_lens, gas_spent): (Vec<i64>, i64) = self.call("run", ctx.encode())?;
 
         let mut mega_journal = Vec::with_capacity(ptr_lens.len());
 
