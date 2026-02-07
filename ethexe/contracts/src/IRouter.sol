@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
 import {Gear} from "./libraries/Gear.sol";
 
@@ -141,6 +141,8 @@ interface IRouter {
     error RewardsCommitmentPredatesGenesis();
 
     error RewardsCommitmentEraNotPrevious();
+
+    error ApproveERC20Failed();
 
     error TooManyValidatorsCommitments();
 
