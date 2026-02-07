@@ -131,14 +131,48 @@ impl ConnectService {
         }
     }
 
-    fn process_after_propagation(&mut self, block: SimpleBlockData, producer: Address) {
+    fn process_after_propagation(
+        &mut self,
+        block: SimpleBlockData,
+        producer: Address,
+    ) -> Result<()> {
         if let Some(announce) = self.pending_announces.pop(&(producer, block.hash)) {
-            self.output
-                .push_back(ConsensusEvent::ComputeAnnounce(announce));
+            self.process_announce_from_producer(announce, producer)?;
             self.state = State::WaitingForBlock;
         } else {
             self.state = State::WaitingForAnnounce { block, producer };
         }
+
+        Ok(())
+    }
+
+    fn process_announce_from_producer(
+        &mut self,
+        announce: Announce,
+        producer: Address,
+    ) -> Result<()> {
+        match announces::accept_announce(&self.db, announce.clone())? {
+            AnnounceStatus::Rejected { announce, reason } => {
+                tracing::warn!(
+                    announce = %announce.to_hash(),
+                    producer = %producer,
+                    "Announce rejected: {reason}",
+                );
+
+                self.output
+                    .push_back(ConsensusEvent::AnnounceRejected(announce.to_hash()));
+            }
+            AnnounceStatus::Accepted(announce_hash) => {
+                self.output
+                    .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
+                self.output
+                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
+
+                self.state = State::WaitingForBlock;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -224,7 +258,7 @@ impl ConsensusService for ConnectService {
                 Default::default(),
             )?;
 
-            self.process_after_propagation(block, producer);
+            self.process_after_propagation(block, producer)?;
         }
 
         Ok(())
@@ -313,7 +347,7 @@ impl ConsensusService for ConnectService {
             announces.into_iter().map(|a| (a.to_hash(), a)).collect(),
         )?;
 
-        self.process_after_propagation(block, producer);
+        self.process_after_propagation(block, producer)?;
 
         Ok(())
     }
@@ -334,5 +368,54 @@ impl Stream for ConnectService {
 impl FusedStream for ConnectService {
     fn is_terminated(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{HashOf, ValidatorsVec, mock::*};
+    use ethexe_db::Database;
+    use gsigner::{PrivateKey, PublicKey, SignedData};
+
+    #[test]
+    fn announce_not_computed_after_pending_and_rejected() {
+        let validator_private_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_private_key).to_address();
+        let validators = ValidatorsVec::try_from(vec![validator_address]).unwrap();
+
+        let db = Database::memory();
+        let chain = BlockChain::mock((10, validators)).setup(&db);
+
+        let mut service = ConnectService::new(db, Duration::from_secs(12), 10);
+        service
+            .receive_new_chain_head(chain.blocks[10].to_simple())
+            .unwrap();
+        service.receive_synced_block(chain.blocks[10].hash).unwrap();
+
+        // send announce with unknown parent and in state when announce should be pending
+        let announce = Announce {
+            block_hash: chain.blocks[10].hash,
+            parent: HashOf::random(),
+            gas_allowance: Some(199),
+            injected_transactions: vec![],
+        };
+        let announce_hash = announce.to_hash();
+        service
+            .receive_announce(
+                SignedData::create(&validator_private_key, announce.clone())
+                    .unwrap()
+                    .into_verified(),
+            )
+            .unwrap();
+
+        service
+            .receive_prepared_block(chain.blocks[10].hash)
+            .unwrap();
+
+        assert_eq!(
+            service.output,
+            vec![ConsensusEvent::AnnounceRejected(announce_hash)]
+        )
     }
 }

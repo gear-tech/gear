@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {Script} from "forge-std/Script.sol";
 import {Mirror} from "../../src/Mirror.sol";
 import {Router} from "../../src/Router.sol";
+import {Script} from "forge-std/Script.sol";
 
 contract MirrorScript is Script {
     function setUp() public {}
