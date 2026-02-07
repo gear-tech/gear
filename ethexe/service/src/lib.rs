@@ -24,12 +24,7 @@ use alloy::{
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
-use ethexe_common::{
-    Address, COMMITMENT_DELAY_LIMIT,
-    ecdsa::{PrivateKey, PublicKey},
-    gear::CodeState,
-    network::VerifiedValidatorMessage,
-};
+use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
@@ -48,9 +43,9 @@ use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
+use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
 use std::{
     collections::{BTreeSet, HashMap},
     num::NonZero,
@@ -134,7 +129,7 @@ impl Service {
         block_time: Duration,
         pre_funded_accounts: u32,
     ) -> Result<(AnvilInstance, PublicKey, Address)> {
-        let signer = Signer::fs(key_path);
+        let signer = Signer::fs(key_path).with_context(|| "failed to open dev keystore")?;
 
         let pre_funded_accounts = pre_funded_accounts
             .checked_add(Self::RESERVED_DEV_ACCOUNTS)
@@ -150,14 +145,17 @@ impl Service {
         let mut it = anvil
             .keys()
             .iter()
-            .map(|key| PrivateKey::from(key.clone()))
+            .map(|key| {
+                let seed = key.to_bytes().into();
+                PrivateKey::from_seed(seed).expect("anvil should provide valid secp256k1 key")
+            })
             .zip(anvil.addresses().iter().map(|addr| Address::from(*addr)));
 
         let (deployer_private_key, deployer_address) = it.next().expect("infallible");
         let (validator_private_key, validator_address) = it.next().expect("infallible");
 
-        signer.storage_mut().add_key(deployer_private_key)?;
-        let validator_public_key = signer.storage_mut().add_key(validator_private_key)?;
+        signer.import(deployer_private_key.clone())?;
+        let validator_public_key = signer.import(validator_private_key.clone())?;
 
         log::info!("🔐 Available Accounts:");
 
@@ -166,7 +164,7 @@ impl Service {
 
         for ((sender_private_key, sender_address), i) in it.clone().zip(1_usize..) {
             log::info!("     Sender:    {sender_address} {sender_private_key} (#{i})");
-            signer.storage_mut().add_key(sender_private_key)?;
+            signer.import(sender_private_key)?;
         }
 
         let ethereum =
@@ -270,14 +268,14 @@ impl Service {
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
-            .threshold()
+            .validators_threshold()
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
         let processor = Processor::with_config(
             ProcessorConfig {
-                chunk_processing_threads: config.node.chunk_processing_threads,
+                chunk_size: config.node.chunk_processing_threads,
             },
             db.clone(),
         )
@@ -285,10 +283,10 @@ impl Service {
 
         log::info!(
             "🔧 Amount of chunk processing threads for programs processing: {}",
-            processor.config().chunk_processing_threads
+            processor.config().chunk_size
         );
 
-        let signer = Signer::fs(config.node.key_path.clone());
+        let signer = Signer::fs(config.node.key_path.clone())?;
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
@@ -303,7 +301,7 @@ impl Service {
             if let Some(pub_key) = validator_pub_key {
                 let ethereum = Ethereum::new(
                     &config.ethereum.rpc,
-                    config.ethereum.router_address.into(),
+                    config.ethereum.router_address,
                     signer.clone(),
                     pub_key.to_address(),
                 )
@@ -323,7 +321,6 @@ impl Service {
                         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
-                        validate_chain_deepness_limit: config.node.validate_chain_deepness_limit,
                         chain_deepness_threshold: config.node.chain_deepness_threshold,
                     },
                 )?)
@@ -351,7 +348,7 @@ impl Service {
                     .parent()
                     .context("key_path has no parent directory")?
                     .join("net"),
-            );
+            )?;
 
             let latest_block_data = observer
                 .block_loader()
@@ -407,7 +404,7 @@ impl Service {
     fn get_config_public_key(key: ConfigPublicKey, signer: &Signer) -> Result<Option<PublicKey>> {
         match key {
             ConfigPublicKey::Enabled(key) => Ok(Some(key)),
-            ConfigPublicKey::Random => Ok(Some(signer.generate_key()?)),
+            ConfigPublicKey::Random => Ok(Some(signer.generate()?)),
             ConfigPublicKey::Disabled => Ok(None),
         }
     }
@@ -629,6 +626,15 @@ impl Service {
                                 metrics.blocks_queue_len,
                                 metrics.waiting_codes_count,
                                 metrics.process_codes_count,
+                                metrics
+                                    .latest_committed_block
+                                    .as_ref()
+                                    .map(|b| b.header.height as u64),
+                                metrics
+                                    .latest_committed_block
+                                    .as_ref()
+                                    .map(|b| b.header.timestamp),
+                                metrics.time_since_latest_committed_secs,
                             );
 
                             // TODO #4643: support metrics for consensus service

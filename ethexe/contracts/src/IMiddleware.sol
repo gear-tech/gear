@@ -68,6 +68,24 @@ interface IMiddleware {
     error NonFactoryStakerRewards();
     /// @dev Emitted in `registerVault` when the vault in rewards contract is not the same as in the function parameter.
     error InvalidStakerRewardsVault();
+    /// @dev Emitted when `maxValidators` is equal to zero.
+    error MaxValidatorsMustBeGreaterThanZero();
+    /// @dev Emitted when `eraDuration` is equal to zero.
+    error EraDurationMustBeGreaterThanZero();
+    /// @dev Emitted when `minVaultEpochDuration` is less than `2 * eraDuration`.
+    error MinVaultEpochDurationLessThanTwoEras();
+    /// @dev Emitted when `operatorGracePeriod` is less than `minVaultEpochDuration`.
+    error OperatorGracePeriodLessThanMinVaultEpochDuration();
+    /// @dev Emitted when `vaultGracePeriod` is less than `minVaultEpochDuration`.
+    error VaultGracePeriodLessThanMinVaultEpochDuration();
+    /// @dev Emitted when `minVetoDuration` is equal to zero.
+    error MinVetoDurationMustBeGreaterThanZero();
+    /// @dev Emitted when `minSlashExecutionDelay` is equal to zero.
+    error MinSlashExecutionDelayMustBeGreaterThanZero();
+    /// @dev Emitted when `minVetoDuration + minSlashExecutionDelay` is greater than `minVaultEpochDuration`.
+    error MinVetoAndSlashDelayTooLongForVaultEpoch();
+    /// @dev Emitted when `maxResolverSetEpochsDelay` is less than `3`.
+    error ResolverSetDelayMustBeAtLeastThree();
 
     struct InitParams {
         address owner;

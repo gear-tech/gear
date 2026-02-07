@@ -42,6 +42,7 @@ impl MemoryWrap {
         D::decode(&mut slice).unwrap()
     }
 
+    #[allow(unused)]
     pub fn decode<'a, T: 'a, D: Decode>(
         &self,
         store: impl Into<StoreContext<'a, T>>,

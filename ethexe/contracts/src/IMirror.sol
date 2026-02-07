@@ -95,6 +95,36 @@ interface IMirror {
      */
     event ValueClaimed(bytes32 claimedId, uint128 value);
 
+    /* Errors section */
+
+    error InitMessageNotCreated();
+
+    error InitMessageNotCreatedAndCallerNotInitializer();
+
+    error ProgramExited();
+
+    error ProgramNotExited();
+
+    error CallerNotRouter();
+
+    error WVaraTransferFailed();
+
+    error EtherTransferToRouterFailed();
+
+    error EtherTransferToDestinationFailed();
+
+    error InitializerAlreadySet();
+
+    error IsSmallAlreadySet();
+
+    error AbiInterfaceAlreadySet();
+
+    error InvalidActorId();
+
+    error InheritorMustBeZero();
+
+    error InvalidFallbackCall();
+
     /* Functions section */
 
     /* Operational functions */

@@ -22,10 +22,10 @@ use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT,
-    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
 };
-use ethexe_processor::DEFAULT_CHUNK_PROCESSING_THREADS;
+use ethexe_processor::DEFAULT_CHUNK_SIZE;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
@@ -100,11 +100,6 @@ pub struct NodeParams {
     #[serde(default, rename = "fast-sync")]
     pub fast_sync: bool,
 
-    /// Limit for validating chain deepness of coming commitments.
-    #[arg(long)]
-    #[serde(default, rename = "validate-chain-deepness-limit")]
-    pub validate_chain_deepness_limit: Option<u32>,
-
     /// Threshold for producer to submit commitment despite of no transitions
     #[arg(long)]
     #[serde(default, rename = "chain-deepness-threshold")]
@@ -136,7 +131,7 @@ impl NodeParams {
             blocking_threads: self.blocking_threads.map(|v| v.get()),
             chunk_processing_threads: self
                 .chunk_processing_threads
-                .unwrap_or(DEFAULT_CHUNK_PROCESSING_THREADS)
+                .unwrap_or(DEFAULT_CHUNK_SIZE)
                 .get(),
             block_gas_limit: self
                 .block_gas_limit
@@ -149,9 +144,6 @@ impl NodeParams {
                 .unwrap_or(Self::DEFAULT_PRE_FUNDED_ACCOUNTS)
                 .get(),
             fast_sync: self.fast_sync,
-            validate_chain_deepness_limit: self
-                .validate_chain_deepness_limit
-                .unwrap_or(DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT),
             chain_deepness_threshold: self
                 .chain_deepness_threshold
                 .unwrap_or(DEFAULT_CHAIN_DEEPNESS_THRESHOLD),
@@ -228,9 +220,6 @@ impl MergeParams for NodeParams {
 
             fast_sync: self.fast_sync || with.fast_sync,
 
-            validate_chain_deepness_limit: self
-                .validate_chain_deepness_limit
-                .or(with.validate_chain_deepness_limit),
             chain_deepness_threshold: self
                 .chain_deepness_threshold
                 .or(with.chain_deepness_threshold),

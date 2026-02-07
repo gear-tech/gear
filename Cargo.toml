@@ -20,6 +20,7 @@ members = [
     "common/numerated",
     "core",
     "core-backend",
+    "gsigner",
     "core-processor",
     "core-errors",
     "lazy-pages",
@@ -149,6 +150,7 @@ hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 impl-trait-for-tuples = "0.2.2"
 impl-serde = "0.4.0"
+indoc = "2.0.7"
 jsonrpsee = { version = "^0.24" }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }
@@ -177,6 +179,7 @@ serde_json = { version = "1.0.135", default-features = false, features = [
 ] }
 serde-json-wasm = { version = "1.0.1", default-features = false }
 sha-1 = "0.10.1"
+snapbox = "0.6.24"
 static_init = "1.0.3"
 subxt = "0.44.0"
 syn = "2.0.71"
@@ -242,7 +245,7 @@ gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
 gstd-codegen = { path = "gstd/codegen" }
-gring = { path = "utils/gring" }
+gsigner = { path = "gsigner", default-features = false }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gprimitives = { path = "gprimitives", default-features = false }
@@ -308,7 +311,7 @@ ethexe-db = { path = "ethexe/db", default-features = false }
 ethexe-network = { path = "ethexe/network", default-features = false }
 ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
-ethexe-signer = { path = "ethexe/signer", default-features = false }
+ethexe-sdk = { path = "ethexe/sdk", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
 ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-consensus = { path = "ethexe/consensus", default-features = false }
@@ -574,6 +577,7 @@ ignored = [
     "parity-scale-codec",
     "pallet-authorship",
     "pallet-timestamp",
+    "sp-application-crypto",
 ]
 
 [profile.dev.package.corosensei]

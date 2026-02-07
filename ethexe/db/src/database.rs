@@ -43,7 +43,7 @@ use ethexe_runtime_common::state::{
 use gear_core::{
     buffer::Payload,
     code::{CodeMetadata, InstrumentedCode},
-    ids::{ActorId, CodeId},
+    ids::{ActorId, CodeId, prelude::CodeIdExt as _},
     memory::PageBuf,
 };
 use gprimitives::H256;
@@ -202,6 +202,10 @@ impl Database {
         self.kv
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
     }
+
+    pub fn cas(&self) -> &dyn CASDatabase {
+        self.cas.as_ref()
+    }
 }
 
 impl HashStorageRO for Database {
@@ -303,10 +307,16 @@ impl CodesStorageRO for Database {
 
 impl CodesStorageRW for Database {
     fn set_original_code(&self, code: &[u8]) -> CodeId {
+        tracing::trace!(code_id = %CodeId::generate(code), code_len = %code.len(), "Set original code");
         self.cas.write(code).into()
     }
 
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId) {
+        tracing::trace!(
+            program_id = ?program_id,
+            code_id = ?code_id,
+            "Set program to code id mapping"
+        );
         self.kv.put(
             &Key::ProgramToCodeId(program_id).to_bytes(),
             code_id.into_bytes().to_vec(),
@@ -314,6 +324,11 @@ impl CodesStorageRW for Database {
     }
 
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
+        tracing::trace!(
+            code_id = ?code_id,
+            runtime_id = %runtime_id,
+            "Set instrumented code"
+        );
         self.kv.put(
             &Key::InstrumentedCode(runtime_id, code_id).to_bytes(),
             code.encode(),
@@ -321,6 +336,7 @@ impl CodesStorageRW for Database {
     }
 
     fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata) {
+        tracing::trace!(code_id = ?code_id, "Set code metadata");
         self.kv.put(
             &Key::CodeMetadata(code_id).to_bytes(),
             code_metadata.encode(),
@@ -328,19 +344,19 @@ impl CodesStorageRW for Database {
     }
 
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
+        tracing::trace!(code_id = ?code_id, valid = %valid, "Set code status");
         self.kv
             .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
     }
 }
 
-// TODO: consider to change decode panics to Results.
-impl Storage for Database {
+impl<'a> Storage for dyn CASDatabase + 'a {
     fn program_state(&self, hash: H256) -> Option<ProgramState> {
         if hash.is_zero() {
             return Some(ProgramState::zero());
         }
 
-        let data = self.cas.read(hash)?;
+        let data = self.read(hash)?;
 
         let state = ProgramState::decode(&mut &data[..])
             .expect("Failed to decode data into `ProgramState`");
@@ -353,113 +369,142 @@ impl Storage for Database {
             return H256::zero();
         }
 
-        self.cas.write(&state.encode())
+        self.write(&state.encode())
     }
 
     fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
-        self.cas.read(hash.inner()).map(|data| {
+        self.read(hash.inner()).map(|data| {
             MessageQueue::decode(&mut &data[..]).expect("Failed to decode data into `MessageQueue`")
         })
     }
 
     fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
-        unsafe { HashOf::new(self.cas.write(&queue.encode())) }
+        unsafe { HashOf::new(self.write(&queue.encode())) }
     }
 
     fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
-        self.cas.read(hash.inner()).map(|data| {
+        self.read(hash.inner()).map(|data| {
             Waitlist::decode(&mut data.as_slice()).expect("Failed to decode data into `Waitlist`")
         })
     }
 
     fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist> {
-        unsafe { HashOf::new(self.cas.write(&waitlist.encode())) }
+        unsafe { HashOf::new(self.write(&waitlist.encode())) }
     }
 
     fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
-        self.cas.read(hash.inner()).map(|data| {
+        self.read(hash.inner()).map(|data| {
             DispatchStash::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `DispatchStash`")
         })
     }
 
     fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
-        unsafe { HashOf::new(self.cas.write(&stash.encode())) }
+        unsafe { HashOf::new(self.write(&stash.encode())) }
     }
 
     fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
-        self.cas.read(hash.inner()).map(|data| {
+        self.read(hash.inner()).map(|data| {
             Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
         })
     }
 
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
-        unsafe { HashOf::new(self.cas.write(&mailbox.encode())) }
+        unsafe { HashOf::new(self.write(&mailbox.encode())) }
     }
 
     fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        self.cas.read(hash.inner()).map(|data| {
+        self.read(hash.inner()).map(|data| {
             UserMailbox::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `UserMailbox`")
         })
     }
 
     fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox> {
-        unsafe { HashOf::new(self.cas.write(&use_mailbox.encode())) }
+        unsafe { HashOf::new(self.write(&use_mailbox.encode())) }
     }
 
     fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
-        self.cas.read(hash.inner()).map(|data| {
+        self.read(hash.inner()).map(|data| {
             MemoryPages::decode(&mut &data[..]).expect("Failed to decode data into `MemoryPages`")
         })
     }
 
     fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
-        self.cas.read(hash.inner()).map(|data| {
+        self.read(hash.inner()).map(|data| {
             MemoryPagesRegion::decode(&mut &data[..])
                 .expect("Failed to decode data into `MemoryPagesRegion`")
         })
     }
 
     fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
-        unsafe { HashOf::new(self.cas.write(&pages.encode())) }
+        unsafe { HashOf::new(self.write(&pages.encode())) }
     }
 
     fn write_memory_pages_region(
         &self,
         pages_region: MemoryPagesRegion,
     ) -> HashOf<MemoryPagesRegion> {
-        unsafe { HashOf::new(self.cas.write(&pages_region.encode())) }
+        unsafe { HashOf::new(self.write(&pages_region.encode())) }
     }
 
     fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
-        self.cas.read(hash.inner()).map(|data| {
+        self.read(hash.inner()).map(|data| {
             Allocations::decode(&mut &data[..]).expect("Failed to decode data into `Allocations`")
         })
     }
 
     fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations> {
-        unsafe { HashOf::new(self.cas.write(&allocations.encode())) }
+        unsafe { HashOf::new(self.write(&allocations.encode())) }
     }
 
     fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
-        self.cas
-            .read(hash.inner())
+        self.read(hash.inner())
             .map(|data| Payload::try_from(data).expect("Failed to decode data into `Payload`"))
     }
 
     fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
-        unsafe { HashOf::new(self.cas.write(&payload)) }
+        unsafe { HashOf::new(self.write(&payload)) }
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
-        self.cas.read(hash.inner()).map(|data| {
+        self.read(hash.inner()).map(|data| {
             PageBuf::decode(&mut data.as_slice()).expect("Failed to decode data into `PageBuf`")
         })
     }
 
     fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {
-        unsafe { HashOf::new(self.cas.write(&data)) }
+        unsafe { HashOf::new(self.write(&data)) }
+    }
+}
+
+// Delegate Storage implementation to inner CASDatabase (mostly for testing purposes)
+impl Storage for Database {
+    delegate::delegate! {
+        to self.cas {
+            fn program_state(&self, hash: H256) -> Option<ProgramState>;
+            fn write_program_state(&self, state: ProgramState) -> H256;
+            fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue>;
+            fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue>;
+            fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist>;
+            fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist>;
+            fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash>;
+            fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash>;
+            fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox>;
+            fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox>;
+            fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox>;
+            fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox>;
+            fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;
+            fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion>;
+            fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages>;
+            fn write_memory_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion>;
+            fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations>;
+            fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations>;
+            fn payload(&self, hash: HashOf<Payload>) -> Option<Payload>;
+            fn write_payload(&self, payload: Payload) -> HashOf<Payload>;
+            fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf>;
+            fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf>;
+        }
     }
 }
 
@@ -706,25 +751,26 @@ impl LatestDataStorageRW for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{SimpleBlockData, ecdsa::PrivateKey, events::RouterEvent};
-    use gear_core::{
-        code::{InstantiatedSectionSizes, InstrumentationStatus},
-        limited::LimitedVec,
+    use ethexe_common::{
+        SimpleBlockData,
+        ecdsa::PrivateKey,
+        events::{RouterEvent, router::StorageSlotChangedEvent},
     };
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
     fn test_injected_transaction() {
         let db = Database::memory();
 
-        let private_key = PrivateKey::from([1; 32]);
+        let private_key = PrivateKey::from_seed([1; 32]).expect("valid seed");
         let tx = SignedInjectedTransaction::create(
             private_key,
             InjectedTransaction {
                 destination: ActorId::zero(),
-                payload: LimitedVec::new(),
+                payload: vec![].into(),
                 value: 0,
                 reference_block: H256::random(),
-                salt: gprimitives::U256::from(1),
+                salt: vec![].into(),
             },
         )
         .unwrap();
@@ -786,7 +832,11 @@ mod tests {
         let db = Database::memory();
 
         let block_hash = H256::random();
-        let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged)];
+        let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged(
+            StorageSlotChangedEvent {
+                slot: H256::random(),
+            },
+        ))];
         db.set_block_events(block_hash, &events);
         assert_eq!(db.block_events(block_hash), Some(events));
     }

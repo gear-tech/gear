@@ -41,13 +41,13 @@ use anyhow::Result;
 use ethexe_common::{
     Address as LocalAddress, ValidatorsVec, ecdsa::PublicKey, gear::AggregatedPublicKey,
 };
-use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{ActorId, H160, U256 as GearU256};
+use gsigner::secp256k1::Signer as LocalSigner;
 use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, convert::TryInto};
 
 /// The offset for mirror address calculation in router deployment.
 const MIRROR_DEPLOYMENT_NONCE_OFFSET: u64 = 2;
@@ -463,7 +463,9 @@ fn aggregated_public_key(
         .expect("conversion failed")
         .try_into()
         .unwrap();
-    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed)
+        .expect("verifying key produces valid compressed bytes")
+        .to_uncompressed();
     let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
     AggregatedPublicKey {
@@ -485,7 +487,7 @@ mod tests {
         let anvil = Anvil::new().block_time_f64(0.1).try_spawn()?;
         let signer = LocalSigner::memory();
 
-        let sender_public_key = signer.storage_mut().add_key(
+        let sender_public_key = signer.import(
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
         )?;
         let sender_address = sender_public_key.to_address();

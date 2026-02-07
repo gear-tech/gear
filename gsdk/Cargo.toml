@@ -3,7 +3,7 @@ name = "gsdk"
 description = "Rust SDK of the Gear network"
 documentation = "https://docs.rs/gsdk"
 categories = ["wasm", "api-bindings"]
-keywords = ["gear", "api", "sdk"]
+keywords = ["gear", "actor-model", "api", "sdk"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -56,7 +56,7 @@ demo-vec.workspace = true
 demo-reserve-gas = { workspace = true, features = ["std"] }
 demo-waiter = { workspace = true, features = ["std"] }
 demo-wat.workspace = true
-serde_json = { workspace = true, features = [ "std" ] }
+serde_json = { workspace = true, features = ["std"] }
 wat.workspace = true
 
 [features]

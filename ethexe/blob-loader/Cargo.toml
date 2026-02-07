@@ -22,7 +22,7 @@ gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gprimitives = { workspace = true, features = ["ethexe", "std"] }
-ethexe-signer.workspace = true
+gsigner.workspace = true
 ethexe-ethereum.workspace = true
 
 [lints]

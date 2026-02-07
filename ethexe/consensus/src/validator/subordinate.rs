@@ -85,16 +85,16 @@ impl StateHandler for Subordinate {
         }
     }
 
-    fn process_announce(mut self, validated_announce: VerifiedAnnounce) -> Result<ValidatorState> {
+    fn process_announce(mut self, verified_announce: VerifiedAnnounce) -> Result<ValidatorState> {
         match &mut self.state {
             State::WaitingForAnnounce
-                if validated_announce.address() == self.producer
-                    && validated_announce.data().block_hash == self.block.hash =>
+                if verified_announce.address() == self.producer
+                    && verified_announce.data().block_hash == self.block.hash =>
             {
-                let (announce, _pub_key) = validated_announce.into_parts();
+                let (announce, _pub_key) = verified_announce.into_parts();
                 self.send_announce_for_computation(announce)
             }
-            _ => DefaultProcessing::block_from_producer(self, validated_announce),
+            _ => DefaultProcessing::announce_from_producer(self, verified_announce),
         }
     }
 

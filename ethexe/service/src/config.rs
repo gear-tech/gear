@@ -19,11 +19,11 @@
 //! Application config in one place.
 
 use anyhow::Result;
-use ethexe_common::{Address, ecdsa::PublicKey};
 use ethexe_network::NetworkConfig;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
+use gsigner::secp256k1::{Address, PublicKey};
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug)]
@@ -65,7 +65,6 @@ pub struct NodeConfig {
     pub dev: bool,
     pub pre_funded_accounts: u32,
     pub fast_sync: bool,
-    pub validate_chain_deepness_limit: u32,
     pub chain_deepness_threshold: u32,
 }
 

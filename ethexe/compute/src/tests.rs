@@ -20,13 +20,19 @@ use super::*;
 use ethexe_common::{
     CodeBlobInfo,
     db::*,
-    events::{BlockEvent, RouterEvent},
+    events::{
+        BlockEvent, RouterEvent,
+        router::{CodeGotValidatedEvent, CodeValidationRequestedEvent},
+    },
     mock::*,
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::StreamExt;
-use gear_core::ids::prelude::CodeIdExt;
+use gear_core::{
+    code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
+    ids::prelude::CodeIdExt,
+};
 use std::{cell::RefCell, collections::BTreeMap};
 
 thread_local! {
@@ -36,6 +42,7 @@ thread_local! {
             states: BTreeMap::new(),
             schedule: BTreeMap::new(),
             promises: Vec::new(),
+            program_creations: Vec::new(),
         }
     ) };
 }
@@ -47,8 +54,7 @@ pub(crate) struct MockProcessor;
 impl ProcessorExt for MockProcessor {
     async fn process_announce(
         &mut self,
-        _announce: Announce,
-        _events: Vec<BlockRequestEvent>,
+        _executable: ExecutableData,
     ) -> Result<FinalizedBlockTransitions> {
         let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
         PROCESSOR_RESULT.with_borrow_mut(|r| {
@@ -57,14 +63,37 @@ impl ProcessorExt for MockProcessor {
                 states: BTreeMap::new(),
                 schedule: BTreeMap::new(),
                 promises: vec![],
+                program_creations: vec![],
             }
         });
 
         Ok(result)
     }
 
-    fn process_upload_code(&mut self, _code_and_id: CodeAndIdUnchecked) -> Result<bool> {
-        Ok(true)
+    fn process_upload_code(
+        &mut self,
+        code_and_id: CodeAndIdUnchecked,
+    ) -> Result<ProcessedCodeInfo> {
+        Ok(ProcessedCodeInfo {
+            code_id: code_and_id.code_id,
+            valid: Some(ethexe_processor::ValidCodeInfo {
+                code: code_and_id.code,
+                instrumented_code: InstrumentedCode::new(
+                    vec![],
+                    InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
+                ),
+                code_metadata: CodeMetadata::new(
+                    0,
+                    Default::default(),
+                    0.into(),
+                    None,
+                    gear_core::code::InstrumentationStatus::Instrumented {
+                        version: 0,
+                        code_len: 0,
+                    },
+                ),
+            }),
+        })
     }
 }
 
@@ -102,10 +131,10 @@ fn insert_code_events(chain: &mut BlockChain, events_in_block: u32) {
                     },
                 );
 
-                BlockEvent::Router(RouterEvent::CodeGotValidated {
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id,
                     valid: true,
-                })
+                }))
             })
             .collect();
     }
@@ -290,11 +319,13 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
     let mut block_events = env.chain.blocks[1].as_synced().events.clone();
 
     // add invalid event which shouldn't stop block prepare
-    block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested {
-        code_id: CodeId::zero(),
-        timestamp: 0u64,
-        tx_hash: H256::random(),
-    }));
+    block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
+        CodeValidationRequestedEvent {
+            code_id: CodeId::zero(),
+            timestamp: 0u64,
+            tx_hash: H256::random(),
+        },
+    )));
     env.db
         .set_block_events(env.chain.blocks[1].hash, &block_events);
     env.prepare_and_assert_block(env.chain.blocks[1].hash).await;

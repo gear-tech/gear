@@ -26,12 +26,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
-use parity_scale_codec::Encode;
 use std::collections::HashSet;
-
-/// Maximum total size of injected transactions per announce.
-/// Currently set to 2 MB.
-pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE: usize = 2 * 1024 * 1024;
 
 /// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
 #[derive(Clone)]
@@ -76,7 +71,6 @@ where
 
         let mut selected_txs = vec![];
         let mut remove_txs = vec![];
-        let mut size_counter = 0usize;
 
         for (reference_block, tx_hash) in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
@@ -87,18 +81,7 @@ where
             match tx_checker.check_tx_validity(&tx)? {
                 TxValidity::Valid => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
-                    // NOTE: we calculate size with signature, because tx will be sent to network with it.
-                    let tx_size = tx.encoded_size();
-                    if size_counter + tx_size > MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE {
-                        tracing::trace!(
-                            ?tx_hash,
-                            "transaction is valid, but exceeds max announce size limit, so skipping it for future announces"
-                        );
-                        continue;
-                    }
-
-                    selected_txs.push(tx);
-                    size_counter += tx_size;
+                    selected_txs.push(tx)
                 }
                 TxValidity::Duplicate => {
                     // Keep in pool, in case of reorg it can be valid again.
@@ -152,8 +135,8 @@ mod tests {
     use super::*;
     use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
     use ethexe_runtime_common::state::{Program, ProgramState, Storage};
-    use ethexe_signer::Signer;
     use gprimitives::ActorId;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 
     #[test]
     fn test_select_for_announce() {
@@ -190,14 +173,14 @@ mod tests {
         let mut tx_pool = InjectedTxPool::new(db.clone());
 
         let signer = Signer::memory();
-        let key = signer.generate_key().unwrap();
+        let key = signer.generate().unwrap();
         let tx = InjectedTransaction {
             reference_block: chain.blocks[9].hash,
             destination: program_id,
             ..InjectedTransaction::mock(())
         };
         let tx_hash = tx.to_hash();
-        let signed_tx = signer.signed_message(key, tx).unwrap();
+        let signed_tx = signer.signed_message(key, tx, None).unwrap();
 
         tx_pool.handle_tx(signed_tx.clone());
         assert!(
@@ -216,6 +199,7 @@ mod tests {
                         destination: program_id,
                         ..InjectedTransaction::mock(())
                     },
+                    None,
                 )
                 .unwrap(),
         );
