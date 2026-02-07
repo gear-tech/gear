@@ -1119,7 +1119,7 @@ mod tests {
     #[tokio::test]
     async fn put_identity_global_addresses() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let keypair = Keypair::generate_secp256k1();
 
         let local_addr = "/ip4/127.0.0.1/tcp/123"
