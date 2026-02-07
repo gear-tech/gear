@@ -196,6 +196,7 @@ impl Behaviour {
         self.handle.clone()
     }
 
+    #[cfg(test)]
     fn get_score(&self, peer_id: PeerId) -> Option<i8> {
         self.peers.get(&peer_id).map(|entry| entry.score)
     }
@@ -374,8 +375,10 @@ mod tests {
 
         init_logger();
 
-        let mut alice_config = Config::default();
-        alice_config.excessive_data = EXCESSIVE_DATA;
+        let alice_config = Config {
+            excessive_data: EXCESSIVE_DATA,
+            ..Default::default()
+        };
         let mut alice = new_swarm_with_config(alice_config.clone()).await;
         let mut chad = new_swarm().await;
         let chad_peer_id = *chad.local_peer_id();
@@ -467,11 +470,7 @@ mod tests {
         time::advance(PEER_FORGET_TIME).await;
 
         // wait for decay
-        while alice
-            .peers
-            .get(&peer_id)
-            .is_some_and(|entry| entry.score != 0)
-        {
+        while alice.get_score(peer_id).is_some_and(|score| score != 0) {
             alice.on_driver_tick();
         }
 
@@ -484,6 +483,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::field_reassign_with_default)]
     fn decay_math() {
         let mut entry = ScoreEntry::default();
 
