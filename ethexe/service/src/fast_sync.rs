@@ -23,7 +23,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
-        ComputedAnnounceData, OnChainStorageRW, PreparedBlockData,
+        ComputedAnnounceData, ConfigStorageRO, OnChainStorageRW, PreparedBlockData,
     },
     events::{
         BlockEvent, RouterEvent,
@@ -714,7 +714,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     // Since we get storage view at `block_hash`
     // then latest committed era is for the largest `useFromTimestamp`
-    let latest_era_with_committed_validators = storage_view.protocol_timelines().era_from_ts(max(
+    let latest_era_with_committed_validators = db.config().timelines.era_from_ts(max(
         storage_view
             .validationSettings
             .validators0

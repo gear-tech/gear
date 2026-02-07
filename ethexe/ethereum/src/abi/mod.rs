@@ -16,12 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::sol;
-
 mod events;
 mod gear;
 
-use ethexe_common::ProtocolTimelines;
+use alloy::sol;
 use gprimitives::H256;
 pub use middleware_abi::*;
 pub use mirror_abi::*;
@@ -143,15 +141,6 @@ pub mod symbiotic_abi {
 }
 
 impl IRouter::StorageView {
-    pub fn protocol_timelines(&self) -> ProtocolTimelines {
-        ProtocolTimelines {
-            genesis_ts: self.genesisBlock.timestamp.to::<u64>(),
-            era: self.timelines.era.to::<u64>(),
-            election: self.timelines.election.to::<u64>(),
-            slot: alloy::eips::merge::SLOT_DURATION_SECS,
-        }
-    }
-
     // +_+_+ create a proper struct for this
     pub fn genesis_block_info(&self) -> (H256, u32, u64) {
         (

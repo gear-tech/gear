@@ -60,6 +60,7 @@ alloy = { workspace = true, features = [
 ntest.workspace = true
 gear-core-errors.workspace = true
 ethexe-network.workspace = true
+ethexe-db = { workspace = true, features = ["mock"] }
 roast-secp256k1-evm.workspace = true
 ethexe-rpc = { workspace = true, features = ["client"] }
 tracing.workspace = true

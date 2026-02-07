@@ -18,9 +18,10 @@
 
 use crate::{
     RouterDataProvider, Service,
+    init::InitConfig,
     tests::utils::{
-        InfiniteStreamExt, TestingEvent, TestingNetworkEvent, events,
-        events::{ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
+        InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
+        events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
 use alloy::{
@@ -44,7 +45,7 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
-use ethexe_db::Database;
+use ethexe_db::{Database, DatabaseRef, MemDb};
 use ethexe_ethereum::{
     Ethereum,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
@@ -79,7 +80,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
-use tokio::{task, task::JoinHandle};
+use tokio::task::{self, JoinHandle};
 use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.
@@ -231,7 +232,11 @@ impl TestEnv {
         let router_query = router.query();
         let router_address = router.address();
 
-        let db = Database::memory();
+        let db = new_empty_initialized_memory_db(InitConfig {
+            ethereum_rpc: ws_rpc_url.clone(),
+            router_address,
+            slot_duration_secs: block_time.as_secs(),
+        })?;
 
         let eth_cfg = EthereumConfig {
             rpc: ws_rpc_url.clone(),
@@ -354,7 +359,15 @@ impl TestEnv {
             fast_sync,
         } = config;
 
-        let db = db.unwrap_or_else(Database::memory);
+        let db = match db {
+            Some(db) => db,
+            None => new_empty_initialized_memory_db(InitConfig {
+                ethereum_rpc: self.eth_cfg.rpc.clone(),
+                router_address: self.eth_cfg.router_address,
+                slot_duration_secs: self.eth_cfg.block_time.as_secs(),
+            })
+            .unwrap(),
+        };
 
         let (network_address, network_bootstrap_address) = self
             .bootstrap_network
@@ -1310,4 +1323,17 @@ impl WaitForReplyTo {
 
         Ok(info)
     }
+}
+
+pub fn new_empty_initialized_memory_db(config: InitConfig) -> anyhow::Result<Database> {
+    let db = MemDb::default();
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::block_in_place(|| {
+        handle.block_on(crate::init::initialize_empty_db(
+            config,
+            DatabaseRef { kv: &db, cas: &db },
+        ))
+    })?;
+
+    Ok(Database::from_one(&db))
 }

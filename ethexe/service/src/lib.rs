@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::config::{Config, ConfigPublicKey};
+use crate::{
+    config::{Config, ConfigPublicKey},
+    init::InitConfig,
+};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
@@ -222,7 +225,11 @@ impl Service {
         .with_context(|| "failed to open database")?;
 
         init::initialize_db(
-            config,
+            InitConfig {
+                ethereum_rpc: config.ethereum.rpc.clone(),
+                router_address: config.ethereum.router_address,
+                slot_duration_secs: config.ethereum.block_time.as_secs(),
+            },
             DatabaseRef {
                 cas: &rocks_db,
                 kv: &rocks_db,

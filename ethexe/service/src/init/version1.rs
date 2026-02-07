@@ -1,17 +1,18 @@
 use super::{DB_VERSION_0, DB_VERSION_1};
-use crate::config::Config;
-use alloy::providers::{Provider as _, ProviderBuilder, RootProvider};
-use anyhow::{Context, Result, anyhow, bail};
+use crate::init::InitConfig;
+use alloy::providers::{Provider as _, RootProvider};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
     Announce, BlockHeader, HashOf, ProtocolTimelines, SimpleBlockData,
     db::{ComputedAnnounceData, PreparedBlockData},
+    gear::Timelines,
 };
 use ethexe_db::DatabaseRef;
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
 use parity_scale_codec::Decode;
 
-pub async fn initialize_db<'a, 'b>(config: &Config, db: DatabaseRef<'a, 'b>) -> Result<()> {
+pub async fn initialize_db<'a, 'b>(config: InitConfig, db: DatabaseRef<'a, 'b>) -> Result<()> {
     if ethexe_db::VERSION != DB_VERSION_1 {
         bail!(
             "Cannot initializing database to version 1, because current impl version is {}",
@@ -64,7 +65,10 @@ pub async fn initialize_db<'a, 'b>(config: &Config, db: DatabaseRef<'a, 'b>) -> 
     Ok(())
 }
 
-pub async fn initialize_empty_db<'a, 'b>(config: &Config, db: DatabaseRef<'a, 'b>) -> Result<()> {
+pub async fn initialize_empty_db<'a, 'b>(
+    config: InitConfig,
+    db: DatabaseRef<'a, 'b>,
+) -> Result<()> {
     if ethexe_db::VERSION != DB_VERSION_1 {
         bail!(
             "Cannot initializing database to version 1, because current impl version is {}",
@@ -72,14 +76,11 @@ pub async fn initialize_empty_db<'a, 'b>(config: &Config, db: DatabaseRef<'a, 'b
         );
     }
 
-    let provider: RootProvider = ProviderBuilder::default()
-        .connect(config.ethereum.rpc.as_str())
-        .await
-        .unwrap();
+    let provider = RootProvider::connect(&config.ethereum_rpc).await.unwrap();
 
     let chain_id = provider.get_chain_id().await?;
 
-    let storage_view = RouterQuery::from_provider(config.ethereum.router_address, provider)
+    let storage_view = RouterQuery::from_provider(config.router_address, provider)
         .storage_view_at(alloy::eips::BlockId::latest())
         .await
         .context("Empty db init, failed read router data")?;
@@ -126,11 +127,18 @@ pub async fn initialize_empty_db<'a, 'b>(config: &Config, db: DatabaseRef<'a, 'b
         },
     );
 
+    let timelines: Timelines = storage_view.timelines.into();
+
     let db_config = ethexe_common::db::DBConfig {
         version: DB_VERSION_1,
         chain_id,
-        router_address: config.ethereum.router_address,
-        timelines: storage_view.protocol_timelines(),
+        router_address: config.router_address,
+        timelines: ProtocolTimelines {
+            genesis_ts: genesis_block.header.timestamp,
+            era: timelines.era,
+            election: timelines.election,
+            slot: config.slot_duration_secs,
+        },
         genesis_block_hash,
         genesis_announce_hash,
     };
@@ -151,7 +159,7 @@ pub async fn initialize_empty_db<'a, 'b>(config: &Config, db: DatabaseRef<'a, 'b
 }
 
 pub async fn migration_from_version0<'a, 'b>(
-    config: &Config,
+    config: InitConfig,
     db: DatabaseRef<'a, 'b>,
 ) -> Result<()> {
     if ethexe_db::VERSION != DB_VERSION_1 {
@@ -167,10 +175,7 @@ pub async fn migration_from_version0<'a, 'b>(
     // 2) Timelines is moved to more common DBConfig.
     //    DB keys have the same prefix, but appends 8 zero bytes in the end.
 
-    let provider: RootProvider = ProviderBuilder::default()
-        .connect(config.ethereum.rpc.as_str())
-        .await
-        .unwrap();
+    let provider: RootProvider = RootProvider::connect(&config.ethereum_rpc).await.unwrap();
 
     let chain_id = provider.get_chain_id().await?;
 
@@ -215,7 +220,7 @@ pub async fn migration_from_version0<'a, 'b>(
     let db_config = ethexe_common::db::DBConfig {
         version: DB_VERSION_1,
         chain_id,
-        router_address: config.ethereum.router_address,
+        router_address: config.router_address,
         timelines,
         genesis_block_hash: latest_data.genesis_block_hash,
         genesis_announce_hash: latest_data.genesis_announce_hash,
