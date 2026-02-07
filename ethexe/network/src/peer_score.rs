@@ -123,20 +123,6 @@ impl Default for Config {
     }
 }
 
-#[cfg(test)] // used only in tests yet
-impl Config {
-    #[allow(dead_code)] // not used anywhere yet
-    pub(crate) fn with_unsupported_protocol(mut self, value: i8) -> Self {
-        self.unsupported_protocol = value;
-        self
-    }
-
-    pub(crate) fn with_excessive_data(mut self, value: i8) -> Self {
-        self.excessive_data = value;
-        self
-    }
-}
-
 struct ScoreEntry {
     score: i8,
     updated_at: Instant,
@@ -216,12 +202,6 @@ impl Behaviour {
 
     fn on_driver_tick(&mut self) {
         self.peers.retain(|&peer_id, entry| {
-            // remove the peer score entry if it is not updated for a long time
-            if entry.is_expired() {
-                self.block_list.unblock_peer(peer_id);
-                return false;
-            }
-
             let was_blocked = entry.is_blocked();
             entry.decay_score(self.config.decay);
             let now_blocked = entry.is_blocked();
@@ -230,6 +210,13 @@ impl Behaviour {
                 self.block_list.unblock_peer(peer_id);
                 self.pending_events
                     .push_back(Event::PeerUnblocked { peer_id });
+            }
+
+            // remove the peer score entry if it is not updated for a long time
+            if entry.is_expired() {
+                // should be unblocked during decay
+                debug_assert!(!self.block_list.blocked_peers().contains(&peer_id));
+                return false;
             }
 
             true
@@ -387,7 +374,8 @@ mod tests {
 
         init_logger();
 
-        let alice_config = Config::default().with_excessive_data(EXCESSIVE_DATA);
+        let mut alice_config = Config::default();
+        alice_config.excessive_data = EXCESSIVE_DATA;
         let mut alice = new_swarm_with_config(alice_config.clone()).await;
         let mut chad = new_swarm().await;
         let chad_peer_id = *chad.local_peer_id();
@@ -454,5 +442,44 @@ mod tests {
             alice.behaviour().get_score(chad_peer_id),
             Some(EXCESSIVE_DATA * 3 + alice_config.decay)
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn peer_forgot() {
+        init_logger();
+
+        let mut alice = new_swarm().await;
+        let alice = alice.behaviour_mut();
+
+        let peer_id = PeerId::random();
+
+        alice.on_score_decrease(peer_id, ScoreDecreaseReason::InvalidData);
+        assert!(alice.block_list.blocked_peers().contains(&peer_id));
+        assert_eq!(
+            alice.pending_events.pop_front(),
+            Some(Event::PeerBlocked {
+                peer_id,
+                last_reason: ScoreDecreaseReason::InvalidData
+            })
+        );
+        assert!(alice.peers.contains_key(&peer_id));
+
+        time::advance(PEER_FORGET_TIME).await;
+
+        // wait for decay
+        while alice
+            .peers
+            .get(&peer_id)
+            .is_some_and(|entry| entry.score != 0)
+        {
+            alice.on_driver_tick();
+        }
+
+        assert!(!alice.block_list.blocked_peers().contains(&peer_id));
+        assert_eq!(
+            alice.pending_events.pop_front(),
+            Some(Event::PeerUnblocked { peer_id })
+        );
+        assert!(!alice.peers.contains_key(&peer_id));
     }
 }
