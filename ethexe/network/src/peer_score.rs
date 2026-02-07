@@ -482,4 +482,25 @@ mod tests {
         );
         assert!(!alice.peers.contains_key(&peer_id));
     }
+
+    #[test]
+    fn decay_math() {
+        let mut entry = ScoreEntry::default();
+
+        entry.score = i8::MIN;
+        entry.decay_score(i8::MAX);
+        assert_eq!(entry.score, -1);
+        entry.decay_score(i8::MAX);
+        assert_eq!(entry.score, 0);
+        entry.decay_score(i8::MAX);
+        assert_eq!(entry.score, 0);
+
+        entry.score = i8::MAX;
+        entry.decay_score(1);
+        assert_eq!(entry.score, i8::MAX - 1);
+        entry.decay_score(i8::MAX);
+        assert_eq!(entry.score, 0);
+        entry.decay_score(i8::MAX);
+        assert_eq!(entry.score, 0);
+    }
 }
