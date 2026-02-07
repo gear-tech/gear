@@ -229,7 +229,7 @@ impl Behaviour {
         })
     }
 
-    fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) {
+    fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) -> Option<Event> {
         let entry = self.peers.entry(peer_id).or_default();
 
         let was_blocked = entry.is_blocked(self.config.blocked_threshold);
@@ -238,11 +238,13 @@ impl Behaviour {
 
         if !was_blocked && now_blocked {
             self.block_list.block_peer(peer_id);
-            self.pending_events.push_back(Event::PeerBlocked {
+            return Some(Event::PeerBlocked {
                 peer_id,
                 last_reason: reason,
             });
         }
+
+        None
     }
 }
 
@@ -342,13 +344,10 @@ impl NetworkBehaviour for Behaviour {
             return Poll::Ready(to_swarm.map_out(|infallible| match infallible {}));
         }
 
-        if let Poll::Ready(Some((peer_id, reason))) = self.rx.poll_recv(cx) {
-            self.on_score_decrease(peer_id, reason);
-
-            // return event produced by `on_score_decrease` immediately instead of waking
-            if let Some(event) = self.pending_events.pop_front() {
-                return Poll::Ready(ToSwarm::GenerateEvent(event));
-            }
+        if let Poll::Ready(Some((peer_id, reason))) = self.rx.poll_recv(cx)
+            && let Some(event) = self.on_score_decrease(peer_id, reason)
+        {
+            return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
         Poll::Pending
@@ -461,10 +460,10 @@ mod tests {
 
         let peer_id = PeerId::random();
 
-        alice.on_score_decrease(peer_id, ScoreDecreaseReason::InvalidData);
+        let event = alice.on_score_decrease(peer_id, ScoreDecreaseReason::InvalidData);
         assert!(alice.block_list.blocked_peers().contains(&peer_id));
         assert_eq!(
-            alice.pending_events.pop_front(),
+            event,
             Some(Event::PeerBlocked {
                 peer_id,
                 last_reason: ScoreDecreaseReason::InvalidData
