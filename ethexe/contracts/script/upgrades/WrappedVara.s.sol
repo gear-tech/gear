@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
-import {WrappedVara} from "../../src/WrappedVara.sol";
 import {Script} from "forge-std/Script.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import {WrappedVara} from "src/WrappedVara.sol";
 
 contract WrappedVaraScript is Script {
     function setUp() public {}
