@@ -37,6 +37,7 @@ pub struct CodeGotValidatedEvent {
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct CodeValidationRequestedEvent {
     pub code_id: CodeId,
     pub timestamp: u64,
@@ -44,23 +45,27 @@ pub struct CodeValidationRequestedEvent {
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ComputationSettingsChangedEvent {
     pub threshold: u64,
     pub wvara_per_second: u128,
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProgramCreatedEvent {
     pub actor_id: ActorId,
     pub code_id: CodeId,
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StorageSlotChangedEvent {
     pub slot: H256,
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValidatorsCommittedForEraEvent {
     pub era_index: u64,
 }
@@ -81,30 +86,14 @@ pub enum Event {
 impl Event {
     pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
-            Self::CodeValidationRequested(CodeValidationRequestedEvent {
-                code_id,
-                timestamp,
-                tx_hash,
-            }) => RequestEvent::CodeValidationRequested {
-                code_id,
-                timestamp,
-                tx_hash,
-            },
-            Self::ComputationSettingsChanged(ComputationSettingsChangedEvent {
-                threshold,
-                wvara_per_second,
-            }) => RequestEvent::ComputationSettingsChanged {
-                threshold,
-                wvara_per_second,
-            },
-            Self::ProgramCreated(ProgramCreatedEvent { actor_id, code_id }) => {
-                RequestEvent::ProgramCreated { actor_id, code_id }
+            Self::CodeValidationRequested(event) => RequestEvent::CodeValidationRequested(event),
+            Self::ComputationSettingsChanged(event) => {
+                RequestEvent::ComputationSettingsChanged(event)
             }
-            Self::StorageSlotChanged(StorageSlotChangedEvent { slot }) => {
-                RequestEvent::StorageSlotChanged { slot }
-            }
-            Self::ValidatorsCommittedForEra(ValidatorsCommittedForEraEvent { era_index }) => {
-                RequestEvent::ValidatorsCommittedForEra { era_index }
+            Self::ProgramCreated(event) => RequestEvent::ProgramCreated(event),
+            Self::StorageSlotChanged(event) => RequestEvent::StorageSlotChanged(event),
+            Self::ValidatorsCommittedForEra(event) => {
+                RequestEvent::ValidatorsCommittedForEra(event)
             }
             Self::CodeGotValidated { .. }
             | Self::AnnouncesCommitted(_)
@@ -113,29 +102,12 @@ impl Event {
     }
 }
 
-// TODO: consider to refactor in the same way (https://github.com/gear-tech/gear/pull/5107#discussion_r2727448994)
-
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
-    CodeValidationRequested {
-        code_id: CodeId,
-        timestamp: u64,
-        // TODO (breathx): replace with `code: Vec<u8>`
-        tx_hash: H256,
-    },
-    ComputationSettingsChanged {
-        threshold: u64,
-        wvara_per_second: u128,
-    },
-    ProgramCreated {
-        actor_id: ActorId,
-        code_id: CodeId,
-    },
-    StorageSlotChanged {
-        slot: H256,
-    },
-    ValidatorsCommittedForEra {
-        era_index: u64,
-    },
+    CodeValidationRequested(CodeValidationRequestedEvent),
+    ComputationSettingsChanged(ComputationSettingsChangedEvent),
+    ProgramCreated(ProgramCreatedEvent),
+    StorageSlotChanged(StorageSlotChangedEvent),
+    ValidatorsCommittedForEra(ValidatorsCommittedForEraEvent),
 }

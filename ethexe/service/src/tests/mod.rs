@@ -370,7 +370,7 @@ async fn uninitialized_program() {
             .send_message(init_res.program_id, &init_payload)
             .await
             .unwrap();
-        let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
+        let mirror = env.ethereum.mirror(init_res.program_id);
 
         let msgs_for_reply: Vec<_> = receiver
             .clone()
@@ -601,7 +601,7 @@ async fn mailbox() {
         ]),
     )]);
 
-    let mirror = env.ethereum.mirror(async_pid.try_into().unwrap());
+    let mirror = env.ethereum.mirror(async_pid);
     let state_hash = mirror.query().state_hash().await.unwrap();
 
     let state = node.db.program_state(state_hash).unwrap();
@@ -3240,7 +3240,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let receiver = env.new_observer_events();
         let pending = env
             .ethereum
-            .mirror(ping_id.try_into().unwrap())
+            .mirror(ping_id)
             .send_message_pending(b"PING", 0)
             .await
             .unwrap();
@@ -3285,7 +3285,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let receiver = env.new_observer_events();
         let pending = env
             .ethereum
-            .mirror(ping_id.try_into().unwrap())
+            .mirror(ping_id)
             .send_message_pending(b"PING", 0)
             .await
             .unwrap();

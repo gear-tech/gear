@@ -22,7 +22,7 @@ use core::num::NonZero;
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
     ecdsa::VerifiedData,
-    events::{BlockRequestEvent, MirrorRequestEvent},
+    events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
     injected::InjectedTransaction,
 };
 use ethexe_db::Database;
@@ -390,13 +390,15 @@ impl OverlaidProcessor {
             vec![],
             vec![BlockRequestEvent::Mirror {
                 actor_id: program_id,
-                event: MirrorRequestEvent::MessageQueueingRequested {
-                    id: MessageId::zero(),
-                    source,
-                    payload: payload.clone(),
-                    value,
-                    call_reply: true,
-                },
+                event: MirrorRequestEvent::MessageQueueingRequested(
+                    MessageQueueingRequestedEvent {
+                        id: MessageId::zero(),
+                        source,
+                        payload: payload.clone(),
+                        value,
+                        call_reply: true,
+                    },
+                ),
             }],
         )?;
 

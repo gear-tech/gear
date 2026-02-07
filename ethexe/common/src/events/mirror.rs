@@ -24,11 +24,13 @@ use parity_scale_codec::{Decode, Encode};
 // TODO: consider to sort events in same way as in IMirror.sol
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct OwnedBalanceTopUpRequestedEvent {
     pub value: u128,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExecutableBalanceTopUpRequestedEvent {
     pub value: u128,
 }
@@ -49,6 +51,7 @@ pub struct MessageCallFailedEvent {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueueingRequestedEvent {
     pub id: MessageId,
     pub source: ActorId,
@@ -73,6 +76,7 @@ pub struct ReplyCallFailedEvent {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyQueueingRequestedEvent {
     pub replied_to: MessageId,
     pub source: ActorId,
@@ -92,6 +96,7 @@ pub struct ValueClaimedEvent {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaimingRequestedEvent {
     pub claimed_id: MessageId,
     pub source: ActorId,
@@ -116,28 +121,14 @@ impl Event {
     pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
             Self::OwnedBalanceTopUpRequested(event) => {
-                RequestEvent::OwnedBalanceTopUpRequested { value: event.value }
+                RequestEvent::OwnedBalanceTopUpRequested(event)
             }
             Self::ExecutableBalanceTopUpRequested(event) => {
-                RequestEvent::ExecutableBalanceTopUpRequested { value: event.value }
+                RequestEvent::ExecutableBalanceTopUpRequested(event)
             }
-            Self::MessageQueueingRequested(event) => RequestEvent::MessageQueueingRequested {
-                id: event.id,
-                source: event.source,
-                payload: event.payload,
-                value: event.value,
-                call_reply: event.call_reply,
-            },
-            Self::ReplyQueueingRequested(event) => RequestEvent::ReplyQueueingRequested {
-                replied_to: event.replied_to,
-                source: event.source,
-                payload: event.payload,
-                value: event.value,
-            },
-            Self::ValueClaimingRequested(event) => RequestEvent::ValueClaimingRequested {
-                claimed_id: event.claimed_id,
-                source: event.source,
-            },
+            Self::MessageQueueingRequested(event) => RequestEvent::MessageQueueingRequested(event),
+            Self::ReplyQueueingRequested(event) => RequestEvent::ReplyQueueingRequested(event),
+            Self::ValueClaimingRequested(event) => RequestEvent::ValueClaimingRequested(event),
             Self::StateChanged(_)
             | Self::ValueClaimed(_)
             | Self::Message(_)
@@ -148,32 +139,12 @@ impl Event {
     }
 }
 
-// TODO: consider to refactor in the same way (https://github.com/gear-tech/gear/pull/5107#discussion_r2727448994)
-
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
-    OwnedBalanceTopUpRequested {
-        value: u128,
-    },
-    ExecutableBalanceTopUpRequested {
-        value: u128,
-    },
-    MessageQueueingRequested {
-        id: MessageId,
-        source: ActorId,
-        payload: Vec<u8>,
-        value: u128,
-        call_reply: bool,
-    },
-    ReplyQueueingRequested {
-        replied_to: MessageId,
-        source: ActorId,
-        payload: Vec<u8>,
-        value: u128,
-    },
-    ValueClaimingRequested {
-        claimed_id: MessageId,
-        source: ActorId,
-    },
+    OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequestedEvent),
+    ExecutableBalanceTopUpRequested(ExecutableBalanceTopUpRequestedEvent),
+    MessageQueueingRequested(MessageQueueingRequestedEvent),
+    ReplyQueueingRequested(ReplyQueueingRequestedEvent),
+    ValueClaimingRequested(ValueClaimingRequestedEvent),
 }
