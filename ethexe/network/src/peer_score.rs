@@ -36,9 +36,6 @@ use tokio::{
     time::{Instant, Interval},
 };
 
-const PEER_BLOCKED_THRESHOLD: i8 = i8::MIN / 3;
-const PEER_FORGET_TIME: Duration = Duration::from_hours(1);
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum ScoreDecreaseReason {
     UnsupportedProtocol,
@@ -100,26 +97,34 @@ pub(crate) enum Event {
 }
 
 /// Behaviour config.
-///
-/// All values represented by number that will be subtracted from peer score.
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
     unsupported_protocol: i8,
     excessive_data: i8,
     invalid_data: i8,
     decay: i8,
+    blocked_threshold: i8,
     driver_time: Duration,
+    forget_time: Duration,
 }
 
-impl Default for Config {
-    fn default() -> Self {
+impl Config {
+    const fn new() -> Self {
         Self {
             unsupported_protocol: i8::MIN, // TODO: consider to remove
             excessive_data: i8::MIN / 5,
             invalid_data: i8::MIN / 3,
             decay: i8::MAX / 17,
+            blocked_threshold: i8::MIN / 3,
             driver_time: Duration::from_secs(1),
+            forget_time: Duration::from_hours(1),
         }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -138,12 +143,12 @@ impl Default for ScoreEntry {
 }
 
 impl ScoreEntry {
-    fn is_expired(&self) -> bool {
-        self.score == 0 && self.updated_at + PEER_FORGET_TIME <= Instant::now()
+    fn is_expired(&self, forget_time: Duration) -> bool {
+        self.score == 0 && self.updated_at + forget_time <= Instant::now()
     }
 
-    fn is_blocked(&self) -> bool {
-        self.score <= PEER_BLOCKED_THRESHOLD
+    fn is_blocked(&self, blocked_threshold: i8) -> bool {
+        self.score <= blocked_threshold
     }
 
     fn add_score(&mut self, score: i8) {
@@ -203,9 +208,9 @@ impl Behaviour {
 
     fn on_driver_tick(&mut self) {
         self.peers.retain(|&peer_id, entry| {
-            let was_blocked = entry.is_blocked();
+            let was_blocked = entry.is_blocked(self.config.blocked_threshold);
             entry.decay_score(self.config.decay);
-            let now_blocked = entry.is_blocked();
+            let now_blocked = entry.is_blocked(self.config.blocked_threshold);
 
             if was_blocked && !now_blocked {
                 self.block_list.unblock_peer(peer_id);
@@ -214,7 +219,7 @@ impl Behaviour {
             }
 
             // remove the peer score entry if it is not updated for a long time
-            if entry.is_expired() {
+            if entry.is_expired(self.config.forget_time) {
                 // should be unblocked during decay
                 debug_assert!(!self.block_list.blocked_peers().contains(&peer_id));
                 return false;
@@ -227,9 +232,9 @@ impl Behaviour {
     fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) {
         let entry = self.peers.entry(peer_id).or_default();
 
-        let was_blocked = entry.is_blocked();
+        let was_blocked = entry.is_blocked(self.config.blocked_threshold);
         entry.add_score(reason.to_i8(&self.config));
-        let now_blocked = entry.is_blocked();
+        let now_blocked = entry.is_blocked(self.config.blocked_threshold);
 
         if !was_blocked && now_blocked {
             self.block_list.block_peer(peer_id);
@@ -371,7 +376,7 @@ mod tests {
 
     #[tokio::test]
     async fn smoke() {
-        const EXCESSIVE_DATA: i8 = PEER_BLOCKED_THRESHOLD / 3 - 1;
+        const EXCESSIVE_DATA: i8 = Config::new().blocked_threshold / 3 - 1;
 
         init_logger();
 
@@ -467,7 +472,7 @@ mod tests {
         );
         assert!(alice.peers.contains_key(&peer_id));
 
-        time::advance(PEER_FORGET_TIME).await;
+        time::advance(alice.config.forget_time).await;
 
         // wait for decay
         while alice.get_score(peer_id).is_some_and(|score| score != 0) {
