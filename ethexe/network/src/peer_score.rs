@@ -89,7 +89,7 @@ pub(crate) enum Event {
         /// The last reason changed peer score
         last_reason: ScoreDecreaseReason,
     },
-    /// Peer has been unblocked because of healing
+    /// Peer has been unblocked because of decay
     PeerUnblocked {
         /// Peer we blocked
         peer_id: PeerId,
