@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
 /// @dev This is custom implementation of ERC1167 that supports upgrades.
 ///
