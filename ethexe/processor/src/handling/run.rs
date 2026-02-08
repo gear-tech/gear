@@ -573,8 +573,8 @@ mod chunk_execution_spawn {
                                     program_id,
                                     state_root: state_hash,
                                     queue_type,
-                                    instrumented_code: Some(instrumented_code),
-                                    code_metadata: Some(code_metadata),
+                                    instrumented_code,
+                                    code_metadata,
                                     gas_allowance: GasAllowanceCounter::new(
                                         gas_allowance_for_chunk,
                                     ),
