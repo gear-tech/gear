@@ -63,6 +63,13 @@ pub enum ObserverEvent {
     BlockSynced(H256),
 }
 
+pub struct ObserverConfig<'a> {
+    /// Ethereum RPC endpoint.
+    pub rpc: &'a str,
+    /// Maximum depth of blocks to sync, considered as u32::MAX if None, see also [`RuntimeConfig::max_sync_depth`].
+    pub max_sync_depth: Option<u32>,
+}
+
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
     /// Protocol timelines.
@@ -169,14 +176,14 @@ impl FusedStream for ObserverService {
 }
 
 impl ObserverService {
-    pub async fn new(eth_cfg: &EthereumConfig, max_sync_depth: u32, db: Database) -> Result<Self> {
-        let EthereumConfig {
+    pub async fn new(db: Database, config: ObserverConfig<'_>) -> Result<Self> {
+        let ObserverConfig {
             rpc,
-            router_address,
-            ..
-        } = eth_cfg;
+            max_sync_depth,
+        } = config;
 
-        let router_query = RouterQuery::new(rpc, *router_address).await?;
+        let router_address = db.config().router_address;
+        let router_query = RouterQuery::new(rpc, router_address).await?;
         let middleware_address = router_query.middleware_address().await?;
 
         let provider = ProviderBuilder::default()
@@ -192,9 +199,9 @@ impl ObserverService {
 
         let config = RuntimeConfig {
             timelines: db.config().timelines,
-            router_address: *router_address,
+            router_address,
             middleware_address,
-            max_sync_depth,
+            max_sync_depth: max_sync_depth.unwrap_or(u32::MAX),
             // TODO #4562: make this configurable.
             batched_sync_depth: 2,
             // TODO #4562: make this configurable, since different networks may have different finalization periods.

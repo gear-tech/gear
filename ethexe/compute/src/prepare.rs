@@ -288,7 +288,6 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
 
     let mut last_committed_announce_hash = None;
 
-    // +_+_+ append check in initializer
     let mut latest_validators_committed_era = db
         .block_validators_committed_for_era(parent)
         .ok_or(ComputeError::CommittedEraNotFound(parent))?;

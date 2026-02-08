@@ -1,10 +1,10 @@
 use super::{DB_VERSION_0, DB_VERSION_1, InitConfig};
 use alloy::providers::{Provider as _, RootProvider};
-use anyhow::{Context as _, Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail, ensure};
 use ethexe_common::{
     Announce, BlockHeader, HashOf, ProtocolTimelines, SimpleBlockData,
     db::{ComputedAnnounceData, PreparedBlockData},
-    gear::Timelines,
+    gear::{GenesisBlockInfo, Timelines},
 };
 use ethexe_db::DatabaseRef;
 use ethexe_ethereum::router::RouterQuery;
@@ -32,7 +32,27 @@ pub async fn initialize_db<'a, 'b>(config: InitConfig, db: DatabaseRef<'a, 'b>) 
             // if version matches, then we can use the existing database
             log::info!("Database is already initialized to version 1");
 
-            // +_+_+ check chain id and router address are the same
+            let provider: RootProvider = RootProvider::connect(&config.ethereum_rpc).await?;
+            let chain_id = provider.get_chain_id().await?;
+
+            ensure!(
+                db_config.chain_id == chain_id,
+                "Database chain id {} does not match the provided ethereum rpc chain id {}",
+                db_config.chain_id,
+                chain_id
+            );
+            ensure!(
+                db_config.router_address == config.router_address,
+                "Database router address {:?} does not match the provided router address {:?}",
+                db_config.router_address,
+                config.router_address
+            );
+            ensure!(
+                db_config.timelines.slot == config.slot_duration_secs,
+                "Database slot duration {} does not match the provided slot duration {}",
+                db_config.timelines.slot,
+                config.slot_duration_secs
+            );
 
             return Ok(());
         }
@@ -44,7 +64,7 @@ pub async fn initialize_db<'a, 'b>(config: InitConfig, db: DatabaseRef<'a, 'b>) 
             );
         } else {
             bail!(
-                "Database at version 0 must not have config, but we found it. Consider to clean up database files."
+                "Database at version 0 must not have config, but we found it. Consider to clean up database"
             );
         }
     } else {
@@ -76,24 +96,21 @@ pub async fn initialize_empty_db<'a, 'b>(
     }
 
     let provider = RootProvider::connect(&config.ethereum_rpc).await.unwrap();
-
     let chain_id = provider.get_chain_id().await?;
-
     let storage_view = RouterQuery::from_provider(config.router_address, provider)
         .storage_view_at(alloy::eips::BlockId::latest())
         .await
         .context("Empty db init, failed read router data")?;
 
-    let (genesis_block_hash, genesis_block_height, genesis_block_timestamp) =
-        storage_view.genesis_block_info();
+    let genesis: GenesisBlockInfo = storage_view.genesisBlock.into();
 
     let genesis_block = SimpleBlockData {
-        hash: genesis_block_hash,
+        hash: genesis.hash,
         header: BlockHeader {
             // genesis block header is not important in any way for ethexe
             parent_hash: H256::zero(),
-            height: genesis_block_height,
-            timestamp: genesis_block_timestamp,
+            height: genesis.number,
+            timestamp: genesis.timestamp,
         },
     };
 
@@ -138,7 +155,7 @@ pub async fn initialize_empty_db<'a, 'b>(
             election: timelines.election,
             slot: config.slot_duration_secs,
         },
-        genesis_block_hash,
+        genesis_block_hash: genesis.hash,
         genesis_announce_hash,
     };
 
@@ -175,7 +192,6 @@ pub async fn migration_from_version0<'a, 'b>(
     //    DB keys have the same prefix, but appends 8 zero bytes in the end.
 
     let provider: RootProvider = RootProvider::connect(&config.ethereum_rpc).await.unwrap();
-
     let chain_id = provider.get_chain_id().await?;
 
     let latest_data_key = H256::from_low_u64_be(14);
@@ -183,13 +199,20 @@ pub async fn migration_from_version0<'a, 'b>(
 
     #[derive(Decode)]
     pub struct LatestData {
-        pub synced_block: SimpleBlockData,
-        pub prepared_block_hash: H256,
-        pub computed_announce_hash: HashOf<Announce>,
-        pub genesis_block_hash: H256,
-        pub genesis_announce_hash: HashOf<Announce>,
-        pub start_block_hash: H256,
-        pub start_announce_hash: HashOf<Announce>,
+        synced_block: SimpleBlockData,
+        prepared_block_hash: H256,
+        computed_announce_hash: HashOf<Announce>,
+        genesis_block_hash: H256,
+        genesis_announce_hash: HashOf<Announce>,
+        start_block_hash: H256,
+        start_announce_hash: HashOf<Announce>,
+    }
+
+    #[derive(Decode)]
+    pub struct ProtocolTimelinesV0 {
+        pub genesis_ts: u64,
+        pub era: u64,
+        pub election: u64,
     }
 
     let latest_data = db
@@ -213,14 +236,19 @@ pub async fn migration_from_version0<'a, 'b>(
         .kv
         .get(timelines_key.as_bytes())
         .ok_or_else(|| anyhow!("timelines not found for db at version 0"))
-        .map(|bytes| ProtocolTimelines::decode(&mut bytes.as_slice()))?
+        .map(|bytes| ProtocolTimelinesV0::decode(&mut bytes.as_slice()))?
         .context("failed to decode ProtocolTimelines during migration")?;
 
     let db_config = ethexe_common::db::DBConfig {
         version: DB_VERSION_1,
         chain_id,
         router_address: config.router_address,
-        timelines,
+        timelines: ProtocolTimelines {
+            genesis_ts: timelines.genesis_ts,
+            era: timelines.era,
+            election: timelines.election,
+            slot: config.slot_duration_secs,
+        },
         genesis_block_hash: latest_data.genesis_block_hash,
         genesis_announce_hash: latest_data.genesis_announce_hash,
     };

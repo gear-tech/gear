@@ -1,6 +1,7 @@
 #[cfg(feature = "mock")]
 use ethexe_db::{Database, DatabaseRef, MemDb};
 use gsigner::Address;
+
 pub use version1::*;
 
 mod version1;
@@ -18,5 +19,5 @@ pub struct InitConfig {
 pub async fn create_initialized_empty_memory_db(config: InitConfig) -> anyhow::Result<Database> {
     let db = MemDb::default();
     initialize_empty_db(config, DatabaseRef { kv: &db, cas: &db }).await?;
-    Ok(Database::from_one(&db))
+    Database::from_one(&db)
 }

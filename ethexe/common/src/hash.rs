@@ -122,8 +122,7 @@ impl<T> HashOf<T> {
         }
     }
 
-    // +_+_+ change to mock
-    #[cfg(feature = "std")]
+    #[cfg(feature = "mock")]
     pub fn random() -> Self {
         Self {
             hash: H256::random(),

@@ -443,3 +443,10 @@ pub enum MessageType {
     Canonical,
     Injected,
 }
+
+#[derive(Debug)]
+pub struct GenesisBlockInfo {
+    pub hash: H256,
+    pub number: u32,
+    pub timestamp: u64,
+}

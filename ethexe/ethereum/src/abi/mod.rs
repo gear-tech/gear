@@ -20,7 +20,6 @@ mod events;
 mod gear;
 
 use alloy::sol;
-use gprimitives::H256;
 pub use middleware_abi::*;
 pub use mirror_abi::*;
 
@@ -137,17 +136,6 @@ pub mod symbiotic_abi {
             DefaultStakerRewards,
             "../contracts/lib/symbiotic-rewards/out/DefaultStakerRewards.sol/DefaultStakerRewards.json"
         );
-    }
-}
-
-impl IRouter::StorageView {
-    // +_+_+ create a proper struct for this
-    pub fn genesis_block_info(&self) -> (H256, u32, u64) {
-        (
-            utils::bytes32_to_h256(self.genesisBlock.hash),
-            self.genesisBlock.number,
-            self.genesisBlock.timestamp.to::<u64>(),
-        )
     }
 }
 

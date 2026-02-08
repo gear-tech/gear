@@ -44,7 +44,7 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
-use ethexe_db::{Database, DatabaseRef, MemDb};
+use ethexe_db::Database;
 use ethexe_db_init::InitConfig;
 use ethexe_ethereum::{
     Ethereum,
@@ -54,7 +54,7 @@ use ethexe_ethereum::{
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
-    EthereumConfig, ObserverService,
+    EthereumConfig, ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
@@ -244,9 +244,15 @@ impl TestEnv {
             router_address,
             block_time: config.block_time,
         };
-        let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
-            .await
-            .unwrap();
+        let mut observer = ObserverService::new(
+            db.clone(),
+            ObserverConfig {
+                rpc: &ws_rpc_url,
+                max_sync_depth: None,
+            },
+        )
+        .await
+        .unwrap();
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)
@@ -906,9 +912,15 @@ impl Node {
         let processor = Processor::new(self.db.clone()).unwrap();
         let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
-        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
-            .await
-            .unwrap();
+        let observer = ObserverService::new(
+            self.db.clone(),
+            ObserverConfig {
+                rpc: &self.eth_cfg.rpc,
+                max_sync_depth: None,
+            },
+        )
+        .await
+        .unwrap();
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)
@@ -1133,14 +1145,9 @@ impl Node {
             self.name
         );
 
-        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
-            .await
-            .unwrap();
-        let latest_block = observer
-            .block_loader()
-            .load_simple(BlockId::Latest)
-            .await
-            .unwrap();
+        let provider = RootProvider::connect(&self.eth_cfg.rpc).await.unwrap();
+        let block_loader = EthereumBlockLoader::new(provider, self.eth_cfg.router_address);
+        let latest_block = block_loader.load_simple(BlockId::Latest).await.unwrap();
         let latest_validators = self
             .router_query
             .validators_at(latest_block.hash)
@@ -1322,14 +1329,8 @@ impl WaitForReplyTo {
 }
 
 pub fn new_empty_initialized_memory_db(config: InitConfig) -> anyhow::Result<Database> {
-    let db = MemDb::default();
     let handle = tokio::runtime::Handle::current();
     tokio::task::block_in_place(|| {
-        handle.block_on(ethexe_db_init::initialize_empty_db(
-            config,
-            DatabaseRef { kv: &db, cas: &db },
-        ))
-    })?;
-
-    Ok(Database::from_one(&db))
+        handle.block_on(ethexe_db_init::create_initialized_empty_memory_db(config))
+    })
 }

@@ -143,7 +143,7 @@ impl WaitFor for ValidatorState {
     }
 }
 
-// +_+_+ restructure - pass db as parameter
+// TODO: restructure - pass db as parameter
 pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
     let ethereum = MockEthereum::default();

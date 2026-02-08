@@ -37,7 +37,7 @@ use ethexe_network::{
     db_sync::{self, ExternalDataProvider},
 };
 use ethexe_observer::{
-    ObserverEvent, ObserverService,
+    ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -234,7 +234,7 @@ impl Service {
         )
         .await?;
 
-        let db = Database::from_one(&rocks_db);
+        let db = Database::from_one(&rocks_db)?;
 
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: config.ethereum.rpc.clone(),
@@ -247,10 +247,15 @@ impl Service {
             .context("failed to create blob loader")?
             .into_box();
 
-        let observer =
-            ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
-                .await
-                .context("failed to create observer service")?;
+        let observer = ObserverService::new(
+            db.clone(),
+            ObserverConfig {
+                rpc: &config.ethereum.rpc,
+                max_sync_depth: Some(config.node.eth_max_sync_depth),
+            },
+        )
+        .await
+        .context("failed to create observer service")?;
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)

@@ -19,14 +19,13 @@
 //! Database for ethexe.
 
 use crate::{
-    CASDatabase, KVDatabase, MemDb,
+    CASDatabase, KVDatabase,
     overlay::{CASOverlay, KVOverlay},
 };
 use anyhow::Result;
 use delegate::delegate;
 use ethexe_common::{
-    Address, Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, SimpleBlockData, ValidatorsVec,
+    Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
         BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, ConfigStorageRO, DBConfig, DBGlobals,
@@ -490,12 +489,16 @@ impl Database {
         }
     }
 
-    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Self {
-        Self::new(db, db).expect("+_+_+ Failed to create Database from one DB")
+    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Result<Self> {
+        Self::new(db, db)
     }
 
     #[cfg(feature = "mock")]
+    #[track_caller]
     pub fn memory() -> Self {
+        use crate::MemDb;
+        use ethexe_common::{Address, ProtocolTimelines, SimpleBlockData};
+
         let mem_db = MemDb::default();
 
         // set default config and globals
@@ -519,7 +522,7 @@ impl Database {
         mem_db.put(&Key::Config.to_bytes(), config.encode());
         mem_db.put(&Key::Globals.to_bytes(), globals.encode());
 
-        Self::from_one(&mem_db)
+        Self::from_one(&mem_db).unwrap()
     }
 
     /// # Safety
@@ -1173,29 +1176,6 @@ mod tests {
         db.set_block_synced(block_hash);
         assert!(db.block_synced(block_hash));
     }
-
-    // +_+_+ write new tests
-    // #[test]
-    // fn test_latest_data() {
-    //     let db = Database::memory();
-
-    //     assert!(db.latest_data().is_none());
-
-    //     let latest_data = LatestData {
-    //         synced_block: SimpleBlockData {
-    //             hash: H256::random(),
-    //             header: Default::default(),
-    //         },
-    //         prepared_block_hash: H256::random(),
-    //         computed_announce_hash: HashOf::random(),
-    //         genesis_block_hash: H256::random(),
-    //         genesis_announce_hash: HashOf::random(),
-    //         start_block_hash: H256::random(),
-    //         start_announce_hash: HashOf::random(),
-    //     };
-    //     db.set_latest_data(latest_data.clone());
-    //     assert_eq!(db.latest_data(), Some(latest_data));
-    // }
 
     #[test]
     fn test_original_code() {
