@@ -27,6 +27,7 @@ gsigner = { workspace = true, default-features = false, features = [
 sha3.workspace = true
 k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
 nonempty.workspace = true
+thiserror.workspace = true
 
 # mock deps
 itertools = { workspace = true, optional = true }

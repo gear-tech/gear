@@ -19,11 +19,11 @@
 use crate::{RpcEvent, errors};
 use dashmap::DashMap;
 use ethexe_common::{
-    Announce, HashOf, SignedMessage,
-    db::{AnnounceStorageRO, InjectedStorageRO},
+    HashOf, SignedMessage,
+    db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, CompactSignedPromise, InjectedTransaction,
-        InjectedTransactionAcceptance, PromisesNetworkBundle, SignedPromise,
+        InjectedTransactionAcceptance, Promise, SignedPromise,
     },
 };
 use ethexe_db::Database;
@@ -65,7 +65,6 @@ pub trait Injected {
 }
 
 type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
-type PendingAnnouncePromises = Arc<DashMap<HashOf<Announce>, Vec<CompactSignedPromise>>>;
 
 /// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
@@ -76,8 +75,9 @@ pub struct InjectedApi {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
     promise_waiters: PromiseWaiters,
+
     ///
-    _pending_promises: PendingAnnouncePromises,
+    promises_computation_waiting: Arc<DashMap<HashOf<InjectedTransaction>, CompactSignedPromise>>,
 }
 
 #[async_trait]
@@ -128,7 +128,7 @@ impl InjectedServer for InjectedApi {
         &self,
         tx_hash: HashOf<InjectedTransaction>,
     ) -> RpcResult<Option<SignedPromise>> {
-        let Some(promise) = self.db.promise(hash) else {
+        let Some(promise) = self.db.promise(tx_hash) else {
             tracing::trace!(?tx_hash, "promise not found for injected transaction");
             return Ok(None);
         };
@@ -139,7 +139,7 @@ impl InjectedServer for InjectedApi {
 
         match SignedMessage::try_from_parts(promise, signature, address) {
             Ok(message) => Ok(Some(message)),
-            Err(err) => {
+            Err(_err) => {
                 tracing::trace!("");
                 Ok(None)
             }
@@ -153,34 +153,64 @@ impl InjectedApi {
             db,
             rpc_sender,
             promise_waiters: PromiseWaiters::default(),
-            _pending_promises: PendingAnnouncePromises::default(),
+            promises_computation_waiting: Default::default(),
         }
     }
 
-    pub fn receive_promises_bundle(&self, bundle: PromisesNetworkBundle) {
-        match self.db.announce_meta(bundle.announce).computed {
-            true => todo!("go to send promises to receivers"),
-            false => todo!("put hashes into pending and wait for announce computation"),
+    pub fn receive_compact_promise(&self, compact_promise: CompactSignedPromise) {
+        match self.db.promise(compact_promise.tx_hash) {
+            Some(promise) => {
+                tracing::trace!(tx_hash = ?promise.tx_hash, "Promise already computed, send to user");
+                self.send_promise(promise, compact_promise);
+            }
+            None => {
+                tracing::trace!(tx_hash = ?compact_promise.tx_hash, "Promise doesn't compute yet, waiting for producer's signature");
+                self.promises_computation_waiting
+                    .insert(compact_promise.tx_hash, compact_promise);
+            }
         }
     }
 
-    pub fn send_promise(&self, signed_hash: CompactSignedPromise) {
-        let (tx_hash, address, signature) = signed_hash.into_parts();
+    pub fn receive_computed_promises(&self, promises: Vec<Promise>) {
+        promises.into_iter().for_each(|promise| {
+            // In case of `None` nothing to do, because of promise already in RPC database.
+            if let Some((_, compact_promise)) =
+                self.promises_computation_waiting.remove(&promise.tx_hash)
+            {
+                self.send_promise(promise, compact_promise);
+            }
+        })
+    }
 
-        let Some(p) = self.db.promise(tx_hash) else {
-            todo!("Handle this case")
+    pub fn send_promise(&self, promise: Promise, compact_promise: CompactSignedPromise) {
+        let CompactSignedPromise {
+            tx_hash,
+            signature,
+            eip191_hash,
+        } = compact_promise;
+
+        let Ok(public_key) = signature.recover_from_eip191_hash(eip191_hash) else {
+            todo!()
+        };
+        let address = public_key.to_address();
+
+        // TODO: remove clone here.
+        let Ok(message) = SignedMessage::try_from_parts(promise.clone(), signature, address) else {
+            tracing::trace!(
+                ?promise,
+                ?compact_promise,
+                "failed to build `SignedMessage<Promise>` from parts, invalid signature"
+            );
+            todo!("handle invalid signature case");
         };
 
-        let Ok(promise) = SignedMessage::try_from_parts(p, signature, address) else {
-            todo!("handle invalid signature case")
-        };
-
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
-            tracing::warn!(promise = ?promise, "receive unregistered promise");
+        let Some((_, promise_sender)) = self.promise_waiters.remove(&compact_promise.tx_hash)
+        else {
+            tracing::warn!(?tx_hash, promise = ?promise, "receive unregistered promise for injected transaction");
             return;
         };
 
-        if let Err(promise) = promise_sender.send(promise) {
+        if let Err(promise) = promise_sender.send(message) {
             tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
         }
     }

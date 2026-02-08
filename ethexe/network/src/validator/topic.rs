@@ -25,9 +25,10 @@ use crate::{
 };
 use ethexe_common::{
     Address, HashOf,
-    injected::{InjectedTransaction, PromisesNetworkBundle},
+    injected::{CompactSignedPromise, InjectedTransaction},
     network::VerifiedValidatorMessage,
 };
+use gsigner::{Signature, SignerError};
 use lru::LruCache;
 use std::{cmp::Ordering, collections::VecDeque, mem, num::NonZeroUsize, sync::Arc};
 
@@ -83,13 +84,17 @@ enum VerificationError {
     Reject(VerificationRejectReason),
 }
 
-#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display)]
 enum VerifyPromiseError {
     #[display("unknown validator: address={address}, tx_hash={tx_hash}")]
     UnknownValidator {
         address: Address,
         tx_hash: HashOf<InjectedTransaction>,
     },
+    #[display("failed to recover validator's public key: signature={signature}")]
+    ValidatorPublicKeyRecover { signature: Signature },
+    #[display("failed to verify promises signatures bundle: error={signer_error}")]
+    SignatureVerification { signer_error: SignerError },
 }
 
 /// Tracks validator-signed messages and admits each one once the on-chain
@@ -263,31 +268,40 @@ impl ValidatorTopic {
         }
     }
 
-    fn inner_verify_promises_bundle(
+    fn inner_verify_promise(
         &self,
         _source: PeerId,
-        bundle: PromisesNetworkBundle,
-    ) -> Result<PromisesNetworkBundle, VerifyPromiseError> {
-        // TODO: uncomment this
+        compact_promise: CompactSignedPromise,
+    ) -> Result<CompactSignedPromise, VerifyPromiseError> {
+        let CompactSignedPromise {
+            tx_hash,
+            signature,
+            eip191_hash,
+        } = compact_promise.clone();
 
-        // let address = promise.address();
-        // let tx_hash = promise.data().tx_hash;
+        let public_key = signature
+            .recover_from_eip191_hash(eip191_hash)
+            .map_err(|_| VerifyPromiseError::ValidatorPublicKeyRecover { signature })?;
 
-        // if !self.snapshot.contains(address) {
-        //     return Err(VerifyPromiseError::UnknownValidator { address, tx_hash });
-        // }
+        let address = public_key.to_address();
+        if !self.snapshot.contains(address) {
+            return Err(VerifyPromiseError::UnknownValidator { address, tx_hash });
+        }
 
-        Ok(bundle)
+        match signature.verify_with_eip191_hash(public_key, eip191_hash) {
+            Ok(()) => Ok(compact_promise),
+            Err(signer_error) => Err(VerifyPromiseError::SignatureVerification { signer_error }),
+        }
     }
 
     // FIXME: messages from previous era validators are ignored
-    pub fn verify_promises_bundle(
+    pub fn verify_promise(
         &self,
         source: PeerId,
-        bundle: PromisesNetworkBundle,
-    ) -> (MessageAcceptance, Option<PromisesNetworkBundle>) {
-        match self.inner_verify_promises_bundle(source, bundle) {
-            Ok(bundle) => (MessageAcceptance::Accept, Some(bundle)),
+        compact_promise: CompactSignedPromise,
+    ) -> (MessageAcceptance, Option<CompactSignedPromise>) {
+        match self.inner_verify_promise(source, compact_promise) {
+            Ok(compact_promise) => (MessageAcceptance::Accept, Some(compact_promise)),
             Err(err) => {
                 log::trace!("failed to verify promises bundle: {err}");
                 (MessageAcceptance::Ignore, None)

@@ -25,10 +25,8 @@ use apis::{
     ProgramServer,
 };
 use ethexe_common::{
-    Announce, HashOf,
-    injected::{
-        AddressedInjectedTransaction, InjectedTransactionAcceptance, PromisesNetworkBundle,
-    },
+    ComputedAnnounce,
+    injected::{AddressedInjectedTransaction, CompactSignedPromise, InjectedTransactionAcceptance},
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -151,12 +149,19 @@ impl RpcService {
         }
     }
 
-    pub fn receive_computed_announce(&self, _announce_hash: HashOf<Announce>) {
-        todo!("Handle the variant when announce computed and we can send promises")
+    pub fn receive_computed_data(&self, computed_data: ComputedAnnounce) {
+        self.injected_api
+            .receive_computed_promises(computed_data.promises);
     }
 
-    pub fn provide_promises_bundle(&self, bundle: PromisesNetworkBundle) {
-        self.injected_api.receive_promises_bundle(bundle);
+    pub fn provide_compact_promise(&self, compact_promise: CompactSignedPromise) {
+        self.injected_api.receive_compact_promise(compact_promise);
+    }
+
+    pub fn provide_compact_promises(&self, compact_promises: Vec<CompactSignedPromise>) {
+        compact_promises
+            .into_iter()
+            .for_each(|compact_promise| self.provide_compact_promise(compact_promise));
     }
 
     // Provides a promise inside RPC service to be sent to subscribers.

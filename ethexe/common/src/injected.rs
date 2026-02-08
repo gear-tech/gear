@@ -16,20 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Address, Announce, HashOf, ToDigest, ecdsa::SignedMessage};
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
+use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
-use gsigner::Signature;
 #[cfg(feature = "std")]
 use gsigner::{
     PrivateKey, PublicKey, SignerError,
     secp256k1::{Secp256k1SignerExt, Signer},
 };
+use gsigner::{Signature, hash::Eip191Hash};
 use parity_scale_codec::{Decode, Encode};
 use sha3::{Digest, Keccak256};
 use sp_core::Bytes;
@@ -159,22 +156,31 @@ impl ToDigest for Promise {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct PromisesNetworkBundle {
-    /// The hash of [`Announce`] for which promises was created.
-    pub announce: HashOf<Announce>,
-    /// The hashes of transactions with signatures
-    pub promises: Vec<CompactSignedPromise>,
-}
+// The bundle of signed [`Promise`]s was produced in concrete announce.
+// #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+// pub struct PromisesNetworkBundle {
+//     /// The hash of [`Announce`] for which promises was created.
+//     pub announce: HashOf<Announce>,
+//     /// The hashes of transactions with signatures
+//     pub promises: Vec<CompactSignedPromise>,
+// }
+
+// impl ToDigest for PromisesNetworkBundle {
+//     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+//         todo!()
+//     }
+// }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct CompactSignedPromise {
     /// The hash of transaction, for which promise was created.
-    tx_hash: HashOf<InjectedTransaction>,
-    /// The address converted from public key of block producer.
-    address: Address,
+    pub tx_hash: HashOf<InjectedTransaction>,
+    /// The [`Eip191Hash`] of the promise, was signed by block producer.
+    /// Important: this hash is needed to verify the signature correctness
+    ///            without having a full promise body.
+    pub eip191_hash: Eip191Hash<Promise>,
     /// The signature over the [`Promise`] for `tx_hash`.
-    signature: Signature,
+    pub signature: Signature,
 }
 
 #[cfg(feature = "std")]
@@ -184,15 +190,12 @@ impl CompactSignedPromise {
         public_key: PublicKey,
         promise: Promise,
     ) -> Result<Self, SignerError> {
-        let tx_hash = promise.tx_hash;
-        let (address, signature) = signer
-            .signed_message(public_key, promise, None)
-            .map(|message| (message.address(), message.into_parts().1))?;
+        let eip191_hash = Eip191Hash::new(&promise);
 
         Ok(Self {
-            tx_hash,
-            address,
-            signature,
+            tx_hash: promise.tx_hash,
+            signature: signer.sign_eip191_hash(public_key, eip191_hash, None)?,
+            eip191_hash,
         })
     }
 
@@ -200,22 +203,13 @@ impl CompactSignedPromise {
         private_key: &PrivateKey,
         promise: Promise,
     ) -> Result<Self, SignerError> {
-        let tx_hash = promise.tx_hash;
-        let signature = Signature::create(private_key, promise)?;
-        let address = private_key.public_key().to_address();
+        let eip191_hash = Eip191Hash::new(&promise);
+
         Ok(Self {
-            tx_hash,
-            signature,
-            address,
+            tx_hash: promise.tx_hash,
+            eip191_hash,
+            signature: Signature::create_from_eip191_hash(private_key, eip191_hash)?,
         })
-    }
-
-    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
-        self.tx_hash
-    }
-
-    pub fn into_parts(self) -> (HashOf<InjectedTransaction>, Address, Signature) {
-        (self.tx_hash, self.address, self.signature)
     }
 }
 

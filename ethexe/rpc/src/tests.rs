@@ -21,13 +21,10 @@ use crate::{
     RpcService,
 };
 use ethexe_common::{
-    HashOf,
     db::InjectedStorageRW,
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{
-        AddressedInjectedTransaction, CompactSignedPromise, Promise, PromisesNetworkBundle,
-    },
+    injected::{AddressedInjectedTransaction, CompactSignedPromise, Promise},
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -49,7 +46,7 @@ impl MockService {
     /// Creates a new mock service which runs an RPC server listening on the given address.
     pub async fn new(listen_addr: SocketAddr) -> Self {
         let db = Database::memory();
-        let (handle, rpc) = start_new_server(listen_addr).await;
+        let (handle, rpc) = start_new_server(listen_addr, db.clone()).await;
         Self { rpc, handle, db }
     }
 
@@ -69,8 +66,8 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let bundle = self.create_promises_bundle(tx_batch.drain(..));
-                        self.rpc.provide_promises_bundle(bundle);
+                        let promises = self.create_promises_bundle(tx_batch.drain(..));
+                        self.rpc.provide_compact_promises(promises);
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -89,31 +86,27 @@ impl MockService {
     fn create_promises_bundle(
         &self,
         txs: impl IntoIterator<Item = AddressedInjectedTransaction>,
-    ) -> PromisesNetworkBundle {
+    ) -> Vec<CompactSignedPromise> {
         let pk = PrivateKey::random();
-        let promises = txs
-            .into_iter()
+        txs.into_iter()
             .map(|tx| {
                 let promise = Promise::mock(tx.tx.data().to_hash());
                 self.db.set_promise(promise.clone());
                 CompactSignedPromise::create_from_private_key(&pk, promise).unwrap()
             })
-            .collect::<Vec<_>>();
-
-        let announce = HashOf::random();
-        PromisesNetworkBundle { announce, promises }
+            .collect()
     }
 }
 
 /// Starts a new RPC server listening on the given address.
-async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService) {
+async fn start_new_server(listen_addr: SocketAddr, db: Database) -> (ServerHandle, RpcService) {
     let rpc_config = RpcConfig {
         listen_addr,
         cors: None,
         gas_allowance: MAX_BLOCK_GAS_LIMIT,
         chunk_size: 2,
     };
-    RpcServer::new(rpc_config, Database::memory())
+    RpcServer::new(rpc_config, db)
         .run_server()
         .await
         .expect("RPC Server will start successfully")
@@ -129,6 +122,8 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
 #[tokio::test]
 #[ntest::timeout(20_000)]
 async fn test_cleanup_promise_subscribers() {
+    let _ = tracing_subscriber::fmt::try_init();
+
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8002);
     let service = MockService::new(listen_addr).await;
     let injected_api = service.injected_api();
