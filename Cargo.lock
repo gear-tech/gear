@@ -5226,6 +5226,7 @@ dependencies = [
  "gear-core",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "hyper 1.8.1",
  "jsonrpsee",
  "ntest",

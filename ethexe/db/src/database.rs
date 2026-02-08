@@ -23,7 +23,7 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
-    Address, Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines,
+    Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines,
     Schedule, ValidatorsVec,
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
@@ -631,14 +631,11 @@ impl InjectedStorageRO for Database {
         })
     }
 
-    fn promise_signature(
-        &self,
-        tx_hash: HashOf<InjectedTransaction>,
-    ) -> Option<(Signature, Address)> {
+    fn promise_signature(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<Signature> {
         self.kv
             .get(&Key::PromiseSignature(tx_hash).to_bytes())
             .map(|data| {
-                <(Signature, Address)>::decode(&mut data.as_slice())
+                Signature::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `(Signature, Address)`")
             })
     }
@@ -660,18 +657,11 @@ impl InjectedStorageRW for Database {
             .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
     }
 
-    fn set_promise_signature(
-        &self,
-        hash: HashOf<InjectedTransaction>,
-        address: Address,
-        signature: Signature,
-    ) {
-        tracing::trace!(tx_hash = ?hash, ?signature, ?address, "Set `(Signature, Address)` for injected transaction promise");
+    fn set_promise_signature(&self, hash: HashOf<InjectedTransaction>, signature: Signature) {
+        tracing::trace!(tx_hash = ?hash, ?signature,  "Set signature for injected transaction promise");
 
-        self.kv.put(
-            &Key::PromiseSignature(hash).to_bytes(),
-            (signature, address).encode(),
-        );
+        self.kv
+            .put(&Key::PromiseSignature(hash).to_bytes(), signature.encode());
     }
 }
 

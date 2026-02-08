@@ -667,3 +667,9 @@ impl Mock<HashOf<InjectedTransaction>> for Promise {
         }
     }
 }
+
+impl Mock for Promise {
+    fn mock(_args: ()) -> Self {
+        Promise::mock(HashOf::zero())
+    }
+}

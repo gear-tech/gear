@@ -20,13 +20,15 @@ use crate::{RpcEvent, errors};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf, SignedMessage,
-    db::InjectedStorageRO,
+    db::{InjectedStorageRO, InjectedStorageRW},
     injected::{
         AddressedInjectedTransaction, CompactSignedPromise, InjectedTransaction,
         InjectedTransactionAcceptance, Promise, SignedPromise,
     },
 };
+
 use ethexe_db::Database;
+use gsigner::hash::Eip191Hash;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
@@ -76,7 +78,7 @@ pub struct InjectedApi {
     /// Map of promise waiters.
     promise_waiters: PromiseWaiters,
 
-    ///
+    /// The mapping from injected transaction hash to its promise signature.
     promises_computation_waiting: Arc<DashMap<HashOf<InjectedTransaction>, CompactSignedPromise>>,
 }
 
@@ -133,11 +135,16 @@ impl InjectedServer for InjectedApi {
             return Ok(None);
         };
 
-        let Some((signature, address)) = self.db.promise_signature(tx_hash) else {
+        let Some(signature) = self.db.promise_signature(tx_hash) else {
             return Ok(None);
         };
 
-        match SignedMessage::try_from_parts(promise, signature, address) {
+        let promise_eip191_hash = Eip191Hash::new(&promise);
+        let Ok(public_key) = signature.recover_from_eip191_hash(promise_eip191_hash) else {
+            todo!()
+        };
+
+        match SignedMessage::try_from_parts(promise, signature, public_key.to_address()) {
             Ok(message) => Ok(Some(message)),
             Err(_err) => {
                 tracing::trace!("");
@@ -177,16 +184,28 @@ impl InjectedApi {
             if let Some((_, compact_promise)) =
                 self.promises_computation_waiting.remove(&promise.tx_hash)
             {
+                self.db
+                    .set_promise_signature(promise.tx_hash, compact_promise.signature);
                 self.send_promise(promise, compact_promise);
             }
         })
     }
 
     pub fn send_promise(&self, promise: Promise, compact_promise: CompactSignedPromise) {
+        // Check the promise waiter firstly to avoid unnecessary computation.
+        let Some((_, promise_sender)) = self.promise_waiters.remove(&compact_promise.tx_hash)
+        else {
+            tracing::warn!(
+                ?promise,
+                "receive unregistered promise for injected transaction"
+            );
+            return;
+        };
+
         let CompactSignedPromise {
-            tx_hash,
             signature,
             eip191_hash,
+            ..
         } = compact_promise;
 
         let Ok(public_key) = signature.recover_from_eip191_hash(eip191_hash) else {
@@ -194,7 +213,6 @@ impl InjectedApi {
         };
         let address = public_key.to_address();
 
-        // TODO: remove clone here.
         let Ok(message) = SignedMessage::try_from_parts(promise.clone(), signature, address) else {
             tracing::trace!(
                 ?promise,
@@ -202,12 +220,6 @@ impl InjectedApi {
                 "failed to build `SignedMessage<Promise>` from parts, invalid signature"
             );
             todo!("handle invalid signature case");
-        };
-
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&compact_promise.tx_hash)
-        else {
-            tracing::warn!(?tx_hash, promise = ?promise, "receive unregistered promise for injected transaction");
-            return;
         };
 
         if let Err(promise) = promise_sender.send(message) {

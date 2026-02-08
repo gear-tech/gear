@@ -19,7 +19,7 @@
 //! Common db types and traits.
 
 use crate::{
-    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
+    Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
     Schedule, SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
@@ -139,8 +139,7 @@ pub trait InjectedStorageRO {
     /// Returns the promise by its transaction hash.
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 
-    ///
-    fn promise_signature(&self, hash: HashOf<InjectedTransaction>) -> Option<(Signature, Address)>;
+    fn promise_signature(&self, hash: HashOf<InjectedTransaction>) -> Option<Signature>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -149,12 +148,7 @@ pub trait InjectedStorageRW: InjectedStorageRO {
 
     fn set_promise(&self, promise: Promise);
 
-    fn set_promise_signature(
-        &self,
-        hash: HashOf<InjectedTransaction>,
-        address: Address,
-        signature: Signature,
-    );
+    fn set_promise_signature(&self, hash: HashOf<InjectedTransaction>, signature: Signature);
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
