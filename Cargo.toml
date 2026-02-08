@@ -557,6 +557,7 @@ loom = "0.7.2"                                               # utils/gear-wasmer
 wasm-smith = { version = "0.230", features = ["wasmparser"] } # utils/wasm-gen
 wasm-encoder = { version = "0.230", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
 async-broadcast = "0.7.2" # ethexe/service
+ip_network = "0.4.1" # ethexe/network
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
