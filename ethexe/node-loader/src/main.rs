@@ -223,5 +223,5 @@ async fn listen_blocks(
             .map_err(|_| anyhow::anyhow!("Failed to send block"))?;
     }
 
-    todo!()
+    Err(anyhow::anyhow!("Block subscription ended unexpectedly."))
 }

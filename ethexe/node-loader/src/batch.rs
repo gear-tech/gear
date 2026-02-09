@@ -220,8 +220,8 @@ async fn run_batch(
     match run_batch_impl(api, vapi, batch, rx, mid_map, &mut rng).await {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
-            tracing::info!("Batch failed: {err:?}");
-            Ok(BatchRunReport::empty(seed))
+            tracing::warn!("Batch failed: {err:?}");
+            Err(err)
         }
     }
 }
@@ -265,11 +265,12 @@ async fn run_batch_impl(
 
             let mut program_ids = BTreeSet::new();
             let mut messages = BTreeMap::new();
-            let block = api
+            let block_hash = api
                 .provider()
                 .get_block(BlockId::latest())
                 .await?
-                .expect("no block?");
+                .expect("latest block not found")
+                .hash();
             for (call_id, (arg, code_id)) in args.iter().zip(code_ids.iter().copied()).enumerate() {
                 let salt = &arg.0.1;
                 let (_, program_id) = api
@@ -316,7 +317,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block.hash(),
+                block_hash,
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -349,11 +350,11 @@ async fn run_batch_impl(
         Batch::SendMessage(args) => {
             tracing::info!("Sending messages");
             let mut messages = BTreeMap::new();
-            let block = api
+            let block_hash = api
                 .provider()
                 .get_block(BlockId::latest())
                 .await?
-                .unwrap()
+                .expect("latest block not found")
                 .hash();
 
             for (i, arg) in args.iter().enumerate() {
@@ -379,7 +380,15 @@ async fn run_batch_impl(
             }
 
             let wait_for_event_blocks = blocks_window(args.len(), 2, 16);
-            process_events(api, messages, rx, block, mid_map, wait_for_event_blocks).await
+            process_events(
+                api,
+                messages,
+                rx,
+                block_hash,
+                mid_map,
+                wait_for_event_blocks,
+            )
+            .await
         }
 
         Batch::ClaimValue(args) => {
@@ -411,11 +420,11 @@ async fn run_batch_impl(
 
             let mut messages = BTreeMap::new();
 
-            let block = api
+            let block_hash = api
                 .provider()
                 .get_block(BlockId::latest())
                 .await?
-                .unwrap()
+                .expect("latest block not found")
                 .hash();
 
             for (call_id, arg) in args.iter().enumerate() {
@@ -440,12 +449,19 @@ async fn run_batch_impl(
             }
 
             let wait_for_event_blocks = blocks_window(args.len(), 2, 16);
-            process_events(api, messages, rx, block, mid_map, wait_for_event_blocks)
-                .await
-                .map(|mut report| {
-                    report.mailbox_data.append_removed(removed_from_mailbox);
-                    report
-                })
+            process_events(
+                api,
+                messages,
+                rx,
+                block_hash,
+                mid_map,
+                wait_for_event_blocks,
+            )
+            .await
+            .map(|mut report| {
+                report.mailbox_data.append_removed(removed_from_mailbox);
+                report
+            })
         }
 
         Batch::CreateProgram(args) => {
@@ -456,7 +472,8 @@ async fn run_batch_impl(
                 .provider()
                 .get_block(BlockId::latest())
                 .await?
-                .expect("no block?");
+                .expect("latest block not found")
+                .hash();
             for (call_id, arg) in args.iter().enumerate() {
                 let code_id = arg.0.0;
                 let salt = &arg.0.1;
@@ -503,7 +520,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash.hash(),
+                block_hash,
                 mid_map,
                 wait_for_event_blocks,
             )
