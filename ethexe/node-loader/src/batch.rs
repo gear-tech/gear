@@ -2,22 +2,14 @@ use alloy::{
     consensus::Transaction,
     eips::BlockId,
     network::{BlockResponse, Network, primitives::HeaderResponse},
-    primitives::{Address, FixedBytes, LogData},
+    primitives::{Address, FixedBytes},
     providers::{Provider, WalletProvider},
-    rpc::types::{BlockTransactions, Filter, Log},
-    sol_types::{SolCall, SolEvent},
+    rpc::types::{BlockTransactions, Filter},
+    sol_types::SolCall,
 };
 use anyhow::Result;
-use ethexe_common::Address as EthexeAddress;
-use ethexe_ethereum::{
-    Ethereum,
-    abi::{IMirror::*, IRouter::commitBatchCall},
-    mirror::signatures::{
-        EXECUTABLE_BALANCE_TOP_UP_REQUESTED, MESSAGE, MESSAGE_CALL_FAILED,
-        MESSAGE_QUEUEING_REQUESTED, OWNED_BALANCE_TOP_UP_REQUESTED, REPLY, REPLY_CALL_FAILED,
-        REPLY_QUEUEING_REQUESTED, STATE_CHANGED, VALUE_CLAIMED, VALUE_CLAIMING_REQUESTED,
-    },
-};
+use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
+use ethexe_ethereum::{Ethereum, abi::IRouter::commitBatchCall, mirror::events::try_extract_event};
 use ethexe_sdk::VaraEthApi;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
@@ -104,169 +96,10 @@ fn salt_to_h256(salt: &[u8]) -> H256 {
 /// batch report.
 #[derive(Debug, Clone)]
 pub struct Event {
-    pub kind: EventKind,
-    /// Address of the contract that emitted the event
+    pub event: MirrorEvent,
+    /// Actor id of the program whose mirror emitted the event.
     #[allow(dead_code)]
-    pub address: Address,
-}
-
-#[derive(Clone)]
-pub enum EventKind {
-    StateChanged(StateChanged),
-    MessageQueueingRequested(MessageQueueingRequested),
-    ReplyQueueingRequested(ReplyQueueingRequested),
-    ValueClaimingRequested(ValueClaimingRequested),
-    OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequested),
-    ExecutableBalanceTopUpRequested(ExecutableBalanceTopUpRequested),
-    Message(Message),
-    MessageCallFailed(MessageCallFailed),
-    Reply(Reply),
-    ReplyCallFailed(ReplyCallFailed),
-    ValueClaimed(ValueClaimed),
-}
-
-impl std::fmt::Debug for EventKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::StateChanged(ev) => {
-                write!(f, "StateChanged({})", H256(ev.stateHash.0))
-            }
-
-            Self::MessageQueueingRequested(ev) => {
-                write!(
-                    f,
-                    "MessageQueueingRequested({}, {}, {}, {})",
-                    MessageId::from(ev.id.0),
-                    ev.payload,
-                    ev.source,
-                    ev.value
-                )
-            }
-
-            Self::ReplyQueueingRequested(ev) => {
-                write!(
-                    f,
-                    "ReplyQueueingRequested({}, {}, {}, {})",
-                    MessageId::from(ev.repliedTo.0),
-                    ev.source,
-                    ev.payload,
-                    ev.value
-                )
-            }
-
-            Self::ValueClaimingRequested(ev) => {
-                write!(
-                    f,
-                    "ValueClaimingRequested({}, {})",
-                    H256::from(ev.claimedId.0),
-                    ev.source
-                )
-            }
-
-            Self::OwnedBalanceTopUpRequested(ev) => {
-                write!(f, "OwnedBalanceTopUpRequested({})", ev.value)
-            }
-
-            Self::ExecutableBalanceTopUpRequested(ev) => {
-                write!(f, "ExecutableBalanceTopUpRequested({})", ev.value)
-            }
-
-            Self::Message(message) => {
-                write!(
-                    f,
-                    "Message({}, {}, {}, {})",
-                    MessageId::from(message.id.0),
-                    message.destination,
-                    message.payload,
-                    message.value
-                )
-            }
-
-            Self::MessageCallFailed(message) => {
-                write!(
-                    f,
-                    "MessageCallFailed({}, {}, {})",
-                    MessageId::from(message.id.0),
-                    message.destination,
-                    message.value
-                )
-            }
-
-            Self::Reply(reply) => {
-                write!(
-                    f,
-                    "Reply({}, {}, {}, {})",
-                    MessageId::from(reply.replyTo.0),
-                    ReplyCode::from_bytes(reply.replyCode.0),
-                    reply.payload,
-                    reply.value
-                )
-            }
-            Self::ReplyCallFailed(call) => {
-                write!(
-                    f,
-                    "ReplyCallFailed({}, {}, {})",
-                    MessageId::from(call.replyTo.0),
-                    ReplyCode::from_bytes(call.replyCode.0),
-                    call.value
-                )
-            }
-
-            Self::ValueClaimed(ev) => {
-                write!(
-                    f,
-                    "ValueClaimed({}, {})",
-                    H256::from(ev.claimedId.0),
-                    ev.value
-                )
-            }
-        }
-    }
-}
-
-impl Event {
-    pub fn decode_rpc_log(log: Log<LogData>) -> Result<Option<Self>> {
-        let kind = match log.topic0().copied() {
-            Some(STATE_CHANGED) => {
-                EventKind::StateChanged(StateChanged::decode_log_data(log.data())?)
-            }
-            Some(MESSAGE_QUEUEING_REQUESTED) => EventKind::MessageQueueingRequested(
-                MessageQueueingRequested::decode_log_data(log.data())?,
-            ),
-            Some(REPLY_QUEUEING_REQUESTED) => EventKind::ReplyQueueingRequested(
-                ReplyQueueingRequested::decode_log_data(log.data())?,
-            ),
-            Some(VALUE_CLAIMING_REQUESTED) => EventKind::ValueClaimingRequested(
-                ValueClaimingRequested::decode_log_data(log.data())?,
-            ),
-            Some(OWNED_BALANCE_TOP_UP_REQUESTED) => EventKind::OwnedBalanceTopUpRequested(
-                OwnedBalanceTopUpRequested::decode_log_data(log.data())?,
-            ),
-            Some(EXECUTABLE_BALANCE_TOP_UP_REQUESTED) => {
-                EventKind::ExecutableBalanceTopUpRequested(
-                    ExecutableBalanceTopUpRequested::decode_log_data(log.data())?,
-                )
-            }
-            Some(MESSAGE) => EventKind::Message(Message::decode_log_data(log.data())?),
-            Some(MESSAGE_CALL_FAILED) => {
-                EventKind::MessageCallFailed(MessageCallFailed::decode_log_data(log.data())?)
-            }
-            Some(REPLY) => EventKind::Reply(Reply::decode_log_data(log.data())?),
-            Some(REPLY_CALL_FAILED) => {
-                EventKind::ReplyCallFailed(ReplyCallFailed::decode_log_data(log.data())?)
-            }
-            Some(VALUE_CLAIMED) => {
-                EventKind::ValueClaimed(ValueClaimed::decode_log_data(log.data())?)
-            }
-
-            _ => return Ok(None),
-        };
-
-        Ok(Some(Event {
-            kind,
-            address: log.address(),
-        }))
-    }
+    pub actor_id: ActorId,
 }
 
 impl<Rng: CallGenRng> BatchPool<Rng> {
@@ -898,23 +731,28 @@ async fn process_events(
             stats.mirror_logs_seen = stats.mirror_logs_seen.saturating_add(logs.len());
 
             for log in logs {
-                if let Some(event) = Event::decode_rpc_log(log)? {
+                if let Some(mirror_event) = try_extract_event(&log)? {
+                    let actor_id: ActorId = EthexeAddress::from(log.address()).into();
+                    let event = Event {
+                        event: mirror_event,
+                        actor_id,
+                    };
                     tracing::debug!("Relevant log discovered: {event:?}");
 
                     stats.mirror_events_decoded = stats.mirror_events_decoded.saturating_add(1);
-                    match &event.kind {
-                        EventKind::Message(_) => {
+                    match &event.event {
+                        MirrorEvent::Message(_) => {
                             stats.mirror_message_events =
                                 stats.mirror_message_events.saturating_add(1);
                         }
-                        EventKind::Reply(_) => {
+                        MirrorEvent::Reply(_) => {
                             stats.mirror_reply_events = stats.mirror_reply_events.saturating_add(1);
                         }
-                        EventKind::MessageCallFailed(_) | EventKind::ReplyCallFailed(_) => {
+                        MirrorEvent::MessageCallFailed(_) | MirrorEvent::ReplyCallFailed(_) => {
                             stats.mirror_call_failed_events =
                                 stats.mirror_call_failed_events.saturating_add(1);
                         }
-                        EventKind::ValueClaimed(_) => {
+                        MirrorEvent::ValueClaimed(_) => {
                             stats.mirror_value_claimed_events =
                                 stats.mirror_value_claimed_events.saturating_add(1);
                         }
@@ -923,31 +761,28 @@ async fn process_events(
 
                     // Enrich message->program map from emitted logs.
                     // The emitting contract address is the program mirror address.
-                    let actor_id: ActorId = EthexeAddress::from(event.address).into();
                     {
                         let mut lock = mid_map.write().await;
-                        match &event.kind {
-                            EventKind::MessageQueueingRequested(ev) => {
-                                lock.insert(MessageId::new(ev.id.0), actor_id);
+                        match &event.event {
+                            MirrorEvent::MessageQueueingRequested(ev) => {
+                                lock.insert(ev.id, actor_id);
                             }
-                            EventKind::Reply(ev) => {
-                                let replied_to = MessageId::new(ev.replyTo.0);
-                                lock.insert(replied_to, actor_id);
-                                lock.insert(MessageId::generate_reply(replied_to), actor_id);
+                            MirrorEvent::Reply(ev) => {
+                                lock.insert(ev.reply_to, actor_id);
+                                lock.insert(MessageId::generate_reply(ev.reply_to), actor_id);
                             }
-                            EventKind::ReplyCallFailed(ev) => {
-                                let replied_to = MessageId::new(ev.replyTo.0);
-                                lock.insert(replied_to, actor_id);
-                                lock.insert(MessageId::generate_reply(replied_to), actor_id);
+                            MirrorEvent::ReplyCallFailed(ev) => {
+                                lock.insert(ev.reply_to, actor_id);
+                                lock.insert(MessageId::generate_reply(ev.reply_to), actor_id);
                             }
-                            EventKind::Message(ev) => {
-                                lock.insert(MessageId::new(ev.id.0), actor_id);
+                            MirrorEvent::Message(ev) => {
+                                lock.insert(ev.id, actor_id);
                             }
-                            EventKind::MessageCallFailed(ev) => {
-                                lock.insert(MessageId::new(ev.id.0), actor_id);
+                            MirrorEvent::MessageCallFailed(ev) => {
+                                lock.insert(ev.id, actor_id);
                             }
-                            EventKind::ValueClaimed(ev) => {
-                                lock.insert(MessageId::new(ev.claimedId.0), actor_id);
+                            MirrorEvent::ValueClaimed(ev) => {
+                                lock.insert(ev.claimed_id, actor_id);
                             }
                             _ => {}
                         }

@@ -1,18 +1,18 @@
 use std::collections::BTreeSet;
 
-use alloy::{primitives::Address, providers::WalletProvider};
+use alloy::providers::WalletProvider;
 use anyhow::Result;
+use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
 use ethexe_ethereum::Ethereum;
 use gear_call_gen::Seed;
 use gear_core::ids::prelude::MessageIdExt;
-use gear_core_errors::ReplyCode;
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
     SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use gprimitives::{ActorId, MessageId};
 
-use crate::batch::{Event, EventKind};
+use crate::batch::Event;
 
 /// Returns configs bundle with a gear wasm generator config, which logs `seed`.
 pub fn get_wasm_gen_config(
@@ -63,16 +63,14 @@ pub async fn capture_mailbox_messages(
     event_source: &[Event],
     _sent_message_ids: impl IntoIterator<Item = MessageId>,
 ) -> Result<BTreeSet<MessageId>> {
-    let to: Address = api.provider().default_signer_address();
+    let to: ActorId = EthexeAddress::from(api.provider().default_signer_address()).into();
 
-    let mailbox_messages = event_source.iter().filter_map(|event| match event.kind {
+    let mailbox_messages = event_source.iter().filter_map(|event| match &event.event {
         // Incoming message to the user's EOA.
-        EventKind::Message(ref msg) if msg.destination == to => Some(MessageId::new(msg.id.0)),
+        MirrorEvent::Message(msg) if msg.destination == to => Some(msg.id),
 
         // Outgoing (request) message created by the user (useful for tracking).
-        EventKind::MessageQueueingRequested(ref msg) if msg.source == to => {
-            Some(MessageId::new(msg.id.0))
-        }
+        MirrorEvent::MessageQueueingRequested(msg) if msg.source == to => Some(msg.id),
 
         _ => None,
     });
@@ -95,9 +93,9 @@ pub async fn err_waited_or_succeed_batch(
 
     event_source
         .iter_mut()
-        .filter_map(|e| match &e.kind {
-            EventKind::Reply(reply) => {
-                let replied_to = MessageId::new(reply.replyTo.0);
+        .filter_map(|e| match &e.event {
+            MirrorEvent::Reply(reply) => {
+                let replied_to = reply.reply_to;
                 let reply_mid = MessageId::generate_reply(replied_to);
 
                 let id = if message_ids.contains(&replied_to) {
@@ -111,26 +109,22 @@ pub async fn err_waited_or_succeed_batch(
                 caught_ids.push(id);
                 Some(vec![(
                     id,
-                    (!ReplyCode::from_bytes(reply.replyCode.0).is_success()).then(|| {
-                        String::from_utf8(reply.payload.to_vec())
+                    (!reply.reply_code.is_success()).then(|| {
+                        String::from_utf8(reply.payload.clone())
                             .unwrap_or_else(|_| "<non-utf8 reply payload>".to_string())
                     }),
                 )])
             }
-            EventKind::MessageCallFailed(call)
-                if message_ids.contains(&MessageId::new(call.id.0)) =>
-            {
-                Some(vec![(
-                    MessageId::new(call.id.0),
-                    Some(format!(
-                        "Call to {} failed (value={})",
-                        call.destination, call.value
-                    )),
-                )])
-            }
+            MirrorEvent::MessageCallFailed(call) if message_ids.contains(&call.id) => Some(vec![(
+                call.id,
+                Some(format!(
+                    "Call to {} failed (value={})",
+                    call.destination, call.value
+                )),
+            )]),
 
-            EventKind::ReplyCallFailed(call) => {
-                let replied_to = MessageId::new(call.replyTo.0);
+            MirrorEvent::ReplyCallFailed(call) => {
+                let replied_to = call.reply_to;
                 let reply_mid = MessageId::generate_reply(replied_to);
 
                 let id = if message_ids.contains(&replied_to) {
@@ -144,17 +138,12 @@ pub async fn err_waited_or_succeed_batch(
                 caught_ids.push(id);
                 Some(vec![(
                     id,
-                    Some(format!(
-                        "Reply failed with: '{}'",
-                        ReplyCode::from_bytes(call.replyCode.0)
-                    )),
+                    Some(format!("Reply failed with: '{}'", call.reply_code)),
                 )])
             }
 
-            EventKind::ValueClaimed(ev)
-                if message_ids.contains(&MessageId::new(ev.claimedId.0)) =>
-            {
-                let id = MessageId::new(ev.claimedId.0);
+            MirrorEvent::ValueClaimed(ev) if message_ids.contains(&ev.claimed_id) => {
+                let id = ev.claimed_id;
                 caught_ids.push(id);
                 Some(vec![(id, None)])
             }
