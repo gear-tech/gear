@@ -76,15 +76,33 @@ fn derive_signer(index: u32) -> Result<(gsigner::secp256k1::Signer, gsigner::sec
     Ok((signer, address))
 }
 
-fn derive_mnemonic_secret(index: u32) -> Result<(Address, [u8; 32])> {
-    let alloy_signer = MnemonicBuilder::<English>::default()
-        .phrase(MNEMONIC)
-        .index(index)
-        .map_err(|e| anyhow::anyhow!("bad derivation index {index}: {e}"))?
-        .build()
-        .map_err(|e| anyhow::anyhow!("mnemonic derivation failed at index {index}: {e}"))?;
+/// Create a gsigner from a hex-encoded private key string.
+/// Accepts keys with or without "0x" prefix.
+fn signer_from_private_key(
+    private_key_hex: &str,
+) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
+    let hex_str = private_key_hex
+        .strip_prefix("0x")
+        .unwrap_or(private_key_hex);
+    let seed_bytes =
+        alloy::hex::decode(hex_str).map_err(|e| anyhow::anyhow!("invalid hex private key: {e}"))?;
 
-    Ok((alloy_signer.address(), alloy_signer.to_bytes().0))
+    if seed_bytes.len() != 32 {
+        return Err(anyhow::anyhow!(
+            "private key must be 32 bytes, got {}",
+            seed_bytes.len()
+        ));
+    }
+
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(&seed_bytes);
+
+    let private_key = gsigner::secp256k1::PrivateKey::from_seed(seed)?;
+    let signer = gsigner::secp256k1::Signer::memory();
+    let pubkey = signer.import(private_key)?;
+    let address = pubkey.to_address();
+
+    Ok((signer, address))
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
@@ -105,22 +123,23 @@ async fn load_node(params: LoadParams) -> Result<()> {
 
     let router_addr = Address::from_str(&params.router_address)?;
 
-    // Derive deployer (index 0)
-    let (deployer_signer, deployer_address) = derive_signer(DEPLOYER_INDEX)?;
+    // Use sender private key if provided, otherwise default to Anvil deployer (index 0)
+    let (deployer_signer, deployer_address) =
+        if let Some(ref private_key) = params.sender_private_key {
+            info!("Using provided sender private key");
+            signer_from_private_key(private_key)?
+        } else {
+            info!(
+                "Using default Anvil deployer (derivation index {})",
+                DEPLOYER_INDEX
+            );
+            derive_signer(DEPLOYER_INDEX)?
+        };
+
     info!(
         "deployer address: 0x{}",
         alloy::hex::encode(deployer_address.0)
     );
-
-    let (default_sender_address, default_sender_key) = derive_mnemonic_secret(DEPLOYER_INDEX)?;
-    let _sender_private_key = params
-        .sender_private_key
-        .clone()
-        .unwrap_or_else(|| format!("0x{}", alloy::hex::encode(default_sender_key)));
-    let _sender_address = params
-        .sender_address
-        .clone()
-        .unwrap_or_else(|| format!("0x{}", alloy::hex::encode(default_sender_address.0)));
 
     let deployer_api = Ethereum::new(
         &params.node,

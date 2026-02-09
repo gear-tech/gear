@@ -8,6 +8,7 @@ pub struct ContextUpdate {
     pub codes: BTreeSet<CodeId>,
     pub added_mailbox: BTreeSet<MessageId>,
     pub removed_mailbox: BTreeSet<MessageId>,
+    pub exited_programs: BTreeSet<ActorId>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -28,5 +29,8 @@ impl Context {
         self.mailbox_state
             .retain(|mid| !update.removed_mailbox.contains(mid));
         self.mailbox_state.append(&mut update.added_mailbox);
+        // Remove exited programs from the active set
+        self.programs
+            .retain(|pid| !update.exited_programs.contains(pid));
     }
 }

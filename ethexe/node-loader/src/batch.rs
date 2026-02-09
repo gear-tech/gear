@@ -67,6 +67,7 @@ struct ProcessEventsStats {
     transition_reply_details_seen: usize,
     transition_replies_matched: usize,
     transition_mailbox_added: usize,
+    transition_exited_programs: usize,
 
     mirror_logs_seen: usize,
     mirror_events_decoded: usize,
@@ -83,6 +84,20 @@ const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
     (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
+}
+
+/// Generate a fuzzed value for a message.
+/// Returns 0 for ~60% of calls, and random values up to 1 ETH for the rest.
+fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
+    // 60% zero value
+    if rng.next_u32() % 10 < 6 {
+        return 0;
+    }
+
+    // 40% random value
+    let max_value = 1_000_000_000_000_000_000u128;
+    let random_value = ((rng.next_u64() as u128) << 64) | (rng.next_u64() as u128);
+    random_value % max_value
 }
 
 fn salt_to_h256(salt: &[u8]) -> H256 {
@@ -272,19 +287,21 @@ async fn run_batch_impl(
 
                 // Send init message: prefer injected transactions, but keep some
                 // regular on-chain calls to exercise both paths.
+                let fuzzed_value = fuzz_message_value(rng);
                 let message_id = if prefer_injected_tx(rng) {
+                    // injected txs don't support non-zero value
                     tracing::debug!(
-                        "[Call with id {call_id}]: Sending injected init message to {program_id}"
+                        "[Call with id {call_id}]: Sending injected init message to {program_id} with value=0"
                     );
                     vapi.mirror(program_id)
-                        .send_message_injected(&arg.0.2, arg.0.4)
+                        .send_message_injected(&arg.0.2, 0)
                         .await?
                 } else {
                     tracing::debug!(
-                        "[Call with id {call_id}]: Sending init message to {program_id} through Mirror contract"
+                        "[Call with id {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}"
                     );
                     let mirror = api.mirror(program_id);
-                    let (_, mid) = mirror.send_message(&arg.0.2, arg.0.4).await?;
+                    let (_, mid) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
                     mid
                 };
 
@@ -341,16 +358,19 @@ async fn run_batch_impl(
 
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
+                let fuzzed_value = fuzz_message_value(rng);
                 let message_id = if prefer_injected_tx(rng) {
-                    tracing::debug!("[Call with id {i}]: Sending injected message to {to}");
+                    tracing::debug!(
+                        "[Call with id {i}]: Sending injected message to {to} with value=0"
+                    );
                     let mirror = vapi.mirror(to);
-                    mirror.send_message_injected(&arg.0.1, arg.0.3).await?
+                    mirror.send_message_injected(&arg.0.1, 0).await?
                 } else {
                     tracing::debug!(
-                        "[Call with id {i}]: Sending message to {to} through Mirror contract"
+                        "[Call with id {i}]: Sending message to {to} through Mirror contract with value={fuzzed_value}"
                     );
                     let mirror = api.mirror(to);
-                    let (_, mid) = mirror.send_message(&arg.0.1, arg.0.3).await?;
+                    let (_, mid) = mirror.send_message(&arg.0.1, fuzzed_value).await?;
                     mid
                 };
                 messages.insert(message_id, (to, i));
@@ -401,21 +421,21 @@ async fn run_batch_impl(
             for (call_id, arg) in args.iter().enumerate() {
                 let mid = arg.0.0;
                 let payload = &arg.0.1;
-                let value = arg.0.3;
+                let fuzzed_value = fuzz_message_value(rng);
                 let actor_id = *mid_map
                     .read()
                     .await
                     .get(&mid)
                     .ok_or_else(|| anyhow::anyhow!("Actor not found for message id {mid}"))?;
                 let mirror = api.mirror(actor_id);
-                let _ = mirror.send_reply(mid, payload, value).await?;
+                let _ = mirror.send_reply(mid, payload, fuzzed_value).await?;
                 let reply_mid = MessageId::generate_reply(mid);
                 mid_map.write().await.insert(reply_mid, actor_id);
                 // Mirror emits `Reply(..., replyTo=mid, ...)`, so track the original id.
                 messages.insert(mid, (actor_id, call_id));
 
                 tracing::debug!(
-                    "[Call with id: {call_id}]: Successfully replied to {mid} with value={value}"
+                    "[Call with id: {call_id}]: Successfully replied to {mid} with value={fuzzed_value}"
                 );
             }
 
@@ -453,18 +473,20 @@ async fn run_batch_impl(
                 tracing::debug!("[Call with id: {call_id}]: Program created {program_id}");
                 // send init message to program with payload and value.
 
+                let fuzzed_value = fuzz_message_value(rng);
                 let message_id = if prefer_injected_tx(rng) {
+                    // injected txs don't support non-zero value
                     tracing::debug!(
-                        "[Call with id: {call_id}]: Sending injected init message to {program_id}"
+                        "[Call with id: {call_id}]: Sending injected init message to {program_id} with value=0"
                     );
                     vapi.mirror(program_id)
-                        .send_message_injected(&arg.0.2, arg.0.4)
+                        .send_message_injected(&arg.0.2, 0)
                         .await?
                 } else {
                     tracing::debug!(
-                        "[Call with id: {call_id}]: Sending init message to {program_id} through Mirror contract",
+                        "[Call with id: {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}",
                     );
-                    let (_, mid) = mirror.send_message(&arg.0.2, arg.0.4).await?;
+                    let (_, mid) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
                     mid
                 };
 
@@ -507,6 +529,7 @@ async fn process_events(
     wait_for_event_blocks: usize,
 ) -> Result<Report> {
     let mut mailbox_added = BTreeSet::new();
+    let mut exited_programs = BTreeSet::new();
     let initial_messages_len = messages.len();
     let mut stats = ProcessEventsStats {
         start_search_window_blocks: 5,
@@ -547,6 +570,7 @@ async fn process_events(
             let mut transition_reply_details_seen = 0usize;
             let mut transition_replies_matched = 0usize;
             let mut transition_mailbox_added = 0usize;
+            let mut transition_exited_programs = 0usize;
 
             // Parse Router commitBatch calldata for this block and merge with Mirror logs.
             // This is particularly important for injected transactions where Mirror request logs
@@ -579,7 +603,18 @@ async fn process_events(
                                         let actor_id: ActorId =
                                             EthexeAddress::from(tr.actorId).into();
 
-                                        // Value claims help us keep `mid_map` warm for ClaimValue.
+                                        // Track exited programs
+                                        if tr.exited {
+                                            if exited_programs.insert(actor_id) {
+                                                transition_exited_programs += 1;
+                                            }
+                                            tracing::debug!(
+                                                block_hash = ?current_bn,
+                                                program = ?actor_id,
+                                                "Program exited"
+                                            );
+                                        }
+
                                         {
                                             let mut lock = mid_map.write().await;
                                             for vc in tr.valueClaims.iter() {
@@ -696,6 +731,7 @@ async fn process_events(
                 transition_reply_details_seen,
                 transition_replies_matched,
                 transition_mailbox_added,
+                transition_exited_programs,
                 "Router transition parse summary"
             );
 
@@ -722,6 +758,9 @@ async fn process_events(
             stats.transition_mailbox_added = stats
                 .transition_mailbox_added
                 .saturating_add(transition_mailbox_added);
+            stats.transition_exited_programs = stats
+                .transition_exited_programs
+                .saturating_add(transition_exited_programs);
 
             let logs = api
                 .provider()
@@ -881,6 +920,7 @@ async fn process_events(
         results_unknown = unknown_count,
         mailbox_added = mailbox_added.len(),
         program_ids = program_ids.len(),
+        exited_programs = exited_programs.len(),
         unresolved_count,
         unresolved_sample = ?unresolved_sample,
         start_block_found = stats.start_block_found,
@@ -894,6 +934,7 @@ async fn process_events(
         transition_reply_details_seen = stats.transition_reply_details_seen,
         transition_replies_matched = stats.transition_replies_matched,
         transition_mailbox_added = stats.transition_mailbox_added,
+        transition_exited_programs = stats.transition_exited_programs,
         mirror_logs_seen = stats.mirror_logs_seen,
         mirror_events_decoded = stats.mirror_events_decoded,
         mirror_message_events = stats.mirror_message_events,
@@ -907,6 +948,7 @@ async fn process_events(
     Ok(Report {
         program_ids,
         mailbox_data: mailbox_added.into(),
+        exited_programs,
         ..Default::default()
     })
 }

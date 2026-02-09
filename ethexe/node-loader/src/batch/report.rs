@@ -9,6 +9,7 @@ pub struct Report {
     pub codes: BTreeSet<CodeId>,
     pub program_ids: BTreeSet<ActorId>,
     pub mailbox_data: MailboxReport,
+    pub exited_programs: BTreeSet<ActorId>,
 }
 
 #[derive(Default)]
@@ -40,6 +41,7 @@ impl From<Report> for ContextUpdate {
             codes: v.codes,
             added_mailbox: v.mailbox_data.added,
             removed_mailbox: v.mailbox_data.removed,
+            exited_programs: v.exited_programs,
         }
     }
 }
