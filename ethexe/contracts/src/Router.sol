@@ -1,20 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
+import {IMiddleware} from "./IMiddleware.sol";
+import {IMirror} from "./IMirror.sol";
+import {IRouter} from "./IRouter.sol";
 import {Clones} from "./libraries/Clones.sol";
 import {ClonesSmall} from "./libraries/ClonesSmall.sol";
 import {Gear} from "./libraries/Gear.sol";
 import {SSTORE2} from "./libraries/SSTORE2.sol";
-import {FROST} from "frost-secp256k1-evm/FROST.sol";
-import {IMirror} from "./IMirror.sol";
-import {IRouter} from "./IRouter.sol";
-import {IMiddleware} from "./IMiddleware.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
-import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {FROST} from "frost-secp256k1-evm/FROST.sol";
+import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
+import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
 
 contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
@@ -43,12 +46,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         __ReentrancyGuardTransient_init();
 
         // Because of validator storages impl we have to check, that current timestamp is greater than 0.
-        require(block.timestamp > 0, "current timestamp must be greater than 0");
-        require(_electionDuration > 0, "election duration must be greater than 0");
-        require(_eraDuration > _electionDuration, "era duration must be greater than election duration");
+        require(block.timestamp > 0, InvalidTimestamp());
+        require(_electionDuration > 0, InvalidElectionDuration());
+        require(_eraDuration > _electionDuration, EraDurationTooShort());
         // _validationDelay must be small enough,
         // in order to restrict old era validators to make commitments, which can damage the system.
-        require(_validationDelay < (_eraDuration - _electionDuration) / 10, "validation delay is too big");
+        require(_validationDelay < (_eraDuration - _electionDuration) / 10, ValidationDelayTooBig());
 
         _setStorageSlot("router.storage.RouterV1");
         Storage storage router = _router();
@@ -261,25 +264,22 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function lookupGenesisHash() external {
         Storage storage router = _router();
 
-        require(router.genesisBlock.hash == bytes32(0), "genesis hash already set");
+        require(router.genesisBlock.hash == bytes32(0), GenesisHashAlreadySet());
 
         bytes32 genesisHash = blockhash(router.genesisBlock.number);
 
-        require(genesisHash != bytes32(0), "unable to lookup genesis hash");
+        require(genesisHash != bytes32(0), GenesisHashNotFound());
 
         router.genesisBlock.hash = blockhash(router.genesisBlock.number);
     }
 
     function requestCodeValidation(bytes32 _codeId) external {
-        require(blobhash(0) != 0, "blob can't be found, router expected EIP-4844 transaction with WASM blob");
+        require(blobhash(0) != 0, BlobNotFound());
 
         Storage storage router = _router();
-        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+        require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
 
-        require(
-            router.protocolData.codes[_codeId] == Gear.CodeState.Unknown,
-            "given code id is already on validation or validated"
-        );
+        require(router.protocolData.codes[_codeId] == Gear.CodeState.Unknown, CodeAlreadyOnValidationOrValidated());
 
         router.protocolData.codes[_codeId] = Gear.CodeState.ValidationRequested;
 
@@ -316,25 +316,21 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     ) external nonReentrant {
         Storage storage router = _router();
 
-        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+        require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
 
         // `router.reserved` is always `0` but can be overridden in an RPC request
         // to estimate gas excluding `Gear.blockIsPredecessor()`.
         if (router.reserved == 0) {
-            require(Gear.blockIsPredecessor(_batch.blockHash, _batch.expiry), "allowed predecessor block wasn't found");
-            require(block.timestamp > _batch.blockTimestamp, "batch timestamp must be in the past");
+            require(Gear.blockIsPredecessor(_batch.blockHash, _batch.expiry), PredecessorBlockNotFound());
+            require(block.timestamp > _batch.blockTimestamp, BatchTimestampNotInPast());
         }
 
         // Check that batch correctly references to the previous committed batch.
         require(
-            router.latestCommittedBatch.hash == _batch.previousCommittedBatchHash,
-            "invalid previous committed batch hash"
+            router.latestCommittedBatch.hash == _batch.previousCommittedBatchHash, InvalidPreviousCommittedBatchHash()
         );
 
-        require(
-            router.latestCommittedBatch.timestamp <= _batch.blockTimestamp,
-            "batch timestamp must be greater or equal to latest committed batch timestamp"
-        );
+        require(router.latestCommittedBatch.timestamp <= _batch.blockTimestamp, BatchTimestampTooEarly());
 
         bytes32 _chainCommitmentHash = _commitChain(router, _batch);
         bytes32 _codeCommitmentsHash = _commitCodes(router, _batch);
@@ -352,14 +348,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             _validatorsCommitmentHash
         );
 
-        router.latestCommittedBatch = Gear.CommittedBatchInfo(_batchHash, _batch.blockTimestamp);
+        router.latestCommittedBatch.hash = _batchHash;
+        router.latestCommittedBatch.timestamp = _batch.blockTimestamp;
+
         emit BatchCommitted(_batchHash);
 
         require(
             Gear.validateSignaturesAt(
                 router, TRANSIENT_STORAGE, _batchHash, _signatureType, _signatures, _batch.blockTimestamp
             ),
-            "signatures verification failed"
+            SignatureVerificationFailed()
         );
     }
 
@@ -367,16 +365,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
     function _createProgram(bytes32 _codeId, bytes32 _salt, bool _isSmall) private returns (address) {
         Storage storage router = _router();
-        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+        require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
 
-        require(
-            router.protocolData.codes[_codeId] == Gear.CodeState.Validated,
-            "code must be validated before program creation"
-        );
+        require(router.protocolData.codes[_codeId] == Gear.CodeState.Validated, CodeNotValidated());
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
-        bytes32 salt = keccak256(abi.encodePacked(_codeId, _salt));
+        bytes32 salt = Hashes.efficientKeccak256AsBytes32(_codeId, _salt);
         address actorId = _isSmall
             ? ClonesSmall.cloneDeterministic(address(this), salt)
             : Clones.cloneDeterministic(address(this), salt);
@@ -390,9 +385,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     function _commitChain(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
-        require(_batch.chainCommitment.length <= 1, "chainCommitment could contain at most one commitment");
+        require(_batch.chainCommitment.length <= 1, TooManyChainCommitments());
 
         if (_batch.chainCommitment.length == 0) {
+            /// forge-lint: disable-next-line(asm-keccak256)
             return keccak256("");
         }
 
@@ -406,14 +402,17 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     function _commitCodes(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
-        bytes memory _codeCommitmentHashes;
+        uint256 codeCommitmentsLen = _batch.codeCommitments.length;
+        uint256 codeCommitmentsHashSize = codeCommitmentsLen * 32;
+        uint256 codeCommitmentsPtr = Memory.allocate(codeCommitmentsHashSize);
+        uint256 offset = 0;
 
-        for (uint256 i = 0; i < _batch.codeCommitments.length; i++) {
+        for (uint256 i = 0; i < codeCommitmentsLen; i++) {
             Gear.CodeCommitment calldata _commitment = _batch.codeCommitments[i];
 
             require(
                 router.protocolData.codes[_commitment.id] == Gear.CodeState.ValidationRequested,
-                "code must be requested for validation to be committed"
+                CodeValidationNotRequested()
             );
 
             if (_commitment.valid) {
@@ -425,36 +424,40 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
             emit CodeGotValidated(_commitment.id, _commitment.valid);
 
-            _codeCommitmentHashes = bytes.concat(_codeCommitmentHashes, Gear.codeCommitmentHash(_commitment));
+            bytes32 codeCommitmentHash = Gear.codeCommitmentHash(_commitment.id, _commitment.valid);
+            Memory.writeWordAsBytes32(codeCommitmentsPtr, offset, codeCommitmentHash);
+            unchecked {
+                offset += 32;
+            }
         }
 
-        return keccak256(_codeCommitmentHashes);
+        return Hashes.efficientKeccak256AsBytes32(codeCommitmentsPtr, 0, codeCommitmentsHashSize);
     }
 
     // TODO #4609
     // TODO #4611
     function _commitRewards(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
-        require(
-            _batch.rewardsCommitment.length <= 1, "rewards commitment must be empty or contains only one commitment"
-        );
+        require(_batch.rewardsCommitment.length <= 1, TooManyRewardsCommitments());
 
         if (_batch.rewardsCommitment.length == 0) {
+            /// forge-lint: disable-next-line(asm-keccak256)
             return keccak256("");
         }
 
         Gear.RewardsCommitment calldata _commitment = _batch.rewardsCommitment[0];
 
-        require(_commitment.timestamp < _batch.blockTimestamp, "rewards commitment timestamp must be for the past");
-        require(_commitment.timestamp >= router.genesisBlock.timestamp, "rewards commitment timestamp predates genesis");
+        require(_commitment.timestamp < _batch.blockTimestamp, RewardsCommitmentTimestampNotInPast());
+        require(_commitment.timestamp >= router.genesisBlock.timestamp, RewardsCommitmentPredatesGenesis());
 
         uint256 commitmentEraIndex = Gear.eraIndexAt(router, _commitment.timestamp);
         uint256 batchEraIndex = Gear.eraIndexAt(router, _batch.blockTimestamp);
 
-        require(commitmentEraIndex < batchEraIndex, "rewards commitment must target previous era");
+        require(commitmentEraIndex < batchEraIndex, RewardsCommitmentEraNotPrevious());
 
         address _middleware = router.implAddresses.middleware;
-        IERC20(router.implAddresses.wrappedVara)
+        bool success = IERC20(router.implAddresses.wrappedVara)
             .approve(_middleware, _commitment.operators.amount + _commitment.stakers.totalAmount);
+        require(success, ApproveERC20Failed());
 
         bytes32 _operatorRewardsHash = IMiddleware(_middleware)
             .distributeOperatorRewards(
@@ -464,34 +467,32 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         bytes32 _stakerRewardsHash =
             IMiddleware(_middleware).distributeStakerRewards(_commitment.stakers, _commitment.timestamp);
 
-        return keccak256(abi.encodePacked(_operatorRewardsHash, _stakerRewardsHash, _commitment.timestamp));
+        return Gear.rewardsCommitmentHash(_operatorRewardsHash, _stakerRewardsHash, _commitment.timestamp);
     }
 
     /// @dev Set validators for the next era.
     function _commitValidators(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
-        require(
-            _batch.validatorsCommitment.length <= 1,
-            "validators commitment must be empty or contains only one commitment"
-        );
+        require(_batch.validatorsCommitment.length <= 1, TooManyValidatorsCommitments());
 
         if (_batch.validatorsCommitment.length == 0) {
+            /// forge-lint: disable-next-line(asm-keccak256)
             return keccak256("");
         }
 
         Gear.ValidatorsCommitment calldata _commitment = _batch.validatorsCommitment[0];
 
-        require(_commitment.validators.length > 0, "new validators list must not be empty");
+        require(_commitment.validators.length > 0, EmptyValidatorsList());
 
         uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
 
-        require(_commitment.eraIndex == currentEraIndex + 1, "commitment era index is not next era index");
+        require(_commitment.eraIndex == currentEraIndex + 1, CommitmentEraNotNext());
 
         uint256 nextEraStart = router.genesisBlock.timestamp + router.timelines.era * _commitment.eraIndex;
-        require(block.timestamp >= nextEraStart - router.timelines.election, "election is not yet started");
+        require(block.timestamp >= nextEraStart - router.timelines.election, ElectionNotStarted());
 
         // Maybe free slot for new validators:
         Gear.Validators storage _validators = Gear.previousEraValidators(router);
-        require(_validators.useFromTimestamp < block.timestamp, "looks like validators for next era are already set");
+        require(_validators.useFromTimestamp < block.timestamp, ValidatorsAlreadyScheduled());
 
         _resetValidators(
             _validators,
@@ -510,14 +511,15 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         private
         returns (bytes32)
     {
-        bytes memory transitionsHashes;
+        uint256 transitionsLen = _transitions.length;
+        uint256 transitionsHashSize = transitionsLen * 32;
+        uint256 transitionsHashesMemPtr = Memory.allocate(transitionsHashSize);
+        uint256 offset = 0;
 
-        for (uint256 i = 0; i < _transitions.length; i++) {
+        for (uint256 i = 0; i < transitionsLen; i++) {
             Gear.StateTransition calldata transition = _transitions[i];
 
-            require(
-                router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
-            );
+            require(router.protocolData.programs[transition.actorId] != 0, UnknownProgram());
 
             uint128 value = 0;
 
@@ -526,11 +528,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             }
 
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition{value: value}(transition);
-
-            transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
+            Memory.writeWordAsBytes32(transitionsHashesMemPtr, offset, transitionHash);
+            unchecked {
+                offset += 32;
+            }
         }
 
-        return keccak256(transitionsHashes);
+        return Hashes.efficientKeccak256AsBytes32(transitionsHashesMemPtr, 0, transitionsHashSize);
     }
 
     function _resetValidators(
@@ -547,7 +551,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         // ideally onchain
         require(
             FROST.isValidPublicKey(_newAggregatedPublicKey.x, _newAggregatedPublicKey.y),
-            "FROST aggregated public key is invalid"
+            InvalidFROSTAggregatedPublicKey()
         );
         _validators.aggregatedPublicKey = _newAggregatedPublicKey;
         _validators.verifiableSecretSharingCommitmentPointer = SSTORE2.write(_verifiableSecretSharingCommitment);
@@ -576,7 +580,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     function _setStorageSlot(string memory namespace) private onlyOwner {
-        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
+        bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
 
         emit StorageSlotChanged(slot);
@@ -584,12 +588,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
     receive() external payable {
         Storage storage router = _router();
-        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+        require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
 
         uint128 value = uint128(msg.value);
-        require(value > 0, "zero value transfer is not allowed");
+        require(value > 0, ZeroValueTransfer());
 
         address actorId = msg.sender;
-        require(router.protocolData.programs[actorId] != 0, "couldn't receive Ether from unknown program");
+        require(router.protocolData.programs[actorId] != 0, UnknownProgram());
     }
 }

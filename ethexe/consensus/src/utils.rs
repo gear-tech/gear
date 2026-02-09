@@ -32,8 +32,8 @@ use ethexe_common::{
         StateTransition, ValidatorsCommitment,
     },
 };
-use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256, U256};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
@@ -73,7 +73,8 @@ impl MultisignedBatchCommitment {
         pub_key: PublicKey,
     ) -> Result<Self> {
         let batch_digest = batch.to_digest();
-        let signature = signer.sign_for_contract(router_address, pub_key, batch_digest)?;
+        let signature =
+            signer.sign_for_contract_digest(router_address, pub_key, batch_digest, None)?;
         let signatures: BTreeMap<_, _> = [(pub_key.to_address(), signature)].into_iter().collect();
 
         Ok(Self {
@@ -247,7 +248,9 @@ pub fn generate_roast_keys(
         .serialize()?
         .try_into()
         .map_err(|_| anyhow!("Failed to convert public key to compressed format"))?;
-    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed)
+        .expect("valid aggregated public key")
+        .to_uncompressed();
     let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
     let aggregated_public_key = AggregatedPublicKey {
@@ -489,7 +492,12 @@ mod tests {
         let reply = BatchCommitmentValidationReply {
             digest: multisigned_batch.batch_digest,
             signature: signer
-                .sign_for_contract(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
+                .sign_for_contract_digest(
+                    ADDRESS,
+                    other_pub_key,
+                    multisigned_batch.batch_digest,
+                    None,
+                )
                 .unwrap(),
         };
 
@@ -522,7 +530,7 @@ mod tests {
         let reply = BatchCommitmentValidationReply {
             digest: incorrect_digest,
             signature: signer
-                .sign_for_contract(ADDRESS, pub_key, incorrect_digest)
+                .sign_for_contract_digest(ADDRESS, pub_key, incorrect_digest, None)
                 .unwrap(),
         };
 
@@ -545,7 +553,12 @@ mod tests {
         let reply = BatchCommitmentValidationReply {
             digest: multisigned_batch.batch_digest,
             signature: signer
-                .sign_for_contract(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
+                .sign_for_contract_digest(
+                    ADDRESS,
+                    other_pub_key,
+                    multisigned_batch.batch_digest,
+                    None,
+                )
                 .unwrap(),
         };
 

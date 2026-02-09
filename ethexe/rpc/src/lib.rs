@@ -28,7 +28,7 @@ use ethexe_common::injected::{
     AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
 };
 use ethexe_db::Database;
-use ethexe_processor::RunnerConfig;
+use ethexe_processor::{Processor, ProcessorConfig};
 use futures::{Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{
@@ -50,6 +50,8 @@ mod utils;
 #[cfg(all(test, feature = "client"))]
 mod tests;
 
+pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
+
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
@@ -65,9 +67,10 @@ pub struct RpcConfig {
     pub listen_addr: SocketAddr,
     /// CORS.
     pub cors: Option<Vec<String>>,
-    /// Runner config is created with the data
-    /// for processor, but with gas limit multiplier applied.
-    pub runner_config: RunnerConfig,
+    /// Gas allowance for each reply calculation.
+    pub gas_allowance: u64,
+    /// Amount of processing threads for queue processing.
+    pub chunk_size: usize,
 }
 
 pub struct RpcServer {
@@ -98,7 +101,19 @@ impl RpcServer {
             .build(self.config.listen_addr)
             .await?;
 
-        let server_apis = self.server_apis(rpc_sender);
+        let processor = Processor::with_config(
+            ProcessorConfig {
+                chunk_size: self.config.chunk_size,
+            },
+            self.db.clone(),
+        )?;
+
+        let server_apis = RpcServerApis {
+            code: CodeApi::new(self.db.clone()),
+            block: BlockApi::new(self.db.clone()),
+            program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
+            injected: InjectedApi::new(rpc_sender),
+        };
         let injected_api = server_apis.injected.clone();
 
         let handle = server.start(server_apis.into_methods());
@@ -117,15 +132,6 @@ impl RpcServer {
         }
 
         Ok(CorsLayer::new().allow_origin(AllowOrigin::list(list)))
-    }
-
-    fn server_apis(&self, sender: mpsc::UnboundedSender<RpcEvent>) -> RpcServerApis {
-        RpcServerApis {
-            code: CodeApi::new(self.db.clone()),
-            block: BlockApi::new(self.db.clone()),
-            program: ProgramApi::new(self.db.clone(), self.config.runner_config.clone()),
-            injected: InjectedApi::new(sender),
-        }
     }
 }
 

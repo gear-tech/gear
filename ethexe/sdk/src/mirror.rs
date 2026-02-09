@@ -21,6 +21,7 @@ use alloy::rpc::types::TransactionReceipt;
 use anyhow::{Context, Result, anyhow, ensure};
 use ethexe_common::{
     Address, SimpleBlockData,
+    gear_core::rpc::ReplyInfo,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
     },
@@ -29,13 +30,14 @@ use ethexe_ethereum::{
     IntoBlockId,
     mirror::{
         ClaimInfo, Mirror as EthereumMirror, MirrorEvents as EthereumMirrorEvents,
-        MirrorQuery as EthereumMirrorQuery, ReplyInfo,
+        MirrorQuery as EthereumMirrorQuery,
     },
 };
 use ethexe_rpc::{FullProgramState, InjectedClient, ProgramClient};
 use ethexe_runtime_common::state::ProgramState;
 use futures::TryFutureExt;
-use gprimitives::{CodeId, H256, MessageId, U256};
+use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
+use gsigner::secp256k1::Secp256k1SignerExt;
 
 pub struct Mirror<'a> {
     pub(crate) api: &'a VaraEthApi,
@@ -48,8 +50,8 @@ impl<'a> Mirror<'a> {
         self.mirror_query_client.events()
     }
 
-    pub fn address(&self) -> Address {
-        self.mirror_client.address()
+    pub fn actor_id(&self) -> ActorId {
+        self.mirror_client.actor_id()
     }
 
     pub async fn balance(&self) -> Result<u128> {
@@ -60,7 +62,7 @@ impl<'a> Mirror<'a> {
         let code_id = self
             .api
             .vara_eth_client
-            .code_id(self.mirror_client.address().0.into())
+            .code_id(self.actor_id().to_address_lossy())
             .await?;
         Ok(code_id.into())
     }
@@ -107,12 +109,47 @@ impl<'a> Mirror<'a> {
         self.mirror_query_client.exited().await
     }
 
-    pub async fn inheritor(&self) -> Result<Address> {
+    pub async fn inheritor(&self) -> Result<ActorId> {
         self.mirror_query_client.inheritor().await
     }
 
-    pub async fn initializer(&self) -> Result<Address> {
+    pub async fn initializer(&self) -> Result<ActorId> {
         self.mirror_query_client.initializer().await
+    }
+
+    pub async fn calculate_reply_for_handle(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+    ) -> Result<ReplyInfo> {
+        self.calculate_reply_for_handle_at(payload, value, None)
+            .await
+    }
+
+    pub async fn calculate_reply_for_handle_at(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        at: Option<H256>,
+    ) -> Result<ReplyInfo> {
+        let sender_address = self
+            .api
+            .ethereum_client
+            .sender_address()
+            .with_context(|| "no sender address available for sending injected transaction")?;
+        let source: ActorId = sender_address.into();
+        let destination = self.actor_id();
+        self.api
+            .vara_eth_client
+            .calculate_reply_for_handle(
+                at,
+                source.to_address_lossy(),
+                destination.to_address_lossy(),
+                payload.as_ref().to_vec().into(),
+                value,
+            )
+            .map_err(Into::into)
+            .await
     }
 
     pub async fn send_message(
@@ -155,12 +192,11 @@ impl<'a> Mirror<'a> {
             .sender_address()
             .with_context(|| "no sender address available for sending injected transaction")?;
         let public_key = signer
-            .storage()
-            .get_key_by_addr(sender_address)
+            .get_key_by_address(sender_address)
             .with_context(|| "failed to get key for sender address")?
             .ok_or_else(|| anyhow!("no key found for sender address"))?;
 
-        let destination = self.mirror_client.address().into();
+        let destination = self.mirror_client.actor_id();
         let payload = payload.as_ref().to_vec().into();
         let SimpleBlockData {
             hash: reference_block,
@@ -179,7 +215,7 @@ impl<'a> Mirror<'a> {
         let transaction = AddressedInjectedTransaction {
             recipient: Address::default(),
             tx: signer
-                .signed_message(public_key, injected_transaction)
+                .signed_message(public_key, injected_transaction, None)
                 .with_context(|| "failed to create signed injected transaction")?,
         };
 

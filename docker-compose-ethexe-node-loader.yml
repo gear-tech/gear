@@ -1,0 +1,36 @@
+services:
+  ethexe:
+    build:
+      context: .
+      dockerfile: docker/ethexe-node-loader.Dockerfile
+    command:
+      - ethexe
+      - run
+      - --dev
+      - --pre-funded-accounts
+      - "48"
+    ports:
+      - "8545:8545"
+      - "9944:9944"
+    environment:
+      RUST_LOG: info
+
+  node-loader:
+    build:
+      context: .
+      dockerfile: docker/ethexe-node-loader.Dockerfile
+    depends_on:
+      - ethexe
+    command:
+      - ethexe-node-loader
+      - load
+      - --node
+      - ws://ethexe:8545
+      - --ethexe-node
+      - ws://ethexe:9944
+      - --batch-size
+      - "4"
+      - --workers
+      - "4"
+    environment:
+      RUST_LOG: debug,alloy_transport=off,alloy_provider=off,alloy_rpc_client=off,alloy_json_rpc=off,alloy_pubsub=off

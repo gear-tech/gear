@@ -56,14 +56,12 @@ use ethexe_observer::{
     EthereumConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
-use ethexe_processor::{
-    DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
-};
-use ethexe_rpc::{RpcConfig, RpcServer};
-use ethexe_signer::Signer;
+use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
+use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use jsonrpsee::{
     http_client::HttpClient,
     ws_client::{WsClient, WsClientBuilder},
@@ -197,7 +195,7 @@ impl TestEnv {
                 .iter()
                 .map(|k| {
                     let private_key = k.parse().unwrap();
-                    signer.storage_mut().add_key(private_key).unwrap()
+                    signer.import(private_key).unwrap()
                 })
                 .collect(),
         };
@@ -290,7 +288,7 @@ impl TestEnv {
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
-            let network_key = signer.generate_key().unwrap();
+            let network_key = signer.generate().unwrap();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(network_key, router_address);
@@ -436,13 +434,12 @@ impl TestEnv {
             .await?;
 
         if initial_executable_balance != 0 {
-            let program_address = program_id.to_address_lossy().0.into();
             router
                 .wvara()
-                .approve(program_address, initial_executable_balance)
+                .approve(program_id, initial_executable_balance)
                 .await?;
 
-            let mirror = self.ethereum.mirror(program_address);
+            let mirror = self.ethereum.mirror(program_id);
 
             mirror
                 .executable_balance_top_up(initial_executable_balance)
@@ -474,13 +471,12 @@ impl TestEnv {
             .await?;
 
         if initial_executable_balance != 0 {
-            let program_address = program_id.to_address_lossy().0.into();
             router
                 .wvara()
-                .approve(program_address, initial_executable_balance)
+                .approve(program_id, initial_executable_balance)
                 .await?;
 
-            let mirror = self.ethereum.mirror(program_address);
+            let mirror = self.ethereum.mirror(program_id);
 
             mirror
                 .executable_balance_top_up(initial_executable_balance)
@@ -513,8 +509,7 @@ impl TestEnv {
         );
 
         let receiver = self.new_observer_events();
-        let program_address = Address::try_from(program_id)?;
-        let program = self.ethereum.mirror(program_address);
+        let program = self.ethereum.mirror(program_id);
 
         let (_, message_id) = program.send_message(payload, value).await?;
 
@@ -528,21 +523,16 @@ impl TestEnv {
     pub async fn approve_wvara(&self, program_id: ActorId) {
         log::info!("📗 Approving WVara for {program_id}");
 
-        let program_address = Address::try_from(program_id).unwrap();
         let wvara = self.ethereum.router().wvara();
-        wvara.approve_all(program_address.0.into()).await.unwrap();
+        wvara.approve_all(program_id).await.unwrap();
     }
 
     #[allow(dead_code)]
     pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
         log::info!("📗 Transferring {value} WVara to {program_id}");
 
-        let program_address = Address::try_from(program_id).unwrap();
         let wvara = self.ethereum.router().wvara();
-        wvara
-            .transfer(program_address.0.into(), value)
-            .await
-            .unwrap();
+        wvara.transfer(program_id, value).await.unwrap();
     }
 
     /// Creates a new observer events receiver without previously emitted events
@@ -665,11 +655,12 @@ impl TestEnv {
                 .zip(validator_identifiers.iter())
                 .map(|(public_key, id)| {
                     let signing_share = *secret_shares[id].signing_share();
+                    let seed: [u8; 32] = <[u8; 32]>::try_from(signing_share.serialize()).unwrap();
                     let private_key =
-                        PrivateKey::from(<[u8; 32]>::try_from(signing_share.serialize()).unwrap());
+                        PrivateKey::from_seed(seed).expect("signing share must be valid seed");
                     ValidatorConfig {
                         public_key,
-                        session_public_key: signer.storage_mut().add_key(private_key).unwrap(),
+                        session_public_key: signer.import(private_key).unwrap(),
                     }
                 })
                 .collect(),
@@ -797,15 +788,11 @@ impl NodeConfig {
     }
 
     pub fn service_rpc(mut self, rpc_port: u16) -> Self {
-        let runner_config = RunnerConfig::overlay(
-            DEFAULT_CHUNK_PROCESSING_THREADS.get(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-            DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
-        );
         let service_rpc_config = RpcConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
-            runner_config,
+            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * DEFAULT_BLOCK_GAS_LIMIT,
+            chunk_size: DEFAULT_CHUNK_SIZE.get(),
         };
         self.rpc = Some(service_rpc_config);
 
@@ -854,12 +841,7 @@ impl Wallets {
         Self {
             wallets: accounts
                 .into_iter()
-                .map(|s| {
-                    signer
-                        .storage_mut()
-                        .add_key(s.as_ref().parse().unwrap())
-                        .unwrap()
-                })
+                .map(|s| signer.import(s.as_ref().parse().unwrap()).unwrap())
                 .collect(),
             next_wallet: 0,
         }
@@ -1096,7 +1078,7 @@ impl Node {
 
         let addr = self.network_address.as_ref()?;
 
-        let network_key = self.signer.generate_key().unwrap();
+        let network_key = self.signer.generate().unwrap();
         let multiaddr: Multiaddr = addr.parse().unwrap();
 
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
@@ -1155,6 +1137,7 @@ impl Node {
                     .expect("validator config not set")
                     .public_key,
                 message,
+                None,
             )
             .unwrap();
 
