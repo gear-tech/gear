@@ -72,6 +72,7 @@ impl NetworkParams {
         self,
         config_dir: PathBuf,
         router_address: Address,
+        is_dev: bool,
     ) -> Result<Option<NetworkConfig>> {
         if self.no_network {
             return Ok(None);
@@ -135,6 +136,7 @@ impl NetworkParams {
             bootstrap_addresses,
             listen_addresses,
             transport_type: Default::default(),
+            allow_non_global_addresses: is_dev,
         }))
     }
 }

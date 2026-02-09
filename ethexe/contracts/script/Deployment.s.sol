@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
-import {IMiddleware} from "../src/IMiddleware.sol";
-import {Middleware} from "../src/Middleware.sol";
-import {Mirror} from "../src/Mirror.sol";
-import {POAMiddleware} from "../src/POAMiddleware.sol";
-import {Router} from "../src/Router.sol";
-import {WrappedVara} from "../src/WrappedVara.sol";
-import {Gear} from "../src/libraries/Gear.sol";
 import {Script, console} from "forge-std/Script.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import {IMiddleware} from "src/IMiddleware.sol";
+import {Middleware} from "src/Middleware.sol";
+import {Mirror} from "src/Mirror.sol";
+import {POAMiddleware} from "src/POAMiddleware.sol";
+import {Router} from "src/Router.sol";
+import {WrappedVara} from "src/WrappedVara.sol";
+import {Gear} from "src/libraries/Gear.sol";
 import {
     IDefaultOperatorRewardsFactory
 } from "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";

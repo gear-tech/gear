@@ -20,23 +20,23 @@ use crate::{IMirror, decode_log, mirror::MirrorQuery};
 use alloy::{
     contract::Event,
     primitives::{Address as AlloyAddress, B256},
-    providers::RootProvider,
-    rpc::types::eth::Log,
+    providers::{Provider, RootProvider},
+    rpc::types::eth::{Filter, Log, Topic},
     sol_types::{Error, SolEvent},
 };
 use anyhow::Result;
-use ethexe_common::{
-    Address,
-    events::{
-        MirrorEvent, MirrorRequestEvent,
-        mirror::{
-            MessageCallFailedEvent, MessageEvent, ReplyCallFailedEvent, ReplyEvent,
-            StateChangedEvent, ValueClaimedEvent,
-        },
+use ethexe_common::events::{
+    MirrorEvent, MirrorRequestEvent,
+    mirror::{
+        ExecutableBalanceTopUpRequestedEvent, MessageCallFailedEvent, MessageEvent,
+        MessageQueueingRequestedEvent, OwnedBalanceTopUpRequestedEvent, ReplyCallFailedEvent,
+        ReplyEvent, ReplyQueueingRequestedEvent, StateChangedEvent, ValueClaimedEvent,
+        ValueClaimingRequestedEvent,
     },
 };
 use futures::{Stream, StreamExt};
 use gear_core::message::ReplyCode;
+use gprimitives::ActorId;
 use signatures::*;
 
 pub mod signatures {
@@ -119,6 +119,44 @@ pub fn try_extract_request_event(log: &Log) -> Result<Option<MirrorRequestEvent>
     Ok(Some(request_event))
 }
 
+pub struct AllEventsBuilder<'a> {
+    query: &'a MirrorQuery,
+}
+
+impl<'a> AllEventsBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self { query }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<MirrorEvent>> + Unpin + use<>> {
+        let filter = Filter::new()
+            .address(*self.query.0.address())
+            .event_signature(Topic::from_iter([
+                signatures::OWNED_BALANCE_TOP_UP_REQUESTED,
+                signatures::EXECUTABLE_BALANCE_TOP_UP_REQUESTED,
+                signatures::MESSAGE_QUEUEING_REQUESTED,
+                signatures::MESSAGE,
+                signatures::MESSAGE_CALL_FAILED,
+                signatures::REPLY_QUEUEING_REQUESTED,
+                signatures::REPLY,
+                signatures::REPLY_CALL_FAILED,
+                signatures::STATE_CHANGED,
+                signatures::VALUE_CLAIMED,
+                signatures::VALUE_CLAIMING_REQUESTED,
+            ]));
+        Ok(self
+            .query
+            .0
+            .provider()
+            .subscribe_logs(&filter)
+            .await?
+            .into_stream()
+            .map(|log| try_extract_event(&log).transpose().expect("infallible")))
+    }
+}
+
 pub struct StateChangedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::StateChanged>,
 }
@@ -142,9 +180,165 @@ impl<'a> StateChangedEventBuilder<'a> {
     }
 }
 
+pub struct MessageQueueingRequestedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::MessageQueueingRequested>,
+    source: Option<ActorId>,
+}
+
+impl<'a> MessageQueueingRequestedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.MessageQueueingRequested_filter(),
+            source: None,
+        }
+    }
+
+    pub fn source(mut self, source: ActorId) -> Self {
+        self.source = Some(source);
+        self
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<
+        impl Stream<Item = Result<(MessageQueueingRequestedEvent, Log), Error>> + Unpin + use<>,
+    > {
+        let mut event = self.event;
+        if let Some(source) = self.source {
+            let source: AlloyAddress = source.into();
+            event = event.topic1(source);
+        }
+        Ok(event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct ReplyQueueingRequestedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::ReplyQueueingRequested>,
+    source: Option<ActorId>,
+}
+
+impl<'a> ReplyQueueingRequestedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.ReplyQueueingRequested_filter(),
+            source: None,
+        }
+    }
+
+    pub fn source(mut self, source: ActorId) -> Self {
+        self.source = Some(source);
+        self
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(ReplyQueueingRequestedEvent, Log), Error>> + Unpin + use<>>
+    {
+        let mut event = self.event;
+        if let Some(source) = self.source {
+            let source: AlloyAddress = source.into();
+            event = event.topic1(source);
+        }
+        Ok(event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct ValueClaimingRequestedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::ValueClaimingRequested>,
+    source: Option<ActorId>,
+}
+
+impl<'a> ValueClaimingRequestedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.ValueClaimingRequested_filter(),
+            source: None,
+        }
+    }
+
+    pub fn source(mut self, source: ActorId) -> Self {
+        self.source = Some(source);
+        self
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(ValueClaimingRequestedEvent, Log), Error>> + Unpin + use<>>
+    {
+        let mut event = self.event;
+        if let Some(source) = self.source {
+            let source: AlloyAddress = source.into();
+            event = event.topic1(source);
+        }
+        Ok(event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct OwnedBalanceTopUpRequestedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::OwnedBalanceTopUpRequested>,
+}
+
+impl<'a> OwnedBalanceTopUpRequestedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.OwnedBalanceTopUpRequested_filter(),
+        }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<
+        impl Stream<Item = Result<(OwnedBalanceTopUpRequestedEvent, Log), Error>> + Unpin + use<>,
+    > {
+        Ok(self
+            .event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct ExecutableBalanceTopUpRequestedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::ExecutableBalanceTopUpRequested>,
+}
+
+impl<'a> ExecutableBalanceTopUpRequestedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.ExecutableBalanceTopUpRequested_filter(),
+        }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<
+        impl Stream<Item = Result<(ExecutableBalanceTopUpRequestedEvent, Log), Error>> + Unpin + use<>,
+    > {
+        Ok(self
+            .event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
 pub struct MessageEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::Message>,
-    destination: Option<Address>,
+    destination: Option<ActorId>,
 }
 
 impl<'a> MessageEventBuilder<'a> {
@@ -155,7 +349,7 @@ impl<'a> MessageEventBuilder<'a> {
         }
     }
 
-    pub fn with_destination(mut self, destination: Address) -> Self {
+    pub fn with_destination(mut self, destination: ActorId) -> Self {
         self.destination = Some(destination);
         self
     }
@@ -178,7 +372,7 @@ impl<'a> MessageEventBuilder<'a> {
 
 pub struct MessageCallFailedEventBuilder<'a> {
     event: Event<&'a RootProvider, IMirror::MessageCallFailed>,
-    destination: Option<Address>,
+    destination: Option<ActorId>,
 }
 
 impl<'a> MessageCallFailedEventBuilder<'a> {
@@ -229,7 +423,7 @@ impl<'a> ReplyEventBuilder<'a> {
     ) -> Result<impl Stream<Item = Result<(ReplyEvent, Log), Error>> + Unpin + use<>> {
         let mut event = self.event;
         if let Some(reply_code) = self.reply_code {
-            let mut bytes32 = [0u8; 32]; // TODO: check this
+            let mut bytes32 = [0u8; 32];
             bytes32[..4].copy_from_slice(&reply_code.to_bytes());
             event = event.topic1(bytes32);
         }
@@ -265,7 +459,7 @@ impl<'a> ReplyCallFailedEventBuilder<'a> {
     {
         let mut event = self.event;
         if let Some(reply_code) = self.reply_code {
-            let mut bytes32 = [0u8; 32]; // TODO: check this
+            let mut bytes32 = [0u8; 32];
             bytes32[..4].copy_from_slice(&reply_code.to_bytes());
             event = event.topic1(bytes32);
         }
