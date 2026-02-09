@@ -17,8 +17,14 @@ Then run the loader with:
 
 - `RUST_LOG=debug,alloy_transport=off,alloy_provider=off,alloy_rpc_client=off,alloy_json_rpc=off,alloy_pubsub=off ./target/debug/ethexe-node-loader load --batch-size 4 --workers 16`
 
-## Help
+## What it does
 
-Use the built-in CLI help:
+Runs a continuous load test against an `ethexe` dev node, generating randomized batches that:
 
-- `./target/debug/ethexe-node-loader --help`
+- upload code/programs,
+- send messages and replies,
+- claim values,
+
+to stress-test the runtime and networking stack.
+
+It derives worker accounts from the standard Anvil mnemonic, funds them, and then runs batch workers in parallel. It also subscribes to new blocks to drive batch scheduling.
