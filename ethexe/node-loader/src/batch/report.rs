@@ -61,11 +61,4 @@ impl BatchRunReport {
             context_update: report.into(),
         }
     }
-
-    pub fn empty(id: u64) -> Self {
-        Self {
-            id,
-            ..Default::default()
-        }
-    }
 }
