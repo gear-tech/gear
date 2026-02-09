@@ -26,6 +26,7 @@ use gear_core::{
     message::ReplyCode,
 };
 use gprimitives::{ActorId, CodeId, H256, MessageId};
+use rand::{RngCore, SeedableRng, rngs::SmallRng};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
@@ -85,10 +86,18 @@ struct ProcessEventsStats {
 
 const INJECTED_TX_RATIO_NUM: u8 = 7;
 const INJECTED_TX_RATIO_DEN: u8 = 10;
+const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 
-fn prefer_injected_tx() -> bool {
+fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
-    rand::random::<u8>() % INJECTED_TX_RATIO_DEN < INJECTED_TX_RATIO_NUM
+    (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
+}
+
+fn salt_to_h256(salt: &[u8]) -> H256 {
+    let mut out = [0u8; 32];
+    let take = salt.len().min(out.len());
+    out[..take].copy_from_slice(&salt[..take]);
+    H256::from_slice(&out)
 }
 
 /// Events emitted by mirror contract. Used to build mailbox and other context state for
@@ -358,8 +367,9 @@ async fn run_batch(
     mid_map: MidMap,
 ) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
+    let mut rng = SmallRng::seed_from_u64(seed);
 
-    match run_batch_impl(api, vapi, batch, rx, mid_map).await {
+    match run_batch_impl(api, vapi, batch, rx, mid_map, &mut rng).await {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             tracing::info!("Batch failed: {err:?}");
@@ -386,6 +396,7 @@ async fn run_batch_impl(
     batch: Batch,
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     mid_map: MidMap,
+    rng: &mut SmallRng,
 ) -> Result<Report> {
     match batch {
         Batch::UploadProgram(args) => {
@@ -413,34 +424,22 @@ async fn run_batch_impl(
                 .expect("no block?");
             for (call_id, (arg, code_id)) in args.iter().zip(code_ids.iter().copied()).enumerate() {
                 let salt = &arg.0.1;
-                let salt_vec = if salt.len() != 32 {
-                    let mut vec = Vec::with_capacity(32);
-                    vec.extend_from_slice(&salt[..]);
-                    while vec.len() < 32 {
-                        vec.push(0);
-                    }
-                    vec
-                } else {
-                    salt.to_vec()
-                };
                 let (_, program_id) = api
                     .router()
-                    .create_program(code_id, H256::from_slice(&salt_vec[..32]), None)
+                    .create_program(code_id, salt_to_h256(salt), None)
                     .await?;
 
                 api.router()
                     .wvara()
-                    .approve(program_id, 500_000_000_000_000)
+                    .approve(program_id, TOP_UP_AMOUNT)
                     .await?;
                 let mirror = api.mirror(program_id);
-                mirror
-                    .executable_balance_top_up(500_000_000_000_000)
-                    .await?;
+                mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
                 tracing::debug!("[Call with id {call_id}]: Program created {program_id}");
 
                 // Send init message: prefer injected transactions, but keep some
                 // regular on-chain calls to exercise both paths.
-                let message_id = if prefer_injected_tx() {
+                let message_id = if prefer_injected_tx(rng) {
                     tracing::debug!(
                         "[Call with id {call_id}]: Sending injected init message to {program_id}"
                     );
@@ -509,7 +508,7 @@ async fn run_batch_impl(
 
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
-                let message_id = if prefer_injected_tx() {
+                let message_id = if prefer_injected_tx(rng) {
                     tracing::debug!("[Call with id {i}]: Sending injected message to {to}");
                     let mirror = vapi.mirror(to);
                     mirror.send_message_injected(&arg.0.1, arg.0.3).await?
@@ -608,32 +607,20 @@ async fn run_batch_impl(
             for (call_id, arg) in args.iter().enumerate() {
                 let code_id = arg.0.0;
                 let salt = &arg.0.1;
-                let salt_vec = if salt.len() != 32 {
-                    let mut vec = Vec::with_capacity(32);
-                    vec.extend_from_slice(salt);
-                    while vec.len() < 32 {
-                        vec.push(0);
-                    }
-                    vec
-                } else {
-                    salt.to_vec()
-                };
                 let (_, program_id) = api
                     .router()
-                    .create_program(code_id, H256::from_slice(&salt_vec[0..32]), None)
+                    .create_program(code_id, salt_to_h256(salt), None)
                     .await?;
                 api.router()
                     .wvara()
-                    .approve(program_id, 500_000_000_000_000)
+                    .approve(program_id, TOP_UP_AMOUNT)
                     .await?;
                 let mirror = api.mirror(program_id);
-                mirror
-                    .executable_balance_top_up(500_000_000_000_000)
-                    .await?;
+                mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
                 tracing::debug!("[Call with id: {call_id}]: Program created {program_id}");
                 // send init message to program with payload and value.
 
-                let message_id = if prefer_injected_tx() {
+                let message_id = if prefer_injected_tx(rng) {
                     tracing::debug!(
                         "[Call with id: {call_id}]: Sending injected init message to {program_id}"
                     );
@@ -778,15 +765,16 @@ async fn process_events(
                                             // Map message id to the emitting program.
                                             mid_map.write().await.insert(msg_id, actor_id);
 
-                                            // Mailbox: messages delivered to our EOA.
-                                            if msg.destination == to {
+                                            // Mailbox: messages delivered to our EOA (replies do not land in mailbox).
+                                            let is_reply = msg.replyDetails.to.0 != [0u8; 32];
+                                            if msg.destination == to && !is_reply {
                                                 mailbox_added.insert(msg_id);
                                                 transition_mailbox_added += 1;
                                             }
 
                                             // Reply detection: in transitions, a reply is encoded via replyDetails.
                                             // If this is a reply to one of our sent messages, we can derive an outcome.
-                                            if msg.replyDetails.to.0 != [0u8; 32] {
+                                            if is_reply {
                                                 transition_reply_details_seen += 1;
                                                 let replied_to =
                                                     MessageId::new(msg.replyDetails.to.0);

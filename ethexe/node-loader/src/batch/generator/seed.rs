@@ -27,11 +27,18 @@ impl RngCore for ConstantGenerator {
         self.0
     }
 
-    fn fill_bytes(&mut self, _dest: &mut [u8]) {
-        unimplemented!()
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        let mut i = 0;
+        while i < dest.len() {
+            let bytes = self.next_u64().to_le_bytes();
+            let take = (dest.len() - i).min(bytes.len());
+            dest[i..i + take].copy_from_slice(&bytes[..take]);
+            i += take;
+        }
     }
 
-    fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), rand::Error> {
-        unimplemented!()
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+        self.fill_bytes(dest);
+        Ok(())
     }
 }

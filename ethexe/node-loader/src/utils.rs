@@ -31,7 +31,10 @@ pub fn get_wasm_gen_config(
             (SyscallName::Exit, 0..=1),
             (SyscallName::Alloc, 3..=10),
             (SyscallName::Free, 3..=10),
-            (SyscallName::Wake, 0..=0), // wake not supported yet
+            (SyscallName::Wait, 0..=1),
+            (SyscallName::WaitFor, 0..=1),
+            (SyscallName::WaitUpTo, 0..=1),
+            (SyscallName::Wake, 0..=1),
         ]
         .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
         .into_iter(),
@@ -58,10 +61,9 @@ pub fn get_wasm_gen_config(
 pub async fn capture_mailbox_messages(
     api: &Ethereum,
     event_source: &[Event],
-    sent_message_ids: impl IntoIterator<Item = MessageId>,
+    _sent_message_ids: impl IntoIterator<Item = MessageId>,
 ) -> Result<BTreeSet<MessageId>> {
     let to: Address = api.provider().default_signer_address();
-    let sent_message_ids: BTreeSet<MessageId> = sent_message_ids.into_iter().collect();
 
     let mailbox_messages = event_source.iter().filter_map(|event| match event.kind {
         // Incoming message to the user's EOA.
@@ -70,14 +72,6 @@ pub async fn capture_mailbox_messages(
         // Outgoing (request) message created by the user (useful for tracking).
         EventKind::MessageQueueingRequested(ref msg) if msg.source == to => {
             Some(MessageId::new(msg.id.0))
-        }
-
-        // Replies don't include their own id; the canonical reply id is derived from `replyTo`.
-        // We only treat it as a mailbox message if it replies to one of our messages.
-        EventKind::Reply(ref reply)
-            if sent_message_ids.contains(&MessageId::new(reply.replyTo.0)) =>
-        {
-            Some(MessageId::generate_reply(MessageId::new(reply.replyTo.0)))
         }
 
         _ => None,
@@ -106,8 +100,6 @@ pub async fn err_waited_or_succeed_batch(
                 let replied_to = MessageId::new(reply.replyTo.0);
                 let reply_mid = MessageId::generate_reply(replied_to);
 
-                // Different call sites may track either the original message id (common) or
-                // the derived reply message id (legacy behavior).
                 let id = if message_ids.contains(&replied_to) {
                     replied_to
                 } else if message_ids.contains(&reply_mid) {
@@ -119,8 +111,10 @@ pub async fn err_waited_or_succeed_batch(
                 caught_ids.push(id);
                 Some(vec![(
                     id,
-                    (!ReplyCode::from_bytes(reply.replyCode.0).is_success())
-                        .then(|| String::from_utf8(reply.payload.to_vec()).expect("Infallible")),
+                    (!ReplyCode::from_bytes(reply.replyCode.0).is_success()).then(|| {
+                        String::from_utf8(reply.payload.to_vec())
+                            .unwrap_or_else(|_| "<non-utf8 reply payload>".to_string())
+                    }),
                 )])
             }
             EventKind::MessageCallFailed(call)
