@@ -569,6 +569,7 @@ impl ProcessEventsStats {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn parse_router_transitions(
     api: &Ethereum,
     current_bn: FixedBytes<32>,
@@ -856,27 +857,24 @@ async fn process_events(
 
             let mirror_stats = parse_mirror_logs(&api, current_bn, &mid_map, &mut v).await?;
 
-            let mut block_stats = BlockProcessStats::default();
-            block_stats.router_txs_seen = transition_stats.router_txs_seen;
-            block_stats.commit_batch_calls_decoded = transition_stats.commit_batch_calls_decoded;
-            block_stats.chain_commitments_seen = transition_stats.chain_commitments_seen;
-            block_stats.transitions_seen = transition_stats.transitions_seen;
-            block_stats.transition_messages_seen = transition_stats.transition_messages_seen;
-            block_stats.transition_value_claims_seen =
-                transition_stats.transition_value_claims_seen;
-            block_stats.transition_reply_details_seen =
-                transition_stats.transition_reply_details_seen;
-            block_stats.transition_replies_matched = transition_stats.transition_replies_matched;
-            block_stats.transition_mailbox_added = transition_stats.transition_mailbox_added;
-            block_stats.transition_exited_programs = transition_stats.transition_exited_programs;
-            block_stats.mirror_logs_seen = mirror_stats.mirror_logs_seen;
-            block_stats.mirror_events_decoded = mirror_stats.mirror_events_decoded;
-            block_stats.mirror_message_events = mirror_stats.mirror_message_events;
-            block_stats.mirror_reply_events = mirror_stats.mirror_reply_events;
-            block_stats.mirror_call_failed_events = mirror_stats.mirror_call_failed_events;
-            block_stats.mirror_value_claimed_events = mirror_stats.mirror_value_claimed_events;
-
-            stats.add_block(block_stats);
+            stats.add_block(BlockProcessStats {
+                router_txs_seen: transition_stats.router_txs_seen,
+                commit_batch_calls_decoded: transition_stats.commit_batch_calls_decoded,
+                chain_commitments_seen: transition_stats.chain_commitments_seen,
+                transitions_seen: transition_stats.transitions_seen,
+                transition_messages_seen: transition_stats.transition_messages_seen,
+                transition_value_claims_seen: transition_stats.transition_value_claims_seen,
+                transition_reply_details_seen: transition_stats.transition_reply_details_seen,
+                transition_replies_matched: transition_stats.transition_replies_matched,
+                transition_mailbox_added: transition_stats.transition_mailbox_added,
+                transition_exited_programs: transition_stats.transition_exited_programs,
+                mirror_logs_seen: mirror_stats.mirror_logs_seen,
+                mirror_events_decoded: mirror_stats.mirror_events_decoded,
+                mirror_message_events: mirror_stats.mirror_message_events,
+                mirror_reply_events: mirror_stats.mirror_reply_events,
+                mirror_call_failed_events: mirror_stats.mirror_call_failed_events,
+                mirror_value_claimed_events: mirror_stats.mirror_value_claimed_events,
+            });
 
             let mut mailbox_from_events =
                 utils::capture_mailbox_messages(&api, &v, messages.keys().copied()).await?;
