@@ -79,6 +79,9 @@ struct ProcessEventsStats {
 
 const INJECTED_TX_RATIO_NUM: u8 = 7;
 const INJECTED_TX_RATIO_DEN: u8 = 10;
+/// This is the amount of VARA to top up newly created programs with.
+///
+/// It is an ERC20 token with 12 decimals, so this is 500,000 VARA.
 const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
@@ -265,12 +268,7 @@ async fn run_batch_impl(
 
             let mut program_ids = BTreeSet::new();
             let mut messages = BTreeMap::new();
-            let block_hash = api
-                .provider()
-                .get_block(BlockId::latest())
-                .await?
-                .expect("latest block not found")
-                .hash();
+            let block_hash = api.get_latest_block().await?.hash;
             for (call_id, (arg, code_id)) in args.iter().zip(code_ids.iter().copied()).enumerate() {
                 let salt = &arg.0.1;
                 let (_, program_id) = api
@@ -289,22 +287,12 @@ async fn run_batch_impl(
                 // Send init message: prefer injected transactions, but keep some
                 // regular on-chain calls to exercise both paths.
                 let fuzzed_value = fuzz_message_value(rng);
-                let message_id = if prefer_injected_tx(rng) {
-                    // injected txs don't support non-zero value
-                    tracing::debug!(
-                        "[Call with id {call_id}]: Sending injected init message to {program_id} with value=0"
-                    );
-                    vapi.mirror(program_id)
-                        .send_message_injected(&arg.0.2, 0)
-                        .await?
-                } else {
-                    tracing::debug!(
-                        "[Call with id {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}"
-                    );
-                    let mirror = api.mirror(program_id);
-                    let (_, mid) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
-                    mid
-                };
+                // TODO: Injected TXs can't send init message
+                tracing::debug!(
+                    "[Call with id {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}"
+                );
+                let mirror = api.mirror(program_id);
+                let (_, message_id) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
 
                 mid_map.write().await.insert(message_id, program_id);
                 messages.insert(message_id, (program_id, call_id));
@@ -317,7 +305,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash,
+                block_hash.into(),
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -350,12 +338,7 @@ async fn run_batch_impl(
         Batch::SendMessage(args) => {
             tracing::info!("Sending messages");
             let mut messages = BTreeMap::new();
-            let block_hash = api
-                .provider()
-                .get_block(BlockId::latest())
-                .await?
-                .expect("latest block not found")
-                .hash();
+            let block_hash = api.get_latest_block().await?.hash;
 
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
@@ -384,7 +367,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash,
+                block_hash.into(),
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -420,12 +403,7 @@ async fn run_batch_impl(
 
             let mut messages = BTreeMap::new();
 
-            let block_hash = api
-                .provider()
-                .get_block(BlockId::latest())
-                .await?
-                .expect("latest block not found")
-                .hash();
+            let block_hash = api.get_latest_block().await?.hash;
 
             for (call_id, arg) in args.iter().enumerate() {
                 let mid = arg.0.0;
@@ -453,7 +431,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash,
+                block_hash.into(),
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -468,12 +446,8 @@ async fn run_batch_impl(
             tracing::info!("Creating programs");
             let mut programs = BTreeSet::new();
             let mut messages = BTreeMap::new();
-            let block_hash = api
-                .provider()
-                .get_block(BlockId::latest())
-                .await?
-                .expect("latest block not found")
-                .hash();
+            let block_hash = api.get_latest_block().await?.hash;
+
             for (call_id, arg) in args.iter().enumerate() {
                 let code_id = arg.0.0;
                 let salt = &arg.0.1;
@@ -488,24 +462,15 @@ async fn run_batch_impl(
                 let mirror = api.mirror(program_id);
                 mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
                 tracing::debug!("[Call with id: {call_id}]: Program created {program_id}");
-                // send init message to program with payload and value.
 
+                // TODO: Ditto
+
+                // send init message to program with payload and value.
                 let fuzzed_value = fuzz_message_value(rng);
-                let message_id = if prefer_injected_tx(rng) {
-                    // injected txs don't support non-zero value
-                    tracing::debug!(
-                        "[Call with id: {call_id}]: Sending injected init message to {program_id} with value=0"
-                    );
-                    vapi.mirror(program_id)
-                        .send_message_injected(&arg.0.2, 0)
-                        .await?
-                } else {
-                    tracing::debug!(
-                        "[Call with id: {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}",
-                    );
-                    let (_, mid) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
-                    mid
-                };
+                tracing::debug!(
+                    "[Call with id: {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}",
+                );
+                let (_, message_id) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
 
                 programs.insert(program_id);
                 mid_map.write().await.insert(message_id, program_id);
@@ -520,7 +485,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash,
+                block_hash.into(),
                 mid_map,
                 wait_for_event_blocks,
             )
