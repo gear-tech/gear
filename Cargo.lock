@@ -5216,7 +5216,6 @@ dependencies = [
  "futures",
  "gear-call-gen",
  "gear-core",
- "gear-core-errors",
  "gear-utils",
  "gear-wasm-gen",
  "gear-workspace-hack",
