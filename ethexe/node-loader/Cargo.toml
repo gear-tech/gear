@@ -21,13 +21,10 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 gear-workspace-hack.workspace = true
-alloy.workspace = true
-#alloy = { workspace = true, features = ["full"] }
-ethexe-signer.workspace = true
+alloy = { workspace = true, features = ["signer-mnemonic"] }
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-ethereum.workspace = true
 ethexe-sdk.workspace = true
-#ethexe-rpc.workspace = true TODO: Injectex txs
 gprimitives = { workspace = true, features = ["ethexe"] }
 gear-call-gen.workspace = true
 gear-wasm-gen.workspace = true
@@ -35,6 +32,7 @@ gear-core.workspace = true
 gear-utils.workspace = true
 gear-core-errors.workspace = true
 rand = { workspace = true }
+gsigner.workspace = true
 
 
 [dev-dependencies]

@@ -423,45 +423,43 @@ async fn run_batch_impl(
                 } else {
                     salt.to_vec()
                 };
-                let program = api
+                let (_, program_id) = api
                     .router()
                     .create_program(code_id, H256::from_slice(&salt_vec[..32]), None)
                     .await?;
 
                 api.router()
                     .wvara()
-                    .approve(program.1.to_address_lossy().0.into(), 500_000_000_000_000)
+                    .approve(program_id, 500_000_000_000_000)
                     .await?;
-                let mirror = api.mirror(program.1.to_address_lossy().0.into());
+                let mirror = api.mirror(program_id);
                 mirror
                     .executable_balance_top_up(500_000_000_000_000)
                     .await?;
-                tracing::debug!("[Call with id {call_id}]: Program created {}", program.1);
+                tracing::debug!("[Call with id {call_id}]: Program created {program_id}");
 
                 // Send init message: prefer injected transactions, but keep some
                 // regular on-chain calls to exercise both paths.
                 let message_id = if prefer_injected_tx() {
                     tracing::debug!(
-                        "[Call with id {call_id}]: Sending injected init message to {}",
-                        program.1
+                        "[Call with id {call_id}]: Sending injected init message to {program_id}"
                     );
-                    vapi.mirror(program.1)
+                    vapi.mirror(program_id)
                         .send_message_injected(&arg.0.2, arg.0.4)
                         .await?
                 } else {
                     tracing::debug!(
-                        "[Call with id {call_id}]: Sending init message to {} through Mirror contract",
-                        program.1
+                        "[Call with id {call_id}]: Sending init message to {program_id} through Mirror contract"
                     );
-                    let mirror = api.mirror(program.1.to_address_lossy().0.into());
+                    let mirror = api.mirror(program_id);
                     let (_, mid) = mirror.send_message(&arg.0.2, arg.0.4).await?;
                     mid
                 };
 
-                mid_map.write().await.insert(message_id, program.1);
-                messages.insert(message_id, (program.1, call_id));
+                mid_map.write().await.insert(message_id, program_id);
+                messages.insert(message_id, (program_id, call_id));
                 tracing::debug!("[Call with id {call_id}]: Init message sent {message_id}");
-                program_ids.insert(program.1);
+                program_ids.insert(program_id);
             }
 
             let wait_for_event_blocks = blocks_window(args.len(), 6, 48);
@@ -519,7 +517,7 @@ async fn run_batch_impl(
                     tracing::debug!(
                         "[Call with id {i}]: Sending message to {to} through Mirror contract"
                     );
-                    let mirror = api.mirror(ethexe_common::Address::try_from(to).unwrap());
+                    let mirror = api.mirror(to);
                     let (_, mid) = mirror.send_message(&arg.0.1, arg.0.3).await?;
                     mid
                 };
@@ -542,7 +540,7 @@ async fn run_batch_impl(
                     .await
                     .get(&mid)
                     .ok_or_else(|| anyhow::anyhow!("Actor not found for message id {mid}"))?;
-                let mirror = api.mirror(ethexe_common::Address::try_from(actor_id).unwrap());
+                let mirror = api.mirror(actor_id);
                 mirror.claim_value(mid).await?;
                 tracing::debug!("[Call with id: {call_id}]: Successfully claimed");
             }
@@ -577,7 +575,7 @@ async fn run_batch_impl(
                     .await
                     .get(&mid)
                     .ok_or_else(|| anyhow::anyhow!("Actor not found for message id {mid}"))?;
-                let mirror = api.mirror(ethexe_common::Address::try_from(actor_id).unwrap());
+                let mirror = api.mirror(actor_id);
                 let _ = mirror.send_reply(mid, payload, value).await?;
                 let reply_mid = MessageId::generate_reply(mid);
                 mid_map.write().await.insert(reply_mid, actor_id);
@@ -620,41 +618,39 @@ async fn run_batch_impl(
                 } else {
                     salt.to_vec()
                 };
-                let program = api
+                let (_, program_id) = api
                     .router()
                     .create_program(code_id, H256::from_slice(&salt_vec[0..32]), None)
                     .await?;
                 api.router()
                     .wvara()
-                    .approve(program.1.to_address_lossy().0.into(), 500_000_000_000_000)
+                    .approve(program_id, 500_000_000_000_000)
                     .await?;
-                let mirror = api.mirror(program.1.to_address_lossy().0.into());
+                let mirror = api.mirror(program_id);
                 mirror
                     .executable_balance_top_up(500_000_000_000_000)
                     .await?;
-                tracing::debug!("[Call with id: {call_id}]: Program created {}", program.1);
+                tracing::debug!("[Call with id: {call_id}]: Program created {program_id}");
                 // send init message to program with payload and value.
 
                 let message_id = if prefer_injected_tx() {
                     tracing::debug!(
-                        "[Call with id: {call_id}]: Sending injected init message to {}",
-                        program.1
+                        "[Call with id: {call_id}]: Sending injected init message to {program_id}"
                     );
-                    vapi.mirror(program.1)
+                    vapi.mirror(program_id)
                         .send_message_injected(&arg.0.2, arg.0.4)
                         .await?
                 } else {
                     tracing::debug!(
-                        "[Call with id: {call_id}]: Sending init message to {} through Mirror contract",
-                        program.1
+                        "[Call with id: {call_id}]: Sending init message to {program_id} through Mirror contract",
                     );
                     let (_, mid) = mirror.send_message(&arg.0.2, arg.0.4).await?;
                     mid
                 };
 
-                programs.insert(program.1);
-                mid_map.write().await.insert(message_id, program.1);
-                messages.insert(message_id, (program.1, call_id));
+                programs.insert(program_id);
+                mid_map.write().await.insert(message_id, program_id);
+                messages.insert(message_id, (program_id, call_id));
                 tracing::debug!(
                     "[Call with id: {call_id}]: Successfully sent init message {message_id}"
                 );

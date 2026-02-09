@@ -16,7 +16,6 @@ pub enum Params {
     Load(LoadParams),
 }
 
-/// Parameters for the load test. Default values come from .env.example.local file.
 #[derive(Debug, Parser)]
 pub struct LoadParams {
     /// Ethexe node
