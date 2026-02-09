@@ -30,7 +30,6 @@ gear-call-gen.workspace = true
 gear-wasm-gen.workspace = true
 gear-core.workspace = true
 gear-utils.workspace = true
-gear-core-errors.workspace = true
 rand = { workspace = true }
 gsigner.workspace = true
 
