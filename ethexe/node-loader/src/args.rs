@@ -5,7 +5,11 @@ use clap::Parser;
 use std::str::FromStr;
 
 #[derive(Debug, Parser)]
-#[clap(name = "ethexe-node-loader")]
+#[command(
+    name = "ethexe-node-loader",
+    about = "Load-testing tool for an ethexe dev node",
+    long_about = "ethexe-node-loader generates randomized workloads against an ethexe dev node. It can upload code/programs, send messages, send replies, and claim values in batches to stress-test the node.\n\nUse `load` for continuous traffic generation and `dump` to generate a wasm program from a seed for debugging."
+)]
 pub enum Params {
     /// Dump the wasm program with provided seed to "out.wasm"
     Dump {
@@ -32,13 +36,10 @@ pub struct LoadParams {
     pub wvara_address: String,
 
     /// A private key for sender account.
-    #[arg(
-        long,
-        default_value = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-    )]
-    pub sender_private_key: String,
-    #[arg(long, default_value = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266")]
-    pub sender_address: String,
+    #[arg(long, env = "SENDER_PRIVATE_KEY")]
+    pub sender_private_key: Option<String>,
+    #[arg(long, env = "SENDER_ADDRESS")]
+    pub sender_address: Option<String>,
 
     #[arg(long)]
     pub loader_seed: Option<u64>,
@@ -67,15 +68,11 @@ impl FromStr for SeedVariant {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
-        let input = s.split('=').collect::<Vec<_>>();
-        if input.len() != 2 {
-            return Err(anyhow!(
-                "Invalid seed argument format {s:?}. Must be 'seed_variant=num'"
-            ));
-        }
+        let (variant, num_str) = s.split_once('=').ok_or_else(|| {
+            anyhow!("Invalid seed argument format {s:?}. Must be 'seed_variant=num'")
+        })?;
 
-        let variant = input[0];
-        let num = input[1].parse::<u64>()?;
+        let num = num_str.parse::<u64>()?;
         match variant {
             "start" => Ok(SeedVariant::Dynamic(num)),
             "constant" => Ok(SeedVariant::Constant(num)),

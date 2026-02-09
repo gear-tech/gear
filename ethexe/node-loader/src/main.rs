@@ -18,6 +18,11 @@ use tracing::info;
 
 use crate::{args::LoadParams, batch::BatchPool};
 
+/// Entrypoint for the node-loader CLI.
+///
+/// Runs a continuous load test against an `ethexe` dev node, generating randomized batches
+/// that upload code/programs, send messages, send replies, and claim values to stress-test
+/// the runtime and networking stack.
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
@@ -42,7 +47,7 @@ async fn main() -> Result<()> {
 const MNEMONIC: &str = "test test test test test test test test test test test junk";
 
 /// Derive a `gsigner::secp256k1::Signer` (with one imported key) from the
-/// standard Hardhat mnemonic at BIP-44 derivation index `m/44'/60'/0'/0/{index}`.
+/// standard derivation index `m/44'/60'/0'/0/{index}`.
 ///
 /// Returns the signer together with the corresponding gsigner address.
 fn derive_signer(index: u32) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
@@ -71,13 +76,23 @@ fn derive_signer(index: u32) -> Result<(gsigner::secp256k1::Signer, gsigner::sec
     Ok((signer, address))
 }
 
+fn derive_mnemonic_secret(index: u32) -> Result<(Address, [u8; 32])> {
+    let alloy_signer = MnemonicBuilder::<English>::default()
+        .phrase(MNEMONIC)
+        .index(index)
+        .map_err(|e| anyhow::anyhow!("bad derivation index {index}: {e}"))?
+        .build()
+        .map_err(|e| anyhow::anyhow!("mnemonic derivation failed at index {index}: {e}"))?;
+
+    Ok((alloy_signer.address(), alloy_signer.to_bytes().0))
+}
+
 async fn load_node(params: LoadParams) -> Result<()> {
     const MAX_WORKERS: usize = 48;
     const MINT_AMOUNT: u128 = 500_000_000_000_000_000_000;
-    // Hardhat/Anvil mnemonic index 0 is the deployer.
+    // Anvil mnemonic index 0 is the deployer.
     const DEPLOYER_INDEX: u32 = 0;
-    // Worker accounts start from index 2 (index 1 is typically the second
-    // pre-funded account, but we skip it to leave a gap for the deployer).
+
     const WORKER_START_INDEX: u32 = 2;
 
     if params.workers == 0 {
@@ -88,7 +103,7 @@ async fn load_node(params: LoadParams) -> Result<()> {
         return Err(anyhow::anyhow!("workers must not exceed {MAX_WORKERS}"));
     }
 
-    let router_addr = Address::from_str(&params.router_address).unwrap();
+    let router_addr = Address::from_str(&params.router_address)?;
 
     // Derive deployer (index 0)
     let (deployer_signer, deployer_address) = derive_signer(DEPLOYER_INDEX)?;
@@ -96,6 +111,16 @@ async fn load_node(params: LoadParams) -> Result<()> {
         "deployer address: 0x{}",
         alloy::hex::encode(deployer_address.0)
     );
+
+    let (default_sender_address, default_sender_key) = derive_mnemonic_secret(DEPLOYER_INDEX)?;
+    let _sender_private_key = params
+        .sender_private_key
+        .clone()
+        .unwrap_or_else(|| format!("0x{}", alloy::hex::encode(default_sender_key)));
+    let _sender_address = params
+        .sender_address
+        .clone()
+        .unwrap_or_else(|| format!("0x{}", alloy::hex::encode(default_sender_address.0)));
 
     let deployer_api = Ethereum::new(
         &params.node,
