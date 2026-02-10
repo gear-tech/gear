@@ -45,7 +45,7 @@ unsafe fn _instrument_code(original_code_ptr: i32, original_code_len: i32) -> i6
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 extern "C" fn run(arg_ptr: i32, arg_len: i32) -> i64 {
-    _run(arg_ptr, arg_len)
+    unsafe { _run(arg_ptr, arg_len) }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]

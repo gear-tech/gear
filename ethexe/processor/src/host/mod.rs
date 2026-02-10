@@ -19,7 +19,7 @@
 use core_processor::common::JournalNote;
 use ethexe_common::gear::MessageType;
 use ethexe_db::CASDatabase;
-use ethexe_runtime_common::{ProgramJournals, ProcessQueueContext, unpack_i64_to_u32};
+use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, unpack_i64_to_u32};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
