@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::wasm::storage::NativeRuntimeInterface;
-use ethexe_runtime_common::{ProgramJournals, RuntimeRunContext, process_queue};
+use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, process_queue};
 
-pub fn run(ctx: RuntimeRunContext) -> (ProgramJournals, u64) {
+pub fn run(ctx: ProcessQueueContext) -> (ProgramJournals, u64) {
     log::debug!("You're calling 'run(..)'");
 
     let ri = NativeRuntimeInterface;

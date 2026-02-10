@@ -65,7 +65,7 @@ pub type ProgramJournals = Vec<(Vec<JournalNote>, MessageType, bool)>;
 /// Context passed to the runtime in order to
 /// run message queue processing for specified program.
 #[derive(Debug, Encode, Decode)]
-pub struct RuntimeRunContext {
+pub struct ProcessQueueContext {
     pub program_id: ActorId,
     pub state_root: H256,
     pub queue_type: MessageType,
@@ -128,14 +128,14 @@ impl<S: Storage + ?Sized> TransitionController<'_, S> {
     }
 }
 
-pub fn process_queue<RI>(mut ctx: RuntimeRunContext, ri: &RI) -> (ProgramJournals, u64)
+pub fn process_queue<RI>(mut ctx: ProcessQueueContext, ri: &RI) -> (ProgramJournals, u64)
 where
     RI: RuntimeInterface,
     RI::LazyPages: Send,
 {
     let mut program_state = ri.program_state(ctx.state_root).unwrap();
 
-    let RuntimeRunContext {
+    let ProcessQueueContext {
         program_id,
         queue_type,
         ..
@@ -246,7 +246,7 @@ fn process_dispatch<RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
     program_state: &ProgramState,
-    ctx: &RuntimeRunContext,
+    ctx: &ProcessQueueContext,
     ri: &RI,
 ) -> Vec<JournalNote>
 where
@@ -264,7 +264,7 @@ where
         ..
     } = dispatch;
 
-    let &RuntimeRunContext {
+    let &ProcessQueueContext {
         program_id,
         instrumented_code: ref code,
         ref code_metadata,

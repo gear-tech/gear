@@ -494,7 +494,7 @@ pub(super) mod chunks_splitting {
 mod chunk_execution_spawn {
     use super::*;
     use crate::host::InstanceWrapper;
-    use ethexe_runtime_common::RuntimeRunContext;
+    use ethexe_runtime_common::ProcessQueueContext;
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     /// An alias introduced for better readability of the chunks execution steps.
@@ -569,7 +569,7 @@ mod chunk_execution_spawn {
                         let (jn, new_state_hash, gas_spent) = executor
                             .run(
                                 db,
-                                RuntimeRunContext {
+                                ProcessQueueContext {
                                     program_id,
                                     state_root: state_hash,
                                     queue_type,
