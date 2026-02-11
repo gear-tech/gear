@@ -58,8 +58,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-const STREAM_PROTOCOL: StreamProtocol =
-    StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
+const STREAM_PROTOCOL: StreamProtocol = StreamProtocol::new("/ethexe/db-sync/1.0.0");
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum NewRequestRoundReason {

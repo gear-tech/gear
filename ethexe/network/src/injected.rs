@@ -52,8 +52,7 @@ use std::{
 };
 use tokio::sync::oneshot;
 
-const STREAM_PROTOCOL: StreamProtocol =
-    StreamProtocol::new(concat!("/ethexe/injected-tx/", env!("CARGO_PKG_VERSION")));
+const STREAM_PROTOCOL: StreamProtocol = StreamProtocol::new("/ethexe/injected-tx/1.0.0");
 
 /// The maximum number of concurrent requests is allowed to be handled
 const MAX_PENDING_REQUESTS: NonZeroUsize = NonZeroUsize::new(20).unwrap();

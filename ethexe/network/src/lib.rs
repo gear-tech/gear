@@ -404,17 +404,6 @@ impl NetworkService {
             identify::Event::Received { peer_id, info, .. } => {
                 let behaviour = self.swarm.behaviour_mut();
 
-                if info.protocol_version != PROTOCOL_VERSION || info.agent_version != AGENT_VERSION
-                {
-                    log::debug!(
-                        "{peer_id} is not supported with `{}` protocol and `{}` agent",
-                        info.protocol_version,
-                        info.agent_version
-                    );
-                    behaviour.peer_score.handle().unsupported_protocol(peer_id);
-                    return;
-                }
-
                 // add listen addresses of new peers to KadDHT
                 // according to `identify` and `kad` protocols docs
                 for listen_addr in info.listen_addrs {
