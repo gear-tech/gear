@@ -20,7 +20,7 @@ Our goal is to test _all_ cases where a signal code gets sent and ensure that it
 
 Signal codes might be returned during the program's execution or when a significant event occurs outside the program's execution, such as when a message is removed from the waitlist.
 
-You can find signal codes list in the `SignalCode` enum, located in [core-errors/src/simple.rs](./src/simple.rs).
+You can find signal codes list in the `SignalCode` enum, located in [core/errors/src/simple.rs](src/simple.rs).
 
 ## Testing technique
 <a name="testing-technique"></a>
@@ -37,7 +37,7 @@ Tests code will be written as if it were written in the `gear` pallet, because a
 ### Execution signal codes (<small>`SignalCode::Execution`</small>)
 <a name="execution"></a>
 
-These signal codes are sent when the program's execution cannot proceed. Every one of these signal codes contains a `SimpleExecutionError` (refer to [core-errors/src/simple.rs](./src/simple.rs)) within.
+These signal codes are sent when the program's execution cannot proceed. Every one of these signal codes contains a `SimpleExecutionError` (refer to [core/errors/src/simple.rs](src/simple.rs)) within.
 
 #### Userspace panic
 <a name="userspace-panic"></a>

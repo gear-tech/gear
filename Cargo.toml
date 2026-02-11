@@ -19,10 +19,10 @@ members = [
     "common/codegen",
     "common/numerated",
     "core",
-    "core-backend",
+    "core/backend",
     "gsigner",
-    "core-processor",
-    "core-errors",
+    "core/processor",
+    "core/errors",
     "lazy-pages",
     "lazy-pages/common",
     "lazy-pages/interface",
@@ -224,6 +224,7 @@ cc = "1.2.37"
 tap = "1.0.1"
 ntest = "0.9.3"
 dashmap = "5.5.3"
+delegate = "0.13.5"
 
 # metrics
 metrics = "0.24.0"
@@ -243,7 +244,7 @@ numerated = { path = "common/numerated" }
 authorship = { package = "gear-authorship", path = "node/authorship" }
 builtins-common = { path = "utils/builtins-common", default-features = false }
 common = { package = "gear-common", path = "common", default-features = false }
-core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
+core-processor = { package = "gear-core-processor", path = "core/processor", default-features = false }
 galloc = { path = "galloc" }
 gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
@@ -261,13 +262,13 @@ gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gprimitives = { path = "gprimitives", default-features = false }
 gear-authorship = { path = "node/authorship" }
-gear-core-backend = { path = "core-backend", default-features = false }
+gear-core-backend = { path = "core/backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
 gear-core = { path = "core", default-features = false }
-gear-core-errors = { path = "core-errors" }
-gear-core-processor = { path = "core-processor", default-features = false }
+gear-core-errors = { path = "core/errors" }
+gear-core-processor = { path = "core/processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
 gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
 gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
