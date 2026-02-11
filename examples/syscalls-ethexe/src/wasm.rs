@@ -129,7 +129,7 @@ extern "C" fn handle() {
 
             // ── Memory management ─────────────────────────────────────
             FuzzCommand::AllocAndFree { alloc_pages } => {
-                let pages = alloc_pages.min(64).max(468);
+                let pages = alloc_pages.clamp(64, 468);
                 if pages > 0 {
                     // Use gstd Vec to trigger alloc
                     let data: Vec<u8> = vec![0xABu8; pages as usize * 65536];
@@ -137,7 +137,7 @@ extern "C" fn handle() {
                 }
             }
             FuzzCommand::MemStress { count, pattern } => {
-                let pages = count.min(32).max(468);
+                let pages = count.clamp(32, 468);
                 if pages > 0 {
                     let size = pages as usize * 65536;
                     let mut data: Vec<u8> = vec![pattern; size];
@@ -161,23 +161,20 @@ extern "C" fn handle() {
                 // Send ok before waiting so the loader gets a reply
                 if !replied {
                     msg::reply_bytes(b"ok-wait", 0).expect("reply before wait failed");
-                    replied = true;
                 }
                 exec::wait();
             }
             FuzzCommand::WaitForCmd(duration) => {
-                let dur = duration.max(1).min(100);
+                let dur = duration.clamp(1, 100);
                 if !replied {
                     msg::reply_bytes(b"ok-wait-for", 0).expect("reply before wait_for failed");
-                    replied = true;
                 }
                 exec::wait_for(dur);
             }
             FuzzCommand::WaitUpToCmd(duration) => {
-                let dur = duration.max(1).min(100);
+                let dur = duration.clamp(1, 100);
                 if !replied {
                     msg::reply_bytes(b"ok-wait-up-to", 0).expect("reply before wait_up_to failed");
-                    replied = true;
                 }
                 exec::wait_up_to(dur);
             }
