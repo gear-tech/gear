@@ -73,8 +73,8 @@ pub trait ConsensusService:
     /// Process a computed block received
     fn receive_computed_announce(&mut self, computed_data: ComputedAnnounce) -> Result<()>;
 
-    /// Process a received producer block
-    fn receive_announce(&mut self, block: VerifiedAnnounce) -> Result<()>;
+    /// Process a received producer announce
+    fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()>;
 
     /// Process a received validation request
     fn receive_validation_request(&mut self, request: VerifiedValidationRequest) -> Result<()>;
