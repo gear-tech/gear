@@ -513,6 +513,7 @@ demo-wat = { path = "examples/wat" }
 # TODO: fix demos' feature resolving bug with workspace build
 demo-value-sender-ethexe = { path = "examples/value-sender-ethexe" }
 demo-delayed-sender-ethexe = { path = "examples/delayed-sender-ethexe" }
+demo-syscalls-ethexe = { path = "examples/syscalls-ethexe" }
 
 # Dependencies that only used in one package
 #
