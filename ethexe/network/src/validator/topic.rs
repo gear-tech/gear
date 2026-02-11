@@ -28,7 +28,6 @@ use ethexe_common::{
     injected::{CompactSignedPromise, InjectedTransaction},
     network::VerifiedValidatorMessage,
 };
-use gsigner::{Signature, SignerError};
 use lru::LruCache;
 use std::{cmp::Ordering, collections::VecDeque, mem, num::NonZeroUsize, sync::Arc};
 
@@ -91,10 +90,6 @@ enum VerifyPromiseError {
         address: Address,
         tx_hash: HashOf<InjectedTransaction>,
     },
-    #[display("failed to recover validator's public key: signature={signature}")]
-    ValidatorPublicKeyRecover { signature: Signature },
-    #[display("failed to verify promises signatures bundle: error={signer_error}")]
-    SignatureVerification { signer_error: SignerError },
 }
 
 /// Tracks validator-signed messages and admits each one once the on-chain
@@ -273,25 +268,15 @@ impl ValidatorTopic {
         _source: PeerId,
         compact_promise: CompactSignedPromise,
     ) -> Result<CompactSignedPromise, VerifyPromiseError> {
-        let CompactSignedPromise {
-            tx_hash,
-            signature,
-            eip191_hash,
-        } = compact_promise.clone();
-
-        let public_key = signature
-            .recover_from_eip191_hash(eip191_hash)
-            .map_err(|_| VerifyPromiseError::ValidatorPublicKeyRecover { signature })?;
-
-        let address = public_key.to_address();
+        let address = compact_promise.address();
         if !self.snapshot.contains(address) {
-            return Err(VerifyPromiseError::UnknownValidator { address, tx_hash });
+            return Err(VerifyPromiseError::UnknownValidator {
+                address,
+                tx_hash: compact_promise.data().tx_hash,
+            });
         }
 
-        match signature.verify_with_eip191_hash(public_key, eip191_hash) {
-            Ok(()) => Ok(compact_promise),
-            Err(signer_error) => Err(VerifyPromiseError::SignatureVerification { signer_error }),
-        }
+        Ok(compact_promise)
     }
 
     // FIXME: messages from previous era validators are ignored
@@ -321,7 +306,7 @@ mod tests {
     use assert_matches::assert_matches;
     use ethexe_common::{
         self, Announce,
-        injected::{Promise, SignedPromise},
+        injected::{CompactPromiseHashes, Promise, SignedPromise},
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
@@ -384,7 +369,10 @@ mod tests {
         public_key: PublicKey,
         promise: Promise,
     ) -> CompactSignedPromise {
-        CompactSignedPromise::create(signer, public_key, promise).unwrap()
+        let promise_hashes = CompactPromiseHashes::from(&promise);
+        signer
+            .signed_message(public_key, promise_hashes, None)
+            .unwrap()
     }
 
     #[test]
@@ -662,11 +650,9 @@ mod tests {
             .inner_verify_promise(peer_id, compact_promise.clone())
             .unwrap_err();
 
-        assert!(matches!(err, VerifyPromiseError::UnknownValidator { .. }));
-        if let VerifyPromiseError::UnknownValidator { address, tx_hash } = err {
-            assert_eq!(address, promise.address());
-            assert_eq!(tx_hash, promise.data().tx_hash);
-        }
+        let VerifyPromiseError::UnknownValidator { address, tx_hash } = err;
+        assert_eq!(address, promise.address());
+        assert_eq!(tx_hash, promise.data().tx_hash);
 
         let (acceptance, promise) = topic.verify_promise(peer_id, compact_promise);
         assert_matches!(acceptance, MessageAcceptance::Ignore);

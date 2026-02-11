@@ -46,7 +46,7 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
-use gsigner::secp256k1::Signature;
+use gsigner::{Address, secp256k1::Signature};
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeSet;
 
@@ -631,11 +631,11 @@ impl InjectedStorageRO for Database {
         })
     }
 
-    fn promise_signature(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<Signature> {
+    fn promise_signature(&self, hash: HashOf<InjectedTransaction>) -> Option<(Signature, Address)> {
         self.kv
-            .get(&Key::PromiseSignature(tx_hash).to_bytes())
+            .get(&Key::PromiseSignature(hash).to_bytes())
             .map(|data| {
-                Signature::decode(&mut data.as_slice())
+                <(Signature, Address)>::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `(Signature, Address)`")
             })
     }
@@ -657,11 +657,18 @@ impl InjectedStorageRW for Database {
             .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
     }
 
-    fn set_promise_signature(&self, hash: HashOf<InjectedTransaction>, signature: Signature) {
+    fn set_promise_signature(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+        signature: Signature,
+        address: Address,
+    ) {
         tracing::trace!(tx_hash = ?hash, ?signature,  "Set signature for injected transaction promise");
 
-        self.kv
-            .put(&Key::PromiseSignature(hash).to_bytes(), signature.encode());
+        self.kv.put(
+            &Key::PromiseSignature(hash).to_bytes(),
+            (signature, address).encode(),
+        );
     }
 }
 

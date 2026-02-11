@@ -24,7 +24,7 @@ use ethexe_common::{
     db::InjectedStorageRW,
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, CompactSignedPromise, Promise},
+    injected::{AddressedInjectedTransaction, CompactPromiseHashes, CompactSignedPromise, Promise},
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -92,7 +92,8 @@ impl MockService {
             .map(|tx| {
                 let promise = Promise::mock(tx.tx.data().to_hash());
                 self.db.set_promise(promise.clone());
-                CompactSignedPromise::create_from_private_key(&pk, promise).unwrap()
+                let promise_hashes = CompactPromiseHashes::from(&promise);
+                CompactSignedPromise::create(pk.clone(), promise_hashes).unwrap()
             })
             .collect()
     }

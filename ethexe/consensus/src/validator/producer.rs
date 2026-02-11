@@ -28,7 +28,7 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, injected::CompactSignedPromise, network::ValidatorMessage,
+    gear::BatchCommitment, injected::CompactPromiseHashes, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -86,10 +86,11 @@ impl StateHandler for Producer {
                         .promises
                         .into_iter()
                         .map(|promise| {
-                            CompactSignedPromise::create(
-                                &self.ctx.core.signer,
+                            let compact_hashes = CompactPromiseHashes::from(&promise);
+                            self.ctx.core.signer.signed_message(
                                 self.ctx.core.pub_key,
-                                promise.clone(),
+                                compact_hashes,
+                                None,
                             )
                         })
                         .collect::<Result<_, _>>()?;

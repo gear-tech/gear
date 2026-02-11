@@ -21,14 +21,8 @@ use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
-#[cfg(feature = "std")]
-use gsigner::{
-    PrivateKey, PublicKey, SignerError,
-    secp256k1::{Secp256k1SignerExt, Signer},
-};
-use gsigner::{Signature, hash::Eip191Hash};
 use parity_scale_codec::{Decode, Encode};
-use sha3::{Digest, Keccak256};
+use sha3::{Digest as _, Keccak256};
 use sp_core::Bytes;
 
 /// Recent block hashes window size used to check transaction mortality.
@@ -139,83 +133,72 @@ pub struct Promise {
 /// It will be shared among other validators as a proof of promise.
 pub type SignedPromise = SignedMessage<Promise>;
 
-impl ToDigest for Promise {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let Self { tx_hash, reply } = self;
+/// A wrapper on top of [`CompactPromiseHashes`].
+///
+/// [`CompactPromiseHashes`] is a lightweight version of [`SignedPromise`], that is
+/// needed to reduce the amount of data transferred in network between validators.
+pub type CompactSignedPromise = SignedMessage<CompactPromiseHashes>;
 
-        hasher.update(tx_hash.inner());
+impl Promise {
+    /// Calculates the `blake2b` hash from promise's reply.
+    pub fn reply_hash(&self) -> HashOf<ReplyInfo> {
         let ReplyInfo {
             payload,
             code,
             value,
-        } = reply;
+        } = &self.reply;
 
-        hasher.update(payload);
-        hasher.update(code.to_bytes());
-        hasher.update(value.to_be_bytes());
+        let bytes = [
+            payload.as_ref(),
+            code.to_bytes().as_ref(),
+            value.to_be_bytes().as_ref(),
+        ]
+        .concat();
+        unsafe { HashOf::new(gear_core::utils::hash(&bytes).into()) }
     }
 }
 
-// The bundle of signed [`Promise`]s was produced in concrete announce.
-// #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-// pub struct PromisesNetworkBundle {
-//     /// The hash of [`Announce`] for which promises was created.
-//     pub announce: HashOf<Announce>,
-//     /// The hashes of transactions with signatures
-//     pub promises: Vec<CompactSignedPromise>,
-// }
+impl ToDigest for Promise {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        // The hash of `Promise` equals to hash of `CompactPromiseHashes`.
+        CompactPromiseHashes::from(self).update_hasher(hasher);
+    }
+}
 
-// impl ToDigest for PromisesNetworkBundle {
-//     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-//         todo!()
-//     }
-// }
-
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct CompactSignedPromise {
-    /// The hash of transaction, for which promise was created.
+/// The hashes of [`Promise`].
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct CompactPromiseHashes {
     pub tx_hash: HashOf<InjectedTransaction>,
-    /// The [`Eip191Hash`] of the promise, was signed by block producer.
-    /// Important: this hash is needed to verify the signature correctness
-    ///            without having a full promise body.
-    pub eip191_hash: Eip191Hash<Promise>,
-    /// The signature over the [`Promise`] for `tx_hash`.
-    pub signature: Signature,
+    pub reply_hash: HashOf<ReplyInfo>,
 }
 
-#[cfg(feature = "std")]
-impl CompactSignedPromise {
-    pub fn create(
-        signer: &Signer,
-        public_key: PublicKey,
-        promise: Promise,
-    ) -> Result<Self, SignerError> {
-        let eip191_hash = Eip191Hash::new(&promise);
-
-        Ok(Self {
+impl From<&Promise> for CompactPromiseHashes {
+    fn from(promise: &Promise) -> Self {
+        Self {
             tx_hash: promise.tx_hash,
-            signature: signer.sign_eip191_hash(public_key, eip191_hash, None)?,
-            eip191_hash,
-        })
-    }
-
-    pub fn create_from_private_key(
-        private_key: &PrivateKey,
-        promise: Promise,
-    ) -> Result<Self, SignerError> {
-        let eip191_hash = Eip191Hash::new(&promise);
-
-        Ok(Self {
-            tx_hash: promise.tx_hash,
-            eip191_hash,
-            signature: Signature::create_from_eip191_hash(private_key, eip191_hash)?,
-        })
+            reply_hash: promise.reply_hash(),
+        }
     }
 }
 
-#[cfg(test)]
+impl ToDigest for CompactPromiseHashes {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            tx_hash,
+            reply_hash,
+        } = self;
+
+        hasher.update(tx_hash.inner());
+        hasher.update(reply_hash.inner());
+    }
+}
+
+#[cfg(all(test, feature = "mock"))]
 mod tests {
+    use gsigner::PrivateKey;
+
     use super::*;
+    use crate::mock::Mock;
 
     #[test]
     fn signed_message_and_injected_transactions() {
@@ -253,5 +236,38 @@ mod tests {
                 .to_address(),
             signed_tx.address()
         );
+    }
+
+    #[test]
+    fn promise_hashes_digest_equal_to_promise_digest() {
+        let promise = {
+            let mut promise = Promise::mock(());
+            promise.reply.value = 123;
+            promise.reply.payload = vec![1u8, 2u8, 42u8, 66u8];
+            promise
+        };
+        let promise_digest = promise.to_digest();
+        let promise_hashes = CompactPromiseHashes::from(&promise);
+
+        let promise_hashes_digest = promise_hashes.to_digest();
+        assert_eq!(promise_digest, promise_hashes_digest);
+    }
+
+    #[test]
+    fn compact_signature_valid_for_promise() {
+        let pk = PrivateKey::random();
+
+        let promise = Promise::mock(());
+        let promise_hashes = CompactPromiseHashes::from(&promise);
+        let compact_signed_promise = CompactSignedPromise::create(pk, promise_hashes).unwrap();
+
+        let (signature, address) = (
+            *compact_signed_promise.signature(),
+            compact_signed_promise.address(),
+        );
+
+        let signed_promise = SignedMessage::try_from_parts(promise.clone(), signature, address)
+            .expect("SignedMessage<Promise> was correctly constructed from CompactSignedPromise");
+        assert_eq!(signed_promise.into_data(), promise);
     }
 }

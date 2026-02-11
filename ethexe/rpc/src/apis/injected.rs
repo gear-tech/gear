@@ -28,7 +28,6 @@ use ethexe_common::{
 };
 
 use ethexe_db::Database;
-use gsigner::hash::Eip191Hash;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
@@ -135,19 +134,22 @@ impl InjectedServer for InjectedApi {
             return Ok(None);
         };
 
-        let Some(signature) = self.db.promise_signature(tx_hash) else {
+        let Some((signature, address)) = self.db.promise_signature(tx_hash) else {
+            tracing::trace!(
+                ?tx_hash,
+                "promise signature not found for injected transaction"
+            );
             return Ok(None);
         };
 
-        let promise_eip191_hash = Eip191Hash::new(&promise);
-        let Ok(public_key) = signature.recover_from_eip191_hash(promise_eip191_hash) else {
-            todo!()
-        };
-
-        match SignedMessage::try_from_parts(promise, signature, public_key.to_address()) {
+        match SignedMessage::try_from_parts(promise, signature, address) {
             Ok(message) => Ok(Some(message)),
-            Err(_err) => {
-                tracing::trace!("");
+            Err(err) => {
+                tracing::trace!(
+                    ?tx_hash,
+                    ?err,
+                    "failed to build signed promise from parts for injected transaction"
+                );
                 Ok(None)
             }
         }
@@ -165,15 +167,15 @@ impl InjectedApi {
     }
 
     pub fn receive_compact_promise(&self, compact_promise: CompactSignedPromise) {
-        match self.db.promise(compact_promise.tx_hash) {
+        match self.db.promise(compact_promise.data().tx_hash) {
             Some(promise) => {
                 tracing::trace!(tx_hash = ?promise.tx_hash, "Promise already computed, send to user");
                 self.send_promise(promise, compact_promise);
             }
             None => {
-                tracing::trace!(tx_hash = ?compact_promise.tx_hash, "Promise doesn't compute yet, waiting for producer's signature");
+                tracing::trace!(tx_hash = ?compact_promise.data().tx_hash, "Promise doesn't compute yet, waiting for producer's signature");
                 self.promises_computation_waiting
-                    .insert(compact_promise.tx_hash, compact_promise);
+                    .insert(compact_promise.data().tx_hash, compact_promise);
             }
         }
     }
@@ -184,8 +186,10 @@ impl InjectedApi {
             if let Some((_, compact_promise)) =
                 self.promises_computation_waiting.remove(&promise.tx_hash)
             {
+                let (signature, address) =
+                    (*compact_promise.signature(), compact_promise.address());
                 self.db
-                    .set_promise_signature(promise.tx_hash, compact_promise.signature);
+                    .set_promise_signature(promise.tx_hash, signature, address);
                 self.send_promise(promise, compact_promise);
             }
         })
@@ -193,7 +197,8 @@ impl InjectedApi {
 
     pub fn send_promise(&self, promise: Promise, compact_promise: CompactSignedPromise) {
         // Check the promise waiter firstly to avoid unnecessary computation.
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&compact_promise.tx_hash)
+        let Some((_, promise_sender)) =
+            self.promise_waiters.remove(&compact_promise.data().tx_hash)
         else {
             tracing::warn!(
                 ?promise,
@@ -202,16 +207,7 @@ impl InjectedApi {
             return;
         };
 
-        let CompactSignedPromise {
-            signature,
-            eip191_hash,
-            ..
-        } = compact_promise;
-
-        let Ok(public_key) = signature.recover_from_eip191_hash(eip191_hash) else {
-            todo!()
-        };
-        let address = public_key.to_address();
+        let (address, signature) = (compact_promise.address(), *compact_promise.signature());
 
         let Ok(message) = SignedMessage::try_from_parts(promise.clone(), signature, address) else {
             tracing::trace!(
@@ -219,7 +215,7 @@ impl InjectedApi {
                 ?compact_promise,
                 "failed to build `SignedMessage<Promise>` from parts, invalid signature"
             );
-            todo!("handle invalid signature case");
+            return;
         };
 
         if let Err(promise) = promise_sender.send(message) {

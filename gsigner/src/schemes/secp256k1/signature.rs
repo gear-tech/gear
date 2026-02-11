@@ -108,12 +108,12 @@ impl Signature {
             .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
     }
 
-    pub fn recover_from_eip191_hash<T>(&self, hash: Eip191Hash<T>) -> SignResult<PublicKey> {
-        self.0
-            .recover_prehashed(hash.inner())
-            .map(PublicKey::from)
-            .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
-    }
+    // pub fn recover_from_eip191_hash<T>(&self, hash: Eip191Hash<T>) -> SignResult<PublicKey> {
+    //     self.0
+    //         .recover_prehashed(hash.inner())
+    //         .map(PublicKey::from)
+    //         .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
+    // }
 
     /// Recovers public key which was used to create the signature for the signed message
     /// according to EIP-191 standard.

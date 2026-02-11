@@ -25,7 +25,6 @@ use super::{
 use crate::{
     Signer,
     error::{Result, SignerError},
-    hash::Eip191Hash,
 };
 
 /// Extension trait for Secp256k1 signers.
@@ -49,12 +48,12 @@ pub trait Secp256k1SignerExt {
         password: Option<&str>,
     ) -> Result<Signature>;
 
-    fn sign_eip191_hash<T>(
-        &self,
-        public_key: PublicKey,
-        eip191_hash: Eip191Hash<T>,
-        password: Option<&str>,
-    ) -> Result<Signature>;
+    // fn sign_eip191_hash<T>(
+    //     &self,
+    //     public_key: PublicKey,
+    //     eip191_hash: Eip191Hash<T>,
+    //     password: Option<&str>,
+    // ) -> Result<Signature>;
 
     /// Create signed data (signature + data).
     fn signed_data<T>(
@@ -125,16 +124,16 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
             .map_err(|e| SignerError::Crypto(format!("Signature creation failed: {e}")))
     }
 
-    fn sign_eip191_hash<T>(
-        &self,
-        public_key: PublicKey,
-        eip191_hash: Eip191Hash<T>,
-        password: Option<&str>,
-    ) -> Result<Signature> {
-        let private_key = self.get_private_key(public_key, password)?;
-        Signature::create_from_eip191_hash(&private_key, eip191_hash)
-            .map_err(|e| SignerError::Crypto(format!("Signature creation failed: {e}")))
-    }
+    // fn sign_eip191_hash<T>(
+    //     &self,
+    //     public_key: PublicKey,
+    //     eip191_hash: Eip191Hash<T>,
+    //     password: Option<&str>,
+    // ) -> Result<Signature> {
+    //     let private_key = self.get_private_key(public_key, password)?;
+    //     Signature::create_from_eip191_hash(&private_key, eip191_hash)
+    //         .map_err(|e| SignerError::Crypto(format!("Signature creation failed: {e}")))
+    // }
 
     fn signed_data<T>(
         &self,

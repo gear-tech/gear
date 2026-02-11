@@ -2493,7 +2493,7 @@ async fn injected_tx_fungible_token() {
             if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
                 && !promises.is_empty()
             {
-                let promise_tx_hash = promises.first().unwrap().tx_hash;
+                let promise_tx_hash = promises.first().unwrap().data().tx_hash;
                 let promise = node
                     .db
                     .promise(promise_tx_hash)
