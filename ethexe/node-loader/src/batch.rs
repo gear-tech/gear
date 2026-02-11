@@ -102,7 +102,7 @@ fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
     random_value % max_value
 }
 
-fn salt_to_h256(salt: &[u8]) -> H256 {
+pub(crate) fn salt_to_h256(salt: &[u8]) -> H256 {
     let mut out = [0u8; 32];
     let take = salt.len().min(out.len());
     out[..take].copy_from_slice(&salt[..take]);
@@ -299,7 +299,8 @@ async fn run_batch_impl(
                 program_ids.insert(program_id);
             }
 
-            let wait_for_event_blocks = blocks_window(args.len(), 6, 48);
+            let blocks_per_action = 4;
+            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
             process_events(
                 api,
                 messages,
@@ -361,7 +362,8 @@ async fn run_batch_impl(
                 tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
             }
 
-            let wait_for_event_blocks = blocks_window(args.len(), 2, 16);
+            let blocks_per_action = 1;
+            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
             process_events(
                 api,
                 messages,
@@ -425,7 +427,8 @@ async fn run_batch_impl(
                 );
             }
 
-            let wait_for_event_blocks = blocks_window(args.len(), 2, 16);
+            let blocks_per_action = 1;
+            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
             process_events(
                 api,
                 messages,
@@ -479,7 +482,8 @@ async fn run_batch_impl(
                 );
             }
 
-            let wait_for_event_blocks = blocks_window(args.len(), 6, 48);
+            let blocks_per_action = 4;
+            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
             process_events(
                 api,
                 messages,
@@ -497,7 +501,6 @@ fn blocks_window(action_count: usize, blocks_per_action: usize, headroom_blocks:
     action_count
         .saturating_mul(blocks_per_action)
         .saturating_add(headroom_blocks)
-        .max(10)
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -802,21 +805,6 @@ async fn process_events(
 
     let results = {
         let mut block = rx.recv().await?;
-        let mut searched_blocks = 0usize;
-        let start_search_window_blocks = stats.start_search_window_blocks;
-        while block.hash() != block_hash && searched_blocks < start_search_window_blocks {
-            block = rx.recv().await?;
-            searched_blocks += 1;
-        }
-
-        if block.hash() != block_hash {
-            tracing::debug!(
-                "Start block hash wasn't observed within {start_search_window_blocks} blocks; starting from current block"
-            );
-            stats.start_block_found = false;
-        } else {
-            stats.start_block_found = true;
-        }
 
         let to: Address = api.provider().default_signer_address();
         let sent_message_ids: BTreeSet<MessageId> = messages.keys().copied().collect();
@@ -944,8 +932,8 @@ async fn process_events(
                 tracing::debug!(
                     "[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended successfully"
                 );
+                program_ids.insert(pid);
             }
-            program_ids.insert(pid);
         }
     }
 

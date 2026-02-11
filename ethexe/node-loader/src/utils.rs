@@ -1,6 +1,9 @@
 use std::collections::BTreeSet;
 
-use alloy::providers::WalletProvider;
+use alloy::{
+    network::Network,
+    providers::{Provider, RootProvider, WalletProvider},
+};
 use anyhow::Result;
 use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
 use ethexe_ethereum::Ethereum;
@@ -11,6 +14,8 @@ use gear_wasm_gen::{
     SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use gprimitives::{ActorId, MessageId};
+use tokio::sync::broadcast;
+use tracing::warn;
 
 use crate::batch::Event;
 
@@ -55,6 +60,36 @@ pub fn get_wasm_gen_config(
         params_config,
         initial_pages: initial_pages as u32,
         ..Default::default()
+    }
+}
+
+pub async fn listen_blocks(
+    tx: broadcast::Sender<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    provider: RootProvider,
+) -> Result<()> {
+    let mut retry_count = 0;
+    const MAX_RETRIES: usize = 10;
+
+    loop {
+        let mut sub = provider.subscribe_blocks().await?;
+        while let Ok(block) = sub.recv().await {
+            if tx.send(block).is_err() {
+                return Ok(());
+            }
+        }
+
+        retry_count += 1;
+        if retry_count >= MAX_RETRIES {
+            return Err(anyhow::anyhow!(
+                "Block subscription ended after {} retries",
+                MAX_RETRIES
+            ));
+        }
+
+        warn!(
+            "Block subscription ended, retrying ({}/{})",
+            retry_count, MAX_RETRIES
+        );
     }
 }
 
