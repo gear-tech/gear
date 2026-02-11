@@ -5039,6 +5039,7 @@ dependencies = [
  "ethexe-db",
  "ethexe-processor",
  "ethexe-runtime-common",
+ "future-timing",
  "futures",
  "gear-core",
  "gear-utils",
@@ -5172,6 +5173,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
+ "future-timing",
  "futures",
  "gear-utils",
  "gear-workspace-hack",
@@ -6135,6 +6137,15 @@ name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
+
+[[package]]
+name = "future-timing"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "803e771b281f3b77b7925d13fc6371508b24bdd6659767a91f0c7434e9bd82ed"
+dependencies = [
+ "pin-project-lite",
+]
 
 [[package]]
 name = "futures"

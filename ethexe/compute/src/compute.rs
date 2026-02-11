@@ -24,12 +24,11 @@ use ethexe_common::{
         LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
-    futures::{FutureExt, TimedFuture, TimedFutureExt},
 };
 use ethexe_db::Database;
 use ethexe_processor::ExecutableData;
 use ethexe_runtime_common::FinalizedBlockTransitions;
-use futures::future::BoxFuture;
+use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
@@ -72,7 +71,7 @@ impl ComputeConfig {
 }
 
 /// Type alias for computation future with timing.
-type ComputationFuture = TimedFuture<BoxFuture<'static, Result<ComputedAnnounce>>>;
+type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<ComputedAnnounce>>>;
 
 pub struct ComputeSubService<P: ProcessorExt> {
     db: Database,
@@ -196,24 +195,26 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
         if self.computation.is_none()
             && let Some(announce) = self.input.pop_front()
         {
-            self.computation = Some(
+            self.computation = Some(future_timing::timed(
                 Self::compute(
                     self.db.clone(),
                     self.config,
                     self.processor.clone(),
                     announce,
                 )
-                .boxed()
-                .timed(),
-            );
+                .boxed(),
+            ));
         }
 
         if let Some(computation) = &mut self.computation
-            && let Poll::Ready((delay, res)) = computation.poll_unpin(cx)
+            && let Poll::Ready(timing_result) = computation.poll_unpin(cx)
         {
-            self.metrics.announce_processing_latency.record(delay);
+            let (timing, result) = timing_result.into_parts();
+            self.metrics
+                .announce_processing_latency
+                .record((timing.busy() + timing.idle()).as_secs_f64());
             self.computation = None;
-            return Poll::Ready(res);
+            return Poll::Ready(result);
         }
 
         Poll::Pending

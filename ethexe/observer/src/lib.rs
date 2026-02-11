@@ -27,9 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, ProtocolTimelines, SimpleBlockData,
-    db::BlockMetaStorageRO,
-    futures::{TimedFuture, TimedFutureExt},
+    Address, BlockHeader, ProtocolTimelines, SimpleBlockData, db::BlockMetaStorageRO,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -53,7 +51,7 @@ type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription
 
 /// The wrapper on top of [`ChainSync::sync`] future.
 /// It is needed to measure time taken for syncing a block.
-type SyncFuture = TimedFuture<BoxFuture<'static, Result<H256>>>;
+type SyncFuture = future_timing::Timed<BoxFuture<'static, Result<H256>>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -170,13 +168,18 @@ impl Stream for ObserverService {
         if self.sync_future.is_none()
             && let Some(header) = self.block_sync_queue.pop_back()
         {
-            self.sync_future = Some(self.chain_sync.clone().sync(header).boxed().timed());
+            self.sync_future = Some(future_timing::timed(
+                self.chain_sync.clone().sync(header).boxed(),
+            ));
         }
 
         if let Some(fut) = self.sync_future.as_mut()
-            && let Poll::Ready((delay, result)) = fut.poll_unpin(cx)
+            && let Poll::Ready(timing_result) = fut.poll_unpin(cx)
         {
-            self.metrics.block_syncing_latency.record(delay);
+            let (timing, result) = timing_result.into_parts();
+            self.metrics
+                .block_syncing_latency
+                .record((timing.busy() + timing.idle()).as_secs_f64());
             self.sync_future = None;
 
             let maybe_event = result.map(ObserverEvent::BlockSynced);

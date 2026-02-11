@@ -33,9 +33,6 @@ mod primitives;
 mod utils;
 mod validators;
 
-#[cfg(feature = "std")]
-pub mod futures;
-
 #[cfg(feature = "mock")]
 pub mod mock;
 

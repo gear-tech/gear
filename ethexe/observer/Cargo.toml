@@ -33,6 +33,7 @@ futures.workspace = true
 log.workspace = true
 tracing.workspace = true
 derive_more.workspace = true
+future-timing.workspace = true
 gear-workspace-hack.workspace = true
 
 # metrics
