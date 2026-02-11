@@ -205,6 +205,7 @@ impl InjectedApi {
         // This clone is cheap, as it only increases the ref count.
         let promise_waiters = self.promise_waiters.clone();
         self.metrics.injected_tx_active_subscriptions.increment(1);
+        let metrics = self.metrics.clone();
 
         tokio::spawn(async move {
             // Waiting for promise or client disconnection.
@@ -220,6 +221,7 @@ impl InjectedApi {
                 },
                 _ = sink.closed() => {
                     promise_waiters.remove(&tx_hash);
+                    metrics.injected_tx_active_subscriptions.decrement(1);
                     return;
                 },
             };
@@ -240,7 +242,7 @@ impl InjectedApi {
                     tx_hash = ?tx_hash,
                     error = %err,
                     "failed to send subscription message"
-                )
+                );
             }
         });
     }
