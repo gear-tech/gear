@@ -36,7 +36,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 const PROGRESS_BAR_TEMPLATE: &str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({percent}%) ETA {eta_precise} {msg}";
 
-/// Submit a transaction.
+/// Run checks on ethexe database, see more in [`super::Command::Check`].
 #[derive(Debug, Parser)]
 pub struct CheckCommand {
     /// Path to database directory (including router addr subdirectory).
@@ -57,14 +57,6 @@ pub struct CheckCommand {
     #[arg(long, alias = "integrity")]
     pub integrity_check: bool,
 
-    /// Perform full check (computation + integrity).
-    #[arg(long, alias = "full")]
-    pub full_check: bool,
-
-    /// Show progress bar.
-    #[arg(long, alias = "pb", default_value = "true")]
-    pub progress_bar: bool,
-
     /// Enable logging verbosity (debug level by default), disables progress bar.
     #[arg(short, long)]
     pub verbose: bool,
@@ -82,10 +74,9 @@ impl CheckCommand {
     async fn exec_inner(mut self) -> Result<()> {
         if self.verbose {
             super::enable_logging("debug")?;
-            self.progress_bar = false;
         }
 
-        if self.full_check {
+        if !self.computation_check && !self.integrity_check {
             self.computation_check = true;
             self.integrity_check = true;
         }
@@ -100,7 +91,7 @@ impl CheckCommand {
         let checker = Checker {
             db,
             latest_data,
-            progress_bar: self.progress_bar,
+            progress_bar: !self.verbose,
             chunk_size: self.chunk_size,
             canonical_quarantine: self.canonical_quarantine,
         };

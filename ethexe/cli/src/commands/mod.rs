@@ -40,7 +40,9 @@ pub enum Command {
     Run(Box<RunCommand>),
     /// Submit a transaction.
     Tx(TxCommand),
-    /// Run checks on db.
+    /// Check ethexe database for integrity and/or computation correctness.
+    /// By default start all checks.
+    /// By default, progress bar is enabled, use `--verbose` to enable debug logging and disable progress bar.
     Check(CheckCommand),
 }
 
