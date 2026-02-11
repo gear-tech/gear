@@ -22,10 +22,10 @@ use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT,
-    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
 };
-use ethexe_processor::DEFAULT_CHUNK_PROCESSING_THREADS;
+use ethexe_processor::DEFAULT_CHUNK_SIZE;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
@@ -51,6 +51,11 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(default)]
     pub dev: bool,
+
+    /// Number of pre-funded accounts to generate in dev mode.
+    #[arg(long)]
+    #[serde(rename = "pre-funded-accounts")]
+    pub pre_funded_accounts: Option<NonZero<u32>>,
 
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
@@ -95,11 +100,6 @@ pub struct NodeParams {
     #[serde(default, rename = "fast-sync")]
     pub fast_sync: bool,
 
-    /// Limit for validating chain deepness of coming commitments.
-    #[arg(long)]
-    #[serde(default, rename = "validate-chain-deepness-limit")]
-    pub validate_chain_deepness_limit: Option<u32>,
-
     /// Threshold for producer to submit commitment despite of no transitions
     #[arg(long)]
     #[serde(default, rename = "chain-deepness-threshold")]
@@ -109,6 +109,8 @@ pub struct NodeParams {
 impl NodeParams {
     /// Default max allowed height diff from head for sync directly from Ethereum.
     pub const DEFAULT_MAX_DEPTH: NonZero<u32> = NonZero::new(100_000).unwrap();
+    /// Default number of pre-funded accounts in dev mode.
+    pub const DEFAULT_PRE_FUNDED_ACCOUNTS: NonZero<u32> = NonZero::new(10).unwrap();
 
     /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
@@ -129,7 +131,7 @@ impl NodeParams {
             blocking_threads: self.blocking_threads.map(|v| v.get()),
             chunk_processing_threads: self
                 .chunk_processing_threads
-                .unwrap_or(DEFAULT_CHUNK_PROCESSING_THREADS)
+                .unwrap_or(DEFAULT_CHUNK_SIZE)
                 .get(),
             block_gas_limit: self
                 .block_gas_limit
@@ -137,10 +139,11 @@ impl NodeParams {
                 .min(MAX_BLOCK_GAS_LIMIT),
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             dev: self.dev,
+            pre_funded_accounts: self
+                .pre_funded_accounts
+                .unwrap_or(Self::DEFAULT_PRE_FUNDED_ACCOUNTS)
+                .get(),
             fast_sync: self.fast_sync,
-            validate_chain_deepness_limit: self
-                .validate_chain_deepness_limit
-                .unwrap_or(DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT),
             chain_deepness_threshold: self
                 .chain_deepness_threshold
                 .unwrap_or(DEFAULT_CHAIN_DEEPNESS_THRESHOLD),
@@ -200,6 +203,7 @@ impl MergeParams for NodeParams {
             tmp: self.tmp || with.tmp,
             dev: self.dev || with.dev,
 
+            pre_funded_accounts: self.pre_funded_accounts.or(with.pre_funded_accounts),
             validator: self.validator.or(with.validator),
             validator_session: self.validator_session.or(with.validator_session),
 
@@ -216,9 +220,6 @@ impl MergeParams for NodeParams {
 
             fast_sync: self.fast_sync || with.fast_sync,
 
-            validate_chain_deepness_limit: self
-                .validate_chain_deepness_limit
-                .or(with.validate_chain_deepness_limit),
             chain_deepness_threshold: self
                 .chain_deepness_threshold
                 .or(with.chain_deepness_threshold),

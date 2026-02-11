@@ -15,6 +15,10 @@
 # (optional, default: false).
 # dev = false
 
+# Number of pre-funded accounts to generate in dev mode.
+# (optional, must be non-zero u32, default: 10).
+# pre-funded-accounts = 10
+
 # Public key of the validator, if node should act as one.
 # Provided in the format of 33-byte hex string:
 # - `yParityCompressed`, compressed `publicKeyY`,
@@ -84,10 +88,6 @@ canonical-quarantine = 0
 # Do P2P database synchronization before the main loop.
 # (optional, default: false).
 # fast-sync = false
-
-# Maximum allowed deepness of the chain for validating commitments.
-# (optional, must be non-zero u32, default: 10_000).
-# validate-chain-deepness-limit = 10_000
 
 # Threshold for producer to submit commitment despite of no transitions.
 # (optional, must be non-zero u32, default: 500).

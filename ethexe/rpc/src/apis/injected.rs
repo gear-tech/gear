@@ -20,7 +20,10 @@ use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
+        SignedPromise,
+    },
 };
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
@@ -28,15 +31,8 @@ use jsonrpsee::{
     proc_macros::rpc,
     types::error::ErrorObjectOwned,
 };
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
-
-/// Determines whether the injected transaction was accepted by the main service.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum InjectedTransactionAcceptance {
-    Accept,
-}
 
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
@@ -45,20 +41,22 @@ pub trait Injected {
     #[method(name = "sendTransaction")]
     async fn send_transaction(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 
-    /// Sends an injected transaction and subscribes to its promise.  
+    /// Sends an injected transaction and subscribes to its promise.
     #[subscription(
         name = "sendTransactionAndWatch",
-        unsubscribe = "sendTransactionAndWatchUnsubscribe", 
+        unsubscribe = "sendTransactionAndWatchUnsubscribe",
         item = SignedPromise
     )]
     async fn send_transaction_and_watch(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
 }
+
+type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 
 /// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
@@ -66,7 +64,8 @@ pub struct InjectedApi {
     /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
-    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+    promise_waiters: PromiseWaiters,
+    /// The metrics related to [`InjectedApi`]
     metrics: InjectedApiMetrics,
 }
 
@@ -74,7 +73,7 @@ pub struct InjectedApi {
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         tracing::trace!(
             tx_hash = %transaction.tx.data().to_hash(),
@@ -87,10 +86,10 @@ impl InjectedServer for InjectedApi {
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
-        tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");   
+        tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
         self.metrics.send_and_watch_injected_tx_calls.increment(1);
 
         // Check, that transaction wasn't already send.
@@ -120,7 +119,7 @@ impl InjectedApi {
     pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
             rpc_sender,
-            promise_waiters: Arc::new(DashMap::new()),
+            promise_waiters: PromiseWaiters::default(),
             metrics: InjectedApiMetrics::default(),
         }
     }
@@ -151,13 +150,24 @@ impl InjectedApi {
     /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
     async fn forward_transaction(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> Result<InjectedTransactionAcceptance, ErrorObjectOwned> {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
         self.metrics.send_injected_tx_calls.increment(1);
 
         let (response_sender, response_receiver) = oneshot::channel();
+
+        if transaction.tx.data().value != 0 {
+            tracing::warn!(
+                tx_hash = %tx_hash,
+                value = transaction.tx.data().value,
+                "Injected transaction with non-zero value is not supported"
+            );
+            return Err(errors::bad_request(
+                "Injected transactions with non-zero value are not supported",
+            ));
+        }
 
         let event = RpcEvent::InjectedTransaction {
             transaction,
@@ -184,7 +194,6 @@ impl InjectedApi {
             errors::internal()
         })
     }
-
 
     // Spawns a task that waits for the promise and sends it to the client.
     fn spawn_promise_waiter(

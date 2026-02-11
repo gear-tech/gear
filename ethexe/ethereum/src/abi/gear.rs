@@ -199,3 +199,12 @@ impl From<ValueClaim> for Gear::ValueClaim {
         }
     }
 }
+
+impl From<Gear::ComputationSettings> for ComputationSettings {
+    fn from(value: Gear::ComputationSettings) -> Self {
+        Self {
+            threshold: value.threshold,
+            wvara_per_second: value.wvaraPerSecond,
+        }
+    }
+}

@@ -26,7 +26,8 @@ use crate::{
     config::{self, Config},
     tests::utils::{
         AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
-        TestingEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
+        TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
+        Wallets, init_logger,
     },
 };
 use alloy::{
@@ -35,12 +36,16 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
-    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     db::*,
     ecdsa::ContractSignature,
-    events::{BlockEvent, MirrorEvent, RouterEvent},
+    events::{
+        BlockEvent, MirrorEvent, RouterEvent,
+        mirror::{MessageEvent, ReplyEvent, StateChangedEvent, ValueClaimedEvent},
+        router::{AnnouncesCommittedEvent, ValidatorsCommittedForEraEvent},
+    },
     gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+    injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
     mock::*,
     network::ValidatorMessage,
 };
@@ -49,18 +54,17 @@ use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
-use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig};
+use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, InjectedClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
-use ethexe_signer::Signer;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
-use parity_scale_codec::Encode;
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     net::{Ipv4Addr, SocketAddr},
@@ -95,8 +99,8 @@ async fn basics() {
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
         dev: false,
+        pre_funded_accounts: 10,
         fast_sync: false,
-        validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     };
 
@@ -120,21 +124,19 @@ async fn basics() {
     let service = Service::new(&config).await.unwrap();
 
     // Enable all optional services
-    let network_key = service.signer.generate_key().unwrap();
+    let network_key = service.signer.generate().unwrap();
     config.network = Some(ethexe_network::NetworkConfig::new_local(
         network_key,
         config.ethereum.router_address,
     ));
 
-    let runner_config = RunnerConfig::overlay(
-        config.node.chunk_processing_threads,
-        config.node.block_gas_limit,
-        DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
-    );
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
-        runner_config,
+        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER
+            .checked_mul(config.node.block_gas_limit)
+            .unwrap(),
+        chunk_size: config.node.chunk_processing_threads,
     });
 
     config.prometheus = Some(PrometheusConfig::new(
@@ -143,6 +145,71 @@ async fn basics() {
     ));
 
     Service::new(&config).await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn write_memory_to_last_byte() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let wat = r#"
+(module
+    (import "env" "memory" (memory 32768))
+    (export "init" (func $init))
+    (func $init
+        (i32.store8
+            (i32.const 2147483647)
+            (i32.const 0xff)
+        )
+    )
+)"#;
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse module");
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, wasm_binary);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, &[])
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(res.payload.is_empty());
+    assert_eq!(res.value, 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -303,7 +370,7 @@ async fn uninitialized_program() {
             .send_message(init_res.program_id, &init_payload)
             .await
             .unwrap();
-        let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
+        let mirror = env.ethereum.mirror(init_res.program_id);
 
         let msgs_for_reply: Vec<_> = receiver
             .clone()
@@ -313,9 +380,9 @@ async fn uninitialized_program() {
                     BlockEvent::Mirror {
                         actor_id,
                         event:
-                            MirrorEvent::Message {
+                            MirrorEvent::Message(MessageEvent {
                                 id, destination, ..
-                            },
+                            }),
                     } if actor_id == init_res.program_id && destination == env.sender_id => {
                         Some(id)
                     }
@@ -352,11 +419,11 @@ async fn uninitialized_program() {
                 BlockEvent::Mirror {
                     actor_id,
                     event:
-                        MirrorEvent::Reply {
+                        MirrorEvent::Reply(ReplyEvent {
                             reply_code,
                             reply_to,
                             ..
-                        },
+                        }),
                 } if actor_id == init_res.program_id && reply_to == init_reply.message_id => {
                     Some(reply_code)
                 }
@@ -441,12 +508,12 @@ async fn mailbox() {
             BlockEvent::Mirror {
                 actor_id,
                 event:
-                    MirrorEvent::Message {
+                    MirrorEvent::Message(MessageEvent {
                         id,
                         destination,
                         payload,
                         ..
-                    },
+                    }),
             } if *actor_id == async_pid => {
                 assert_eq!(*destination, env.sender_id);
 
@@ -462,7 +529,7 @@ async fn mailbox() {
                 false
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if block.is_some() => {
-                announce_hash = Some(*ah);
+                announce_hash = Some(ah.clone());
                 true
             }
             _ => false,
@@ -470,7 +537,7 @@ async fn mailbox() {
         .await;
 
     let block = block.expect("must be set");
-    let announce_hash = announce_hash.expect("must be set");
+    let AnnouncesCommittedEvent(announce_hash) = announce_hash.expect("must be set");
 
     // -1 bcs execution took place in previous block, not the one that emits events.
     let wake_expiry = block.header.height - 1 + 100; // 100 is default wait for.
@@ -534,7 +601,7 @@ async fn mailbox() {
         ]),
     )]);
 
-    let mirror = env.ethereum.mirror(async_pid.try_into().unwrap());
+    let mirror = env.ethereum.mirror(async_pid);
     let state_hash = mirror.query().state_hash().await.unwrap();
 
     let state = node.db.program_state(state_hash).unwrap();
@@ -589,20 +656,23 @@ async fn mailbox() {
     mirror.claim_value(mid_expected_message_id).await.unwrap();
 
     let mut claimed = false;
-    let announce_hash = receiver
-        .filter_map_block_synced()
-        .find_map(|event| match event {
-            BlockEvent::Mirror {
-                actor_id,
-                event: MirrorEvent::ValueClaimed { claimed_id, .. },
-            } if actor_id == async_pid && claimed_id == mid_expected_message_id => {
-                claimed = true;
-                None
-            }
-            BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if claimed => Some(ah),
-            _ => None,
-        })
-        .await;
+    let announce_hash =
+        receiver
+            .filter_map_block_synced()
+            .find_map(|event| match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event: MirrorEvent::ValueClaimed(ValueClaimedEvent { claimed_id, .. }),
+                } if actor_id == async_pid && claimed_id == mid_expected_message_id => {
+                    claimed = true;
+                    None
+                }
+                BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
+                    ah,
+                ))) if claimed => Some(ah),
+                _ => None,
+            })
+            .await;
     assert!(claimed, "Value must be claimed");
 
     let state_hash = mirror.query().state_hash().await.unwrap();
@@ -660,7 +730,7 @@ async fn value_reply_program_to_user() {
 
     let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -679,7 +749,7 @@ async fn value_reply_program_to_user() {
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -697,7 +767,7 @@ async fn value_reply_program_to_user() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
     assert_eq!(res.value, VALUE_SENT);
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -759,7 +829,7 @@ async fn value_send_program_to_user_and_claimed() {
 
     let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -779,7 +849,7 @@ async fn value_send_program_to_user_and_claimed() {
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -797,7 +867,7 @@ async fn value_send_program_to_user_and_claimed() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.value, 0);
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -832,7 +902,7 @@ async fn value_send_program_to_user_and_claimed() {
         .find(|e| {
             matches!(e, BlockEvent::Mirror {
                 actor_id,
-                event: MirrorEvent::ValueClaimed { claimed_id, .. },
+                event: MirrorEvent::ValueClaimed ( ValueClaimedEvent { claimed_id, .. } ),
             } if *actor_id == piggy_bank_id && *claimed_id == mailboxed_msg_id)
         })
         .await;
@@ -891,7 +961,7 @@ async fn value_send_program_to_user_and_replied() {
 
     let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -911,7 +981,7 @@ async fn value_send_program_to_user_and_replied() {
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -929,7 +999,7 @@ async fn value_send_program_to_user_and_replied() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.value, 0);
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -967,7 +1037,7 @@ async fn value_send_program_to_user_and_replied() {
         .find(|e| {
             matches!(e, BlockEvent::Mirror {
                 actor_id,
-                event: MirrorEvent::ValueClaimed { claimed_id, .. },
+                event: MirrorEvent::ValueClaimed ( ValueClaimedEvent { claimed_id, .. } ),
             } if *actor_id == piggy_bank_id && *claimed_id == mailboxed_msg_id)
         })
         .await;
@@ -1026,7 +1096,7 @@ async fn incoming_transfers() {
 
     let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
 
-    let on_eth_balance = ping.get_balance().await.unwrap();
+    let on_eth_balance = ping.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = ping.query().state_hash().await.unwrap();
@@ -1045,7 +1115,7 @@ async fn incoming_transfers() {
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
-    let on_eth_balance = ping.get_balance().await.unwrap();
+    let on_eth_balance = ping.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
@@ -1053,7 +1123,7 @@ async fn incoming_transfers() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message_with_params(ping_id, b"PING", VALUE_SENT, false)
+        .send_message_with_params(ping_id, b"PING", VALUE_SENT)
         .await
         .unwrap()
         .wait_for()
@@ -1063,7 +1133,7 @@ async fn incoming_transfers() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
     assert_eq!(res.value, 0);
 
-    let on_eth_balance = ping.get_balance().await.unwrap();
+    let on_eth_balance = ping.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 2 * VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
@@ -1466,11 +1536,11 @@ async fn send_injected_tx() {
         salt: H256::random().0.to_vec().into(),
     };
 
-    let tx_for_node1 = RpcOrNetworkInjectedTx {
+    let tx_for_node1 = AddressedInjectedTransaction {
         recipient: validator1_pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(validator0_pubkey, tx.clone())
+            .signed_message(validator0_pubkey, tx.clone(), None)
             .unwrap(),
     };
 
@@ -1813,7 +1883,9 @@ async fn validators_election() {
         .find(|event| {
             matches!(
                 event,
-                BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(
+                    ValidatorsCommittedForEraEvent { era_index: _ }
+                ))
             )
         })
         .await;
@@ -1951,12 +2023,12 @@ async fn execution_with_canonical_events_quarantine() {
             if let BlockEvent::Mirror {
                 actor_id: _,
                 event:
-                    MirrorEvent::Reply {
+                    MirrorEvent::Reply(ReplyEvent {
                         payload,
                         value: _,
                         reply_to,
                         reply_code: _,
-                    },
+                    }),
             } = block_event
                 && reply_to == message_id
                 && payload == b"PONG"
@@ -2036,7 +2108,7 @@ async fn value_send_program_to_program() {
         .ethereum
         .mirror(value_receiver_id.to_address_lossy().into());
 
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, 0);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2066,12 +2138,7 @@ async fn value_send_program_to_program() {
 
     // Send init message to value sender program with value to be sent to value receiver
     let res = env
-        .send_message_with_params(
-            res.program_id,
-            &value_receiver_id.encode(),
-            VALUE_SENT,
-            false,
-        )
+        .send_message_with_params(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
         .await
         .unwrap()
         .wait_for()
@@ -2086,7 +2153,7 @@ async fn value_send_program_to_program() {
         .ethereum
         .mirror(value_sender_id.to_address_lossy().into());
 
-    let value_sender_on_eth_balance = value_sender.get_balance().await.unwrap();
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
     assert_eq!(value_sender_on_eth_balance, VALUE_SENT);
 
     let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
@@ -2108,7 +2175,7 @@ async fn value_send_program_to_program() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.value, 0);
 
-    let value_sender_on_eth_balance = value_sender.get_balance().await.unwrap();
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
     assert_eq!(value_sender_on_eth_balance, 0);
 
     let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
@@ -2119,7 +2186,7 @@ async fn value_send_program_to_program() {
         .balance;
     assert_eq!(value_sender_local_balance, 0);
 
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, VALUE_SENT);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2187,7 +2254,7 @@ async fn value_send_delayed() {
         .ethereum
         .mirror(value_receiver_id.to_address_lossy().into());
 
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, 0);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2217,12 +2284,7 @@ async fn value_send_delayed() {
 
     // Send init message to value sender which sends value to receiver with delay
     let res = env
-        .send_message_with_params(
-            res.program_id,
-            &value_receiver_id.encode(),
-            VALUE_SENT,
-            false,
-        )
+        .send_message_with_params(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
         .await
         .unwrap()
         .wait_for()
@@ -2238,7 +2300,7 @@ async fn value_send_delayed() {
         .mirror(value_sender_id.to_address_lossy().into());
 
     // Sender should not have the value, because it was just sent to receiver with delay
-    let value_sender_on_eth_balance = value_sender.get_balance().await.unwrap();
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
     assert_eq!(value_sender_on_eth_balance, 0);
 
     let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
@@ -2250,7 +2312,7 @@ async fn value_send_delayed() {
     assert_eq!(value_sender_local_balance, 0);
 
     // Check receiver don't have the value yet
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, 0);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2286,7 +2348,7 @@ async fn value_send_delayed() {
         .await;
 
     // Receiver should have the value now
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, VALUE_SENT);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2298,7 +2360,7 @@ async fn value_send_delayed() {
     assert_eq!(value_receiver_local_balance, VALUE_SENT);
 
     // Sender still don't have the value
-    let value_sender_on_eth_balance = value_sender.get_balance().await.unwrap();
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
     assert_eq!(value_sender_on_eth_balance, 0);
 
     let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
@@ -2393,7 +2455,7 @@ async fn injected_tx_fungible_token() {
 
     tracing::info!("✅ Fungible token successfully initialized");
 
-    // 4. Try ming some tokens
+    // 4. Try minting some tokens
     let amount: u128 = 5_000_000_000;
     let mint_action = demo_fungible_token::FTAction::Mint(amount);
 
@@ -2405,9 +2467,12 @@ async fn injected_tx_fungible_token() {
         salt: vec![1u8].into(),
     };
 
-    let rpc_tx = RpcOrNetworkInjectedTx {
+    let rpc_tx = AddressedInjectedTransaction {
         recipient: pubkey.to_address(),
-        tx: env.signer.signed_message(pubkey, mint_tx.clone()).unwrap(),
+        tx: env
+            .signer
+            .signed_message(pubkey, mint_tx.clone(), None)
+            .unwrap(),
     };
 
     let acceptance = rpc_client
@@ -2425,8 +2490,10 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
-                let promise = promise.data();
+            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
+                && !promises.is_empty()
+            {
+                let promise = promises.first().unwrap().data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
@@ -2453,7 +2520,7 @@ async fn injected_tx_fungible_token() {
                 for block_event in block_events {
                     if let BlockEvent::Mirror {
                         actor_id,
-                        event: MirrorEvent::StateChanged { state_hash },
+                        event: MirrorEvent::StateChanged(StateChangedEvent { state_hash }),
                     } = block_event
                         && actor_id == mint_tx.destination
                     {
@@ -2487,11 +2554,11 @@ async fn injected_tx_fungible_token() {
         salt: vec![1u8, 2u8, 3u8].into(),
     };
 
-    let rpc_tx = RpcOrNetworkInjectedTx {
+    let rpc_tx = AddressedInjectedTransaction {
         recipient: pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(pubkey, transfer_tx.clone())
+            .signed_message(pubkey, transfer_tx.clone(), None)
             .unwrap(),
     };
     let ws_client = node
@@ -2528,6 +2595,155 @@ async fn injected_tx_fungible_token() {
         .expect("successfully unsubscribe for promise");
 
     tracing::info!("✅ Promise successfully received from RPC subscription");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn injected_tx_fungible_token_over_network() {
+    init_logger();
+
+    let env_config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        compute_config: ComputeConfig::without_quarantine(),
+        ..Default::default()
+    };
+
+    let mut env = TestEnv::new(env_config).await.unwrap();
+
+    let user_pubkey = env.signer.generate().unwrap();
+
+    let mut alice_node = env.new_node(NodeConfig::named("Alice").service_rpc(8091));
+    alice_node.start_service().await;
+    let alice_rpc_client = alice_node
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provide by node");
+
+    let bob_pubkey = env.validators[0].public_key;
+    let mut bob_node = env.new_node(NodeConfig::named("Bob").validator(env.validators[0]));
+    bob_node.start_service().await;
+
+    // 1. Create Fungible token config
+    let token_config = demo_fungible_token::InitConfig {
+        name: "USD Tether".to_string(),
+        symbol: "USDT".to_string(),
+        decimals: 10,
+        initial_capacity: None,
+    };
+
+    // 2. Uploading code and creating program
+    let res = env
+        .upload_code(demo_fungible_token::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let usdt_actor_id = res.program_id;
+
+    // 3. Initialize program
+    let init_reply = env
+        .send_message(usdt_actor_id, &token_config.encode())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(init_reply.program_id, usdt_actor_id);
+    assert_eq!(init_reply.value, 0);
+    assert_eq!(
+        init_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Auto)
+    );
+    assert!(
+        init_reply.payload.is_empty(),
+        "Expect empty payload, because of initializing Fungible Token returns nothing"
+    );
+
+    tracing::info!("✅ Fungible token successfully initialized");
+
+    // 4. Try minting some tokens
+    let amount: u128 = 5_000_000_000;
+    let mint_action = demo_fungible_token::FTAction::Mint(amount);
+
+    let mint_tx = InjectedTransaction {
+        destination: usdt_actor_id,
+        payload: mint_action.encode().into(),
+        value: 0,
+        reference_block: bob_node.db.latest_data().unwrap().prepared_block_hash,
+        salt: vec![1u8].into(),
+    };
+
+    let rpc_tx = AddressedInjectedTransaction {
+        recipient: bob_pubkey.to_address(),
+        tx: env
+            .signer
+            .signed_message(user_pubkey, mint_tx.clone(), None)
+            .unwrap(),
+    };
+
+    alice_node
+        .events()
+        .find(|event| {
+            matches!(
+                event,
+                TestingEvent::Network(TestingNetworkEvent::ValidatorIdentityUpdated(_))
+            )
+        })
+        .await;
+
+    let mut subscription = alice_rpc_client
+        .send_transaction_and_watch(rpc_tx)
+        .await
+        .expect("successfully subscribe for transaction promise");
+
+    // wait for the injected transaction received before forcing a block
+    bob_node
+        .events()
+        .find(|event| {
+            matches!(
+                event,
+                TestingEvent::Network(TestingNetworkEvent::InjectedTransaction(_))
+            )
+        })
+        .await;
+
+    // force new block so consensus can produce promise
+    env.force_new_block().await;
+
+    let promise = subscription
+        .next()
+        .await
+        .expect("promise from subscription")
+        .expect("transaction promise")
+        .into_data();
+
+    let expected_event = demo_fungible_token::FTEvent::Transfer {
+        from: ActorId::new([0u8; 32]),
+        to: user_pubkey.to_address().into(),
+        amount,
+    };
+
+    let action = demo_fungible_token::FTEvent::decode(&mut &promise.reply.payload[..]).unwrap();
+    assert_eq!(action, expected_event);
+    assert_eq!(
+        promise.reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(promise.reply.value, 0);
+
+    tracing::info!("✅ Tokens mint successfully");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -3037,8 +3253,8 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let receiver = env.new_observer_events();
         let pending = env
             .ethereum
-            .mirror(ping_id.try_into().unwrap())
-            .send_message_pending(b"PING", 0, false)
+            .mirror(ping_id)
+            .send_message_pending(b"PING", 0)
             .await
             .unwrap();
         env.force_new_block().await;
@@ -3082,8 +3298,8 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let receiver = env.new_observer_events();
         let pending = env
             .ethereum
-            .mirror(ping_id.try_into().unwrap())
-            .send_message_pending(b"PING", 0, false)
+            .mirror(ping_id)
+            .send_message_pending(b"PING", 0)
             .await
             .unwrap();
         env.force_new_block().await;

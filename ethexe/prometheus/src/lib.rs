@@ -17,6 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context as _, Result};
+use ethexe_common::db::{
+    AnnounceStorageRO, BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO,
+};
+use ethexe_db::Database;
 use futures::{FutureExt, Stream, stream::FusedStream};
 use hyper::{
     Body, Request, Response, Server,
@@ -24,6 +28,7 @@ use hyper::{
     server::conn::AddrIncoming,
     service::{make_service_fn, service_fn},
 };
+use metrics::Gauge;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use prometheus::{
     self, Opts, Registry,
@@ -61,6 +66,17 @@ pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyL
     )
     .expect("Creating of statics doesn't fail. qed")
 });
+
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe:liveness")]
+pub struct LivenessMetrics {
+    /// Number of the block which is corresponding to the latest committed announce
+    pub latest_committed_block_number: Gauge,
+    /// Timestamp of the block which is corresponding to the latest committed announce
+    pub latest_committed_block_timestamp: Gauge,
+    /// Time in seconds since the latest commitment was made
+    pub time_since_latest_committed_secs: Gauge,
+}
 
 #[derive(Debug, Clone)]
 /// Configuration for the Prometheus service.
@@ -104,13 +120,15 @@ impl FusedStream for PrometheusService {
 }
 
 impl PrometheusService {
-    pub fn new(config: PrometheusConfig) -> Result<Self> {
+    pub fn new(config: PrometheusConfig, db: Database) -> Result<Self> {
         let handle = PrometheusBuilder::new()
             .install_recorder()
             .context("Failed to install prometheus recorder")?;
+        let metrics = LivenessMetrics::default();
 
-        let server = tokio::spawn(start_prometheus_server(config.addr, handle.clone()).map(drop));
-
+        let server = tokio::spawn(
+            start_prometheus_server(config.addr, handle.clone(), db, metrics).map(drop),
+        );
         Ok(Self { server })
     }
 }
@@ -118,6 +136,8 @@ impl PrometheusService {
 async fn start_prometheus_server(
     prometheus_addr: SocketAddr,
     handle: PrometheusHandle,
+    db: Database,
+    metrics: LivenessMetrics,
 ) -> Result<()> {
     let listener = TcpListener::bind(&prometheus_addr).await?;
     let listener = AddrIncoming::from_listener(listener)?;
@@ -126,10 +146,12 @@ async fn start_prometheus_server(
 
     let service = make_service_fn(move |_| {
         let handle = handle.clone();
+        let metrics = metrics.clone();
+        let db = db.clone();
 
         async move {
             Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-                request_metrics(req, handle.clone())
+                request_metrics(req, handle.clone(), db.clone(), metrics.clone())
             }))
         }
     });
@@ -150,8 +172,14 @@ async fn start_prometheus_server(
     result
 }
 
-async fn request_metrics(req: Request<Body>, handle: PrometheusHandle) -> Result<Response<Body>> {
+async fn request_metrics(
+    req: Request<Body>,
+    handle: PrometheusHandle,
+    db: Database,
+    metrics: LivenessMetrics,
+) -> Result<Response<Body>> {
     if req.uri().path() == "/metrics" {
+        update_liveness_metrics(db, metrics);
         let metrics = handle.render();
 
         Response::builder()
@@ -167,4 +195,38 @@ async fn request_metrics(req: Request<Body>, handle: PrometheusHandle) -> Result
             .body(Body::from("Not found."))
     }
     .context("Failed to request metrics")
+}
+
+fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
+    let Some(latest_data) = db.latest_data() else {
+        return;
+    };
+
+    let Some(header) = db
+        .block_meta(latest_data.prepared_block_hash)
+        .last_committed_announce
+        .and_then(|hash| db.announce(hash))
+        .and_then(|a| db.block_header(a.block_hash))
+    else {
+        return;
+    };
+
+    let latest_committed_block_timestamp = header.timestamp;
+    let latest_committed_block_number = header.height;
+
+    let time_since_latest_committed_secs = latest_data
+        .synced_block
+        .header
+        .timestamp
+        .saturating_sub(latest_committed_block_timestamp);
+
+    metrics
+        .latest_committed_block_number
+        .set(latest_committed_block_number as f64);
+    metrics
+        .latest_committed_block_timestamp
+        .set(latest_committed_block_timestamp as f64);
+    metrics
+        .time_since_latest_committed_secs
+        .set(time_since_latest_committed_secs as f64);
 }

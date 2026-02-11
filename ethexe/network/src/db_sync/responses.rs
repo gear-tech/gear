@@ -18,15 +18,15 @@
 
 use crate::{
     db_sync::{
-        Config, DbSyncDatabase, InnerBehaviour, InnerHashesResponse, InnerProgramIdsResponse,
-        InnerRequest, InnerResponse, ResponseId,
+        Config, DbSyncDatabase, InnerAnnouncesResponse, InnerBehaviour, InnerHashesResponse,
+        InnerProgramIdsResponse, InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
 };
 use ethexe_common::{
     Announce, HashOf,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, HashStorageRO, LatestData, LatestDataStorageRO},
-    network::{AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, LatestData, LatestDataStorageRO},
+    network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use libp2p::request_response;
 use std::{
@@ -98,7 +98,7 @@ impl OngoingResponses {
                 match Self::process_announce_request(&db, request) {
                     Ok(response) => response.into(),
                     Err(e) => {
-                        log::warn!("cannot complete request: {e}");
+                        log::trace!("cannot complete announces request {request:?}: {e}");
                         InnerResponse::Announces(Default::default())
                     }
                 }
@@ -109,7 +109,7 @@ impl OngoingResponses {
     fn process_announce_request<DB: AnnounceStorageRO + LatestDataStorageRO>(
         db: &DB,
         request: AnnouncesRequest,
-    ) -> Result<AnnouncesResponse, ProcessAnnounceError> {
+    ) -> Result<InnerAnnouncesResponse, ProcessAnnounceError> {
         let AnnouncesRequest { head, until } = request;
 
         // Check the requested chain length first to prevent abuse
@@ -134,14 +134,10 @@ impl OngoingResponses {
         for _ in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
             match until {
                 AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
-                    return Ok(AnnouncesResponse {
-                        announces: announces.into(),
-                    });
+                    return Ok(InnerAnnouncesResponse(announces.into()));
                 }
                 AnnouncesRequestUntil::ChainLen(len) if announces.len() == len.get() as usize => {
-                    return Ok(AnnouncesResponse {
-                        announces: announces.into(),
-                    });
+                    return Ok(InnerAnnouncesResponse(announces.into()));
                 }
                 _ => {}
             }
@@ -241,6 +237,7 @@ enum ProcessAnnounceError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db_sync::requests::ResponseHandler;
     use ethexe_common::{
         Announce, HashOf, SimpleBlockData,
         db::{AnnounceStorageRW, LatestDataStorageRW},
@@ -412,8 +409,8 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![middle, head]);
-        response.try_into_checked(request).unwrap();
+        assert_eq!(response.0, vec![middle, head]);
+        ResponseHandler::handle_announces(response, request).unwrap_done();
     }
 
     #[test]
@@ -438,7 +435,7 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![middle, head]);
-        response.try_into_checked(request).unwrap();
+        assert_eq!(response.0, vec![middle, head]);
+        ResponseHandler::handle_announces(response, request).unwrap_done();
     }
 }

@@ -23,12 +23,12 @@ use alloc::{
 use anyhow::{Result, anyhow};
 use core::num::NonZero;
 use ethexe_common::{
-    BlockHeader, HashOf, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
+    HashOf, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
     injected::Promise,
 };
 use gear_core::rpc::ReplyInfo;
-use gprimitives::{ActorId, H256, MessageId};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
 
 /// In-memory store for the state transitions
 /// that are going to be applied in the current block.
@@ -41,11 +41,16 @@ use gprimitives::{ActorId, H256, MessageId};
 /// applied in the current block.
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
-    header: BlockHeader,
+    block_height: u32,
     states: ProgramStates,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
-    injected_replies: BTreeMap<MessageId, Option<ReplyInfo>>,
+    program_creations: BTreeMap<ActorId, CodeId>,
+
+    /// The set of injected messages to track replies for.
+    injected_messages: BTreeSet<MessageId>,
+    /// Replies for injected messages, in the order of processing.
+    injected_replies: Vec<(MessageId, ReplyInfo)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -54,27 +59,23 @@ pub struct FinalizedBlockTransitions {
     pub states: ProgramStates,
     pub schedule: Schedule,
     pub promises: Vec<Promise>,
+    pub program_creations: Vec<(ActorId, CodeId)>,
 }
 
 impl InBlockTransitions {
     pub fn new(
-        header: BlockHeader,
+        block_height: u32,
         states: ProgramStates,
         schedule: Schedule,
-        injected_messages: Vec<MessageId>,
+        injected_messages: impl IntoIterator<Item = MessageId>,
     ) -> Self {
-        let injected_replies = injected_messages.into_iter().map(|id| (id, None)).collect();
         Self {
-            header,
+            block_height,
             states,
             schedule,
-            injected_replies,
+            injected_messages: injected_messages.into_iter().collect(),
             ..Default::default()
         }
-    }
-
-    pub fn header(&self) -> &BlockHeader {
-        &self.header
     }
 
     pub fn is_program(&self, actor_id: &ActorId) -> bool {
@@ -105,13 +106,11 @@ impl InBlockTransitions {
     }
 
     pub fn take_actual_tasks(&mut self) -> BTreeSet<ScheduledTask> {
-        self.schedule
-            .remove(&self.header.height)
-            .unwrap_or_default()
+        self.schedule.remove(&self.block_height).unwrap_or_default()
     }
 
     pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> u32 {
-        let scheduled_block = self.header.height + u32::from(in_blocks);
+        let scheduled_block = self.block_height + u32::from(in_blocks);
 
         self.schedule
             .entry(scheduled_block)
@@ -139,15 +138,20 @@ impl InBlockTransitions {
         Ok(())
     }
 
-    pub fn register_new(&mut self, actor_id: ActorId) {
+    pub fn register_new(&mut self, actor_id: ActorId, code_id: CodeId) {
         self.states.insert(actor_id, StateHashWithQueueSize::zero());
         self.modifications.insert(actor_id, Default::default());
+        self.program_creations.insert(actor_id, code_id);
     }
 
-    /// Register new reply for injected transaction.
-    pub fn maybe_store_injected_reply(&mut self, message_id: &MessageId, reply: ReplyInfo) {
-        if let Some(maybe_reply) = self.injected_replies.get_mut(message_id) {
-            *maybe_reply = Some(reply);
+    pub fn registered_programs(&self) -> &BTreeMap<ActorId, CodeId> {
+        &self.program_creations
+    }
+
+    /// Handles new reply for injected transaction.
+    pub fn maybe_store_injected_reply(&mut self, message_id: MessageId, reply: ReplyInfo) {
+        if self.injected_messages.contains(&message_id) {
+            self.injected_replies.push((message_id, reply));
         }
     }
 
@@ -213,18 +217,16 @@ impl InBlockTransitions {
             schedule,
             modifications,
             injected_replies,
+            program_creations,
             ..
         } = self;
 
         let promises = injected_replies
             .into_iter()
-            .filter_map(|(message_id, maybe_reply)| {
-                maybe_reply.map(|reply| {
-                    // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
-                    let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
-
-                    Promise { tx_hash, reply }
-                })
+            .map(|(message_id, reply)| {
+                // SAFETY: message_id for injected transaction is created from its hash bytes.
+                let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
+                Promise { tx_hash, reply }
             })
             .collect();
 
@@ -255,7 +257,12 @@ impl InBlockTransitions {
             states,
             schedule,
             promises,
+            program_creations: program_creations.into_iter().collect(),
         }
+    }
+
+    pub fn block_height(&self) -> u32 {
+        self.block_height
     }
 }
 

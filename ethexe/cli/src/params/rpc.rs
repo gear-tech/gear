@@ -18,8 +18,7 @@
 
 use super::MergeParams;
 use clap::Parser;
-use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
-use ethexe_rpc::RpcConfig;
+use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
 use ethexe_service::config::NodeConfig;
 use serde::Deserialize;
 use std::{
@@ -28,7 +27,7 @@ use std::{
 };
 
 /// Parameters for the RPC service to start.
-#[derive(Clone, Debug, Deserialize, Parser)]
+#[derive(Clone, Debug, Default, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct RpcParams {
     /// Port to expose RPC service.
@@ -92,16 +91,13 @@ impl RpcParams {
             .gas_limit_multiplier
             .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER);
 
-        let runner_config = RunnerConfig::overlay(
-            node_config.chunk_processing_threads,
-            node_config.block_gas_limit,
-            gas_limit_multiplier,
-        );
-
         Some(RpcConfig {
             listen_addr,
             cors,
-            runner_config,
+            gas_allowance: gas_limit_multiplier
+                .checked_mul(node_config.block_gas_limit)
+                .expect("RPC gas allowance overflow"),
+            chunk_size: node_config.chunk_processing_threads,
         })
     }
 }

@@ -65,7 +65,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.5.0
+          version: v1.5.1
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v4
@@ -144,13 +144,10 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: "${{ matrix.target }}"
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.name }}"
@@ -161,11 +158,6 @@ jobs:
   workspace-hack:
     runs-on: ubuntu-latest
     steps:
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          large-packages: false
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
         with:
@@ -186,7 +178,6 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Check if workspace hack Cargo.toml is up-to-date"
         uses: ./.github/actions/cargo-hakari
@@ -201,8 +192,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           # we want to test the hack that doesn't interfere with some Substrate features
@@ -234,8 +223,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
@@ -275,13 +262,10 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.name }}"
@@ -334,8 +318,6 @@ jobs:
         if: matrix.name != 'macos-x86_64'
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.name }}"
@@ -361,13 +343,10 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 

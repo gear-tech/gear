@@ -24,11 +24,10 @@ use crate::{
 use ethexe_common::{
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{Promise, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{AddressedInjectedTransaction, Promise, SignedPromise},
     mock::Mock,
 };
 use ethexe_db::Database;
-use ethexe_processor::RunnerConfig;
 use futures::StreamExt;
 use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
@@ -68,10 +67,8 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        for tx in tx_batch.drain(..) {
-                            let promise = Self::create_promise_for(tx);
-                            self.rpc.provide_promise(promise);
-                        }
+                        let promises = tx_batch.drain(..).map(Self::create_promise_for).collect();
+                        self.rpc.provide_promises(promises);
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -87,7 +84,7 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: RpcOrNetworkInjectedTx) -> SignedPromise {
+    fn create_promise_for(tx: AddressedInjectedTransaction) -> SignedPromise {
         let promise = Promise {
             tx_hash: tx.tx.data().to_hash(),
             reply: ReplyInfo {
@@ -105,7 +102,8 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
     let rpc_config = RpcConfig {
         listen_addr,
         cors: None,
-        runner_config: RunnerConfig::common(2, MAX_BLOCK_GAS_LIMIT),
+        gas_allowance: MAX_BLOCK_GAS_LIMIT,
+        chunk_size: 2,
     };
     RpcServer::new(rpc_config, Database::memory())
         .run_server()
@@ -140,7 +138,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut sub = ws_client
-                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                 .await
                 .expect("Subscription will be created");
 
@@ -168,7 +166,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut subscription = ws_client
-                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                 .await
                 .expect("Subscription will be created");
 
@@ -195,7 +193,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscriptions = vec![];
         for _ in 0..20 {
             let subscription = ws_client
-                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                 .await
                 .expect("Subscription will be created");
             subscriptions.push(subscription);
@@ -230,7 +228,7 @@ async fn test_concurrent_multiple_clients() {
             let mut subscriptions = vec![];
             for _ in 0..50 {
                 let mut subscription = client
-                    .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                    .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                     .await
                     .expect("Subscription will be created");
 

@@ -41,6 +41,7 @@ impl Runtime {
         Self::Raw(ethexe_runtime::WASM_BINARY_BLOATY.unwrap().into())
     }
 
+    #[allow(unused)]
     pub fn from_code(code: Vec<u8>) -> Self {
         Self::Raw(code.into())
     }

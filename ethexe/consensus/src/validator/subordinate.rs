@@ -28,7 +28,7 @@ use crate::{
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, ComputedAnnounce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
 };
 use std::mem;
@@ -70,13 +70,10 @@ impl StateHandler for Subordinate {
         self.ctx
     }
 
-    fn process_computed_announce(
-        self,
-        computed_announce_hash: HashOf<Announce>,
-    ) -> Result<ValidatorState> {
+    fn process_computed_announce(self, computed_data: ComputedAnnounce) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed { announce_hash }
-                if *announce_hash == computed_announce_hash =>
+                if *announce_hash == computed_data.announce_hash =>
             {
                 if self.is_validator {
                     Participant::create(self.ctx, self.block, self.producer)
@@ -84,20 +81,20 @@ impl StateHandler for Subordinate {
                     Initial::create(self.ctx)
                 }
             }
-            _ => DefaultProcessing::computed_announce(self, computed_announce_hash),
+            _ => DefaultProcessing::computed_announce(self, computed_data),
         }
     }
 
-    fn process_announce(mut self, validated_announce: VerifiedAnnounce) -> Result<ValidatorState> {
+    fn process_announce(mut self, verified_announce: VerifiedAnnounce) -> Result<ValidatorState> {
         match &mut self.state {
             State::WaitingForAnnounce
-                if validated_announce.address() == self.producer
-                    && validated_announce.data().block_hash == self.block.hash =>
+                if verified_announce.address() == self.producer
+                    && verified_announce.data().block_hash == self.block.hash =>
             {
-                let (announce, _pub_key) = validated_announce.into_parts();
+                let (announce, _pub_key) = verified_announce.into_parts();
                 self.send_announce_for_computation(announce)
             }
-            _ => DefaultProcessing::block_from_producer(self, validated_announce),
+            _ => DefaultProcessing::announce_from_producer(self, verified_announce),
         }
     }
 
@@ -195,7 +192,7 @@ impl Subordinate {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::mock::*;
+    use ethexe_common::{ComputedAnnounce, mock::*};
 
     #[test]
     fn create_empty() {
@@ -329,7 +326,7 @@ mod tests {
 
         // After announce is computed, subordinate switches to participant state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(ComputedAnnounce::mock(announce.data().to_hash()))
             .unwrap();
         assert!(s.is_participant(), "got {s:?}");
         assert_eq!(
@@ -371,7 +368,7 @@ mod tests {
 
         // After announce is computed, not-validator subordinate switches to initial state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(ComputedAnnounce::mock(announce.data().to_hash()))
             .unwrap();
         assert!(s.is_initial(), "got {s:?}");
     }
@@ -431,7 +428,9 @@ mod tests {
 
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
-        let s = s.process_computed_announce(HashOf::random()).unwrap();
+        let s = s
+            .process_computed_announce(ComputedAnnounce::mock(()))
+            .unwrap();
         assert_eq!(s.context().output.len(), 1);
         assert!(matches!(s.context().output[0], ConsensusEvent::Warning(_)));
     }

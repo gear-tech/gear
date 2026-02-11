@@ -20,10 +20,18 @@ use super::ProcessingHandler;
 use crate::{ProcessorError, Result};
 use ethexe_common::{
     ScheduledTask,
-    db::{CodesStorageRO, CodesStorageRW},
-    events::{MirrorRequestEvent, RouterRequestEvent},
+    db::CodesStorageRO,
+    events::{
+        MirrorRequestEvent, RouterRequestEvent,
+        mirror::{
+            ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent,
+            OwnedBalanceTopUpRequestedEvent, ReplyQueueingRequestedEvent,
+            ValueClaimingRequestedEvent,
+        },
+        router::ProgramCreatedEvent,
+    },
     gear::{MessageType, ValueClaim},
-    injected::SignedInjectedTransaction,
+    injected::InjectedTransaction,
 };
 use ethexe_runtime_common::state::{
     Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
@@ -33,22 +41,21 @@ use gear_core::{ids::ActorId, message::SuccessReplyReason};
 impl ProcessingHandler {
     pub(crate) fn handle_injected_transaction(
         &mut self,
-        tx: SignedInjectedTransaction,
+        source: ActorId,
+        tx: InjectedTransaction,
     ) -> Result<()> {
-        self.update_state(tx.data().destination, |state, storage, _| -> Result<()> {
-            // Build source from sender's Ethereum address
-            let source = tx.address().into();
-            let is_init = state.requires_init_message();
-
-            let raw_tx = tx.into_data();
+        self.update_state(tx.destination, |state, storage, _| -> Result<()> {
+            if state.requires_init_message() {
+                return Err(ProcessorError::InjectedToUninitializedProgram(Box::new(tx)));
+            }
 
             let dispatch = Dispatch::new(
                 storage,
-                raw_tx.to_message_id(),
+                tx.to_message_id(),
                 source,
-                raw_tx.payload.0,
-                raw_tx.value,
-                is_init,
+                tx.payload.0,
+                tx.value,
+                false,
                 MessageType::Injected,
                 false,
             )?;
@@ -63,19 +70,20 @@ impl ProcessingHandler {
 
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
-            RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
-                if self.db.original_code(code_id).is_none() {
-                    return Err(ProcessorError::MissingCode(code_id));
+            RouterRequestEvent::ProgramCreated(ProgramCreatedEvent { actor_id, code_id }) => {
+                if !self.db.code_valid(code_id).unwrap_or(false) {
+                    return Err(ProcessorError::MissingCode { actor_id, code_id });
                 }
 
-                self.db.set_program_code_id(actor_id, code_id);
-
-                self.transitions.register_new(actor_id);
+                log::trace!("Registering new program: {actor_id} with code {code_id}");
+                self.transitions.register_new(actor_id, code_id);
             }
             RouterRequestEvent::ValidatorsCommittedForEra { .. }
-            | RouterRequestEvent::CodeValidationRequested { .. }
-            | RouterRequestEvent::ComputationSettingsChanged { .. }
-            | RouterRequestEvent::StorageSlotChanged => {
+            | RouterRequestEvent::CodeValidationRequested { .. } => {
+                log::trace!("Event is handled by other modules: {event:?}");
+            }
+            RouterRequestEvent::ComputationSettingsChanged { .. }
+            | RouterRequestEvent::StorageSlotChanged { .. } => {
                 log::debug!("Handler not yet implemented: {event:?}");
             }
         };
@@ -95,7 +103,9 @@ impl ProcessingHandler {
         }
 
         match event {
-            MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
+            MirrorRequestEvent::OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequestedEvent {
+                value,
+            }) => {
                 self.update_state(actor_id, |state, _, _| {
                     state.balance = state
                         .balance
@@ -103,7 +113,9 @@ impl ProcessingHandler {
                         .expect("Overflow in state.balance += value");
                 });
             }
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent { value },
+            ) => {
                 self.update_state(actor_id, |state, _, _| {
                     state.executable_balance = state
                         .executable_balance
@@ -111,13 +123,13 @@ impl ProcessingHandler {
                         .expect("Overflow in state.executable_balance += value");
                 });
             }
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id,
                 source,
                 payload,
                 value,
                 call_reply,
-            } => {
+            }) => {
                 self.update_state(actor_id, |state, storage, _| -> Result<()> {
                     let is_init = state.requires_init_message();
 
@@ -139,12 +151,12 @@ impl ProcessingHandler {
                     Ok(())
                 })?;
             }
-            MirrorRequestEvent::ReplyQueueingRequested {
+            MirrorRequestEvent::ReplyQueueingRequested(ReplyQueueingRequestedEvent {
                 replied_to,
                 source,
                 payload,
                 value,
-            } => {
+            }) => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
                     let Some(Expiring {
                         value:
@@ -191,7 +203,10 @@ impl ProcessingHandler {
                     Ok(())
                 })?;
             }
-            MirrorRequestEvent::ValueClaimingRequested { claimed_id, source } => {
+            MirrorRequestEvent::ValueClaimingRequested(ValueClaimingRequestedEvent {
+                claimed_id,
+                source,
+            }) => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
                     let Some(Expiring {
                         value:

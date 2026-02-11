@@ -28,6 +28,7 @@ use ethexe_common::{
     gear::BatchCommitment, network::ValidatorMessage,
 };
 use futures::FutureExt;
+use gsigner::secp256k1::Secp256k1SignerExt;
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -112,7 +113,10 @@ impl Coordinator {
         let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
         let message = ValidatorMessage { era_index, payload };
 
-        let validation_request = ctx.core.signer.signed_data(ctx.core.pub_key, message)?;
+        let validation_request = ctx
+            .core
+            .signer
+            .signed_data(ctx.core.pub_key, message, None)?;
 
         ctx.output(ConsensusEvent::PublishMessage(validation_request.into()));
 
@@ -156,7 +160,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::ToDigest;
+    use ethexe_common::{ToDigest, ValidatorsVec};
     use gprimitives::H256;
     use nonempty::NonEmpty;
 
@@ -164,11 +168,12 @@ mod tests {
     fn coordinator_create_success() {
         let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
-        let validators = keys
+        let validators: ValidatorsVec = keys
             .iter()
             .take(3)
             .map(|k| k.to_address())
-            .collect::<Result<_, _>>()
+            .collect::<Vec<_>>()
+            .try_into()
             .unwrap();
         let batch = BatchCommitment::default();
 

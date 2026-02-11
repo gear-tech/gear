@@ -34,10 +34,10 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Announce, Digest, HashOf, SimpleBlockData,
+    Announce, ComputedAnnounce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
-    network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
+    network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -71,10 +71,10 @@ pub trait ConsensusService:
     fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
 
     /// Process a computed block received
-    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()>;
+    fn receive_computed_announce(&mut self, computed_data: ComputedAnnounce) -> Result<()>;
 
-    /// Process a received producer block
-    fn receive_announce(&mut self, block: VerifiedAnnounce) -> Result<()>;
+    /// Process a received producer announce
+    fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()>;
 
     /// Process a received validation request
     fn receive_validation_request(&mut self, request: VerifiedValidationRequest) -> Result<()>;
@@ -83,7 +83,7 @@ pub trait ConsensusService:
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 
     /// Process a received announces data response
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
+    fn receive_announces_response(&mut self, response: AnnouncesResponse) -> Result<()>;
 
     /// Process a received injected transaction from network
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
@@ -122,7 +122,7 @@ pub enum ConsensusEvent {
     CommitmentSubmitted(CommitmentSubmitted),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
-    /// Promise for [`ethexe_common::injected::InjectedTransaction`] execution.
+    /// Promises for [`ethexe_common::injected::InjectedTransaction`]s execution in some announce.
     #[from]
-    Promise(SignedPromise),
+    Promises(Vec<SignedPromise>),
 }

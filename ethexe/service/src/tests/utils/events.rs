@@ -22,12 +22,19 @@ use crate::Event;
 use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent, injected::RpcOrNetworkInjectedTx,
+    Address, Announce, HashOf, SimpleBlockData,
+    db::*,
+    events::BlockEvent,
+    injected::{
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
+        SignedInjectedTransaction, SignedPromise,
+    },
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_network::NetworkEvent;
+use ethexe_network::{NetworkEvent, NetworkInjectedEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_rpc::RpcEvent;
 use futures::{Stream, StreamExt, future::Either, stream, stream::FusedStream};
@@ -44,8 +51,68 @@ pub type ObserverEventSender = EventSender<ObserverEvent>;
 pub type ObserverEventReceiver = EventReceiver<ObserverEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub enum TestingNetworkInjectedEvent {
+    InboundTransaction {
+        transaction: SignedInjectedTransaction,
+    },
+    OutboundAcceptance {
+        transaction_hash: HashOf<InjectedTransaction>,
+        acceptance: InjectedTransactionAcceptance,
+    },
+}
+
+impl TestingNetworkInjectedEvent {
+    fn new(event: &NetworkInjectedEvent) -> Self {
+        match event {
+            NetworkInjectedEvent::InboundTransaction {
+                transaction,
+                channel: _,
+            } => Self::InboundTransaction {
+                transaction: transaction.clone(),
+            },
+            NetworkInjectedEvent::OutboundAcceptance {
+                transaction_hash,
+                acceptance,
+            } => Self::OutboundAcceptance {
+                transaction_hash: *transaction_hash,
+                acceptance: acceptance.clone(),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum TestingNetworkEvent {
+    ValidatorMessage(VerifiedValidatorMessage),
+    PromiseMessage(SignedPromise),
+    ValidatorIdentityUpdated(Address),
+    InjectedTransaction(TestingNetworkInjectedEvent),
+    PeerBlocked(PeerId),
+    PeerConnected(PeerId),
+}
+
+impl TestingNetworkEvent {
+    fn new(event: &NetworkEvent) -> Self {
+        match event {
+            NetworkEvent::ValidatorMessage(message) => Self::ValidatorMessage(message.clone()),
+            NetworkEvent::PromiseMessage(message) => Self::PromiseMessage(message.clone()),
+            NetworkEvent::ValidatorIdentityUpdated(address) => {
+                Self::ValidatorIdentityUpdated(*address)
+            }
+            NetworkEvent::InjectedTransaction(event) => {
+                Self::InjectedTransaction(TestingNetworkInjectedEvent::new(event))
+            }
+            NetworkEvent::PeerBlocked(peer_id) => Self::PeerBlocked(*peer_id),
+            NetworkEvent::PeerConnected(peer_id) => Self::PeerConnected(*peer_id),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
-    InjectedTransaction { transaction: RpcOrNetworkInjectedTx },
+    InjectedTransaction {
+        transaction: AddressedInjectedTransaction,
+    },
 }
 
 impl TestingRpcEvent {
@@ -70,7 +137,7 @@ pub enum TestingEvent {
     // Services events.
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
-    Network(NetworkEvent),
+    Network(TestingNetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
     Rpc(TestingRpcEvent),
@@ -82,7 +149,7 @@ impl TestingEvent {
         match event {
             Event::Compute(event) => Self::Compute(event.clone()),
             Event::Consensus(event) => Self::Consensus(event.clone()),
-            Event::Network(event) => Self::Network(event.clone()),
+            Event::Network(event) => Self::Network(TestingNetworkEvent::new(event)),
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
@@ -207,8 +274,8 @@ impl TestingEventReceiver {
         let id = id.into();
         log::info!("📗 waiting for announce computed: {id:?}");
         self.find_announce(id, |event| {
-            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(hash)) = event {
-                Some(hash)
+            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(computed_data)) = event {
+                Some(computed_data.announce_hash)
             } else {
                 None
             }

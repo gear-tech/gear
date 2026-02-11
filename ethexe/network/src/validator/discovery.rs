@@ -35,12 +35,13 @@ use ethexe_common::{
     ecdsa::{PublicKey, Signature},
     sha3::Keccak256,
 };
-use ethexe_signer::Signer;
 use futures::{
     FutureExt, StreamExt,
     stream::{self, BoxStream},
 };
+use gsigner::secp256k1::{PrivateKey, Secp256k1SignerExt, Signer};
 use indexmap::IndexSet;
+use ip_network::IpNetwork;
 use libp2p::{
     Multiaddr,
     core::{Endpoint, transport::PortUse},
@@ -53,7 +54,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode, Input, Output};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     sync::Arc,
     task::{Context, Poll, ready},
     time::SystemTime,
@@ -66,6 +67,8 @@ const MAX_IDENTITY_ADDRESSES: usize = 10;
 ///
 /// Limit is to not flood the network
 const MAX_IN_FLIGHT_QUERIES: usize = 10;
+
+pub type ValidatorIdentities = HashMap<Address, SignedValidatorIdentity>;
 
 /// Signed validator discovery
 ///
@@ -82,8 +85,8 @@ pub struct SignedValidatorIdentity {
 }
 
 impl SignedValidatorIdentity {
-    pub(crate) fn data(&self) -> &ValidatorIdentity {
-        &self.inner
+    pub(crate) fn addresses(&self) -> &ValidatorAddresses {
+        &self.inner.addresses
     }
 
     pub(crate) fn address(&self) -> Address {
@@ -125,8 +128,9 @@ impl Decode for SignedValidatorIdentity {
             parity_scale_codec::Error::from("failed to validate network signature")
                 .chain(err.to_string())
         })?;
-        let network_key = libp2p::identity::secp256k1::PublicKey::try_from_bytes(&network_key.0)
-            .expect("we use secp256k1 for networking key");
+        let network_key =
+            libp2p::identity::secp256k1::PublicKey::try_from_bytes(&network_key.to_bytes())
+                .expect("we use secp256k1 for networking key");
 
         let this = Self {
             inner,
@@ -176,6 +180,7 @@ enum FromVecOfVecError {
 // TODO: consider to not expect peer ID at the end of addresses
 // because it is signed by the network key (and thus the same peer ID)
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::IntoIterator)]
+#[into_iterator(owned, ref)]
 pub(crate) struct ValidatorAddresses {
     // use indexed set for stable encoding/decoding and digest generation
     addresses: IndexSet<Multiaddr>,
@@ -192,17 +197,11 @@ impl ValidatorAddresses {
         }
     }
 
-    fn from_external_addresses(
+    fn from_external_addresses<'a>(
         peer_id: PeerId,
-        external_addresses: &ExternalAddresses,
+        external_addresses: impl Iterator<Item = &'a Multiaddr>,
     ) -> Option<Self> {
-        let addresses = external_addresses.as_slice();
-        if addresses.is_empty() {
-            return None;
-        }
-
-        let addresses: IndexSet<Multiaddr> = addresses
-            .iter()
+        let addresses: IndexSet<Multiaddr> = external_addresses
             .take(MAX_IDENTITY_ADDRESSES)
             .cloned()
             .map(|address| {
@@ -211,6 +210,10 @@ impl ValidatorAddresses {
                     .expect("peer ID should be the same")
             })
             .collect();
+
+        if addresses.is_empty() {
+            return None;
+        }
 
         Some(Self { addresses })
     }
@@ -275,11 +278,9 @@ impl ValidatorAddresses {
             unreachable!("always contains `p2p` protocol as last")
         }
     }
-}
 
-impl<const N: usize> PartialEq<[Multiaddr; N]> for ValidatorAddresses {
-    fn eq(&self, other: &[Multiaddr; N]) -> bool {
-        self.addresses.iter().eq(other)
+    pub(crate) fn iter(&self) -> impl ExactSizeIterator<Item = &Multiaddr> {
+        self.addresses.iter()
     }
 }
 
@@ -321,8 +322,9 @@ impl ValidatorIdentity {
         validator_key: PublicKey,
         keypair: &Keypair,
     ) -> anyhow::Result<SignedValidatorIdentity> {
+        let digest = self.to_digest();
         let validator_signature = signer
-            .sign(validator_key, &self)
+            .sign_digest(validator_key, digest, None)
             .context("failed to sign validator identity with validator key")?;
 
         let network_private_key = keypair
@@ -331,7 +333,9 @@ impl ValidatorIdentity {
             .expect("we use secp256k1 for networking key")
             .secret()
             .to_bytes();
-        let network_signature = Signature::create(network_private_key.into(), &self)
+        let network_private_key = PrivateKey::from_seed(network_private_key)
+            .context("failed to construct network private key")?;
+        let network_signature = Signature::create(&network_private_key, &self)
             .context("failed to sign validator identity with networking key")?;
         let network_key = keypair
             .public()
@@ -370,9 +374,10 @@ pub enum Event {
 
 struct GetIdentities {
     snapshot: Arc<ValidatorListSnapshot>,
-    identities: HashMap<Address, SignedValidatorIdentity>,
+    identities: ValidatorIdentities,
     query_identities: Option<BoxStream<'static, GetRecordResult>>,
     query_identities_interval: ExponentialBackoffInterval,
+    pending_events: VecDeque<ToSwarm<Event, THandlerInEvent<Behaviour>>>,
 }
 
 impl GetIdentities {
@@ -403,7 +408,7 @@ impl GetIdentities {
         }
 
         if let Some(old_identity) = self.identities.get(&identity.address())
-            && old_identity.data().creation_time >= identity.inner.creation_time
+            && old_identity.inner.creation_time >= identity.inner.creation_time
         {
             return Ok(None);
         }
@@ -411,16 +416,24 @@ impl GetIdentities {
         Ok(Some(identity))
     }
 
-    fn put_identity(&mut self, record: ValidatorIdentityRecord) -> Result<(), VerifyRecordError> {
-        let identity = self.verify_record(record)?;
-        if let Some(identity) = identity {
-            self.identities.insert(identity.address(), identity);
-        }
+    fn put_identity(&mut self, record: ValidatorIdentityRecord) -> Result<bool, VerifyRecordError> {
+        let Some(identity) = self.verify_record(record)? else {
+            return Ok(false);
+        };
 
-        Ok(())
+        self.identities.insert(identity.address(), identity);
+        Ok(true)
     }
 
-    fn poll(&mut self, cx: &mut Context<'_>, kad: &kad::Handle) -> Poll<Event> {
+    fn poll(
+        &mut self,
+        cx: &mut Context<'_>,
+        kad: &kad::Handle,
+    ) -> Poll<ToSwarm<Event, THandlerInEvent<Behaviour>>> {
+        if let Some(event) = self.pending_events.pop_front() {
+            return Poll::Ready(event);
+        }
+
         if self.query_identities_interval.poll_tick(cx).is_ready() {
             let streams = self
                 .identity_keys()
@@ -433,7 +446,7 @@ impl GetIdentities {
                 .flatten_unordered(Some(MAX_IN_FLIGHT_QUERIES))
                 .boxed();
             self.query_identities.replace(stream);
-            return Poll::Ready(Event::GetIdentitiesStarted);
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::GetIdentitiesStarted));
         }
 
         if let Some(stream) = &mut self.query_identities
@@ -444,8 +457,13 @@ impl GetIdentities {
                     let record = record.unwrap_validator_identity();
                     let address = record.value.address();
                     match self.put_identity(record) {
-                        Ok(()) => {
-                            return Poll::Ready(Event::IdentityUpdated { address });
+                        Ok(true) => {
+                            return Poll::Ready(ToSwarm::GenerateEvent(Event::IdentityUpdated {
+                                address,
+                            }));
+                        }
+                        Ok(false) => {
+                            /* we already have a newer identity or the same one for this validator */
                         }
                         Err(err) => {
                             log::trace!("failed to save identity from get record query: {err}");
@@ -472,6 +490,7 @@ struct PutIdentity {
     keypair: Keypair,
     validator_key: PublicKey,
     signer: Signer,
+    allow_non_global_addresses: bool,
     interval: ExponentialBackoffInterval,
     external_addresses: ExternalAddresses,
     fut: Option<PutRecordFuture>,
@@ -479,9 +498,22 @@ struct PutIdentity {
 
 impl PutIdentity {
     fn new_identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
+        let external_addresses = self.external_addresses.iter().filter(|addr| {
+            if self.allow_non_global_addresses {
+                return true;
+            }
+
+            // we use `ip_network` crate instead of std method because it's unstable
+            addr.iter().all(|protocol| match protocol {
+                multiaddr::Protocol::Ip4(ip) => IpNetwork::from(ip).is_global(),
+                multiaddr::Protocol::Ip6(ip) => IpNetwork::from(ip).is_global(),
+                _ => true,
+            })
+        });
+
         let addresses = ValidatorAddresses::from_external_addresses(
             self.keypair.public().to_peer_id(),
-            &self.external_addresses,
+            external_addresses,
         );
         let Some(addresses) = addresses else {
             // generally, should not be the case because bootnodes will tell us
@@ -543,6 +575,15 @@ impl PutIdentity {
     }
 }
 
+pub struct Config {
+    pub kad: kad::Handle,
+    pub keypair: Keypair,
+    pub validator_key: Option<PublicKey>,
+    pub signer: Signer,
+    pub snapshot: Arc<ValidatorListSnapshot>,
+    pub allow_non_global_addresses: bool,
+}
+
 pub struct Behaviour {
     kad: kad::Handle,
     get_identities: GetIdentities,
@@ -550,13 +591,16 @@ pub struct Behaviour {
 }
 
 impl Behaviour {
-    pub fn new(
-        kad: kad::Handle,
-        keypair: Keypair,
-        validator_key: Option<PublicKey>,
-        signer: Signer,
-        snapshot: Arc<ValidatorListSnapshot>,
-    ) -> Self {
+    pub fn new(config: Config) -> Self {
+        let Config {
+            kad,
+            keypair,
+            validator_key,
+            signer,
+            snapshot,
+            allow_non_global_addresses,
+        } = config;
+
         Self {
             kad,
             get_identities: GetIdentities {
@@ -564,11 +608,13 @@ impl Behaviour {
                 identities: HashMap::new(),
                 query_identities: None,
                 query_identities_interval: ExponentialBackoffInterval::new(),
+                pending_events: VecDeque::new(),
             },
             put_identity: validator_key.map(|validator_key| PutIdentity {
                 keypair,
                 validator_key,
                 signer,
+                allow_non_global_addresses,
                 interval: ExponentialBackoffInterval::new(),
                 external_addresses: ExternalAddresses::default(),
                 fut: None,
@@ -580,7 +626,11 @@ impl Behaviour {
         self.get_identities.on_new_snapshot(snapshot);
     }
 
-    #[allow(unused)] // will be used in next PRs
+    pub fn identities(&self) -> &ValidatorIdentities {
+        &self.get_identities.identities
+    }
+
+    #[cfg(test)]
     pub fn get_identity(&self, address: Address) -> Option<&SignedValidatorIdentity> {
         self.get_identities.identities.get(&address)
     }
@@ -637,7 +687,7 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Poll::Ready(event) = self.get_identities.poll(cx, &self.kad) {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
+            return Poll::Ready(event);
         }
 
         if let Some(put_identity) = &mut self.put_identity
@@ -656,7 +706,7 @@ mod tests {
     use assert_matches::assert_matches;
     use core::convert::TryFrom;
     use ethexe_common::ValidatorsVec;
-    use libp2p::{Multiaddr, Swarm, identity::Keypair};
+    use libp2p::{Multiaddr, Swarm, identity::Keypair, swarm::behaviour::ExternalAddrConfirmed};
     use libp2p_swarm_test::SwarmExt;
     use std::sync::Arc;
     use tokio::time;
@@ -692,7 +742,7 @@ mod tests {
     #[test]
     fn encode_decode_identity() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
             addresses: ValidatorAddresses::new(keypair.public().to_peer_id(), test_addr()),
@@ -708,7 +758,7 @@ mod tests {
     #[test]
     fn different_peer_ids_in_identity() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
             addresses: ValidatorAddresses::new(PeerId::random(), test_addr()),
@@ -772,14 +822,16 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn behaviour_queries_and_puts() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
-        let behaviour = Behaviour::new(
-            kad::Handle::new_test(),
-            Keypair::generate_secp256k1(),
-            Some(validator_key),
-            signer.clone(),
-            new_snapshot(vec![validator_key.to_address()]),
-        );
+        let validator_key = signer.generate().unwrap();
+        let config = Config {
+            kad: kad::Handle::new_test(),
+            keypair: Keypair::generate_secp256k1(),
+            validator_key: Some(validator_key),
+            signer,
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: true,
+        };
+        let behaviour = Behaviour::new(config);
 
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.add_external_address(test_addr());
@@ -796,7 +848,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn behaviour_stores_identity_for_known_validator() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let identity = new_signed_identity(&signer, validator_key, 10);
 
         let (kad_handle, mut kad_callback) = kad::test_utils::HandleCallback::new_pair();
@@ -812,13 +864,15 @@ mod tests {
         });
         tokio::spawn(kad_callback.loop_on_receiver());
 
-        let behaviour = Behaviour::new(
-            kad_handle,
-            Keypair::generate_secp256k1(),
-            None,
-            signer.clone(),
-            new_snapshot(vec![validator_key.to_address()]),
-        );
+        let config = Config {
+            kad: kad_handle,
+            keypair: Keypair::generate_secp256k1(),
+            validator_key: None,
+            signer,
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let behaviour = Behaviour::new(config);
         let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| behaviour);
 
         let event = swarm.next_behaviour_event().await;
@@ -840,16 +894,18 @@ mod tests {
     #[tokio::test]
     async fn verify_record_rejects_unknown_validator() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let identity = new_signed_identity(&signer, validator_key, 10);
 
-        let behaviour = Behaviour::new(
-            kad::Handle::new_test(),
-            Keypair::generate_secp256k1(),
-            None,
-            signer.clone(),
-            new_snapshot(vec![Address::from(1u64)]),
-        );
+        let config = Config {
+            kad: kad::Handle::new_test(),
+            keypair: Keypair::generate_secp256k1(),
+            validator_key: None,
+            signer,
+            snapshot: new_snapshot(vec![Address::from(1u64)]),
+            allow_non_global_addresses: false,
+        };
+        let behaviour = Behaviour::new(config);
 
         let err = behaviour
             .get_identities
@@ -867,14 +923,17 @@ mod tests {
     #[tokio::test]
     async fn put_identity_prefers_newer_records() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
-        let mut behaviour = Behaviour::new(
-            kad::Handle::new_test(),
-            Keypair::generate_secp256k1(),
-            None,
-            signer.clone(),
-            new_snapshot(vec![validator_key.to_address()]),
-        );
+        let validator_key = signer.generate().unwrap();
+
+        let config = Config {
+            kad: kad::Handle::new_test(),
+            keypair: Keypair::generate_secp256k1(),
+            validator_key: None,
+            signer: signer.clone(),
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let mut behaviour = Behaviour::new(config);
 
         let baseline = new_signed_identity(&signer, validator_key, 20);
         behaviour
@@ -893,7 +952,7 @@ mod tests {
             behaviour
                 .get_identity(validator_key.to_address())
                 .unwrap()
-                .data()
+                .inner
                 .creation_time,
             20
         );
@@ -909,7 +968,7 @@ mod tests {
             behaviour
                 .get_identity(validator_key.to_address())
                 .unwrap()
-                .data()
+                .inner
                 .creation_time,
             30
         );
@@ -918,15 +977,17 @@ mod tests {
     #[tokio::test]
     async fn on_new_snapshot_drops_obsolete_identities() {
         let signer = Signer::memory();
-        let validator_a = signer.generate_key().unwrap();
-        let validator_b = signer.generate_key().unwrap();
-        let mut behaviour = Behaviour::new(
-            kad::Handle::new_test(),
-            Keypair::generate_secp256k1(),
-            None,
-            signer.clone(),
-            new_snapshot(vec![validator_a.to_address(), validator_b.to_address()]),
-        );
+        let validator_a = signer.generate().unwrap();
+        let validator_b = signer.generate().unwrap();
+        let config = Config {
+            kad: kad::Handle::new_test(),
+            keypair: Keypair::generate_secp256k1(),
+            validator_key: None,
+            signer: signer.clone(),
+            snapshot: new_snapshot(vec![validator_a.to_address(), validator_b.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let mut behaviour = Behaviour::new(config);
 
         let identity_a = new_signed_identity(&signer, validator_a, 10);
         let identity_b = new_signed_identity(&signer, validator_b, 10);
@@ -959,16 +1020,18 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn duplicate_and_self_identity_handling() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let network_keypair = Keypair::generate_secp256k1();
 
-        let mut behaviour = Behaviour::new(
-            kad::Handle::new_test(),
-            network_keypair.clone(),
-            Some(validator_key),
-            signer.clone(),
-            new_snapshot(vec![validator_key.to_address()]),
-        );
+        let config = Config {
+            kad: kad::Handle::new_test(),
+            keypair: network_keypair.clone(),
+            validator_key: Some(validator_key),
+            signer: signer.clone(),
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let mut behaviour = Behaviour::new(config);
 
         // Create our own identity (simulating receiving our own record)
         let our_identity = ValidatorIdentity {
@@ -1010,7 +1073,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn put_identity_ticks_at_max() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let network_keypair = Keypair::generate_secp256k1();
 
         let (kad_handle, mut kad_callback) = kad::test_utils::HandleCallback::new_pair();
@@ -1021,13 +1084,15 @@ mod tests {
         });
         tokio::spawn(kad_callback.loop_on_receiver());
 
-        let behaviour = Behaviour::new(
-            kad_handle,
-            network_keypair.clone(),
-            Some(validator_key),
-            signer.clone(),
-            new_snapshot(vec![validator_key.to_address()]),
-        );
+        let config = Config {
+            kad: kad_handle,
+            keypair: network_keypair.clone(),
+            validator_key: Some(validator_key),
+            signer: signer.clone(),
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: true,
+        };
+        let behaviour = Behaviour::new(config);
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.add_external_address(test_addr());
 
@@ -1049,5 +1114,56 @@ mod tests {
             ExponentialBackoffInterval::MAX
         );
         assert!(put_identity.fut.is_none());
+    }
+
+    #[tokio::test]
+    async fn put_identity_global_addresses() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate().unwrap();
+        let keypair = Keypair::generate_secp256k1();
+
+        let local_addr = "/ip4/127.0.0.1/tcp/123"
+            .parse::<Multiaddr>()
+            .unwrap()
+            .with_p2p(keypair.public().to_peer_id())
+            .unwrap();
+        let global_addr = "/ip4/111.111.111.111/tcp/123"
+            .parse::<Multiaddr>()
+            .unwrap()
+            .with_p2p(keypair.public().to_peer_id())
+            .unwrap();
+
+        let mut put_identity = PutIdentity {
+            keypair,
+            validator_key,
+            signer,
+            allow_non_global_addresses: false,
+            interval: ExponentialBackoffInterval::new(),
+            external_addresses: Default::default(),
+            fut: None,
+        };
+
+        put_identity
+            .external_addresses
+            .on_swarm_event(&FromSwarm::ExternalAddrConfirmed(ExternalAddrConfirmed {
+                addr: &local_addr,
+            }));
+        put_identity
+            .external_addresses
+            .on_swarm_event(&FromSwarm::ExternalAddrConfirmed(ExternalAddrConfirmed {
+                addr: &global_addr,
+            }));
+
+        let identity = put_identity.new_identity().unwrap().unwrap();
+        let mut addresses = identity.value.inner.addresses.iter();
+        assert_eq!(addresses.len(), 1);
+        assert_eq!(*addresses.next().unwrap(), global_addr);
+
+        put_identity.allow_non_global_addresses = true;
+        let identity = put_identity.new_identity().unwrap().unwrap();
+        let mut addresses = identity.value.inner.addresses.iter();
+        assert_eq!(addresses.len(), 2);
+        assert_eq!(*addresses.next().unwrap(), global_addr);
+        assert_eq!(*addresses.next().unwrap(), local_addr);
     }
 }

@@ -70,7 +70,7 @@ where
             TxValidityChecker::new_for_announce(self.db.clone(), block_hash, parent_announce)?;
 
         let mut selected_txs = vec![];
-        let mut outdated_txs = vec![];
+        let mut remove_txs = vec![];
 
         for (reference_block, tx_hash) in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
@@ -84,33 +84,45 @@ where
                     selected_txs.push(tx)
                 }
                 TxValidity::Duplicate => {
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx already included in chain, skipping");
+                    // Keep in pool, in case of reorg it can be valid again.
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is already included in chain, keeping in pool");
                 }
                 TxValidity::UnknownDestination => {
+                    // Keep in pool, in case reorg destination may become known.
                     tracing::trace!(
                         tx_hash = ?tx_hash,
                         tx = ?tx.data(),
-                        "tx destination actor is unknown, removing from pool, skipping"
+                        "tx destination actor is unknown, keeping in pool"
                     );
                 }
                 TxValidity::NotOnCurrentBranch => {
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx on different branch, keeping in pool");
+                    // Keep in pool, in case of reorg it can be valid again.
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is on different branch, keeping in pool");
                 }
                 TxValidity::Outdated => {
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is outdated, removing from pool, remove from pool");
-                    outdated_txs.push((*reference_block, *tx_hash))
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is outdated, removing from pool");
+                    remove_txs.push((*reference_block, *tx_hash))
                 }
                 TxValidity::UninitializedDestination => {
+                    // Keep in pool, in case destination actor gets initialized later.
                     tracing::trace!(
                         tx_hash = ?tx_hash,
                         tx = ?tx.data(),
-                        "tx send to uninitialized actor, keeping in pool, because of in next blocks it can be"
+                        "tx sent to uninitialized actor, keeping in pool"
                     );
+                }
+                TxValidity::NonZeroValue => {
+                    tracing::trace!(
+                        tx_hash = ?tx_hash,
+                        tx = ?tx.data(),
+                        "tx has non-zero value, removing from pool"
+                    );
+                    remove_txs.push((*reference_block, *tx_hash))
                 }
             }
         }
 
-        outdated_txs.into_iter().for_each(|key| {
+        remove_txs.into_iter().for_each(|key| {
             self.inner.remove(&key);
         });
 
@@ -123,8 +135,8 @@ mod tests {
     use super::*;
     use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
     use ethexe_runtime_common::state::{Program, ProgramState, Storage};
-    use ethexe_signer::Signer;
     use gprimitives::ActorId;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 
     #[test]
     fn test_select_for_announce() {
@@ -161,19 +173,35 @@ mod tests {
         let mut tx_pool = InjectedTxPool::new(db.clone());
 
         let signer = Signer::memory();
-        let key = signer.generate_key().unwrap();
+        let key = signer.generate().unwrap();
         let tx = InjectedTransaction {
             reference_block: chain.blocks[9].hash,
             destination: program_id,
             ..InjectedTransaction::mock(())
         };
         let tx_hash = tx.to_hash();
-        let signed_tx = signer.signed_message(key, tx).unwrap();
+        let signed_tx = signer.signed_message(key, tx, None).unwrap();
 
         tx_pool.handle_tx(signed_tx.clone());
         assert!(
             db.injected_transaction(tx_hash).is_some(),
             "tx should be stored in db"
+        );
+
+        // Append another tx with non-zero value, should be removed during selection.
+        tx_pool.handle_tx(
+            signer
+                .signed_message(
+                    key,
+                    InjectedTransaction {
+                        reference_block: chain.blocks[9].hash,
+                        value: 100,
+                        destination: program_id,
+                        ..InjectedTransaction::mock(())
+                    },
+                    None,
+                )
+                .unwrap(),
         );
 
         let selected_txs = tx_pool
@@ -183,6 +211,11 @@ mod tests {
             selected_txs,
             vec![signed_tx],
             "tx should be selected for announce"
+        );
+        assert_eq!(
+            tx_pool.inner.len(),
+            1,
+            "only one valid tx should remain in pool"
         );
     }
 }

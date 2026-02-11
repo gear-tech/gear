@@ -24,7 +24,7 @@ use ethexe_network::{
     NetworkConfig,
     export::{Multiaddr, Protocol},
 };
-use ethexe_signer::Signer;
+use gsigner::secp256k1::Signer;
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -72,6 +72,7 @@ impl NetworkParams {
         self,
         config_dir: PathBuf,
         router_address: Address,
+        is_dev: bool,
     ) -> Result<Option<NetworkConfig>> {
         if self.no_network {
             return Ok(None);
@@ -81,12 +82,12 @@ impl NetworkParams {
             log::trace!("use network key from command-line arguments");
             key.parse().context("invalid network key")?
         } else {
-            let signer = Signer::fs(config_dir);
-            let keys = signer.storage_mut().list_keys()?;
+            let signer = Signer::fs(config_dir)?;
+            let keys = signer.list_keys()?;
             match keys.as_slice() {
                 [] => {
                     log::trace!("generate a new network key");
-                    signer.generate_key()?
+                    signer.generate()?
                 }
                 [key] => {
                     log::trace!("use network key saved on disk");
@@ -135,6 +136,7 @@ impl NetworkParams {
             bootstrap_addresses,
             listen_addresses,
             transport_type: Default::default(),
+            allow_non_global_addresses: is_dev,
         }))
     }
 }

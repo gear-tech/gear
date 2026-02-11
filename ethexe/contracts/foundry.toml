@@ -2,9 +2,10 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-evm_version = "prague"
-solc_version = "0.8.30"
+evm_version = "osaka"
+solc_version = "0.8.33"
 optimizer = true
+# extra_output_files = ["irOptimized"] # Uncomment to enable saving optimized IR
 via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
@@ -15,17 +16,19 @@ build_info = true
 extra_output = ["storageLayout"]
 # Some warnings should be omitted
 ignored_warnings_from = [
+    # Warning (2424): Natspec memory-safe-assembly... (https://github.com/OpenZeppelin/openzeppelin-foundry-upgrades/issues/115).
+    "lib/openzeppelin-foundry-upgrades/src/internal/Core.sol",
+    "lib/openzeppelin-foundry-upgrades/src/internal/DefenderDeploy.sol",
+    "lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol",
     # Warning (3628): This contract has a payable fallback function, but no receive ether function.
     "src/Mirror.sol",
     "src/MirrorProxy.sol",
-    # Warning (5740): Unreachable code.
-    "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol",
-    "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol",
-    # Warning (2018): Function state mutability can be restricted to pure.
-    "lib/symbiotic-core/src/contracts/vault/Vault.sol",
 ]
 # Required for Middleware tests
 fs_permissions = [ { access = "read-write", path = "out" }, { access = "read", path = "lib" } ]
+
+[fmt]
+sort_imports = true
 
 # Temporary disabled lint rules
 [lint]

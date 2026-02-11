@@ -37,7 +37,7 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
 
       - name: "Install: cargo-nextest"
-        run: cargo binstall --no-confirm cargo-nextest
+        run: cargo binstall --no-confirm --locked cargo-nextest
 
       - name: "ACTIONS: Download node"
         uses: actions/download-artifact@v4
@@ -52,13 +52,10 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: "${{ matrix.targets.target }}"
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"

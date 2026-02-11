@@ -15,7 +15,7 @@ ethexe-network.workspace = true
 ethexe-observer.workspace = true
 ethexe-blob-loader.workspace = true
 ethexe-processor.workspace = true
-ethexe-signer.workspace = true
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 ethexe-consensus.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common = { workspace = true, features = ["std", "mock"] }
@@ -67,6 +67,7 @@ tracing-subscriber.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 jsonrpsee = { workspace = true, features = ["client"] }
 async-broadcast.workspace = true
+wat.workspace = true
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-value-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }

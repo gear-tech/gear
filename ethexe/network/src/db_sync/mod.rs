@@ -28,11 +28,12 @@ pub(crate) use crate::{
 };
 use async_trait::async_trait;
 use ethexe_common::{
+    Announce,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, LatestDataStorageRO,
     },
     gear::CodeState,
-    network::{AnnouncesRequest, AnnouncesResponse, CheckedAnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesResponse},
 };
 use ethexe_db::Database;
 use futures::FutureExt;
@@ -255,7 +256,7 @@ pub enum Response {
         #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
     ),
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
-    Announces(CheckedAnnouncesResponse),
+    Announces(AnnouncesResponse),
 }
 
 pub type HandleResult = Result<Response, (RequestFailure, RetriableRequest)>;
@@ -333,11 +334,18 @@ pub(crate) enum InnerRequest {
     Announces(AnnouncesRequest),
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Encode, Decode)]
 pub(crate) struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub(crate) struct InnerProgramIdsResponse(BTreeSet<ActorId>);
+
+// TODO #4911: can be optimized - only not-base announces could be returned.
+/// Response for announces request.
+/// Must contain all announces for the requested range.
+/// Must be sorted from predecessors to successors.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
+pub(crate) struct InnerAnnouncesResponse(Vec<Announce>);
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]
@@ -345,7 +353,7 @@ pub(crate) enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
     ValidCodes(BTreeSet<CodeId>),
-    Announces(AnnouncesResponse),
+    Announces(InnerAnnouncesResponse),
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;

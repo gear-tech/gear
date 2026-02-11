@@ -24,12 +24,7 @@ use alloy::{
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
-use ethexe_common::{
-    Address, COMMITMENT_DELAY_LIMIT,
-    ecdsa::{PrivateKey, PublicKey},
-    gear::CodeState,
-    network::VerifiedValidatorMessage,
-};
+use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
@@ -46,12 +41,19 @@ use ethexe_observer::{
 };
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::PrometheusService;
-use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
+use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, num::NonZero, path::PathBuf, pin::Pin, time::Duration};
+use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
+use std::{
+    collections::{BTreeSet, HashMap},
+    num::NonZero,
+    path::PathBuf,
+    pin::Pin,
+    time::Duration,
+};
+use tokio::sync::oneshot;
 
 pub mod config;
 
@@ -118,33 +120,51 @@ pub struct Service {
 }
 
 impl Service {
+    /// Number of reserved dev accounts (deployer, validator).
+    const RESERVED_DEV_ACCOUNTS: u32 = 2;
+
     pub async fn configure_dev_environment(
         key_path: PathBuf,
         block_time: Duration,
-    ) -> Result<(AnvilInstance, PublicKey, PublicKey, Address)> {
-        let signer = Signer::fs(key_path);
+        pre_funded_accounts: u32,
+    ) -> Result<(AnvilInstance, PublicKey, Address)> {
+        let signer = Signer::fs(key_path).with_context(|| "failed to open dev keystore")?;
 
-        let anvil = Anvil::new().port(8545_u16).spawn();
+        let pre_funded_accounts = pre_funded_accounts
+            .checked_add(Self::RESERVED_DEV_ACCOUNTS)
+            .with_context(|| {
+                format!("number of pre-funded accounts is too large: {pre_funded_accounts}")
+            })?;
+        let anvil = Anvil::new()
+            .arg("--accounts")
+            .arg(pre_funded_accounts.to_string())
+            .port(8545_u16)
+            .spawn();
 
         let mut it = anvil
             .keys()
             .iter()
-            .map(|key| PrivateKey::from(key.clone()))
+            .map(|key| {
+                let seed = key.to_bytes().into();
+                PrivateKey::from_seed(seed).expect("anvil should provide valid secp256k1 key")
+            })
             .zip(anvil.addresses().iter().map(|addr| Address::from(*addr)));
 
         let (deployer_private_key, deployer_address) = it.next().expect("infallible");
         let (validator_private_key, validator_address) = it.next().expect("infallible");
-        let (sender_private_key, sender_address) = it.next().expect("infallible");
 
-        signer.storage_mut().add_key(deployer_private_key)?;
-        let validator_public_key = signer.storage_mut().add_key(validator_private_key)?;
-        let sender_public_key = signer.storage_mut().add_key(sender_private_key)?;
+        signer.import(deployer_private_key.clone())?;
+        let validator_public_key = signer.import(validator_private_key.clone())?;
 
         log::info!("🔐 Available Accounts:");
 
         log::info!("     Deployer:  {deployer_address} {deployer_private_key}");
         log::info!("     Validator: {validator_address} {validator_private_key}");
-        log::info!("     Sender:    {sender_address} {sender_private_key}");
+
+        for ((sender_private_key, sender_address), i) in it.clone().zip(1_usize..) {
+            log::info!("     Sender:    {sender_address} {sender_private_key} (#{i})");
+            signer.import(sender_private_key)?;
+        }
 
         let ethereum =
             EthereumDeployer::new(&anvil.ws_endpoint(), signer.clone(), deployer_address)
@@ -154,29 +174,41 @@ impl Service {
                 .deploy()
                 .await?;
 
-        let wvara = ethereum.wrapped_vara();
-        let decimals = wvara.query().decimals().await?;
-        wvara
-            .transfer(
-                sender_address.into(),
-                500_000 * (10_u128.pow(decimals as _)),
-            )
-            .await?;
-
         let provider: RootProvider = ProviderBuilder::default()
             .connect(anvil.ws_endpoint().as_str())
             .await?;
+
+        const ETHER: u128 = 1_000_000_000_000_000_000;
+        let balance = 10_000 * ETHER;
+        let balance = balance.try_into().expect("infallible");
+
+        let wvara = ethereum.wrapped_vara();
+        let decimals = wvara.query().decimals().await?;
+        let amount = 500_000 * (10_u128.pow(decimals as _));
+
+        provider
+            .anvil_set_balance(deployer_address.into(), balance)
+            .await?;
+
+        provider
+            .anvil_set_balance(validator_address.into(), balance)
+            .await?;
+
+        wvara.mint(validator_address.into(), amount).await?;
+
+        for (_, sender_address) in it {
+            provider
+                .anvil_set_balance(sender_address.into(), balance)
+                .await?;
+
+            wvara.mint(sender_address.into(), amount).await?;
+        }
 
         provider
             .anvil_set_interval_mining(block_time.as_secs())
             .await?;
 
-        Ok((
-            anvil,
-            validator_public_key,
-            sender_public_key,
-            ethereum.router().address(),
-        ))
+        Ok((anvil, validator_public_key, ethereum.router().address()))
     }
 
     pub async fn new(config: &Config) -> Result<Self> {
@@ -200,7 +232,7 @@ impl Service {
             .into_box();
 
         let prometheus = if let Some(config) = config.prometheus.clone() {
-            Some(PrometheusService::new(config)?)
+            Some(PrometheusService::new(config, db.clone())?)
         } else {
             None
         };
@@ -241,14 +273,14 @@ impl Service {
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
-            .threshold()
+            .validators_threshold()
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
         let processor = Processor::with_config(
             ProcessorConfig {
-                chunk_processing_threads: config.node.chunk_processing_threads,
+                chunk_size: config.node.chunk_processing_threads,
             },
             db.clone(),
         )
@@ -256,10 +288,10 @@ impl Service {
 
         log::info!(
             "🔧 Amount of chunk processing threads for programs processing: {}",
-            processor.config().chunk_processing_threads
+            processor.config().chunk_size
         );
 
-        let signer = Signer::fs(config.node.key_path.clone());
+        let signer = Signer::fs(config.node.key_path.clone())?;
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
@@ -274,7 +306,7 @@ impl Service {
             if let Some(pub_key) = validator_pub_key {
                 let ethereum = Ethereum::new(
                     &config.ethereum.rpc,
-                    config.ethereum.router_address.into(),
+                    config.ethereum.router_address,
                     signer.clone(),
                     pub_key.to_address(),
                 )
@@ -294,7 +326,6 @@ impl Service {
                         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
-                        validate_chain_deepness_limit: config.node.validate_chain_deepness_limit,
                         chain_deepness_threshold: config.node.chain_deepness_threshold,
                     },
                 )?)
@@ -316,7 +347,7 @@ impl Service {
                     .parent()
                     .context("key_path has no parent directory")?
                     .join("net"),
-            );
+            )?;
 
             let latest_block_data = observer
                 .block_loader()
@@ -372,7 +403,7 @@ impl Service {
     fn get_config_public_key(key: ConfigPublicKey, signer: &Signer) -> Result<Option<PublicKey>> {
         match key {
             ConfigPublicKey::Enabled(key) => Ok(Some(key)),
-            ConfigPublicKey::Random => Ok(Some(signer.generate_key()?)),
+            ConfigPublicKey::Random => Ok(Some(signer.generate()?)),
             ConfigPublicKey::Disabled => Ok(None),
         }
     }
@@ -455,6 +486,7 @@ impl Service {
             .await;
 
         let mut network_fetcher = FuturesUnordered::new();
+        let mut network_injected_txs: HashMap<_, oneshot::Sender<_>> = HashMap::new();
 
         loop {
             let event: Event = tokio::select! {
@@ -514,8 +546,8 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes)?;
                     }
-                    ComputeEvent::AnnounceComputed(announce_hash) => {
-                        consensus.receive_computed_announce(announce_hash)?
+                    ComputeEvent::AnnounceComputed(computed_data) => {
+                        consensus.receive_computed_announce(computed_data)?
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?
@@ -547,12 +579,70 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::InjectedTransaction(transaction) => {
-                            consensus.receive_injected_transaction(transaction)?;
+                        NetworkEvent::InjectedTransaction(event) => match event {
+                            ethexe_network::NetworkInjectedEvent::InboundTransaction {
+                                transaction,
+                                channel,
+                            } => {
+                                let res = consensus.receive_injected_transaction(transaction);
+                                channel
+                                    .send(res.into())
+                                    .expect("channel must never be closed");
+                            }
+                            ethexe_network::NetworkInjectedEvent::OutboundAcceptance {
+                                transaction_hash,
+                                acceptance,
+                            } => {
+                                let response_sender = network_injected_txs
+                                    .remove(&transaction_hash)
+                                    .expect("unknown transaction");
+                                let _res = response_sender.send(acceptance);
+                            }
+                        },
+                        NetworkEvent::PromiseMessage(promise) => {
+                            if let Some(rpc) = &rpc {
+                                rpc.provide_promise(promise);
+                            }
                         }
-                        NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
+                        NetworkEvent::ValidatorIdentityUpdated(_)
+                        | NetworkEvent::PeerBlocked(_)
+                        | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
+                // Event::Prometheus(event) => {
+                //     let Some(p) = prometheus.as_mut() else {
+                //         unreachable!("couldn't produce event without prometheus");
+                //     };
+
+                //     match event {
+                //         PrometheusEvent::CollectMetrics => {
+                //             let last_block = observer.last_block_number();
+                //             let pending_codes = blob_loader.pending_codes_len();
+
+                //             p.update_observer_metrics(last_block, pending_codes);
+
+                //             // Collect compute service metrics
+                //             let metrics = compute.get_metrics();
+
+                //             p.update_compute_metrics(
+                //                 metrics.blocks_queue_len,
+                //                 metrics.waiting_codes_count,
+                //                 metrics.process_codes_count,
+                //                 metrics
+                //                     .latest_committed_block
+                //                     .as_ref()
+                //                     .map(|b| b.header.height as u64),
+                //                 metrics
+                //                     .latest_committed_block
+                //                     .as_ref()
+                //                     .map(|b| b.header.timestamp),
+                //                 metrics.time_since_latest_committed_secs,
+                //             );
+
+                //             // TODO #4643: support metrics for consensus service
+                //         }
+                //     }
+                // }
                 Event::Rpc(event) => {
                     log::trace!("Received RPC event: {event:?}");
 
@@ -561,20 +651,31 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            // Note: zero address means that no matter what validator will insert this tx.
-                            if transaction.recipient == Address::default()
-                                || validator_address == Some(transaction.recipient)
-                            {
-                                consensus.receive_injected_transaction(transaction.tx)?;
+                            // zero address means that no matter what validator will insert this tx.
+                            let is_zero_address = transaction.recipient == Address::default();
+                            let is_our_address = Some(transaction.recipient) == validator_address;
+
+                            if is_zero_address || is_our_address {
+                                let acceptance = consensus
+                                    .receive_injected_transaction(transaction.tx)
+                                    .into();
+                                let _res = response_sender.send(acceptance);
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
                                 };
 
-                                network.send_injected_transaction(transaction);
-                            }
+                                let tx_hash = transaction.tx.data().to_hash();
 
-                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
+                                match network.send_injected_transaction(transaction) {
+                                    Ok(()) => {
+                                        network_injected_txs.insert(tx_hash, response_sender);
+                                    }
+                                    Err(err) => {
+                                        let _res = response_sender.send(Err(err).into());
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -603,13 +704,20 @@ impl Service {
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }
-                    ConsensusEvent::Promise(promise) => {
-                        let rpc = rpc
-                            .as_mut()
-                            .expect("cannot produce promise without event from RPC");
-                        rpc.provide_promise(promise);
+                    ConsensusEvent::Promises(promises) => {
+                        if rpc.is_none() && network.is_none() {
+                            panic!("Promise without network or rpc");
+                        }
 
-                        // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
+                        if let Some(rpc) = &rpc {
+                            rpc.provide_promises(promises.clone());
+                        }
+
+                        if let Some(network) = &mut network {
+                            for promise in promises {
+                                network.publish_promise(promise);
+                            }
+                        }
                     }
                 },
                 Event::Fetching(result) => {

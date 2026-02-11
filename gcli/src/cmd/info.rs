@@ -17,48 +17,46 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `info`
-use crate::App;
+use crate::{app::App, utils::HexBytes};
 use anyhow::Result;
 use clap::Parser;
-use gear_core::message::UserStoredMessage;
+use colored::Colorize;
+use gear_core::ids::ActorId;
 use gsdk::{
     Api,
-    ext::{
-        sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair},
-        sp_runtime::AccountId32,
-    },
-    gear::runtime_types::gear_common::storage::primitives::Interval,
+    ext::sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair},
 };
-use std::fmt;
+
+/// Get account info.
+#[derive(Clone, Debug, Parser)]
+pub struct Info {
+    /// Account address, defaults to the current account.
+    address: Option<String>,
+
+    #[command(subcommand)]
+    action: Action,
+}
 
 #[derive(Clone, Debug, Parser)]
 pub enum Action {
-    /// Get balance info of the current account
+    /// Get account balance.
     Balance,
-    /// Get mailbox info of the current account
+    /// List messages in the mailbox.
     Mailbox {
-        /// The count of mails for fetching
+        /// Limit number of fetched messages.
         #[arg(default_value = "10", short, long)]
         count: usize,
     },
 }
 
-/// Get account info from ss58address.
-#[derive(Clone, Debug, Parser)]
-pub struct Info {
-    /// Info of this address, if none, will use the logged in account.
-    pub address: Option<String>,
-
-    /// Info of balance, mailbox, etc.
-    #[command(subcommand)]
-    pub action: Action,
-}
-
 impl Info {
-    /// Execute command transfer
-    pub async fn exec(&self, app: &impl App) -> Result<()> {
+    pub async fn exec(self, app: &mut App) -> Result<()> {
+        let mut address = match self.address.clone() {
+            Some(address) => address,
+            None => app.ss58_address()?,
+        };
+
         let api = app.api().await?;
-        let mut address = self.address.clone().unwrap_or_else(|| app.ss58_address());
 
         if address.starts_with("//") {
             address = Pair::from_string(&address, None)
@@ -67,66 +65,45 @@ impl Info {
                 .to_ss58check()
         }
 
-        let acc = AccountId32::from_ss58check(&address)?;
+        let acc: ActorId = address.parse()?;
         match self.action {
-            Action::Balance => Self::balance(&api, acc).await,
-            Action::Mailbox { count } => Self::mailbox(&api, acc, count).await,
+            Action::Balance => Self::print_balance(&api, acc).await,
+            Action::Mailbox { count } => Self::print_mailbox(&api, acc, count).await,
         }
     }
 
-    /// Get balance of address
-    pub async fn balance(api: &Api, acc: AccountId32) -> Result<()> {
-        let info = api.free_balance(acc).await?;
-        println!("Free balance: {info:#?}");
+    /// Prints the account balance.
+    async fn print_balance(api: &Api, acc: ActorId) -> Result<()> {
+        let balance = api.free_balance(acc).await?;
+        println!("{} {}", "Free balance:".bold(), balance);
         Ok(())
     }
 
-    /// Get mailbox of address
-    pub async fn mailbox(api: &Api, acc: AccountId32, count: usize) -> Result<()> {
+    /// Prints the account mailbox.
+    async fn print_mailbox(api: &Api, acc: ActorId, count: usize) -> Result<()> {
         let mails = api.mailbox_messages(acc, count).await?;
-        for t in mails.into_iter() {
-            println!("{:#?}", Mail::from(t));
+        if mails.is_empty() {
+            println!("{}", "Mailbox is empty".dimmed());
+        }
+
+        for (message, interval) in mails {
+            println!("{} {}", "id:".bold(), message.id());
+            println!("{} {}", "source:".bold(), message.source());
+            println!("{} {}", "destination:".bold(), message.destination());
+            println!(
+                "{} {}",
+                "payload:".bold(),
+                HexBytes::from(message.payload_bytes().to_vec())
+            );
+            println!("{} {}", "value:".bold(), message.value());
+            println!(
+                "{} {}..{}",
+                "interval:".bold(),
+                interval.start,
+                interval.finish
+            );
+            println!("{}", "---".dimmed());
         }
         Ok(())
-    }
-}
-
-/// Program mail for display
-pub(crate) struct Mail {
-    message: UserStoredMessage,
-    interval: Interval<u32>,
-}
-
-impl From<(UserStoredMessage, Interval<u32>)> for Mail {
-    fn from(t: (UserStoredMessage, Interval<u32>)) -> Self {
-        Self {
-            message: t.0,
-            interval: t.1,
-        }
-    }
-}
-
-impl fmt::Debug for Mail {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Mail")
-            .field(
-                "id",
-                &["0x", &hex::encode(self.message.id().into_bytes())].concat(),
-            )
-            .field(
-                "source",
-                &["0x", &hex::encode(self.message.source().into_bytes())].concat(),
-            )
-            .field(
-                "destination",
-                &["0x", &hex::encode(self.message.destination().into_bytes())].concat(),
-            )
-            .field(
-                "payload",
-                &["0x", &hex::encode(self.message.payload_bytes())].concat(),
-            )
-            .field("value", &self.message.value())
-            .field("interval", &self.interval)
-            .finish()
     }
 }
