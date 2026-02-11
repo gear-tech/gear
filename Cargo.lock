@@ -5147,6 +5147,7 @@ dependencies = [
  "gprimitives",
  "gsigner",
  "indexmap 2.13.0",
+ "ip_network",
  "itertools 0.13.0",
  "libp2p 0.56.0",
  "libp2p-swarm-test",
