@@ -19,7 +19,7 @@
 //! Fuzz mode for the ethexe-node-loader.
 //!
 //! Deploys a "mega" syscall-exercising contract once, then repeatedly sends
-//! randomised [`FuzzCommand`] sequences to it, verifying that each execution
+//! randomised [`FuzzCommand`](demo_syscalls_ethexe::FuzzCommand) sequences to it, verifying that each execution
 //! either succeeds or traps in an expected way.
 
 mod cmd_gen;
