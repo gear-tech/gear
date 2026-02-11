@@ -4984,7 +4984,6 @@ dependencies = [
  "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
- "ethexe-runtime-common",
  "ethexe-service",
  "gear-workspace-hack",
  "gprimitives",

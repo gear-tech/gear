@@ -31,7 +31,6 @@ ethexe-common.workspace = true
 ethexe-processor.workspace = true
 ethexe-db.workspace = true
 ethexe-compute.workspace = true
-ethexe-runtime-common = { workspace = true, features = ["std"] }
 gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
