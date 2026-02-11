@@ -19,10 +19,7 @@
 //! Secp256k1 signature types and utilities backed by `sp_core` primitives.
 
 use super::{Address, Digest, PrivateKey, PublicKey};
-use crate::{
-    error::SignerError,
-    hash::{Eip191Hash, keccak256_iter},
-};
+use crate::{error::SignerError, hash::keccak256_iter};
 #[cfg(feature = "serde")]
 use alloc::{format, string::String};
 use core::hash::{Hash, Hasher};
@@ -68,16 +65,6 @@ impl Signature {
         Ok(Self::new(private_key.as_pair().sign_prehashed(&digest.0)))
     }
 
-    /// Create a recoverable signature from a precomputed digest.
-    pub fn create_from_eip191_hash<T>(
-        private_key: &PrivateKey,
-        eip191_hash: Eip191Hash<T>,
-    ) -> SignResult<Self> {
-        Ok(Self::new(
-            private_key.as_pair().sign_prehashed(eip191_hash.inner()),
-        ))
-    }
-
     /// Create a recoverable signature for the provided digest using the private key according to EIP-191.
     pub fn create_message<T>(private_key: &PrivateKey, data: T) -> SignResult<Self>
     where
@@ -108,13 +95,6 @@ impl Signature {
             .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
     }
 
-    // pub fn recover_from_eip191_hash<T>(&self, hash: Eip191Hash<T>) -> SignResult<PublicKey> {
-    //     self.0
-    //         .recover_prehashed(hash.inner())
-    //         .map(PublicKey::from)
-    //         .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
-    // }
-
     /// Recovers public key which was used to create the signature for the signed message
     /// according to EIP-191 standard.
     pub fn recover_message<T>(&self, data: T) -> SignResult<PublicKey>
@@ -141,18 +121,6 @@ impl Signature {
     /// Verifies the signature against a precomputed digest.
     pub fn verify_with_digest(&self, public_key: PublicKey, digest: &Digest) -> SignResult<()> {
         if SpPair::verify_prehashed(&self.0, &digest.0, &SpPublic::from(public_key)) {
-            Ok(())
-        } else {
-            Err(SignerError::Crypto("Verification failed".into()))
-        }
-    }
-
-    pub fn verify_with_eip191_hash<T>(
-        &self,
-        public_key: PublicKey,
-        eip191_hash: Eip191Hash<T>,
-    ) -> SignResult<()> {
-        if SpPair::verify_prehashed(&self.0, eip191_hash.inner(), &SpPublic::from(public_key)) {
             Ok(())
         } else {
             Err(SignerError::Crypto("Verification failed".into()))

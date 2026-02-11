@@ -18,9 +18,6 @@
 
 //! Lightweight hashing helpers shared across schemes.
 
-use crate::ToDigest;
-use core::marker::PhantomData;
-use parity_scale_codec::{Decode, Encode};
 use sha3::{Digest as _, Keccak256};
 
 /// Compute the Keccak-256 hash of a byte slice.
@@ -43,45 +40,4 @@ where
         hasher.update(part);
     }
     hasher.finalize().into()
-}
-
-/// Representing the EIP-191 hash standard.
-#[derive(Debug, PartialEq, Eq, Encode, Decode)]
-pub struct Eip191Hash<T> {
-    hash: [u8; 32],
-    _phantom: PhantomData<T>,
-}
-
-impl<T> Copy for Eip191Hash<T> {}
-
-impl<T> Clone for Eip191Hash<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Eip191Hash<T> {
-    pub fn inner(&self) -> &[u8; 32] {
-        &self.hash
-    }
-}
-
-impl<T> Eip191Hash<T>
-where
-    T: ToDigest,
-{
-    /// Constructs the [`Eip191Hash`] from [`Digest`].
-    pub fn new(value: &T) -> Eip191Hash<T> {
-        let digest = value.to_digest();
-        let mut hasher = Keccak256::new();
-
-        hasher.update(b"\x19Ethereum Signed Message:\n");
-        hasher.update(b"32");
-        hasher.update(digest.0.as_ref());
-
-        Eip191Hash {
-            hash: hasher.finalize().into(),
-            _phantom: PhantomData,
-        }
-    }
 }
