@@ -7186,6 +7186,7 @@ dependencies = [
  "const-hex",
  "constant_time_eq 0.4.2",
  "crc32fast",
+ "crossbeam-epoch",
  "crossbeam-utils",
  "crunchy",
  "crypto-common",
