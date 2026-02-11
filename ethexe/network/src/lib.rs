@@ -42,9 +42,9 @@ use ethexe_common::{
     injected::{AddressedInjectedTransaction, SignedPromise},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
-use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::H256;
+use gsigner::secp256k1::Signer;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
@@ -112,6 +112,7 @@ pub struct NetworkConfig {
     pub bootstrap_addresses: HashSet<Multiaddr>,
     pub listen_addresses: HashSet<Multiaddr>,
     pub transport_type: TransportType,
+    pub allow_non_global_addresses: bool,
 }
 
 impl NetworkConfig {
@@ -123,6 +124,7 @@ impl NetworkConfig {
             listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
             transport_type: TransportType::Default,
             router_address,
+            allow_non_global_addresses: false,
         }
     }
 
@@ -134,6 +136,7 @@ impl NetworkConfig {
             listen_addresses: Default::default(),
             transport_type: TransportType::Test,
             router_address,
+            allow_non_global_addresses: true,
         }
     }
 }
@@ -153,6 +156,7 @@ pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
     listeners: Vec<ListenerId>,
+    bootstrap_peers: HashSet<PeerId>,
     validator_list: ValidatorList,
     validator_topic: ValidatorTopic,
 }
@@ -198,6 +202,7 @@ impl NetworkService {
             listen_addresses,
             transport_type,
             router_address,
+            allow_non_global_addresses,
         } = config;
 
         let NetworkRuntimeConfig {
@@ -228,6 +233,7 @@ impl NetworkService {
             validator_key,
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
+            allow_non_global_addresses,
         };
         let mut swarm =
             NetworkService::create_swarm(keypair.clone(), transport_type, behaviour_config)?;
@@ -247,6 +253,7 @@ impl NetworkService {
             listeners.push(id);
         }
 
+        let mut bootstrap_peers = HashSet::new();
         for multiaddr in bootstrap_addresses {
             let peer_id = multiaddr
                 .iter()
@@ -260,6 +267,7 @@ impl NetworkService {
                 .context("bootstrap nodes are not allowed without peer ID")?;
 
             swarm.behaviour_mut().kad.add_address(peer_id, multiaddr);
+            bootstrap_peers.insert(peer_id);
         }
 
         log::info!(
@@ -270,14 +278,15 @@ impl NetworkService {
         Ok(Self {
             swarm,
             listeners,
+            bootstrap_peers,
             validator_list,
             validator_topic,
         })
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
-        let key = signer.storage().get_private_key(key)?;
-        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
+        let mut key = signer.private_key(key)?.to_bytes();
+        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key)
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
         Ok(identity::Keypair::from(pair))
@@ -410,6 +419,11 @@ impl NetworkService {
                 // according to `identify` and `kad` protocols docs
                 for listen_addr in info.listen_addrs {
                     behaviour.kad.add_address(peer_id, listen_addr);
+                }
+
+                // NOTE: it means we have to trust bootstrap peers about our external address
+                if self.bootstrap_peers.contains(&peer_id) {
+                    self.swarm.add_external_address(info.observed_addr);
                 }
             }
             identify::Event::Error { peer_id, error, .. } => {
@@ -609,6 +623,7 @@ struct BehaviourConfig {
     validator_key: Option<PublicKey>,
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
+    allow_non_global_addresses: bool,
 }
 
 #[derive(NetworkBehaviour)]
@@ -649,6 +664,7 @@ impl Behaviour {
             validator_key,
             general_signer,
             validator_list_snapshot,
+            allow_non_global_addresses,
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
@@ -703,13 +719,15 @@ impl Behaviour {
 
         let injected = injected::Behaviour::new(peer_score_handle);
 
-        let validator_discovery = validator::discovery::Behaviour::new(
-            kad_handle,
+        let validator_discovery = validator::discovery::Config {
+            kad: kad_handle,
             keypair,
             validator_key,
-            general_signer,
-            validator_list_snapshot,
-        );
+            signer: general_signer,
+            snapshot: validator_list_snapshot,
+            allow_non_global_addresses,
+        };
+        let validator_discovery = validator::discovery::Behaviour::new(validator_discovery);
 
         Ok(Self {
             custom_connection_limits,
@@ -738,8 +756,8 @@ mod tests {
     use async_trait::async_trait;
     use ethexe_common::{BlockHeader, ProtocolTimelines, db::OnChainStorageRW, gear::CodeState};
     use ethexe_db::Database;
-    use ethexe_signer::Signer;
     use gprimitives::{ActorId, CodeId, H256};
+    use gsigner::secp256k1::Signer;
     use nonempty::nonempty;
     use std::{
         collections::{BTreeSet, HashMap},
@@ -856,7 +874,7 @@ mod tests {
 
             db.set_protocol_timelines(TIMELINES);
 
-            let key = signer.generate_key().unwrap();
+            let key = signer.generate().unwrap();
             let config = NetworkConfig::new_test(key, Address::default());
 
             let runtime_config = NetworkRuntimeConfig {
@@ -975,8 +993,8 @@ mod tests {
 
         let signer = Signer::memory();
 
-        let alice_key = signer.generate_key().unwrap();
-        let bob_key = signer.generate_key().unwrap();
+        let alice_key = signer.generate().unwrap();
+        let bob_key = signer.generate().unwrap();
 
         let latest_validators: ValidatorsVec =
             nonempty![alice_key.to_address(), bob_key.to_address()].into();

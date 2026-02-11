@@ -18,7 +18,14 @@ ethexe-prometheus.workspace = true
 ethexe-rpc = { workspace = true, features = ["client"] }
 ethexe-service.workspace = true
 ethexe-observer.workspace = true
-ethexe-signer.workspace = true
+gsigner = { workspace = true, features = [
+    "std",
+    "secp256k1",
+    "cli",
+    "peer-id",
+    "keyring",
+    "serde",
+] }
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 ethexe-processor.workspace = true
@@ -35,7 +42,6 @@ tracing-subscriber.workspace = true
 hex.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
 log.workspace = true
-libp2p-identity = { version = "0.2.12", features = ["secp256k1"] }
 serde.workspace = true
 serde_json.workspace = true
 sp-core = { workspace = true, features = ["std"] }

@@ -63,13 +63,13 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
-use ethexe_signer::Signer;
 use futures::{
     Stream, StreamExt,
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
 };
 use gprimitives::H256;
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use initial::Initial;
 use std::{
     collections::VecDeque,
@@ -549,6 +549,9 @@ impl ValidatorContext {
     }
 
     pub fn sign_message<T: Sized + ToDigest>(&self, data: T) -> Result<SignedMessage<T>> {
-        self.core.signer.signed_message(self.core.pub_key, data)
+        Ok(self
+            .core
+            .signer
+            .signed_message(self.core.pub_key, data, None)?)
     }
 }

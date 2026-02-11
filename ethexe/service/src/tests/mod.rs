@@ -57,13 +57,13 @@ use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, InjectedClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
-use ethexe_signer::Signer;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -124,7 +124,7 @@ async fn basics() {
     let service = Service::new(&config).await.unwrap();
 
     // Enable all optional services
-    let network_key = service.signer.generate_key().unwrap();
+    let network_key = service.signer.generate().unwrap();
     config.network = Some(ethexe_network::NetworkConfig::new_local(
         network_key,
         config.ethereum.router_address,
@@ -133,7 +133,9 @@ async fn basics() {
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
-        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * config.node.block_gas_limit,
+        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER
+            .checked_mul(config.node.block_gas_limit)
+            .unwrap(),
         chunk_size: config.node.chunk_processing_threads,
     });
 
@@ -143,6 +145,71 @@ async fn basics() {
     ));
 
     Service::new(&config).await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn write_memory_to_last_byte() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let wat = r#"
+(module
+    (import "env" "memory" (memory 32768))
+    (export "init" (func $init))
+    (func $init
+        (i32.store8
+            (i32.const 2147483647)
+            (i32.const 0xff)
+        )
+    )
+)"#;
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse module");
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, wasm_binary);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, &[])
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(res.payload.is_empty());
+    assert_eq!(res.value, 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -303,7 +370,7 @@ async fn uninitialized_program() {
             .send_message(init_res.program_id, &init_payload)
             .await
             .unwrap();
-        let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
+        let mirror = env.ethereum.mirror(init_res.program_id);
 
         let msgs_for_reply: Vec<_> = receiver
             .clone()
@@ -534,7 +601,7 @@ async fn mailbox() {
         ]),
     )]);
 
-    let mirror = env.ethereum.mirror(async_pid.try_into().unwrap());
+    let mirror = env.ethereum.mirror(async_pid);
     let state_hash = mirror.query().state_hash().await.unwrap();
 
     let state = node.db.program_state(state_hash).unwrap();
@@ -1473,7 +1540,7 @@ async fn send_injected_tx() {
         recipient: validator1_pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(validator0_pubkey, tx.clone())
+            .signed_message(validator0_pubkey, tx.clone(), None)
             .unwrap(),
     };
 
@@ -2402,7 +2469,10 @@ async fn injected_tx_fungible_token() {
 
     let rpc_tx = AddressedInjectedTransaction {
         recipient: pubkey.to_address(),
-        tx: env.signer.signed_message(pubkey, mint_tx.clone()).unwrap(),
+        tx: env
+            .signer
+            .signed_message(pubkey, mint_tx.clone(), None)
+            .unwrap(),
     };
 
     let acceptance = rpc_client
@@ -2488,7 +2558,7 @@ async fn injected_tx_fungible_token() {
         recipient: pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(pubkey, transfer_tx.clone())
+            .signed_message(pubkey, transfer_tx.clone(), None)
             .unwrap(),
     };
     let ws_client = node
@@ -2540,7 +2610,7 @@ async fn injected_tx_fungible_token_over_network() {
 
     let mut env = TestEnv::new(env_config).await.unwrap();
 
-    let user_pubkey = env.signer.generate_key().unwrap();
+    let user_pubkey = env.signer.generate().unwrap();
 
     let mut alice_node = env.new_node(NodeConfig::named("Alice").service_rpc(8091));
     alice_node.start_service().await;
@@ -2619,7 +2689,7 @@ async fn injected_tx_fungible_token_over_network() {
         recipient: bob_pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(user_pubkey, mint_tx.clone())
+            .signed_message(user_pubkey, mint_tx.clone(), None)
             .unwrap(),
     };
 
@@ -3183,7 +3253,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let receiver = env.new_observer_events();
         let pending = env
             .ethereum
-            .mirror(ping_id.try_into().unwrap())
+            .mirror(ping_id)
             .send_message_pending(b"PING", 0)
             .await
             .unwrap();
@@ -3228,7 +3298,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let receiver = env.new_observer_events();
         let pending = env
             .ethereum
-            .mirror(ping_id.try_into().unwrap())
+            .mirror(ping_id)
             .send_message_pending(b"PING", 0)
             .await
             .unwrap();

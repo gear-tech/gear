@@ -381,7 +381,7 @@ mod tests {
         validator::discovery::{SignedValidatorIdentity, ValidatorAddresses, ValidatorIdentity},
     };
     use ethexe_common::{injected::InjectedTransaction, mock::Mock};
-    use ethexe_signer::Signer;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use libp2p::{
         Swarm, Transport,
         core::{transport::MemoryTransport, upgrade::Version},
@@ -392,10 +392,10 @@ mod tests {
 
     fn addressed_injected_tx(recipient: Address) -> AddressedInjectedTransaction {
         let signer = Signer::memory();
-        let pub_key = signer.generate_key().unwrap();
+        let pub_key = signer.generate().unwrap();
 
         let tx = InjectedTransaction::mock(());
-        let tx = signer.signed_message(pub_key, tx).unwrap();
+        let tx = signer.signed_message(pub_key, tx, None).unwrap();
 
         AddressedInjectedTransaction { recipient, tx }
     }
@@ -423,7 +423,7 @@ mod tests {
         let (mem_addr, _tcp_addr) = swarm.listen().with_memory_addr_external().await;
 
         let signer = Signer::memory();
-        let pub_key = signer.generate_key().unwrap();
+        let pub_key = signer.generate().unwrap();
 
         let identity = ValidatorIdentity {
             addresses: ValidatorAddresses::new(*swarm.local_peer_id(), mem_addr),

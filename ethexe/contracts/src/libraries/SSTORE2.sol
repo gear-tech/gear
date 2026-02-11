@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
 /// @notice Read and write to persistent storage at a fraction of the cost.
 /// @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/utils/SSTORE2.sol)
 /// @author Modified from 0xSequence (https://github.com/0xSequence/sstore2/blob/master/contracts/SSTORE2.sol)
 library SSTORE2 {
+    error DeploymentFailed();
+
+    error OutOfBounds();
+
     uint256 internal constant DATA_OFFSET = 1; // We skip the first byte as it's a STOP opcode to ensure the contract can't be called.
 
     /*//////////////////////////////////////////////////////////////
@@ -40,7 +44,7 @@ library SSTORE2 {
             pointer := create(0, add(creationCode, 32), mload(creationCode))
         }
 
-        require(pointer != address(0), "DEPLOYMENT_FAILED");
+        require(pointer != address(0), DeploymentFailed());
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -61,7 +65,7 @@ library SSTORE2 {
         start += DATA_OFFSET;
         end += DATA_OFFSET;
 
-        require(pointer.code.length >= end, "OUT_OF_BOUNDS");
+        require(pointer.code.length >= end, OutOfBounds());
 
         return readBytecode(pointer, start, end - start);
     }
