@@ -52,7 +52,7 @@ impl RunCommand {
     /// Run the ethexe service (node).
     pub fn run(mut self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
-        super::enable_logging(default)?;
+        crate::enable_logging(default)?;
 
         let mut anvil_instance = None;
 

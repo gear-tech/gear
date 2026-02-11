@@ -133,8 +133,8 @@ impl IntegrityVerifier {
         }
     }
 
-    pub fn errors(&self) -> &[IntegrityVerifierError] {
-        &self.errors
+    pub fn into_errors(self) -> Vec<IntegrityVerifierError> {
+        self.errors
     }
 }
 

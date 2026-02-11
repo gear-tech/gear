@@ -32,8 +32,7 @@ use ethexe_processor::{Processor, ProcessorConfig};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{collections::HashSet, path::PathBuf};
 
-// TODO: database integrity check is too slow, needs parallelization or some kind of optimization
-
+// TODO: #5142 database integrity check is too slow, needs parallelization or some kind of optimization
 const PROGRESS_BAR_TEMPLATE: &str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({percent}%) ETA {eta_precise} {msg}";
 
 /// Run checks on ethexe database, see more in [`super::Command::Check`].
@@ -73,7 +72,7 @@ impl CheckCommand {
 
     async fn exec_inner(mut self) -> Result<()> {
         if self.verbose {
-            super::enable_logging("debug")?;
+            crate::enable_logging("debug")?;
         }
 
         if !self.computation_check && !self.integrity_check {
@@ -165,6 +164,7 @@ impl Checker {
         let mut block = head;
         let mut visited_nodes = HashSet::new();
         while block.hash != bottom.hash {
+            // TODO: #5143 impl DST iterator to avoid using `visited_nodes` here
             DatabaseIterator::with_skip_nodes(
                 &db,
                 BlockNode { block: block.hash },
@@ -189,11 +189,9 @@ impl Checker {
             };
         }
 
-        if !verifier.errors().is_empty() {
-            return Err(anyhow!(
-                "Integrity check errors found: {:?}",
-                verifier.errors()
-            ));
+        let errors = verifier.into_errors();
+        if !errors.is_empty() {
+            return Err(anyhow!("Integrity check errors found: {errors:?}",));
         }
 
         Ok(())
