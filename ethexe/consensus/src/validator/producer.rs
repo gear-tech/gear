@@ -22,13 +22,14 @@ use super::{
 use crate::{
     ConsensusEvent,
     announces::{self, DBAnnouncesExt},
+    utils::sign_announce_promises,
     validator::DefaultProcessing,
 };
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, injected::CompactPromiseHashes, network::ValidatorMessage,
+    gear::BatchCommitment, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -82,18 +83,9 @@ impl StateHandler for Producer {
                 if *expected == computed_data.announce_hash =>
             {
                 if !computed_data.promises.is_empty() {
-                    let signed_promises = computed_data
-                        .promises
-                        .into_iter()
-                        .map(|promise| {
-                            let compact_hashes = CompactPromiseHashes::from(&promise);
-                            self.ctx.core.signer.signed_message(
-                                self.ctx.core.pub_key,
-                                compact_hashes,
-                                None,
-                            )
-                        })
-                        .collect::<Result<_, _>>()?;
+                    let (signer, public_key) = (&self.ctx.core.signer, self.ctx.core.pub_key);
+                    let signed_promises =
+                        sign_announce_promises(signer, public_key, computed_data.promises)?;
 
                     self.ctx.output(ConsensusEvent::Promises(signed_promises));
                 }

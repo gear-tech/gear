@@ -31,6 +31,7 @@ use ethexe_common::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
         StateTransition, ValidatorsCommitment,
     },
+    injected::{CompactPromiseHashes, CompactSignedPromise, Promise},
 };
 use gprimitives::{CodeId, H256, U256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
@@ -429,6 +430,23 @@ pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition])
         rhs.value_to_receive_negative_sign
             .cmp(&lhs.value_to_receive_negative_sign)
     });
+}
+
+/// A helper function that signs a bundle of promises to distribute signed promises in network.
+pub fn sign_announce_promises(
+    signer: &Signer,
+    public_key: PublicKey,
+    promises: Vec<Promise>,
+) -> Result<Vec<CompactSignedPromise>> {
+    promises
+        .into_iter()
+        .map(|promise| {
+            let promise_hashes = CompactPromiseHashes::from(&promise);
+            signer
+                .signed_message(public_key, promise_hashes, None)
+                .map_err(Into::into)
+        })
+        .collect::<Result<_, _>>()
 }
 
 #[cfg(test)]
