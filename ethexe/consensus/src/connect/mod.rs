@@ -163,8 +163,6 @@ impl ConnectService {
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
                 self.output
                     .push_back(ConsensusEvent::ComputeAnnounce(announce));
-
-                self.state = State::WaitingForBlock;
             }
         }
 
@@ -276,27 +274,8 @@ impl ConsensusService for ConnectService {
             && sender == *producer
             && announce.block_hash == block.hash
         {
-            match announces::accept_announce(&self.db, announce.clone())? {
-                AnnounceStatus::Rejected { announce, reason } => {
-                    tracing::warn!(
-                        announce = %announce.to_hash(),
-                        reason = %reason,
-                        producer = %producer,
-                        "Announce rejected",
-                    );
-
-                    self.output
-                        .push_back(ConsensusEvent::AnnounceRejected(announce.to_hash()));
-                }
-                AnnounceStatus::Accepted(announce_hash) => {
-                    self.output
-                        .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
-                    self.output
-                        .push_back(ConsensusEvent::ComputeAnnounce(announce));
-
-                    self.state = State::WaitingForBlock;
-                }
-            }
+            self.process_announce_from_producer(announce, *producer)?;
+            self.state = State::WaitingForBlock;
         } else {
             tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
             self.pending_announces
