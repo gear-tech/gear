@@ -4182,6 +4182,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-syscalls-ethexe"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gear-workspace-hack",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-value-sender"
 version = "0.1.0"
 dependencies = [
@@ -5210,6 +5220,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "clap 4.5.54",
+ "demo-syscalls-ethexe",
  "ethexe-common",
  "ethexe-ethereum",
  "ethexe-sdk",
@@ -5221,6 +5232,7 @@ dependencies = [
  "gear-workspace-hack",
  "gprimitives",
  "gsigner",
+ "parity-scale-codec",
  "rand 0.8.5",
  "tokio",
  "tracing",

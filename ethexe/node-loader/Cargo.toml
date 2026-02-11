@@ -30,8 +30,10 @@ gear-call-gen.workspace = true
 gear-wasm-gen.workspace = true
 gear-core.workspace = true
 gear-utils.workspace = true
+parity-scale-codec.workspace = true
 rand = { workspace = true }
 gsigner.workspace = true
+demo-syscalls-ethexe = { workspace = true, features = ["ethexe"] }
 
 
 [dev-dependencies]
