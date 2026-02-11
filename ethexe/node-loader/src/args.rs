@@ -8,7 +8,7 @@ use std::str::FromStr;
 #[command(
     name = "ethexe-node-loader",
     about = "Load-testing tool for an ethexe dev node",
-    long_about = "ethexe-node-loader generates randomized workloads against an ethexe dev node. It can upload code/programs, send messages, send replies, and claim values in batches to stress-test the node.\n\nUse `load` for continuous traffic generation and `dump` to generate a wasm program from a seed for debugging."
+    long_about = "ethexe-node-loader generates randomized workloads against an ethexe dev node. It can upload code/programs, send messages, send replies, and claim values in batches to stress-test the node.\n\nUse `load` for continuous traffic generation, `fuzz` to exercise syscalls via a mega contract, and `dump` to generate a wasm program from a seed for debugging."
 )]
 pub enum Params {
     /// Dump the wasm program with provided seed to "out.wasm"
@@ -18,6 +18,8 @@ pub enum Params {
     },
     /// Perform load test on the node
     Load(LoadParams),
+    /// Fuzz-test syscalls via the mega contract
+    Fuzz(FuzzParams),
 }
 
 #[derive(Debug, Parser)]
@@ -54,6 +56,36 @@ pub struct LoadParams {
 
 pub fn parse_cli_params() -> Params {
     Params::parse()
+}
+
+#[derive(Debug, Parser)]
+pub struct FuzzParams {
+    /// Ethereum RPC node endpoint
+    #[arg(long, default_value = "ws://localhost:8545")]
+    pub node: String,
+    /// Ethexe sequencer node endpoint
+    #[arg(long, default_value = "ws://localhost:9944")]
+    pub ethexe_node: String,
+
+    /// Router address to send messages into.
+    #[arg(long, default_value = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9")]
+    pub router_address: String,
+
+    /// A private key for sender account.
+    #[arg(long, env = "SENDER_PRIVATE_KEY")]
+    pub sender_private_key: Option<String>,
+
+    /// Seed for the random fuzz command generator.
+    #[arg(long)]
+    pub seed: Option<u64>,
+
+    /// Number of fuzz iterations (0 = infinite).
+    #[arg(long, default_value = "100")]
+    pub iterations: u64,
+
+    /// Maximum commands per message sent to the mega contract.
+    #[arg(long, default_value = "8")]
+    pub max_commands: usize,
 }
 
 #[derive(Debug, Clone)]

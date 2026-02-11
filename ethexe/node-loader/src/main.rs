@@ -1,10 +1,10 @@
 mod args;
 mod batch;
+mod fuzz;
 mod utils;
 use alloy::{
-    network::Network,
     primitives::Address,
-    providers::{Provider, RootProvider},
+    providers::Provider,
     signers::local::{MnemonicBuilder, coins_bip39::English},
 };
 use anyhow::Result;
@@ -13,7 +13,7 @@ use ethexe_ethereum::Ethereum;
 
 use rand::rngs::SmallRng;
 use std::str::FromStr;
-use tokio::{sync::broadcast::Sender, task::JoinSet};
+use tokio::task::JoinSet;
 use tracing::info;
 
 use crate::{args::LoadParams, batch::BatchPool};
@@ -39,6 +39,11 @@ async fn main() -> Result<()> {
             info!("Starting load test on {}", load_params.node);
 
             load_node(load_params).await
+        }
+        Params::Fuzz(fuzz_params) => {
+            info!("Starting syscall fuzz test on {}", fuzz_params.node);
+
+            fuzz::run_fuzz(fuzz_params).await
         }
     }
 }
@@ -205,23 +210,9 @@ async fn load_node(params: LoadParams) -> Result<()> {
     );
 
     let run_result = tokio::select! {
-        r = listen_blocks(tx, provider.root().clone()) => r,
+        r = utils::listen_blocks(tx, provider.root().clone()) => r,
         r = batch_pool.run(params, rx) => r,
     };
 
     run_result
-}
-
-async fn listen_blocks(
-    tx: Sender<<alloy::network::Ethereum as Network>::HeaderResponse>,
-    provider: RootProvider,
-) -> Result<()> {
-    let mut sub = provider.subscribe_blocks().await?;
-
-    while let Ok(block) = sub.recv().await {
-        tx.send(block)
-            .map_err(|_| anyhow::anyhow!("Failed to send block"))?;
-    }
-
-    Err(anyhow::anyhow!("Block subscription ended unexpectedly."))
 }
