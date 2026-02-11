@@ -240,11 +240,6 @@ async fn collect_program_states(
             format!("Failed to get state hash for actor {actor_id} at block {at}",)
         })?;
 
-        anyhow::ensure!(
-            !state_hash.is_zero(),
-            "State hash is zero for actor {actor_id} at block {at}"
-        );
-
         program_states.insert(actor_id, state_hash);
     }
 
