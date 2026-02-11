@@ -813,8 +813,8 @@ mod tests {
         let (mut ctx, _, eth) = mock_validator_context();
         let chain = BlockChain::mock(20)
             .tap_mut(|chain| {
-                chain.config.timelines.era = 10 * chain.config.timelines.slot as u64;
-                chain.config.timelines.election = 5 * chain.config.timelines.slot as u64;
+                chain.config.timelines.era = 10 * chain.config.timelines.slot;
+                chain.config.timelines.election = 5 * chain.config.timelines.slot;
             })
             .setup(&ctx.core.db);
         ctx.core.timelines = chain.config.timelines;
