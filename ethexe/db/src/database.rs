@@ -651,7 +651,7 @@ impl InjectedStorageRW for Database {
     }
 
     fn set_promise(&self, promise: Promise) {
-        tracing::trace!(promise_tx_hash = ?promise.tx_hash, "Set promise for injected transaction");
+        tracing::trace!(?promise, "Set promise for injected transaction");
 
         self.kv
             .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
@@ -663,7 +663,7 @@ impl InjectedStorageRW for Database {
         signature: Signature,
         address: Address,
     ) {
-        tracing::trace!(tx_hash = ?hash, ?signature,  "Set signature for injected transaction promise");
+        tracing::trace!(tx_hash = ?hash, ?signature, ?address, "Set signature for injected transaction promise");
 
         self.kv.put(
             &Key::PromiseSignature(hash).to_bytes(),

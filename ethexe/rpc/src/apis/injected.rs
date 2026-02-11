@@ -169,7 +169,12 @@ impl InjectedApi {
     pub fn receive_compact_promise(&self, compact_promise: CompactSignedPromise) {
         match self.db.promise(compact_promise.data().tx_hash) {
             Some(promise) => {
-                tracing::trace!(tx_hash = ?promise.tx_hash, "Promise already computed, send to user");
+                tracing::trace!(tx_hash = ?promise.tx_hash, "Promise already computed, sending to user...");
+                self.db.set_promise_signature(
+                    promise.tx_hash,
+                    *compact_promise.signature(),
+                    compact_promise.address(),
+                );
                 self.send_promise(promise, compact_promise);
             }
             None => {

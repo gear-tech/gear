@@ -201,7 +201,6 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         })
         .ok_or(ComputeError::LatestDataNotFound)?;
 
-        // TODO: remove in this PR ComputedAnnounce struct.
         promises.clone().into_iter().for_each(|promise| {
             db.set_promise(promise);
         });

@@ -288,7 +288,7 @@ impl ValidatorTopic {
         match self.inner_verify_promise(source, compact_promise) {
             Ok(compact_promise) => (MessageAcceptance::Accept, Some(compact_promise)),
             Err(err) => {
-                log::trace!("failed to verify promises bundle: {err}");
+                log::trace!("failed to verify compact promise: {err}");
                 (MessageAcceptance::Ignore, None)
             }
         }

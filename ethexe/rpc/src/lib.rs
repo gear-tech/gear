@@ -163,18 +163,6 @@ impl RpcService {
             .into_iter()
             .for_each(|compact_promise| self.provide_compact_promise(compact_promise));
     }
-
-    // Provides a promise inside RPC service to be sent to subscribers.
-    // pub fn provide_promise(&self, promise: CompactSignedPromise) {
-    //     self.injected_api.send_promise(promise);
-    // }
-
-    // Provides a bundle of promises inside RPC service to be sent to subscribers.
-    // pub fn provide_promises(&self, promises: Vec<CompactSignedPromise>) {
-    //     promises.into_iter().for_each(|promise| {
-    //         self.provide_promise(promise);
-    //     });
-    // }
 }
 
 impl Stream for RpcService {
