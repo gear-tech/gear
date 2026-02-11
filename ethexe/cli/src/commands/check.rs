@@ -214,10 +214,10 @@ impl Checker {
         );
 
         let pb = if progress_bar {
-            let total_blocks = announce_block(&db, head)?
+            let total_blocks = announce_block(db, head)?
                 .header
                 .height
-                .checked_sub(announce_block(&db, bottom)?.header.height)
+                .checked_sub(announce_block(db, bottom)?.header.height)
                 .ok_or_else(|| anyhow!("Incorrect announces range"))?;
             let bar_style = ProgressStyle::with_template(PROGRESS_BAR_TEMPLATE)
                 .unwrap()
