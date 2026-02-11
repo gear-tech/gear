@@ -434,13 +434,12 @@ impl TestEnv {
             .await?;
 
         if initial_executable_balance != 0 {
-            let program_address = program_id.to_address_lossy().0.into();
             router
                 .wvara()
-                .approve(program_address, initial_executable_balance)
+                .approve(program_id, initial_executable_balance)
                 .await?;
 
-            let mirror = self.ethereum.mirror(program_address);
+            let mirror = self.ethereum.mirror(program_id);
 
             mirror
                 .executable_balance_top_up(initial_executable_balance)
@@ -472,13 +471,12 @@ impl TestEnv {
             .await?;
 
         if initial_executable_balance != 0 {
-            let program_address = program_id.to_address_lossy().0.into();
             router
                 .wvara()
-                .approve(program_address, initial_executable_balance)
+                .approve(program_id, initial_executable_balance)
                 .await?;
 
-            let mirror = self.ethereum.mirror(program_address);
+            let mirror = self.ethereum.mirror(program_id);
 
             mirror
                 .executable_balance_top_up(initial_executable_balance)
@@ -511,8 +509,7 @@ impl TestEnv {
         );
 
         let receiver = self.new_observer_events();
-        let program_address = Address::try_from(program_id)?;
-        let program = self.ethereum.mirror(program_address);
+        let program = self.ethereum.mirror(program_id);
 
         let (_, message_id) = program.send_message(payload, value).await?;
 
@@ -526,21 +523,16 @@ impl TestEnv {
     pub async fn approve_wvara(&self, program_id: ActorId) {
         log::info!("📗 Approving WVara for {program_id}");
 
-        let program_address = Address::try_from(program_id).unwrap();
         let wvara = self.ethereum.router().wvara();
-        wvara.approve_all(program_address.0.into()).await.unwrap();
+        wvara.approve_all(program_id).await.unwrap();
     }
 
     #[allow(dead_code)]
     pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
         log::info!("📗 Transferring {value} WVara to {program_id}");
 
-        let program_address = Address::try_from(program_id).unwrap();
         let wvara = self.ethereum.router().wvara();
-        wvara
-            .transfer(program_address.0.into(), value)
-            .await
-            .unwrap();
+        wvara.transfer(program_id, value).await.unwrap();
     }
 
     /// Creates a new observer events receiver without previously emitted events

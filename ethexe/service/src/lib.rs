@@ -195,14 +195,14 @@ impl Service {
             .anvil_set_balance(validator_address.into(), balance)
             .await?;
 
-        wvara.mint(validator_address, amount).await?;
+        wvara.mint(validator_address.into(), amount).await?;
 
         for (_, sender_address) in it {
             provider
                 .anvil_set_balance(sender_address.into(), balance)
                 .await?;
 
-            wvara.mint(sender_address, amount).await?;
+            wvara.mint(sender_address.into(), amount).await?;
         }
 
         provider

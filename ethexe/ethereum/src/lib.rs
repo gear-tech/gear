@@ -43,7 +43,7 @@ use alloy::{
 use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{BlockHeader, Digest, SimpleBlockData, ecdsa::PublicKey};
-use gprimitives::{H256, MessageId};
+use gprimitives::{ActorId, H256, MessageId};
 use gsigner::secp256k1::{Address, Secp256k1SignerExt, Signer};
 use middleware::Middleware;
 use mirror::Mirror;
@@ -166,8 +166,8 @@ impl Ethereum {
         Ok(SimpleBlockData { hash, header })
     }
 
-    pub fn mirror(&self, address: Address) -> Mirror {
-        Mirror::new(address.0.into(), self.provider())
+    pub fn mirror(&self, actor_id: ActorId) -> Mirror {
+        Mirror::new(actor_id.into(), self.provider())
     }
 
     pub fn router(&self) -> Router {

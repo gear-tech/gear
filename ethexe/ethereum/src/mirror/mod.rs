@@ -19,41 +19,35 @@
 use crate::{
     AlloyProvider, IntoBlockId, TryGetReceipt,
     abi::{self, IMirror},
+    mirror::events::AllEventsBuilder,
 };
 use alloy::{
     contract::CallBuilder,
     eips::BlockId,
-    hex, network,
-    primitives::{Address, Bytes, U256 as AlloyU256},
+    network,
+    primitives::{Address as AlloyAddress, Bytes, U256 as AlloyU256},
     providers::{PendingTransactionBuilder, Provider, RootProvider, WalletProvider},
     rpc::types::TransactionReceipt,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address as LocalAddress,
+    Address,
     events::mirror::{ReplyEvent, StateChangedEvent, ValueClaimedEvent},
 };
 pub use events::signatures;
 use events::{
-    MessageCallFailedEventBuilder, MessageEventBuilder, ReplyCallFailedEventBuilder,
-    ReplyEventBuilder, StateChangedEventBuilder, ValueClaimedEventBuilder,
+    ExecutableBalanceTopUpRequestedEventBuilder, MessageCallFailedEventBuilder,
+    MessageEventBuilder, MessageQueueingRequestedEventBuilder,
+    OwnedBalanceTopUpRequestedEventBuilder, ReplyCallFailedEventBuilder, ReplyEventBuilder,
+    ReplyQueueingRequestedEventBuilder, StateChangedEventBuilder, ValueClaimedEventBuilder,
+    ValueClaimingRequestedEventBuilder,
 };
 use futures::StreamExt;
-use gear_core::{ids::prelude::MessageIdExt, message::ReplyCode};
+use gear_core::{ids::prelude::MessageIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId, U256};
 use serde::Serialize;
 
 pub mod events;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ReplyInfo {
-    pub message_id: MessageId,
-    pub actor_id: ActorId,
-    #[serde(with = "hex::serde")]
-    pub payload: Vec<u8>,
-    pub code: ReplyCode,
-    pub value: u128,
-}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ClaimInfo {
@@ -68,12 +62,13 @@ type QueryInstance = IMirror::IMirrorInstance<RootProvider>;
 pub struct Mirror(Instance);
 
 impl Mirror {
-    pub(crate) fn new(address: Address, provider: AlloyProvider) -> Self {
+    pub(crate) fn new(address: AlloyAddress, provider: AlloyProvider) -> Self {
         Self(Instance::new(address, provider))
     }
 
-    pub fn address(&self) -> LocalAddress {
-        LocalAddress(*self.0.address().0)
+    pub fn actor_id(&self) -> ActorId {
+        let address = Address(*self.0.address().0);
+        address.into()
     }
 
     pub fn query(&self) -> MirrorQuery {
@@ -162,13 +157,10 @@ impl Mirror {
             )) = result
                 && reply_to == message_id
             {
-                let actor_id = gsigner::Address::from(*self.0.address()).into();
                 return Ok(ReplyInfo {
-                    message_id: reply_to,
-                    actor_id,
                     payload,
-                    code: reply_code,
                     value,
+                    code: reply_code,
                 });
             }
         }
@@ -310,8 +302,11 @@ impl Mirror {
 pub struct MirrorQuery(QueryInstance);
 
 impl MirrorQuery {
-    pub fn new(provider: RootProvider, mirror_address: LocalAddress) -> Self {
-        Self(QueryInstance::new(Address::new(mirror_address.0), provider))
+    pub fn new(provider: RootProvider, mirror_address: Address) -> Self {
+        Self(QueryInstance::new(
+            AlloyAddress::new(mirror_address.0),
+            provider,
+        ))
     }
 
     pub fn events(&self) -> MirrorEvents<'_> {
@@ -327,12 +322,12 @@ impl MirrorQuery {
             .map_err(Into::into)
     }
 
-    pub async fn router(&self) -> Result<LocalAddress> {
+    pub async fn router(&self) -> Result<Address> {
         self.0
             .router()
             .call()
             .await
-            .map(|res| LocalAddress(res.into()))
+            .map(|res| Address(res.into()))
             .map_err(Into::into)
     }
 
@@ -363,21 +358,21 @@ impl MirrorQuery {
         self.0.exited().call().await.map_err(Into::into)
     }
 
-    pub async fn inheritor(&self) -> Result<LocalAddress> {
+    pub async fn inheritor(&self) -> Result<ActorId> {
         self.0
             .inheritor()
             .call()
             .await
-            .map(|res| LocalAddress(res.into()))
+            .map(|res| Address(res.into()).into())
             .map_err(Into::into)
     }
 
-    pub async fn initializer(&self) -> Result<LocalAddress> {
+    pub async fn initializer(&self) -> Result<ActorId> {
         self.0
             .initializer()
             .call()
             .await
-            .map(|res| LocalAddress(res.into()))
+            .map(|res| Address(res.into()).into())
             .map_err(Into::into)
     }
 }
@@ -387,11 +382,35 @@ pub struct MirrorEvents<'a> {
 }
 
 impl<'a> MirrorEvents<'a> {
+    pub fn all(&self) -> AllEventsBuilder<'a> {
+        AllEventsBuilder::new(self.query)
+    }
+
     pub fn state_changed(&self) -> StateChangedEventBuilder<'a> {
         StateChangedEventBuilder::new(self.query)
     }
 
-    // TODO: consider to add "*Requested" events here as well
+    pub fn message_queueing_requested(&self) -> MessageQueueingRequestedEventBuilder<'a> {
+        MessageQueueingRequestedEventBuilder::new(self.query)
+    }
+
+    pub fn reply_queueing_requested(&self) -> ReplyQueueingRequestedEventBuilder<'a> {
+        ReplyQueueingRequestedEventBuilder::new(self.query)
+    }
+
+    pub fn value_claiming_requested(&self) -> ValueClaimingRequestedEventBuilder<'a> {
+        ValueClaimingRequestedEventBuilder::new(self.query)
+    }
+
+    pub fn owned_balance_top_up_requested(&self) -> OwnedBalanceTopUpRequestedEventBuilder<'a> {
+        OwnedBalanceTopUpRequestedEventBuilder::new(self.query)
+    }
+
+    pub fn executable_balance_top_up_requested(
+        &self,
+    ) -> ExecutableBalanceTopUpRequestedEventBuilder<'a> {
+        ExecutableBalanceTopUpRequestedEventBuilder::new(self.query)
+    }
 
     pub fn message(&self) -> MessageEventBuilder<'a> {
         MessageEventBuilder::new(self.query)

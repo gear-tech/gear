@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
-import {IMiddleware} from "../src/IMiddleware.sol";
-import {Middleware} from "../src/Middleware.sol";
-import {Mirror} from "../src/Mirror.sol";
-import {Router} from "../src/Router.sol";
-import {WrappedVara} from "../src/WrappedVara.sol";
-import {Gear} from "../src/libraries/Gear.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {FROSTOffchain, SigningKey} from "frost-secp256k1-evm/FROSTOffchain.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import {IMiddleware} from "src/IMiddleware.sol";
+import {Middleware} from "src/Middleware.sol";
+import {Mirror} from "src/Mirror.sol";
+import {Router} from "src/Router.sol";
+import {WrappedVara} from "src/WrappedVara.sol";
+import {Gear} from "src/libraries/Gear.sol";
 import {IVaultConfigurator} from "symbiotic-core/src/interfaces/IVaultConfigurator.sol";
 import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
 import {IOperatorSpecificDelegator} from "symbiotic-core/src/interfaces/delegator/IOperatorSpecificDelegator.sol";
@@ -311,7 +311,10 @@ contract Base is POCBaseTest {
 
             bytes memory _valueClaimsBytes;
             for (uint256 j = 0; j < _transition.valueClaims.length; j++) {
-                _valueClaimsBytes = bytes.concat(_valueClaimsBytes, Gear.valueClaimBytes(_transition.valueClaims[j]));
+                Gear.ValueClaim memory claim = _transition.valueClaims[j];
+                _valueClaimsBytes = bytes.concat(
+                    _valueClaimsBytes, Gear.valueClaimHash(claim.messageId, claim.destination, claim.value)
+                );
             }
 
             bytes memory _messagesHashesBytes;
@@ -337,7 +340,8 @@ contract Base is POCBaseTest {
     function codeCommitmentsHash(Gear.CodeCommitment[] memory _commitments) internal pure returns (bytes32) {
         bytes32[] memory _codeCommitmentHashes = new bytes32[](_commitments.length);
         for (uint256 i = 0; i < _commitments.length; i++) {
-            _codeCommitmentHashes[i] = Gear.codeCommitmentHash(_commitments[i]);
+            Gear.CodeCommitment memory _commitment = _commitments[i];
+            _codeCommitmentHashes[i] = Gear.codeCommitmentHash(_commitment.id, _commitment.valid);
         }
 
         return keccak256(abi.encodePacked(_codeCommitmentHashes));

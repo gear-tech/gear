@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
 import {IMiddleware} from "./IMiddleware.sol";
 import {Gear} from "./libraries/Gear.sol";
