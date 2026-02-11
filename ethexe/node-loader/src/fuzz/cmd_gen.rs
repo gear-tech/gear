@@ -65,7 +65,7 @@ fn generate_one(rng: &mut impl RngCore, program_id: ActorId) -> FuzzCommand {
         // ── Sending (3 variants) ──
         10 => {
             // Send message back to self (the mega contract) or to source
-            let dest = if rng.next_u32() % 2 == 0 {
+            let dest = if rng.next_u32().is_multiple_of(2) {
                 program_id.into()
             } else {
                 [0u8; 32] // zero = falls back to msg::source()
