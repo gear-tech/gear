@@ -72,7 +72,8 @@ impl ValidatorIdentityRecord {
     }
 }
 
-pub struct MaybeRecordKey(Option<RecordKey>);
+/// Decode helper for [`RecordKey`] to support backward compatibility
+struct MaybeRecordKey(Option<RecordKey>);
 
 impl Decode for MaybeRecordKey {
     fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
