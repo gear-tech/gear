@@ -91,16 +91,15 @@ impl PrepareSubService {
     }
 
     pub fn receive_block_to_prepare(&mut self, block: H256) {
-        self.metrics.blocks_queue_len.increment(1);
-
         self.input.push_back(block);
+        self.metrics.blocks_queue_len.set(self.input.len() as f64);
     }
 
     pub fn receive_processed_code(&mut self, code_id: CodeId) {
         if let State::WaitingForCodes { codes, .. } = &mut self.state
             && codes.remove(&code_id)
         {
-            self.metrics.waiting_codes_count.decrement(1);
+            self.metrics.waiting_codes_count.set(codes.len() as f64);
         }
     }
 }
@@ -115,7 +114,7 @@ impl SubService for PrepareSubService {
             let Some(block_hash) = self.input.pop_back() else {
                 return Poll::Pending;
             };
-            self.metrics.blocks_queue_len.decrement(1);
+            self.metrics.blocks_queue_len.set(self.input.len() as f64);
 
             if !self.db.block_synced(block_hash) {
                 return Poll::Ready(Err(ComputeError::BlockNotSynced(block_hash)));
