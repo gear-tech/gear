@@ -69,7 +69,8 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode, Default)]
+#[derive(Debug, derive_more::Display, Copy, Clone, PartialEq, Eq, Encode, Decode, Default)]
+#[display("Block(hash: {hash}, height: {}, parent: {}, ts: {})", header.height, header.parent_hash, header.timestamp)]
 pub struct SimpleBlockData {
     pub hash: H256,
     pub header: BlockHeader,

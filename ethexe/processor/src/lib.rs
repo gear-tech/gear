@@ -293,10 +293,10 @@ pub struct ValidCodeInfo {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "Programs processing at {block:?},
-        injected: {injected_transactions:?},
-        events: {events:?},
-        gas_allowance: {gas_allowance:?}"
+    "{block}, programs amount: {}, schedule len: {}, gas_allowance: {gas_allowance:?},
+    injected: {injected_transactions:?},
+    events: {events:?}",
+    program_states.len(), schedule.len(),
 )]
 pub struct ExecutableData {
     pub block: SimpleBlockData,
@@ -323,13 +323,9 @@ impl Default for ExecutableData {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "Execution for reply at {block:?}:
-        block: {block:?},
-        program_id: {program_id},
-        source: {source},
-        payload len: {},
-        value: {value},
-        gas_allowance: {gas_allowance}", payload.len()
+    "Execution for reply at {block:?}: block: {block:?}, \
+    program_id: {program_id}, source: {source}, payload len: {}, \
+    value: {value}, gas_allowance: {gas_allowance}", payload.len()
 )]
 pub struct ExecutableDataForReply {
     pub block: SimpleBlockData,
@@ -341,7 +337,7 @@ pub struct ExecutableDataForReply {
     pub gas_allowance: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, derive_more::AsRef, derive_more::AsMut)]
 pub struct OverlaidProcessor(Processor);
 
 impl OverlaidProcessor {

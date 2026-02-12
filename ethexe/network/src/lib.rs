@@ -309,13 +309,17 @@ impl NetworkService {
                 let quic_config = libp2p::quic::Config::new(keypair);
                 let quic = libp2p::quic::tokio::Transport::new(quic_config);
 
-                Ok(quic
-                    .or_transport(tcp)
-                    .map(|either_output, _| match either_output {
-                        Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
-                        Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
-                    })
-                    .boxed())
+                let tcp_or_quic =
+                    quic.or_transport(tcp)
+                        .map(|either_output, _| match either_output {
+                            Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+                            Either::Right((peer_id, muxer)) => {
+                                (peer_id, StreamMuxerBox::new(muxer))
+                            }
+                        });
+                let dns = libp2p::dns::tokio::Transport::system(tcp_or_quic)?;
+
+                Ok(dns.boxed())
             }
             TransportType::Test => Ok(transport::MemoryTransport::default()
                 .or_transport(libp2p::tcp::tokio::Transport::default())
