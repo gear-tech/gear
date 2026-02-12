@@ -22,9 +22,18 @@ use core::fmt::{self, Formatter};
 
 use alloc::{vec, vec::Vec};
 
+use crate::limited::private::LimitedVisitor;
 use derive_more::{AsMut, AsRef, Debug, Deref, DerefMut, Display, Error, Into, IntoIterator};
 use gprimitives::utils::ByteSliceFormatter;
-use scale_decode::DecodeAsType;
+use parity_scale_codec::{Compact, decode_vec_with_len};
+use scale_decode::{
+    IntoVisitor, TypeResolver, Visitor,
+    error::ErrorKind,
+    visitor::{
+        TypeIdFor, Unexpected,
+        types::{Array, Composite, Sequence, Tuple},
+    },
+};
 use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
@@ -39,8 +48,6 @@ use scale_info::{
     Eq,
     PartialOrd,
     Ord,
-    Decode,
-    DecodeAsType,
     Encode,
     EncodeAsType,
     Hash,
@@ -59,6 +66,96 @@ use scale_info::{
 #[deref_mut(forward)]
 #[into_iterator(owned, ref, ref_mut)]
 pub struct LimitedVec<T, const N: usize>(Vec<T>);
+
+impl<T: Decode, const N: usize> Decode for LimitedVec<T, N> {
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> Result<Self, parity_scale_codec::Error> {
+        let Compact(len) = <Compact<u32>>::decode(input)?;
+        let len = len as usize;
+
+        if len > N {
+            return Err("Too many elements for the limited vector".into());
+        }
+
+        decode_vec_with_len(input, len).map(Self)
+    }
+}
+
+impl<T, Resolver, const N: usize> Visitor for LimitedVisitor<LimitedVec<T, N>, Resolver>
+where
+    T: IntoVisitor,
+    Resolver: TypeResolver,
+{
+    type Value<'scale, 'resolver> = LimitedVec<T, N>;
+    type Error = scale_decode::Error;
+    type TypeResolver = Resolver;
+
+    fn visit_sequence<'scale, 'resolver>(
+        self,
+        value: &mut Sequence<'scale, 'resolver, Resolver>,
+        type_id: TypeIdFor<Self>,
+    ) -> Result<Self::Value<'scale, 'resolver>, Self::Error> {
+        if value.remaining() > N {
+            Err(scale_decode::Error::new(ErrorKind::WrongLength {
+                actual_len: value.remaining(),
+                expected_len: N,
+            }))
+        } else {
+            Vec::into_visitor()
+                .visit_sequence(value, type_id)
+                .map(LimitedVec)
+        }
+    }
+
+    fn visit_array<'scale, 'resolver>(
+        self,
+        value: &mut Array<'scale, 'resolver, Resolver>,
+        type_id: TypeIdFor<Self>,
+    ) -> Result<Self::Value<'scale, 'resolver>, Self::Error> {
+        if value.remaining() > N {
+            Err(scale_decode::Error::new(ErrorKind::WrongLength {
+                actual_len: value.remaining(),
+                expected_len: N,
+            }))
+        } else {
+            Vec::into_visitor()
+                .visit_array(value, type_id)
+                .map(LimitedVec)
+        }
+    }
+
+    fn visit_composite<'scale, 'resolver>(
+        self,
+        value: &mut Composite<'scale, 'resolver, Resolver>,
+        _type_id: TypeIdFor<Self>,
+    ) -> Result<Self::Value<'scale, 'resolver>, Self::Error> {
+        if value.remaining() != 1 {
+            return self.visit_unexpected(Unexpected::Composite);
+        }
+
+        value.decode_item(self).unwrap()
+    }
+
+    fn visit_tuple<'scale, 'resolver>(
+        self,
+        value: &mut Tuple<'scale, 'resolver, Resolver>,
+        _type_id: TypeIdFor<Self>,
+    ) -> Result<Self::Value<'scale, 'resolver>, Self::Error> {
+        if value.remaining() != 1 {
+            return self.visit_unexpected(Unexpected::Tuple);
+        }
+        value.decode_item(self).unwrap()
+    }
+}
+
+impl<T: IntoVisitor, const N: usize> IntoVisitor for LimitedVec<T, N> {
+    type AnyVisitor<R: TypeResolver> = LimitedVisitor<LimitedVec<T, N>, R>;
+
+    fn into_visitor<R: TypeResolver>() -> Self::AnyVisitor<R> {
+        LimitedVisitor::DEFAULT
+    }
+}
 
 impl<T: Clone, const N: usize> TryFrom<&[T]> for LimitedVec<T, N> {
     type Error = LimitedVecError;
@@ -228,6 +325,7 @@ mod test {
     use super::LimitedVec;
     use alloc::{string::String, vec, vec::Vec};
     use core::convert::TryFrom;
+    use parity_scale_codec::{Decode, Encode};
 
     const N: usize = 1000;
     type TestBuffer = LimitedVec<u8, N>;
@@ -346,5 +444,25 @@ mod test {
         );
         // Alternate formatter with precision 2.
         assert_eq!(format!("{buffer:#.2}"), "LimitedVec(0x6162..3435)");
+    }
+
+    #[test]
+    fn test_decode() {
+        // Limited vector is encoded just like a common vector
+        let normal_vec = vec![1, 2, 3, 4, 5];
+        let encoded_vec = normal_vec.encode();
+        let limited_vec = LimitedVec::<i32, 10>::decode(&mut &encoded_vec[..]).unwrap();
+
+        assert_eq!(normal_vec, limited_vec.into_vec());
+    }
+
+    #[test]
+    fn test_too_large_decode_fails() {
+        let bad_vec = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+        let encoded_vec = bad_vec.encode();
+
+        LimitedVec::<i32, 10>::decode(&mut &encoded_vec[..])
+            .err()
+            .expect("The vector must be too large");
     }
 }
