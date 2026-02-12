@@ -60,14 +60,14 @@ library Gear {
     uint256 internal constant COMMIT_BATCH_BEFORE_CALLING_VALIDATORS_AT = 84;
     uint256 internal constant COMMIT_BATCH_AFTER_CALLING_VALIDATORS_AT = 85;
 
-    uint256 internal constant COMMIT_BATCH_BEFORE_CACLULATING_MESSAGE_HASH = 86;
-    uint256 internal constant COMMIT_BATCH_AFTER_CACLULATING_MESSAGE_HASH = 87;
+    uint256 internal constant COMMIT_BATCH_BEFORE_CALCULATING_MESSAGE_HASH = 86;
+    uint256 internal constant COMMIT_BATCH_AFTER_CALCULATING_MESSAGE_HASH = 87;
 
     uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_SIGNATURE_TYPE = 88;
     uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_SIGNATURE_TYPE = 89;
 
-    uint256 internal constant COMMIT_BATCH_BEFORE_CACLULATING_VALIDATORS_THRESHOLD = 90;
-    uint256 internal constant COMMIT_BATCH_AFTER_CACLULATING_VALIDATORS_THRESHOLD = 91;
+    uint256 internal constant COMMIT_BATCH_BEFORE_CALCULATING_VALIDATORS_THRESHOLD = 90;
+    uint256 internal constant COMMIT_BATCH_AFTER_CALCULATING_VALIDATORS_THRESHOLD = 91;
 
     uint256 internal constant COMMIT_BATCH_BEFORE_SETTING_VALID_SIGNATURES_TO_ZERO = 92;
     uint256 internal constant COMMIT_BATCH_AFTER_SETTING_VALID_SIGNATURES_TO_ZERO = 93;
@@ -84,8 +84,8 @@ library Gear {
     uint256 internal constant COMMIT_BATCH_BEFORE_LOADING_TRANSIENT_STORAGE_SLOT = 100;
     uint256 internal constant COMMIT_BATCH_AFTER_LOADING_TRANSIENT_STORAGE_SLOT = 101;
 
-    uint256 internal constant COMMIT_BATCH_AFTER_STORING_IN_TRANSIENT_STORAGE_SLOT = 102;
-    uint256 internal constant COMMIT_BATCH_BEFORE_STORING_IN_TRANSIENT_STORAGE_SLOT = 103;
+    uint256 internal constant COMMIT_BATCH_BEFORE_STORING_IN_TRANSIENT_STORAGE_SLOT = 102;
+    uint256 internal constant COMMIT_BATCH_AFTER_STORING_IN_TRANSIENT_STORAGE_SLOT = 103;
 
     uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_SIGNATURES_COUNT = 104;
     uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_SIGNATURES_COUNT = 105;
@@ -487,10 +487,10 @@ library Gear {
         // gas used: ~4435 (calling validators at)
         // emit DebugEvent(COMMIT_BATCH_AFTER_CALLING_VALIDATORS_AT);
 
-        // emit DebugEvent(COMMIT_BATCH_BEFORE_CACLULATING_MESSAGE_HASH);
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CALCULATING_MESSAGE_HASH);
         bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);
-        // gas used: ~92 (caclulating message hash)
-        // emit DebugEvent(COMMIT_BATCH_AFTER_CACLULATING_MESSAGE_HASH);
+        // gas used: ~92 (calculating message hash)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_CALCULATING_MESSAGE_HASH);
 
         // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_SIGNATURE_TYPE);
         if (_signatureType == SignatureType.FROST) {
@@ -526,14 +526,14 @@ library Gear {
             // gas used: ~94 (checking signature type)
             // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_SIGNATURE_TYPE);
 
-            // emit DebugEvent(COMMIT_BATCH_BEFORE_CACLULATING_VALIDATORS_THRESHOLD);
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CALCULATING_VALIDATORS_THRESHOLD);
             uint256 threshold = validatorsThreshold(
                 validators.list.length,
                 router.validationSettings.thresholdNumerator,
                 router.validationSettings.thresholdDenominator
             );
-            // gas used: ~4430 (caclulating validators threshold)
-            // emit DebugEvent(COMMIT_BATCH_AFTER_CACLULATING_VALIDATORS_THRESHOLD);
+            // gas used: ~4430 (calculating validators threshold)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CALCULATING_VALIDATORS_THRESHOLD);
 
             // emit DebugEvent(COMMIT_BATCH_BEFORE_SETTING_VALID_SIGNATURES_TO_ZERO);
             uint256 validSignatures = 0;
