@@ -448,7 +448,7 @@ mod test {
 
     #[test]
     fn test_decode() {
-        // Limited vector is encoded just like a common vector
+        // Limited vector is encoded just like a normal vector
         let normal_vec = vec![1, 2, 3, 4, 5];
         let encoded_vec = normal_vec.encode();
         let limited_vec = LimitedVec::<i32, 10>::decode(&mut &encoded_vec[..]).unwrap();

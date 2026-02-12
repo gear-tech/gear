@@ -368,4 +368,22 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_decode() {
+        // Limited string is encoded just like a normal string
+        let normal_str = "amogus attacks";
+        let encoded_str = normal_str.encode();
+        let limited_str = LimitedStr::<20>::decode(&mut &encoded_str[..]).unwrap();
+
+        assert_eq!(normal_str, limited_str.as_str());
+    }
+
+    #[test]
+    fn test_too_large_decode_fails() {
+        let bad_str = "amogus attacks again, but this time it's much harder to defeat him";
+        let encoded_str = bad_str.encode();
+
+        LimitedStr::<20>::decode(&mut &encoded_str[..]).expect_err("The string must be too large");
+    }
 }
