@@ -19,12 +19,15 @@
 use crate::{RpcEvent, errors};
 use dashmap::DashMap;
 use ethexe_common::{
-    HashOf,
+    HashOf, SignedMessage,
+    db::{InjectedStorageRO, InjectedStorageRW},
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedPromise,
+        AddressedInjectedTransaction, CompactSignedPromise, InjectedTransaction,
+        InjectedTransactionAcceptance, Promise, SignedPromise,
     },
 };
+
+use ethexe_db::Database;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
@@ -54,6 +57,12 @@ pub trait Injected {
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
+
+    #[method(name = "getTransactionPromise")]
+    async fn get_transaction_promise(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> RpcResult<Option<SignedPromise>>;
 }
 
 type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
@@ -61,10 +70,15 @@ type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<S
 /// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    /// The database for protocol data.
+    db: Database,
     /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
     promise_waiters: PromiseWaiters,
+
+    /// The mapping from injected transaction hash to its promise signature.
+    promises_computation_waiting: Arc<DashMap<HashOf<InjectedTransaction>, CompactSignedPromise>>,
 }
 
 #[async_trait]
@@ -110,23 +124,106 @@ impl InjectedServer for InjectedApi {
 
         Ok(())
     }
+
+    async fn get_transaction_promise(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> RpcResult<Option<SignedPromise>> {
+        let Some(promise) = self.db.promise(tx_hash) else {
+            tracing::trace!(?tx_hash, "promise not found for injected transaction");
+            return Ok(None);
+        };
+
+        let Some((signature, address)) = self.db.promise_signature(tx_hash) else {
+            tracing::trace!(
+                ?tx_hash,
+                "promise signature not found for injected transaction"
+            );
+            return Ok(None);
+        };
+
+        match SignedMessage::try_from_parts(promise, signature, address) {
+            Ok(message) => Ok(Some(message)),
+            Err(err) => {
+                tracing::trace!(
+                    ?tx_hash,
+                    ?err,
+                    "failed to build signed promise from parts for injected transaction"
+                );
+                Ok(None)
+            }
+        }
+    }
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
+            db,
             rpc_sender,
             promise_waiters: PromiseWaiters::default(),
+            promises_computation_waiting: Default::default(),
         }
     }
 
-    pub fn send_promise(&self, promise: SignedPromise) {
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
-            tracing::warn!(promise = ?promise, "receive unregistered promise");
+    pub fn receive_compact_promise(&self, compact_promise: CompactSignedPromise) {
+        match self.db.promise(compact_promise.data().tx_hash) {
+            Some(promise) => {
+                tracing::trace!(tx_hash = ?promise.tx_hash, "Promise already computed, sending to user...");
+                self.db.set_promise_signature(
+                    promise.tx_hash,
+                    *compact_promise.signature(),
+                    compact_promise.address(),
+                );
+                self.send_promise(promise, compact_promise);
+            }
+            None => {
+                tracing::trace!(tx_hash = ?compact_promise.data().tx_hash, "Promise doesn't compute yet, waiting for producer's signature");
+                self.promises_computation_waiting
+                    .insert(compact_promise.data().tx_hash, compact_promise);
+            }
+        }
+    }
+
+    pub fn receive_computed_promises(&self, promises: Vec<Promise>) {
+        promises.into_iter().for_each(|promise| {
+            // In case of `None` nothing to do, because of promise already in RPC database.
+            if let Some((_, compact_promise)) =
+                self.promises_computation_waiting.remove(&promise.tx_hash)
+            {
+                let (signature, address) =
+                    (*compact_promise.signature(), compact_promise.address());
+                self.db
+                    .set_promise_signature(promise.tx_hash, signature, address);
+                self.send_promise(promise, compact_promise);
+            }
+        })
+    }
+
+    pub fn send_promise(&self, promise: Promise, compact_promise: CompactSignedPromise) {
+        // Check the promise waiter firstly to avoid unnecessary computation.
+        let Some((_, promise_sender)) =
+            self.promise_waiters.remove(&compact_promise.data().tx_hash)
+        else {
+            tracing::warn!(
+                ?promise,
+                "receive unregistered promise for injected transaction"
+            );
             return;
         };
 
-        if let Err(promise) = promise_sender.send(promise) {
+        let (address, signature) = (compact_promise.address(), *compact_promise.signature());
+
+        let Ok(message) = SignedMessage::try_from_parts(promise.clone(), signature, address) else {
+            tracing::trace!(
+                ?promise,
+                ?compact_promise,
+                "failed to build `SignedMessage<Promise>` from parts, invalid signature"
+            );
+            return;
+        };
+
+        if let Err(promise) = promise_sender.send(message) {
             tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
         }
     }

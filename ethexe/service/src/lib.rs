@@ -545,7 +545,11 @@ impl Service {
                         blob_loader.load_codes(codes)?;
                     }
                     ComputeEvent::AnnounceComputed(computed_data) => {
-                        consensus.receive_computed_announce(computed_data)?
+                        if let Some(ref mut rpc) = rpc {
+                            rpc.receive_computed_data(computed_data.clone());
+                        }
+
+                        consensus.receive_computed_announce(computed_data)?;
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?
@@ -597,9 +601,9 @@ impl Service {
                                 let _res = response_sender.send(acceptance);
                             }
                         },
-                        NetworkEvent::PromiseMessage(promise) => {
+                        NetworkEvent::PromiseMessage(compact_promise) => {
                             if let Some(rpc) = &rpc {
-                                rpc.provide_promise(promise);
+                                rpc.provide_compact_promise(compact_promise);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
@@ -702,19 +706,19 @@ impl Service {
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }
-                    ConsensusEvent::Promises(promises) => {
+                    ConsensusEvent::Promises(compact_promises) => {
                         if rpc.is_none() && network.is_none() {
                             panic!("Promise without network or rpc");
                         }
 
                         if let Some(rpc) = &rpc {
-                            rpc.provide_promises(promises.clone());
+                            rpc.provide_compact_promises(compact_promises.clone());
                         }
 
                         if let Some(network) = &mut network {
-                            for promise in promises {
-                                network.publish_promise(promise);
-                            }
+                            compact_promises.into_iter().for_each(|compact_promise| {
+                                network.publish_promise(compact_promise);
+                            });
                         }
                     }
                 },

@@ -54,10 +54,10 @@ use anyhow::{Result, anyhow};
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, ComputedAnnounce, SimpleBlockData, ToDigest,
+    Address, ComputedAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
-    ecdsa::{PublicKey, SignedMessage},
+    ecdsa::PublicKey,
     injected::SignedInjectedTransaction,
     network::AnnouncesResponse,
 };
@@ -69,7 +69,7 @@ use futures::{
     stream::{FusedStream, FuturesUnordered},
 };
 use gprimitives::H256;
-use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+use gsigner::secp256k1::Signer;
 use initial::Initial;
 use std::{
     collections::VecDeque,
@@ -546,12 +546,5 @@ impl ValidatorContext {
 
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {
         self.pending_events.push_front(event.into());
-    }
-
-    pub fn sign_message<T: Sized + ToDigest>(&self, data: T) -> Result<SignedMessage<T>> {
-        Ok(self
-            .core
-            .signer
-            .signed_message(self.core.pub_key, data, None)?)
     }
 }

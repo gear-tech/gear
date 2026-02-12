@@ -26,10 +26,14 @@ use crate::{
     ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
-    injected::{AddressedInjectedTransaction, InjectedTransaction},
+    injected::{AddressedInjectedTransaction, InjectedTransaction, Promise},
 };
 use alloc::{collections::BTreeMap, vec};
-use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    message::{ReplyCode, SuccessReplyReason},
+    rpc::ReplyInfo,
+};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
@@ -648,5 +652,24 @@ impl Mock<HashOf<Announce>> for ComputedAnnounce {
             announce_hash,
             promises: Default::default(),
         }
+    }
+}
+
+impl Mock<HashOf<InjectedTransaction>> for Promise {
+    fn mock(tx_hash: HashOf<InjectedTransaction>) -> Self {
+        Self {
+            tx_hash,
+            reply: ReplyInfo {
+                payload: vec![],
+                value: 0,
+                code: ReplyCode::Success(SuccessReplyReason::Manual),
+            },
+        }
+    }
+}
+
+impl Mock for Promise {
+    fn mock(_args: ()) -> Self {
+        Promise::mock(HashOf::zero())
     }
 }

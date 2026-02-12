@@ -24,8 +24,9 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
+use ethexe_common::{
+    ComputedAnnounce,
+    injected::{AddressedInjectedTransaction, CompactSignedPromise, InjectedTransactionAcceptance},
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -112,7 +113,7 @@ impl RpcServer {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
-            injected: InjectedApi::new(rpc_sender),
+            injected: InjectedApi::new(self.db.clone(), rpc_sender),
         };
         let injected_api = server_apis.injected.clone();
 
@@ -148,16 +149,19 @@ impl RpcService {
         }
     }
 
-    /// Provides a promise inside RPC service to be sent to subscribers.
-    pub fn provide_promise(&self, promise: SignedPromise) {
-        self.injected_api.send_promise(promise);
+    pub fn receive_computed_data(&self, computed_data: ComputedAnnounce) {
+        self.injected_api
+            .receive_computed_promises(computed_data.promises);
     }
 
-    /// Provides a bundle of promises inside RPC service to be sent to subscribers.
-    pub fn provide_promises(&self, promises: Vec<SignedPromise>) {
-        promises.into_iter().for_each(|promise| {
-            self.provide_promise(promise);
-        });
+    pub fn provide_compact_promise(&self, compact_promise: CompactSignedPromise) {
+        self.injected_api.receive_compact_promise(compact_promise);
+    }
+
+    pub fn provide_compact_promises(&self, compact_promises: Vec<CompactSignedPromise>) {
+        compact_promises
+            .into_iter()
+            .for_each(|compact_promise| self.provide_compact_promise(compact_promise));
     }
 }
 

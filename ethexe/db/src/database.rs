@@ -33,9 +33,8 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
-
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
     ProgramState, Storage, UserMailbox, Waitlist,
@@ -47,6 +46,7 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
+use gsigner::{Address, secp256k1::Signature};
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeSet;
 
@@ -76,7 +76,10 @@ enum Key {
     Timelines = 15,
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    LatestEraValidatorsCommitted(H256),
+    LatestEraValidatorsCommitted(H256) = 16,
+
+    Promise(HashOf<InjectedTransaction>) = 17,
+    PromiseSignature(HashOf<InjectedTransaction>) = 18,
 }
 
 impl Key {
@@ -103,7 +106,9 @@ impl Key {
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
-            Self::InjectedTransaction(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            Self::InjectedTransaction(hash)
+            | Self::Promise(hash)
+            | Self::PromiseSignature(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -619,6 +624,21 @@ impl InjectedStorageRO for Database {
                     .expect("Failed to decode data into `SignedInjectedTransaction`")
             })
     }
+
+    fn promise(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<Promise> {
+        self.kv.get(&Key::Promise(tx_hash).to_bytes()).map(|data| {
+            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into Promise")
+        })
+    }
+
+    fn promise_signature(&self, hash: HashOf<InjectedTransaction>) -> Option<(Signature, Address)> {
+        self.kv
+            .get(&Key::PromiseSignature(hash).to_bytes())
+            .map(|data| {
+                <(Signature, Address)>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `(Signature, Address)`")
+            })
+    }
 }
 
 impl InjectedStorageRW for Database {
@@ -628,6 +648,27 @@ impl InjectedStorageRW for Database {
         tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
         self.kv
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
+    }
+
+    fn set_promise(&self, promise: Promise) {
+        tracing::trace!(?promise, "Set promise for injected transaction");
+
+        self.kv
+            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
+    }
+
+    fn set_promise_signature(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+        signature: Signature,
+        address: Address,
+    ) {
+        tracing::trace!(tx_hash = ?hash, ?signature, ?address, "Set signature for injected transaction promise");
+
+        self.kv.put(
+            &Key::PromiseSignature(hash).to_bytes(),
+            (signature, address).encode(),
+        );
     }
 }
 

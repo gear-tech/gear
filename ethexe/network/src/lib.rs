@@ -39,7 +39,7 @@ use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedPromise},
+    injected::{AddressedInjectedTransaction, CompactSignedPromise},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use futures::{Stream, future::Either, ready, stream::FusedStream};
@@ -80,7 +80,7 @@ impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase
 pub enum NetworkEvent {
     // gossipsub
     ValidatorMessage(VerifiedValidatorMessage),
-    PromiseMessage(SignedPromise),
+    PromiseMessage(CompactSignedPromise),
     // validator-identity
     ValidatorIdentityUpdated(Address),
     // injected-tx
@@ -511,10 +511,10 @@ impl NetworkService {
                             .verify_validator_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Promise(promise) => {
+                    gossipsub::Message::Promise(compact_promise) => {
                         // FIXME: previous era validators are ignored
                         let (acceptance, promise) =
-                            self.validator_topic.verify_promise(source, promise);
+                            self.validator_topic.verify_promise(source, compact_promise);
                         (acceptance, promise.map(NetworkEvent::PromiseMessage))
                     }
                 })
@@ -590,8 +590,11 @@ impl NetworkService {
             .send_transaction(behaviour.validator_discovery.identities(), data)
     }
 
-    pub fn publish_promise(&mut self, promise: SignedPromise) {
-        self.swarm.behaviour_mut().gossipsub.publish(promise)
+    pub fn publish_promise(&mut self, compact_promise: CompactSignedPromise) {
+        self.swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(compact_promise)
     }
 }
 
