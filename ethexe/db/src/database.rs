@@ -143,21 +143,15 @@ impl Key {
     }
 }
 
-impl dyn KVDatabase {
-    pub fn config(&self) -> Result<Option<DBConfig>> {
+impl dyn KVDatabase + '_ {
+    pub fn config(&self) -> Option<Result<DBConfig>> {
         self.get(&Key::Config.to_bytes())
             .map(|data| DBConfig::decode(&mut data.as_ref()).map_err(Into::into))
-            .transpose()
     }
 
-    pub fn globals(&self) -> Result<DBGlobals> {
-        DBGlobals::decode(
-            &mut self
-                .get(&Key::Globals.to_bytes())
-                .expect("Database globals not found")
-                .as_ref(),
-        )
-        .map_err(Into::into)
+    pub fn globals(&self) -> Option<Result<DBGlobals>> {
+        self.get(&Key::Globals.to_bytes())
+            .map(|data| DBGlobals::decode(&mut data.as_ref()).map_err(Into::into))
     }
 
     pub fn set_config(&self, config: DBConfig) {
@@ -167,17 +161,9 @@ impl dyn KVDatabase {
     pub fn set_globals(&self, globals: DBGlobals) {
         self.put(&Key::Globals.to_bytes(), globals.encode());
     }
-}
 
-pub struct DatabaseRef<'a, 'b> {
-    pub cas: &'a dyn CASDatabase,
-    pub kv: &'b dyn KVDatabase,
-}
-
-impl<'a, 'b> DatabaseRef<'a, 'b> {
     fn block_small_data(&self, block_hash: H256) -> Option<BlockSmallData> {
-        self.kv
-            .get(&Key::BlockSmallData(block_hash).to_bytes())
+        self.get(&Key::BlockSmallData(block_hash).to_bytes())
             .map(|data| {
                 BlockSmallData::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `BlockSmallMetaInfo`")
@@ -185,8 +171,7 @@ impl<'a, 'b> DatabaseRef<'a, 'b> {
     }
 
     fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
-        self.kv
-            .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
+        self.put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
     }
 
     fn with_small_data<R>(
@@ -197,40 +182,16 @@ impl<'a, 'b> DatabaseRef<'a, 'b> {
         self.block_small_data(block_hash).map(f)
     }
 
-    /// Mutates `BlockSmallData` for the given block hash.
-    ///
-    /// If data wasn't found, it will be created with default values and then mutated.
     fn mutate_small_data(&self, block_hash: H256, f: impl FnOnce(&mut BlockSmallData)) {
         let mut data = self.block_small_data(block_hash).unwrap_or_default();
         f(&mut data);
         self.set_block_small_data(block_hash, data);
     }
+}
 
-    pub fn config(&self) -> Result<Option<DBConfig>> {
-        self.kv
-            .get(&Key::Config.to_bytes())
-            .map(|data| DBConfig::decode(&mut data.as_ref()).map_err(Into::into))
-            .transpose()
-    }
-
-    pub fn globals(&self) -> Result<DBGlobals> {
-        DBGlobals::decode(
-            &mut self
-                .kv
-                .get(&Key::Globals.to_bytes())
-                .expect("Database globals not found")
-                .as_ref(),
-        )
-        .map_err(Into::into)
-    }
-
-    pub fn set_config(&self, config: DBConfig) {
-        self.kv.put(&Key::Config.to_bytes(), config.encode());
-    }
-
-    pub fn set_globals(&self, globals: DBGlobals) {
-        self.kv.put(&Key::Globals.to_bytes(), globals.encode());
-    }
+pub struct DatabaseRef<'a, 'b> {
+    pub cas: &'a dyn CASDatabase,
+    pub kv: &'b dyn KVDatabase,
 }
 
 impl<'a, 'b> AnnounceStorageRO for DatabaseRef<'a, 'b> {
@@ -327,7 +288,8 @@ impl<'a, 'b> AnnounceStorageRW for DatabaseRef<'a, 'b> {
 
 impl<'a, 'b> OnChainStorageRO for DatabaseRef<'a, 'b> {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
-        self.with_small_data(block_hash, |data| data.block_header)?
+        self.kv
+            .with_small_data(block_hash, |data| data.block_header)?
     }
 
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
@@ -349,7 +311,8 @@ impl<'a, 'b> OnChainStorageRO for DatabaseRef<'a, 'b> {
     }
 
     fn block_synced(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_is_synced)
+        self.kv
+            .with_small_data(block_hash, |data| data.block_is_synced)
             .unwrap_or_default()
     }
 
@@ -375,7 +338,8 @@ impl<'a, 'b> OnChainStorageRO for DatabaseRef<'a, 'b> {
 impl<'a, 'b> OnChainStorageRW for DatabaseRef<'a, 'b> {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
         tracing::trace!("Set block header for {block_hash}");
-        self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
+        self.kv
+            .mutate_small_data(block_hash, |data| data.block_header = Some(header));
     }
 
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
@@ -392,7 +356,7 @@ impl<'a, 'b> OnChainStorageRW for DatabaseRef<'a, 'b> {
 
     fn set_block_synced(&self, block_hash: H256) {
         tracing::trace!("For block {block_hash} set synced");
-        self.mutate_small_data(block_hash, |data| {
+        self.kv.mutate_small_data(block_hash, |data| {
             data.block_is_synced = true;
         });
     }
@@ -414,7 +378,8 @@ impl<'a, 'b> OnChainStorageRW for DatabaseRef<'a, 'b> {
 
 impl<'a, 'b> BlockMetaStorageRO for DatabaseRef<'a, 'b> {
     fn block_meta(&self, block_hash: H256) -> BlockMeta {
-        self.with_small_data(block_hash, |data| data.meta)
+        self.kv
+            .with_small_data(block_hash, |data| data.meta)
             .unwrap_or_default()
     }
 }
@@ -422,7 +387,7 @@ impl<'a, 'b> BlockMetaStorageRO for DatabaseRef<'a, 'b> {
 impl<'a, 'b> BlockMetaStorageRW for DatabaseRef<'a, 'b> {
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
         tracing::trace!("For block {block_hash} mutate meta");
-        self.mutate_small_data(block_hash, |data| {
+        self.kv.mutate_small_data(block_hash, |data| {
             f(&mut data.meta);
         });
     }
@@ -539,37 +504,6 @@ impl Database {
     pub fn cas(&self) -> &dyn CASDatabase {
         self.cas.as_ref()
     }
-
-    fn with_small_data<R>(
-        &self,
-        block_hash: H256,
-        f: impl FnOnce(BlockSmallData) -> R,
-    ) -> Option<R> {
-        self.block_small_data(block_hash).map(f)
-    }
-
-    /// Mutates `BlockSmallData` for the given block hash.
-    ///
-    /// If data wasn't found, it will be created with default values and then mutated.
-    fn mutate_small_data(&self, block_hash: H256, f: impl FnOnce(&mut BlockSmallData)) {
-        let mut data = self.block_small_data(block_hash).unwrap_or_default();
-        f(&mut data);
-        self.set_block_small_data(block_hash, data);
-    }
-
-    fn block_small_data(&self, block_hash: H256) -> Option<BlockSmallData> {
-        self.kv
-            .get(&Key::BlockSmallData(block_hash).to_bytes())
-            .map(|data| {
-                BlockSmallData::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `BlockSmallMetaInfo`")
-            })
-    }
-
-    fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
-        self.kv
-            .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
-    }
 }
 
 impl HashStorageRO for Database {
@@ -587,7 +521,8 @@ struct BlockSmallData {
 
 impl BlockMetaStorageRO for Database {
     fn block_meta(&self, block_hash: H256) -> BlockMeta {
-        self.with_small_data(block_hash, |data| data.meta)
+        self.kv
+            .with_small_data(block_hash, |data| data.meta)
             .unwrap_or_default()
     }
 }
@@ -595,7 +530,7 @@ impl BlockMetaStorageRO for Database {
 impl BlockMetaStorageRW for Database {
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
         tracing::trace!("For block {block_hash} mutate meta");
-        self.mutate_small_data(block_hash, |data| {
+        self.kv.mutate_small_data(block_hash, |data| {
             f(&mut data.meta);
         });
     }
@@ -873,89 +808,28 @@ impl Storage for Database {
 }
 
 impl OnChainStorageRO for Database {
-    fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
-        self.with_small_data(block_hash, |data| data.block_header)?
-    }
-
-    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
-        self.kv
-            .get(&Key::BlockEvents(block_hash).to_bytes())
-            .map(|data| {
-                Vec::<BlockEvent>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<BlockEvent>`")
-            })
-    }
-
-    fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo> {
-        self.kv
-            .get(&Key::CodeUploadInfo(code_id).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `CodeBlobInfo`")
-            })
-    }
-
-    fn block_synced(&self, block_hash: H256) -> bool {
-        self.with_small_data(block_hash, |data| data.block_is_synced)
-            .unwrap_or_default()
-    }
-
-    fn validators(&self, era_index: u64) -> Option<ValidatorsVec> {
-        self.kv
-            .get(&Key::ValidatorSet(era_index).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `ValidatorsVec`")
-            })
-    }
-
-    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64> {
-        self.kv
-            .get(&Key::LatestEraValidatorsCommitted(block_hash).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `u64` (era_index)")
-            })
+    delegate::delegate! {
+        to self.as_ref() {
+            fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
+            fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
+            fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
+            fn block_synced(&self, block_hash: H256) -> bool;
+            fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
+            fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64>;
+        }
     }
 }
 
 impl OnChainStorageRW for Database {
-    fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
-        tracing::trace!("Set block header for {block_hash}");
-        self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
-    }
-
-    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
-        tracing::trace!("Set block events for {block_hash}");
-        self.kv
-            .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
-    }
-
-    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
-        tracing::trace!("Set code upload info for {code_id}");
-        self.kv
-            .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
-    }
-
-    fn set_block_synced(&self, block_hash: H256) {
-        tracing::trace!("For block {block_hash} set synced");
-        self.mutate_small_data(block_hash, |data| {
-            data.block_is_synced = true;
-        });
-    }
-
-    fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec) {
-        self.kv.put(
-            &Key::ValidatorSet(era_index).to_bytes(),
-            validator_set.encode(),
-        );
-    }
-
-    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64) {
-        self.kv.put(
-            &Key::LatestEraValidatorsCommitted(block_hash).to_bytes(),
-            era_index.encode(),
-        );
+    delegate::delegate! {
+        to self.as_ref() {
+            fn set_block_header(&self, block_hash: H256, header: BlockHeader);
+            fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
+            fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
+            fn set_block_synced(&self, block_hash: H256);
+            fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
+            fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64);
+        }
     }
 }
 

@@ -32,18 +32,18 @@ use parity_scale_codec::Decode;
 pub async fn initialize_db<'a, 'b>(config: InitConfig, db: DatabaseRef<'a, 'b>) -> Result<()> {
     if ethexe_db::VERSION != DB_VERSION_1 {
         bail!(
-            "Cannot initializing database to version 1, because current impl version is {}",
+            "Cannot initializing database to version {DB_VERSION_1}, because current impl version is {}",
             ethexe_db::VERSION
         );
     }
 
-    log::info!("Initializing database to version 1...");
+    log::info!("Initializing database to version {DB_VERSION_1}...");
 
-    let db_config = db
-        .config()
-        .context("Config key is occupied but cannot be decoded")?;
+    let db_config = db.kv.config();
 
     if let Some(db_config) = db_config {
+        let db_config = db_config.context("Database config is occupied but cannot be decoded")?;
+
         log::info!("Database config found, version {}", db_config.version);
 
         if db_config.version == DB_VERSION_1 {
@@ -55,9 +55,8 @@ pub async fn initialize_db<'a, 'b>(config: InitConfig, db: DatabaseRef<'a, 'b>) 
 
             ensure!(
                 db_config.chain_id == chain_id,
-                "Database chain id {} does not match the provided ethereum rpc chain id {}",
+                "Database chain id {} does not match the provided ethereum rpc chain id {chain_id}",
                 db_config.chain_id,
-                chain_id
             );
             ensure!(
                 db_config.router_address == config.router_address,
@@ -73,31 +72,30 @@ pub async fn initialize_db<'a, 'b>(config: InitConfig, db: DatabaseRef<'a, 'b>) 
             );
 
             return Ok(());
-        }
-
-        if db_config.version != DB_VERSION_0 {
+        } else if db_config.version == DB_VERSION_0 {
             bail!(
-                "Cannot initialize database to version 1 from version {}",
-                db_config.version
+                "Database at version {DB_VERSION_0} must not have config, but we found it.
+                Consider to clean up database"
             );
         } else {
             bail!(
-                "Database at version 0 must not have config, but we found it. Consider to clean up database"
+                "Cannot initialize database to version {DB_VERSION_1} from version {}",
+                db_config.version
             );
         }
-    } else {
+    } else if db.kv.is_empty() {
         // We do not care about CAS emptiness,
         // because in version 1 we have the same CAS layout as in version 0
-        if db.kv.is_empty() {
-            log::info!("KV database is empty, start base initialization to version 1");
-            initialize_empty_db(config, db).await?;
-            log::info!("Database initialized to version 1");
-            return Ok(());
-        }
+        log::info!("KV database is empty, start base initialization to version {DB_VERSION_1}...");
+        initialize_empty_db(config, db).await?;
+    } else {
+        log::info!(
+            "Database at version {DB_VERSION_0} detected, start migration to version {DB_VERSION_1}..."
+        );
+        migration_from_version0(config, db).await?;
     }
 
-    log::info!("Database at version 0 detected, start migration to version 1...");
-    migration_from_version0(config, db).await?;
+    log::info!("Database initialized initialized to version {DB_VERSION_1}");
 
     Ok(())
 }
@@ -186,8 +184,8 @@ pub async fn initialize_empty_db<'a, 'b>(
         latest_computed_announce_hash: genesis_announce_hash,
     };
 
-    db.set_globals(globals);
-    db.set_config(db_config);
+    db.kv.set_globals(globals);
+    db.kv.set_config(db_config);
 
     Ok(())
 }
@@ -236,7 +234,7 @@ pub async fn migration_from_version0<'a, 'b>(
     let latest_data = db
         .kv
         .get(latest_data_key.as_bytes())
-        .ok_or_else(|| anyhow!("latest data not found for db at version 0"))
+        .ok_or_else(|| anyhow!("latest data not found for db at version {DB_VERSION_0}"))
         .map(|bytes| LatestData::decode(&mut bytes.as_slice()))?
         .context("failed to decode LatestData during migration")?;
 
@@ -248,7 +246,7 @@ pub async fn migration_from_version0<'a, 'b>(
         latest_computed_announce_hash: latest_data.computed_announce_hash,
     };
 
-    db.set_globals(globals);
+    db.kv.set_globals(globals);
 
     let timelines = db
         .kv
@@ -271,7 +269,7 @@ pub async fn migration_from_version0<'a, 'b>(
         genesis_announce_hash: latest_data.genesis_announce_hash,
     };
 
-    db.set_config(db_config);
+    db.kv.set_config(db_config);
 
     Ok(())
 }
