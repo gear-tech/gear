@@ -5113,7 +5113,6 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
- "ethexe-runtime-common",
  "gear-core",
  "gear-workspace-hack",
  "gprimitives",

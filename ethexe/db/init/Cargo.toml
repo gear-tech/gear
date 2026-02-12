@@ -9,7 +9,6 @@ repository.workspace = true
 
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }
-ethexe-runtime-common = { workspace = true, features = ["std"] }
 ethexe-db.workspace = true
 ethexe-ethereum.workspace = true
 gear-core = { workspace = true, features = ["std"] }
