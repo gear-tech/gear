@@ -609,40 +609,6 @@ impl Service {
                         | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
-                // Event::Prometheus(event) => {
-                //     let Some(p) = prometheus.as_mut() else {
-                //         unreachable!("couldn't produce event without prometheus");
-                //     };
-
-                //     match event {
-                //         PrometheusEvent::CollectMetrics => {
-                //             let last_block = observer.last_block_number();
-                //             let pending_codes = blob_loader.pending_codes_len();
-
-                //             p.update_observer_metrics(last_block, pending_codes);
-
-                //             // Collect compute service metrics
-                //             let metrics = compute.get_metrics();
-
-                //             p.update_compute_metrics(
-                //                 metrics.blocks_queue_len,
-                //                 metrics.waiting_codes_count,
-                //                 metrics.process_codes_count,
-                //                 metrics
-                //                     .latest_committed_block
-                //                     .as_ref()
-                //                     .map(|b| b.header.height as u64),
-                //                 metrics
-                //                     .latest_committed_block
-                //                     .as_ref()
-                //                     .map(|b| b.header.timestamp),
-                //                 metrics.time_since_latest_committed_secs,
-                //             );
-
-                //             // TODO #4643: support metrics for consensus service
-                //         }
-                //     }
-                // }
                 Event::Rpc(event) => {
                     log::trace!("Received RPC event: {event:?}");
 

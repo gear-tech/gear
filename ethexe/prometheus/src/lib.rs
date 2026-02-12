@@ -31,7 +31,7 @@ use hyper::{
 use metrics::Gauge;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use prometheus::{
-    self, Opts, Registry,
+    self, Opts,
     core::{AtomicU64, GenericCounterVec, GenericGaugeVec},
 };
 use std::{
@@ -67,7 +67,10 @@ pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyL
     .expect("Creating of statics doesn't fail. qed")
 });
 
-#[derive(Clone, metrics_derive::Metrics)]
+/// Global metrics for the node liveness state, shared to avoid per-request cloning.
+pub static LIVENESS_METRICS: LazyLock<LivenessMetrics> = LazyLock::new(LivenessMetrics::default);
+
+#[derive(metrics_derive::Metrics)]
 #[metrics(scope = "ethexe:liveness")]
 pub struct LivenessMetrics {
     /// Number of the block which is corresponding to the latest committed announce
@@ -78,28 +81,11 @@ pub struct LivenessMetrics {
     pub time_since_latest_committed_secs: Gauge,
 }
 
-#[derive(Debug, Clone)]
 /// Configuration for the Prometheus service.
+#[derive(Debug, Clone)]
 pub struct PrometheusConfig {
     pub name: String,
     pub addr: SocketAddr,
-    pub registry: Registry,
-}
-
-impl PrometheusConfig {
-    /// Create a new config using the default registry.
-    pub fn new(name: String, addr: SocketAddr) -> Self {
-        let labels = [("chain".into(), "ethexe-dev".into())].into();
-
-        let registry = Registry::new_custom(None, Some(labels))
-            .expect("this can only fail if prefix is empty string");
-
-        Self {
-            name,
-            addr,
-            registry,
-        }
-    }
 }
 
 pub struct PrometheusService {
@@ -122,13 +108,12 @@ impl FusedStream for PrometheusService {
 impl PrometheusService {
     pub fn new(config: PrometheusConfig, db: Database) -> Result<Self> {
         let handle = PrometheusBuilder::new()
+            .add_global_label("node", config.name)
             .install_recorder()
             .context("Failed to install prometheus recorder")?;
-        let metrics = LivenessMetrics::default();
 
-        let server = tokio::spawn(
-            start_prometheus_server(config.addr, handle.clone(), db, metrics).map(drop),
-        );
+        let server =
+            tokio::spawn(start_prometheus_server(config.addr, handle.clone(), db).map(drop));
         Ok(Self { server })
     }
 }
@@ -137,7 +122,6 @@ async fn start_prometheus_server(
     prometheus_addr: SocketAddr,
     handle: PrometheusHandle,
     db: Database,
-    metrics: LivenessMetrics,
 ) -> Result<()> {
     let listener = TcpListener::bind(&prometheus_addr).await?;
     let listener = AddrIncoming::from_listener(listener)?;
@@ -146,12 +130,11 @@ async fn start_prometheus_server(
 
     let service = make_service_fn(move |_| {
         let handle = handle.clone();
-        let metrics = metrics.clone();
         let db = db.clone();
 
         async move {
             Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-                request_metrics(req, handle.clone(), db.clone(), metrics.clone())
+                request_metrics(req, handle.clone(), db.clone())
             }))
         }
     });
@@ -176,10 +159,9 @@ async fn request_metrics(
     req: Request<Body>,
     handle: PrometheusHandle,
     db: Database,
-    metrics: LivenessMetrics,
 ) -> Result<Response<Body>> {
     if req.uri().path() == "/metrics" {
-        update_liveness_metrics(db, metrics);
+        update_liveness_metrics(db);
         let metrics = handle.render();
 
         Response::builder()
@@ -197,7 +179,7 @@ async fn request_metrics(
     .context("Failed to request metrics")
 }
 
-fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
+fn update_liveness_metrics(db: Database) {
     let Some(latest_data) = db.latest_data() else {
         return;
     };
@@ -220,13 +202,13 @@ fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
         .timestamp
         .saturating_sub(latest_committed_block_timestamp);
 
-    metrics
+    LIVENESS_METRICS
         .latest_committed_block_number
         .set(latest_committed_block_number as f64);
-    metrics
+    LIVENESS_METRICS
         .latest_committed_block_timestamp
         .set(latest_committed_block_timestamp as f64);
-    metrics
+    LIVENESS_METRICS
         .time_since_latest_committed_secs
         .set(time_since_latest_committed_secs as f64);
 }
