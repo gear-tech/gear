@@ -498,7 +498,7 @@ impl Service {
                 event = rpc.maybe_next_some() => event.into(),
                 fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
                 _ = prometheus.maybe_next_some() => {
-                    log::info!("Prometheus server handle has terminated");
+                    log::error!("Prometheus server handle has terminated");
                     continue;
                 },
                 _ = rpc_handle.as_mut().maybe() => {
