@@ -200,6 +200,16 @@ impl From<ValueClaim> for Gear::ValueClaim {
     }
 }
 
+impl From<Gear::GenesisBlockInfo> for GenesisBlockInfo {
+    fn from(value: Gear::GenesisBlockInfo) -> Self {
+        Self {
+            hash: bytes32_to_h256(value.hash),
+            number: value.number,
+            timestamp: value.timestamp.to::<u64>(),
+        }
+    }
+}
+
 impl From<Gear::ComputationSettings> for ComputationSettings {
     fn from(value: Gear::ComputationSettings) -> Self {
         Self {

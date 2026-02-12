@@ -55,6 +55,17 @@ pub struct EmptyValidatorsError;
 #[cfg(feature = "std")]
 impl std::error::Error for EmptyValidatorsError {}
 
+#[cfg(feature = "mock")]
+impl FromIterator<Address> for ValidatorsVec {
+    #[track_caller]
+    fn from_iter<T: IntoIterator<Item = Address>>(iter: T) -> Self {
+        let vec: Vec<Address> = iter.into_iter().collect();
+        NonEmpty::from_vec(vec)
+            .map(ValidatorsVec)
+            .expect("ValidatorsVec cannot be created from an empty collection")
+    }
+}
+
 impl TryFrom<Vec<Address>> for ValidatorsVec {
     type Error = EmptyValidatorsError;
 

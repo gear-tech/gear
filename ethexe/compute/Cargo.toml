@@ -28,4 +28,5 @@ gear-utils.workspace = true
 wat.workspace = true
 wasmparser.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
+ethexe-db = { workspace = true, features = ["mock"] }
 ntest.workspace = true

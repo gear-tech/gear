@@ -18,10 +18,9 @@
 
 use super::*;
 use alloy::node_bindings::Anvil;
-use ethexe_db::{Database, MemDb};
+use ethexe_db_init::InitConfig;
 use ethexe_ethereum::deploy::EthereumDeployer;
 use gsigner::secp256k1::Signer;
-use std::time::Duration;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
     let code = wat::parse_str(s).unwrap();
@@ -56,18 +55,19 @@ async fn test_deployment() -> Result<()> {
         .deploy()
         .await?;
 
-    let db = MemDb::default();
-    let database = Database::from_one(&db);
+    let database = ethexe_db_init::create_initialized_empty_memory_db(InitConfig {
+        ethereum_rpc: ethereum_rpc.clone(),
+        router_address: ethereum.router().address(),
+        slot_duration_secs: 1,
+    })
+    .await?;
 
     let mut observer = ObserverService::new(
-        &EthereumConfig {
-            rpc: ethereum_rpc,
-            router_address: ethereum.router().address(),
-            block_time: Duration::from_secs(1),
-            beacon_rpc: Default::default(),
-        },
-        u32::MAX,
         database.clone(),
+        ObserverConfig {
+            rpc: &ethereum_rpc,
+            max_sync_depth: None,
+        },
     )
     .await
     .expect("failed to create observer");

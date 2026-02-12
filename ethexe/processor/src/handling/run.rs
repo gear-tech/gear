@@ -771,8 +771,7 @@ mod tests {
 
     #[test]
     fn nullification() {
-        let mem_db = ethexe_db::MemDb::default();
-        let db = Database::from_one(&mem_db);
+        let db = Database::memory();
 
         let source = ActorId::from(H256::random());
         let pid1 = ActorId::from(H256::random());

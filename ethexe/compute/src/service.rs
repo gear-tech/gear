@@ -24,7 +24,7 @@ use crate::{
 };
 use ethexe_common::{
     Announce, CodeAndIdUnchecked, SimpleBlockData,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, GlobalsStorageRO, OnChainStorageRO},
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
@@ -77,31 +77,28 @@ impl<P: ProcessorExt> ComputeService<P> {
 
     /// Get all metrics from the compute service
     pub fn get_metrics(&self) -> ComputeMetrics {
-        let mut latest_committed_block = None;
-        let mut time_since_latest_committed_secs = None;
-        if let Some(latest_data) = self.db.latest_data() {
-            latest_committed_block = self
-                .db
-                .block_meta(latest_data.prepared_block_hash)
-                .last_committed_announce
-                .and_then(|a| self.db.announce(a))
-                .and_then(|a| {
-                    self.db
-                        .block_header(a.block_hash)
-                        .map(|header| SimpleBlockData {
-                            hash: a.block_hash,
-                            header,
-                        })
-                });
-
-            time_since_latest_committed_secs = latest_committed_block.map(|block| {
-                latest_data
-                    .synced_block
-                    .header
-                    .timestamp
-                    .saturating_sub(block.header.timestamp)
+        let latest_committed_block = self
+            .db
+            .block_meta(self.db.globals().latest_prepared_block_hash)
+            .last_committed_announce
+            .and_then(|a| self.db.announce(a))
+            .and_then(|a| {
+                self.db
+                    .block_header(a.block_hash)
+                    .map(|header| SimpleBlockData {
+                        hash: a.block_hash,
+                        header,
+                    })
             });
-        }
+
+        let time_since_latest_committed_secs = latest_committed_block.map(|block| {
+            self.db
+                .globals()
+                .latest_synced_block
+                .header
+                .timestamp
+                .saturating_sub(block.header.timestamp)
+        });
 
         ComputeMetrics {
             blocks_queue_len: self.prepare_sub_service.blocks_queue_len(),
