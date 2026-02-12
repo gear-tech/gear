@@ -67,10 +67,7 @@ pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyL
     .expect("Creating of statics doesn't fail. qed")
 });
 
-/// Global metrics for the node liveness state, shared to avoid per-request cloning.
-pub static LIVENESS_METRICS: LazyLock<LivenessMetrics> = LazyLock::new(LivenessMetrics::default);
-
-#[derive(metrics_derive::Metrics)]
+#[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe:liveness")]
 pub struct LivenessMetrics {
     /// Number of the block which is corresponding to the latest committed announce
@@ -111,9 +108,11 @@ impl PrometheusService {
             .add_global_label("node", config.name)
             .install_recorder()
             .context("Failed to install prometheus recorder")?;
+        let metrics = LivenessMetrics::default();
 
-        let server =
-            tokio::spawn(start_prometheus_server(config.addr, handle.clone(), db).map(drop));
+        let server = tokio::spawn(
+            start_prometheus_server(config.addr, handle.clone(), metrics, db).map(drop),
+        );
         Ok(Self { server })
     }
 }
@@ -121,6 +120,7 @@ impl PrometheusService {
 async fn start_prometheus_server(
     prometheus_addr: SocketAddr,
     handle: PrometheusHandle,
+    metrics: LivenessMetrics,
     db: Database,
 ) -> Result<()> {
     let listener = TcpListener::bind(&prometheus_addr).await?;
@@ -130,11 +130,12 @@ async fn start_prometheus_server(
 
     let service = make_service_fn(move |_| {
         let handle = handle.clone();
+        let metrics = metrics.clone();
         let db = db.clone();
 
         async move {
             Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-                request_metrics(req, handle.clone(), db.clone())
+                request_metrics(req, handle.clone(), metrics.clone(), db.clone())
             }))
         }
     });
@@ -158,10 +159,11 @@ async fn start_prometheus_server(
 async fn request_metrics(
     req: Request<Body>,
     handle: PrometheusHandle,
+    metrics: LivenessMetrics,
     db: Database,
 ) -> Result<Response<Body>> {
     if req.uri().path() == "/metrics" {
-        update_liveness_metrics(db);
+        update_liveness_metrics(db, metrics);
         let metrics = handle.render();
 
         Response::builder()
@@ -179,7 +181,7 @@ async fn request_metrics(
     .context("Failed to request metrics")
 }
 
-fn update_liveness_metrics(db: Database) {
+fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
     let Some(latest_data) = db.latest_data() else {
         return;
     };
@@ -202,13 +204,13 @@ fn update_liveness_metrics(db: Database) {
         .timestamp
         .saturating_sub(latest_committed_block_timestamp);
 
-    LIVENESS_METRICS
+    metrics
         .latest_committed_block_number
         .set(latest_committed_block_number as f64);
-    LIVENESS_METRICS
+    metrics
         .latest_committed_block_timestamp
         .set(latest_committed_block_timestamp as f64);
-    LIVENESS_METRICS
+    metrics
         .time_since_latest_committed_secs
         .set(time_since_latest_committed_secs as f64);
 }
