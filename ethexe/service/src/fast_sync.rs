@@ -474,7 +474,9 @@ async fn sync_from_network(
     let mut manager = RequestManager::new(db.clone());
 
     for &state in program_states.values() {
-        manager.add(state, RequestMetadata::ProgramState);
+        if !state.is_zero() {
+            manager.add(state, RequestMetadata::ProgramState);
+        }
     }
 
     for &code_id in code_ids {
@@ -562,17 +564,21 @@ async fn sync_from_network(
     program_states
         .into_iter()
         .map(|(program_id, hash)| {
-            let (canonical_queue_size, injected_queue_size) = *restored_cached_queue_sizes
-                .get(&hash)
-                .expect("program state cached queue size must be restored");
-            (
-                program_id,
-                StateHashWithQueueSize {
-                    hash,
-                    canonical_queue_size,
-                    injected_queue_size,
-                },
-            )
+            if hash.is_zero() {
+                (program_id, StateHashWithQueueSize::zero())
+            } else {
+                let (canonical_queue_size, injected_queue_size) = *restored_cached_queue_sizes
+                    .get(&hash)
+                    .expect("program state cached queue size must be restored");
+                (
+                    program_id,
+                    StateHashWithQueueSize {
+                        hash,
+                        canonical_queue_size,
+                        injected_queue_size,
+                    },
+                )
+            }
         })
         .collect()
 }
