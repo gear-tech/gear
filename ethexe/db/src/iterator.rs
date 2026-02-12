@@ -447,6 +447,16 @@ where
         this
     }
 
+    pub fn with_skip_nodes(storage: S, node: impl Into<Node>, skip_nodes: HashSet<u64>) -> Self {
+        let mut this = Self {
+            storage,
+            stack: Default::default(),
+            visited_nodes: skip_nodes,
+        };
+        this.push_node(node);
+        this
+    }
+
     fn push_node(&mut self, node: impl Into<Node>) {
         self.stack.push_back(node.into());
     }
@@ -869,11 +879,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop_front() {
-            let node_hash = {
-                let mut hasher = DefaultHasher::new();
-                node.hash(&mut hasher);
-                hasher.finish()
-            };
+            let node_hash = node_hash(&node);
 
             if !self.visited_nodes.insert(node_hash) {
                 // avoid recursion and duplicates
@@ -887,6 +893,12 @@ where
 
         None
     }
+}
+
+pub fn node_hash(node: &Node) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    node.hash(&mut hasher);
+    hasher.finish()
 }
 
 #[cfg(test)]

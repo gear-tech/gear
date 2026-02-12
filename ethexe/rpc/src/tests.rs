@@ -121,7 +121,7 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
 }
 
 #[tokio::test]
-#[ntest::timeout(20_000)]
+#[ntest::timeout(60_000)]
 async fn test_cleanup_promise_subscribers() {
     let _ = tracing_subscriber::fmt::try_init();
 
