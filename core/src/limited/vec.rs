@@ -74,9 +74,7 @@ impl<T: Decode, const N: usize> Decode for LimitedVec<T, N> {
         let Compact(len) = <Compact<u32>>::decode(input)?;
         let len = len as usize;
 
-        if len > N {
-            return Err("Too many elements for the limited vector".into());
-        }
+        Self::validate_len(len).map_err(|e| e.as_str())?;
 
         decode_vec_with_len(input, len).map(Self)
     }
