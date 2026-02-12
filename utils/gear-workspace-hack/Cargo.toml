@@ -351,6 +351,7 @@ pbkdf2 = { version = "0.12", default-features = false, features = ["std"] }
 percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
+portable-atomic = { version = "1", features = ["require-cas"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
 predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
@@ -627,6 +628,7 @@ pbkdf2 = { version = "0.12", default-features = false, features = ["std"] }
 percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
+portable-atomic = { version = "1", features = ["require-cas"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
 predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
@@ -760,6 +762,7 @@ winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
+crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -773,7 +776,6 @@ nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-portable-atomic = { version = "1", features = ["require-cas"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
 rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
@@ -785,6 +787,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["loggin
 unicode-normalization = { version = "0.1" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
+crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -798,7 +801,6 @@ nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
@@ -811,6 +813,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["loggin
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.dependencies]
+crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -824,7 +827,6 @@ nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-portable-atomic = { version = "1", features = ["require-cas"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
 rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
@@ -835,6 +837,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["loggin
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
+crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -848,7 +851,6 @@ nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
@@ -860,6 +862,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["loggin
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.dependencies]
+crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -870,7 +873,6 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-portable-atomic = { version = "1", features = ["require-cas"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
 rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
@@ -882,6 +884,7 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["loggin
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.build-dependencies]
+crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
@@ -892,7 +895,6 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "
 nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
-portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
