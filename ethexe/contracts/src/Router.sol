@@ -25,6 +25,120 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant TRANSIENT_STORAGE = 0xf02b465737fa6045c2ff53fb2df43c66916ac2166fa303264668fb2f6a1d8c00;
 
+    uint256 internal constant COMMIT_BATCH_BEFORE_LOADING_STORAGE = 0;
+    uint256 internal constant COMMIT_BATCH_AFTER_LOADING_STORAGE = 1;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_GENESIS_HASH = 2;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_GENESIS_HASH = 3;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_RESERVED = 4;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_RESERVED = 5;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_BLOCK_IS_PREDECESSOR = 6;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_BLOCK_IS_PREDECESSOR = 7;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_BATCH_TIMESTAMP = 8;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_BATCH_TIMESTAMP = 9;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_PREVIOUS_COMMITTED_BATCH_HASH = 10;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_PREVIOUS_COMMITTED_BATCH_HASH = 11;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_BATCH_TIMESTAMP_TOO_EARLY = 12;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_BATCH_TIMESTAMP_TOO_EARLY = 13;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_TOO_MANY_CHAIN_COMMITMENTS = 14;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_TOO_MANY_CHAIN_COMMITMENTS = 15;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_CHAIN_COMMITMENTS_LENGTH = 16;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_CHAIN_COMMITMENTS_LENGTH = 17;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_TAKING_FIRST_CHAIN_COMMITMENT = 18;
+    uint256 internal constant COMMIT_BATCH_AFTER_TAKING_FIRST_CHAIN_COMMITMENT = 19;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_TRANSITIONS_ALLOCATION = 20;
+    uint256 internal constant COMMIT_BATCH_AFTER_TRANSITIONS_ALLOCATION = 21;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_TAKING_STATE_TRANSITION = 22;
+    uint256 internal constant COMMIT_BATCH_AFTER_TAKING_STATE_TRANSITION = 23;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_FOR_UNKNOWN_PROGRAM = 24;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_FOR_UNKNOWN_PROGRAM = 25;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CALCULATING_VALUE_TO_RECEIVE = 26;
+    uint256 internal constant COMMIT_BATCH_AFTER_CALCULATING_VALUE_TO_RECEIVE = 27;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CALLING_PERFORM_STATE_TRANSITION = 28;
+    uint256 internal constant COMMIT_BATCH_AFTER_CALLING_PERFORM_STATE_TRANSITION = 29;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_WRITING_TRANSITION_HASH = 30;
+    uint256 internal constant COMMIT_BATCH_AFTER_WRITING_TRANSITION_HASH = 31;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_INCREMENTING_OFFSET1 = 32;
+    uint256 internal constant COMMIT_BATCH_AFTER_INCREMENTING_OFFSET1 = 33;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_KECCAK256_TRANSITIONS_HASH = 34;
+    uint256 internal constant COMMIT_BATCH_AFTER_KECCAK256_TRANSITIONS_HASH = 35;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_EMITTING_ANNOUNCES_COMMITTED = 36;
+    uint256 internal constant COMMIT_BATCH_AFTER_EMITTING_ANNOUNCES_COMMITTED = 37;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_KECCAK256_CHAIN_COMMITMENT_HASH = 38;
+    uint256 internal constant COMMIT_BATCH_AFTER_KECCAK256_CHAIN_COMMITMENT_HASH = 39;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CODE_COMMITMENTS_ALLOCATION = 40;
+    uint256 internal constant COMMIT_BATCH_AFTER_CODE_COMMITMENTS_ALLOCATION = 41;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_TAKING_CODE_COMMITMENT = 42;
+    uint256 internal constant COMMIT_BATCH_AFTER_TAKING_CODE_COMMITMENT = 43;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_FOR_INVALID_CODE_VALIDATION_STATE = 44;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_FOR_INVALID_CODE_VALIDATION_STATE = 45;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_SETTING_VALIDATED_CODE_STATE = 46;
+    uint256 internal constant COMMIT_BATCH_AFTER_SETTING_VALIDATED_CODE_STATE = 47;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_INCREMENTING_VALIDATED_CODES_COUNT = 48;
+    uint256 internal constant COMMIT_BATCH_AFTER_INCREMENTING_VALIDATED_CODES_COUNT = 49;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_DELETING_INVALID_CODE_STATE = 50;
+    uint256 internal constant COMMIT_BATCH_AFTER_DELETING_INVALID_CODE_STATE = 51;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_EMITTING_CODE_GOT_VALIDATED = 52;
+    uint256 internal constant COMMIT_BATCH_AFTER_EMITTING_CODE_GOT_VALIDATED = 53;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_KECCAK256_CODE_COMMITMENT_HASH = 54;
+    uint256 internal constant COMMIT_BATCH_AFTER_KECCAK256_CODE_COMMITMENT_HASH = 55;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_WRITING_CODE_COMMITMENT_HASH = 56;
+    uint256 internal constant COMMIT_BATCH_AFTER_WRITING_CODE_COMMITMENT_HASH = 57;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_INCREMENTING_OFFSET2 = 58;
+    uint256 internal constant COMMIT_BATCH_AFTER_INCREMENTING_OFFSET2 = 59;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_KECCAK256_CODE_COMMITMENTS_HASH = 60;
+    uint256 internal constant COMMIT_BATCH_AFTER_KECCAK256_CODE_COMMITMENTS_HASH = 61;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_NOT_BENCHMARKED_YET = 62;
+    uint256 internal constant COMMIT_BATCH_AFTER_NOT_BENCHMARKED_YET = 63;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_HASHING_BATCH = 64;
+    uint256 internal constant COMMIT_BATCH_AFTER_HASHING_BATCH = 65;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_UPDATING_LATEST_COMMITTED_BATCH_HASH = 66;
+    uint256 internal constant COMMIT_BATCH_AFTER_UPDATING_LATEST_COMMITTED_BATCH_HASH = 67;
+
+    uint256 internal constant COMMIT_BATCH_AFTER_UPDATING_LATEST_COMMITTED_BATCH_TIMESTAMP = 68;
+    uint256 internal constant COMMIT_BATCH_BEFORE_UPDATING_LATEST_COMMITTED_BATCH_TIMESTAMP = 69;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_EMITTING_BATCH_COMMITTED = 70;
+    uint256 internal constant COMMIT_BATCH_AFTER_EMITTING_BATCH_COMMITTED = 71;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_ERA_STARTED_AT = 72;
+
+    uint256 internal constant COMMIT_BATCH_AFTER_EXITING_VERIFY_AT_FUNCTION = 107;
+
+    event DebugEvent(uint256 indexed topic0) anonymous;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -309,34 +423,76 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return mirror;
     }
 
+    // Before delegate call: 2426 (+ calldata size dependent) (+ delegate call gas)
+
     function commitBatch(
         Gear.BatchCommitment calldata _batch,
         Gear.SignatureType _signatureType,
         bytes[] calldata _signatures
     ) external nonReentrant {
-        Storage storage router = _router();
+        // num_words = 3 (already charged for initialization)
+        //
+        // during initialization `mstore(0x40, 0x80)`, `[0x40; 0x60)` - free memory pointer
+        // so, initial memory size is 3 words: `(0x60 / 0x20)`
 
+        // gas used: ~1135 (entrypoint, non-reentrant check)
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_LOADING_STORAGE);
+        Storage storage router = _router();
+        // gas used: ~2144 (load storage)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_LOADING_STORAGE);
+
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_GENESIS_HASH);
         require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
+        // gas used: ~2134 (check genesis block hash)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_GENESIS_HASH);
 
         // `router.reserved` is always `0` but can be overridden in an RPC request
         // to estimate gas excluding `Gear.blockIsPredecessor()`.
+
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_RESERVED);
         if (router.reserved == 0) {
+            // gas used: ~2129 (check reserved)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_RESERVED);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_BLOCK_IS_PREDECESSOR);
             require(Gear.blockIsPredecessor(_batch.blockHash, _batch.expiry), PredecessorBlockNotFound());
+            // gas used: ~27798 (check block is predecessor, it's assumed that `_batch.expiry = type(uint8).max`)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_BLOCK_IS_PREDECESSOR);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_BATCH_TIMESTAMP);
             require(block.timestamp > _batch.blockTimestamp, BatchTimestampNotInPast());
+            // gas used: ~106 (check batch timestamp)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_BATCH_TIMESTAMP);
         }
 
         // Check that batch correctly references to the previous committed batch.
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_PREVIOUS_COMMITTED_BATCH_HASH);
         require(
             router.latestCommittedBatch.hash == _batch.previousCommittedBatchHash, InvalidPreviousCommittedBatchHash()
         );
+        // gas used: ~2149 (check previous committed batch hash)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_PREVIOUS_COMMITTED_BATCH_HASH);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_BATCH_TIMESTAMP_TOO_EARLY);
         require(router.latestCommittedBatch.timestamp <= _batch.blockTimestamp, BatchTimestampTooEarly());
+        // gas used: ~2216 (check batch timestamp too early)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_BATCH_TIMESTAMP_TOO_EARLY);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_TOO_MANY_CHAIN_COMMITMENTS);
         bytes32 _chainCommitmentHash = _commitChain(router, _batch);
+        // emit DebugEvent(COMMIT_BATCH_AFTER_KECCAK256_CHAIN_COMMITMENT_HASH);
+
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CODE_COMMITMENTS_ALLOCATION);
         bytes32 _codeCommitmentsHash = _commitCodes(router, _batch);
+        // emit DebugEvent(COMMIT_BATCH_AFTER_KECCAK256_CODE_COMMITMENTS_HASH);
+
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_NOT_BENCHMARKED_YET);
         bytes32 _rewardsCommitmentHash = _commitRewards(router, _batch);
         bytes32 _validatorsCommitmentHash = _commitValidators(router, _batch);
+        // gas used: ~900 (not benchmarked yet, it's assumed that both commitments are empty)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_NOT_BENCHMARKED_YET);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_HASHING_BATCH);
         bytes32 _batchHash = Gear.batchCommitmentHash(
             _batch.blockHash,
             _batch.blockTimestamp,
@@ -347,18 +503,33 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             _rewardsCommitmentHash,
             _validatorsCommitmentHash
         );
+        // gas used: ~558 (hashing batch)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_HASHING_BATCH);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_UPDATING_LATEST_COMMITTED_BATCH_HASH);
         router.latestCommittedBatch.hash = _batchHash;
+        // gas used: ~2921 (updating latest committed batch hash)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_UPDATING_LATEST_COMMITTED_BATCH_HASH);
+
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_UPDATING_LATEST_COMMITTED_BATCH_TIMESTAMP);
         router.latestCommittedBatch.timestamp = _batch.blockTimestamp;
+        // gas used: ~3115 (updating latest committed batch timestamp)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_UPDATING_LATEST_COMMITTED_BATCH_TIMESTAMP);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_EMITTING_BATCH_COMMITTED);
         emit BatchCommitted(_batchHash);
+        // gas used: ~1024 (emitting batch committed)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_EMITTING_BATCH_COMMITTED);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_ERA_STARTED_AT);
         require(
             Gear.validateSignaturesAt(
                 router, TRANSIENT_STORAGE, _batchHash, _signatureType, _signatures, _batch.blockTimestamp
             ),
             SignatureVerificationFailed()
         );
+        // gas used: ~40 (exit from validating signatures at)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_EXITING_VERIFY_AT_FUNCTION);
     }
 
     /* Helper private functions */
@@ -386,52 +557,103 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
     function _commitChain(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
         require(_batch.chainCommitment.length <= 1, TooManyChainCommitments());
+        // gas used: ~240 (check too many chain commitments)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_TOO_MANY_CHAIN_COMMITMENTS);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_CHAIN_COMMITMENTS_LENGTH);
         if (_batch.chainCommitment.length == 0) {
             /// forge-lint: disable-next-line(asm-keccak256)
             return keccak256("");
         }
+        // gas used: ~201 (check chain commitments length)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_CHAIN_COMMITMENTS_LENGTH);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_TAKING_FIRST_CHAIN_COMMITMENT);
         Gear.ChainCommitment calldata _commitment = _batch.chainCommitment[0];
+        // gas used: ~235 (take first chain commitment)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_TAKING_FIRST_CHAIN_COMMITMENT);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_TRANSITIONS_ALLOCATION);
         bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
+        // emit DebugEvent(COMMIT_BATCH_AFTER_KECCAK256_TRANSITIONS_HASH);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_EMITTING_ANNOUNCES_COMMITTED);
         emit AnnouncesCommitted(_commitment.head);
+        // gas used: ~1032 (emit announces committed)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_EMITTING_ANNOUNCES_COMMITTED);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_KECCAK256_CHAIN_COMMITMENT_HASH);
         return Gear.chainCommitmentHash(_transitionsHash, _commitment.head);
+        // gas used: ~82 (keccak256 chain commitment hash)
     }
 
     function _commitCodes(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
+        // num_words += codeCommitmentsLen
         uint256 codeCommitmentsLen = _batch.codeCommitments.length;
         uint256 codeCommitmentsHashSize = codeCommitmentsLen * 32;
         uint256 codeCommitmentsPtr = Memory.allocate(codeCommitmentsHashSize);
         uint256 offset = 0;
+        // gas used: ~373 + memory_cost (code commitments allocation)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_CODE_COMMITMENTS_ALLOCATION);
 
         for (uint256 i = 0; i < codeCommitmentsLen; i++) {
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_TAKING_CODE_COMMITMENT);
             Gear.CodeCommitment calldata _commitment = _batch.codeCommitments[i];
+            // gas used: ~215 (take code commitment)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_TAKING_CODE_COMMITMENT);
 
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_FOR_INVALID_CODE_VALIDATION_STATE);
             require(
                 router.protocolData.codes[_commitment.id] == Gear.CodeState.ValidationRequested,
                 CodeValidationNotRequested()
             );
+            // gas used: ~2270 (check for invalid code validation state)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_FOR_INVALID_CODE_VALIDATION_STATE);
 
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_SETTING_VALIDATED_CODE_STATE);
             if (_commitment.valid) {
                 router.protocolData.codes[_commitment.id] = Gear.CodeState.Validated;
+                // gas used: ~3215 (setting validated code state)
+                // emit DebugEvent(COMMIT_BATCH_AFTER_SETTING_VALIDATED_CODE_STATE);
+
+                // emit DebugEvent(COMMIT_BATCH_BEFORE_INCREMENTING_VALIDATED_CODES_COUNT);
                 router.protocolData.validatedCodesCount++;
+                // gas used: ~22169 (incrementing validated codes count)
+                // emit DebugEvent(COMMIT_BATCH_AFTER_INCREMENTING_VALIDATED_CODES_COUNT);
             } else {
+                // emit DebugEvent(COMMIT_BATCH_BEFORE_DELETING_INVALID_CODE_STATE);
                 delete router.protocolData.codes[_commitment.id];
+                // gas used: ~3096 (deleting invalid code state)
+                // emit DebugEvent(COMMIT_BATCH_AFTER_DELETING_INVALID_CODE_STATE);
             }
 
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_EMITTING_CODE_GOT_VALIDATED);
             emit CodeGotValidated(_commitment.id, _commitment.valid);
+            // gas used: ~1484 (emit code got validated)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_EMITTING_CODE_GOT_VALIDATED);
 
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_KECCAK256_CODE_COMMITMENT_HASH);
             bytes32 codeCommitmentHash = Gear.codeCommitmentHash(_commitment.id, _commitment.valid);
+            // gas used: ~142 (keccak256 code commitment hash)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_KECCAK256_CODE_COMMITMENT_HASH);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_WRITING_CODE_COMMITMENT_HASH);
             Memory.writeWordAsBytes32(codeCommitmentsPtr, offset, codeCommitmentHash);
+            // gas used: ~21 (write code commitment hash)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_WRITING_CODE_COMMITMENT_HASH);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_INCREMENTING_OFFSET2);
             unchecked {
                 offset += 32;
             }
+            // gas used: ~15 (increment offset)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_INCREMENTING_OFFSET2);
         }
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_KECCAK256_CODE_COMMITMENTS_HASH);
         return Hashes.efficientKeccak256AsBytes32(codeCommitmentsPtr, 0, codeCommitmentsHashSize);
+        // keccak256_cost = 30 + 6 * codeCommitmentsLen
+        // gas used: ~21 + keccak256_cost (hashing code commitments)
     }
 
     // TODO #4609
@@ -511,30 +733,59 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         private
         returns (bytes32)
     {
+        // num_words += (1 + transitionsLen)
+        // `+1` because free memory pointer at `0x80`
+
         uint256 transitionsLen = _transitions.length;
         uint256 transitionsHashSize = transitionsLen * 32;
         uint256 transitionsHashesMemPtr = Memory.allocate(transitionsHashSize);
         uint256 offset = 0;
+        // gas used: ~366 + memory_cost (transitions allocation)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_TRANSITIONS_ALLOCATION);
 
         for (uint256 i = 0; i < transitionsLen; i++) {
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_TAKING_STATE_TRANSITION);
             Gear.StateTransition calldata transition = _transitions[i];
+            // gas used: ~57 (take state transition)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_TAKING_STATE_TRANSITION);
 
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_FOR_UNKNOWN_PROGRAM);
             require(router.protocolData.programs[transition.actorId] != 0, UnknownProgram());
+            // gas used: ~2295/~295 (check for unknown program, gas depends on whether program is known or not)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_FOR_UNKNOWN_PROGRAM);
 
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CALCULATING_VALUE_TO_RECEIVE);
             uint128 value = 0;
 
             if (transition.valueToReceive != 0 && !transition.valueToReceiveNegativeSign) {
                 value = transition.valueToReceive;
             }
+            // gas used: ~150/~327 (calculate value to receive, gas depends on whether value is zero or not)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CALCULATING_VALUE_TO_RECEIVE);
 
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CALLING_PERFORM_STATE_TRANSITION);
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition{value: value}(transition);
+            // num_words += ???
+            // gas used: ~??? (call perform state transition)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CALLING_PERFORM_STATE_TRANSITION);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_WRITING_TRANSITION_HASH);
             Memory.writeWordAsBytes32(transitionsHashesMemPtr, offset, transitionHash);
+            // gas used: ~20 (write transition hash)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_WRITING_TRANSITION_HASH);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_INCREMENTING_OFFSET1);
             unchecked {
                 offset += 32;
             }
+            // gas used: ~14 (increment offset)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_INCREMENTING_OFFSET1);
         }
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_KECCAK256_TRANSITIONS_HASH);
         return Hashes.efficientKeccak256AsBytes32(transitionsHashesMemPtr, 0, transitionsHashSize);
+        // keccak256_cost = 30 + 6 * transitionsLen
+        // gas used: ~11 + keccak256_cost (hashing state transitions)
     }
 
     function _resetValidators(
