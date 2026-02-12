@@ -18,7 +18,6 @@
 
 use crate::{
     db_sync::{Multiaddr, PeerId},
-    peer_score,
     utils::ParityScaleCodec,
     validator::discovery::ValidatorIdentities,
 };
@@ -128,21 +127,19 @@ type PendingResponseFuture = BoxFuture<'static, (ResponseChannel<InnerResponse>,
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    peer_score: peer_score::Handle,
     pending_requests: HashMap<OutboundRequestId, HashOf<InjectedTransaction>>,
     pending_responses: FuturesUnordered<PendingResponseFuture>,
     transaction_cache: LruCache<HashOf<InjectedTransaction>, LruCache<Address, ()>>,
 }
 
 impl Behaviour {
-    pub fn new(peer_score: peer_score::Handle) -> Self {
+    pub fn new() -> Self {
         let inner = request_response::Behaviour::new(
             [(STREAM_PROTOCOL, ProtocolSupport::Full)],
             request_response::Config::default(),
         );
         Self {
             inner,
-            peer_score,
             pending_requests: HashMap::new(),
             pending_responses: FuturesUnordered::new(),
             transaction_cache: LruCache::new(MAX_TRANSACTIONS),
@@ -249,7 +246,6 @@ impl Behaviour {
                     log::debug!(
                         "request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
                     );
-                    self.peer_score.unsupported_protocol(peer);
                 }
 
                 let acceptance = Err(error.to_string()).into();
@@ -267,7 +263,6 @@ impl Behaviour {
                 log::debug!(
                     "request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
                 );
-                self.peer_score.unsupported_protocol(peer);
             }
             request_response::Event::InboundFailure { .. } => {}
             request_response::Event::ResponseSent { .. } => {}
@@ -414,7 +409,7 @@ mod tests {
 
         let mut swarm = Swarm::new(
             transport,
-            Behaviour::new(peer_score::Handle::new_test()),
+            Behaviour::new(),
             peer_id,
             libp2p::swarm::Config::with_tokio_executor(),
         );
@@ -547,7 +542,7 @@ mod tests {
     async fn too_many_pending_requests() {
         init_logger();
 
-        let mut alice = Behaviour::new(peer_score::Handle::new_test());
+        let mut alice = Behaviour::new();
         let (_bob, bob_identity) = new_swarm().await;
         let bob_address = bob_identity.address();
 
@@ -569,7 +564,7 @@ mod tests {
     async fn transaction_already_sent() {
         init_logger();
 
-        let mut alice = Behaviour::new(peer_score::Handle::new_test());
+        let mut alice = Behaviour::new();
         let (_bob, bob_identity) = new_swarm().await;
 
         let transaction = addressed_injected_tx(bob_identity.address());
@@ -587,7 +582,7 @@ mod tests {
 
     #[tokio::test]
     async fn validator_not_found() {
-        let mut alice = Behaviour::new(peer_score::Handle::new_test());
+        let mut alice = Behaviour::new();
 
         let transaction = addressed_injected_tx(Address::default());
 

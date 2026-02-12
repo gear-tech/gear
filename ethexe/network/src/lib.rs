@@ -710,7 +710,7 @@ impl Behaviour {
             db,
         );
 
-        let injected = injected::Behaviour::new(peer_score_handle);
+        let injected = injected::Behaviour::new();
 
         let validator_discovery = validator::discovery::Config {
             kad: kad_handle,
@@ -944,7 +944,9 @@ mod tests {
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        peer_score_handle.unsupported_protocol(service2_peer_id);
+        for _ in 0..u8::MAX {
+            peer_score_handle.invalid_data(service2_peer_id);
+        }
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
