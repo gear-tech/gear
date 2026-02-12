@@ -762,7 +762,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     );
 
     db.globals_mutate(|globals| {
-        globals.start_block = block_hash;
+        globals.start_block_hash = block_hash;
         globals.start_announce_hash = announce_hash;
         globals.latest_synced_block = SimpleBlockData {
             hash: block_hash,

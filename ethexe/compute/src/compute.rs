@@ -244,10 +244,7 @@ fn find_canonical_events_post_quarantine(
     mut block_hash: H256,
     canonical_quarantine: u8,
 ) -> Result<Vec<BlockEvent>> {
-    let genesis_block = db
-        .latest_data()
-        .ok_or_else(|| ComputeError::LatestDataNotFound)?
-        .genesis_block_hash;
+    let genesis_block = db.config().genesis_block_hash;
 
     let mut block_header = db
         .block_header(block_hash)

@@ -200,7 +200,7 @@ pub struct DBConfig {
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct DBGlobals {
-    pub start_block: H256,
+    pub start_block_hash: H256,
     pub start_announce_hash: HashOf<Announce>,
     pub latest_synced_block: SimpleBlockData,
     pub latest_prepared_block_hash: H256,

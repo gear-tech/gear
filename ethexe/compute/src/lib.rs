@@ -70,8 +70,6 @@ pub enum ComputeError {
     AnnounceNotFound(HashOf<Announce>),
     #[error("Announces for prepared block {0:?} not found in db")]
     PreparedBlockAnnouncesSetMissing(H256),
-    #[error("Latest data not found")]
-    LatestDataNotFound,
     #[error(
         "Received validators commitment for an earlier era {commitment_era_index}, previous was {previous_commitment_era_index}"
     )]

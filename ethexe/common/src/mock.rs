@@ -520,7 +520,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
         };
 
         let globals = DBGlobals {
-            start_block: blocks[0].hash,
+            start_block_hash: blocks[0].hash,
             start_announce_hash: genesis_announce_hash.unwrap(),
             latest_synced_block: blocks.back().unwrap().to_simple(),
             latest_prepared_block_hash: blocks.back().unwrap().hash,
@@ -640,7 +640,7 @@ impl Mock<HashOf<Announce>> for ComputedAnnounce {
 impl Mock<()> for DBGlobals {
     fn mock(_args: ()) -> Self {
         DBGlobals {
-            start_block: H256::random(),
+            start_block_hash: H256::random(),
             start_announce_hash: HashOf::random(),
             latest_synced_block: SimpleBlockData::mock(()),
             latest_prepared_block_hash: H256::random(),

@@ -512,7 +512,7 @@ impl Database {
         };
 
         let globals = DBGlobals {
-            start_block: H256::zero(),
+            start_block_hash: H256::zero(),
             start_announce_hash: HashOf::zero(),
             latest_synced_block: SimpleBlockData::default(),
             latest_prepared_block_hash: H256::zero(),

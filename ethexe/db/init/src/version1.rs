@@ -179,7 +179,7 @@ pub async fn initialize_empty_db<'a, 'b>(
 
     // NOTE: start block and announce could be changed later by fast-sync
     let globals = ethexe_common::db::DBGlobals {
-        start_block: genesis_block.hash,
+        start_block_hash: genesis_block.hash,
         start_announce_hash: genesis_announce_hash,
         latest_synced_block: genesis_block,
         latest_prepared_block_hash: genesis_block.hash,
@@ -241,7 +241,7 @@ pub async fn migration_from_version0<'a, 'b>(
         .context("failed to decode LatestData during migration")?;
 
     let globals = ethexe_common::db::DBGlobals {
-        start_block: latest_data.start_block_hash,
+        start_block_hash: latest_data.start_block_hash,
         start_announce_hash: latest_data.start_announce_hash,
         latest_synced_block: latest_data.synced_block,
         latest_prepared_block_hash: latest_data.prepared_block_hash,
