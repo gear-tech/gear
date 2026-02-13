@@ -20,6 +20,11 @@ use crate::{FuzzCommand, InitConfig};
 use gstd::{exec, msg, prelude::*};
 
 static mut ECHO_DEST: Option<gstd::ActorId> = None;
+static mut BIG_STATE: Option<Vec<u8>> = None;
+
+fn big_state_byte(index: usize) -> u8 {
+    index as u8
+}
 
 fn echo_dest_or(dest: [u8; 32]) -> gstd::ActorId {
     let id: gstd::ActorId = dest.into();
@@ -49,7 +54,6 @@ extern "C" fn handle() {
 
     for cmd in commands {
         match cmd {
-            // ── Message info ──────────────────────────────────────────
             FuzzCommand::CheckSize => {
                 let _size = msg::size();
             }
@@ -85,14 +89,13 @@ extern "C" fn handle() {
                 let _vars = exec::env_vars();
             }
 
-            // ── Sending messages ──────────────────────────────────────
             FuzzCommand::SendMessage {
                 dest,
                 payload,
                 value,
             } => {
                 let target = echo_dest_or(dest);
-                // send_delayed with delay=0 to avoid needing gas reservation
+
                 let _ = msg::send_bytes_delayed(target, &payload, value, 0);
             }
             FuzzCommand::SendRaw { dest, payload } => {
@@ -106,7 +109,6 @@ extern "C" fn handle() {
                 let _ = msg::send_input_delayed(target, 0, ..msg::size(), 0);
             }
 
-            // ── Reply ─────────────────────────────────────────────────
             FuzzCommand::ReplyMessage { payload, value } => {
                 if !replied {
                     let _ = msg::reply_bytes(&payload, value);
@@ -127,11 +129,9 @@ extern "C" fn handle() {
                 }
             }
 
-            // ── Memory management ─────────────────────────────────────
             FuzzCommand::AllocAndFree { alloc_pages } => {
                 let pages = alloc_pages.clamp(64, 468);
                 if pages > 0 {
-                    // Use gstd Vec to trigger alloc
                     let data: Vec<u8> = vec![0xABu8; pages as usize * 65536];
                     assert!(!data.is_empty(), "allocation returned empty");
                 }
@@ -141,7 +141,7 @@ extern "C" fn handle() {
                 if pages > 0 {
                     let size = pages as usize * 65536;
                     let mut data: Vec<u8> = vec![pattern; size];
-                    // Verify
+
                     for byte in data.iter() {
                         assert_eq!(*byte, pattern, "memory corruption detected");
                     }
@@ -155,8 +155,37 @@ extern "C" fn handle() {
                     }
                 }
             }
+            FuzzCommand::ReadBigState { chunk_size, repeat } => {
+                let chunk_size = chunk_size.clamp(2048, 8192) as usize;
+                let repeat = repeat.clamp(1, 4) as usize;
+                let append_size = chunk_size * repeat;
 
-            // ── Wait / Wake ───────────────────────────────────────────
+                let state = unsafe {
+                    let state_ptr = core::ptr::addr_of_mut!(BIG_STATE);
+                    if (*state_ptr).is_none() {
+                        *state_ptr = Some(Vec::new());
+                    }
+                    (*state_ptr).as_mut().expect("state initialization failed")
+                };
+                let old_len = state.len();
+
+                state.extend((old_len..old_len + append_size).map(big_state_byte));
+
+                let new_len = state.len();
+                assert_eq!(new_len, old_len + append_size, "state append size mismatch");
+
+                let checkpoints = [
+                    old_len,
+                    old_len + (append_size / 2),
+                    new_len.saturating_sub(1),
+                ];
+
+                for index in checkpoints {
+                    let expected = big_state_byte(index);
+                    assert_eq!(state[index], expected, "state read mismatch");
+                }
+            }
+
             FuzzCommand::WaitCmd => {
                 // Send ok before waiting so the loader gets a reply
                 if !replied {
@@ -179,13 +208,11 @@ extern "C" fn handle() {
                 exec::wait_up_to(dur);
             }
 
-            // ── Debug ─────────────────────────────────────────────────
             FuzzCommand::DebugMessage(data) => {
                 let msg_str = core::str::from_utf8(&data).unwrap_or("non-utf8");
                 gstd::debug!("fuzz-debug: {msg_str}");
             }
 
-            // ── No-op ─────────────────────────────────────────────────
             FuzzCommand::Noop => {}
         }
     }

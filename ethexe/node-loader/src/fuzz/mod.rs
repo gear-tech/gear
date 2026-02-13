@@ -25,11 +25,7 @@
 mod cmd_gen;
 
 use crate::args::FuzzParams;
-use alloy::{
-    network::{Network, primitives::HeaderResponse},
-    primitives::Address,
-    providers::Provider,
-};
+use alloy::primitives::Address;
 use anyhow::Result;
 use demo_syscalls_ethexe::InitConfig;
 use ethexe_ethereum::Ethereum;
@@ -38,17 +34,14 @@ use gprimitives::MessageId;
 use parity_scale_codec::Encode;
 use rand::{SeedableRng, rngs::SmallRng};
 use std::str::FromStr;
-use tokio::sync::broadcast;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// How much VARA (ERC-20 with 12 decimals) to give the mega contract.
 const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 
-/// Run the fuzz mode end-to-end.
 pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     let router_addr = Address::from_str(&params.router_address)?;
 
-    // Derive signer (deployer)
     let (signer, address) = if let Some(ref pk) = params.sender_private_key {
         crate::signer_from_private_key(pk)?
     } else {
@@ -60,26 +53,12 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     let api = Ethereum::new(&params.node, router_addr.into(), signer.clone(), address).await?;
     let vapi = VaraEthApi::new(&params.ethexe_node, api.clone()).await?;
 
-    // Subscribe to blocks for event processing.
-    let provider = Ethereum::new(&params.node, router_addr.into(), signer, address)
-        .await?
-        .provider();
-    let (block_tx, _) = broadcast::channel(256);
-    let block_tx2 = block_tx.clone();
-    tokio::spawn(async move {
-        if let Err(e) = crate::utils::listen_blocks(block_tx2, provider.root().clone()).await {
-            error!("Block listener error: {e:?}");
-        }
-    });
-
-    // ── Step 1: upload the mega contract code ──
     info!("Uploading mega syscall contract code...");
     let wasm = demo_syscalls_ethexe::WASM_BINARY;
     let (_, code_id) = vapi.router().request_code_validation(wasm).await?;
     vapi.router().wait_for_code_validation(code_id).await?;
     info!("Code validated: {code_id}");
 
-    // ── Step 2: create a program from the code ──
     let salt_bytes = b"mega-fuzz-contract-v1";
     let salt_h256 = crate::batch::salt_to_h256(salt_bytes);
     let (_, program_id) = api
@@ -88,7 +67,6 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
         .await?;
     info!("Program created: {program_id}");
 
-    // Top up the program with VARA
     api.router()
         .wvara()
         .approve(program_id, TOP_UP_AMOUNT)
@@ -97,15 +75,19 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
     info!("Program topped up");
 
-    // ── Step 3: send init message ──
     let init_config = InitConfig { echo_dest: None };
+    let init_block = {
+        use alloy::providers::Provider;
+        api.provider().get_block_number().await?
+    };
     let (_, init_mid) = mirror.send_message(&init_config.encode(), 0).await?;
     info!("Init message sent: {init_mid}");
 
-    // Wait a few blocks for init to be processed
-    let mut rx = block_tx.subscribe();
-    wait_blocks(&mut rx, 6).await?;
-    info!("Init likely processed, starting fuzz loop");
+    let init_outcome = wait_for_reply(&api, init_mid, init_block, 8).await?;
+    match init_outcome {
+        None => info!("Init processed successfully"),
+        Some(err) => warn!("Init reply: {err}"),
+    }
 
     // ── Step 4: fuzz loop ──
     let seed = params.seed.unwrap_or_else(gear_utils::now_millis);
@@ -131,13 +113,16 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
             payload.len()
         );
 
+        let start_block = {
+            use alloy::providers::Provider;
+            api.provider().get_block_number().await?
+        };
         let (_, msg_id) = mirror.send_message(&payload, 0).await?;
         debug!("Message sent: {msg_id}");
 
         // Wait for processing
-        let mut iter_rx = block_tx.subscribe();
         let wait_blocks_count = 8;
-        let outcome = wait_for_reply(&api, &mut iter_rx, msg_id, wait_blocks_count).await;
+        let outcome = wait_for_reply(&api, msg_id, start_block, wait_blocks_count).await;
 
         match outcome {
             Ok(None) => {
@@ -145,8 +130,6 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
                 debug!("Iteration {i}: SUCCESS");
             }
             Ok(Some(err_msg)) => {
-                // Trap is expected for some fuzz inputs (e.g. wait commands).
-                // We still count and log them.
                 warn!("Iteration {i}: TRAP — {err_msg}");
                 err_count += 1;
             }
@@ -169,28 +152,14 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     Ok(())
 }
 
-async fn wait_blocks(
-    rx: &mut broadcast::Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
-    count: usize,
-) -> Result<()> {
-    for i in 0..count {
-        let block = rx.recv().await?;
-        println!(
-            "Waited for block #{} ({} out of {})",
-            block.number,
-            i + 1,
-            count
-        );
-    }
-    Ok(())
-}
-
-/// Wait for a reply to `msg_id` by scanning mirror events.
-/// Returns `Ok(None)` on success, `Ok(Some(err))` on error reply, `Err` on timeout / channel issues.
+/// Wait for a reply to `msg_id` by polling blocks from `start_block` up to
+/// `max_blocks` ahead. Sleeps up to 12 seconds between polls when waiting for
+/// new blocks to appear.
+/// Returns `Ok(None)` on success, `Ok(Some(err))` on error reply, `Err` on timeout.
 async fn wait_for_reply(
     api: &Ethereum,
-    rx: &mut broadcast::Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     msg_id: MessageId,
+    start_block: u64,
     max_blocks: usize,
 ) -> Result<Option<String>> {
     use alloy::{providers::Provider, rpc::types::Filter};
@@ -198,13 +167,21 @@ async fn wait_for_reply(
     use ethexe_ethereum::mirror::events::try_extract_event;
     use gear_core::ids::prelude::MessageIdExt;
 
-    for _ in 0..max_blocks {
-        let block = rx.recv().await?;
-        let block_hash = block.hash();
+    let end_block = start_block + max_blocks as u64;
+    let mut next_block = start_block;
 
+    while next_block <= end_block {
+        let latest = api.provider().get_block_number().await?;
+
+        if next_block >= latest {
+            tokio::time::sleep(std::time::Duration::from_secs(12)).await;
+            continue;
+        }
+
+        let fetch_until = latest.min(end_block);
         let logs = api
             .provider()
-            .get_logs(&Filter::new().at_block_hash(block_hash))
+            .get_logs(&Filter::new().from_block(next_block).to_block(fetch_until))
             .await?;
 
         for log in logs {
@@ -236,6 +213,8 @@ async fn wait_for_reply(
                 }
             }
         }
+
+        next_block = fetch_until + 1;
     }
 
     Ok(Some("TIMEOUT: no reply within block window".to_string()))

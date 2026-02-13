@@ -73,25 +73,44 @@ pub enum FuzzCommand {
         value: u128,
     },
     /// Build a message in parts via `send_init` / `send_push` / `send_commit`.
-    SendRaw { dest: [u8; 32], payload: Vec<u8> },
+    SendRaw {
+        dest: [u8; 32],
+        payload: Vec<u8>,
+    },
     /// Forward the current input to `dest` via `msg::send_input`.
-    SendInput { dest: [u8; 32] },
+    SendInput {
+        dest: [u8; 32],
+    },
 
     // ── Reply ─────────────────────────────────────────────────────────
     /// `msg::reply(payload, value)`.
-    ReplyMessage { payload: Vec<u8>, value: u128 },
+    ReplyMessage {
+        payload: Vec<u8>,
+        value: u128,
+    },
     /// Build a reply in parts: `reply_push` + `reply_commit`.
-    ReplyRaw { payload: Vec<u8> },
+    ReplyRaw {
+        payload: Vec<u8>,
+    },
     /// Reply with the current input via `msg::reply_input`.
     ReplyInput,
 
     // ── Memory management ─────────────────────────────────────────────
     /// Call `alloc` for `pages` pages, then `free` the first allocated page.
-    AllocAndFree { alloc_pages: u32 },
+    AllocAndFree {
+        alloc_pages: u32,
+    },
     /// Stress-test memory: allocate `count` pages, write a pattern, verify, free.
-    MemStress { count: u32, pattern: u8 },
+    MemStress {
+        count: u32,
+        pattern: u8,
+    },
+    /// Persistently append bytes to in-memory state and verify selected reads.
+    ReadBigState {
+        chunk_size: u32,
+        repeat: u16,
+    },
 
-    // ── Wait / Wake ───────────────────────────────────────────────────
     /// Execute `exec::wait()` — pauses execution (terminates this handle call).
     /// Only the *last* command in a sequence should use this.
     WaitCmd,
@@ -104,8 +123,6 @@ pub enum FuzzCommand {
     /// Call `gstd::debug!` with a message.
     DebugMessage(Vec<u8>),
 
-    // ── No-op ─────────────────────────────────────────────────────────
-    /// Intentional no-op, for padding / fuzzing diversity.
     Noop,
 }
 

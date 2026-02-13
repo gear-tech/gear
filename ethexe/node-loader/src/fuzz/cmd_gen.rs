@@ -23,13 +23,8 @@ use gprimitives::ActorId;
 use rand::RngCore;
 
 /// Total number of non-wait command variants we can generate.
-const CMD_VARIANT_COUNT: u32 = 17;
+const CMD_VARIANT_COUNT: u32 = 18;
 
-/// Generate a random sequence of fuzz commands.
-///
-/// The generator avoids `Wait*` commands (which would cause the program to
-/// suspend execution and stop processing further commands) unless explicitly
-/// requested, keeping the contract alive for continuous fuzzing.
 pub fn generate_fuzz_commands(
     rng: &mut impl RngCore,
     max_commands: usize,
@@ -48,23 +43,19 @@ pub fn generate_fuzz_commands(
 
 fn generate_one(rng: &mut impl RngCore, program_id: ActorId) -> FuzzCommand {
     match rng.next_u32() % CMD_VARIANT_COUNT {
-        // ── Message info (5 variants) ──
         0 => FuzzCommand::CheckSize,
         1 => FuzzCommand::CheckMessageId,
         2 => FuzzCommand::CheckProgramId,
         3 => FuzzCommand::CheckSource,
         4 => FuzzCommand::CheckValue,
 
-        // ── Env info (5 variants) ──
         5 => FuzzCommand::CheckBlockHeight,
         6 => FuzzCommand::CheckBlockTimestamp,
         7 => FuzzCommand::CheckGasAvailable,
         8 => FuzzCommand::CheckValueAvailable,
         9 => FuzzCommand::CheckEnvVars,
 
-        // ── Sending (3 variants) ──
         10 => {
-            // Send message back to self (the mega contract) or to source
             let dest = if rng.next_u32().is_multiple_of(2) {
                 program_id.into()
             } else {
@@ -89,7 +80,6 @@ fn generate_one(rng: &mut impl RngCore, program_id: ActorId) -> FuzzCommand {
             FuzzCommand::SendInput { dest }
         }
 
-        // ── Memory (2 variants) ──
         13 => {
             let pages = 1 + rng.next_u32() % 8;
             FuzzCommand::AllocAndFree { alloc_pages: pages }
@@ -100,15 +90,19 @@ fn generate_one(rng: &mut impl RngCore, program_id: ActorId) -> FuzzCommand {
             FuzzCommand::MemStress { count, pattern }
         }
 
-        // ── Debug ──
         15 => {
+            let chunk_size = 2048 + (rng.next_u32() % (8192 - 2048 + 1));
+            let repeat = 1 + (rng.next_u32() % 4) as u16;
+            FuzzCommand::ReadBigState { chunk_size, repeat }
+        }
+
+        16 => {
             let len = rng.next_u32() as usize % 64;
             let data = random_bytes(rng, len);
             FuzzCommand::DebugMessage(data)
         }
 
-        // ── Noop ──
-        16 => FuzzCommand::Noop,
+        17 => FuzzCommand::Noop,
 
         _ => FuzzCommand::Noop,
     }
