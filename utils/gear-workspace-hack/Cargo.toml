@@ -309,6 +309,7 @@ hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features
 hex = { version = "0.4" }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
 hmac = { version = "0.12", default-features = false, features = ["reset", "std"] }
+http-body-util = { version = "0.1" }
 hyper-582f2526e08bb6a0 = { package = "hyper", version = "0.14", features = ["client", "http1", "http2", "runtime", "server", "stream"] }
 hyper-dff4ba8e3ae991db = { package = "hyper", version = "1", features = ["client", "http1", "http2", "server"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "service"] }
@@ -316,6 +317,7 @@ impl-codec = { version = "0.6", default-features = false, features = ["std"] }
 impl-serde = { version = "0.4" }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde-1", "std"] }
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
+ipnet = { version = "2" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -358,6 +360,7 @@ primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.1
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 prost = { version = "0.12", features = ["prost-derive"] }
+quanta = { version = "0.12" }
 quote = { version = "1" }
 rand-274715c4dabd11b0 = { package = "rand", version = "0.9" }
 rand-c38e5c1d305a1b54 = { package = "rand", version = "0.8", features = ["small_rng"] }
@@ -585,6 +588,7 @@ hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features
 hex = { version = "0.4" }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
 hmac = { version = "0.12", default-features = false, features = ["reset", "std"] }
+http-body-util = { version = "0.1" }
 hyper-582f2526e08bb6a0 = { package = "hyper", version = "0.14", features = ["client", "http1", "http2", "runtime", "server", "stream"] }
 hyper-dff4ba8e3ae991db = { package = "hyper", version = "1", features = ["client", "http1", "http2", "server"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "server-auto", "service"] }
@@ -592,6 +596,7 @@ impl-codec = { version = "0.6", default-features = false, features = ["std"] }
 impl-serde = { version = "0.4" }
 indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-features = false, features = ["serde-1", "std"] }
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
+ipnet = { version = "2" }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
@@ -635,6 +640,7 @@ primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.1
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 prost = { version = "0.12", features = ["prost-derive"] }
+quanta = { version = "0.12" }
 quote = { version = "1" }
 rand-274715c4dabd11b0 = { package = "rand", version = "0.9" }
 rand-c38e5c1d305a1b54 = { package = "rand", version = "0.8", features = ["small_rng"] }
