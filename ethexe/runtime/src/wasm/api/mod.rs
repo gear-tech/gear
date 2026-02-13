@@ -26,12 +26,18 @@ mod run;
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 extern "C" fn instrument_code(code_ptr: i32, code_len: i32) -> i64 {
-    _instrument_code(code_ptr, code_len)
+    unsafe { _instrument_code(code_ptr, code_len) }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
-fn _instrument_code(original_code_ptr: i32, original_code_len: i32) -> i64 {
-    let code = get_vec(original_code_ptr, original_code_len);
+unsafe fn _instrument_code(original_code_ptr: i32, original_code_len: i32) -> i64 {
+    let code = unsafe {
+        Vec::from_raw_parts(
+            original_code_ptr as _,
+            original_code_len as usize,
+            original_code_len as usize,
+        )
+    };
     let res = instrument::instrument_code(code);
     return_val(res)
 }
@@ -39,28 +45,16 @@ fn _instrument_code(original_code_ptr: i32, original_code_len: i32) -> i64 {
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 extern "C" fn run(arg_ptr: i32, arg_len: i32) -> i64 {
-    _run(arg_ptr, arg_len)
+    unsafe { _run(arg_ptr, arg_len) }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
-fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
-    let (
-        program_id,
-        state_root,
-        queue_kind,
-        maybe_instrumented_code,
-        maybe_code_metadata,
-        gas_allowance,
-    ) = Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
+unsafe fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
+    let ctx =
+        Decode::decode(&mut unsafe { core::slice::from_raw_parts(arg_ptr as _, arg_len as usize) })
+            .unwrap();
 
-    let (program_journals, gas_spent) = run::run(
-        program_id,
-        state_root,
-        queue_kind,
-        maybe_instrumented_code,
-        maybe_code_metadata,
-        gas_allowance,
-    );
+    let (program_journals, gas_spent) = run::run(ctx);
 
     // Split to chunks to prevent alloc limit (32MiB)
     let res: Vec<_> = program_journals
@@ -80,14 +74,6 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
         .collect();
 
     return_val((res, gas_spent))
-}
-
-fn get_vec(ptr: i32, len: i32) -> Vec<u8> {
-    unsafe { Vec::from_raw_parts(ptr as _, len as usize, len as usize) }
-}
-
-fn get_slice<'a>(ptr: i32, len: i32) -> &'a [u8] {
-    unsafe { core::slice::from_raw_parts(ptr as _, len as usize) }
 }
 
 fn return_val(val: impl Encode) -> i64 {
