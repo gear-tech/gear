@@ -72,7 +72,7 @@ impl PrometheusParams {
                 .unwrap_or(Self::DEFAULT_PROMETHEUS_PORT),
         );
 
-        Some(PrometheusConfig::new(name, addr))
+        Some(PrometheusConfig { name, addr })
     }
 }
 
