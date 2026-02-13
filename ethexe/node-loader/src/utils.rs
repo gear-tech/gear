@@ -72,19 +72,10 @@ pub async fn listen_blocks(
     const MAX_RETRIES: usize = 10;
 
     loop {
-        let poll = provider.watch_blocks().await?;
-        let mut sub = poll.into_stream().flat_map(futures::stream::iter);
-        while let Some(block_hash) = sub.next().await {
-            /*tracing::debug!("New block received: #{:?}", block.number);
-            if tx.send(block).is_err() {
-                return Ok(());
-            }*/
-            let block = provider
-                .get_block_by_hash(block_hash)
-                .await?
-                .expect("block disappeared");
-            tracing::debug!("New block received: #{:?}", block.header.number);
-            tx.send(block.header)?;
+        let mut sub = provider.subscribe_blocks().await?.into_stream();
+        while let Some(block) = sub.next().await {
+            tx.send(block)
+                .expect("Failed to send block through channel");
         }
 
         retry_count += 1;

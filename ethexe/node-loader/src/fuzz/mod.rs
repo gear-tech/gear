@@ -139,12 +139,10 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
             }
         }
 
-        if (i + 1) % 10 == 0 {
-            info!(
-                "Progress: {}/{max_iter} iterations, ok={ok_count}, err={err_count}",
-                i + 1
-            );
-        }
+        info!(
+            "Progress: {}/{max_iter} iterations, ok={ok_count}, err={err_count}",
+            i + 1
+        );
     }
 
     info!("Fuzz complete: {max_iter} iterations, ok={ok_count}, err={err_count}, seed={seed}");
