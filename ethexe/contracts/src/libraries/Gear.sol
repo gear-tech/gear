@@ -40,6 +40,60 @@ library Gear {
 
     error ValidatorsNotFoundForTimestamp();
 
+    uint256 internal constant COMMIT_BATCH_AFTER_ERA_STARTED_AT = 73;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_IS_PREVIOUS_ERA_VALIDATION = 74;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_IS_PREVIOUS_ERA_VALIDATION = 75;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_VALIDATION_BEFORE_GENESIS = 76;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_VALIDATION_BEFORE_GENESIS = 77;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_TIMESTAMP_OLDER_THAN_PREVIOUS_ERA = 78;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_TIMESTAMP_OLDER_THAN_PREVIOUS_ERA = 79;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_TIMESTAMP_IN_FUTURE = 80;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_TIMESTAMP_IN_FUTURE = 81;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_TS_LESS_THAN_ERA_STARTED = 82;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_TS_LESS_THAN_ERA_STARTED = 83;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CALLING_VALIDATORS_AT = 84;
+    uint256 internal constant COMMIT_BATCH_AFTER_CALLING_VALIDATORS_AT = 85;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CALCULATING_MESSAGE_HASH = 86;
+    uint256 internal constant COMMIT_BATCH_AFTER_CALCULATING_MESSAGE_HASH = 87;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_SIGNATURE_TYPE = 88;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_SIGNATURE_TYPE = 89;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CALCULATING_VALIDATORS_THRESHOLD = 90;
+    uint256 internal constant COMMIT_BATCH_AFTER_CALCULATING_VALIDATORS_THRESHOLD = 91;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_SETTING_VALID_SIGNATURES_TO_ZERO = 92;
+    uint256 internal constant COMMIT_BATCH_AFTER_SETTING_VALID_SIGNATURES_TO_ZERO = 93;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_TAKING_SIGNATURE = 94;
+    uint256 internal constant COMMIT_BATCH_AFTER_TAKING_SIGNATURE = 95;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_RECOVERING_VALIDATOR_ADDRESS = 96;
+    uint256 internal constant COMMIT_BATCH_AFTER_RECOVERING_VALIDATOR_ADDRESS = 97;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_VALIDATOR_IN_MAP = 98;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_VALIDATOR_IN_MAP = 99;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_LOADING_TRANSIENT_STORAGE_SLOT = 100;
+    uint256 internal constant COMMIT_BATCH_AFTER_LOADING_TRANSIENT_STORAGE_SLOT = 101;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_STORING_IN_TRANSIENT_STORAGE_SLOT = 102;
+    uint256 internal constant COMMIT_BATCH_AFTER_STORING_IN_TRANSIENT_STORAGE_SLOT = 103;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_CHECKING_SIGNATURES_COUNT = 104;
+    uint256 internal constant COMMIT_BATCH_AFTER_CHECKING_SIGNATURES_COUNT = 105;
+
+    uint256 internal constant COMMIT_BATCH_BEFORE_EXITING_VERIFY_AT_FUNCTION = 106;
+
+    event DebugEvent(uint256 indexed topic0) anonymous;
+
     struct AggregatedPublicKey {
         uint256 x;
         uint256 y;
@@ -387,26 +441,60 @@ library Gear {
         uint256 ts
     ) internal returns (bool) {
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
+        // gas used: ~4883 (enter to function and calculate era started at)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_ERA_STARTED_AT);
+
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_IS_PREVIOUS_ERA_VALIDATION);
         if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
+            // TODO: recalc here everything, not sure
+
+            // gas used: ~2993 (checking is previous era validation)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_IS_PREVIOUS_ERA_VALIDATION);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_VALIDATION_BEFORE_GENESIS);
             require(ts >= router.genesisBlock.timestamp, ValidationBeforeGenesis());
+            // gas used: ~782 (checking validation before genesis)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_VALIDATION_BEFORE_GENESIS);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_TIMESTAMP_OLDER_THAN_PREVIOUS_ERA);
             require(ts + router.timelines.era >= eraStarted, TimestampOlderThanPreviousEra());
+            // gas used: ~837 (checking timestamp older than previous era)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_TIMESTAMP_OLDER_THAN_PREVIOUS_ERA);
 
             // Validation must be done using validators from previous era,
             // because `ts` is in the past and we are in the validation delay period.
         } else {
-            require(ts <= block.timestamp, TimestampInFuture());
+            // gas used: ~67 (checking is previous era validation)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_IS_PREVIOUS_ERA_VALIDATION);
 
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_TIMESTAMP_IN_FUTURE);
+            require(ts <= block.timestamp, TimestampInFuture());
+            // gas used: ~35 (checking timestamp in future)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_TIMESTAMP_IN_FUTURE);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_TS_LESS_THAN_ERA_STARTED);
             if (ts < eraStarted) {
                 ts = eraStarted;
             }
+            // gas used: ~??? (checking ts less than era started)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_TS_LESS_THAN_ERA_STARTED);
 
             // Validation must be done using current era validators.
         }
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CALLING_VALIDATORS_AT);
         Validators storage validators = validatorsAt(router, ts);
-        bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);
+        // gas used: ~4435 (calling validators at)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_CALLING_VALIDATORS_AT);
 
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CALCULATING_MESSAGE_HASH);
+        bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);
+        // gas used: ~92 (calculating message hash)
+        // emit DebugEvent(COMMIT_BATCH_AFTER_CALCULATING_MESSAGE_HASH);
+
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_SIGNATURE_TYPE);
         if (_signatureType == SignatureType.FROST) {
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_SIGNATURE_TYPE);
             require(_signatures.length == 1, InvalidFrostSignatureCount());
 
             bytes memory _signature = _signatures[0];
@@ -435,29 +523,59 @@ library Gear {
                 _messageHash
             );
         } else if (_signatureType == SignatureType.ECDSA) {
+            // gas used: ~94 (checking signature type)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_SIGNATURE_TYPE);
+
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_CALCULATING_VALIDATORS_THRESHOLD);
             uint256 threshold = validatorsThreshold(
                 validators.list.length,
                 router.validationSettings.thresholdNumerator,
                 router.validationSettings.thresholdDenominator
             );
+            // gas used: ~4430 (calculating validators threshold)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_CALCULATING_VALIDATORS_THRESHOLD);
 
+            // emit DebugEvent(COMMIT_BATCH_BEFORE_SETTING_VALID_SIGNATURES_TO_ZERO);
             uint256 validSignatures = 0;
+            // gas used: ~13 (setting valid signatures to zero)
+            // emit DebugEvent(COMMIT_BATCH_AFTER_SETTING_VALID_SIGNATURES_TO_ZERO);
 
             for (uint256 i = 0; i < _signatures.length; i++) {
+                // emit DebugEvent(COMMIT_BATCH_BEFORE_TAKING_SIGNATURE);
                 bytes calldata signature = _signatures[i];
+                // gas used: ~189 (taking signature)
+                // emit DebugEvent(COMMIT_BATCH_AFTER_TAKING_SIGNATURE);
 
+                // emit DebugEvent(COMMIT_BATCH_BEFORE_RECOVERING_VALIDATOR_ADDRESS);
                 address validator = _messageHash.recover(signature);
+                // gas used: ~3832 (recovering validator address)
+                // emit DebugEvent(COMMIT_BATCH_AFTER_RECOVERING_VALIDATOR_ADDRESS);
 
+                // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_VALIDATOR_IN_MAP);
                 if (validators.map[validator]) {
+                    // gas used: ~2220 (checking validator in map)
+                    // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_VALIDATOR_IN_MAP);
                     bytes32 transientStorageValidatorsSlot = routerTransientStorage.deriveMapping(validator);
 
+                    // emit DebugEvent(COMMIT_BATCH_BEFORE_LOADING_TRANSIENT_STORAGE_SLOT);
                     if (transientStorageValidatorsSlot.asBoolean().tload()) {
                         continue;
                     } else {
+                        // gas used: ~143 (loading transient storage slot)
+                        // emit DebugEvent(COMMIT_BATCH_AFTER_LOADING_TRANSIENT_STORAGE_SLOT);
+
+                        // emit DebugEvent(COMMIT_BATCH_BEFORE_STORING_IN_TRANSIENT_STORAGE_SLOT);
                         transientStorageValidatorsSlot.asBoolean().tstore(true);
                     }
+                    // gas used: ~108 (storing in transient storage slot)
+                    // emit DebugEvent(COMMIT_BATCH_AFTER_STORING_IN_TRANSIENT_STORAGE_SLOT);
 
+                    // emit DebugEvent(COMMIT_BATCH_AFTER_CHECKING_SIGNATURES_COUNT);
                     if (++validSignatures == threshold) {
+                        // gas used: ~65 (checking signatures count)
+                        // emit DebugEvent(COMMIT_BATCH_BEFORE_CHECKING_SIGNATURES_COUNT);
+
+                        // emit DebugEvent(COMMIT_BATCH_BEFORE_EXITING_VERIFY_AT_FUNCTION);
                         return true;
                     }
                 }
