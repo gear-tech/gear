@@ -38,7 +38,6 @@ use tokio::{
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum ScoreDecreaseReason {
-    UnsupportedProtocol,
     ExcessiveData,
     InvalidData,
 }
@@ -46,7 +45,6 @@ pub(crate) enum ScoreDecreaseReason {
 impl ScoreDecreaseReason {
     fn to_i8(self, config: &Config) -> i8 {
         match self {
-            ScoreDecreaseReason::UnsupportedProtocol => config.unsupported_protocol,
             ScoreDecreaseReason::ExcessiveData => config.excessive_data,
             ScoreDecreaseReason::InvalidData => config.invalid_data,
         }
@@ -63,12 +61,6 @@ impl Handle {
         let (tx, rx) = mpsc::unbounded_channel();
         std::mem::forget(rx);
         Self(tx)
-    }
-
-    pub fn unsupported_protocol(&self, peer_id: PeerId) {
-        let _res = self
-            .0
-            .send((peer_id, ScoreDecreaseReason::UnsupportedProtocol));
     }
 
     pub fn excessive_data(&self, peer_id: PeerId) {
@@ -99,7 +91,6 @@ pub(crate) enum Event {
 /// Behaviour config.
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
-    unsupported_protocol: i8,
     excessive_data: i8,
     invalid_data: i8,
     decay: i8,
@@ -111,7 +102,6 @@ pub(crate) struct Config {
 impl Config {
     const fn new() -> Self {
         Self {
-            unsupported_protocol: i8::MIN, // TODO: consider to remove
             excessive_data: i8::MIN / 5,
             invalid_data: i8::MIN / 3,
             decay: i8::MAX / 17,

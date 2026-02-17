@@ -19,14 +19,11 @@
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
 use core::fmt;
-use ethexe_common::{HashOf, SimpleBlockData};
+use ethexe_common::HashOf;
 use ethexe_db::CASDatabase;
-use ethexe_runtime_common::{
-    BlockInfo,
-    state::{
-        ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState,
-        QueryableStorage, RegionIdx, Storage,
-    },
+use ethexe_runtime_common::state::{
+    ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState, QueryableStorage,
+    RegionIdx, Storage,
 };
 use gear_core::{ids::ActorId, memory::PageBuf, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
@@ -43,7 +40,6 @@ thread_local! {
 
 pub struct ThreadParams {
     pub db: Box<dyn CASDatabase>,
-    pub block_info: BlockInfo,
     pub state_hash: H256,
     pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
@@ -106,13 +102,9 @@ impl PageKey {
     }
 }
 
-pub fn set(db: Box<dyn CASDatabase>, chain_head: SimpleBlockData, state_hash: H256) {
+pub fn set(db: Box<dyn CASDatabase>, state_hash: H256) {
     PARAMS.set(Some(ThreadParams {
         db,
-        block_info: BlockInfo {
-            height: chain_head.header.height,
-            timestamp: chain_head.header.timestamp,
-        },
         state_hash,
         pages_registry_cache: None,
         pages_regions_cache: None,
@@ -134,14 +126,6 @@ pub fn with_db<T>(f: impl FnOnce(&dyn CASDatabase) -> T) -> T {
         let params = v.as_ref().expect(UNSET_PANIC);
 
         f(params.db.as_ref())
-    })
-}
-
-pub fn chain_head_info() -> BlockInfo {
-    PARAMS.with_borrow(|v| {
-        let params = v.as_ref().expect(UNSET_PANIC);
-
-        params.block_info
     })
 }
 
