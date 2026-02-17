@@ -33,7 +33,7 @@ use libp2p::{
         THandlerOutEvent, ToSwarm,
     },
 };
-use parity_scale_codec::{Decode, Encode, Input};
+use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{HashMap, VecDeque},
     pin::Pin,
@@ -42,7 +42,8 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-const KAD_PROTOCOL_NAME: StreamProtocol = StreamProtocol::new("/ethexe/kad/1.0.0");
+const KAD_PROTOCOL_NAME: StreamProtocol =
+    StreamProtocol::new(concat!("/ethexe/kad/", env!("CARGO_PKG_VERSION")));
 const KAD_RECORD_TTL_SECS: u64 = 3600; // 1 hour
 const KAD_RECORD_TTL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS);
 const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS / 4);
@@ -72,30 +73,14 @@ impl ValidatorIdentityRecord {
     }
 }
 
-/// Decode helper for [`RecordKey`] to support backward compatibility
-struct MaybeRecordKey(Option<RecordKey>);
-
-impl Decode for MaybeRecordKey {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-        let variant = input.read_byte()?;
-        match variant {
-            0 => {
-                let key = ValidatorIdentityKey::decode(input)?;
-                Ok(MaybeRecordKey(Some(RecordKey::ValidatorIdentity(key))))
-            }
-            _ => Ok(MaybeRecordKey(None)),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Encode, derive_more::From, derive_more::Unwrap, Clone)]
+#[derive(Debug, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Unwrap, Clone)]
 pub enum RecordKey {
     ValidatorIdentity(ValidatorIdentityKey),
 }
 
 impl RecordKey {
-    fn new(key: &kad::RecordKey) -> Result<Option<Self>, parity_scale_codec::Error> {
-        MaybeRecordKey::decode(&mut &key.as_ref()[..]).map(|k| k.0)
+    fn new(key: &kad::RecordKey) -> Result<Self, parity_scale_codec::Error> {
+        Decode::decode(&mut &key.as_ref()[..])
     }
 
     fn into_kad_key(self) -> kad::RecordKey {
@@ -109,10 +94,10 @@ pub enum Record {
 }
 
 impl Record {
-    fn new(record: &kad::Record) -> anyhow::Result<Option<Self>> {
+    fn new(record: &kad::Record) -> anyhow::Result<Self> {
         let key = RecordKey::new(&record.key)?;
         match key {
-            Some(RecordKey::ValidatorIdentity(key)) => {
+            RecordKey::ValidatorIdentity(key) => {
                 let value: SignedValidatorIdentity = Decode::decode(&mut &record.value[..])
                     .context("failed to decode validator identity")?;
 
@@ -122,11 +107,8 @@ impl Record {
                     "validator address of record key mismatches address of record value"
                 );
 
-                Ok(Some(Self::ValidatorIdentity(ValidatorIdentityRecord {
-                    value,
-                })))
+                Ok(Self::ValidatorIdentity(ValidatorIdentityRecord { value }))
             }
-            None => Ok(None),
         }
     }
 
@@ -137,11 +119,11 @@ impl Record {
     }
 
     fn into_kad_record(self) -> kad::Record {
-        let key = self.key().into_kad_key();
+        let key = self.key();
         match self {
             Record::ValidatorIdentity(record) => {
                 let ValidatorIdentityRecord { value } = record;
-                kad::Record::new(key, value.encode())
+                kad::Record::new(key.encode(), value.encode())
             }
         }
     }
@@ -377,11 +359,7 @@ impl Behaviour {
                 let original_record =
                     record.expect("`StoreInserts::FilterBoth` implies `record` is always present");
                 let record = match Record::new(&original_record) {
-                    Ok(Some(record)) => record,
-                    Ok(None) => {
-                        log::trace!("unknown record type: {original_record:?}");
-                        return Poll::Pending;
-                    }
+                    Ok(record) => record,
                     Err(err) => {
                         log::trace!("failed to parse record during inbound request: {err:?}");
                         self.peer_score.invalid_data(source);
@@ -418,14 +396,11 @@ impl Behaviour {
                             }
 
                             let record = match Record::new(&original_record) {
-                                Ok(Some(record)) => record,
-                                Ok(None) => {
-                                    log::trace!("unknown record type: {original_record:?}");
-                                    return Poll::Pending;
-                                }
+                                Ok(record) => record,
                                 Err(err) => {
                                     log::trace!("failed to get record: {err}");
                                     if let Some(peer) = peer {
+                                        // NOTE: not backward compatible if `Record` has a new variant, and it is decoded by the old node
                                         self.peer_score.invalid_data(peer);
                                     } else {
                                         #[cfg(debug_assertions)]
@@ -469,8 +444,7 @@ impl Behaviour {
                             closest_peers: _,
                         }) => {
                             let key = RecordKey::new(&key)
-                                .expect("invalid record key that we got from local storage")
-                                .expect("unknown record key that we got from local storage");
+                                .expect("invalid record key that we got from local storage");
 
                             let err = GetRecordError::NotFound { key };
 
@@ -488,8 +462,7 @@ impl Behaviour {
                         Ok(PutRecordOk { key }) => {
                             let key = RecordKey::new(&key)
                                 // we are the ones who called `Kad::put_record` and thus the key must be decoded without issues
-                                .expect("invalid record key that we put ourselves")
-                                .expect("unknown record key that we put ourselves");
+                                .expect("invalid record key that we put ourselves");
                             Ok(key)
                         }
                         Err(err) => Err(PutRecordError::Kad(err)),
@@ -818,7 +791,6 @@ mod tests {
 
         let record = Record::new(&kad_record)
             .expect("record must decode")
-            .expect("no unknown variant")
             .unwrap_validator_identity();
         assert_eq!(record.value, signed);
     }
@@ -830,23 +802,11 @@ mod tests {
             validator: Address::from(42u64),
         };
         let kad_record = kad::Record::new(
-            RecordKey::ValidatorIdentity(mismatched_key).into_kad_key(),
+            RecordKey::ValidatorIdentity(mismatched_key).encode(),
             signed.encode(),
         );
 
         Record::new(&kad_record).unwrap_err();
-    }
-
-    #[test]
-    fn unknown_record_type() {
-        let signed = new_identity();
-
-        let known_record = kad::Record::new(vec![0], signed.encode());
-        Record::new(&known_record).unwrap_err();
-
-        let unknown_record = kad::Record::new(vec![1], signed.encode());
-        let record = Record::new(&unknown_record).unwrap();
-        assert_eq!(record, None);
     }
 
     #[test]

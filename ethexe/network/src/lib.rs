@@ -408,6 +408,17 @@ impl NetworkService {
             identify::Event::Received { peer_id, info, .. } => {
                 let behaviour = self.swarm.behaviour_mut();
 
+                if info.protocol_version != PROTOCOL_VERSION || info.agent_version != AGENT_VERSION
+                {
+                    log::debug!(
+                        "{peer_id} is not supported with `{}` protocol and `{}` agent",
+                        info.protocol_version,
+                        info.agent_version
+                    );
+                    behaviour.peer_score.handle().unsupported_protocol(peer_id);
+                    return;
+                }
+
                 // add listen addresses of new peers to KadDHT
                 // according to `identify` and `kad` protocols docs
                 for listen_addr in info.listen_addrs {
@@ -710,7 +721,7 @@ impl Behaviour {
             db,
         );
 
-        let injected = injected::Behaviour::new();
+        let injected = injected::Behaviour::new(peer_score_handle);
 
         let validator_discovery = validator::discovery::Config {
             kad: kad_handle,
@@ -944,9 +955,7 @@ mod tests {
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        for _ in 0..u8::MAX {
-            peer_score_handle.invalid_data(service2_peer_id);
-        }
+        peer_score_handle.unsupported_protocol(service2_peer_id);
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
