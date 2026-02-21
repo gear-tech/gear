@@ -189,25 +189,33 @@ impl ConnectService {
 
         loop {
             let mut progress = false;
-            let replay_queue = self
+            let replay_keys = self
                 .rejected_announces
                 .iter()
-                .map(|(hash, announce)| (*hash, announce.clone()))
+                .map(|(hash, _)| *hash)
                 .collect::<Vec<_>>();
 
-            for (announce_hash, announce) in replay_queue {
+            for announce_hash in replay_keys {
                 if self.db.is_announce_included(announce_hash) {
                     self.rejected_announces.pop(&announce_hash);
                     progress = true;
                     continue;
                 }
 
-                if self.db.block_meta(announce.block_hash).announces.is_none() {
+                let Some(announce_block_hash) = self
+                    .rejected_announces
+                    .peek(&announce_hash)
+                    .map(|announce| announce.block_hash)
+                else {
+                    continue;
+                };
+
+                if self.db.block_meta(announce_block_hash).announces.is_none() {
                     continue;
                 }
 
                 let Some(announce_height) =
-                    self.db.block_header(announce.block_hash).map(|h| h.height)
+                    self.db.block_header(announce_block_hash).map(|h| h.height)
                 else {
                     self.rejected_announces.pop(&announce_hash);
                     progress = true;
@@ -220,20 +228,24 @@ impl ConnectService {
                     continue;
                 }
 
+                let Some(announce) = self.rejected_announces.pop(&announce_hash) else {
+                    continue;
+                };
+
                 match announces::accept_announce(&self.db, announce.clone())? {
                     AnnounceStatus::Accepted(accepted_hash) => {
-                        self.rejected_announces.pop(&announce_hash);
                         self.output
                             .push_back(ConsensusEvent::AnnounceAccepted(accepted_hash));
                         self.output
                             .push_back(ConsensusEvent::ComputeAnnounce(announce));
                         progress = true;
                     }
-                    AnnounceStatus::Rejected { reason, .. } => match reason {
-                        AnnounceRejectionReason::UnknownParent { .. } => {}
+                    AnnounceStatus::Rejected { reason, announce } => match reason {
+                        AnnounceRejectionReason::UnknownParent { .. } => {
+                            self.rejected_announces.push(announce_hash, announce);
+                        }
                         AnnounceRejectionReason::AlreadyIncluded(_)
                         | AnnounceRejectionReason::TxValidity(_) => {
-                            self.rejected_announces.pop(&announce_hash);
                             progress = true;
                         }
                     },
