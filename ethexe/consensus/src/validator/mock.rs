@@ -168,6 +168,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         },
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
+        rejected_announces: LruCache::new(MAX_REJECTED_ANNOUNCES),
         tasks: Default::default(),
     };
 
