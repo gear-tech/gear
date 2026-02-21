@@ -316,8 +316,9 @@ fn recover_announces_chain_if_needed(
     commitment_delay_limit: u32,
     missing_announces: &mut HashMap<HashOf<Announce>, Announce>,
 ) -> Result<()> {
-    // Recovery from previously rejected unknown-parent announces is handled in connect consensus
-    // by replaying a local in-memory rejected pool during post-propagation processing.
+    // Recovery from previously rejected unknown-parent announces is handled in consensus
+    // services (connect and validator) by replaying a local in-memory rejected pool
+    // during post-propagation processing.
     // This function only recovers committed announces that are missing in local DB.
 
     // Recover backwards the chain of committed announces till last included one

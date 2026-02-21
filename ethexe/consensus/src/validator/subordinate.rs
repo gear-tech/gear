@@ -176,8 +176,11 @@ impl Subordinate {
                 Ok(self.into())
             }
             AnnounceStatus::Rejected { announce, reason } => {
+                let announce_hash = announce.to_hash();
                 self.ctx
-                    .output(ConsensusEvent::AnnounceRejected(announce.to_hash()));
+                    .cache_rejected_announce(announce_hash, announce.clone(), &reason);
+                self.ctx
+                    .output(ConsensusEvent::AnnounceRejected(announce_hash));
                 self.warning(format!(
                     "Received announce {announce:?} is rejected: {reason:?}"
                 ));
