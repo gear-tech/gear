@@ -22,14 +22,14 @@
 
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
-    announces::{self, AnnounceStatus, DBAnnouncesExt},
+    announces::{self, AnnounceRejectionReason, AnnounceStatus, DBAnnouncesExt},
     utils,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, ComputedAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::{BlockMetaStorageRO, OnChainStorageRO},
     injected::SignedInjectedTransaction,
     network::{AnnouncesRequest, AnnouncesResponse},
 };
@@ -48,6 +48,8 @@ use std::{
 
 /// Maximum number of pending announces to store
 const MAX_PENDING_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
+/// Maximum number of rejected announces to keep for later replay.
+const MAX_REJECTED_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 
 /// State transition flow:
 ///
@@ -106,6 +108,7 @@ pub struct ConnectService {
 
     state: State,
     pending_announces: LruCache<(Address, H256), Announce>,
+    rejected_announces: LruCache<ethexe_common::HashOf<Announce>, Announce>,
     output: VecDeque<ConsensusEvent>,
 }
 
@@ -123,6 +126,7 @@ impl ConnectService {
             commitment_delay_limit,
             state: State::WaitingForBlock,
             pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
+            rejected_announces: LruCache::new(MAX_REJECTED_ANNOUNCES),
             output: VecDeque::new(),
         }
     }
@@ -132,6 +136,8 @@ impl ConnectService {
         block: SimpleBlockData,
         producer: Address,
     ) -> Result<()> {
+        self.replay_rejected_announces(block.hash)?;
+
         if let Some(announce) = self.pending_announces.pop(&(producer, block.hash)) {
             self.process_announce_from_producer(announce, producer)?;
             self.state = State::WaitingForBlock;
@@ -149,6 +155,11 @@ impl ConnectService {
     ) -> Result<()> {
         match announces::accept_announce(&self.db, announce.clone())? {
             AnnounceStatus::Rejected { announce, reason } => {
+                if matches!(&reason, AnnounceRejectionReason::UnknownParent { .. }) {
+                    self.rejected_announces
+                        .push(announce.to_hash(), announce.clone());
+                }
+
                 tracing::warn!(
                     announce = %announce.to_hash(),
                     producer = %producer,
@@ -163,6 +174,74 @@ impl ConnectService {
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
                 self.output
                     .push_back(ConsensusEvent::ComputeAnnounce(announce));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn replay_rejected_announces(&mut self, head_block: H256) -> Result<()> {
+        let head_height = self
+            .db
+            .block_header(head_block)
+            .ok_or_else(|| anyhow!("header not found for block({head_block})"))?
+            .height;
+
+        loop {
+            let mut progress = false;
+            let replay_queue = self
+                .rejected_announces
+                .iter()
+                .map(|(hash, announce)| (*hash, announce.clone()))
+                .collect::<Vec<_>>();
+
+            for (announce_hash, announce) in replay_queue {
+                if self.db.is_announce_included(announce_hash) {
+                    self.rejected_announces.pop(&announce_hash);
+                    progress = true;
+                    continue;
+                }
+
+                if self.db.block_meta(announce.block_hash).announces.is_none() {
+                    continue;
+                }
+
+                let Some(announce_height) =
+                    self.db.block_header(announce.block_hash).map(|h| h.height)
+                else {
+                    self.rejected_announces.pop(&announce_hash);
+                    progress = true;
+                    continue;
+                };
+
+                if announce_height.saturating_add(self.commitment_delay_limit) < head_height {
+                    self.rejected_announces.pop(&announce_hash);
+                    progress = true;
+                    continue;
+                }
+
+                match announces::accept_announce(&self.db, announce.clone())? {
+                    AnnounceStatus::Accepted(accepted_hash) => {
+                        self.rejected_announces.pop(&announce_hash);
+                        self.output
+                            .push_back(ConsensusEvent::AnnounceAccepted(accepted_hash));
+                        self.output
+                            .push_back(ConsensusEvent::ComputeAnnounce(announce));
+                        progress = true;
+                    }
+                    AnnounceStatus::Rejected { reason, .. } => match reason {
+                        AnnounceRejectionReason::UnknownParent { .. } => {}
+                        AnnounceRejectionReason::AlreadyIncluded(_)
+                        | AnnounceRejectionReason::TxValidity(_) => {
+                            self.rejected_announces.pop(&announce_hash);
+                            progress = true;
+                        }
+                    },
+                }
+            }
+
+            if !progress {
+                break;
             }
         }
 
@@ -396,5 +475,67 @@ mod tests {
             service.output,
             vec![ConsensusEvent::AnnounceRejected(announce_hash)]
         )
+    }
+
+    #[test]
+    fn replay_rejected_chain_after_parent_included() {
+        let validator_private_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_private_key).to_address();
+        let validators = ValidatorsVec::try_from(vec![validator_address]).unwrap();
+
+        let db = Database::memory();
+        let chain = BlockChain::mock((5, validators)).setup(&db);
+
+        let mut service = ConnectService::new(db, Duration::from_secs(12), 10);
+        let producer = validator_address;
+
+        let missing_parent =
+            Announce::with_default_gas(chain.blocks[3].hash, chain.block_top_announce_hash(2));
+        let missing_parent_hash = missing_parent.to_hash();
+
+        let announce4 = Announce::with_default_gas(chain.blocks[4].hash, missing_parent_hash);
+        let announce4_hash = announce4.to_hash();
+        let announce5 = Announce::with_default_gas(chain.blocks[5].hash, announce4_hash);
+        let announce5_hash = announce5.to_hash();
+
+        service
+            .process_announce_from_producer(announce4.clone(), producer)
+            .unwrap();
+        service
+            .process_announce_from_producer(announce5.clone(), producer)
+            .unwrap();
+
+        assert_eq!(
+            service.output,
+            vec![
+                ConsensusEvent::AnnounceRejected(announce4_hash),
+                ConsensusEvent::AnnounceRejected(announce5_hash),
+            ]
+        );
+        assert!(service.rejected_announces.peek(&announce4_hash).is_some());
+        assert!(service.rejected_announces.peek(&announce5_hash).is_some());
+
+        let (_, parent_newly_included) = service.db.include_announce(missing_parent).unwrap();
+        assert!(parent_newly_included);
+
+        service.output.clear();
+
+        service
+            .process_after_propagation(chain.blocks[5].to_simple(), producer)
+            .unwrap();
+
+        assert_eq!(
+            service.output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce4_hash),
+                ConsensusEvent::ComputeAnnounce(announce4.clone()),
+                ConsensusEvent::AnnounceAccepted(announce5_hash),
+                ConsensusEvent::ComputeAnnounce(announce5.clone()),
+            ]
+        );
+        assert!(service.rejected_announces.peek(&announce4_hash).is_none());
+        assert!(service.rejected_announces.peek(&announce5_hash).is_none());
+        assert!(service.db.is_announce_included(announce4_hash));
+        assert!(service.db.is_announce_included(announce5_hash));
     }
 }
