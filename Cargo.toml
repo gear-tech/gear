@@ -145,6 +145,7 @@ enum-iterator = "1.5.0"
 environmental = "1.1.3"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.3"
+future-timing = "0.1.0" # measure the futures execution
 hashbrown = "0.14.5"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
@@ -160,7 +161,7 @@ parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
-prometheus = { version = "0.13.0", default-features = false }
+prometheus = { version = "0.14.0", default-features = false }
 proptest = "1.5.0"
 quick-xml = "0.28"
 quote = { version = "1.0.36", default-features = false }
@@ -225,6 +226,11 @@ tap = "1.0.1"
 ntest = "0.9.3"
 dashmap = "5.5.3"
 delegate = "0.13.5"
+
+# metrics
+metrics = "0.24.0"
+metrics-derive = "0.1"
+metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
 
 # Published deps
 #
