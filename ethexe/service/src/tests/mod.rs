@@ -3147,13 +3147,13 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
             signatures: Vec<ContractSignature>,
         ) -> anyhow::Result<H256> {
             log::info!("📗 LateCommitter wait for signal to commit ...");
-            self.wait_signal_sender.send(()).unwrap();
+            let _ = self.wait_signal_sender.send(());
             self.commit_signal_receiver
                 .lock()
                 .await
                 .recv()
                 .await
-                .unwrap();
+                .ok_or_else(|| anyhow::anyhow!("commit signal channel closed"))?;
 
             log::info!(
                 "📗 LateCommitter committing batch {}: {:?}",
@@ -3163,7 +3163,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
             let pending = self.router.commit_batch_pending(batch, signatures).await;
 
             // Notify that commitment is sent
-            self.wait_signal_sender.send(()).unwrap();
+            let _ = self.wait_signal_sender.send(());
 
             log::info!("📗 LateCommitter waiting for transaction to be applied ...");
             pending?
