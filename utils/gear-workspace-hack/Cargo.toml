@@ -217,16 +217,16 @@ features = ["test-helpers"]
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { version = "1", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
 alloy-chains = { version = "0.2" }
-alloy-consensus = { version = "1", default-features = false, features = ["kzg", "serde"] }
-alloy-contract = { version = "1", default-features = false, features = ["pubsub"] }
-alloy-eips = { version = "1", default-features = false, features = ["kzg", "serde", "std"] }
+alloy-consensus = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["kzg", "serde"] }
+alloy-contract = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["pubsub"] }
+alloy-eips = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { version = "1", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { version = "1", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { version = "1", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
+alloy-provider = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
 alloy-sol-type-parser = { version = "1", default-features = false, features = ["serde", "std"] }
 alloy-sol-types = { version = "1", features = ["json"] }
 anyhow = { version = "1" }
@@ -324,6 +324,7 @@ jsonrpsee = { version = "0.24", default-features = false, features = ["client", 
 jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
 jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
+keccak = { version = "0.1", default-features = false, features = ["asm"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
 libp2p-identity = { version = "0.2", default-features = false, features = ["ed25519", "peerid", "rand", "secp256k1", "serde"] }
@@ -396,10 +397,11 @@ serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_v
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
-sha3 = { version = "0.10", default-features = false, features = ["std"] }
+sha3 = { version = "0.10", default-features = false, features = ["asm", "std"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
+socket2 = { version = "0.4", default-features = false, features = ["all"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
@@ -486,16 +488,16 @@ zeroize = { version = "1", features = ["derive", "std"] }
 [build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { version = "1", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
 alloy-chains = { version = "0.2" }
-alloy-consensus = { version = "1", default-features = false, features = ["kzg", "serde"] }
-alloy-contract = { version = "1", default-features = false, features = ["pubsub"] }
-alloy-eips = { version = "1", default-features = false, features = ["kzg", "serde", "std"] }
+alloy-consensus = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["kzg", "serde"] }
+alloy-contract = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["pubsub"] }
+alloy-eips = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { version = "1", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { version = "1", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { version = "1", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
+alloy-provider = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
 alloy-sol-macro = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-expander = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-input = { version = "1", default-features = false, features = ["json"] }
@@ -603,6 +605,7 @@ jsonrpsee = { version = "0.24", default-features = false, features = ["client", 
 jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
 jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
+keccak = { version = "0.1", default-features = false, features = ["asm"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
 libp2p-identity = { version = "0.2", default-features = false, features = ["ed25519", "peerid", "rand", "secp256k1", "serde"] }
@@ -677,10 +680,11 @@ serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_v
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
-sha3 = { version = "0.10", default-features = false, features = ["std"] }
+sha3 = { version = "0.10", default-features = false, features = ["asm", "std"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
+socket2 = { version = "0.4", default-features = false, features = ["all"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
@@ -773,7 +777,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -798,7 +802,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -824,7 +828,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -848,7 +852,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -873,7 +877,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
@@ -895,7 +899,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }

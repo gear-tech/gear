@@ -5,7 +5,7 @@ edition = "2024"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.88"
+rust-version = "1.91"
 
 [workspace]
 resolver = "3"
@@ -116,7 +116,7 @@ members = [
 [workspace.dependencies]
 gear-workspace-hack = "0.1.0"
 
-alloy = "1.4"
+alloy = "1.7"
 alloy-chains = "0.2"
 alloy-primitives = { version = "1.5", default-features = false }
 alloy-sol-types = { version = "1.5", default-features = false }
@@ -625,6 +625,7 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
+alloy = { version = "1.7", git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler" }
 gear-workspace-hack = { path = "utils/gear-workspace-hack" }
 
 # these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
