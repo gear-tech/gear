@@ -15,10 +15,23 @@ use gear_wasm_gen::{
     SyscallsInjectionTypes, SyscallsParamsConfig,
 };
 use gprimitives::{ActorId, MessageId};
-use tokio::sync::broadcast;
+use rand::rngs::SmallRng;
+use tokio::{fs::File, io::AsyncWriteExt, sync::broadcast};
 use tracing::warn;
 
 use crate::batch::Event;
+
+pub async fn dump_with_seed(seed: u64) -> Result<()> {
+    let code = gear_call_gen::generate_gear_program::<SmallRng, StandardGearWasmConfigsBundle>(
+        seed,
+        StandardGearWasmConfigsBundle::default(),
+    );
+
+    let mut file = File::create("out.wasm").await?;
+    file.write_all(&code).await?;
+
+    Ok(())
+}
 
 /// Returns configs bundle with a gear wasm generator config, which logs `seed`.
 pub fn get_wasm_gen_config(

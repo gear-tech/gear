@@ -32,8 +32,8 @@ async fn main() -> Result<()> {
     match params {
         Params::Dump { seed } => {
             info!("Dump requested with seed: {}", seed);
-            // Dump logic would go here
-            Ok(())
+
+            utils::dump_with_seed(seed).await
         }
         Params::Load(load_params) => {
             info!("Starting load test on {}", load_params.node);
@@ -68,6 +68,7 @@ fn derive_signer(index: u32) -> Result<(gsigner::secp256k1::Signer, gsigner::sec
     let seed: [u8; 32] = alloy_signer.to_bytes().0;
     let private_key = gsigner::secp256k1::PrivateKey::from_seed(seed)?;
     let signer = gsigner::secp256k1::Signer::memory();
+
     let pubkey = signer.import(private_key)?;
     let address = pubkey.to_address();
 
@@ -112,7 +113,7 @@ fn signer_from_private_key(
 
 async fn load_node(params: LoadParams) -> Result<()> {
     const MAX_WORKERS: usize = 48;
-    const MINT_AMOUNT: u128 = 500_000_000_000_000_000_000;
+    const MINT_AMOUNT: u128 = 500_000_000_000_000_000_000_000;
     // Anvil mnemonic index 0 is the deployer.
     const DEPLOYER_INDEX: u32 = 0;
 
@@ -188,7 +189,13 @@ async fn load_node(params: LoadParams) -> Result<()> {
             .wrapped_vara()
             .mint((*address).into(), MINT_AMOUNT)
             .await?;
+        tracing::debug!(
+            "Minted {} WVARA to 0x{}",
+            MINT_AMOUNT,
+            alloy::hex::encode(address.0)
+        );
         api.wrapped_vara().approve_all((*address).into()).await?;
+        tracing::debug!("Approved all WVARA for 0x{}", alloy::hex::encode(address.0));
     }
 
     let provider = apis

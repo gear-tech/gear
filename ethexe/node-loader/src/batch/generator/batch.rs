@@ -31,7 +31,6 @@ pub struct BatchGenerator<Rng> {
     rt_settings: RuntimeSettings,
 }
 
-// TODO #2202 Change to use GearCall
 pub enum Batch {
     UploadProgram(Vec<UploadProgramArgs>),
     UploadCode(Vec<UploadCodeArgs>),
