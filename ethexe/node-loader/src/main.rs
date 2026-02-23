@@ -44,28 +44,11 @@ async fn main() -> Result<()> {
     }
 }
 
-/// Create a gsigner from a hex-encoded private key string.
-/// Accepts keys with or without "0x" prefix.
 fn signer_from_private_key(
     private_key_hex: &str,
 ) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
-    let hex_str = private_key_hex
-        .strip_prefix("0x")
-        .unwrap_or(private_key_hex);
-    let seed_bytes =
-        alloy::hex::decode(hex_str).map_err(|e| anyhow::anyhow!("invalid hex private key: {e}"))?;
-
-    if seed_bytes.len() != 32 {
-        return Err(anyhow::anyhow!(
-            "private key must be 32 bytes, got {}",
-            seed_bytes.len()
-        ));
-    }
-
-    let mut seed = [0u8; 32];
-    seed.copy_from_slice(&seed_bytes);
-
-    let private_key = gsigner::secp256k1::PrivateKey::from_seed(seed)?;
+    let private_key =
+        gsigner::secp256k1::PrivateKey::from_str(private_key_hex.trim_start_matches("0x"))?;
     let signer = gsigner::secp256k1::Signer::memory();
     let pubkey = signer.import(private_key)?;
     let address = pubkey.to_address();
