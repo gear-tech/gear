@@ -110,6 +110,7 @@ impl InstanceCreator {
         api::lazy_pages::link(&mut linker)?;
         api::logging::link(&mut linker)?;
         api::sandbox::link(&mut linker)?;
+        api::promise::link(&mut linker)?;
 
         let instance_pre = linker.instantiate_pre(&module)?;
         let instance_pre = Arc::new(instance_pre);
@@ -170,7 +171,7 @@ impl InstanceWrapper {
         db: Box<dyn CASDatabase>,
         ctx: ProcessQueueContext,
     ) -> Result<(ProgramJournals, H256, u64)> {
-        threads::set(db, ctx.state_root);
+        threads::set(db, ctx.state_root, ctx.promise_sender.clone());
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
         let (ptr_lens, gas_spent): (Vec<i64>, i64) = self.call("run", ctx.encode())?;

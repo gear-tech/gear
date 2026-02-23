@@ -26,9 +26,9 @@ use ethexe_runtime_common::{
         ProgramState, Storage, UserMailbox, Waitlist,
     },
 };
-use gear_core::{buffer::Payload, memory::PageBuf};
+use gear_core::{buffer::Payload, memory::PageBuf, rpc::ReplyInfo};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
-use gprimitives::H256;
+use gprimitives::{H256, MessageId};
 
 #[derive(Debug, Clone)]
 pub struct NativeRuntimeInterface;
@@ -149,5 +149,9 @@ impl RuntimeInterface for NativeRuntimeInterface {
 
     fn update_state_hash(&self, hash: &H256) {
         database_ri::update_state_hash(hash);
+    }
+
+    fn send_promise(&self, reply: &ReplyInfo, message_id: &MessageId) {
+        todo!()
     }
 }

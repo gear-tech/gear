@@ -429,7 +429,20 @@ impl ToDigest for ValueClaim {
     }
 }
 
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    Default,
+    PartialOrd,
+    Ord,
+    Hash,
+    derive_more::IsVariant,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MessageType {
     #[default]

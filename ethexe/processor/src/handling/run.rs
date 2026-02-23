@@ -106,6 +106,8 @@
 
 // TODO: #5120 split to several files and move to separate module
 
+use std::sync::mpsc;
+
 use crate::{
     ProcessorError, Result, handling::run::chunks_splitting::ExecutionChunks, host::InstanceCreator,
 };
@@ -116,6 +118,7 @@ use ethexe_common::{
     BlockHeader, StateHashWithQueueSize,
     db::CodesStorageRO,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
+    injected::Promise,
 };
 use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{
@@ -187,6 +190,9 @@ pub(super) async fn run_for_queue_type(
 pub(super) trait RunContext {
     /// Get reference to instance creator.
     fn instance_creator(&self) -> &InstanceCreator;
+
+    /// Get the promises sender to main service.
+    fn promise_sender(&self) -> &mpsc::Sender<Promise>;
 
     /// Returns the header of the current block.
     fn block_header(&self) -> BlockHeader;
@@ -263,6 +269,7 @@ pub(crate) struct CommonRunContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) chunk_size: usize,
     pub(crate) block_header: BlockHeader,
+    pub(crate) promise_sender: mpsc::Sender<Promise>,
 }
 
 impl CommonRunContext {
@@ -273,6 +280,7 @@ impl CommonRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         block_header: BlockHeader,
+        promise_sender: mpsc::Sender<Promise>,
     ) -> Self {
         CommonRunContext {
             db,
@@ -281,6 +289,7 @@ impl CommonRunContext {
             gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
             chunk_size,
             block_header,
+            promise_sender,
         }
     }
 
@@ -300,6 +309,10 @@ impl CommonRunContext {
 impl RunContext for CommonRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.instance_creator
+    }
+
+    fn promise_sender(&self) -> &mpsc::Sender<Promise> {
+        &self.promise_sender
     }
 
     fn block_header(&self) -> BlockHeader {
@@ -548,6 +561,7 @@ mod chunk_execution_spawn {
             .collect::<Result<Vec<_>>>()?;
 
         let block_header = ctx.block_header();
+        let promise_sender = ctx.promise_sender().clone();
         let block_info = BlockInfo {
             height: block_header.height,
             timestamp: block_header.timestamp,
@@ -579,6 +593,7 @@ mod chunk_execution_spawn {
                                         gas_allowance_for_chunk,
                                     ),
                                     block_info,
+                                    promise_sender: promise_sender.clone(),
                                 },
                             )
                             .expect("Some error occurs while running program in instance");

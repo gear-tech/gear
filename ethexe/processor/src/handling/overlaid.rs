@@ -25,7 +25,7 @@ use crate::{
     host::InstanceCreator,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType};
+use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType, injected::Promise};
 use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
 use gear_core::{
@@ -34,7 +34,7 @@ use gear_core::{
     message::ReplyDetails,
 };
 use gprimitives::{ActorId, MessageId};
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::mpsc};
 
 /// Overlay execution context.
 ///
@@ -172,6 +172,10 @@ impl OverlaidRunContext {
 impl RunContext for OverlaidRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.inner.instance_creator
+    }
+
+    fn promise_sender(&self) -> &mpsc::Sender<Promise> {
+        self.inner.promise_sender()
     }
 
     fn block_header(&self) -> BlockHeader {

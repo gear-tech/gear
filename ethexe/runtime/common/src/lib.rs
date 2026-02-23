@@ -22,22 +22,28 @@
 
 extern crate alloc;
 
+use std::sync::mpsc;
+
 use alloc::vec::Vec;
 use core_processor::{
     ContextCharged, Ext, ProcessExecutionContext,
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
 };
-use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
+use ethexe_common::{
+    gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
+    injected::Promise,
+};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     gas::GasAllowanceCounter,
     gas_metering::Schedule,
     ids::ActorId,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
+    rpc::ReplyInfo,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::H256;
+use gprimitives::{H256, MessageId};
 use gsys::{GasMultiplier, Percent};
 use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
@@ -73,6 +79,7 @@ pub struct ProcessQueueContext {
     pub code_metadata: CodeMetadata,
     pub gas_allowance: GasAllowanceCounter,
     pub block_info: BlockInfo,
+    pub promise_sender: mpsc::Sender<Promise>,
 }
 
 pub trait RuntimeInterface: Storage {
@@ -81,6 +88,8 @@ pub trait RuntimeInterface: Storage {
     fn init_lazy_pages(&self);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn update_state_hash(&self, state_hash: &H256);
+    // TODO: create more meaningful function name
+    fn send_promise(&self, reply: &ReplyInfo, message_id: &MessageId);
 }
 
 /// A main low-level interface to perform state changes
@@ -261,6 +270,7 @@ where
         value,
         details,
         context,
+        message_type,
         ..
     } = dispatch;
 
@@ -318,6 +328,21 @@ where
             "Program {program_id} is not yet finished initialization, so cannot process handle message"
         );
         return core_processor::process_uninitialized(context);
+    }
+
+    if active_state.initialized && kind.is_reply() && message_type.is_injected() {
+        let code = details
+            .and_then(|d| d.to_reply_details())
+            .map(|d| d.to_reply_code())
+            .expect("reply details must exists for reply dispatch");
+
+        let reply = ReplyInfo {
+            value,
+            code,
+            payload: payload.to_vec(),
+        };
+
+        ri.send_promise(&reply, &dispatch_id);
     }
 
     let context = match context.charge_for_code_metadata(block_config) {
