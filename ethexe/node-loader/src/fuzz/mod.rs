@@ -45,7 +45,7 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     let (signer, address) = if let Some(ref pk) = params.sender_private_key {
         crate::signer_from_private_key(pk)?
     } else {
-        crate::derive_signer(0)?
+        crate::signer_from_private_key(crate::DEPLOYER_ACCOUNT.private_key)?
     };
 
     info!("Fuzz deployer address: 0x{}", alloy::hex::encode(address.0));
