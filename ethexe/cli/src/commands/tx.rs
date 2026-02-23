@@ -1723,7 +1723,7 @@ pub enum TxSubcommand {
         #[arg(short, long, requires = "injected")]
         rpc_url: Option<String>,
         /// Flag to send injected transaction. If false, normal transaction is sent.
-        #[arg(short, long, default_value = "false", requires = "rpc-url")]
+        #[arg(short, long, default_value = "false", requires = "rpc_url")]
         injected: bool,
         /// Flag to watch for reply from mirror. If false, command will do not wait for reply.
         #[arg(short, long, default_value = "false")]
