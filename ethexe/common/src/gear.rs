@@ -369,7 +369,7 @@ pub struct StateTransition {
     ///
     /// Negative numbers will be stored like this:
     /// ```
-    /// $ cast
+    /// $ chisel
     /// > -1 ether
     /// Type: int256
     /// Hex: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff21f494c589c0000
