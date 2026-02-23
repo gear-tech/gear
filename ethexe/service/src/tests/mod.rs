@@ -139,10 +139,10 @@ async fn basics() {
         chunk_size: config.node.chunk_processing_threads,
     });
 
-    config.prometheus = Some(PrometheusConfig::new(
-        "DevNode".into(),
-        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
-    ));
+    config.prometheus = Some(PrometheusConfig {
+        name: "DevNode".into(),
+        addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
+    });
 
     Service::new(&config).await.unwrap();
 }
