@@ -31,11 +31,12 @@ lru.workspace = true
 thiserror.workspace = true
 indexmap.workspace = true
 ip_network.workspace = true
+prometheus-client = "0.23.1" # specific version that lip2p uses
 gear-workspace-hack.workspace = true
 
 [dependencies.libp2p]
 version = "0.56.0"
-features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tcp", "dns", "tls", "tokio", "macros", "plaintext", "yamux"]
+features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tcp", "dns", "tls", "tokio", "macros", "plaintext", "yamux", "metrics"]
 
 [dev-dependencies]
 libp2p-swarm-test = { version = "0.6.0", default-features = false, features = ["tokio"] }
