@@ -24,7 +24,6 @@ use ethexe_common::{
         BlockEvent, RouterEvent,
         router::{CodeGotValidatedEvent, CodeValidationRequestedEvent},
     },
-    injected::Promise,
     mock::*,
 };
 use ethexe_db::Database;
@@ -34,7 +33,7 @@ use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
-use std::{cell::RefCell, collections::BTreeMap, sync::mpsc};
+use std::{cell::RefCell, collections::BTreeMap};
 
 thread_local! {
     pub(crate) static PROCESSOR_RESULT: RefCell<FinalizedBlockTransitions> = const { RefCell::new(
@@ -174,7 +173,7 @@ impl TestEnv {
         let compute = ComputeService::new(
             config,
             db.clone(),
-            Processor::new(db.clone(), promise_sender, None).unwrap(),
+            Processor::new(db.clone(), None).unwrap(),
         );
 
         TestEnv { db, compute, chain }
