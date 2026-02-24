@@ -17,29 +17,27 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::wasm::interface;
+use ethexe_runtime_common::pack_u32_to_i64;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::MessageId;
 use parity_scale_codec::Encode;
 
 interface::declare!(
-    pub(super) fn send_promise(
-        reply_ptr: *const ReplyInfo,
-        encoded_reply_len: i32,
-        message_id_ptr: *const MessageId,
+    pub(super) fn ext_forward_promise_to_service(
+        encoded_reply_ptr_len: i64,
+        message_id_ptr_len: i64,
     );
 );
-
 pub fn send_promise(reply: &ReplyInfo, message_id: &MessageId) {
     unsafe {
-        // TODO: implement `as_ptr` for `ReplyInfo`
-        let reply_ptr = 0;
-        let reply_encoded_size = reply.encoded_size();
-        let message_id_ptr = message_id.as_ref().as_ptr();
-
-        sys::send_promise(
-            reply_ptr as _,
-            reply_encoded_size as i32,
-            message_id_ptr as _,
+        let message_id_ptr_len = pack_u32_to_i64(
+            message_id.as_ref().as_ptr() as _,
+            message_id.encoded_size() as _,
         );
+        let encoded_reply = reply.encode();
+        let encoded_reply_ptr_len =
+            pack_u32_to_i64(encoded_reply.as_ptr() as _, reply.encoded_size() as _);
+
+        sys::ext_forward_promise_to_service(encoded_reply_ptr_len, message_id_ptr_len);
     }
 }

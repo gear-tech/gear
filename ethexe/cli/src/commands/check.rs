@@ -227,7 +227,7 @@ impl Checker {
             None
         };
 
-        let processor = Processor::with_config(ProcessorConfig { chunk_size }, db.clone())
+        let processor = Processor::with_config(ProcessorConfig { chunk_size }, db.clone(), None)
             .context("failed to create processor")?;
 
         // Iterate back: from `head` announce to `bottom` announce

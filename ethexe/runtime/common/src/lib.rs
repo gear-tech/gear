@@ -22,18 +22,13 @@
 
 extern crate alloc;
 
-use std::sync::mpsc;
-
 use alloc::vec::Vec;
 use core_processor::{
     ContextCharged, Ext, ProcessExecutionContext,
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
 };
-use ethexe_common::{
-    gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
-    injected::Promise,
-};
+use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     gas::GasAllowanceCounter,
@@ -79,7 +74,7 @@ pub struct ProcessQueueContext {
     pub code_metadata: CodeMetadata,
     pub gas_allowance: GasAllowanceCounter,
     pub block_info: BlockInfo,
-    pub promise_sender: mpsc::Sender<Promise>,
+    // pub promise_sender: mpsc::Sender<Promise>,
 }
 
 pub trait RuntimeInterface: Storage {
@@ -216,9 +211,11 @@ where
     ri.init_lazy_pages();
 
     for dispatch in queue {
-        let origin = dispatch.message_type;
+        let dispatch_id = dispatch.id;
+        let message_type = dispatch.message_type;
         let call_reply = dispatch.call;
         let is_first_execution = dispatch.context.is_none();
+        let is_promise_required = dispatch.kind.is_handle() && dispatch.message_type.is_injected();
 
         let journal = process_dispatch(dispatch, &block_config, &program_state, &ctx, ri);
         let mut handler = RuntimeJournalHandler {
@@ -230,8 +227,38 @@ where
             is_first_execution,
             stop_processing: false,
         };
+
+        log::error!("processing dispatch: message_type={message_type:?}");
+        if is_promise_required {
+            log::error!("promise required, notes={journal:?}");
+            for note in journal.iter() {
+                if let JournalNote::SendDispatch {
+                    message_id,
+                    dispatch,
+                    ..
+                } = note
+                    && *message_id == dispatch_id
+                    && dispatch.kind().is_reply()
+                {
+                    let code = dispatch
+                        .reply_details()
+                        .map(|d| d.to_reply_code())
+                        .expect("reply details must exists for reply dispatch");
+
+                    let reply = ReplyInfo {
+                        value: dispatch.value(),
+                        code,
+                        payload: dispatch.message().payload_bytes().to_vec(),
+                    };
+
+                    log::error!("sending promise to user");
+                    ri.send_promise(&reply, &dispatch_id);
+                    break;
+                }
+            }
+        }
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
-        mega_journal.push((unhandled_journal_notes, origin, call_reply));
+        mega_journal.push((unhandled_journal_notes, message_type, call_reply));
 
         // Update state hash if it was changed.
         if let Some(new_state_hash) = new_state_hash {
@@ -270,7 +297,6 @@ where
         value,
         details,
         context,
-        message_type,
         ..
     } = dispatch;
 
@@ -328,21 +354,6 @@ where
             "Program {program_id} is not yet finished initialization, so cannot process handle message"
         );
         return core_processor::process_uninitialized(context);
-    }
-
-    if active_state.initialized && kind.is_reply() && message_type.is_injected() {
-        let code = details
-            .and_then(|d| d.to_reply_details())
-            .map(|d| d.to_reply_code())
-            .expect("reply details must exists for reply dispatch");
-
-        let reply = ReplyInfo {
-            value,
-            code,
-            payload: payload.to_vec(),
-        };
-
-        ri.send_promise(&reply, &dispatch_id);
     }
 
     let context = match context.charge_for_code_metadata(block_config) {

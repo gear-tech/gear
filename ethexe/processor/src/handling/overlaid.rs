@@ -91,8 +91,11 @@ impl OverlaidRunContext {
         }
     }
 
-    pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
-        let _ = run::run_for_queue_type(&mut self, MessageType::Canonical).await?;
+    pub(crate) async fn run(
+        mut self,
+        promise_sender: Option<mpsc::Sender<Promise>>,
+    ) -> Result<InBlockTransitions> {
+        let _ = run::run_for_queue_type(&mut self, MessageType::Canonical, promise_sender).await?;
         Ok(self.inner.transitions)
     }
 
@@ -172,10 +175,6 @@ impl OverlaidRunContext {
 impl RunContext for OverlaidRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.inner.instance_creator
-    }
-
-    fn promise_sender(&self) -> &mpsc::Sender<Promise> {
-        self.inner.promise_sender()
     }
 
     fn block_header(&self) -> BlockHeader {

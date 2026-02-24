@@ -23,7 +23,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
-    injected::InjectedTransaction,
+    injected::{InjectedTransaction, Promise},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -38,6 +38,7 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
+use std::sync::mpsc;
 
 pub use host::InstanceError;
 
@@ -107,22 +108,28 @@ pub struct Processor {
     config: ProcessorConfig,
     db: Database,
     creator: InstanceCreator,
+    promise_sender: Option<mpsc::Sender<Promise>>,
 }
 
 /// TODO: consider avoiding re-instantiations on processing events.
 /// Maybe impl `struct EventProcessor`.
 impl Processor {
     /// Creates processor with default config.
-    pub fn new(db: Database) -> Result<Self> {
-        Self::with_config(Default::default(), db)
+    pub fn new(db: Database, promise_sender: Option<mpsc::Sender<Promise>>) -> Result<Self> {
+        Self::with_config(Default::default(), db, promise_sender)
     }
 
-    pub fn with_config(config: ProcessorConfig, db: Database) -> Result<Self> {
+    pub fn with_config(
+        config: ProcessorConfig,
+        db: Database,
+        promise_sender: Option<mpsc::Sender<Promise>>,
+    ) -> Result<Self> {
         let creator = InstanceCreator::new(host::runtime())?;
         Ok(Self {
             config,
             db,
             creator,
+            promise_sender,
         })
     }
 
@@ -252,7 +259,7 @@ impl Processor {
             self.config.chunk_size,
             block.header,
         )
-        .run()
+        .run(self.promise_sender.clone())
         .await
     }
 
@@ -402,7 +409,7 @@ impl OverlaidProcessor {
             self.0.creator.clone(),
             block.header,
         )
-        .run()
+        .run(self.0.promise_sender.clone())
         .await?;
 
         let res = transitions

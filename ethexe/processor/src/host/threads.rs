@@ -19,7 +19,7 @@
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
 use core::fmt;
-use ethexe_common::HashOf;
+use ethexe_common::{HashOf, injected::Promise};
 use ethexe_db::CASDatabase;
 use ethexe_runtime_common::state::{
     ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState, QueryableStorage,
@@ -41,7 +41,8 @@ thread_local! {
 pub struct ThreadParams {
     pub db: Box<dyn CASDatabase>,
     pub state_hash: H256,
-    pub promise_sender: mpsc::Sender<Promise>,
+    /// TODO: think about using [`mpsc::sync_channel`] instead of [`mpsc::channel`].
+    pub promise_sender: Option<mpsc::Sender<Promise>>,
     pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
@@ -103,12 +104,17 @@ impl PageKey {
     }
 }
 
-pub fn set(db: Box<dyn CASDatabase>, state_hash: H256, promise_sender: mpsc::Sender<Promise>) {
+pub fn set(
+    db: Box<dyn CASDatabase>,
+    state_hash: H256,
+    promise_sender: Option<mpsc::Sender<Promise>>,
+) {
     PARAMS.set(Some(ThreadParams {
         db,
         state_hash,
         pages_registry_cache: None,
         pages_regions_cache: None,
+        promise_sender,
     }))
 }
 

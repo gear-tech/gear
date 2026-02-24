@@ -136,6 +136,7 @@ use itertools::Itertools;
 pub(super) async fn run_for_queue_type(
     ctx: &mut impl RunContext,
     queue_type: MessageType,
+    promise_sender: Option<mpsc::Sender<Promise>>,
 ) -> Result<bool> {
     let mut is_out_of_gas_for_block = false;
 
@@ -150,8 +151,13 @@ pub(super) async fn run_for_queue_type(
 
         for chunk in chunks {
             // Spawn on a separate thread an execution of each program (it's queue) in the chunk.
-            let chunk_outputs =
-                chunk_execution_spawn::spawn_chunk_execution(ctx, chunk, queue_type).await?;
+            let chunk_outputs = chunk_execution_spawn::spawn_chunk_execution(
+                ctx,
+                chunk,
+                queue_type,
+                promise_sender.clone(),
+            )
+            .await?;
 
             // Collect journals from all executed programs in the chunk.
             let (chunk_journals, max_gas_spent_in_chunk) =
@@ -190,9 +196,6 @@ pub(super) async fn run_for_queue_type(
 pub(super) trait RunContext {
     /// Get reference to instance creator.
     fn instance_creator(&self) -> &InstanceCreator;
-
-    /// Get the promises sender to main service.
-    fn promise_sender(&self) -> &mpsc::Sender<Promise>;
 
     /// Returns the header of the current block.
     fn block_header(&self) -> BlockHeader;
@@ -269,7 +272,7 @@ pub(crate) struct CommonRunContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) chunk_size: usize,
     pub(crate) block_header: BlockHeader,
-    pub(crate) promise_sender: mpsc::Sender<Promise>,
+    // pub(crate) promise_sender: mpsc::Sender<Promise>,
 }
 
 impl CommonRunContext {
@@ -280,7 +283,7 @@ impl CommonRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         block_header: BlockHeader,
-        promise_sender: mpsc::Sender<Promise>,
+        // promise_sender: mpsc::Sender<Promise>,
     ) -> Self {
         CommonRunContext {
             db,
@@ -289,17 +292,22 @@ impl CommonRunContext {
             gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
             chunk_size,
             block_header,
-            promise_sender,
+            // promise_sender,
         }
     }
 
-    pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
+    pub(crate) async fn run(
+        mut self,
+        promise_sender: Option<mpsc::Sender<Promise>>,
+    ) -> Result<InBlockTransitions> {
         // Start with injected queues processing.
-        let can_continue = run_for_queue_type(&mut self, MessageType::Injected).await?;
+        let can_continue =
+            run_for_queue_type(&mut self, MessageType::Injected, promise_sender.clone()).await?;
 
         if can_continue {
             // If gas is still left in block, process canonical (Ethereum) queues
-            let _ = run_for_queue_type(&mut self, MessageType::Canonical).await?;
+            let _ = run_for_queue_type(&mut self, MessageType::Canonical, promise_sender.clone())
+                .await?;
         }
 
         Ok(self.transitions)
@@ -309,10 +317,6 @@ impl CommonRunContext {
 impl RunContext for CommonRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.instance_creator
-    }
-
-    fn promise_sender(&self) -> &mpsc::Sender<Promise> {
-        &self.promise_sender
     }
 
     fn block_header(&self) -> BlockHeader {
@@ -523,6 +527,7 @@ mod chunk_execution_spawn {
         ctx: &mut impl RunContext,
         chunk: Vec<(ActorId, H256)>,
         queue_type: MessageType,
+        promise_sender: Option<mpsc::Sender<Promise>>,
     ) -> Result<Vec<ChunkItemOutput>> {
         struct Executable {
             program_id: ActorId,
@@ -561,7 +566,6 @@ mod chunk_execution_spawn {
             .collect::<Result<Vec<_>>>()?;
 
         let block_header = ctx.block_header();
-        let promise_sender = ctx.promise_sender().clone();
         let block_info = BlockInfo {
             height: block_header.height,
             timestamp: block_header.timestamp,
@@ -593,8 +597,8 @@ mod chunk_execution_spawn {
                                         gas_allowance_for_chunk,
                                     ),
                                     block_info,
-                                    promise_sender: promise_sender.clone(),
                                 },
+                                promise_sender.clone(),
                             )
                             .expect("Some error occurs while running program in instance");
 

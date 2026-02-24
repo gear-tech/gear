@@ -22,7 +22,7 @@ use ethexe_common::{
     db::{AnnounceStorageRO, CodesStorageRO, OnChainStorageRO},
 };
 use ethexe_db::Database;
-use ethexe_processor::{ExecutableDataForReply, Processor};
+use ethexe_processor::{ExecutableDataForReply, OverlaidProcessor};
 use ethexe_runtime_common::state::{
     DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueryableStorage,
     Storage, Waitlist,
@@ -95,12 +95,12 @@ pub trait Program {
 
 pub struct ProgramApi {
     db: Database,
-    processor: Processor,
+    processor: OverlaidProcessor,
     gas_allowance: u64,
 }
 
 impl ProgramApi {
-    pub fn new(db: Database, processor: Processor, gas_allowance: u64) -> Self {
+    pub fn new(db: Database, processor: OverlaidProcessor, gas_allowance: u64) -> Self {
         Self {
             db,
             processor,
@@ -167,7 +167,6 @@ impl ProgramServer for ProgramApi {
 
         self.processor
             .clone()
-            .overlaid()
             .execute_for_reply(executable)
             .await
             .map_err(errors::runtime)

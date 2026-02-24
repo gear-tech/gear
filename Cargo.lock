@@ -5194,6 +5194,7 @@ dependencies = [
  "ethexe-runtime",
  "ethexe-runtime-common",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages",
  "gear-runtime-interface",

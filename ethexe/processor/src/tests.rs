@@ -29,7 +29,11 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_runtime_common::{RUNTIME_ID, state::MessageQueue};
-use gear_core::ids::prelude::CodeIdExt;
+use gear_core::{
+    ids::prelude::CodeIdExt,
+    message::{ErrorReplyReason, ReplyCode, SuccessReplyReason},
+};
+use gear_core_errors::SimpleExecutionError;
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
 use utils::*;
@@ -94,9 +98,10 @@ mod utils {
 
     pub fn setup_test_env_and_load_codes<const N: usize>(
         codes: [&[u8]; N],
+        promise_sender: Option<mpsc::Sender<Promise>>,
     ) -> (Processor, BlockChain, [CodeId; N]) {
         let db = Database::memory();
-        let mut processor = Processor::new(db.clone()).unwrap();
+        let mut processor = Processor::new(db.clone(), promise_sender).unwrap();
         let chain = BlockChain::mock(20).setup(&db);
 
         let mut code_ids = Vec::new();
@@ -137,7 +142,8 @@ mod utils {
 async fn ping_init() {
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY], None);
 
     // Empty processing for block1
     let executable = ExecutableData {
@@ -231,7 +237,8 @@ async fn ping_init() {
 fn handle_new_code_valid() {
     init_logger();
 
-    let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::memory(), None).expect("failed to create processor");
 
     let (code_id, code) = utils::wat_to_wasm(utils::VALID_PROGRAM);
 
@@ -257,7 +264,8 @@ fn handle_new_code_valid() {
 fn handle_new_code_invalid() {
     init_logger();
 
-    let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
+    let mut processor =
+        Processor::new(Database::memory(), None).expect("failed to create processor");
 
     let (code_id, code) = utils::wat_to_wasm(utils::INVALID_PROGRAM);
 
@@ -275,7 +283,7 @@ async fn ping_pong() {
     init_logger();
 
     let (mut processor, chain, [code_id, ..]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY], None);
     let block1 = chain.blocks[1].to_simple();
 
     let user_id = ActorId::from(10);
@@ -355,7 +363,7 @@ async fn async_and_ping() {
     };
 
     let (mut processor, chain, [ping_code_id, upload_code_id, ..]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY], None);
     let block1 = chain.blocks[1].to_simple();
 
     let mut handler = setup_handler(processor.db.clone(), block1);
@@ -494,7 +502,7 @@ async fn many_waits() {
 
     let (_, code) = wat_to_wasm(wat.as_str());
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()], None);
     let block1 = chain.blocks[1].to_simple();
     let wake_block = chain.blocks[1 + blocks_to_wait].to_simple();
 
@@ -620,7 +628,7 @@ async fn overlay_execution() {
         };
 
     let (mut processor, chain, [ping_code_id, async_code_id]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY], None);
     let block1 = chain.blocks[1].to_simple();
 
     // -----------------------------------------------------------------------------
@@ -849,7 +857,9 @@ async fn overlay_execution() {
 async fn injected_ping_pong() {
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (promise_sender, promise_receiver) = mpsc::channel();
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY], Some(promise_sender));
     let block1 = chain.blocks[1].to_simple();
 
     let user_1 = ActorId::from(10);
@@ -907,14 +917,28 @@ async fn injected_ping_pong() {
         )
         .expect("failed to send message");
 
+    let injected_tx = injected(actor_id, b"PING", 0);
+    log::error!("injected tx hash: {:?}", injected_tx.to_hash());
     handler
-        .handle_injected_transaction(user_2, injected(actor_id, b"PING", 0))
+        .handle_injected_transaction(user_2, injected_tx.clone())
         .expect("failed to send message");
 
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await
         .unwrap();
+
+    let promise = promise_receiver
+        .recv()
+        .expect("promise must be sent after processing");
+
+    assert_eq!(promise.tx_hash, injected_tx.to_hash());
+    assert_eq!(promise.reply.payload, b"PONG");
+    assert_eq!(promise.reply.value, 0);
+    assert_eq!(
+        promise.reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
 
     let to_users = handler.transitions.current_messages();
 
@@ -934,12 +958,15 @@ async fn injected_ping_pong() {
 
 #[cfg(debug_assertions)] // FIXME: test fails in release mode
 #[tokio::test(flavor = "multi_thread")]
+// TODO: add here testing the promises
 async fn injected_prioritized_over_canonical() {
     const MSG_NUM: usize = 100;
 
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (promise_sender, promise_receiver) = mpsc::channel();
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY], Some(promise_sender));
     let block1 = chain.blocks[1].to_simple();
 
     let canonical_user = ActorId::from(10);
@@ -1001,9 +1028,12 @@ async fn injected_prioritized_over_canonical() {
     }
 
     // Send injected messages
+    let mut tx_hahes = vec![];
     for _ in 0..MSG_NUM {
+        let tx = injected(actor_id, b"PING", 0);
+        tx_hahes.push(tx.to_hash());
         handler
-            .handle_injected_transaction(injected_user, injected(actor_id, b"PING", 0))
+            .handle_injected_transaction(injected_user, tx)
             .expect("failed to send message");
     }
 
@@ -1011,6 +1041,20 @@ async fn injected_prioritized_over_canonical() {
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await
         .unwrap();
+
+    tx_hahes.into_iter().for_each(|tx_hash| {
+        let promise = promise_receiver
+            .recv()
+            .expect("promise for injected transaction");
+
+        assert_eq!(promise.tx_hash, tx_hash);
+        assert_eq!(promise.reply.value, 0);
+        assert_eq!(
+            promise.reply.code,
+            ReplyCode::Success(SuccessReplyReason::Manual)
+        );
+        assert_eq!(promise.reply.payload, b"PONG");
+    });
 
     // Verify that injected messages were processed first
     // skip the first message which is INIT reply
@@ -1028,7 +1072,8 @@ async fn injected_prioritized_over_canonical() {
 async fn executable_balance_charged() {
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY], None);
     let block1 = chain.blocks[1].to_simple();
     let mut handler = setup_handler(processor.db.clone(), block1);
 
@@ -1113,8 +1158,9 @@ async fn executable_balance_injected_panic_not_charged() {
 
     init_logger();
 
+    let (promise_sender, promise_receiver) = mpsc::channel();
     let (mut processor, chain, [code_id]) =
-        setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY], Some(promise_sender));
     let block1 = chain.blocks[1].to_simple();
 
     let user_id = ActorId::from(10);
@@ -1164,13 +1210,26 @@ async fn executable_balance_injected_panic_not_charged() {
 
     // We know for sure handling this message is cost less than the threshold.
     // This message will cause panic in the program.
+    let panic_tx = injected(actor_id, b"", 0);
     handler
-        .handle_injected_transaction(user_id, injected(actor_id, b"", 0))
+        .handle_injected_transaction(user_id, panic_tx.clone())
         .unwrap();
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await
         .unwrap();
+
+    let panic_promise = promise_receiver
+        .recv()
+        .expect("promise for injected transaction");
+    assert_eq!(panic_promise.tx_hash, panic_tx.to_hash());
+    assert_eq!(panic_promise.reply.value, 0);
+    assert_eq!(
+        panic_promise.reply.code,
+        ReplyCode::Error(ErrorReplyReason::Execution(
+            SimpleExecutionError::UserspacePanic
+        ))
+    );
 
     let to_users = handler.transitions.current_messages();
     assert_eq!(to_users.len(), 2);
@@ -1224,7 +1283,8 @@ async fn insufficient_executable_balance_still_charged() {
 
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY], None);
     let block1 = chain.blocks[1].to_simple();
     let mut handler = setup_handler(processor.db.clone(), block1);
 

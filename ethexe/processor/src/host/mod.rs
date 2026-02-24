@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::common::JournalNote;
-use ethexe_common::gear::MessageType;
+use ethexe_common::{gear::MessageType, injected::Promise};
 use ethexe_db::CASDatabase;
 use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, unpack_i64_to_u32};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
@@ -25,7 +25,7 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
-use std::sync::Arc;
+use std::sync::{Arc, mpsc};
 
 pub mod api;
 pub mod runtime;
@@ -170,8 +170,9 @@ impl InstanceWrapper {
         &mut self,
         db: Box<dyn CASDatabase>,
         ctx: ProcessQueueContext,
+        promise_sender: Option<mpsc::Sender<Promise>>,
     ) -> Result<(ProgramJournals, H256, u64)> {
-        threads::set(db, ctx.state_root, ctx.promise_sender.clone());
+        threads::set(db, ctx.state_root, promise_sender.clone());
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
         let (ptr_lens, gas_spent): (Vec<i64>, i64) = self.call("run", ctx.encode())?;

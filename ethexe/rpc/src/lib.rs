@@ -106,7 +106,9 @@ impl RpcServer {
                 chunk_size: self.config.chunk_size,
             },
             self.db.clone(),
-        )?;
+            None,
+        )?
+        .overlaid();
 
         let server_apis = RpcServerApis {
             code: CodeApi::new(self.db.clone()),

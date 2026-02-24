@@ -76,7 +76,10 @@ use std::{
     net::SocketAddr,
     num::NonZero,
     pin::Pin,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc,
+    },
     time::Duration,
 };
 use tokio::{task, task::JoinHandle};
@@ -886,7 +889,8 @@ impl Node {
             "Service is already running"
         );
 
-        let processor = Processor::new(self.db.clone()).unwrap();
+        let (promise_sender, _promise_receiver) = mpsc::channel();
+        let processor = Processor::new(self.db.clone(), Some(promise_sender)).unwrap();
         let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())

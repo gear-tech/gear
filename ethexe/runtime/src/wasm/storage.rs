@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::wasm::interface::promise_ri;
+
 use super::interface::database_ri;
 use alloc::vec::Vec;
 use ethexe_common::HashOf;
@@ -152,6 +154,6 @@ impl RuntimeInterface for NativeRuntimeInterface {
     }
 
     fn send_promise(&self, reply: &ReplyInfo, message_id: &MessageId) {
-        todo!()
+        promise_ri::send_promise(reply, message_id);
     }
 }

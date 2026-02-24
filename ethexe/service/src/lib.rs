@@ -47,11 +47,7 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
 use std::{
-    collections::{BTreeSet, HashMap},
-    num::NonZero,
-    path::PathBuf,
-    pin::Pin,
-    time::Duration,
+    collections::{BTreeSet, HashMap}, num::NonZero, path::PathBuf, pin::Pin, sync::mpsc, time::Duration
 };
 use tokio::sync::oneshot;
 
@@ -272,12 +268,14 @@ impl Service {
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
+        let (promise_sender, _promise_receiver) = mpsc::channel();
 
         let processor = Processor::with_config(
             ProcessorConfig {
                 chunk_size: config.node.chunk_processing_threads,
             },
             db.clone(),
+            Some(promise_sender)
         )
         .with_context(|| "failed to create processor")?;
 

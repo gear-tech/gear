@@ -16,41 +16,47 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::mem::size_of;
 use ethexe_common::{HashOf, injected::Promise};
-use gear_core::rpc::ReplyInfo;
 use gprimitives::MessageId;
-use parity_scale_codec::{Decode, Error as CodecError};
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
 use crate::host::{api::MemoryWrap, threads};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
-    linker.func_wrap("env", "ext_promise_send_to_service", send_promise);
+    linker.func_wrap("env", "ext_forward_promise_to_service", forward_promise)?;
 
     Ok(())
 }
 
-fn send_promise(
+// TODO: it is a raw implementation, should be fixed
+fn forward_promise(
     caller: Caller<'_, StoreData>,
-    reply_ptr: i32,
-    encoded_reply_len: i32,
-    message_id_ptr: i32,
-) -> Result<(), CodecError> {
+    encoded_reply_ptr_len: i64,
+    message_id_ptr_len: i64,
+) {
     let memory = MemoryWrap(caller.data().memory());
 
-    let reply_slice = memory.slice_mut(&caller, reply_ptr as usize, encoded_reply_len as usize);
-    let reply = ReplyInfo::decode(reply_slice)?;
-
-    let message_id_slice =
-        memory.slice_mut(&caller, message_id_ptr as usize, size_of::<[u8; 32]>());
-    let message_id = MessageId::decode(message_id_slice)?;
+    let reply = memory.decode_by_val(&caller, encoded_reply_ptr_len);
+    let message_id: MessageId = memory.decode_by_val(&caller, message_id_ptr_len);
 
     threads::with_params(|params| {
-        let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
-        let promise = Promise { tx_hash, reply };
-        params.promise_sender.send(promise);
+        if let Some(ref sender) = params.promise_sender {
+            log::error!("calling `forward_promise` reply={reply:?}");
+
+            let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
+            let promise = Promise { tx_hash, reply };
+
+            match sender.send(promise) {
+                Ok(()) => {
+                    // log::trace!(
+                    //     "successfully send promise to outer service: reply_ptr_len={reply_ptr_len}, message_id_ptr_len={message_id_ptr_len}"
+                    // );
+                }
+                Err(err) => {
+                    log::trace!("failed to send promise to outer service: error={err}");
+                }
+            }
+        }
     });
-    Ok(())
 }
