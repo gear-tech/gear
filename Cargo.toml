@@ -116,7 +116,7 @@ members = [
 [workspace.dependencies]
 gear-workspace-hack = "0.1.0"
 
-alloy = "1.7"
+alloy = "1.7" # TODO: #5160 use release version of alloy when BlobGasFiller is fixed
 alloy-chains = "0.2"
 alloy-primitives = { version = "1.5", default-features = false }
 alloy-sol-types = { version = "1.5", default-features = false }
