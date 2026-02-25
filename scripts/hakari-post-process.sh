@@ -28,10 +28,10 @@ CFG="target.'cfg(not(target_arch = \"wasm32\"))'"
 #
 # Does NOT touch [target.TRIPLE.*] sections (already platform-specific).
 # Idempotent: already-wrapped headers won't match the patterns.
-sed -i.bak \
-    -e "s/^\[dependencies\.\(.*\)\]$/[${CFG}.dependencies.\1]/" \
-    -e "s/^\[dependencies\]$/[${CFG}.dependencies]/" \
-    -e "s/^\[build-dependencies\]$/[${CFG}.build-dependencies]/" \
+sed -i.bak -E \
+    -e "s/^\[dependencies\.([^\]]+)\](\s*.*)$/[${CFG}.dependencies.\1]\2/" \
+    -e "s/^\[dependencies\](\s*.*)$/[${CFG}.dependencies]\1/" \
+    -e "s/^\[build-dependencies\](\s*.*)$/[${CFG}.build-dependencies]\1/" \
     "$WORKSPACE_HACK"
 
 rm -f "${WORKSPACE_HACK}.bak"
