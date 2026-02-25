@@ -109,8 +109,7 @@ pub enum ConsensusEvent {
     /// Announce from producer was rejected
     AnnounceRejected(HashOf<Announce>),
     /// Outer service have to compute announce
-    #[from]
-    ComputeAnnounce(Announce),
+    ComputeAnnounce(Announce, bool),
     /// Outer service have to publish signed message
     #[from]
     PublishMessage(SignedValidatorMessage),

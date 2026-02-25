@@ -74,6 +74,9 @@ pub struct ProcessQueueContext {
     pub code_metadata: CodeMetadata,
     pub gas_allowance: GasAllowanceCounter,
     pub block_info: BlockInfo,
+    // TODO: fix the naming
+    /// Wether should compute service produce promises
+    pub should_produce_promises: bool,
 }
 
 pub trait RuntimeInterface: Storage {
@@ -227,7 +230,7 @@ where
             stop_processing: false,
         };
 
-        if is_promise_required {
+        if ctx.should_produce_promises && is_promise_required {
             for note in journal.iter() {
                 if let JournalNote::SendDispatch {
                     message_id,

@@ -239,9 +239,13 @@ impl Checker {
             let announce_parent_hash = announce.parent;
 
             let mut processor = processor.clone().overlaid();
-            let executable =
-                ethexe_compute::prepare_executable_for_announce(db, announce, canonical_quarantine)
-                    .context("Unable to preparing announce data for execution")?;
+            let executable = ethexe_compute::prepare_executable_for_announce(
+                db,
+                announce,
+                false,
+                canonical_quarantine,
+            )
+            .context("Unable to preparing announce data for execution")?;
             let res = processor
                 .as_mut()
                 .process_programs(executable)

@@ -86,6 +86,7 @@ impl OverlaidRunContext {
                 gas_allowance,
                 chunk_size,
                 block_header,
+                false,
             ),
             base_program,
             nullified_queue_programs: [base_program].into_iter().collect(),

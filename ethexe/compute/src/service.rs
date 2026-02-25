@@ -64,9 +64,9 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.prepare_sub_service.receive_block_to_prepare(block);
     }
 
-    pub fn compute_announce(&mut self, announce: Announce) {
+    pub fn compute_announce(&mut self, announce: Announce, should_produce_promises: bool) {
         self.compute_sub_service
-            .receive_announce_to_compute(announce);
+            .receive_announce_to_compute(announce, should_produce_promises);
     }
 }
 
@@ -100,7 +100,7 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             return Poll::Ready(Some(
                 maybe_promise
                     .map(Into::into)
-                    .ok_or(ComputeError::PromiseSenderDropped),
+                    .ok_or_else(|| ComputeError::PromiseSenderDropped),
             ));
         }
 
@@ -185,7 +185,7 @@ mod tests {
             injected_transactions: vec![],
         };
         let announce_hash = announce.to_hash();
-        service.compute_announce(announce);
+        service.compute_announce(announce, false);
 
         // Poll service to process the block
         let event = service.next().await.unwrap().unwrap();

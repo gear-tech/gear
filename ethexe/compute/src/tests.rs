@@ -224,7 +224,7 @@ impl TestEnv {
 
     async fn compute_and_assert_announce(&mut self, announce: Announce) {
         let announce_hash = announce.to_hash();
-        self.compute.compute_announce(announce.clone());
+        self.compute.compute_announce(announce.clone(), false);
 
         let event = self
             .compute

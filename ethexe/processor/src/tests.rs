@@ -332,7 +332,7 @@ async fn ping_pong() {
         .expect("failed to send message");
 
     let to_users = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap()
         .current_messages();
@@ -446,7 +446,7 @@ async fn async_and_ping() {
         .expect("failed to send message");
 
     let transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
 
@@ -542,7 +542,7 @@ async fn many_waits() {
 
     handler.transitions = processor.process_tasks(handler.transitions);
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
     assert_eq!(
@@ -567,7 +567,7 @@ async fn many_waits() {
             .expect("failed to send message");
     }
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
     assert_eq!(
@@ -589,7 +589,7 @@ async fn many_waits() {
     let transitions = InBlockTransitions::new(wake_block.header.height, states, schedule);
     let transitions = processor.process_tasks(transitions);
     let transitions = processor
-        .process_queues(transitions, wake_block, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(transitions, wake_block, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
 
@@ -896,7 +896,7 @@ async fn injected_ping_pong() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
 
@@ -920,7 +920,7 @@ async fn injected_ping_pong() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, true)
         .await
         .unwrap();
 
@@ -1004,7 +1004,7 @@ async fn injected_prioritized_over_canonical() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
 
@@ -1035,7 +1035,7 @@ async fn injected_prioritized_over_canonical() {
     }
 
     let transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, true)
         .await
         .unwrap();
 
@@ -1113,7 +1113,7 @@ async fn executable_balance_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
 
@@ -1201,7 +1201,7 @@ async fn executable_balance_injected_panic_not_charged() {
         )
         .unwrap();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
     let init_balance = handler.program_state(actor_id).executable_balance;
@@ -1213,7 +1213,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .handle_injected_transaction(user_id, panic_tx.clone())
         .unwrap();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, true)
         .await
         .unwrap();
 
@@ -1256,7 +1256,7 @@ async fn executable_balance_injected_panic_not_charged() {
         )
         .expect("failed to send message");
     let transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
 
@@ -1323,7 +1323,7 @@ async fn insufficient_executable_balance_still_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, false)
         .await
         .unwrap();
 

@@ -217,7 +217,8 @@ impl Producer {
         self.state = State::WaitingAnnounceComputed(announce_hash);
         self.ctx
             .output(ConsensusEvent::PublishMessage(message.into()));
-        self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
+        self.ctx
+            .output(ConsensusEvent::ComputeAnnounce(announce, true));
 
         Ok(self.into())
     }
@@ -465,7 +466,7 @@ mod tests {
             assert!(state.is_producer(), "Expected producer state, got {state}");
             assert!(event.is_compute_announce());
 
-            Ok((state, event.unwrap_compute_announce().to_hash()))
+            Ok((state, event.unwrap_compute_announce().0.to_hash()))
         }
     }
 }

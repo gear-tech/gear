@@ -254,6 +254,11 @@ pub(super) trait RunContext {
         false
     }
 
+    // TODO: add docs
+    fn should_produce_promises(&self) -> bool {
+        false
+    }
+
     /// Checks whether the run must be stopped early without executing the rest chunks.
     ///
     /// In common execution, the run is never stopped early.
@@ -271,6 +276,7 @@ pub(crate) struct CommonRunContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) chunk_size: usize,
     pub(crate) block_header: BlockHeader,
+    pub(crate) should_produce_promises: bool,
 }
 
 impl CommonRunContext {
@@ -281,6 +287,7 @@ impl CommonRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         block_header: BlockHeader,
+        should_produce_promises: bool,
     ) -> Self {
         CommonRunContext {
             db,
@@ -289,6 +296,7 @@ impl CommonRunContext {
             gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
             chunk_size,
             block_header,
+            should_produce_promises,
         }
     }
 
@@ -350,6 +358,10 @@ impl RunContext for CommonRunContext {
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
         states(&self.transitions, processing_queue_type)
+    }
+
+    fn should_produce_promises(&self) -> bool {
+        self.should_produce_promises
     }
 
     fn chunk_size(&self) -> usize {
@@ -533,6 +545,7 @@ mod chunk_execution_spawn {
             executor: InstanceWrapper,
             db: Box<dyn CASDatabase>,
             gas_allowance_for_chunk: u64,
+            should_produce_promises: bool,
         }
 
         let (db, _, gas_allowance_counter) = ctx.borrow_inner();
@@ -557,6 +570,7 @@ mod chunk_execution_spawn {
                     executor,
                     db: db.clone_boxed(),
                     gas_allowance_for_chunk,
+                    should_produce_promises: ctx.should_produce_promises(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -579,6 +593,7 @@ mod chunk_execution_spawn {
                          mut executor,
                          db,
                          gas_allowance_for_chunk,
+                         should_produce_promises,
                      }| {
                         let (jn, new_state_hash, gas_spent) = executor
                             .run(
@@ -593,6 +608,7 @@ mod chunk_execution_spawn {
                                         gas_allowance_for_chunk,
                                     ),
                                     block_info,
+                                    should_produce_promises,
                                 },
                                 promise_sender.clone(),
                             )
@@ -757,6 +773,7 @@ mod tests {
             gas_allowance_counter: GasAllowanceCounter::new(1_000_000),
             chunk_size: CHUNK_PROCESSING_THREADS,
             block_header: BlockHeader::dummy(3),
+            should_produce_promises: false,
         };
 
         let chunks = chunks_splitting::prepare_execution_chunks(&mut ctx, MessageType::Canonical);

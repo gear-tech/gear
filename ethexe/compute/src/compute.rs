@@ -79,7 +79,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
     config: ComputeConfig,
     metrics: Metrics,
 
-    input: VecDeque<Announce>,
+    input: VecDeque<(Announce, bool)>,
     computation: Option<ComputationFuture>,
 }
 
@@ -95,8 +95,12 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         }
     }
 
-    pub fn receive_announce_to_compute(&mut self, announce: Announce) {
-        self.input.push_back(announce);
+    pub fn receive_announce_to_compute(
+        &mut self,
+        announce: Announce,
+        should_produce_promises: bool,
+    ) {
+        self.input.push_back((announce, should_produce_promises));
     }
 
     async fn compute(
@@ -104,6 +108,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         config: ComputeConfig,
         mut processor: P,
         announce: Announce,
+        should_produce_promises: bool,
     ) -> Result<HashOf<Announce>> {
         let announce_hash = announce.to_hash();
         let block_hash = announce.block_hash;
@@ -135,7 +140,15 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         }
 
         for (announce_hash, announce) in announces_chain {
-            Self::compute_one(&db, &mut processor, announce_hash, announce, config).await?;
+            Self::compute_one(
+                &db,
+                &mut processor,
+                config,
+                announce_hash,
+                announce,
+                should_produce_promises,
+            )
+            .await?;
         }
 
         Ok(announce_hash)
@@ -144,12 +157,17 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     async fn compute_one(
         db: &Database,
         processor: &mut P,
+        config: ComputeConfig,
         announce_hash: HashOf<Announce>,
         announce: Announce,
-        config: ComputeConfig,
+        should_produce_promises: bool,
     ) -> Result<HashOf<Announce>> {
-        let executable =
-            prepare_executable_for_announce(db, announce, config.canonical_quarantine())?;
+        let executable = prepare_executable_for_announce(
+            db,
+            announce,
+            should_produce_promises,
+            config.canonical_quarantine(),
+        )?;
         let processing_result = processor.process_announce(executable).await?;
 
         let FinalizedBlockTransitions {
@@ -186,7 +204,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if self.computation.is_none()
-            && let Some(announce) = self.input.pop_front()
+            && let Some((announce, should_produce_promises)) = self.input.pop_front()
         {
             self.computation = Some(future_timing::timed(
                 Self::compute(
@@ -194,6 +212,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                     self.config,
                     self.processor.clone(),
                     announce,
+                    should_produce_promises,
                 )
                 .boxed(),
             ));
@@ -217,6 +236,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 pub fn prepare_executable_for_announce(
     db: &Database,
     announce: Announce,
+    should_produce_promises: bool,
     canonical_quarantine: u8,
 ) -> Result<ExecutableData> {
     let block_hash = announce.block_hash;
@@ -249,6 +269,7 @@ pub fn prepare_executable_for_announce(
             .collect(),
         gas_allowance: announce.gas_allowance,
         events,
+        should_produce_promises,
     })
 }
 

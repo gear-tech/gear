@@ -196,6 +196,7 @@ impl Processor {
             injected_transactions,
             gas_allowance,
             events,
+            should_produce_promises,
         } = executable;
 
         let mut transitions =
@@ -206,7 +207,7 @@ impl Processor {
 
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance)
+                .process_queues(transitions, block, gas_allowance, should_produce_promises)
                 .await?;
         }
         transitions = self.process_tasks(transitions);
@@ -247,6 +248,7 @@ impl Processor {
         transitions: InBlockTransitions,
         block: SimpleBlockData,
         gas_allowance: u64,
+        should_produce_promises: bool,
     ) -> Result<InBlockTransitions> {
         CommonRunContext::new(
             self.db.clone(),
@@ -255,6 +257,7 @@ impl Processor {
             gas_allowance,
             self.config.chunk_size,
             block.header,
+            should_produce_promises,
         )
         .run(self.promise_sender.clone())
         .await
@@ -306,6 +309,7 @@ pub struct ExecutableData {
     pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
     pub gas_allowance: Option<u64>,
     pub events: Vec<BlockRequestEvent>,
+    pub should_produce_promises: bool,
 }
 
 #[cfg(test)]
@@ -318,6 +322,7 @@ impl Default for ExecutableData {
             injected_transactions: vec![],
             gas_allowance: Some(ethexe_common::DEFAULT_BLOCK_GAS_LIMIT),
             events: vec![],
+            should_produce_promises: false,
         }
     }
 }

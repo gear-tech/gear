@@ -162,7 +162,7 @@ impl ConnectService {
                 self.output
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
                 self.output
-                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
+                    .push_back(ConsensusEvent::ComputeAnnounce(announce, false));
             }
         }
 
