@@ -7,7 +7,7 @@
 # dependencies (just a #![no_std] stub), while on native builds it retains
 # full feature unification for optimal compilation.
 #
-# Usage: ./scripts/src/hakari-post-process.sh
+# Usage: ./scripts/hakari-post-process.sh
 # Run after: cargo hakari generate
 
 set -euo pipefail
