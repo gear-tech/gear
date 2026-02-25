@@ -45,6 +45,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
 mod errors;
+mod metrics;
 mod utils;
 
 #[cfg(all(test, feature = "client"))]
@@ -136,7 +137,9 @@ impl RpcServer {
 }
 
 pub struct RpcService {
+    /// Receiver for incoming RPC events to forward to the main service.
     receiver: mpsc::UnboundedReceiver<RpcEvent>,
+    /// Injected API implementation.
     injected_api: InjectedApi,
 }
 

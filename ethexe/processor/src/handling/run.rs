@@ -113,13 +113,13 @@ use chunk_execution_processing::ChunkJournalsProcessingOutput;
 use chunks_splitting::ActorStateHashWithQueueSize;
 use core_processor::common::JournalNote;
 use ethexe_common::{
-    StateHashWithQueueSize,
+    BlockHeader, StateHashWithQueueSize,
     db::CodesStorageRO,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
 };
 use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{
-    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
+    BlockInfo, InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
@@ -188,6 +188,9 @@ pub(super) trait RunContext {
     /// Get reference to instance creator.
     fn instance_creator(&self) -> &InstanceCreator;
 
+    /// Returns the header of the current block.
+    fn block_header(&self) -> BlockHeader;
+
     fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)>;
 
     /// Get mutable reference to in-block transitions.
@@ -254,11 +257,12 @@ pub(super) trait RunContext {
 
 /// Common run context.
 pub(crate) struct CommonRunContext {
-    db: Database,
-    instance_creator: InstanceCreator,
-    in_block_transitions: InBlockTransitions,
-    gas_allowance_counter: GasAllowanceCounter,
-    chunk_size: usize,
+    pub(crate) db: Database,
+    pub(crate) instance_creator: InstanceCreator,
+    pub(crate) transitions: InBlockTransitions,
+    pub(crate) gas_allowance_counter: GasAllowanceCounter,
+    pub(crate) chunk_size: usize,
+    pub(crate) block_header: BlockHeader,
 }
 
 impl CommonRunContext {
@@ -268,13 +272,15 @@ impl CommonRunContext {
         in_block_transitions: InBlockTransitions,
         gas_allowance: u64,
         chunk_size: usize,
+        block_header: BlockHeader,
     ) -> Self {
         CommonRunContext {
             db,
             instance_creator,
-            in_block_transitions,
+            transitions: in_block_transitions,
             gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
             chunk_size,
+            block_header,
         }
     }
 
@@ -287,7 +293,7 @@ impl CommonRunContext {
             let _ = run_for_queue_type(&mut self, MessageType::Canonical).await?;
         }
 
-        Ok(self.in_block_transitions)
+        Ok(self.transitions)
     }
 }
 
@@ -296,9 +302,13 @@ impl RunContext for CommonRunContext {
         &self.instance_creator
     }
 
+    fn block_header(&self) -> BlockHeader {
+        self.block_header
+    }
+
     fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
         let code_id = self
-            .in_block_transitions
+            .transitions
             .registered_programs()
             .get(&program_id)
             .map(|code_id| Ok(*code_id))
@@ -320,13 +330,13 @@ impl RunContext for CommonRunContext {
     ) {
         (
             self.db.cas(),
-            &mut self.in_block_transitions,
+            &mut self.transitions,
             &mut self.gas_allowance_counter,
         )
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
-        states(&self.in_block_transitions, processing_queue_type)
+        states(&self.transitions, processing_queue_type)
     }
 
     fn chunk_size(&self) -> usize {
@@ -484,6 +494,7 @@ pub(super) mod chunks_splitting {
 mod chunk_execution_spawn {
     use super::*;
     use crate::host::InstanceWrapper;
+    use ethexe_runtime_common::ProcessQueueContext;
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     /// An alias introduced for better readability of the chunks execution steps.
@@ -536,6 +547,12 @@ mod chunk_execution_spawn {
             })
             .collect::<Result<Vec<_>>>()?;
 
+        let block_header = ctx.block_header();
+        let block_info = BlockInfo {
+            height: block_header.height,
+            timestamp: block_header.timestamp,
+        };
+
         let output = tokio::task::spawn_blocking(move || {
             executable_chunk
                 .into_par_iter()
@@ -552,12 +569,17 @@ mod chunk_execution_spawn {
                         let (jn, new_state_hash, gas_spent) = executor
                             .run(
                                 db,
-                                program_id,
-                                state_hash,
-                                queue_type,
-                                Some(instrumented_code),
-                                Some(code_metadata),
-                                gas_allowance_for_chunk,
+                                ProcessQueueContext {
+                                    program_id,
+                                    state_root: state_hash,
+                                    queue_type,
+                                    instrumented_code,
+                                    code_metadata,
+                                    gas_allowance: GasAllowanceCounter::new(
+                                        gas_allowance_for_chunk,
+                                    ),
+                                    block_info,
+                                },
                             )
                             .expect("Some error occurs while running program in instance");
 
@@ -716,9 +738,10 @@ mod tests {
         let mut ctx = CommonRunContext {
             db: Database::memory(),
             instance_creator: InstanceCreator::new(host::runtime()).unwrap(),
-            in_block_transitions: transitions,
+            transitions,
             gas_allowance_counter: GasAllowanceCounter::new(1_000_000),
             chunk_size: CHUNK_PROCESSING_THREADS,
+            block_header: BlockHeader::dummy(3),
         };
 
         let chunks = chunks_splitting::prepare_execution_chunks(&mut ctx, MessageType::Canonical);
@@ -876,6 +899,7 @@ mod tests {
             100,
             16,
             InstanceCreator::new(host::runtime()).unwrap(),
+            BlockHeader::dummy(3),
         );
         access_state(
             pid2,
