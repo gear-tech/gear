@@ -215,7 +215,6 @@ impl Behaviour {
             } => Poll::Pending,
             gossipsub::Event::GossipsubNotSupported { peer_id } => {
                 log::trace!("peer doesn't support gossipsub: {peer_id}");
-                self.peer_score.unsupported_protocol(peer_id);
                 Poll::Pending
             }
             gossipsub::Event::SlowPeer {

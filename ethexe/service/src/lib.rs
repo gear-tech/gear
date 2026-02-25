@@ -42,7 +42,7 @@ use ethexe_observer::{
     utils::{BlockId, BlockLoader},
 };
 use ethexe_processor::{Processor, ProcessorConfig};
-use ethexe_prometheus::{PrometheusEvent, PrometheusService};
+use ethexe_prometheus::PrometheusService;
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{StreamExt, stream::FuturesUnordered};
@@ -70,7 +70,6 @@ pub enum Event {
     Network(NetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
-    Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
     Fetching(db_sync::HandleResult),
     // TODO: i don't like this naming, rename in future
@@ -239,6 +238,12 @@ impl Service {
             .context("failed to create blob loader")?
             .into_box();
 
+        let prometheus = if let Some(config) = config.prometheus.clone() {
+            Some(PrometheusService::new(config, db.clone())?)
+        } else {
+            None
+        };
+
         let observer =
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
@@ -339,12 +344,6 @@ impl Service {
                     3,
                 ))
             }
-        };
-
-        let prometheus = if let Some(config) = config.prometheus.clone() {
-            Some(PrometheusService::new(config)?)
-        } else {
-            None
         };
 
         let network = if let Some(net_config) = &config.network {
@@ -509,7 +508,6 @@ impl Service {
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
-                event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
                 maybe_promise = promise_receiver.recv() => {
                     // TODO: think about re-design this behaviour
@@ -522,9 +520,11 @@ impl Service {
                     }
                 }
                 fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
+                _ = prometheus.maybe_next_some() => {
+                    anyhow::bail!("Prometheus server handle has terminated");
+                },
                 _ = rpc_handle.as_mut().maybe() => {
-                    log::info!("`RPCWorker` has terminated, shutting down...");
-                    continue;
+                    anyhow::bail!("`RPCWorker` has terminated, shutting down...")
                 }
             };
 
@@ -628,40 +628,6 @@ impl Service {
                         NetworkEvent::ValidatorIdentityUpdated(_)
                         | NetworkEvent::PeerBlocked(_)
                         | NetworkEvent::PeerConnected(_) => {}
-                    }
-                }
-                Event::Prometheus(event) => {
-                    let Some(p) = prometheus.as_mut() else {
-                        unreachable!("couldn't produce event without prometheus");
-                    };
-
-                    match event {
-                        PrometheusEvent::CollectMetrics => {
-                            let last_block = observer.last_block_number();
-                            let pending_codes = blob_loader.pending_codes_len();
-
-                            p.update_observer_metrics(last_block, pending_codes);
-
-                            // Collect compute service metrics
-                            let metrics = compute.get_metrics();
-
-                            p.update_compute_metrics(
-                                metrics.blocks_queue_len,
-                                metrics.waiting_codes_count,
-                                metrics.process_codes_count,
-                                metrics
-                                    .latest_committed_block
-                                    .as_ref()
-                                    .map(|b| b.header.height as u64),
-                                metrics
-                                    .latest_committed_block
-                                    .as_ref()
-                                    .map(|b| b.header.timestamp),
-                                metrics.time_since_latest_committed_secs,
-                            );
-
-                            // TODO #4643: support metrics for consensus service
-                        }
                     }
                 }
                 Event::Rpc(event) => {

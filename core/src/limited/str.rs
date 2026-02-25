@@ -18,10 +18,21 @@
 
 //! This module provides type for string with limited length.
 
-use alloc::{borrow::Cow, string::String};
+use crate::limited::{LimitedVec, private::LimitedVisitor};
+use alloc::{
+    borrow::Cow,
+    string::{FromUtf8Error, String},
+};
 use derive_more::{AsRef, Deref, Display, Into};
 use parity_scale_codec::{Decode, Encode};
-use scale_decode::DecodeAsType;
+use scale_decode::{
+    IntoVisitor, TypeResolver, Visitor,
+    error::ErrorKind,
+    visitor::{
+        TypeIdFor, Unexpected,
+        types::{Composite, Str, Tuple},
+    },
+};
 use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
@@ -41,8 +52,6 @@ use scale_info::TypeInfo;
     Eq,
     PartialOrd,
     Ord,
-    Decode,
-    DecodeAsType,
     Encode,
     EncodeAsType,
     Hash,
@@ -67,6 +76,12 @@ fn nearest_char_boundary(s: &str, pos: usize) -> usize {
 impl<'a, const N: usize> LimitedStr<'a, N> {
     /// Maximum length of the string.
     pub const MAX_LEN: usize = N;
+
+    /// Constructs a limited string from a limited
+    /// vector of bytes of the same size.
+    pub fn from_utf8(vec: LimitedVec<u8, N>) -> Result<Self, FromUtf8Error> {
+        String::from_utf8(vec.into_vec()).map(Cow::Owned).map(Self)
+    }
 
     /// Constructs a limited string from a string.
     ///
@@ -127,7 +142,7 @@ impl<'a, const N: usize> LimitedStr<'a, N> {
     }
 }
 
-impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
+impl<'a, const N: usize> TryFrom<&'a str> for LimitedStr<'a, N> {
     type Error = LimitedStrError;
 
     fn try_from(value: &'a str) -> Result<Self, Self::Error> {
@@ -135,11 +150,70 @@ impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
     }
 }
 
-impl<'a> TryFrom<String> for LimitedStr<'a> {
+impl<'a, const N: usize> TryFrom<String> for LimitedStr<'a, N> {
     type Error = LimitedStrError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::try_new(value)
+    }
+}
+
+impl<'a, const N: usize> Decode for LimitedStr<'a, N> {
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> Result<Self, parity_scale_codec::Error> {
+        LimitedVec::decode(input)
+            .and_then(|vec| Self::from_utf8(vec).map_err(|_| "Invalid UTF-8 sequence".into()))
+    }
+}
+
+impl<'a, Resolver, const N: usize> Visitor for LimitedVisitor<LimitedStr<'a, N>, Resolver>
+where
+    Resolver: TypeResolver,
+{
+    type Value<'scale, 'resolver> = LimitedStr<'a, N>;
+    type Error = scale_decode::Error;
+    type TypeResolver = Resolver;
+
+    fn visit_str<'scale, 'resolver>(
+        self,
+        value: &mut Str<'scale>,
+        type_id: TypeIdFor<Self>,
+    ) -> Result<Self::Value<'scale, 'resolver>, Self::Error> {
+        if value.len() > N {
+            return Err(scale_decode::Error::new(ErrorKind::WrongLength {
+                actual_len: value.len(),
+                expected_len: N,
+            }));
+        }
+
+        String::into_visitor::<Resolver>()
+            .visit_str(value, type_id)
+            .map(Cow::Owned)
+            .map(LimitedStr)
+    }
+
+    fn visit_composite<'scale, 'resolver>(
+        self,
+        value: &mut Composite<'scale, 'resolver, Resolver>,
+        _type_id: TypeIdFor<Self>,
+    ) -> Result<Self::Value<'scale, 'resolver>, Self::Error> {
+        if value.remaining() != 1 {
+            return self.visit_unexpected(Unexpected::Composite);
+        }
+
+        value.decode_item(self).unwrap()
+    }
+
+    fn visit_tuple<'scale, 'resolver>(
+        self,
+        value: &mut Tuple<'scale, 'resolver, Resolver>,
+        _type_id: TypeIdFor<Self>,
+    ) -> Result<Self::Value<'scale, 'resolver>, Self::Error> {
+        if value.remaining() != 1 {
+            return self.visit_unexpected(Unexpected::Tuple);
+        }
+        value.decode_item(self).unwrap()
     }
 }
 
@@ -293,5 +367,23 @@ mod tests {
                 panic!("String '{}' input invalidated algorithms property", string);
             }
         }
+    }
+
+    #[test]
+    fn test_decode() {
+        // Limited string is encoded just like a normal string
+        let normal_str = "amogus attacks";
+        let encoded_str = normal_str.encode();
+        let limited_str = LimitedStr::<20>::decode(&mut &encoded_str[..]).unwrap();
+
+        assert_eq!(normal_str, limited_str.as_str());
+    }
+
+    #[test]
+    fn test_too_large_decode_fails() {
+        let bad_str = "amogus attacks again, but this time it's much harder to defeat him";
+        let encoded_str = bad_str.encode();
+
+        LimitedStr::<20>::decode(&mut &encoded_str[..]).expect_err("The string must be too large");
     }
 }
