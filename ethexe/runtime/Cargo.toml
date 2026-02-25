@@ -10,7 +10,6 @@ repository.workspace = true
 [dependencies]
 ## Gear deps.
 ethexe-runtime-common.workspace = true
-core-processor.workspace = true
 gear-core.workspace = true
 gear-lazy-pages-interface.workspace = true
 gprimitives.workspace = true
@@ -28,7 +27,6 @@ substrate-wasm-builder = { workspace = true, optional = true }
 default = ["std"]
 std = [
     "ethexe-runtime-common/std",
-    "core-processor/std",
     "gear-core/std",
     "gear-lazy-pages-interface/std",
     "gprimitives/std",
