@@ -258,12 +258,19 @@ impl ValidatorTopic {
                 log::trace!(
                     "cache message pending verification from {source} peer: {reason}, message: {message:?}"
                 );
-                self.metrics.cached_messages.increment(1);
 
                 let existed = self
                     .cached_messages
                     .get_or_insert_mut(source, || LruCache::new(MAX_CACHED_MESSAGES_PER_PEER))
                     .put(message, ());
+
+                self.metrics.cached_messages.set(
+                    self.cached_messages
+                        .iter()
+                        .map(|(_, messages)| messages.len())
+                        .sum::<usize>() as f64,
+                );
+
                 // gossipsub should ignore a duplicated message
                 debug_assert!(existed.is_none());
 
