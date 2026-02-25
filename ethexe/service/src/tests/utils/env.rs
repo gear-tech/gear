@@ -76,13 +76,13 @@ use std::{
     net::SocketAddr,
     num::NonZero,
     pin::Pin,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        mpsc,
-    },
+    sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
-use tokio::{task, task::JoinHandle};
+use tokio::{
+    sync::mpsc,
+    task::{self, JoinHandle},
+};
 use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.
@@ -889,7 +889,7 @@ impl Node {
             "Service is already running"
         );
 
-        let (promise_sender, _promise_receiver) = mpsc::channel();
+        let (promise_sender, promise_receiver) = mpsc::unbounded_channel();
         let processor = Processor::new(self.db.clone(), Some(promise_sender)).unwrap();
         let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
@@ -952,10 +952,7 @@ impl Node {
             }
         };
 
-        let validator_address = self
-            .validator_config
-            .as_ref()
-            .map(|c| c.public_key.to_address());
+        let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
 
         let (sender, receiver) = events::channel(self.db.clone());
 
@@ -995,9 +992,10 @@ impl Node {
             network,
             None,
             rpc,
+            promise_receiver,
             sender,
             self.fast_sync,
-            validator_address,
+            validator_pub_key,
         );
 
         let name = self.name.clone();

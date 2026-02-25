@@ -26,7 +26,7 @@ use ethexe_common::{
     db::*,
     events::BlockEvent,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
         SignedInjectedTransaction, SignedPromise,
     },
     network::VerifiedValidatorMessage,
@@ -144,6 +144,7 @@ pub enum TestingEvent {
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
     Fetching,
+    PromiseProcessed(Promise),
 }
 
 impl TestingEvent {
@@ -157,6 +158,7 @@ impl TestingEvent {
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
             Event::Fetching(_) => Self::Fetching,
+            Event::PromiseProcessed(promise) => Self::PromiseProcessed(promise.clone()),
         }
     }
 }
@@ -277,8 +279,8 @@ impl TestingEventReceiver {
         let id = id.into();
         log::info!("📗 waiting for announce computed: {id:?}");
         self.find_announce(id, |event| {
-            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(computed_data)) = event {
-                Some(computed_data.announce_hash)
+            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(announce_hash)) = event {
+                Some(announce_hash)
             } else {
                 None
             }

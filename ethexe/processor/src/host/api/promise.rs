@@ -38,20 +38,18 @@ fn forward_promise(
     let memory = MemoryWrap(caller.data().memory());
 
     let reply = memory.decode_by_val(&caller, encoded_reply_ptr_len);
-    let message_id: MessageId = memory.decode_by_val(&caller, message_id_ptr_len);
+    let message_id = memory.decode_by_val::<_, MessageId>(&caller, message_id_ptr_len);
 
     threads::with_params(|params| {
         if let Some(ref sender) = params.promise_sender {
-            log::error!("calling `forward_promise` reply={reply:?}");
-
             let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
             let promise = Promise { tx_hash, reply };
 
             match sender.send(promise) {
                 Ok(()) => {
-                    // log::trace!(
-                    //     "successfully send promise to outer service: reply_ptr_len={reply_ptr_len}, message_id_ptr_len={message_id_ptr_len}"
-                    // );
+                    log::trace!(
+                        "successfully send promise to outer service: encoded_reply_ptr_len={encoded_reply_ptr_len}, message_id_ptr_len={message_id_ptr_len}"
+                    );
                 }
                 Err(err) => {
                     log::trace!("failed to send promise to outer service: error={err}");

@@ -27,7 +27,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, ComputedAnnounce, SimpleBlockData,
+    Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     injected::SignedInjectedTransaction,
@@ -262,7 +262,7 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_computed_announce(&mut self, _computed_data: ComputedAnnounce) -> Result<()> {
+    fn receive_computed_announce(&mut self, _announce_hash: HashOf<Announce>) -> Result<()> {
         Ok(())
     }
 

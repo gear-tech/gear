@@ -28,7 +28,7 @@ use crate::{
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, ComputedAnnounce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
 };
 use std::mem;
@@ -70,10 +70,13 @@ impl StateHandler for Subordinate {
         self.ctx
     }
 
-    fn process_computed_announce(self, computed_data: ComputedAnnounce) -> Result<ValidatorState> {
+    fn process_computed_announce(
+        self,
+        computed_announce_hash: HashOf<Announce>,
+    ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed { announce_hash }
-                if *announce_hash == computed_data.announce_hash =>
+                if *announce_hash == computed_announce_hash =>
             {
                 if self.is_validator {
                     Participant::create(self.ctx, self.block, self.producer)
@@ -81,7 +84,7 @@ impl StateHandler for Subordinate {
                     Initial::create(self.ctx)
                 }
             }
-            _ => DefaultProcessing::computed_announce(self, computed_data),
+            _ => DefaultProcessing::computed_announce(self, computed_announce_hash),
         }
     }
 
@@ -192,7 +195,7 @@ impl Subordinate {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{ComputedAnnounce, mock::*};
+    use ethexe_common::mock::*;
 
     #[test]
     fn create_empty() {
@@ -326,7 +329,7 @@ mod tests {
 
         // After announce is computed, subordinate switches to participant state.
         let s = s
-            .process_computed_announce(ComputedAnnounce::mock(announce.data().to_hash()))
+            .process_computed_announce(announce.data().to_hash())
             .unwrap();
         assert!(s.is_participant(), "got {s:?}");
         assert_eq!(
@@ -368,7 +371,7 @@ mod tests {
 
         // After announce is computed, not-validator subordinate switches to initial state.
         let s = s
-            .process_computed_announce(ComputedAnnounce::mock(announce.data().to_hash()))
+            .process_computed_announce(announce.data().to_hash())
             .unwrap();
         assert!(s.is_initial(), "got {s:?}");
     }
@@ -428,9 +431,7 @@ mod tests {
 
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
-        let s = s
-            .process_computed_announce(ComputedAnnounce::mock(()))
-            .unwrap();
+        let s = s.process_computed_announce(HashOf::random()).unwrap();
         assert_eq!(s.context().output.len(), 1);
         assert!(matches!(s.context().output[0], ConsensusEvent::Warning(_)));
     }

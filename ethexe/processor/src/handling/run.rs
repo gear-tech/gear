@@ -106,8 +106,6 @@
 
 // TODO: #5120 split to several files and move to separate module
 
-use std::sync::mpsc;
-
 use crate::{
     ProcessorError, Result, handling::run::chunks_splitting::ExecutionChunks, host::InstanceCreator,
 };
@@ -130,13 +128,14 @@ use gear_core::{
 };
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::Itertools;
+use tokio::sync::mpsc;
 
 // Process chosen queue type in chunks
 // Returns whether execution is NOT run out of gas (execution can be continued)
 pub(super) async fn run_for_queue_type(
     ctx: &mut impl RunContext,
     queue_type: MessageType,
-    promise_sender: Option<mpsc::Sender<Promise>>,
+    promise_sender: Option<mpsc::UnboundedSender<Promise>>,
 ) -> Result<bool> {
     let mut is_out_of_gas_for_block = false;
 
@@ -272,7 +271,6 @@ pub(crate) struct CommonRunContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) chunk_size: usize,
     pub(crate) block_header: BlockHeader,
-    // pub(crate) promise_sender: mpsc::Sender<Promise>,
 }
 
 impl CommonRunContext {
@@ -283,7 +281,6 @@ impl CommonRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         block_header: BlockHeader,
-        // promise_sender: mpsc::Sender<Promise>,
     ) -> Self {
         CommonRunContext {
             db,
@@ -292,13 +289,12 @@ impl CommonRunContext {
             gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
             chunk_size,
             block_header,
-            // promise_sender,
         }
     }
 
     pub(crate) async fn run(
         mut self,
-        promise_sender: Option<mpsc::Sender<Promise>>,
+        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<InBlockTransitions> {
         // Start with injected queues processing.
         let can_continue =
@@ -527,7 +523,7 @@ mod chunk_execution_spawn {
         ctx: &mut impl RunContext,
         chunk: Vec<(ActorId, H256)>,
         queue_type: MessageType,
-        promise_sender: Option<mpsc::Sender<Promise>>,
+        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<Vec<ChunkItemOutput>> {
         struct Executable {
             program_id: ActorId,
@@ -752,7 +748,7 @@ mod tests {
         .take(STATE_SIZE)
         .collect();
 
-        let transitions = InBlockTransitions::new(0, states, Default::default(), vec![]);
+        let transitions = InBlockTransitions::new(0, states, Default::default());
 
         let mut ctx = CommonRunContext {
             db: Database::memory(),
@@ -887,8 +883,7 @@ mod tests {
             (pid2, pid2_state_hash_with_queue_size),
         ]);
 
-        let mut in_block_transitions =
-            InBlockTransitions::new(3, states, Default::default(), vec![]);
+        let mut in_block_transitions = InBlockTransitions::new(3, states, Default::default());
 
         let base_program = pid2;
 

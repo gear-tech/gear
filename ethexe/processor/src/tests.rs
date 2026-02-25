@@ -98,7 +98,7 @@ mod utils {
 
     pub fn setup_test_env_and_load_codes<const N: usize>(
         codes: [&[u8]; N],
-        promise_sender: Option<mpsc::Sender<Promise>>,
+        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
     ) -> (Processor, BlockChain, [CodeId; N]) {
         let db = Database::memory();
         let mut processor = Processor::new(db.clone(), promise_sender).unwrap();
@@ -113,12 +113,8 @@ mod utils {
     }
 
     pub fn setup_handler(db: Database, block: SimpleBlockData) -> ProcessingHandler {
-        let transitions = InBlockTransitions::new(
-            block.header.height,
-            Default::default(),
-            Default::default(),
-            vec![],
-        );
+        let transitions =
+            InBlockTransitions::new(block.header.height, Default::default(), Default::default());
 
         ProcessingHandler::new(db, transitions)
     }
@@ -590,7 +586,7 @@ async fn many_waits() {
         .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));
 
     // Check all messages wake up and reply with "Hello, world!"
-    let transitions = InBlockTransitions::new(wake_block.header.height, states, schedule, vec![]);
+    let transitions = InBlockTransitions::new(wake_block.header.height, states, schedule);
     let transitions = processor.process_tasks(transitions);
     let transitions = processor
         .process_queues(transitions, wake_block, DEFAULT_BLOCK_GAS_LIMIT)
@@ -726,7 +722,7 @@ async fn overlay_execution() {
     let block2 = chain.blocks[2].to_simple();
     let mut handler = ProcessingHandler::new(
         processor.db.clone(),
-        InBlockTransitions::new(block2.header.height, states, schedule, vec![]),
+        InBlockTransitions::new(block2.header.height, states, schedule),
     );
 
     // Manually add messages to programs queues
@@ -857,7 +853,7 @@ async fn overlay_execution() {
 async fn injected_ping_pong() {
     init_logger();
 
-    let (promise_sender, promise_receiver) = mpsc::channel();
+    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY], Some(promise_sender));
     let block1 = chain.blocks[1].to_simple();
@@ -930,6 +926,7 @@ async fn injected_ping_pong() {
 
     let promise = promise_receiver
         .recv()
+        .await
         .expect("promise must be sent after processing");
 
     assert_eq!(promise.tx_hash, injected_tx.to_hash());
@@ -964,7 +961,7 @@ async fn injected_prioritized_over_canonical() {
 
     init_logger();
 
-    let (promise_sender, promise_receiver) = mpsc::channel();
+    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY], Some(promise_sender));
     let block1 = chain.blocks[1].to_simple();
@@ -1042,9 +1039,10 @@ async fn injected_prioritized_over_canonical() {
         .await
         .unwrap();
 
-    tx_hahes.into_iter().for_each(|tx_hash| {
+    for tx_hash in tx_hahes {
         let promise = promise_receiver
             .recv()
+            .await
             .expect("promise for injected transaction");
 
         assert_eq!(promise.tx_hash, tx_hash);
@@ -1054,7 +1052,7 @@ async fn injected_prioritized_over_canonical() {
             ReplyCode::Success(SuccessReplyReason::Manual)
         );
         assert_eq!(promise.reply.payload, b"PONG");
-    });
+    }
 
     // Verify that injected messages were processed first
     // skip the first message which is INIT reply
@@ -1158,7 +1156,7 @@ async fn executable_balance_injected_panic_not_charged() {
 
     init_logger();
 
-    let (promise_sender, promise_receiver) = mpsc::channel();
+    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY], Some(promise_sender));
     let block1 = chain.blocks[1].to_simple();
@@ -1221,6 +1219,7 @@ async fn executable_balance_injected_panic_not_charged() {
 
     let panic_promise = promise_receiver
         .recv()
+        .await
         .expect("promise for injected transaction");
     assert_eq!(panic_promise.tx_hash, panic_tx.to_hash());
     assert_eq!(panic_promise.reply.value, 0);

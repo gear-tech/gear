@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{Announce, CodeAndIdUnchecked, ComputedAnnounce, HashOf};
+use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf};
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
@@ -43,7 +43,7 @@ pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    AnnounceComputed(ComputedAnnounce),
+    AnnounceComputed(HashOf<Announce>),
 }
 
 #[derive(thiserror::Error, Debug)]

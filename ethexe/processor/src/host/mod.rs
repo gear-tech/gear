@@ -25,7 +25,8 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
-use std::sync::{Arc, mpsc};
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 pub mod api;
 pub mod runtime;
@@ -170,7 +171,7 @@ impl InstanceWrapper {
         &mut self,
         db: Box<dyn CASDatabase>,
         ctx: ProcessQueueContext,
-        promise_sender: Option<mpsc::Sender<Promise>>,
+        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<(ProgramJournals, H256, u64)> {
         threads::set(db, ctx.state_root, promise_sender.clone());
 

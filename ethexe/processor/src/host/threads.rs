@@ -29,7 +29,8 @@ use gear_core::{ids::ActorId, memory::PageBuf, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};
-use std::{cell::RefCell, collections::BTreeMap, sync::mpsc};
+use std::{cell::RefCell, collections::BTreeMap};
+use tokio::sync::mpsc;
 
 const UNSET_PANIC: &str = "params should be set before query";
 const UNKNOWN_STATE: &str = "state should always be valid (must exist)";
@@ -42,7 +43,7 @@ pub struct ThreadParams {
     pub db: Box<dyn CASDatabase>,
     pub state_hash: H256,
     /// TODO: think about using [`mpsc::sync_channel`] instead of [`mpsc::channel`].
-    pub promise_sender: Option<mpsc::Sender<Promise>>,
+    pub promise_sender: Option<mpsc::UnboundedSender<Promise>>,
     pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
@@ -107,7 +108,7 @@ impl PageKey {
 pub fn set(
     db: Box<dyn CASDatabase>,
     state_hash: H256,
-    promise_sender: Option<mpsc::Sender<Promise>>,
+    promise_sender: Option<mpsc::UnboundedSender<Promise>>,
 ) {
     PARAMS.set(Some(ThreadParams {
         db,

@@ -158,110 +158,107 @@ pub(crate) trait SubService: Unpin + Send + 'static {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::tests::MockProcessor;
-//     use ethexe_common::{CodeAndIdUnchecked, ComputedAnnounce, db::*, mock::*};
-//     use ethexe_db::Database as DB;
-//     use futures::StreamExt;
-//     use gear_core::ids::prelude::CodeIdExt;
-//     use gprimitives::CodeId;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::MockProcessor;
+    use ethexe_common::{CodeAndIdUnchecked, db::*, mock::*};
+    use ethexe_db::Database as DB;
+    use futures::StreamExt;
+    use gear_core::ids::prelude::CodeIdExt;
+    use gprimitives::CodeId;
 
-//     /// Test ComputeService block preparation functionality
-//     #[tokio::test]
-//     async fn prepare_block() {
-//         gear_utils::init_default_logger();
+    /// Test ComputeService block preparation functionality
+    #[tokio::test]
+    async fn prepare_block() {
+        gear_utils::init_default_logger();
 
-//         let db = DB::memory();
-//         let processor = MockProcessor;
-//         let config = ComputeConfig::without_quarantine();
-//         let mut service = ComputeService::new(config, db.clone(), processor);
+        let db = DB::memory();
+        let processor = MockProcessor;
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeService::new(config, db.clone(), processor);
 
-//         let chain = BlockChain::mock(1).setup(&db);
-//         let block = chain.blocks[1].to_simple().next_block().setup(&db);
+        let chain = BlockChain::mock(1).setup(&db);
+        let block = chain.blocks[1].to_simple().next_block().setup(&db);
 
-//         // Request block preparation
-//         service.prepare_block(block.hash);
+        // Request block preparation
+        service.prepare_block(block.hash);
 
-//         // Poll service to process the preparation request
-//         let event = service.next().await.unwrap().unwrap();
-//         assert_eq!(event, ComputeEvent::BlockPrepared(block.hash));
+        // Poll service to process the preparation request
+        let event = service.next().await.unwrap().unwrap();
+        assert_eq!(event, ComputeEvent::BlockPrepared(block.hash));
 
-//         // Verify block is marked as prepared in DB
-//         assert!(db.block_meta(block.hash).prepared);
-//     }
+        // Verify block is marked as prepared in DB
+        assert!(db.block_meta(block.hash).prepared);
+    }
 
-//     /// Test ComputeService block processing functionality
-//     #[tokio::test]
-//     async fn compute_announce() {
-//         gear_utils::init_default_logger();
+    /// Test ComputeService block processing functionality
+    #[tokio::test]
+    async fn compute_announce() {
+        gear_utils::init_default_logger();
 
-//         let db = DB::memory();
-//         let processor = MockProcessor;
+        let db = DB::memory();
+        let processor = MockProcessor;
 
-//         let config = ComputeConfig::without_quarantine();
-//         let mut service = ComputeService::new(config, db.clone(), processor);
-//         let chain = BlockChain::mock(1).setup(&db);
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeService::new(config, db.clone(), processor);
+        let chain = BlockChain::mock(1).setup(&db);
 
-//         let block = chain.blocks[1].to_simple().next_block().setup(&db);
+        let block = chain.blocks[1].to_simple().next_block().setup(&db);
 
-//         service.prepare_block(block.hash);
-//         let event = service.next().await.unwrap().unwrap();
-//         assert_eq!(event, ComputeEvent::BlockPrepared(block.hash));
+        service.prepare_block(block.hash);
+        let event = service.next().await.unwrap().unwrap();
+        assert_eq!(event, ComputeEvent::BlockPrepared(block.hash));
 
-//         // Request computation
-//         let announce = Announce {
-//             block_hash: block.hash,
-//             parent: chain.block_top_announce_hash(1),
-//             gas_allowance: Some(42),
-//             injected_transactions: vec![],
-//         };
-//         let announce_hash = announce.to_hash();
-//         service.compute_announce(announce);
+        // Request computation
+        let announce = Announce {
+            block_hash: block.hash,
+            parent: chain.block_top_announce_hash(1),
+            gas_allowance: Some(42),
+            injected_transactions: vec![],
+        };
+        let announce_hash = announce.to_hash();
+        service.compute_announce(announce);
 
-//         // Poll service to process the block
-//         let event = service.next().await.unwrap().unwrap();
-//         assert_eq!(
-//             event,
-//             ComputeEvent::AnnounceComputed(ComputedAnnounce::mock(announce_hash))
-//         );
+        // Poll service to process the block
+        let event = service.next().await.unwrap().unwrap();
+        assert_eq!(event, ComputeEvent::AnnounceComputed(announce_hash));
 
-//         // Verify block is marked as computed in DB
-//         assert!(db.announce_meta(announce_hash).computed);
-//     }
+        // Verify block is marked as computed in DB
+        assert!(db.announce_meta(announce_hash).computed);
+    }
 
-//     /// Test ComputeService code processing functionality
-//     #[tokio::test]
-//     async fn process_code() {
-//         gear_utils::init_default_logger();
+    /// Test ComputeService code processing functionality
+    #[tokio::test]
+    async fn process_code() {
+        gear_utils::init_default_logger();
 
-//         let db = DB::memory();
-//         let processor = MockProcessor;
-//         let config = ComputeConfig::without_quarantine();
-//         let mut service = ComputeService::new(config, db.clone(), processor);
+        let db = DB::memory();
+        let processor = MockProcessor;
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeService::new(config, db.clone(), processor);
 
-//         // Create test code
-//         let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header
-//         let code_id = CodeId::generate(&code);
+        // Create test code
+        let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header
+        let code_id = CodeId::generate(&code);
 
-//         let code_and_id = CodeAndIdUnchecked { code, code_id };
+        let code_and_id = CodeAndIdUnchecked { code, code_id };
 
-//         // Verify code is not yet in DB
-//         assert!(db.code_valid(code_id).is_none());
+        // Verify code is not yet in DB
+        assert!(db.code_valid(code_id).is_none());
 
-//         // Request code processing
-//         service.process_code(code_and_id);
+        // Request code processing
+        service.process_code(code_and_id);
 
-//         // Poll service to process the code
-//         let event = service.next().await.unwrap().unwrap();
+        // Poll service to process the code
+        let event = service.next().await.unwrap().unwrap();
 
-//         // Should receive CodeProcessed event with correct code_id
-//         match event {
-//             ComputeEvent::CodeProcessed(processed_code_id) => {
-//                 assert_eq!(processed_code_id, code_id);
-//             }
-//             _ => panic!("Expected CodeProcessed event"),
-//         }
-//     }
-// }
+        // Should receive CodeProcessed event with correct code_id
+        match event {
+            ComputeEvent::CodeProcessed(processed_code_id) => {
+                assert_eq!(processed_code_id, code_id);
+            }
+            _ => panic!("Expected CodeProcessed event"),
+        }
+    }
+}

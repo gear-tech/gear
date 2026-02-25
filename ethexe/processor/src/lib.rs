@@ -38,7 +38,7 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
-use std::sync::mpsc;
+use tokio::sync::mpsc;
 
 pub use host::InstanceError;
 
@@ -108,21 +108,24 @@ pub struct Processor {
     config: ProcessorConfig,
     db: Database,
     creator: InstanceCreator,
-    promise_sender: Option<mpsc::Sender<Promise>>,
+    promise_sender: Option<mpsc::UnboundedSender<Promise>>,
 }
 
 /// TODO: consider avoiding re-instantiations on processing events.
 /// Maybe impl `struct EventProcessor`.
 impl Processor {
     /// Creates processor with default config.
-    pub fn new(db: Database, promise_sender: Option<mpsc::Sender<Promise>>) -> Result<Self> {
+    pub fn new(
+        db: Database,
+        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+    ) -> Result<Self> {
         Self::with_config(Default::default(), db, promise_sender)
     }
 
     pub fn with_config(
         config: ProcessorConfig,
         db: Database,
-        promise_sender: Option<mpsc::Sender<Promise>>,
+        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<Self> {
         let creator = InstanceCreator::new(host::runtime())?;
         Ok(Self {
@@ -189,24 +192,18 @@ impl Processor {
             block,
             program_states,
             schedule,
+            // TODO: remove
             injected_transactions,
             gas_allowance,
             events,
         } = executable;
 
-        let injected_messages = injected_transactions
-            .iter()
-            .map(|tx| tx.data().to_message_id());
-
-        let mut transitions = InBlockTransitions::new(
-            block.header.height,
-            program_states,
-            schedule,
-            injected_messages,
-        );
+        let mut transitions =
+            InBlockTransitions::new(block.header.height, program_states, schedule);
 
         transitions =
             self.process_injected_and_events(transitions, injected_transactions, events)?;
+
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
                 .process_queues(transitions, block, gas_allowance)
@@ -376,12 +373,8 @@ impl OverlaidProcessor {
             return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
-        let transitions = InBlockTransitions::new(
-            block.header.height,
-            program_states,
-            Schedule::default(),
-            vec![],
-        );
+        let transitions =
+            InBlockTransitions::new(block.header.height, program_states, Schedule::default());
 
         let transitions = self.0.process_injected_and_events(
             transitions,

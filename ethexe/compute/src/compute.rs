@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce, ComputedAnnounce, HashOf, SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW,
         LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
@@ -68,7 +68,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
     config: ComputeConfig,
 
     input: VecDeque<Announce>,
-    computation: Option<BoxFuture<'static, Result<ComputedAnnounce>>>,
+    computation: Option<BoxFuture<'static, Result<HashOf<Announce>>>>,
 }
 
 impl<P: ProcessorExt> ComputeSubService<P> {
@@ -91,7 +91,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         config: ComputeConfig,
         mut processor: P,
         announce: Announce,
-    ) -> Result<ComputedAnnounce> {
+    ) -> Result<HashOf<Announce>> {
         let announce_hash = announce.to_hash();
         let block_hash = announce.block_hash;
 
@@ -116,19 +116,16 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             parent_hash = next_parent_hash;
         }
 
-        let mut computed_announce = ComputedAnnounce::from_announce_hash(announce_hash);
         if announces_chain.is_empty() {
             log::trace!("All announces are already computed");
-            return Ok(computed_announce);
+            return Ok(announce_hash);
         }
 
         for (announce_hash, announce) in announces_chain {
-            computed_announce.merge_promises(
-                Self::compute_one(&db, &mut processor, announce_hash, announce, config).await?,
-            );
+            Self::compute_one(&db, &mut processor, announce_hash, announce, config).await?;
         }
 
-        Ok(computed_announce)
+        Ok(announce_hash)
     }
 
     async fn compute_one(
@@ -137,7 +134,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         announce_hash: HashOf<Announce>,
         announce: Announce,
         config: ComputeConfig,
-    ) -> Result<ComputedAnnounce> {
+    ) -> Result<HashOf<Announce>> {
         let executable =
             prepare_executable_for_announce(db, announce, config.canonical_quarantine())?;
         let processing_result = processor.process_announce(executable).await?;
@@ -146,7 +143,6 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             transitions,
             states,
             schedule,
-            promises,
             program_creations,
         } = processing_result;
 
@@ -168,15 +164,12 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         })
         .ok_or(ComputeError::LatestDataNotFound)?;
 
-        Ok(ComputedAnnounce {
-            announce_hash,
-            promises,
-        })
+        Ok(announce_hash)
     }
 }
 
 impl<P: ProcessorExt> SubService for ComputeSubService<P> {
-    type Output = ComputedAnnounce;
+    type Output = HashOf<Announce>;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if self.computation.is_none()

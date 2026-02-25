@@ -24,10 +24,10 @@ use crate::{
     announces::{self, DBAnnouncesExt},
     validator::DefaultProcessing,
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
+    Announce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
     gear::BatchCommitment, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
@@ -75,26 +75,10 @@ impl StateHandler for Producer {
 
     fn process_computed_announce(
         mut self,
-        computed_data: ComputedAnnounce,
+        announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
         match &self.state {
-            State::WaitingAnnounceComputed(expected)
-                if *expected == computed_data.announce_hash =>
-            {
-                if !computed_data.promises.is_empty() {
-                    let signed_promises = computed_data
-                        .promises
-                        .into_iter()
-                        .map(|promise| {
-                            self.ctx
-                                .sign_message(promise)
-                                .context("producer: failed to sign promise")
-                        })
-                        .collect::<Result<_, _>>()?;
-
-                    self.ctx.output(ConsensusEvent::Promises(signed_promises));
-                }
-
+            State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
                 // Aggregate commitment for the block and use `announce_hash` as head for chain commitment.
                 // `announce_hash` is computed and included in the db already, so it's safe to use it.
                 self.state = State::AggregateBatchCommitment {
@@ -102,7 +86,7 @@ impl StateHandler for Producer {
                         .ctx
                         .core
                         .clone()
-                        .aggregate_batch_commitment(self.block, computed_data.announce_hash)
+                        .aggregate_batch_commitment(self.block, announce_hash)
                         .boxed(),
                 };
 
@@ -111,12 +95,12 @@ impl StateHandler for Producer {
             State::WaitingAnnounceComputed(expected) => {
                 self.warning(format!(
                     "Computed announce {} is not expected, expected {expected}",
-                    computed_data.announce_hash
+                    announce_hash
                 ));
 
                 Ok(self.into())
             }
-            _ => DefaultProcessing::computed_announce(self, computed_data),
+            _ => DefaultProcessing::computed_announce(self, announce_hash),
         }
     }
 
@@ -293,7 +277,7 @@ mod tests {
         .setup(&state.context().core.db);
 
         let state = state
-            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
+            .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_state(|state| state.is_initial())
             .await
@@ -340,7 +324,7 @@ mod tests {
         .setup(&state.context().core.db);
 
         let mut state = state
-            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
+            .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await
@@ -385,7 +369,7 @@ mod tests {
         .setup(&state.context().core.db);
 
         let (state, event) = state
-            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
+            .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_event()
             .await
@@ -429,7 +413,7 @@ mod tests {
         .setup(&state.context().core.db);
 
         let mut state = state
-            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
+            .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await

@@ -41,7 +41,6 @@ thread_local! {
             transitions: Vec::new(),
             states: BTreeMap::new(),
             schedule: BTreeMap::new(),
-            promises: Vec::new(),
             program_creations: Vec::new(),
         }
     ) };
@@ -62,7 +61,6 @@ impl ProcessorExt for MockProcessor {
                 transitions: vec![],
                 states: BTreeMap::new(),
                 schedule: BTreeMap::new(),
-                promises: vec![],
                 program_creations: vec![],
             }
         });
@@ -234,8 +232,8 @@ impl TestEnv {
             .unwrap()
             .expect("expect block will be processing");
 
-        let computed_data = event.unwrap_announce_computed();
-        assert_eq!(computed_data.announce_hash, announce_hash);
+        let computed_announce = event.unwrap_announce_computed();
+        assert_eq!(computed_announce, announce_hash);
 
         self.db.mutate_block_meta(announce.block_hash, |meta| {
             meta.announces.get_or_insert_default().insert(announce_hash);

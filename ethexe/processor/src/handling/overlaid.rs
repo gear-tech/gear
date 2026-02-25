@@ -34,7 +34,8 @@ use gear_core::{
     message::ReplyDetails,
 };
 use gprimitives::{ActorId, MessageId};
-use std::{collections::HashSet, sync::mpsc};
+use std::collections::HashSet;
+use tokio::sync::mpsc;
 
 /// Overlay execution context.
 ///
@@ -93,7 +94,7 @@ impl OverlaidRunContext {
 
     pub(crate) async fn run(
         mut self,
-        promise_sender: Option<mpsc::Sender<Promise>>,
+        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<InBlockTransitions> {
         let _ = run::run_for_queue_type(&mut self, MessageType::Canonical, promise_sender).await?;
         Ok(self.inner.transitions)

@@ -74,7 +74,6 @@ pub struct ProcessQueueContext {
     pub code_metadata: CodeMetadata,
     pub gas_allowance: GasAllowanceCounter,
     pub block_info: BlockInfo,
-    // pub promise_sender: mpsc::Sender<Promise>,
 }
 
 pub trait RuntimeInterface: Storage {
@@ -228,9 +227,7 @@ where
             stop_processing: false,
         };
 
-        log::error!("processing dispatch: message_type={message_type:?}");
         if is_promise_required {
-            log::error!("promise required, notes={journal:?}");
             for note in journal.iter() {
                 if let JournalNote::SendDispatch {
                     message_id,
@@ -251,7 +248,6 @@ where
                         payload: dispatch.message().payload_bytes().to_vec(),
                     };
 
-                    log::error!("sending promise to user");
                     ri.send_promise(&reply, &dispatch_id);
                     break;
                 }
