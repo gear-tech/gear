@@ -217,16 +217,18 @@ features = ["test-helpers"]
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { version = "1", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy = { version = "1", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
 alloy-consensus = { version = "1", default-features = false, features = ["kzg", "serde"] }
 alloy-contract = { version = "1", default-features = false, features = ["pubsub"] }
+alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
 alloy-eips = { version = "1", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
-alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
+alloy-primitives = { version = "1", features = ["k256", "map-indexmap", "rlp", "serde"] }
 alloy-provider = { version = "1", default-features = false, features = ["anvil-node", "ws"] }
 alloy-rpc-client = { version = "1", default-features = false, features = ["reqwest", "ws"] }
 alloy-rpc-types = { version = "1", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
+alloy-signer-local = { version = "1", default-features = false, features = ["mnemonic"] }
 alloy-sol-type-parser = { version = "1", default-features = false, features = ["serde", "std"] }
 alloy-sol-types = { version = "1", features = ["json"] }
 anyhow = { version = "1" }
@@ -241,23 +243,26 @@ ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 base64 = { version = "0.22" }
 binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-bitflags = { version = "2", default-features = false, features = ["std"] }
+bitflags = { version = "2", default-features = false, features = ["serde", "std"] }
+bitvec = { version = "1", features = ["serde"] }
 blake2 = { version = "0.10" }
 blake2b_simd = { version = "1", default-features = false, features = ["std"] }
 blake3 = { version = "1" }
+blst = { version = "0.3", features = ["portable"] }
 bounded-collections = { version = "0.2", default-features = false, features = ["std"] }
 bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-bs58 = { version = "0.5" }
+bs58 = { version = "0.5", features = ["check"] }
 byte-slice-cast = { version = "1", default-features = false, features = ["std"] }
 bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive", "min_const_generics", "must_cast"] }
 byteorder = { version = "1" }
 bytes = { version = "1", features = ["serde"] }
+c-kzg = { version = "2", default-features = false, features = ["ethereum_kzg_settings", "portable", "serde", "std"] }
 cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
-const-hex = { version = "1", default-features = false, features = ["core-error", "serde", "std"] }
+const-hex = { version = "1", features = ["core-error", "serde"] }
 constant_time_eq = { version = "0.4", default-features = false, features = ["std"] }
 crc32fast = { version = "1" }
 crossbeam-utils = { version = "0.8" }
@@ -339,6 +344,7 @@ num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
+num_enum = { version = "0.7", default-features = false, features = ["std"] }
 object-51543b5218fc235c = { package = "object", version = "0.32", features = ["write"] }
 object-fa1f6196edfd7249 = { package = "object", version = "0.30", default-features = false, features = ["read_core", "write"] }
 once_cell = { version = "1" }
@@ -349,7 +355,7 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/gear-te
 parity-bip39 = { version = "2", features = ["rand"] }
 parity-scale-codec = { version = "3", features = ["bytes", "derive", "full", "max-encoded-len"] }
 parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
-pbkdf2 = { version = "0.12", default-features = false, features = ["std"] }
+pbkdf2 = { version = "0.12", features = ["std"] }
 percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
@@ -392,11 +398,11 @@ semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
-serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
+serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "preserve_order", "raw_value", "unbounded_depth"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
-sha3 = { version = "0.10", default-features = false, features = ["std"] }
+sha3 = { version = "0.10" }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
@@ -486,16 +492,18 @@ zeroize = { version = "1", features = ["derive", "std"] }
 [build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { version = "1", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy = { version = "1", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
 alloy-consensus = { version = "1", default-features = false, features = ["kzg", "serde"] }
 alloy-contract = { version = "1", default-features = false, features = ["pubsub"] }
+alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
 alloy-eips = { version = "1", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
-alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
+alloy-primitives = { version = "1", features = ["k256", "map-indexmap", "rlp", "serde"] }
 alloy-provider = { version = "1", default-features = false, features = ["anvil-node", "ws"] }
 alloy-rpc-client = { version = "1", default-features = false, features = ["reqwest", "ws"] }
 alloy-rpc-types = { version = "1", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
+alloy-signer-local = { version = "1", default-features = false, features = ["mnemonic"] }
 alloy-sol-macro = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-expander = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-input = { version = "1", default-features = false, features = ["json"] }
@@ -513,24 +521,27 @@ ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
 base64 = { version = "0.22" }
 binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-bitflags = { version = "2", default-features = false, features = ["std"] }
+bitflags = { version = "2", default-features = false, features = ["serde", "std"] }
+bitvec = { version = "1", features = ["serde"] }
 blake2 = { version = "0.10" }
 blake2b_simd = { version = "1", default-features = false, features = ["std"] }
 blake3 = { version = "1" }
+blst = { version = "0.3", features = ["portable"] }
 bounded-collections = { version = "0.2", default-features = false, features = ["std"] }
 bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-bs58 = { version = "0.5" }
+bs58 = { version = "0.5", features = ["check"] }
 byte-slice-cast = { version = "1", default-features = false, features = ["std"] }
 bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive", "min_const_generics", "must_cast"] }
 byteorder = { version = "1" }
 bytes = { version = "1", features = ["serde"] }
+c-kzg = { version = "2", default-features = false, features = ["ethereum_kzg_settings", "portable", "serde", "std"] }
 cc = { version = "1", default-features = false, features = ["parallel"] }
 cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
-const-hex = { version = "1", default-features = false, features = ["core-error", "serde", "std"] }
+const-hex = { version = "1", features = ["core-error", "serde"] }
 constant_time_eq = { version = "0.4", default-features = false, features = ["std"] }
 crc32fast = { version = "1" }
 crossbeam-utils = { version = "0.8" }
@@ -542,6 +553,7 @@ darling = { version = "0.21", features = ["serde"] }
 darling_core = { version = "0.21", default-features = false, features = ["serde", "suggestions"] }
 data-encoding = { version = "2" }
 der = { version = "0.7", default-features = false, features = ["oid", "std", "zeroize"] }
+derive-where = { version = "1", default-features = false, features = ["serde"] }
 derive_more-2247a326473123a6 = { package = "derive_more", version = "0.99" }
 derive_more-f595c2ba2a3f28df = { package = "derive_more", version = "2", features = ["full"] }
 derive_more-impl = { version = "2", features = ["add", "add_assign", "as_ref", "constructor", "debug", "deref", "deref_mut", "display", "eq", "error", "from", "from_str", "index", "index_mut", "into", "into_iterator", "is_variant", "mul", "mul_assign", "not", "sum", "try_from", "try_into", "try_unwrap", "unwrap"] }
@@ -618,6 +630,8 @@ num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
+num_enum = { version = "0.7", default-features = false, features = ["std"] }
+num_enum_derive = { version = "0.7", default-features = false, features = ["std"] }
 object-51543b5218fc235c = { package = "object", version = "0.32", features = ["write"] }
 object-fa1f6196edfd7249 = { package = "object", version = "0.30", default-features = false, features = ["read_core", "write"] }
 once_cell = { version = "1" }
@@ -629,7 +643,7 @@ parity-bip39 = { version = "2", features = ["rand"] }
 parity-scale-codec = { version = "3", features = ["bytes", "derive", "full", "max-encoded-len"] }
 parity-scale-codec-derive = { version = "3", default-features = false, features = ["max-encoded-len"] }
 parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
-pbkdf2 = { version = "0.12", default-features = false, features = ["std"] }
+pbkdf2 = { version = "0.12", features = ["std"] }
 percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
@@ -673,11 +687,11 @@ semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
-serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
+serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "preserve_order", "raw_value", "unbounded_depth"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
-sha3 = { version = "0.10", default-features = false, features = ["std"] }
+sha3 = { version = "0.10" }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
