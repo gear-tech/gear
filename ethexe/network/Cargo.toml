@@ -32,6 +32,8 @@ thiserror.workspace = true
 indexmap.workspace = true
 ip_network.workspace = true
 prometheus-client = "0.23.1" # specific version that lip2p uses
+metrics.workspace = true
+metrics-derive.workspace = true
 gear-workspace-hack.workspace = true
 
 [dependencies.libp2p]
