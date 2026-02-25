@@ -43,6 +43,7 @@ use std::{
 use tokio::{
     net::TcpListener,
     sync::{mpsc, oneshot},
+    task,
     task::JoinHandle,
 };
 
@@ -94,12 +95,13 @@ pub enum PrometheusEvent {
     CollectMetrics {
         libp2p_metrics: oneshot::Sender<String>,
     },
-    ServerClosed(Result<()>),
+    ServerClosed(Result<(), task::JoinError>),
 }
 
 pub struct PrometheusService {
     server: JoinHandle<()>,
     server_receiver: mpsc::Receiver<PrometheusEvent>,
+    server_closed_returned: bool,
 }
 
 impl Stream for PrometheusService {
@@ -107,7 +109,8 @@ impl Stream for PrometheusService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Poll::Ready(res) = self.server.poll_unpin(cx) {
-            return Poll::Ready(Some(PrometheusEvent::ServerClosed(res.map_err(Into::into))));
+            self.server_closed_returned = true;
+            return Poll::Ready(Some(PrometheusEvent::ServerClosed(res)));
         }
 
         if let Poll::Ready(Some(event)) = self.server_receiver.poll_recv(cx) {
@@ -120,7 +123,7 @@ impl Stream for PrometheusService {
 
 impl FusedStream for PrometheusService {
     fn is_terminated(&self) -> bool {
-        self.server.is_finished()
+        self.server_closed_returned
     }
 }
 
@@ -141,6 +144,7 @@ impl PrometheusService {
         Ok(Self {
             server,
             server_receiver,
+            server_closed_returned: false,
         })
     }
 }
@@ -265,4 +269,47 @@ fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
     metrics
         .time_since_latest_committed_secs
         .set(time_since_latest_committed_secs as f64);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::StreamExt;
+    use std::{net::Ipv4Addr, time::Duration};
+    use tokio::{task, time};
+
+    #[tokio::test]
+    async fn fused_stream_works() {
+        let mut service = PrometheusService::new(
+            PrometheusConfig {
+                name: "".to_string(),
+                addr: (Ipv4Addr::LOCALHOST, 0).into(),
+            },
+            Database::memory(),
+        )
+        .unwrap();
+
+        assert!(!service.is_terminated());
+
+        // wait for the server to finish
+        time::timeout(Duration::from_secs(5), async {
+            service.server.abort();
+            while !service.server.is_finished() {
+                task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+
+        assert!(!service.is_terminated());
+
+        let event = service.select_next_some().await;
+        if let PrometheusEvent::ServerClosed(res) = event {
+            assert!(res.unwrap_err().is_cancelled());
+        } else {
+            unreachable!("unexpected event: {event:?}");
+        }
+
+        assert!(service.is_terminated());
+    }
 }
