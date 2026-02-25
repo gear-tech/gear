@@ -891,7 +891,12 @@ impl Node {
 
         let (promise_sender, promise_receiver) = mpsc::unbounded_channel();
         let processor = Processor::new(self.db.clone(), Some(promise_sender)).unwrap();
-        let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
+        let compute = ComputeService::new(
+            self.compute_config,
+            self.db.clone(),
+            processor,
+            Some(promise_receiver),
+        );
 
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
@@ -992,7 +997,6 @@ impl Node {
             network,
             None,
             rpc,
-            promise_receiver,
             sender,
             self.fast_sync,
             validator_pub_key,

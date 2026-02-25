@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf};
+use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, injected::Promise};
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
@@ -38,12 +38,13 @@ pub struct BlockProcessed {
     pub block_hash: H256,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
     AnnounceComputed(HashOf<Announce>),
+    Promise(Promise),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -83,6 +84,8 @@ pub enum ComputeError {
     ProgramStatesNotFound(HashOf<Announce>),
     #[error("Schedule not found for computed Announce {0:?}")]
     ScheduleNotFound(HashOf<Announce>),
+    #[error("Promise sender dropped")]
+    PromiseSenderDropped,
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),

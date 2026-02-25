@@ -26,7 +26,7 @@ use ethexe_common::{
     db::*,
     events::BlockEvent,
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
         SignedInjectedTransaction, SignedPromise,
     },
     network::VerifiedValidatorMessage,
@@ -142,7 +142,6 @@ pub enum TestingEvent {
     BlobLoader(BlobLoaderEvent),
     Rpc(TestingRpcEvent),
     Fetching,
-    PromiseProcessed(Promise),
 }
 
 impl TestingEvent {
@@ -155,7 +154,6 @@ impl TestingEvent {
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
             Event::Fetching(_) => Self::Fetching,
-            Event::PromiseProcessed(promise) => Self::PromiseProcessed(promise.clone()),
         }
     }
 }

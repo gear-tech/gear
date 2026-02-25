@@ -24,9 +24,7 @@ use alloy::{
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
-use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, gear::CodeState, injected::Promise, network::VerifiedValidatorMessage,
-};
+use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
@@ -72,8 +70,6 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Rpc(RpcEvent),
     Fetching(db_sync::HandleResult),
-    // TODO: i don't like this naming, rename in future
-    PromiseProcessed(Promise),
 }
 
 #[derive(Clone)]
@@ -115,9 +111,6 @@ pub struct Service {
     network: Option<NetworkService>,
     prometheus: Option<PrometheusService>,
     rpc: Option<RpcServer>,
-
-    /// Promises receiver from [`Processor`].
-    promise_receiver: mpsc::UnboundedReceiver<Promise>,
 
     fast_sync: bool,
     validator_pub_key: Option<PublicKey>,
@@ -386,7 +379,12 @@ impl Service {
             .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
-        let compute = ComputeService::new(compute_config, db.clone(), processor);
+        let compute = ComputeService::new(
+            compute_config,
+            db.clone(),
+            processor,
+            Some(promise_receiver),
+        );
 
         let fast_sync = config.node.fast_sync;
 
@@ -401,7 +399,6 @@ impl Service {
             signer,
             prometheus,
             rpc,
-            promise_receiver,
             fast_sync,
             validator_pub_key,
             #[cfg(test)]
@@ -429,7 +426,6 @@ impl Service {
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcServer>,
-        promise_receiver: mpsc::UnboundedReceiver<Promise>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
         validator_pub_key: Option<PublicKey>,
@@ -444,7 +440,6 @@ impl Service {
             network,
             prometheus,
             rpc,
-            promise_receiver,
             sender,
             fast_sync,
             validator_pub_key,
@@ -472,7 +467,6 @@ impl Service {
             signer,
             mut prometheus,
             rpc,
-            mut promise_receiver,
             fast_sync: _,
             validator_pub_key,
             #[cfg(test)]
@@ -509,16 +503,6 @@ impl Service {
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
                 event = rpc.maybe_next_some() => event.into(),
-                maybe_promise = promise_receiver.recv() => {
-                    // TODO: think about re-design this behaviour
-                    match maybe_promise {
-                        Some(promise) => promise.into(),
-                        None => {
-                            tracing::error!("Stopping service: the promises receiver from processor is closed");
-                            break Ok(());
-                        }
-                    }
-                }
                 fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
                 _ = prometheus.maybe_next_some() => {
                     anyhow::bail!("Prometheus server handle has terminated");
@@ -575,6 +559,24 @@ impl Service {
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
+                    }
+                    ComputeEvent::Promise(promise) => {
+                        // TODO: think to send the promise to consensus service
+                        if let Some(pub_key) = validator_pub_key {
+                            let signed_promise = signer.signed_message(pub_key, promise, None)?;
+
+                            if rpc.is_none() && network.is_none() {
+                                panic!("Promise without network or rpc");
+                            }
+
+                            if let Some(rpc) = &rpc {
+                                rpc.provide_promise(signed_promise.clone());
+                            }
+
+                            if let Some(network) = &mut network {
+                                network.publish_promise(signed_promise);
+                            }
+                        }
                     }
                 },
                 Event::Network(event) => {
@@ -692,23 +694,6 @@ impl Service {
                         // TODO #4940: consider to publish network message
                     }
                 },
-                Event::PromiseProcessed(promise) => {
-                    if let Some(pub_key) = validator_pub_key {
-                        let signed_promise = signer.signed_message(pub_key, promise, None)?;
-
-                        if rpc.is_none() && network.is_none() {
-                            panic!("Promise without network or rpc");
-                        }
-
-                        if let Some(rpc) = &rpc {
-                            rpc.provide_promise(signed_promise.clone());
-                        }
-
-                        if let Some(network) = &mut network {
-                            network.publish_promise(signed_promise);
-                        }
-                    }
-                }
                 Event::Fetching(result) => {
                     let Some(network) = network.as_mut() else {
                         unreachable!("Fetching event is impossible without network service");

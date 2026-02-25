@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ComputeEvent, ProcessorExt, Result,
+    ComputeError, ComputeEvent, ProcessorExt, Result,
     codes::CodesSubService,
     compute::{ComputeConfig, ComputeSubService},
     prepare::PrepareSubService,
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked};
+use ethexe_common::{Announce, CodeAndIdUnchecked, injected::Promise};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
@@ -31,20 +31,28 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+use tokio::sync::mpsc;
 
 pub struct ComputeService<P: ProcessorExt = Processor> {
     codes_sub_service: CodesSubService<P>,
     prepare_sub_service: PrepareSubService,
     compute_sub_service: ComputeSubService<P>,
+    promise_receiver: Option<mpsc::UnboundedReceiver<Promise>>,
 }
 
 impl<P: ProcessorExt> ComputeService<P> {
     // TODO #4550: consider to create Processor inside ComputeService
-    pub fn new(config: ComputeConfig, db: Database, processor: P) -> Self {
+    pub fn new(
+        config: ComputeConfig,
+        db: Database,
+        processor: P,
+        promise_receiver: Option<mpsc::UnboundedReceiver<Promise>>,
+    ) -> Self {
         Self {
             prepare_sub_service: PrepareSubService::new(db.clone()),
             compute_sub_service: ComputeSubService::new(config, db.clone(), processor.clone()),
             codes_sub_service: CodesSubService::new(db, processor),
+            promise_receiver,
         }
     }
 
@@ -86,6 +94,16 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             return Poll::Ready(Some(result.map(ComputeEvent::AnnounceComputed)));
         };
 
+        if let Some(ref mut receiver) = self.promise_receiver
+            && let Poll::Ready(maybe_promise) = receiver.poll_recv(cx)
+        {
+            return Poll::Ready(Some(
+                maybe_promise
+                    .map(Into::into)
+                    .ok_or(ComputeError::PromiseSenderDropped),
+            ));
+        }
+
         Poll::Pending
     }
 }
@@ -125,7 +143,7 @@ mod tests {
         let db = DB::memory();
         let processor = MockProcessor;
         let config = ComputeConfig::without_quarantine();
-        let mut service = ComputeService::new(config, db.clone(), processor);
+        let mut service = ComputeService::new(config, db.clone(), processor, None);
 
         let chain = BlockChain::mock(1).setup(&db);
         let block = chain.blocks[1].to_simple().next_block().setup(&db);
@@ -150,7 +168,7 @@ mod tests {
         let processor = MockProcessor;
 
         let config = ComputeConfig::without_quarantine();
-        let mut service = ComputeService::new(config, db.clone(), processor);
+        let mut service = ComputeService::new(config, db.clone(), processor, None);
         let chain = BlockChain::mock(1).setup(&db);
 
         let block = chain.blocks[1].to_simple().next_block().setup(&db);
@@ -185,7 +203,7 @@ mod tests {
         let db = DB::memory();
         let processor = MockProcessor;
         let config = ComputeConfig::without_quarantine();
-        let mut service = ComputeService::new(config, db.clone(), processor);
+        let mut service = ComputeService::new(config, db.clone(), processor, None);
 
         // Create test code
         let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header

@@ -172,6 +172,7 @@ impl TestEnv {
             config,
             db.clone(),
             Processor::new(db.clone(), None).unwrap(),
+            None,
         );
 
         TestEnv { db, compute, chain }

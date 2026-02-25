@@ -49,7 +49,7 @@ use ethexe_common::{
     mock::*,
     network::ValidatorMessage,
 };
-use ethexe_compute::ComputeConfig;
+use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
@@ -2493,7 +2493,7 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::PromiseProcessed(promise) = event {
+            if let TestingEvent::Compute(ComputeEvent::Promise(promise)) = event {
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
