@@ -193,7 +193,9 @@ async fn collect_announce(
 
     // Response is checked so we can just take the first announce
     let (_, mut announces) = response.into_parts();
-    Ok(announces.remove(0))
+    Ok(announces
+        .remove(0)
+        .into_announce_persisting_injected_transactions(db))
 }
 
 /// Collects a set of valid code IDs that are not yet validated in the local database.

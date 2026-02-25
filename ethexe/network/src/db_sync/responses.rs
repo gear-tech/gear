@@ -25,8 +25,11 @@ use crate::{
 };
 use ethexe_common::{
     Announce, HashOf,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, LatestData, LatestDataStorageRO},
-    network::{AnnouncesRequest, AnnouncesRequestUntil},
+    db::{BlockMetaStorageRO, LatestData},
+    injected::InjectedTransaction,
+    network::{
+        AnnouncesRequest, AnnouncesRequestUntil, NetworkAnnounce, NetworkAnnounceFromAnnounceError,
+    },
 };
 use libp2p::request_response;
 use std::{
@@ -95,7 +98,7 @@ impl OngoingResponses {
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
             InnerRequest::Announces(request) => {
-                match Self::process_announce_request(&db, request) {
+                match Self::process_announce_request(db.as_ref(), request) {
                     Ok(response) => response.into(),
                     Err(e) => {
                         log::trace!("cannot complete announces request {request:?}: {e}");
@@ -106,7 +109,7 @@ impl OngoingResponses {
         }
     }
 
-    fn process_announce_request<DB: AnnounceStorageRO + LatestDataStorageRO>(
+    fn process_announce_request<DB: ?Sized + DbSyncDatabase>(
         db: &DB,
         request: AnnouncesRequest,
     ) -> Result<InnerAnnouncesResponse, ProcessAnnounceError> {
@@ -157,13 +160,45 @@ impl OngoingResponses {
                 }
             }
 
-            let Some(announce) = db.announce(announce_hash) else {
+            let current_announce_hash = announce_hash;
+            let Some(announce) = db.announce(current_announce_hash) else {
                 return Err(ProcessAnnounceError::AnnounceMissing {
-                    hash: announce_hash,
+                    hash: current_announce_hash,
                 });
             };
-            announce_hash = announce.parent;
-            announces.push_front(announce);
+            let Announce {
+                block_hash,
+                parent,
+                gas_allowance,
+                injected_transactions: announce_injected_transactions,
+            } = announce;
+            announce_hash = parent;
+
+            let injected_transactions = announce_injected_transactions
+                .iter()
+                .cloned()
+                .map(|tx_hash| {
+                    db.injected_transaction(tx_hash)
+                        .ok_or(ProcessAnnounceError::InjectedTransactionMissing { hash: tx_hash })
+                })
+                .collect::<Result<_, _>>()?;
+
+            let announce = Announce {
+                block_hash,
+                parent,
+                gas_allowance,
+                injected_transactions: announce_injected_transactions,
+            };
+
+            let network_announce =
+                NetworkAnnounce::try_from_announce(announce, injected_transactions).map_err(
+                    |source| ProcessAnnounceError::AnnounceInjectedTransactionsMismatch {
+                        hash: current_announce_hash,
+                        source,
+                    },
+                )?;
+
+            announces.push_front(network_announce);
         }
 
         // TODO #4874: use peer score to punish the peer for such requests
@@ -226,6 +261,14 @@ enum ProcessAnnounceError {
     LatestDataMissing,
     #[error("announce {hash} not found in database")]
     AnnounceMissing { hash: HashOf<Announce> },
+    #[error("injected transaction {hash} not found in database")]
+    InjectedTransactionMissing { hash: HashOf<InjectedTransaction> },
+    #[error("announce {hash} injected transactions mismatch: {source}")]
+    AnnounceInjectedTransactionsMismatch {
+        hash: HashOf<Announce>,
+        #[source]
+        source: NetworkAnnounceFromAnnounceError,
+    },
     #[error("reached genesis announce {genesis}")]
     ReachedGenesis { genesis: HashOf<Announce> },
     #[error("reached start announce {start}")]
@@ -241,6 +284,7 @@ mod tests {
     use ethexe_common::{
         Announce, HashOf, SimpleBlockData,
         db::{AnnounceStorageRW, LatestDataStorageRW},
+        network::NetworkAnnounce,
     };
     use ethexe_db::Database;
     use gprimitives::H256;
@@ -248,6 +292,11 @@ mod tests {
 
     fn make_announce(block: u64, parent: HashOf<Announce>) -> Announce {
         Announce::base(H256::from_low_u64_be(block), parent)
+    }
+
+    fn make_network_announce(announce: Announce) -> NetworkAnnounce {
+        NetworkAnnounce::try_from_announce(announce, vec![])
+            .expect("empty announce hashes must match empty injected transactions")
     }
 
     fn set_latest_data(db: &Database, genesis: HashOf<Announce>, start: HashOf<Announce>) {
@@ -409,7 +458,10 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.0, vec![middle, head]);
+        assert_eq!(
+            response.0,
+            vec![make_network_announce(middle), make_network_announce(head)]
+        );
         ResponseHandler::handle_announces(response, request).unwrap_done();
     }
 
@@ -435,7 +487,10 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.0, vec![middle, head]);
+        assert_eq!(
+            response.0,
+            vec![make_network_announce(middle), make_network_announce(head)]
+        );
         ResponseHandler::handle_announces(response, request).unwrap_done();
     }
 }

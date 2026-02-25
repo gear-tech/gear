@@ -27,11 +27,11 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, ComputedAnnounce, SimpleBlockData,
+    Address, ComputedAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::{AnnounceStorageRO, OnChainStorageRO},
     injected::SignedInjectedTransaction,
-    network::{AnnouncesRequest, AnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesResponse, NetworkAnnounce},
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -105,7 +105,7 @@ pub struct ConnectService {
     commitment_delay_limit: u32,
 
     state: State,
-    pending_announces: LruCache<(Address, H256), Announce>,
+    pending_announces: LruCache<(Address, H256), NetworkAnnounce>,
     output: VecDeque<ConsensusEvent>,
 }
 
@@ -144,10 +144,10 @@ impl ConnectService {
 
     fn process_announce_from_producer(
         &mut self,
-        announce: Announce,
+        network_announce: NetworkAnnounce,
         producer: Address,
     ) -> Result<()> {
-        match announces::accept_announce(&self.db, announce.clone())? {
+        match announces::accept_announce(&self.db, network_announce)? {
             AnnounceStatus::Rejected { announce, reason } => {
                 tracing::warn!(
                     announce = %announce.to_hash(),
@@ -161,6 +161,9 @@ impl ConnectService {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.output
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
+                let announce = self.db.announce(announce_hash).ok_or_else(|| {
+                    anyhow!("accepted announce {announce_hash} is missing from database")
+                })?;
                 self.output
                     .push_back(ConsensusEvent::ComputeAnnounce(announce));
             }
@@ -323,7 +326,15 @@ impl ConsensusService for ConnectService {
             &self.db,
             mem::take(chain),
             self.commitment_delay_limit,
-            announces.into_iter().map(|a| (a.to_hash(), a)).collect(),
+            announces
+                .into_iter()
+                .map(|network_announce| {
+                    let announce =
+                        network_announce.into_announce_persisting_injected_transactions(&self.db);
+
+                    (announce.to_hash(), announce)
+                })
+                .collect(),
         )?;
 
         self.process_after_propagation(block, producer)?;
@@ -353,7 +364,7 @@ impl FusedStream for ConnectService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{HashOf, ValidatorsVec, mock::*};
+    use ethexe_common::{HashOf, ValidatorsVec, mock::*, network::NetworkAnnounce};
     use ethexe_db::Database;
     use gsigner::{PrivateKey, PublicKey, SignedData};
 
@@ -373,7 +384,7 @@ mod tests {
         service.receive_synced_block(chain.blocks[10].hash).unwrap();
 
         // send announce with unknown parent and in state when announce should be pending
-        let announce = Announce {
+        let announce = NetworkAnnounce {
             block_hash: chain.blocks[10].hash,
             parent: HashOf::random(),
             gas_allowance: Some(199),

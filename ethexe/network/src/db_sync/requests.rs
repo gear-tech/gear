@@ -890,6 +890,7 @@ impl RetriableRequest {
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use ethexe_common::network::NetworkAnnounce;
 
     struct UnreachableExternalDataProvider;
 
@@ -916,13 +917,18 @@ mod tests {
         }
     }
 
-    fn make_chain(len: usize) -> Vec<Announce> {
+    fn make_chain(len: usize) -> Vec<NetworkAnnounce> {
         assert!(len > 0);
         let mut chain = Vec::with_capacity(len);
         let mut parent = HashOf::zero();
 
         for idx in 0..len {
-            let announce = Announce::base(H256([idx as u8 + 1; 32]), parent);
+            let announce = NetworkAnnounce {
+                block_hash: H256([idx as u8 + 1; 32]),
+                parent,
+                gas_allowance: None,
+                injected_transactions: vec![],
+            };
             parent = announce.to_hash();
             chain.push(announce);
         }

@@ -228,7 +228,7 @@ impl NetworkService {
             router_address,
             keypair: keypair.clone(),
             external_data_provider,
-            db: DbSyncDatabase::clone_boxed(&db),
+            db: DbSyncDatabase::clone_boxed(db.as_ref()),
             enable_mdns: transport_type.mdns_enabled(),
             validator_key,
             general_signer,
