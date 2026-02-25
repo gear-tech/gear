@@ -18,7 +18,7 @@
 
 use anyhow::{Context as _, Result};
 use ethexe_common::db::{
-    AnnounceStorageRO, BlockMetaStorageRO, GlobalsStorageRO, LatestDataStorageRO, OnChainStorageRO,
+    AnnounceStorageRO, BlockMetaStorageRO, GlobalsStorageRO, OnChainStorageRO,
 };
 use ethexe_db::Database;
 use futures::{FutureExt, Stream, stream::FusedStream};
