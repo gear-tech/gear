@@ -70,6 +70,13 @@ const MAX_IN_FLIGHT_QUERIES: usize = 10;
 
 pub type ValidatorIdentities = HashMap<Address, SignedValidatorIdentity>;
 
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_validator_discovery")]
+struct Metrics {
+    /// How many validator identities we acquired
+    identities: metrics::Gauge,
+}
+
 /// Signed validator discovery
 ///
 /// Signed by both validator key and networking key,
@@ -381,12 +388,14 @@ struct GetIdentities {
 }
 
 impl GetIdentities {
-    fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
+    fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>, metrics: &Metrics) {
         self.snapshot = snapshot;
 
         // eliminate identities that are neither in the current set nor in the next set
         self.identities
             .retain(|&address, _identity| self.snapshot.contains(address));
+
+        metrics.identities.set(self.identities.len() as f64);
     }
 
     fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
@@ -588,6 +597,7 @@ pub struct Behaviour {
     kad: kad::Handle,
     get_identities: GetIdentities,
     put_identity: Option<PutIdentity>,
+    metrics: Metrics,
 }
 
 impl Behaviour {
@@ -619,11 +629,12 @@ impl Behaviour {
                 external_addresses: ExternalAddresses::default(),
                 fut: None,
             }),
+            metrics: Metrics::default(),
         }
     }
 
     pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
-        self.get_identities.on_new_snapshot(snapshot);
+        self.get_identities.on_new_snapshot(snapshot, &self.metrics);
     }
 
     pub fn identities(&self) -> &ValidatorIdentities {
