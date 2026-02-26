@@ -182,6 +182,7 @@ pub enum UsageError {
     /// This error occurs when providing zero gas amount to system gas reserving
     /// function (see
     /// [`Config::set_system_reserve`](crate::Config::set_system_reserve)).
+    #[cfg(not(feature = "ethexe"))]
     #[error("System reservation amount can not be zero in config")]
     ZeroSystemReservationAmount,
     /// This error occurs when providing zero duration to mutex lock function
@@ -190,6 +191,7 @@ pub enum UsageError {
     /// This error occurs when handle_reply is called without (or with zero)
     /// reply deposit
     /// (see [`MessageFuture::handle_reply`](crate::msg::MessageFuture::handle_reply)).
+    #[cfg(not(feature = "ethexe"))]
     #[error("Reply deposit can not be zero when setting reply hook")]
     ZeroReplyDeposit,
 }
