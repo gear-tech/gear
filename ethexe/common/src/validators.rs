@@ -23,6 +23,7 @@ use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, Display, IntoIterator};
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::{TypeInfo, build::Fields};
 
 /// [`ValidatorsVec`] is a wrapper over non-empty vector of [`Address`].
 /// It is needed because `NonEmpty` does not implement `Encode` and `Decode`.
@@ -45,6 +46,16 @@ impl Decode for ValidatorsVec {
             .ok_or(parity_scale_codec::Error::from(
                 "Failed to decode ValidatorsVec: empty vector",
             ))
+    }
+}
+
+impl TypeInfo for ValidatorsVec {
+    type Identity = Self;
+
+    fn type_info() -> scale_info::Type {
+        scale_info::Type::builder()
+            .path(scale_info::Path::new("ValidatorsVec", module_path!()))
+            .composite(Fields::unnamed().field(|f| f.ty::<Vec<Address>>()))
     }
 }
 
