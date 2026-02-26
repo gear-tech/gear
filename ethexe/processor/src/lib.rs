@@ -110,10 +110,10 @@ pub struct Processor {
     creator: InstanceCreator,
     // TODO: Think about adding the
     // #[cfg(test)]
-    // promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+    // promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     // #[cfg(not(test))]
-    // promise_sender: mpsc::UnboundedSender<Promise>,
-    promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+    // promise_out_tx: mpsc::UnboundedSender<Promise>,
+    promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 }
 
 /// TODO: consider avoiding re-instantiations on processing events.
@@ -122,22 +122,22 @@ impl Processor {
     /// Creates processor with default config.
     pub fn new(
         db: Database,
-        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<Self> {
-        Self::with_config(Default::default(), db, promise_sender)
+        Self::with_config(Default::default(), db, promise_out_tx)
     }
 
     pub fn with_config(
         config: ProcessorConfig,
         db: Database,
-        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<Self> {
         let creator = InstanceCreator::new(host::runtime())?;
         Ok(Self {
             config,
             db,
             creator,
-            promise_sender,
+            promise_out_tx,
         })
     }
 
@@ -263,7 +263,7 @@ impl Processor {
             self.config.chunk_size,
             block.header,
             should_produce_promises,
-            self.promise_sender.clone(),
+            self.promise_out_tx.clone(),
         )
         .run()
         .await

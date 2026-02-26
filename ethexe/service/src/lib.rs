@@ -25,7 +25,7 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
-use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
+use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService, ComputeServiceBuilder};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
@@ -39,7 +39,7 @@ use ethexe_observer::{
     ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
-use ethexe_processor::{Processor, ProcessorConfig};
+use ethexe_processor::ProcessorConfig;
 use ethexe_prometheus::PrometheusService;
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
@@ -53,7 +53,7 @@ use std::{
     pin::Pin,
     time::Duration,
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 
 pub mod config;
 
@@ -277,20 +277,10 @@ impl Service {
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
-        let (promise_sender, promise_receiver) = mpsc::unbounded_channel();
-
-        let processor = Processor::with_config(
-            ProcessorConfig {
-                chunk_size: config.node.chunk_processing_threads,
-            },
-            db.clone(),
-            Some(promise_sender),
-        )
-        .with_context(|| "failed to create processor")?;
 
         log::info!(
             "🔧 Amount of chunk processing threads for programs processing: {}",
-            processor.config().chunk_size
+            config.node.chunk_processing_threads
         );
 
         let signer = Signer::fs(config.node.key_path.clone())?;
@@ -379,12 +369,15 @@ impl Service {
             .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
-        let compute = ComputeService::new(
-            compute_config,
-            db.clone(),
-            processor,
-            Some(promise_receiver),
-        );
+        let processor_config = ProcessorConfig {
+            chunk_size: config.node.chunk_processing_threads,
+        };
+        let compute = ComputeServiceBuilder::production()
+            .with_db(db.clone())
+            .with_compute_config(compute_config)
+            .with_processor_config(processor_config)
+            .build()
+            .with_context(|| "failed to build compute service")?;
 
         let fast_sync = config.node.fast_sync;
 

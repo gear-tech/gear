@@ -177,7 +177,7 @@ impl RunContext for OverlaidRunContext {
         &self.inner.instance_creator
     }
 
-    fn promise_sender(&self) -> &Option<mpsc::UnboundedSender<Promise>> {
+    fn promise_out_tx(&self) -> &Option<mpsc::UnboundedSender<Promise>> {
         // OverlaidRunContext should never produce promises
         &None
     }

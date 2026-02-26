@@ -42,7 +42,7 @@ use ethexe_common::{
     },
     network::{SignedValidatorMessage, ValidatorMessage},
 };
-use ethexe_compute::{ComputeConfig, ComputeService};
+use ethexe_compute::{ComputeConfig, ComputeServiceBuilder};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{
@@ -56,7 +56,7 @@ use ethexe_observer::{
     EthereumConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
-use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
+use ethexe_processor::{DEFAULT_CHUNK_SIZE, ProcessorConfig};
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
@@ -79,10 +79,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
-use tokio::{
-    sync::mpsc,
-    task::{self, JoinHandle},
-};
+use tokio::task::{self, JoinHandle};
 use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.
@@ -889,14 +886,12 @@ impl Node {
             "Service is already running"
         );
 
-        let (promise_sender, promise_receiver) = mpsc::unbounded_channel();
-        let processor = Processor::new(self.db.clone(), Some(promise_sender)).unwrap();
-        let compute = ComputeService::new(
-            self.compute_config,
-            self.db.clone(),
-            processor,
-            Some(promise_receiver),
-        );
+        let compute = ComputeServiceBuilder::production()
+            .with_db(self.db.clone())
+            .with_compute_config(self.compute_config)
+            .with_processor_config(ProcessorConfig::default())
+            .build()
+            .unwrap();
 
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await

@@ -171,9 +171,9 @@ impl InstanceWrapper {
         &mut self,
         db: Box<dyn CASDatabase>,
         ctx: ProcessQueueContext,
-        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<(ProgramJournals, H256, u64)> {
-        threads::set(db, ctx.state_root, promise_sender.clone());
+        threads::set(db, ctx.state_root, promise_out_tx.clone());
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
         let (ptr_lens, gas_spent): (Vec<i64>, i64) = self.call("run", ctx.encode())?;

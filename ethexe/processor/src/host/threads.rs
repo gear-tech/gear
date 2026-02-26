@@ -43,7 +43,7 @@ pub struct ThreadParams {
     pub db: Box<dyn CASDatabase>,
     pub state_hash: H256,
     /// TODO: think about using [`mpsc::sync_channel`] instead of [`mpsc::channel`].
-    pub promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+    pub promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
@@ -108,14 +108,14 @@ impl PageKey {
 pub fn set(
     db: Box<dyn CASDatabase>,
     state_hash: H256,
-    promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+    promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 ) {
     PARAMS.set(Some(ThreadParams {
         db,
         state_hash,
         pages_registry_cache: None,
         pages_regions_cache: None,
-        promise_sender,
+        promise_out_tx,
     }))
 }
 

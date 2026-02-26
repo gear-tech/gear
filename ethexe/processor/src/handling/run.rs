@@ -190,7 +190,7 @@ pub(super) trait RunContext {
     /// Get reference to instance creator.
     fn instance_creator(&self) -> &InstanceCreator;
 
-    fn promise_sender(&self) -> &Option<mpsc::UnboundedSender<Promise>>;
+    fn promise_out_tx(&self) -> &Option<mpsc::UnboundedSender<Promise>>;
 
     /// Returns the header of the current block.
     fn block_header(&self) -> BlockHeader;
@@ -276,7 +276,7 @@ pub(crate) struct CommonRunContext {
     // TODO think about removing this
     pub(crate) should_produce_promises: bool,
 
-    pub(crate) promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+    pub(crate) promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 }
 
 impl CommonRunContext {
@@ -289,7 +289,7 @@ impl CommonRunContext {
         chunk_size: usize,
         block_header: BlockHeader,
         should_produce_promises: bool,
-        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Self {
         CommonRunContext {
             db,
@@ -299,7 +299,7 @@ impl CommonRunContext {
             chunk_size,
             block_header,
             should_produce_promises,
-            promise_sender,
+            promise_out_tx,
         }
     }
 
@@ -321,8 +321,8 @@ impl RunContext for CommonRunContext {
         &self.instance_creator
     }
 
-    fn promise_sender(&self) -> &Option<mpsc::UnboundedSender<Promise>> {
-        &self.promise_sender
+    fn promise_out_tx(&self) -> &Option<mpsc::UnboundedSender<Promise>> {
+        &self.promise_out_tx
     }
 
     fn block_header(&self) -> BlockHeader {
@@ -576,7 +576,7 @@ mod chunk_execution_spawn {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let promise_sender = ctx.promise_sender().clone();
+        let promise_out_tx = ctx.promise_out_tx().clone();
         let block_header = ctx.block_header();
         let block_info = BlockInfo {
             height: block_header.height,
@@ -612,7 +612,7 @@ mod chunk_execution_spawn {
                                     block_info,
                                     should_produce_promises,
                                 },
-                                promise_sender.clone(),
+                                promise_out_tx.clone(),
                             )
                             .expect("Some error occurs while running program in instance");
 
@@ -776,7 +776,7 @@ mod tests {
             chunk_size: CHUNK_PROCESSING_THREADS,
             block_header: BlockHeader::dummy(3),
             should_produce_promises: false,
-            promise_sender: None,
+            promise_out_tx: None,
         };
 
         let chunks = chunks_splitting::prepare_execution_chunks(&mut ctx, MessageType::Canonical);

@@ -27,7 +27,6 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_db::Database;
-use ethexe_processor::Processor;
 use futures::StreamExt;
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
@@ -167,13 +166,10 @@ impl TestEnv {
         mark_as_not_prepared(&mut chain);
         chain = chain.setup(&db);
 
-        let config = ComputeConfig::without_quarantine();
-        let compute = ComputeService::new(
-            config,
-            db.clone(),
-            Processor::new(db.clone(), None).unwrap(),
-            None,
-        );
+        let compute = ComputeServiceBuilder::production()
+            .with_defaults(db.clone())
+            .build()
+            .unwrap();
 
         TestEnv { db, compute, chain }
     }

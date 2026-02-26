@@ -25,6 +25,7 @@ interface::declare!(
     pub(super) fn ext_publish_promise(promise_ptr_len: i64);
 );
 
+/// Encode and forward a promise to the host for publication.
 pub fn publish_promise(promise: &Promise) {
     unsafe {
         // Important: the `Promise` struct contains the `ReplyInfo` which have the dynamic type.

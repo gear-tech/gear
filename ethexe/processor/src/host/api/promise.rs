@@ -31,7 +31,7 @@ fn publish_promise(caller: Caller<'_, StoreData>, promise_ptr_len: i64) {
     let memory = MemoryWrap(caller.data().memory());
 
     threads::with_params(|params| {
-        if let Some(ref sender) = params.promise_sender {
+        if let Some(ref sender) = params.promise_out_tx {
             let promise = memory.decode_by_val(&caller, promise_ptr_len);
 
             match sender.send(promise) {

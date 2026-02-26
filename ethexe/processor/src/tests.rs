@@ -98,10 +98,10 @@ mod utils {
 
     pub fn setup_test_env_and_load_codes<const N: usize>(
         codes: [&[u8]; N],
-        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> (Processor, BlockChain, [CodeId; N]) {
         let db = Database::memory();
-        let mut processor = Processor::new(db.clone(), promise_sender).unwrap();
+        let mut processor = Processor::new(db.clone(), promise_out_tx).unwrap();
         let chain = BlockChain::mock(20).setup(&db);
 
         let mut code_ids = Vec::new();
@@ -853,9 +853,9 @@ async fn overlay_execution() {
 async fn injected_ping_pong() {
     init_logger();
 
-    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
+    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
     let (mut processor, chain, [code_id]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY], Some(promise_sender));
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY], Some(promise_out_tx));
     let block1 = chain.blocks[1].to_simple();
 
     let user_1 = ActorId::from(10);
@@ -961,9 +961,9 @@ async fn injected_prioritized_over_canonical() {
 
     init_logger();
 
-    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
+    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
     let (mut processor, chain, [code_id]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY], Some(promise_sender));
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY], Some(promise_out_tx));
     let block1 = chain.blocks[1].to_simple();
 
     let canonical_user = ActorId::from(10);
@@ -1156,9 +1156,9 @@ async fn executable_balance_injected_panic_not_charged() {
 
     init_logger();
 
-    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
+    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
     let (mut processor, chain, [code_id]) =
-        setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY], Some(promise_sender));
+        setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY], Some(promise_out_tx));
     let block1 = chain.blocks[1].to_simple();
 
     let user_id = ActorId::from(10);

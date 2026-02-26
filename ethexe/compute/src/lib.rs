@@ -23,7 +23,7 @@ use gprimitives::{CodeId, H256};
 use std::collections::HashSet;
 
 pub use compute::{ComputeConfig, ComputeSubService, prepare_executable_for_announce};
-pub use service::ComputeService;
+pub use service::{ComputeService, builder::Builder as ComputeServiceBuilder};
 
 mod codes;
 mod compute;

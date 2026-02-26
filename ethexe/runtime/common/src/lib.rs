@@ -89,6 +89,8 @@ pub trait RuntimeInterface: Storage {
     fn init_lazy_pages(&self);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn update_state_hash(&self, state_hash: &H256);
+    /// Publish a promise produced during execution to the compute service layer.
+    /// The implementation is expected to forward it to external subscribers.
     fn publish_promise(&self, promise: &Promise);
 }
 

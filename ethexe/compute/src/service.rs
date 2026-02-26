@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(test)]
+use crate::tests::MockProcessor;
 use crate::{
     ComputeError, ComputeEvent, ProcessorExt, Result,
     codes::CodesSubService,
@@ -24,10 +26,11 @@ use crate::{
 };
 use ethexe_common::{Announce, CodeAndIdUnchecked, injected::Promise};
 use ethexe_db::Database;
-use ethexe_processor::Processor;
+use ethexe_processor::{Processor, ProcessorConfig};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use std::{
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -42,19 +45,6 @@ pub struct ComputeService<P: ProcessorExt = Processor> {
 
 impl<P: ProcessorExt> ComputeService<P> {
     // TODO #4550: consider to create Processor inside ComputeService
-    pub fn new(
-        config: ComputeConfig,
-        db: Database,
-        processor: P,
-        promise_receiver: Option<mpsc::UnboundedReceiver<Promise>>,
-    ) -> Self {
-        Self {
-            prepare_sub_service: PrepareSubService::new(db.clone()),
-            compute_sub_service: ComputeSubService::new(config, db.clone(), processor.clone()),
-            codes_sub_service: CodesSubService::new(db, processor),
-            promise_receiver,
-        }
-    }
 
     pub fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) {
         self.codes_sub_service.receive_code_to_process(code_and_id);
@@ -125,10 +115,130 @@ pub(crate) trait SubService: Unpin + Send + 'static {
     }
 }
 
+pub(crate) mod builder {
+    use super::*;
+
+    // Builder states
+    #[cfg(test)]
+    #[derive(Default)]
+    pub struct Mock;
+    #[derive(Default)]
+    pub struct Production;
+    #[derive(Default)]
+    pub struct SetDatabase;
+    #[derive(Default)]
+    pub struct SetComputeConfig;
+    #[derive(Default)]
+    pub struct SetProcessorConfig;
+
+    #[derive(Default)]
+    pub struct Builder<State> {
+        config: Option<ComputeConfig>,
+        db: Option<Database>,
+        processor_config: Option<ProcessorConfig>,
+        _state: PhantomData<State>,
+    }
+
+    #[cfg(test)]
+    impl Builder<Mock> {
+        pub(crate) fn mock() -> Self {
+            Self::default()
+        }
+
+        #[allow(unused)]
+        pub(crate) fn with_config(mut self, config: ComputeConfig) -> Self {
+            self.config = Some(config);
+            self
+        }
+
+        #[allow(unused)]
+        pub(crate) fn with_db(mut self, db: Database) -> Self {
+            self.db = Some(db);
+            self
+        }
+
+        pub(crate) fn build(self) -> ComputeService<MockProcessor> {
+            let processor = MockProcessor;
+            let config = self.config.unwrap_or(ComputeConfig::without_quarantine());
+            let db = self.db.unwrap_or(Database::memory());
+
+            ComputeService {
+                prepare_sub_service: PrepareSubService::new(db.clone()),
+                compute_sub_service: ComputeSubService::new(config, db.clone(), processor.clone()),
+                codes_sub_service: CodesSubService::new(db, processor),
+                promise_receiver: None,
+            }
+        }
+    }
+
+    impl Builder<Production> {
+        pub fn production() -> Self {
+            Self::default()
+        }
+
+        pub fn with_db(self, db: Database) -> Builder<SetDatabase> {
+            Builder {
+                db: Some(db),
+                _state: PhantomData,
+                ..Default::default()
+            }
+        }
+
+        #[cfg(test)]
+        pub fn with_defaults(self, db: Database) -> Builder<SetProcessorConfig> {
+            self.with_db(db)
+                .with_compute_config(ComputeConfig::without_quarantine())
+                .with_processor_config(ProcessorConfig::default())
+        }
+    }
+
+    impl Builder<SetDatabase> {
+        pub fn with_compute_config(self, config: ComputeConfig) -> Builder<SetComputeConfig> {
+            Builder {
+                db: self.db,
+                config: Some(config),
+                _state: PhantomData,
+                ..Default::default()
+            }
+        }
+    }
+
+    impl Builder<SetComputeConfig> {
+        pub fn with_processor_config(self, config: ProcessorConfig) -> Builder<SetProcessorConfig> {
+            Builder {
+                db: self.db,
+                config: self.config,
+                processor_config: Some(config),
+                _state: PhantomData,
+            }
+        }
+    }
+
+    impl Builder<SetProcessorConfig> {
+        pub fn build(self) -> Result<ComputeService> {
+            let db = self.db.unwrap();
+            let config = self.config.unwrap();
+            let processor_config = self.processor_config.unwrap();
+
+            let (promise_out_tx, promise_receiver) = mpsc::unbounded_channel();
+            let processor =
+                Processor::with_config(processor_config, db.clone(), Some(promise_out_tx))?;
+
+            Ok(ComputeService {
+                prepare_sub_service: PrepareSubService::new(db.clone()),
+                compute_sub_service: ComputeSubService::new(config, db.clone(), processor.clone()),
+                codes_sub_service: CodesSubService::new(db, processor),
+                promise_receiver: Some(promise_receiver),
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::ComputeServiceBuilder;
+
     use super::*;
-    use crate::tests::MockProcessor;
     use ethexe_common::{CodeAndIdUnchecked, db::*, mock::*};
     use ethexe_db::Database as DB;
     use futures::StreamExt;
@@ -141,9 +251,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let db = DB::memory();
-        let processor = MockProcessor;
-        let config = ComputeConfig::without_quarantine();
-        let mut service = ComputeService::new(config, db.clone(), processor, None);
+        let mut service = ComputeServiceBuilder::mock().with_db(db.clone()).build();
 
         let chain = BlockChain::mock(1).setup(&db);
         let block = chain.blocks[1].to_simple().next_block().setup(&db);
@@ -165,10 +273,8 @@ mod tests {
         gear_utils::init_default_logger();
 
         let db = DB::memory();
-        let processor = MockProcessor;
+        let mut service = ComputeServiceBuilder::mock().with_db(db.clone()).build();
 
-        let config = ComputeConfig::without_quarantine();
-        let mut service = ComputeService::new(config, db.clone(), processor, None);
         let chain = BlockChain::mock(1).setup(&db);
 
         let block = chain.blocks[1].to_simple().next_block().setup(&db);
@@ -201,9 +307,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let db = DB::memory();
-        let processor = MockProcessor;
-        let config = ComputeConfig::without_quarantine();
-        let mut service = ComputeService::new(config, db.clone(), processor, None);
+        let mut service = ComputeServiceBuilder::mock().with_db(db.clone()).build();
 
         // Create test code
         let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header
