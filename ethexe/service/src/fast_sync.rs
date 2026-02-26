@@ -20,10 +20,11 @@ use crate::Service;
 use anyhow::{Context, Result};
 use ethexe_common::{
     Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, StateHashWithQueueSize,
+    SimpleBlockData, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
-        ComputedAnnounceData, OnChainStorageRW, PreparedBlockData,
+        ComputedAnnounceData, ConfigStorageRO, GlobalsStorageRW, OnChainStorageRW,
+        PreparedBlockData,
     },
     events::{
         BlockEvent, RouterEvent,
@@ -344,7 +345,7 @@ impl RequestManager {
     fn handle_pending_requests(&mut self) -> HashMap<H256, RequestMetadata> {
         let mut pending_requests = HashMap::new();
         for (hash, metadata) in self.pending_requests.drain() {
-            if metadata.is_data() && self.db.contains_hash(hash) {
+            if metadata.is_data() && self.db.cas().contains(hash) {
                 self.total_completed_requests += 1;
                 continue;
             }
@@ -371,7 +372,7 @@ impl RequestManager {
                 .remove(&hash)
                 .expect("unknown pending request");
 
-            let db_hash = self.db.write_hash(&data);
+            let db_hash = self.db.cas().write(&data);
             debug_assert_eq!(hash, db_hash);
 
             self.responses.push((metadata, data));
@@ -712,15 +713,9 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let storage_view = observer.router_query().storage_view_at(block_hash).await?;
 
-    let timelines = ProtocolTimelines {
-        genesis_ts: storage_view.genesisBlock.timestamp.to::<u64>(),
-        election: storage_view.timelines.election.to::<u64>(),
-        era: storage_view.timelines.era.to::<u64>(),
-    };
-
     // Since we get storage view at `block_hash`
     // then latest committed era is for the largest `useFromTimestamp`
-    let latest_era_with_committed_validators = timelines.era_from_ts(max(
+    let latest_era_with_committed_validators = db.config().timelines.era_from_ts(max(
         storage_view
             .validationSettings
             .validators0
@@ -735,7 +730,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     // TODO: #5020 whether we need to setup validators here?
 
-    ethexe_common::setup_start_block_in_db(
+    ethexe_common::setup_block_in_db(
         db,
         block_hash,
         PreparedBlockData {
@@ -752,6 +747,10 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             last_committed_batch: latest_committed_batch,
             last_committed_announce: announce_hash,
         },
+    );
+
+    ethexe_common::setup_announce_in_db(
+        db,
         ComputedAnnounceData {
             announce,
             program_states,
@@ -760,8 +759,18 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             outcome: Default::default(),
             schedule: schedule.clone(),
         },
-        timelines,
     );
+
+    db.globals_mutate(|globals| {
+        globals.start_block_hash = block_hash;
+        globals.start_announce_hash = announce_hash;
+        globals.latest_synced_block = SimpleBlockData {
+            hash: block_hash,
+            header,
+        };
+        globals.latest_prepared_block_hash = block_hash;
+        globals.latest_computed_announce_hash = announce_hash;
+    });
 
     log::info!(
         "Fast synchronization done: synced to {block_hash:?}, height {:?}",

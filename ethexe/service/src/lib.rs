@@ -29,14 +29,15 @@ use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_db::{Database, RocksDatabase};
+use ethexe_db::{Database, DatabaseRef, RocksDatabase};
+use ethexe_db_init::InitConfig;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
 };
 use ethexe_observer::{
-    ObserverEvent, ObserverService,
+    ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -218,7 +219,21 @@ impl Service {
                 .database_path_for(config.ethereum.router_address),
         )
         .with_context(|| "failed to open database")?;
-        let db = Database::from_one(&rocks_db);
+
+        ethexe_db_init::initialize_db(
+            InitConfig {
+                ethereum_rpc: config.ethereum.rpc.clone(),
+                router_address: config.ethereum.router_address,
+                slot_duration_secs: config.ethereum.block_time.as_secs(),
+            },
+            DatabaseRef {
+                cas: &rocks_db,
+                kv: &rocks_db,
+            },
+        )
+        .await?;
+
+        let db = Database::from_one(&rocks_db)?;
 
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: config.ethereum.rpc.clone(),
@@ -237,10 +252,16 @@ impl Service {
             None
         };
 
-        let observer =
-            ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
-                .await
-                .context("failed to create observer service")?;
+        let observer = ObserverService::new(
+            db.clone(),
+            ObserverConfig {
+                rpc: &config.ethereum.rpc,
+                max_sync_depth: Some(config.node.eth_max_sync_depth),
+            },
+        )
+        .await
+        .context("failed to create observer service")?;
+
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)
@@ -362,7 +383,7 @@ impl Service {
                 general_signer: signer.clone(),
                 network_signer,
                 external_data_provider: Box::new(RouterDataProvider(router_query)),
-                db: Box::new(db.clone()),
+                db: db.clone(),
             };
 
             let network = NetworkService::new(net_config.clone(), runtime_config)

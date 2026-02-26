@@ -94,6 +94,12 @@ impl<T> Hash for HashOf<T> {
     }
 }
 
+impl<T> AsRef<[u8]> for HashOf<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.hash.as_ref()
+    }
+}
+
 impl<T> HashOf<T> {
     /// # Safety
     /// Use it only for low-level storage implementations or tests.
@@ -116,7 +122,7 @@ impl<T> HashOf<T> {
         }
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "mock")]
     pub fn random() -> Self {
         Self {
             hash: H256::random(),

@@ -32,8 +32,9 @@ lru.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
-tokio.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
+ethexe-db = { workspace = true, features = ["mock"] }
+tokio.workspace = true
 gear-utils.workspace = true
 gear-core.workspace = true
 ntest.workspace = true

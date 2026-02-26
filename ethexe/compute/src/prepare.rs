@@ -20,8 +20,8 @@ use crate::{ComputeError, ComputeEvent, Result, service::SubService};
 use ethexe_common::{
     BlockData,
     db::{
-        BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, LatestDataStorageRW,
-        OnChainStorageRO, OnChainStorageRW,
+        BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, GlobalsStorageRW, OnChainStorageRO,
+        OnChainStorageRW,
     },
     events::{
         BlockEvent, RouterEvent,
@@ -279,7 +279,7 @@ fn missing_data(db: &Database, chain: &VecDeque<BlockData>, is_start: bool) -> R
     })
 }
 
-fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStorageRW>(
+fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageRW>(
     db: &DB,
     block: BlockData,
 ) -> Result<()> {
@@ -296,13 +296,10 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
 
     let mut last_committed_announce_hash = None;
+
     let mut latest_validators_committed_era = db
         .block_validators_committed_for_era(parent)
-        .unwrap_or_else(|| {
-            // TODO: !!! temporary fix
-            let tl = db.protocol_timelines().expect("must be");
-            tl.era_from_ts(block.header.timestamp)
-        });
+        .ok_or(ComputeError::CommittedEraNotFound(parent))?;
 
     for event in block.events {
         match event {
@@ -353,6 +350,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
                 .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
         };
 
+    db.set_block_validators_committed_for_era(block.hash, latest_validators_committed_era);
+
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
         meta.codes_queue = Some(codes_queue);
@@ -360,12 +359,9 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
         meta.prepared = true;
     });
 
-    db.mutate_latest_data(|data| {
-        data.prepared_block_hash = block.hash;
-    })
-    .ok_or(ComputeError::LatestDataNotFound)?;
-
-    db.set_block_validators_committed_for_era(block.hash, latest_validators_committed_era);
+    db.globals_mutate(|globals| {
+        globals.latest_prepared_block_hash = block.hash;
+    });
 
     Ok(())
 }

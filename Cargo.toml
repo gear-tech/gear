@@ -111,6 +111,7 @@ members = [
     "ethexe/*",
     "ethexe/runtime/common",
     "ethexe/service/utils",
+    "ethexe/db/init",
 ]
 
 [workspace.dependencies]
@@ -332,6 +333,7 @@ ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common", default-features = false }
 ethexe-compute = { path = "ethexe/compute", default-features = false }
 ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
+ethexe-db-init = { path = "ethexe/db/init", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { version = "0.38" }
@@ -592,6 +594,7 @@ ignored = [
     "pallet-authorship",
     "pallet-timestamp",
     "sp-application-crypto",
+    "ethexe-sdk",
 ]
 
 [profile.dev.package.corosensei]

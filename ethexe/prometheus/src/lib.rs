@@ -18,7 +18,7 @@
 
 use anyhow::{Context as _, Result};
 use ethexe_common::db::{
-    AnnounceStorageRO, BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO,
+    AnnounceStorageRO, BlockMetaStorageRO, GlobalsStorageRO, OnChainStorageRO,
 };
 use ethexe_db::Database;
 use futures::{FutureExt, Stream, stream::FusedStream};
@@ -182,34 +182,28 @@ async fn request_metrics(
 }
 
 fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
-    let Some(latest_data) = db.latest_data() else {
-        return;
-    };
-
-    let Some(header) = db
-        .block_meta(latest_data.prepared_block_hash)
+    let Some(latest_committed_block_header) = db
+        .block_meta(db.globals().latest_prepared_block_hash)
         .last_committed_announce
-        .and_then(|hash| db.announce(hash))
+        .and_then(|a| db.announce(a))
         .and_then(|a| db.block_header(a.block_hash))
     else {
         return;
     };
 
-    let latest_committed_block_timestamp = header.timestamp;
-    let latest_committed_block_number = header.height;
-
-    let time_since_latest_committed_secs = latest_data
-        .synced_block
+    let time_since_latest_committed_secs = db
+        .globals()
+        .latest_synced_block
         .header
         .timestamp
-        .saturating_sub(latest_committed_block_timestamp);
+        .saturating_sub(latest_committed_block_header.timestamp);
 
     metrics
         .latest_committed_block_number
-        .set(latest_committed_block_number as f64);
+        .set(latest_committed_block_header.height as f64);
     metrics
         .latest_committed_block_timestamp
-        .set(latest_committed_block_timestamp as f64);
+        .set(latest_committed_block_header.timestamp as f64);
     metrics
         .time_since_latest_committed_secs
         .set(time_since_latest_committed_secs as f64);

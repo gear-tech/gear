@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::sol;
-
 mod events;
 mod gear;
 
+use alloy::sol;
 pub use middleware_abi::*;
 pub use mirror_abi::*;
 

@@ -50,13 +50,13 @@ use crate::{
         tx_pool::InjectedTxPool,
     },
 };
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
     Address, ComputedAnnounce, SimpleBlockData, ToDigest,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::ConfigStorageRO,
     ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
     network::AnnouncesResponse,
@@ -134,9 +134,7 @@ impl ValidatorService {
         db: Database,
         config: ValidatorConfig,
     ) -> Result<Self> {
-        let timelines = db
-            .protocol_timelines()
-            .ok_or_else(|| anyhow!("Protocol timelines not found in database"))?;
+        let timelines = db.config().timelines;
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,

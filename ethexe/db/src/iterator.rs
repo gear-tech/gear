@@ -21,7 +21,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{
         AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, CodesStorageRO,
-        LatestDataStorageRO, OnChainStorageRO,
+        OnChainStorageRO,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -43,23 +43,12 @@ use std::{
 };
 
 pub trait DatabaseIteratorStorage:
-    OnChainStorageRO
-    + BlockMetaStorageRO
-    + AnnounceStorageRO
-    + CodesStorageRO
-    + LatestDataStorageRO
-    + Storage
+    OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO + Storage
 {
 }
 
-impl<
-    T: OnChainStorageRO
-        + BlockMetaStorageRO
-        + AnnounceStorageRO
-        + CodesStorageRO
-        + LatestDataStorageRO
-        + Storage,
-> DatabaseIteratorStorage for T
+impl<T: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO + Storage>
+    DatabaseIteratorStorage for T
 {
 }
 

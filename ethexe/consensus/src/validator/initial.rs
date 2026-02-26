@@ -296,7 +296,7 @@ mod tests {
         .into();
 
         let chain = BlockChain::mock((2, validators)).setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[2].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block).unwrap();
@@ -322,7 +322,7 @@ mod tests {
         .into();
 
         let chain = BlockChain::mock((1, validators)).setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[1].to_simple();
         let state = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(state.is_initial(), "got {:?}", state);
@@ -358,7 +358,7 @@ mod tests {
 
         chain.blocks[last].as_prepared_mut().last_committed_announce = announce1.to_hash();
         let chain = chain.setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block)
@@ -430,7 +430,7 @@ mod tests {
                 );
             })
             .setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block)
@@ -466,7 +466,7 @@ mod tests {
                 });
             })
             .setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let head = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, head)
@@ -619,7 +619,7 @@ mod tests {
         }
 
         let chain = chain.setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block)

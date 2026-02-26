@@ -51,7 +51,7 @@ use ethexe_common::{
 };
 use ethexe_compute::ComputeConfig;
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
-use ethexe_db::{Database, verifier::IntegrityVerifier};
+use ethexe_db::verifier::IntegrityVerifier;
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_prometheus::PrometheusConfig;
@@ -1234,7 +1234,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::memory();
+    node.db = env.new_initialized_db();
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING").await.unwrap();
@@ -1521,11 +1521,7 @@ async fn send_injected_tx() {
     env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
-    let reference_block = node0
-        .db
-        .latest_data()
-        .expect("latest data not found")
-        .prepared_block_hash;
+    let reference_block = node0.db.globals().latest_prepared_block_hash;
 
     // Prepare tx data
     let tx = InjectedTransaction {
@@ -1592,24 +1588,15 @@ async fn fast_sync() {
             .verify_chain(latest_block, fast_synced_block)
             .expect("failed to verify Bob database");
 
-        let alice_latest_data = alice.db.latest_data().expect("latest data not found");
-        let bob_latest_data = bob.db.latest_data().expect("latest data not found");
+        let alice_globals = alice.db.globals();
+        let bob_globals = bob.db.globals();
         assert_eq!(
-            alice_latest_data.computed_announce_hash,
-            bob_latest_data.computed_announce_hash
-        );
-        assert_eq!(alice_latest_data.synced_block, bob_latest_data.synced_block);
-        assert_eq!(
-            alice_latest_data.prepared_block_hash,
-            bob_latest_data.prepared_block_hash
+            alice_globals.latest_computed_announce_hash,
+            bob_globals.latest_computed_announce_hash
         );
         assert_eq!(
-            alice_latest_data.genesis_block_hash,
-            bob_latest_data.genesis_block_hash
-        );
-        assert_eq!(
-            alice_latest_data.genesis_announce_hash,
-            bob_latest_data.genesis_announce_hash
+            alice_globals.latest_prepared_block_hash,
+            bob_globals.latest_prepared_block_hash
         );
 
         let mut block = latest_block;
@@ -2463,7 +2450,7 @@ async fn injected_tx_fungible_token() {
         destination: usdt_actor_id,
         payload: mint_action.encode().into(),
         value: 0,
-        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        reference_block: node.db.globals().latest_prepared_block_hash,
         salt: vec![1u8].into(),
     };
 
@@ -2550,7 +2537,7 @@ async fn injected_tx_fungible_token() {
         destination: usdt_actor_id,
         payload: transfer_action.encode().into(),
         value: 0,
-        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        reference_block: node.db.globals().latest_prepared_block_hash,
         salt: vec![1u8, 2u8, 3u8].into(),
     };
 
@@ -2681,7 +2668,7 @@ async fn injected_tx_fungible_token_over_network() {
         destination: usdt_actor_id,
         payload: mint_action.encode().into(),
         value: 0,
-        reference_block: bob_node.db.latest_data().unwrap().prepared_block_hash,
+        reference_block: bob_node.db.globals().latest_prepared_block_hash,
         salt: vec![1u8].into(),
     };
 
@@ -2833,7 +2820,7 @@ async fn announces_conflicts() {
         let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
         let announce_hash = announce.to_hash();
@@ -2931,7 +2918,7 @@ async fn announces_conflicts() {
 
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
         let announce6_hash = announce6.to_hash();
@@ -2955,7 +2942,7 @@ async fn announces_conflicts() {
         // Announce is not on top of announce6 (already accepted),
         // so must be rejected by validators 1..=5
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let parent = validator1_db
             .block_meta(block.header.parent_hash)
