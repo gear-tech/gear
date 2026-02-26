@@ -306,61 +306,61 @@ fn find_canonical_events_post_quarantine(
         .ok_or(ComputeError::BlockEventsNotFound(block_hash))
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-//     use ethexe_common::{gear::StateTransition, mock::*};
-//     use gprimitives::{ActorId, H256};
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::{MockProcessor, PROCESSOR_RESULT};
+    use ethexe_common::{gear::StateTransition, mock::*};
+    use gprimitives::{ActorId, H256};
 
-//     #[tokio::test]
-//     #[ntest::timeout(3000)]
-//     async fn test_compute() {
-//         gear_utils::init_default_logger();
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn test_compute() {
+        gear_utils::init_default_logger();
 
-//         let db = Database::memory();
-//         let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
-//         let config = ComputeConfig::without_quarantine();
-//         let mut service = ComputeSubService::new(config, db.clone(), MockProcessor);
+        let db = Database::memory();
+        let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeSubService::new(config, db.clone(), MockProcessor);
 
-//         let announce = Announce {
-//             block_hash,
-//             parent: db.latest_data().unwrap().genesis_announce_hash,
-//             gas_allowance: Some(100),
-//             injected_transactions: vec![],
-//         };
-//         let announce_hash = announce.to_hash();
+        let announce = Announce {
+            block_hash,
+            parent: db.latest_data().unwrap().genesis_announce_hash,
+            gas_allowance: Some(100),
+            injected_transactions: vec![],
+        };
+        let announce_hash = announce.to_hash();
 
-//         // Create non-empty processor result with transitions
-//         let non_empty_result = FinalizedBlockTransitions {
-//             transitions: vec![StateTransition {
-//                 actor_id: ActorId::from([1; 32]),
-//                 new_state_hash: H256::from([2; 32]),
-//                 value_to_receive: 100,
-//                 ..Default::default()
-//             }],
-//             ..Default::default()
-//         };
+        // Create non-empty processor result with transitions
+        let non_empty_result = FinalizedBlockTransitions {
+            transitions: vec![StateTransition {
+                actor_id: ActorId::from([1; 32]),
+                new_state_hash: H256::from([2; 32]),
+                value_to_receive: 100,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
 
-//         // Set the PROCESSOR_RESULT to return non-empty result
-//         PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
-//         service.receive_announce_to_compute(announce);
+        // Set the PROCESSOR_RESULT to return non-empty result
+        PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
+        service.receive_announce_to_compute(announce, false);
 
-//         assert_eq!(service.next().await.unwrap().announce_hash, announce_hash);
+        assert_eq!(service.next().await.unwrap(), announce_hash);
 
-//         // Verify block was marked as computed
-//         assert!(db.announce_meta(announce_hash).computed);
+        // Verify block was marked as computed
+        assert!(db.announce_meta(announce_hash).computed);
 
-//         // Verify transitions were stored in DB
-//         let stored_transitions = db.announce_outcome(announce_hash).unwrap();
-//         assert_eq!(stored_transitions.len(), 1);
-//         assert_eq!(stored_transitions[0].actor_id, ActorId::from([1; 32]));
-//         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
+        // Verify transitions were stored in DB
+        let stored_transitions = db.announce_outcome(announce_hash).unwrap();
+        assert_eq!(stored_transitions.len(), 1);
+        assert_eq!(stored_transitions[0].actor_id, ActorId::from([1; 32]));
+        assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
 
-//         // Verify latest announce
-//         assert_eq!(
-//             db.latest_data().unwrap().computed_announce_hash,
-//             announce_hash
-//         );
-//     }
-// }
+        // Verify latest announce
+        assert_eq!(
+            db.latest_data().unwrap().computed_announce_hash,
+            announce_hash
+        );
+    }
+}

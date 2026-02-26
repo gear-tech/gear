@@ -137,11 +137,12 @@ pub(crate) mod builder {
     /// Provides the easy construction the [`ComputeService`] for both
     /// testing and production environments.
     #[derive(Default)]
-    pub struct Builder<Env, C = Unset, D = Unset, P = Unset> {
+    pub struct Builder<Env, Config = Unset, DB = Unset, Processor = Unset> {
         config: Option<ComputeConfig>,
         db: Option<Database>,
         processor_config: Option<ProcessorConfig>,
-        _state: PhantomData<(Env, C, D, P)>,
+
+        _state: PhantomData<(Env, Config, DB, Processor)>,
     }
 
     /// Mock builder uses defaults when fields are None; type-states are fixed to Set.
@@ -195,6 +196,8 @@ pub(crate) mod builder {
         }
     }
 
+    // Important: production builder allows to set variable only once.
+
     impl<D, P> Builder<Production, Unset, D, P> {
         pub fn compute_config(self, config: ComputeConfig) -> Builder<Production, Set, D, P> {
             Builder {
@@ -228,12 +231,11 @@ pub(crate) mod builder {
         }
     }
 
+    /// Implementation for builder with all filled fields.
     impl Builder<Production, Set, Set, Set> {
         /// Creates the [`ComputeService`] from a production builder.
         pub fn build(self) -> Result<ComputeService> {
-            let db = self.db.unwrap();
-            let config = self.config.unwrap();
-            let processor_config = self.processor_config.unwrap();
+            let (config, db, processor_config) = self.into_parts_unchecked();
 
             let (promise_out_tx, promise_receiver) = mpsc::unbounded_channel();
             let processor =
@@ -245,6 +247,15 @@ pub(crate) mod builder {
                 codes_sub_service: CodesSubService::new(db, processor),
                 promise_receiver: Some(promise_receiver),
             })
+        }
+
+        /// Reconstructs builder into parts..
+        fn into_parts_unchecked(self) -> (ComputeConfig, Database, ProcessorConfig) {
+            (
+                self.config.unwrap(),
+                self.db.unwrap(),
+                self.processor_config.unwrap(),
+            )
         }
     }
 }
