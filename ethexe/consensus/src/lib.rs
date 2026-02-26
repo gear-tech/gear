@@ -36,7 +36,7 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    injected::SignedInjectedTransaction,
+    injected::{Promise, SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
@@ -75,6 +75,9 @@ pub trait ConsensusService:
 
     /// Process a received producer announce
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()>;
+
+    /// Receives the raw promise for signing.
+    fn receive_promise_for_signing(&mut self, promise: Promise) -> Result<()>;
 
     /// Process a received validation request
     fn receive_validation_request(&mut self, request: VerifiedValidationRequest) -> Result<()>;
@@ -119,6 +122,8 @@ pub enum ConsensusEvent {
     /// Informational event: commitment was successfully submitted
     #[from]
     CommitmentSubmitted(CommitmentSubmitted),
+    #[from]
+    SignedPromise(SignedPromise),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }

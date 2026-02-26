@@ -30,7 +30,7 @@ use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
-    injected::SignedInjectedTransaction,
+    injected::{Promise, SignedInjectedTransaction},
     network::{AnnouncesRequest, AnnouncesResponse},
 };
 use ethexe_db::Database;
@@ -282,6 +282,13 @@ impl ConsensusService for ConnectService {
                 .push((sender, announce.block_hash), announce);
         }
 
+        Ok(())
+    }
+
+    fn receive_promise_for_signing(&mut self, promise: Promise) -> Result<()> {
+        tracing::error!(
+            "Connected consensus node receives the promise for signing, but it not responsible for promises providing: promise={promise:?}"
+        );
         Ok(())
     }
 

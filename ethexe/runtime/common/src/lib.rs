@@ -79,7 +79,7 @@ pub struct ProcessQueueContext {
     pub gas_allowance: GasAllowanceCounter,
     pub block_info: BlockInfo,
     // TODO: fix the naming
-    /// Wether should compute service produce promises
+    /// Whether should compute service produce promises
     pub should_produce_promises: bool,
 }
 

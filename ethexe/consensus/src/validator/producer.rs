@@ -28,7 +28,7 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, network::ValidatorMessage,
+    gear::BatchCommitment, injected::Promise, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -102,6 +102,20 @@ impl StateHandler for Producer {
             }
             _ => DefaultProcessing::computed_announce(self, announce_hash),
         }
+    }
+
+    fn process_raw_promise(mut self, promise: Promise) -> Result<ValidatorState> {
+        let tx_hash = promise.tx_hash;
+
+        let signed_promise =
+            self.ctx
+                .core
+                .signer
+                .signed_message(self.ctx.core.pub_key, promise, None)?;
+        self.ctx.output(signed_promise);
+
+        tracing::trace!("consensus sign promise for transaction-hash={tx_hash}");
+        Ok(self.into())
     }
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {

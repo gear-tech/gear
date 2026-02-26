@@ -45,7 +45,7 @@ use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
-use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
+use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
 use std::{
     collections::{BTreeSet, HashMap},
     num::NonZero,
@@ -457,7 +457,7 @@ impl Service {
             mut blob_loader,
             mut compute,
             mut consensus,
-            signer,
+            signer: _signer,
             mut prometheus,
             rpc,
             fast_sync: _,
@@ -554,22 +554,7 @@ impl Service {
                         // Nothing
                     }
                     ComputeEvent::Promise(promise) => {
-                        // TODO: think to send the promise to consensus service
-                        if let Some(pub_key) = validator_pub_key {
-                            let signed_promise = signer.signed_message(pub_key, promise, None)?;
-
-                            if rpc.is_none() && network.is_none() {
-                                panic!("Promise without network or rpc");
-                            }
-
-                            if let Some(rpc) = &rpc {
-                                rpc.provide_promise(signed_promise.clone());
-                            }
-
-                            if let Some(network) = &mut network {
-                                network.publish_promise(signed_promise);
-                            }
-                        }
+                        consensus.receive_promise_for_signing(promise)?;
                     }
                 },
                 Event::Network(event) => {
@@ -664,6 +649,19 @@ impl Service {
                 Event::Consensus(event) => match event {
                     ConsensusEvent::ComputeAnnounce(announce, should_produce_promises) => {
                         compute.compute_announce(announce, should_produce_promises)
+                    }
+                    ConsensusEvent::SignedPromise(signed_promise) => {
+                        if rpc.is_none() && network.is_none() {
+                            panic!("Promise without network or rpc");
+                        }
+
+                        if let Some(rpc) = &rpc {
+                            rpc.provide_promise(signed_promise.clone());
+                        }
+
+                        if let Some(network) = &mut network {
+                            network.publish_promise(signed_promise);
+                        }
                     }
                     ConsensusEvent::PublishMessage(message) => {
                         let Some(network) = network.as_mut() else {

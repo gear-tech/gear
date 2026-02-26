@@ -58,7 +58,7 @@ use ethexe_common::{
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
-    injected::SignedInjectedTransaction,
+    injected::{Promise, SignedInjectedTransaction},
     network::AnnouncesResponse,
 };
 use ethexe_db::Database;
@@ -218,6 +218,10 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_announce(announce))
     }
 
+    fn receive_promise_for_signing(&mut self, promise: Promise) -> Result<()> {
+        self.update_inner(|inner| inner.process_raw_promise(promise))
+    }
+
     fn receive_validation_request(&mut self, batch: VerifiedValidationRequest) -> Result<()> {
         self.update_inner(|inner| inner.process_validation_request(batch))
     }
@@ -322,6 +326,10 @@ where
         DefaultProcessing::announce_from_producer(self, announce)
     }
 
+    fn process_raw_promise(self, promise: Promise) -> Result<ValidatorState> {
+        DefaultProcessing::promise_for_signing(self, promise)
+    }
+
     fn process_validation_request(
         self,
         request: VerifiedValidationRequest,
@@ -410,6 +418,10 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_announce(verified_announce))
     }
 
+    fn process_raw_promise(self, promise: Promise) -> Result<ValidatorState> {
+        delegate_call!(self => process_raw_promise(promise))
+    }
+
     fn process_validation_request(
         self,
         request: VerifiedValidationRequest,
@@ -462,6 +474,17 @@ impl DefaultProcessing {
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!("unexpected computed announce: {}", announce_hash));
+        Ok(s)
+    }
+
+    fn promise_for_signing(
+        s: impl Into<ValidatorState>,
+        promise: Promise,
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
+        s.warning(format!(
+            "unexpected promise for signing: promise={promise:?}"
+        ));
         Ok(s)
     }
 
