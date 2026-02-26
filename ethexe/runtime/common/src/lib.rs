@@ -28,7 +28,11 @@ use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
 };
-use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
+use ethexe_common::{
+    HashOf,
+    gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
+    injected::Promise,
+};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     gas::GasAllowanceCounter,
@@ -38,7 +42,7 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::{H256, MessageId};
+use gprimitives::H256;
 use gsys::{GasMultiplier, Percent};
 use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
@@ -85,8 +89,7 @@ pub trait RuntimeInterface: Storage {
     fn init_lazy_pages(&self);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn update_state_hash(&self, state_hash: &H256);
-    // TODO: create more meaningful function name
-    fn send_promise(&self, reply: &ReplyInfo, message_id: &MessageId);
+    fn publish_promise(&self, promise: &Promise);
 }
 
 /// A main low-level interface to perform state changes
@@ -230,6 +233,7 @@ where
             stop_processing: false,
         };
 
+        // TODO: move to separate function
         if ctx.should_produce_promises && is_promise_required {
             for note in journal.iter() {
                 if let JournalNote::SendDispatch {
@@ -251,7 +255,10 @@ where
                         payload: dispatch.message().payload_bytes().to_vec(),
                     };
 
-                    ri.send_promise(&reply, &dispatch_id);
+                    let tx_hash = unsafe { HashOf::new(dispatch_id.into_bytes().into()) };
+                    let promise = Promise { reply, tx_hash };
+
+                    ri.publish_promise(&promise);
                     break;
                 }
             }

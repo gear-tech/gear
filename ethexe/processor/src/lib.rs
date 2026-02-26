@@ -108,6 +108,11 @@ pub struct Processor {
     config: ProcessorConfig,
     db: Database,
     creator: InstanceCreator,
+    // TODO: Think about adding the
+    // #[cfg(test)]
+    // promise_sender: Option<mpsc::UnboundedSender<Promise>>,
+    // #[cfg(not(test))]
+    // promise_sender: mpsc::UnboundedSender<Promise>,
     promise_sender: Option<mpsc::UnboundedSender<Promise>>,
 }
 
@@ -258,8 +263,9 @@ impl Processor {
             self.config.chunk_size,
             block.header,
             should_produce_promises,
+            self.promise_sender.clone(),
         )
-        .run(self.promise_sender.clone())
+        .run()
         .await
     }
 
@@ -407,7 +413,7 @@ impl OverlaidProcessor {
             self.0.creator.clone(),
             block.header,
         )
-        .run(self.0.promise_sender.clone())
+        .run()
         .await?;
 
         let res = transitions

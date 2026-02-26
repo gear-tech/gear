@@ -20,7 +20,7 @@ use crate::wasm::interface::promise_ri;
 
 use super::interface::database_ri;
 use alloc::vec::Vec;
-use ethexe_common::HashOf;
+use ethexe_common::{HashOf, injected::Promise};
 use ethexe_runtime_common::{
     RuntimeInterface,
     state::{
@@ -28,9 +28,9 @@ use ethexe_runtime_common::{
         ProgramState, Storage, UserMailbox, Waitlist,
     },
 };
-use gear_core::{buffer::Payload, memory::PageBuf, rpc::ReplyInfo};
+use gear_core::{buffer::Payload, memory::PageBuf};
 use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
-use gprimitives::{H256, MessageId};
+use gprimitives::H256;
 
 #[derive(Debug, Clone)]
 pub struct NativeRuntimeInterface;
@@ -153,7 +153,7 @@ impl RuntimeInterface for NativeRuntimeInterface {
         database_ri::update_state_hash(hash);
     }
 
-    fn send_promise(&self, reply: &ReplyInfo, message_id: &MessageId) {
-        promise_ri::send_promise(reply, message_id);
+    fn publish_promise(&self, promise: &Promise) {
+        promise_ri::publish_promise(promise);
     }
 }

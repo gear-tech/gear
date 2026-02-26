@@ -87,17 +87,15 @@ impl OverlaidRunContext {
                 chunk_size,
                 block_header,
                 false,
+                None,
             ),
             base_program,
             nullified_queue_programs: [base_program].into_iter().collect(),
         }
     }
 
-    pub(crate) async fn run(
-        mut self,
-        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
-    ) -> Result<InBlockTransitions> {
-        let _ = run::run_for_queue_type(&mut self, MessageType::Canonical, promise_sender).await?;
+    pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
+        let _ = run::run_for_queue_type(&mut self, MessageType::Canonical).await?;
         Ok(self.inner.transitions)
     }
 
@@ -177,6 +175,11 @@ impl OverlaidRunContext {
 impl RunContext for OverlaidRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.inner.instance_creator
+    }
+
+    fn promise_sender(&self) -> &Option<mpsc::UnboundedSender<Promise>> {
+        // OverlaidRunContext should never produce promises
+        &None
     }
 
     fn block_header(&self) -> BlockHeader {

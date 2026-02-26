@@ -16,43 +16,34 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{HashOf, injected::Promise};
-use gprimitives::MessageId;
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
 use crate::host::{api::MemoryWrap, threads};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
-    linker.func_wrap("env", "ext_forward_promise_to_service", forward_promise)?;
+    linker.func_wrap("env", "ext_publish_promise", publish_promise)?;
 
     Ok(())
 }
 
-// TODO: it is a raw implementation, should be fixed
-fn forward_promise(
-    caller: Caller<'_, StoreData>,
-    encoded_reply_ptr_len: i64,
-    message_id_ptr_len: i64,
-) {
+fn publish_promise(caller: Caller<'_, StoreData>, promise_ptr_len: i64) {
     let memory = MemoryWrap(caller.data().memory());
-
-    let reply = memory.decode_by_val(&caller, encoded_reply_ptr_len);
-    let message_id = memory.decode_by_val::<_, MessageId>(&caller, message_id_ptr_len);
 
     threads::with_params(|params| {
         if let Some(ref sender) = params.promise_sender {
-            let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
-            let promise = Promise { tx_hash, reply };
+            let promise = memory.decode_by_val(&caller, promise_ptr_len);
 
             match sender.send(promise) {
                 Ok(()) => {
                     log::trace!(
-                        "successfully send promise to outer service: encoded_reply_ptr_len={encoded_reply_ptr_len}, message_id_ptr_len={message_id_ptr_len}"
+                        "successfully send promise to outer service: promise_ptr_len={promise_ptr_len}"
                     );
                 }
                 Err(err) => {
-                    log::trace!("failed to send promise to outer service: error={err}");
+                    log::trace!(
+                        "`publish_promise`: failed to send promise to receiver because of error={err}"
+                    );
                 }
             }
         }

@@ -135,7 +135,6 @@ use tokio::sync::mpsc;
 pub(super) async fn run_for_queue_type(
     ctx: &mut impl RunContext,
     queue_type: MessageType,
-    promise_sender: Option<mpsc::UnboundedSender<Promise>>,
 ) -> Result<bool> {
     let mut is_out_of_gas_for_block = false;
 
@@ -150,13 +149,8 @@ pub(super) async fn run_for_queue_type(
 
         for chunk in chunks {
             // Spawn on a separate thread an execution of each program (it's queue) in the chunk.
-            let chunk_outputs = chunk_execution_spawn::spawn_chunk_execution(
-                ctx,
-                chunk,
-                queue_type,
-                promise_sender.clone(),
-            )
-            .await?;
+            let chunk_outputs =
+                chunk_execution_spawn::spawn_chunk_execution(ctx, chunk, queue_type).await?;
 
             // Collect journals from all executed programs in the chunk.
             let (chunk_journals, max_gas_spent_in_chunk) =
@@ -195,6 +189,8 @@ pub(super) async fn run_for_queue_type(
 pub(super) trait RunContext {
     /// Get reference to instance creator.
     fn instance_creator(&self) -> &InstanceCreator;
+
+    fn promise_sender(&self) -> &Option<mpsc::UnboundedSender<Promise>>;
 
     /// Returns the header of the current block.
     fn block_header(&self) -> BlockHeader;
@@ -276,10 +272,15 @@ pub(crate) struct CommonRunContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) chunk_size: usize,
     pub(crate) block_header: BlockHeader,
+
+    // TODO think about removing this
     pub(crate) should_produce_promises: bool,
+
+    pub(crate) promise_sender: Option<mpsc::UnboundedSender<Promise>>,
 }
 
 impl CommonRunContext {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: Database,
         instance_creator: InstanceCreator,
@@ -288,6 +289,7 @@ impl CommonRunContext {
         chunk_size: usize,
         block_header: BlockHeader,
         should_produce_promises: bool,
+        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Self {
         CommonRunContext {
             db,
@@ -297,21 +299,17 @@ impl CommonRunContext {
             chunk_size,
             block_header,
             should_produce_promises,
+            promise_sender,
         }
     }
 
-    pub(crate) async fn run(
-        mut self,
-        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
-    ) -> Result<InBlockTransitions> {
+    pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
         // Start with injected queues processing.
-        let can_continue =
-            run_for_queue_type(&mut self, MessageType::Injected, promise_sender.clone()).await?;
+        let can_continue = run_for_queue_type(&mut self, MessageType::Injected).await?;
 
         if can_continue {
             // If gas is still left in block, process canonical (Ethereum) queues
-            let _ = run_for_queue_type(&mut self, MessageType::Canonical, promise_sender.clone())
-                .await?;
+            let _ = run_for_queue_type(&mut self, MessageType::Canonical).await?;
         }
 
         Ok(self.transitions)
@@ -321,6 +319,10 @@ impl CommonRunContext {
 impl RunContext for CommonRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.instance_creator
+    }
+
+    fn promise_sender(&self) -> &Option<mpsc::UnboundedSender<Promise>> {
+        &self.promise_sender
     }
 
     fn block_header(&self) -> BlockHeader {
@@ -535,7 +537,6 @@ mod chunk_execution_spawn {
         ctx: &mut impl RunContext,
         chunk: Vec<(ActorId, H256)>,
         queue_type: MessageType,
-        promise_sender: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<Vec<ChunkItemOutput>> {
         struct Executable {
             program_id: ActorId,
@@ -575,6 +576,7 @@ mod chunk_execution_spawn {
             })
             .collect::<Result<Vec<_>>>()?;
 
+        let promise_sender = ctx.promise_sender().clone();
         let block_header = ctx.block_header();
         let block_info = BlockInfo {
             height: block_header.height,
@@ -774,6 +776,7 @@ mod tests {
             chunk_size: CHUNK_PROCESSING_THREADS,
             block_header: BlockHeader::dummy(3),
             should_produce_promises: false,
+            promise_sender: None,
         };
 
         let chunks = chunks_splitting::prepare_execution_chunks(&mut ctx, MessageType::Canonical);

@@ -17,27 +17,23 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::wasm::interface;
+use ethexe_common::injected::Promise;
 use ethexe_runtime_common::pack_u32_to_i64;
-use gear_core::rpc::ReplyInfo;
-use gprimitives::MessageId;
 use parity_scale_codec::Encode;
 
 interface::declare!(
-    pub(super) fn ext_forward_promise_to_service(
-        encoded_reply_ptr_len: i64,
-        message_id_ptr_len: i64,
-    );
+    pub(super) fn ext_publish_promise(promise_ptr_len: i64);
 );
-pub fn send_promise(reply: &ReplyInfo, message_id: &MessageId) {
-    unsafe {
-        let message_id_ptr_len = pack_u32_to_i64(
-            message_id.as_ref().as_ptr() as _,
-            message_id.encoded_size() as _,
-        );
-        let encoded_reply = reply.encode();
-        let encoded_reply_ptr_len =
-            pack_u32_to_i64(encoded_reply.as_ptr() as _, reply.encoded_size() as _);
 
-        sys::ext_forward_promise_to_service(encoded_reply_ptr_len, message_id_ptr_len);
+pub fn publish_promise(promise: &Promise) {
+    unsafe {
+        // Important: the `Promise` struct contains the `ReplyInfo` which have the dynamic type.
+        //            So we need to encode the promise and pass to host handler a pointer and size of encoded data.
+
+        let encoded_promise = promise.encode();
+        let promise_ptr_len =
+            pack_u32_to_i64(encoded_promise.as_ptr() as _, encoded_promise.len() as _);
+
+        sys::ext_publish_promise(promise_ptr_len);
     }
 }
