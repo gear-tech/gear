@@ -70,7 +70,9 @@ pub enum ObserverEvent {
 pub struct ObserverConfig<'a> {
     /// Ethereum RPC endpoint.
     pub rpc: &'a str,
-    /// Maximum depth of blocks to sync, considered as u32::MAX if None, see also [`RuntimeConfig::max_sync_depth`].
+    #[allow(rustdoc::private_intra_doc_links)]
+    /// Maximum depth of blocks to sync, considered as u32::MAX if None,
+    /// see also [`RuntimeConfig::max_sync_depth`].
     pub max_sync_depth: Option<u32>,
 }
 
