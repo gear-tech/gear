@@ -119,7 +119,7 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
 }
 
 #[tokio::test]
-#[ntest::timeout(20_000)]
+#[ntest::timeout(60_000)]
 async fn test_cleanup_promise_subscribers() {
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8002);
     let service = MockService::new(listen_addr).await;

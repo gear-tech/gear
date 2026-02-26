@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
-import {MirrorProxy} from "../src/MirrorProxy.sol";
 import {Script} from "forge-std/Script.sol";
+import {MirrorProxy} from "src/MirrorProxy.sol";
 
 contract MirrorProxyScript is Script {
     function setUp() public {}

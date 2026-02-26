@@ -28,7 +28,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_processor::ExecutableData;
 use ethexe_runtime_common::FinalizedBlockTransitions;
-use futures::future::BoxFuture;
+use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
@@ -39,6 +39,14 @@ use std::{
 pub struct ComputeConfig {
     /// The delay in **blocks** in which events from Ethereum will be apply.
     canonical_quarantine: u8,
+}
+
+/// Metrics for the [`ComputeSubService`].
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute:compute")]
+struct Metrics {
+    /// The latency of announce processing in seconds represented as f64.
+    announce_processing_latency: metrics::Histogram,
 }
 
 impl ComputeConfig {
@@ -62,13 +70,17 @@ impl ComputeConfig {
     }
 }
 
+/// Type alias for computation future with timing.
+type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<ComputedAnnounce>>>;
+
 pub struct ComputeSubService<P: ProcessorExt> {
     db: Database,
     processor: P,
     config: ComputeConfig,
+    metrics: Metrics,
 
     input: VecDeque<Announce>,
-    computation: Option<BoxFuture<'static, Result<ComputedAnnounce>>>,
+    computation: Option<ComputationFuture>,
 }
 
 impl<P: ProcessorExt> ComputeSubService<P> {
@@ -77,6 +89,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             db,
             processor,
             config,
+            metrics: Metrics::default(),
             input: VecDeque::new(),
             computation: None,
         }
@@ -138,41 +151,8 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         announce: Announce,
         config: ComputeConfig,
     ) -> Result<ComputedAnnounce> {
-        let block_hash = announce.block_hash;
-
-        let matured_events = Self::find_canonical_events_post_quarantine(
-            db,
-            block_hash,
-            config.canonical_quarantine(),
-        )?;
-
-        let events = matured_events
-            .into_iter()
-            .filter_map(|event| event.to_request())
-            .collect();
-
-        let executable = ExecutableData {
-            block: SimpleBlockData {
-                hash: block_hash,
-                header: db
-                    .block_header(block_hash)
-                    .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?,
-            },
-            program_states: db
-                .announce_program_states(announce.parent)
-                .ok_or(ComputeError::ProgramStatesNotFound(announce.parent))?,
-            schedule: db
-                .announce_schedule(announce.parent)
-                .ok_or(ComputeError::ScheduleNotFound(announce.parent))?,
-            injected_transactions: announce
-                .injected_transactions
-                .into_iter()
-                .map(|tx| tx.into_verified())
-                .collect(),
-            gas_allowance: announce.gas_allowance,
-            events,
-        };
-
+        let executable =
+            prepare_executable_for_announce(db, announce, config.canonical_quarantine())?;
         let processing_result = processor.process_announce(executable).await?;
 
         let FinalizedBlockTransitions {
@@ -206,39 +186,6 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             promises,
         })
     }
-
-    /// Finds events from Ethereum in database which can be processed in current block.
-    fn find_canonical_events_post_quarantine(
-        db: &Database,
-        mut block_hash: H256,
-        canonical_quarantine: u8,
-    ) -> Result<Vec<BlockEvent>> {
-        let genesis_block = db
-            .latest_data()
-            .ok_or_else(|| ComputeError::LatestDataNotFound)?
-            .genesis_block_hash;
-
-        let mut block_header = db
-            .block_header(block_hash)
-            .ok_or_else(|| ComputeError::BlockHeaderNotFound(block_hash))?;
-
-        for _ in 0..canonical_quarantine {
-            if block_hash == genesis_block {
-                return Ok(Default::default());
-            }
-
-            let parent_hash = block_header.parent_hash;
-            let parent_header = db
-                .block_header(parent_hash)
-                .ok_or(ComputeError::BlockHeaderNotFound(parent_hash))?;
-
-            block_hash = parent_hash;
-            block_header = parent_header;
-        }
-
-        db.block_events(block_hash)
-            .ok_or(ComputeError::BlockEventsNotFound(block_hash))
-    }
 }
 
 impl<P: ProcessorExt> SubService for ComputeSubService<P> {
@@ -248,23 +195,101 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
         if self.computation.is_none()
             && let Some(announce) = self.input.pop_front()
         {
-            self.computation = Some(Box::pin(Self::compute(
-                self.db.clone(),
-                self.config,
-                self.processor.clone(),
-                announce,
-            )));
+            self.computation = Some(future_timing::timed(
+                Self::compute(
+                    self.db.clone(),
+                    self.config,
+                    self.processor.clone(),
+                    announce,
+                )
+                .boxed(),
+            ));
         }
 
         if let Some(computation) = &mut self.computation
-            && let Poll::Ready(res) = computation.as_mut().poll(cx)
+            && let Poll::Ready(timing_result) = computation.poll_unpin(cx)
         {
+            let (timing, result) = timing_result.into_parts();
+            self.metrics
+                .announce_processing_latency
+                .record((timing.busy() + timing.idle()).as_secs_f64());
             self.computation = None;
-            return Poll::Ready(res);
+            return Poll::Ready(result);
         }
 
         Poll::Pending
     }
+}
+
+pub fn prepare_executable_for_announce(
+    db: &Database,
+    announce: Announce,
+    canonical_quarantine: u8,
+) -> Result<ExecutableData> {
+    let block_hash = announce.block_hash;
+
+    let matured_events =
+        find_canonical_events_post_quarantine(db, block_hash, canonical_quarantine)?;
+
+    let events = matured_events
+        .into_iter()
+        .filter_map(|event| event.to_request())
+        .collect();
+
+    Ok(ExecutableData {
+        block: SimpleBlockData {
+            hash: block_hash,
+            header: db
+                .block_header(block_hash)
+                .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?,
+        },
+        program_states: db
+            .announce_program_states(announce.parent)
+            .ok_or(ComputeError::ProgramStatesNotFound(announce.parent))?,
+        schedule: db
+            .announce_schedule(announce.parent)
+            .ok_or(ComputeError::ScheduleNotFound(announce.parent))?,
+        injected_transactions: announce
+            .injected_transactions
+            .into_iter()
+            .map(|tx| tx.into_verified())
+            .collect(),
+        gas_allowance: announce.gas_allowance,
+        events,
+    })
+}
+
+/// Finds events from Ethereum in database which can be processed in current block.
+fn find_canonical_events_post_quarantine(
+    db: &Database,
+    mut block_hash: H256,
+    canonical_quarantine: u8,
+) -> Result<Vec<BlockEvent>> {
+    let genesis_block = db
+        .latest_data()
+        .ok_or_else(|| ComputeError::LatestDataNotFound)?
+        .genesis_block_hash;
+
+    let mut block_header = db
+        .block_header(block_hash)
+        .ok_or_else(|| ComputeError::BlockHeaderNotFound(block_hash))?;
+
+    for _ in 0..canonical_quarantine {
+        if block_hash == genesis_block {
+            return Ok(Default::default());
+        }
+
+        let parent_hash = block_header.parent_hash;
+        let parent_header = db
+            .block_header(parent_hash)
+            .ok_or(ComputeError::BlockHeaderNotFound(parent_hash))?;
+
+        block_hash = parent_hash;
+        block_header = parent_header;
+    }
+
+    db.block_events(block_hash)
+        .ok_or(ComputeError::BlockEventsNotFound(block_hash))
 }
 
 #[cfg(test)]

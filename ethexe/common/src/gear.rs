@@ -403,14 +403,7 @@ impl ToDigest for StateTransition {
         hasher.update(inheritor.to_address_lossy());
         hasher.update(value_to_receive.to_be_bytes());
         hasher.update([*value_to_receive_negative_sign as u8]);
-        // Match router's hashing strategy: keccak256 of concatenated value-claim bytes.
-        hasher.update({
-            let mut hasher = sha3::Keccak256::new();
-            value_claims
-                .iter()
-                .for_each(|claim| claim.update_hasher(&mut hasher));
-            hasher.finalize()
-        });
+        hasher.update(value_claims.to_digest());
         hasher.update(messages.to_digest());
     }
 }

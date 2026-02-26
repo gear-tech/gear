@@ -58,8 +58,7 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot};
 
-const STREAM_PROTOCOL: StreamProtocol =
-    StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
+const STREAM_PROTOCOL: StreamProtocol = StreamProtocol::new("/ethexe/db-sync/1.0.0");
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum NewRequestRoundReason {
@@ -375,7 +374,6 @@ pub(crate) struct Behaviour {
     inner: InnerBehaviour,
     handle: Handle,
     rx: mpsc::UnboundedReceiver<(HandleAction, oneshot::Sender<HandleResult>)>,
-    peer_score_handle: peer_score::Handle,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
 }
@@ -397,7 +395,6 @@ impl Behaviour {
             ),
             handle,
             rx,
-            peer_score_handle: peer_score_handle.clone(),
             ongoing_requests: OngoingRequests::new(
                 &config,
                 peer_score_handle,
@@ -464,7 +461,6 @@ impl Behaviour {
                     log::debug!(
                         "request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
                     );
-                    self.peer_score_handle.unsupported_protocol(peer);
                 }
 
                 self.ongoing_requests.on_peer_failure(request_id);
@@ -478,7 +474,6 @@ impl Behaviour {
                 log::debug!(
                     "request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
                 );
-                self.peer_score_handle.unsupported_protocol(peer);
             }
             request_response::Event::InboundFailure { .. } => {}
             request_response::Event::ResponseSent { .. } => {}
