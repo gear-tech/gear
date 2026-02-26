@@ -180,16 +180,30 @@ pub enum UsageError {
     #[error("Wait duration can not be zero")]
     EmptyWaitDuration,
     /// This error occurs when providing zero gas amount to system gas reserving
-    /// function (see
-    /// [`Config::set_system_reserve`](crate::Config::set_system_reserve)).
+    /// function.
+    #[cfg_attr(
+        not(feature = "ethexe"),
+        doc = "See [`Config::set_system_reserve`](crate::Config::set_system_reserve)."
+    )]
+    #[cfg_attr(
+        feature = "ethexe",
+        doc = "Never occurs under `ethexe` feature, since `Config::set_system_reserve` method is not available."
+    )]
     #[error("System reservation amount can not be zero in config")]
     ZeroSystemReservationAmount,
     /// This error occurs when providing zero duration to mutex lock function
     #[error("Mutex lock duration can not be zero")]
     ZeroMxLockDuration,
     /// This error occurs when handle_reply is called without (or with zero)
-    /// reply deposit
-    /// (see [`MessageFuture::handle_reply`](crate::msg::MessageFuture::handle_reply)).
+    /// reply deposit.
+    #[cfg_attr(
+        not(feature = "ethexe"),
+        doc = "See [`MessageFuture::handle_reply`](crate::msg::MessageFuture::handle_reply)."
+    )]
+    #[cfg_attr(
+        feature = "ethexe",
+        doc = "Never occurs under `ethexe` feature, since `MessageFuture::handle_reply` method is not available."
+    )]
     #[error("Reply deposit can not be zero when setting reply hook")]
     ZeroReplyDeposit,
 }
