@@ -115,32 +115,39 @@ pub(crate) trait SubService: Unpin + Send + 'static {
     }
 }
 
+/// Module provides a builder for [`ComputeService`].
+/// The [`builder::Builder`] must be used for both production and testing purposes.
 pub(crate) mod builder {
     use super::*;
 
-    // Builder states
+    // Builder environments
     #[cfg(test)]
     #[derive(Default)]
     pub struct Mock;
     #[derive(Default)]
     pub struct Production;
-    #[derive(Default)]
-    pub struct SetDatabase;
-    #[derive(Default)]
-    pub struct SetComputeConfig;
-    #[derive(Default)]
-    pub struct SetProcessorConfig;
 
+    // Builder states
     #[derive(Default)]
-    pub struct Builder<State> {
+    pub struct Set;
+    #[derive(Default)]
+    pub struct Unset;
+
+    /// A type-state builder for [`ComputeService`].
+    /// Provides the easy construction the [`ComputeService`] for both
+    /// testing and production environments.
+    #[derive(Default)]
+    pub struct Builder<Env, C = Unset, D = Unset, P = Unset> {
         config: Option<ComputeConfig>,
         db: Option<Database>,
         processor_config: Option<ProcessorConfig>,
-        _state: PhantomData<State>,
+        _state: PhantomData<(Env, C, D, P)>,
     }
 
+    /// Mock builder uses defaults when fields are None; type-states are fixed to Set.
     #[cfg(test)]
-    impl Builder<Mock> {
+    impl Builder<Mock, Set, Set, Set> {
+        /// Creates a new mock builder.
         pub(crate) fn mock() -> Self {
             Self::default()
         }
@@ -157,6 +164,7 @@ pub(crate) mod builder {
             self
         }
 
+        /// Creates a [`ComputeService<MockProcessor>`] from a mock builder.
         pub(crate) fn build(self) -> ComputeService<MockProcessor> {
             let processor = MockProcessor;
             let config = self.config.unwrap_or(ComputeConfig::without_quarantine());
@@ -171,50 +179,57 @@ pub(crate) mod builder {
         }
     }
 
-    impl Builder<Production> {
+    impl Builder<Production, Unset, Unset, Unset> {
+        /// Creates a new production builder.
         pub fn production() -> Self {
             Self::default()
         }
 
-        pub fn with_db(self, db: Database) -> Builder<SetDatabase> {
-            Builder {
-                db: Some(db),
-                _state: PhantomData,
-                ..Default::default()
-            }
-        }
-
+        /// Creates a new production builder with default configs: [`ComputeConfig`], [`ProcessorConfig`].
         #[cfg(test)]
-        pub fn with_defaults(self, db: Database) -> Builder<SetProcessorConfig> {
-            self.with_db(db)
-                .with_compute_config(ComputeConfig::without_quarantine())
-                .with_processor_config(ProcessorConfig::default())
+        pub fn production_with_defaults(db: Database) -> Builder<Production, Set, Set, Set> {
+            Self::production()
+                .db(db)
+                .compute_config(ComputeConfig::without_quarantine())
+                .processor_config(ProcessorConfig::default())
         }
     }
 
-    impl Builder<SetDatabase> {
-        pub fn with_compute_config(self, config: ComputeConfig) -> Builder<SetComputeConfig> {
+    impl<D, P> Builder<Production, Unset, D, P> {
+        pub fn compute_config(self, config: ComputeConfig) -> Builder<Production, Set, D, P> {
             Builder {
-                db: self.db,
                 config: Some(config),
+                db: self.db,
+                processor_config: self.processor_config,
                 _state: PhantomData,
-                ..Default::default()
             }
         }
     }
 
-    impl Builder<SetComputeConfig> {
-        pub fn with_processor_config(self, config: ProcessorConfig) -> Builder<SetProcessorConfig> {
+    impl<C, P> Builder<Production, C, Unset, P> {
+        pub fn db(self, db: Database) -> Builder<Production, C, Set, P> {
             Builder {
-                db: self.db,
                 config: self.config,
+                db: Some(db),
+                processor_config: self.processor_config,
+                _state: PhantomData,
+            }
+        }
+    }
+
+    impl<C, D> Builder<Production, C, D, Unset> {
+        pub fn processor_config(self, config: ProcessorConfig) -> Builder<Production, C, D, Set> {
+            Builder {
+                config: self.config,
+                db: self.db,
                 processor_config: Some(config),
                 _state: PhantomData,
             }
         }
     }
 
-    impl Builder<SetProcessorConfig> {
+    impl Builder<Production, Set, Set, Set> {
+        /// Creates the [`ComputeService`] from a production builder.
         pub fn build(self) -> Result<ComputeService> {
             let db = self.db.unwrap();
             let config = self.config.unwrap();

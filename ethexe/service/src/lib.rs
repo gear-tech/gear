@@ -373,9 +373,9 @@ impl Service {
             chunk_size: config.node.chunk_processing_threads,
         };
         let compute = ComputeServiceBuilder::production()
-            .with_db(db.clone())
-            .with_compute_config(compute_config)
-            .with_processor_config(processor_config)
+            .db(db.clone())
+            .compute_config(compute_config)
+            .processor_config(processor_config)
             .build()
             .with_context(|| "failed to build compute service")?;
 

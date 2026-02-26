@@ -887,9 +887,9 @@ impl Node {
         );
 
         let compute = ComputeServiceBuilder::production()
-            .with_db(self.db.clone())
-            .with_compute_config(self.compute_config)
-            .with_processor_config(ProcessorConfig::default())
+            .db(self.db.clone())
+            .compute_config(self.compute_config)
+            .processor_config(ProcessorConfig::default())
             .build()
             .unwrap();
 

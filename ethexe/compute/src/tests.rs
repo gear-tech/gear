@@ -166,8 +166,7 @@ impl TestEnv {
         mark_as_not_prepared(&mut chain);
         chain = chain.setup(&db);
 
-        let compute = ComputeServiceBuilder::production()
-            .with_defaults(db.clone())
+        let compute = ComputeServiceBuilder::production_with_defaults(db.clone())
             .build()
             .unwrap();
 
