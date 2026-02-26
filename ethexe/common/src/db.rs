@@ -35,9 +35,10 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Ethexe metadata associated with an on-chain block.
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
     /// Block has been prepared, meaning:
     /// all metadata is ready, all predecessors till start block are prepared too.
@@ -139,7 +140,7 @@ pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct AnnounceMeta {
     pub computed: bool,
 }
@@ -171,6 +172,43 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
     );
 }
 
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq)]
+pub struct LatestData {
+    /// Latest synced block
+    pub synced_block: SimpleBlockData,
+    /// Latest prepared block hash
+    pub prepared_block_hash: H256,
+    /// Latest computed announce hash
+    pub computed_announce_hash: HashOf<Announce>,
+    /// Genesis block hash
+    pub genesis_block_hash: H256,
+    /// Genesis announce hash
+    pub genesis_announce_hash: HashOf<Announce>,
+    /// Start block hash: genesis or defined by fast-sync
+    pub start_block_hash: H256,
+    /// Start announce hash: genesis or defined by fast-sync
+    pub start_announce_hash: HashOf<Announce>,
+}
+
+#[auto_impl::auto_impl(&, Box)]
+pub trait LatestDataStorageRO {
+    fn latest_data(&self) -> Option<LatestData>;
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait LatestDataStorageRW: LatestDataStorageRO {
+    fn set_latest_data(&self, data: LatestData);
+    fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData)) -> Option<()> {
+        if let Some(mut latest_data) = self.latest_data() {
+            f(&mut latest_data);
+            self.set_latest_data(latest_data);
+            Some(())
+        } else {
+            None
+        }
+    }
+}
+
 pub struct PreparedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
@@ -188,7 +226,7 @@ pub struct ComputedAnnounceData {
     pub schedule: Schedule,
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct DBConfig {
     pub version: u32,
     pub chain_id: u64,
@@ -198,7 +236,7 @@ pub struct DBConfig {
     pub genesis_announce_hash: HashOf<Announce>,
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct DBGlobals {
     pub start_block_hash: H256,
     pub start_announce_hash: HashOf<Announce>,
@@ -248,3 +286,67 @@ mod mock_interfaces {
 
 #[cfg(feature = "mock")]
 pub use mock_interfaces::{SetConfig, SetGlobals};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use indoc::formatdoc;
+    use scale_info::{PortableRegistry, Registry, meta_type};
+    use sha3::{Digest, Sha3_256};
+
+    #[test]
+    fn ensure_types_unchanged() {
+        const EXPECTED_TYPE_INFO_HASH: &str =
+            "90c1fc7fcb4e8ba930faf7f97fed002ce36965bed0afe3f5b5cb0430841aca90";
+
+        let types = [
+            meta_type::<BlockMeta>(),
+            meta_type::<InstrumentedCode>(),
+            meta_type::<CodeMetadata>(),
+            meta_type::<BlockHeader>(),
+            meta_type::<BlockEvent>(),
+            meta_type::<CodeBlobInfo>(),
+            meta_type::<ValidatorsVec>(),
+            meta_type::<ProtocolTimelines>(),
+            meta_type::<HashOf<InjectedTransaction>>(),
+            meta_type::<SignedInjectedTransaction>(),
+            meta_type::<Announce>(),
+            meta_type::<ProgramStates>(),
+            meta_type::<StateTransition>(),
+            meta_type::<Schedule>(),
+            meta_type::<AnnounceMeta>(),
+            meta_type::<LatestData>(),
+            meta_type::<DBConfig>(),
+            meta_type::<DBGlobals>(),
+        ];
+
+        let mut registry = Registry::new();
+        registry.register_types(types);
+
+        let portable_registry = PortableRegistry::from(registry);
+        let encoded_registry = portable_registry.encode();
+        let type_info_hash = hex::encode(Sha3_256::digest(encoded_registry));
+
+        if type_info_hash != EXPECTED_TYPE_INFO_HASH {
+            panic!(
+                "{}",
+                formatdoc!(
+                    "
+                    Some of database types has been changed.
+
+                    It can break existing databases, so be very careful and think at least
+                    twice before committing such changes. Ensure that SCALE representations
+                    of all changed database types are still the same.
+
+                    If you know what exactly has been changed and sure about it,
+                    please update `EXPECTED_TYPE_INFO_HASH` constant in this test
+                    to the new value to fix the assertion.
+
+                    Expected hash: {EXPECTED_TYPE_INFO_HASH}
+                    Found hash:    {type_info_hash}
+                    "
+                )
+            );
+        }
+    }
+}

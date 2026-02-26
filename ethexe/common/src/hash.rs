@@ -27,6 +27,7 @@ use core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 fn option_string<T: ToString>(value: &Option<T>) -> String {
     value
@@ -42,10 +43,11 @@ fn shortname<T: Any>() -> &'static str {
         .expect("name is empty")
 }
 
-#[derive(Encode, Decode, derive_more::Into, derive_more::Display)]
+#[derive(Encode, Decode, TypeInfo, derive_more::Into, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
 #[display("{hash}")]
+#[scale_info(skip_type_params(T))]
 pub struct HashOf<T: 'static> {
     hash: H256,
     #[into(ignore)]

@@ -20,22 +20,23 @@ use alloc::vec::Vec;
 use gear_core::message::ReplyCode;
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 // TODO: consider to sort events in same way as in IMirror.sol
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct OwnedBalanceTopUpRequestedEvent {
     pub value: u128,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExecutableBalanceTopUpRequestedEvent {
     pub value: u128,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub struct MessageEvent {
     pub id: MessageId,
     pub destination: ActorId,
@@ -43,14 +44,14 @@ pub struct MessageEvent {
     pub value: u128,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub struct MessageCallFailedEvent {
     pub id: MessageId,
     pub destination: ActorId,
     pub value: u128,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageQueueingRequestedEvent {
     pub id: MessageId,
@@ -60,7 +61,7 @@ pub struct MessageQueueingRequestedEvent {
     pub call_reply: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub struct ReplyEvent {
     pub payload: Vec<u8>,
     pub value: u128,
@@ -68,14 +69,14 @@ pub struct ReplyEvent {
     pub reply_code: ReplyCode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub struct ReplyCallFailedEvent {
     pub value: u128,
     pub reply_to: MessageId,
     pub reply_code: ReplyCode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyQueueingRequestedEvent {
     pub replied_to: MessageId,
@@ -84,25 +85,25 @@ pub struct ReplyQueueingRequestedEvent {
     pub value: u128,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub struct StateChangedEvent {
     pub state_hash: H256,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub struct ValueClaimedEvent {
     pub claimed_id: MessageId,
     pub value: u128,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaimingRequestedEvent {
     pub claimed_id: MessageId,
     pub source: ActorId,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub enum Event {
     OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequestedEvent),
     ExecutableBalanceTopUpRequested(ExecutableBalanceTopUpRequestedEvent),
