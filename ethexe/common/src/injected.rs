@@ -69,7 +69,7 @@ pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
-    #[cfg_attr(feature = "std", serde(with = "hex::limited_vec"))]
+    #[cfg_attr(feature = "std", serde(with = "serde_hex::limited_vec"))]
     pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
@@ -79,7 +79,7 @@ pub struct InjectedTransaction {
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    #[cfg_attr(feature = "std", serde(with = "hex::u256"))]
+    #[cfg_attr(feature = "std", serde(with = "serde_hex::u256"))]
     pub salt: U256,
 }
 
@@ -207,7 +207,7 @@ mod tests {
 /// - [`LimitedVec<u8, N>`]
 /// - [`U256`]
 #[cfg(feature = "std")]
-mod hex {
+mod serde_hex {
     use super::*;
     /// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
     #[cfg(feature = "std")]
