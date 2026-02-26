@@ -34,6 +34,7 @@ use gear_core::{
     ids::prelude::CodeIdExt,
 };
 use std::{cell::RefCell, collections::BTreeMap};
+use tokio::time::{Duration, timeout};
 
 thread_local! {
     pub(crate) static PROCESSOR_RESULT: RefCell<FinalizedBlockTransitions> = const { RefCell::new(
@@ -333,6 +334,82 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
     let announce = new_announce(&env.db, env.chain.blocks[1].hash, Some(100));
     env.compute_and_assert_announce(announce.clone()).await;
     env.compute_and_assert_announce(announce.clone()).await;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn code_validation_request_for_already_processed_code_does_not_request_loading() -> Result<()>
+{
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(1, 0);
+    let block_hash = env.chain.blocks[1].hash;
+
+    let code = create_new_code(1);
+    let code_id = CodeId::generate(&code);
+    env.db.set_original_code(&code);
+    env.db.set_code_valid(code_id, true);
+
+    env.db.set_block_events(
+        block_hash,
+        &[BlockEvent::Router(RouterEvent::CodeValidationRequested(
+            CodeValidationRequestedEvent {
+                code_id,
+                timestamp: 0u64,
+                tx_hash: H256::random(),
+            },
+        ))],
+    );
+
+    env.compute.prepare_block(block_hash);
+
+    let event = env
+        .compute
+        .next()
+        .await
+        .unwrap()
+        .expect("expect block prepared without requesting code loading");
+    let prepared_block = event.unwrap_block_prepared();
+    assert_eq!(prepared_block, block_hash);
+
+    let no_follow_up_event = timeout(Duration::from_millis(100), env.compute.next()).await;
+    assert!(
+        no_follow_up_event.is_err(),
+        "unexpected follow-up compute event after block preparation: {no_follow_up_event:?}",
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn process_code_for_already_processed_valid_code_emits_code_processed() -> Result<()> {
+    gear_utils::init_default_logger();
+
+    let mut env = TestEnv::new(1, 0);
+
+    let code = create_new_code(2);
+    let code_id = CodeId::generate(&code);
+
+    env.db.set_original_code(&code);
+    env.db.set_instrumented_code(
+        ethexe_runtime_common::VERSION,
+        code_id,
+        InstrumentedCode::new(vec![0], InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
+    );
+    env.db.set_code_valid(code_id, true);
+
+    env.compute
+        .process_code(CodeAndIdUnchecked { code_id, code });
+
+    let event = env
+        .compute
+        .next()
+        .await
+        .unwrap()
+        .expect("expect already processed code to produce CodeProcessed event");
+    let processed_code_id = event.unwrap_code_processed();
+    assert_eq!(processed_code_id, code_id);
 
     Ok(())
 }

@@ -57,7 +57,6 @@ impl<P: ProcessorExt> CodesSubService<P> {
     pub fn receive_code_to_process(&mut self, code_and_id: CodeAndIdUnchecked) {
         let code_id = code_and_id.code_id;
         if let Some(valid) = self.db.code_valid(code_id) {
-            // TODO: #4712 test this case
             log::warn!("Code {code_id:?} already processed");
 
             if valid {
