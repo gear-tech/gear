@@ -48,7 +48,11 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 )]
 #[cfg_attr(
     feature = "codec",
-    derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
+    derive(
+        parity_scale_codec::Encode,
+        parity_scale_codec::Decode,
+        scale_info::TypeInfo
+    )
 )]
 #[from([u8; 20], H160)]
 #[display("0x{}", hex::encode(_0))]
