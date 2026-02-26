@@ -125,6 +125,17 @@ impl OngoingRequests {
         request: OngoingRequest,
         channel: oneshot::Sender<HandleResult>,
     ) {
+        let multiplier = if let InnerRequest::Hashes(HashesRequest(hashes)) = request
+            .response_handler
+            .as_ref()
+            .expect("response handler must be set at `inner_request` calling")
+            .inner_request()
+        {
+            1 + (hashes.len() / 100)
+        } else {
+            1
+        };
+
         self.requests.insert(
             request_id,
             (
@@ -132,8 +143,8 @@ impl OngoingRequests {
                     .request(
                         self.peer_score_handle.clone(),
                         self.external_data_provider.clone_boxed(),
-                        self.request_timeout,
-                        self.max_rounds_per_request,
+                        self.request_timeout * multiplier as u32,
+                        self.max_rounds_per_request * multiplier as u32,
                     )
                     .boxed(),
                 Some(channel),
@@ -713,18 +724,29 @@ impl OngoingRequest {
                     .difference(&self.tried_peers)
                     .choose_stable(&mut rand::thread_rng())
                     .copied();
-                self.tried_peers.extend(peer);
 
                 if let Some(peer) = peer {
+                    self.tried_peers.insert(peer);
                     Poll::Ready(peer)
                 } else {
-                    event_sent.get_or_insert_with(|| {
-                        ctx.state
-                            .set(OngoingRequestState::PendingState)
-                            .expect("set only once");
-                    });
-
-                    Poll::Pending
+                    if let Some(peer) = ctx
+                        .peers
+                        .iter()
+                        .choose_stable(&mut rand::thread_rng())
+                        .copied()
+                    {
+                        log::trace!("all peers have been tried, clear `tried_peers` and retry");
+                        self.tried_peers.clear();
+                        self.tried_peers.insert(peer);
+                        Poll::Ready(peer)
+                    } else {
+                        event_sent.get_or_insert_with(|| {
+                            ctx.state
+                                .set(OngoingRequestState::PendingState)
+                                .expect("set only once");
+                        });
+                        Poll::Pending
+                    }
                 }
             })
             .await;
@@ -738,16 +760,33 @@ impl OngoingRequest {
         peer: PeerId,
         reason: NewRequestRoundReason,
     ) -> Result<InnerResponse, ()> {
+        let request = self
+            .response_handler
+            .as_ref()
+            .expect("always Some")
+            .inner_request();
+
+        log::trace!("sending request to {peer} {request:?}, round reason: {reason:?}");
+
+        let request = match self
+            .response_handler
+            .as_ref()
+            .expect("always Some")
+            .inner_request()
+        {
+            InnerRequest::Hashes(request) if request.0.len() > 100 => {
+                let r = InnerRequest::Hashes(HashesRequest(
+                    request.0.iter().take(100).copied().collect(),
+                ));
+                log::trace!("request is too big, send partial request: {r:?}");
+                r
+            }
+            other => other,
+        };
+
         CONTEXT.with_mut(|ctx| {
             ctx.state
-                .set(OngoingRequestState::SendRequest(
-                    peer,
-                    self.response_handler
-                        .as_ref()
-                        .expect("always Some")
-                        .inner_request(),
-                    reason,
-                ))
+                .set(OngoingRequestState::SendRequest(peer, request, reason))
                 .expect("set only once");
         });
 
@@ -807,6 +846,15 @@ impl OngoingRequest {
         request_timeout: Duration,
         max_rounds_per_request: u32,
     ) -> Result<Response, (RequestFailure, Self)> {
+        log::trace!(
+            "starting request {:?} with timeout {} secs and max rounds {max_rounds_per_request}",
+            self.response_handler
+                .as_ref()
+                .expect("response handler must be set at request moment")
+                .inner_request(),
+            request_timeout.as_secs(),
+        );
+
         let request_loop = async {
             let mut rounds = 0;
             let mut reason = NewRequestRoundReason::FromQueue;

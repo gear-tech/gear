@@ -20,7 +20,7 @@ use crate::Service;
 use anyhow::{Context, Result};
 use ethexe_common::{
     Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, StateHashWithQueueSize,
+    ProtocolTimelines, SimpleBlockData, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
         ComputedAnnounceData, OnChainStorageRW, PreparedBlockData,
@@ -77,13 +77,26 @@ impl EventData {
     async fn collect(
         block_loader: &impl BlockLoader,
         db: &Database,
-        highest_block: H256,
+        highest_block: SimpleBlockData,
     ) -> Result<Option<Self>> {
         let mut latest_committed: Option<(Digest, Option<HashOf<Announce>>)> = None;
 
-        let mut block = highest_block;
+        let mut pre_loaded_blocks = HashMap::new();
+        let mut block = highest_block.hash;
         'prepared: while !db.block_meta(block).prepared {
-            let block_data = block_loader.load(block, None).await?;
+            if !pre_loaded_blocks.contains_key(&block) {
+                let height = block_loader.load_simple(block.into()).await?.header.height as u64;
+                let batch = block_loader
+                    .load_many(height.saturating_sub(100)..=height)
+                    .await?;
+                pre_loaded_blocks.extend(batch);
+            }
+
+            let block_data = if let Some(data) = pre_loaded_blocks.remove(&block) {
+                data
+            } else {
+                block_loader.load(block, None).await?
+            };
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in block_data.events.into_iter().rev() {
@@ -665,8 +678,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         // and thus the reorganization can lead us to an empty block
         .load_simple(BlockId::Finalized)
         .await
-        .context("failed to get latest block")?
-        .hash;
+        .context("failed to get latest block")?;
 
     let block_loader = observer.block_loader();
 
@@ -697,7 +709,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     // we fetch program states from the finalized block
     // because actual states are at the same block as we acquired the latest committed block
     let program_states =
-        collect_program_states(observer, finalized_block, &program_code_ids).await?;
+        collect_program_states(observer, finalized_block.hash, &program_code_ids).await?;
 
     let program_states = sync_from_network(network, db, &code_ids, program_states).await;
 

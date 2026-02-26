@@ -353,9 +353,9 @@ impl RouterQuery {
         })
     }
 
-    pub fn from_provider(router_address: AlloyAddress, provider: RootProvider) -> Self {
+    pub fn from_provider(router_address: impl Into<AlloyAddress>, provider: RootProvider) -> Self {
         Self {
-            instance: QueryInstance::new(router_address, provider),
+            instance: QueryInstance::new(router_address.into(), provider),
         }
     }
 

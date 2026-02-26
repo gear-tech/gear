@@ -51,8 +51,7 @@ pub(crate) struct ChainSync<DB: SyncDB> {
 
 impl<DB: SyncDB> ChainSync<DB> {
     pub fn new(db: DB, config: RuntimeConfig, provider: RootProvider) -> Self {
-        let router_query =
-            RouterQuery::from_provider(config.router_address.0.into(), provider.clone());
+        let router_query = RouterQuery::from_provider(config.router_address.0, provider.clone());
         let middleware_query =
             MiddlewareQuery::from_provider(config.middleware_address.0.into(), provider.clone());
         let block_loader = EthereumBlockLoader::new(provider, config.router_address);
