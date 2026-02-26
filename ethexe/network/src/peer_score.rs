@@ -351,6 +351,7 @@ mod tests {
     use futures::future;
     use libp2p::{Swarm, swarm::SwarmEvent};
     use libp2p_swarm_test::SwarmExt;
+    use std::time::Duration;
     use tokio::time;
 
     async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {
@@ -413,18 +414,9 @@ mod tests {
             Some(3 * EXCESSIVE_DATA)
         );
 
-        let event = alice.next_swarm_event().await;
-        assert!(
-            matches!(
-                event,
-                SwarmEvent::ConnectionClosed {
-                    peer_id,
-                    num_established: 0,
-                    ..
-                } if peer_id == chad_peer_id
-            ),
-            "{event:?}"
-        );
+        // Connection teardown is asynchronous and may not emit a close event in this setup
+        // if the peer gets blocked before a stable connection is fully established.
+        // Deterministic assertions below validate the score/block/unblock flow.
 
         time::sleep(alice_config.driver_time).await;
 
@@ -438,6 +430,92 @@ mod tests {
         assert_eq!(
             alice.behaviour().get_score(chad_peer_id),
             Some(EXCESSIVE_DATA * 3 + alice_config.decay)
+        );
+    }
+
+    #[tokio::test]
+    async fn connection_closed_event_emitted_after_peer_block() {
+        init_logger();
+
+        let mut alice = new_swarm_with_config(Config {
+            invalid_data: i8::MIN / 2,
+            blocked_threshold: i8::MIN / 2,
+            driver_time: Duration::from_secs(60),
+            ..Default::default()
+        })
+        .await;
+        let mut chad = new_swarm().await;
+        let chad_peer_id = *chad.local_peer_id();
+
+        alice.connect(&mut chad).await;
+        tokio::spawn(chad.loop_on_next());
+
+        time::timeout(Duration::from_secs(5), async {
+            while !alice
+                .connected_peers()
+                .any(|&peer_id| peer_id == chad_peer_id)
+            {
+                let _event = alice.next_swarm_event().await;
+            }
+        })
+        .await
+        .expect("connection to chad was not established in time");
+
+        assert!(
+            alice
+                .connected_peers()
+                .any(|&peer_id| peer_id == chad_peer_id),
+            "expected alice to be connected to chad before blocking"
+        );
+
+        let handle = alice.behaviour().handle();
+        handle.invalid_data(chad_peer_id);
+
+        let event = time::timeout(Duration::from_secs(5), alice.next_behaviour_event())
+            .await
+            .expect("peer block event was not emitted in time");
+        assert_eq!(
+            event,
+            Event::PeerBlocked {
+                peer_id: chad_peer_id,
+                last_reason: ScoreDecreaseReason::InvalidData
+            }
+        );
+
+        let closed_event = time::timeout(Duration::from_secs(5), async {
+            loop {
+                let event = alice.next_swarm_event().await;
+                if matches!(
+                    event,
+                    SwarmEvent::ConnectionClosed {
+                        peer_id,
+                        num_established: 0,
+                        ..
+                    } if peer_id == chad_peer_id
+                ) {
+                    break event;
+                }
+            }
+        })
+        .await
+        .expect("connection closed event for blocked peer was not emitted in time");
+        assert!(
+            matches!(
+                closed_event,
+                SwarmEvent::ConnectionClosed {
+                    peer_id,
+                    num_established: 0,
+                    ..
+                } if peer_id == chad_peer_id
+            ),
+            "{closed_event:?}"
+        );
+
+        assert!(
+            !alice
+                .connected_peers()
+                .any(|&peer_id| peer_id == chad_peer_id),
+            "expected alice to be disconnected from blocked peer after close event"
         );
     }
 

@@ -28,12 +28,12 @@ pub(crate) use crate::{
 };
 use async_trait::async_trait;
 use ethexe_common::{
-    Announce,
     db::{
-        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, LatestDataStorageRO,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, InjectedStorageRO,
+        LatestDataStorageRO,
     },
     gear::CodeState,
-    network::{AnnouncesRequest, AnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesResponse, NetworkAnnounce},
 };
 use ethexe_db::Database;
 use futures::FutureExt;
@@ -344,7 +344,7 @@ pub(crate) struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 /// Must contain all announces for the requested range.
 /// Must be sorted from predecessors to successors.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
-pub(crate) struct InnerAnnouncesResponse(Vec<Announce>);
+pub(crate) struct InnerAnnouncesResponse(Vec<NetworkAnnounce>);
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]
@@ -359,7 +359,13 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest,
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait DbSyncDatabase:
-    Send + HashStorageRO + LatestDataStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO
+    Send
+    + HashStorageRO
+    + LatestDataStorageRO
+    + BlockMetaStorageRO
+    + AnnounceStorageRO
+    + InjectedStorageRO
+    + CodesStorageRO
 {
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
 }

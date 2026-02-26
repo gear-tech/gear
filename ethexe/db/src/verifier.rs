@@ -52,7 +52,6 @@ pub enum IntegrityVerifierError {
     AnnounceNotFound(HashOf<Announce>),
     AnnounceIsNotComputed(HashOf<Announce>),
     AnnounceIsNotIncluded(HashOf<Announce>),
-    AnnounceOffChainTransactionsNotEmpty(HashOf<Announce>),
 
     /* block header */
     NoParentBlockHeader(H256),
@@ -179,10 +178,6 @@ impl DatabaseVisitor for IntegrityVerifier {
 
     #[tracing::instrument(level = "trace", skip(self))]
     fn visit_announce(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
-        if !announce.injected_transactions.is_empty() {
-            self.errors
-                .push(IntegrityVerifierError::AnnounceOffChainTransactionsNotEmpty(announce_hash));
-        }
         if self
             .db
             .block_meta(announce.block_hash)

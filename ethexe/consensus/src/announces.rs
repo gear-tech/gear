@@ -96,7 +96,7 @@ use ethexe_common::{
         AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, LatestDataStorageRO,
         OnChainStorageRO,
     },
-    network::{AnnouncesRequest, AnnouncesRequestUntil},
+    network::{AnnouncesRequest, AnnouncesRequestUntil, NetworkAnnounce},
 };
 use ethexe_ethereum::primitives::map::HashMap;
 use ethexe_runtime_common::state::Storage;
@@ -696,7 +696,25 @@ pub enum AnnounceStatus {
 /// To be accepted, announce must
 /// 1) announce parent must be included by this node.
 /// 2) be not included yet.
-pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<AnnounceStatus> {
+pub fn accept_announce(
+    db: &impl DBAnnouncesExt,
+    network_announce: NetworkAnnounce,
+) -> Result<AnnounceStatus> {
+    let NetworkAnnounce {
+        block_hash,
+        parent,
+        gas_allowance,
+        injected_transactions,
+    } = network_announce;
+    let announce = Announce {
+        block_hash,
+        parent,
+        gas_allowance,
+        injected_transactions: injected_transactions
+            .iter()
+            .map(|tx| tx.data().to_hash())
+            .collect(),
+    };
     let announce_hash = announce.to_hash();
     let parent_announce_hash = announce.parent;
     if !db.is_announce_included(parent_announce_hash) {
@@ -712,17 +730,17 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
     // Verify for parent announce, because of the current is not processed.
     let tx_checker = TxValidityChecker::new_for_announce(db, announce.block_hash, announce.parent)?;
 
-    for tx in announce.injected_transactions.iter() {
-        let validity_status = tx_checker.check_tx_validity(tx)?;
+    for tx in injected_transactions {
+        let validity_status = tx_checker.check_tx_validity(&tx)?;
 
         match validity_status {
             TxValidity::Valid => {
-                db.set_injected_transaction(tx.clone());
+                db.set_injected_transaction(tx);
             }
 
             validity => {
                 tracing::trace!(
-                    announce = ?announce.to_hash(),
+                    announce = ?announce_hash,
                     "announce contains invalid transition with status {validity_status:?}, rejecting announce."
                 );
 

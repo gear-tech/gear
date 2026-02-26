@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{Announce, CodeAndIdUnchecked, ComputedAnnounce, HashOf};
+use ethexe_common::{
+    Announce, CodeAndIdUnchecked, ComputedAnnounce, HashOf, injected::InjectedTransaction,
+};
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
@@ -83,6 +85,8 @@ pub enum ComputeError {
     ProgramStatesNotFound(HashOf<Announce>),
     #[error("Schedule not found for computed Announce {0:?}")]
     ScheduleNotFound(HashOf<Announce>),
+    #[error("Injected transaction not found for hash {0:?}")]
+    InjectedTransactionNotFound(HashOf<InjectedTransaction>),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),

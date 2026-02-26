@@ -27,6 +27,7 @@ use crate::{
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
     injected::{AddressedInjectedTransaction, InjectedTransaction},
+    network::NetworkAnnounce,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
@@ -88,6 +89,29 @@ impl Mock<H256> for Announce {
 impl Mock<()> for Announce {
     fn mock(_args: ()) -> Self {
         Announce::mock(H256::random())
+    }
+}
+
+impl Mock<(H256, HashOf<Announce>)> for NetworkAnnounce {
+    fn mock((block_hash, parent): (H256, HashOf<Announce>)) -> Self {
+        NetworkAnnounce {
+            block_hash,
+            parent,
+            gas_allowance: Some(100),
+            injected_transactions: vec![],
+        }
+    }
+}
+
+impl Mock<H256> for NetworkAnnounce {
+    fn mock(block_hash: H256) -> Self {
+        NetworkAnnounce::mock((block_hash, HashOf::random()))
+    }
+}
+
+impl Mock<()> for NetworkAnnounce {
+    fn mock(_args: ()) -> Self {
+        NetworkAnnounce::mock(H256::random())
     }
 }
 

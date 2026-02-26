@@ -368,7 +368,7 @@ pub struct StateTransition {
     /// and each zero byte costs 4 gas (see <https://evm.codes/about#gascosts>).
     ///
     /// Negative numbers will be stored like this:
-    /// ```
+    /// ```text
     /// $ cast
     /// > -1 ether
     /// Type: int256

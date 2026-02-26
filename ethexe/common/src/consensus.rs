@@ -20,6 +20,7 @@ use crate::{
     Announce, Digest, HashOf, ToDigest,
     ecdsa::{ContractSignature, VerifiedData},
     gear::BatchCommitment,
+    network::NetworkAnnounce,
 };
 use alloc::vec::Vec;
 use gprimitives::CodeId;
@@ -27,7 +28,7 @@ use k256::sha2::Digest as _;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
-pub type VerifiedAnnounce = VerifiedData<Announce>;
+pub type VerifiedAnnounce = VerifiedData<NetworkAnnounce>;
 pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 

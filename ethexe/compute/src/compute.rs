@@ -21,7 +21,7 @@ use ethexe_common::{
     Announce, ComputedAnnounce, HashOf, SimpleBlockData,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW,
-        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        InjectedStorageRO, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
 };
@@ -236,6 +236,16 @@ pub fn prepare_executable_for_announce(
         .filter_map(|event| event.to_request())
         .collect();
 
+    let injected_transactions = announce
+        .injected_transactions
+        .into_iter()
+        .map(|tx_hash| {
+            db.injected_transaction(tx_hash)
+                .ok_or(ComputeError::InjectedTransactionNotFound(tx_hash))
+                .map(|tx| tx.into_verified())
+        })
+        .collect::<Result<_>>()?;
+
     Ok(ExecutableData {
         block: SimpleBlockData {
             hash: block_hash,
@@ -249,11 +259,7 @@ pub fn prepare_executable_for_announce(
         schedule: db
             .announce_schedule(announce.parent)
             .ok_or(ComputeError::ScheduleNotFound(announce.parent))?,
-        injected_transactions: announce
-            .injected_transactions
-            .into_iter()
-            .map(|tx| tx.into_verified())
-            .collect(),
+        injected_transactions,
         gas_allowance: announce.gas_allowance,
         events,
     })
