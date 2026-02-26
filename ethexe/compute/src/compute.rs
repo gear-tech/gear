@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
+    Announce, HashOf, PromisePolicy, SimpleBlockData,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW,
         LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
@@ -79,7 +79,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
     config: ComputeConfig,
     metrics: Metrics,
 
-    input: VecDeque<(Announce, bool)>,
+    input: VecDeque<(Announce, PromisePolicy)>,
     computation: Option<ComputationFuture>,
 }
 
@@ -98,9 +98,9 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     pub fn receive_announce_to_compute(
         &mut self,
         announce: Announce,
-        should_produce_promises: bool,
+        promise_policy: PromisePolicy,
     ) {
-        self.input.push_back((announce, should_produce_promises));
+        self.input.push_back((announce, promise_policy));
     }
 
     async fn compute(
@@ -108,7 +108,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         config: ComputeConfig,
         mut processor: P,
         announce: Announce,
-        should_produce_promises: bool,
+        promise_policy: PromisePolicy,
     ) -> Result<HashOf<Announce>> {
         let announce_hash = announce.to_hash();
         let block_hash = announce.block_hash;
@@ -146,7 +146,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
                 config,
                 announce_hash,
                 announce,
-                should_produce_promises,
+                promise_policy,
             )
             .await?;
         }
@@ -160,12 +160,12 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         config: ComputeConfig,
         announce_hash: HashOf<Announce>,
         announce: Announce,
-        should_produce_promises: bool,
+        promise_policy: PromisePolicy,
     ) -> Result<HashOf<Announce>> {
         let executable = prepare_executable_for_announce(
             db,
             announce,
-            should_produce_promises,
+            promise_policy,
             config.canonical_quarantine(),
         )?;
         let processing_result = processor.process_announce(executable).await?;
@@ -204,7 +204,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if self.computation.is_none()
-            && let Some((announce, should_produce_promises)) = self.input.pop_front()
+            && let Some((announce, promise_policy)) = self.input.pop_front()
         {
             self.computation = Some(future_timing::timed(
                 Self::compute(
@@ -212,7 +212,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                     self.config,
                     self.processor.clone(),
                     announce,
-                    should_produce_promises,
+                    promise_policy,
                 )
                 .boxed(),
             ));
@@ -236,7 +236,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 pub fn prepare_executable_for_announce(
     db: &Database,
     announce: Announce,
-    should_produce_promises: bool,
+    promise_policy: PromisePolicy,
     canonical_quarantine: u8,
 ) -> Result<ExecutableData> {
     let block_hash = announce.block_hash;
@@ -269,7 +269,7 @@ pub fn prepare_executable_for_announce(
             .collect(),
         gas_allowance: announce.gas_allowance,
         events,
-        should_produce_promises,
+        promise_policy,
     })
 }
 
@@ -344,7 +344,7 @@ mod tests {
 
         // Set the PROCESSOR_RESULT to return non-empty result
         PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
-        service.receive_announce_to_compute(announce, false);
+        service.receive_announce_to_compute(announce, PromisePolicy::Disabled);
 
         assert_eq!(service.next().await.unwrap(), announce_hash);
 

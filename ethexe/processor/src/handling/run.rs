@@ -113,7 +113,7 @@ use chunk_execution_processing::ChunkJournalsProcessingOutput;
 use chunks_splitting::ActorStateHashWithQueueSize;
 use core_processor::common::JournalNote;
 use ethexe_common::{
-    BlockHeader, StateHashWithQueueSize,
+    BlockHeader, PromisePolicy, StateHashWithQueueSize,
     db::CodesStorageRO,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
     injected::Promise,
@@ -251,8 +251,8 @@ pub(super) trait RunContext {
     }
 
     // TODO: add docs
-    fn should_produce_promises(&self) -> bool {
-        false
+    fn promise_policy(&self) -> PromisePolicy {
+        PromisePolicy::default()
     }
 
     /// Checks whether the run must be stopped early without executing the rest chunks.
@@ -272,10 +272,7 @@ pub(crate) struct CommonRunContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) chunk_size: usize,
     pub(crate) block_header: BlockHeader,
-
-    // TODO think about removing this
-    pub(crate) should_produce_promises: bool,
-
+    pub(crate) promise_policy: PromisePolicy,
     pub(crate) promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 }
 
@@ -288,7 +285,7 @@ impl CommonRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         block_header: BlockHeader,
-        should_produce_promises: bool,
+        promise_policy: PromisePolicy,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Self {
         CommonRunContext {
@@ -298,7 +295,7 @@ impl CommonRunContext {
             gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
             chunk_size,
             block_header,
-            should_produce_promises,
+            promise_policy,
             promise_out_tx,
         }
     }
@@ -362,8 +359,8 @@ impl RunContext for CommonRunContext {
         states(&self.transitions, processing_queue_type)
     }
 
-    fn should_produce_promises(&self) -> bool {
-        self.should_produce_promises
+    fn promise_policy(&self) -> PromisePolicy {
+        self.promise_policy
     }
 
     fn chunk_size(&self) -> usize {
@@ -546,7 +543,7 @@ mod chunk_execution_spawn {
             executor: InstanceWrapper,
             db: Box<dyn CASDatabase>,
             gas_allowance_for_chunk: u64,
-            should_produce_promises: bool,
+            promise_policy: PromisePolicy,
         }
 
         let (db, _, gas_allowance_counter) = ctx.borrow_inner();
@@ -571,7 +568,7 @@ mod chunk_execution_spawn {
                     executor,
                     db: db.clone_boxed(),
                     gas_allowance_for_chunk,
-                    should_produce_promises: ctx.should_produce_promises(),
+                    promise_policy: ctx.promise_policy(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -595,7 +592,7 @@ mod chunk_execution_spawn {
                          mut executor,
                          db,
                          gas_allowance_for_chunk,
-                         should_produce_promises,
+                         promise_policy,
                      }| {
                         let (jn, new_state_hash, gas_spent) = executor
                             .run(
@@ -610,7 +607,7 @@ mod chunk_execution_spawn {
                                         gas_allowance_for_chunk,
                                     ),
                                     block_info,
-                                    should_produce_promises,
+                                    promise_policy,
                                 },
                                 promise_out_tx.clone(),
                             )
@@ -775,7 +772,7 @@ mod tests {
             gas_allowance_counter: GasAllowanceCounter::new(1_000_000),
             chunk_size: CHUNK_PROCESSING_THREADS,
             block_header: BlockHeader::dummy(3),
-            should_produce_promises: false,
+            promise_policy: PromisePolicy::Disabled,
             promise_out_tx: None,
         };
 

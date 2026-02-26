@@ -20,7 +20,7 @@
 
 use core::num::NonZero;
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
+    CodeAndIdUnchecked, ProgramStates, PromisePolicy, Schedule, SimpleBlockData,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
     injected::{InjectedTransaction, Promise},
@@ -201,7 +201,7 @@ impl Processor {
             injected_transactions,
             gas_allowance,
             events,
-            should_produce_promises,
+            promise_policy,
         } = executable;
 
         let mut transitions =
@@ -212,7 +212,7 @@ impl Processor {
 
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance, should_produce_promises)
+                .process_queues(transitions, block, gas_allowance, promise_policy)
                 .await?;
         }
         transitions = self.process_tasks(transitions);
@@ -253,7 +253,7 @@ impl Processor {
         transitions: InBlockTransitions,
         block: SimpleBlockData,
         gas_allowance: u64,
-        should_produce_promises: bool,
+        promise_policy: PromisePolicy,
     ) -> Result<InBlockTransitions> {
         CommonRunContext::new(
             self.db.clone(),
@@ -262,7 +262,7 @@ impl Processor {
             gas_allowance,
             self.config.chunk_size,
             block.header,
-            should_produce_promises,
+            promise_policy,
             self.promise_out_tx.clone(),
         )
         .run()
@@ -315,7 +315,7 @@ pub struct ExecutableData {
     pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
     pub gas_allowance: Option<u64>,
     pub events: Vec<BlockRequestEvent>,
-    pub should_produce_promises: bool,
+    pub promise_policy: PromisePolicy,
 }
 
 #[cfg(test)]
@@ -328,7 +328,7 @@ impl Default for ExecutableData {
             injected_transactions: vec![],
             gas_allowance: Some(ethexe_common::DEFAULT_BLOCK_GAS_LIMIT),
             events: vec![],
-            should_produce_promises: false,
+            promise_policy: Default::default(),
         }
     }
 }

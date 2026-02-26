@@ -647,8 +647,8 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeAnnounce(announce, should_produce_promises) => {
-                        compute.compute_announce(announce, should_produce_promises)
+                    ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
+                        compute.compute_announce(announce, promise_policy)
                     }
                     ConsensusEvent::SignedPromise(signed_promise) => {
                         if rpc.is_none() && network.is_none() {

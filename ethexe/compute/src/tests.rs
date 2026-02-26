@@ -18,7 +18,7 @@
 
 use super::*;
 use ethexe_common::{
-    CodeBlobInfo,
+    CodeBlobInfo, PromisePolicy,
     db::*,
     events::{
         BlockEvent, RouterEvent,
@@ -219,7 +219,8 @@ impl TestEnv {
 
     async fn compute_and_assert_announce(&mut self, announce: Announce) {
         let announce_hash = announce.to_hash();
-        self.compute.compute_announce(announce.clone(), false);
+        self.compute
+            .compute_announce(announce.clone(), PromisePolicy::Disabled);
 
         let event = self
             .compute

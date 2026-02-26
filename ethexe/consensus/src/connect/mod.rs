@@ -27,7 +27,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     injected::{Promise, SignedInjectedTransaction},
@@ -161,8 +161,10 @@ impl ConnectService {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.output
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
-                self.output
-                    .push_back(ConsensusEvent::ComputeAnnounce(announce, false));
+                self.output.push_back(ConsensusEvent::ComputeAnnounce(
+                    announce,
+                    PromisePolicy::Disabled,
+                ));
             }
         }
 

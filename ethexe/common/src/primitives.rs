@@ -129,6 +129,16 @@ impl ToDigest for Announce {
     }
 }
 
+/// [`PromisePolicy`] tells processor whether should it emits promises or not.
+#[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Encode, Decode, derive_more::IsVariant)]
+pub enum PromisePolicy {
+    /// Emits promises in execution process.
+    Enabled,
+    // Do not emit promises in execution process.
+    #[default]
+    Disabled,
+}
+
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {

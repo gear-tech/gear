@@ -25,7 +25,9 @@ use crate::{
     host::InstanceCreator,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType, injected::Promise};
+use ethexe_common::{
+    BlockHeader, PromisePolicy, db::CodesStorageRO, gear::MessageType, injected::Promise,
+};
 use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
 use gear_core::{
@@ -86,7 +88,7 @@ impl OverlaidRunContext {
                 gas_allowance,
                 chunk_size,
                 block_header,
-                false,
+                PromisePolicy::Disabled,
                 None,
             ),
             base_program,

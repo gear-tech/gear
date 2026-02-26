@@ -29,7 +29,7 @@ use core_processor::{
     configs::{BlockConfig, SyscallName},
 };
 use ethexe_common::{
-    HashOf,
+    HashOf, PromisePolicy,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
     injected::Promise,
 };
@@ -78,9 +78,7 @@ pub struct ProcessQueueContext {
     pub code_metadata: CodeMetadata,
     pub gas_allowance: GasAllowanceCounter,
     pub block_info: BlockInfo,
-    // TODO: fix the naming
-    /// Whether should compute service produce promises
-    pub should_produce_promises: bool,
+    pub promise_policy: PromisePolicy,
 }
 
 pub trait RuntimeInterface: Storage {
@@ -236,7 +234,7 @@ where
         };
 
         // TODO: move to separate function
-        if ctx.should_produce_promises && is_promise_required {
+        if ctx.promise_policy.is_enabled() && is_promise_required {
             for note in journal.iter() {
                 if let JournalNote::SendDispatch {
                     message_id,

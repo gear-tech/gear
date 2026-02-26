@@ -27,7 +27,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
+    Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
     gear::BatchCommitment, injected::Promise, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
@@ -231,8 +231,10 @@ impl Producer {
         self.state = State::WaitingAnnounceComputed(announce_hash);
         self.ctx
             .output(ConsensusEvent::PublishMessage(message.into()));
-        self.ctx
-            .output(ConsensusEvent::ComputeAnnounce(announce, true));
+        self.ctx.output(ConsensusEvent::ComputeAnnounce(
+            announce,
+            PromisePolicy::Enabled,
+        ));
 
         Ok(self.into())
     }

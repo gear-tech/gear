@@ -28,7 +28,7 @@ use crate::{
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
 };
 use std::mem;
@@ -173,8 +173,10 @@ impl Subordinate {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx
                     .output(ConsensusEvent::AnnounceAccepted(announce_hash));
-                self.ctx
-                    .output(ConsensusEvent::ComputeAnnounce(announce, false));
+                self.ctx.output(ConsensusEvent::ComputeAnnounce(
+                    announce,
+                    PromisePolicy::Disabled,
+                ));
                 self.state = State::WaitingAnnounceComputed { announce_hash };
 
                 Ok(self.into())
@@ -235,7 +237,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce1.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce1.data().clone(), false)
+                ConsensusEvent::ComputeAnnounce(announce1.data().clone(), PromisePolicy::Disabled)
             ]
         );
         // announce2 must stay in pending events, because it's not from current producer.
@@ -295,7 +297,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), false)
+                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
             ]
         );
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
@@ -324,7 +326,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), false)
+                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
             ]
         );
 
@@ -337,7 +339,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), false)
+                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
             ]
         );
     }
@@ -366,7 +368,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), false)
+                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
             ]
         );
 
@@ -401,7 +403,10 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(producer_announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(producer_announce.data().clone(), false)
+                ConsensusEvent::ComputeAnnounce(
+                    producer_announce.data().clone(),
+                    PromisePolicy::Disabled
+                )
             ]
         );
         assert_eq!(s.context().pending_events, vec![alice_announce.into()]);

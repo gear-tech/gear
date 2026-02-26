@@ -24,7 +24,7 @@ use crate::{
     compute::{ComputeConfig, ComputeSubService},
     prepare::PrepareSubService,
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked, injected::Promise};
+use ethexe_common::{Announce, CodeAndIdUnchecked, PromisePolicy, injected::Promise};
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
 use futures::{Stream, stream::FusedStream};
@@ -54,9 +54,9 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.prepare_sub_service.receive_block_to_prepare(block);
     }
 
-    pub fn compute_announce(&mut self, announce: Announce, should_produce_promises: bool) {
+    pub fn compute_announce(&mut self, announce: Announce, promise_policy: PromisePolicy) {
         self.compute_sub_service
-            .receive_announce_to_compute(announce, should_produce_promises);
+            .receive_announce_to_compute(announce, promise_policy);
     }
 }
 
@@ -64,6 +64,16 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
     type Item = Result<ComputeEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(ref mut receiver) = self.promise_receiver
+            && let Poll::Ready(maybe_promise) = receiver.poll_recv(cx)
+        {
+            return Poll::Ready(Some(
+                maybe_promise
+                    .map(Into::into)
+                    .ok_or_else(|| ComputeError::PromiseSenderDropped),
+            ));
+        }
+
         if let Poll::Ready(result) = self.codes_sub_service.poll_next(cx) {
             match result {
                 Ok(code_id) => {
@@ -83,16 +93,6 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
         if let Poll::Ready(result) = self.compute_sub_service.poll_next(cx) {
             return Poll::Ready(Some(result.map(ComputeEvent::AnnounceComputed)));
         };
-
-        if let Some(ref mut receiver) = self.promise_receiver
-            && let Poll::Ready(maybe_promise) = receiver.poll_recv(cx)
-        {
-            return Poll::Ready(Some(
-                maybe_promise
-                    .map(Into::into)
-                    .ok_or_else(|| ComputeError::PromiseSenderDropped),
-            ));
-        }
 
         Poll::Pending
     }
@@ -317,7 +317,7 @@ mod tests {
             injected_transactions: vec![],
         };
         let announce_hash = announce.to_hash();
-        service.compute_announce(announce, false);
+        service.compute_announce(announce, PromisePolicy::Disabled);
 
         // Poll service to process the block
         let event = service.next().await.unwrap().unwrap();

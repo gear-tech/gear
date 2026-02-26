@@ -19,7 +19,7 @@
 use anyhow::{Context, Result, anyhow, ensure};
 use clap::Parser;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
+    Announce, HashOf, PromisePolicy, SimpleBlockData,
     db::{AnnounceStorageRO, LatestData, LatestDataStorageRO, OnChainStorageRO},
 };
 use ethexe_db::{
@@ -242,7 +242,7 @@ impl Checker {
             let executable = ethexe_compute::prepare_executable_for_announce(
                 db,
                 announce,
-                false,
+                PromisePolicy::Disabled,
                 canonical_quarantine,
             )
             .context("Unable to preparing announce data for execution")?;

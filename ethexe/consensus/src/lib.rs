@@ -34,7 +34,7 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Announce, Digest, HashOf, SimpleBlockData,
+    Announce, Digest, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{Promise, SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
@@ -112,7 +112,7 @@ pub enum ConsensusEvent {
     /// Announce from producer was rejected
     AnnounceRejected(HashOf<Announce>),
     /// Outer service have to compute announce
-    ComputeAnnounce(Announce, bool),
+    ComputeAnnounce(Announce, PromisePolicy),
     /// Outer service have to publish signed message
     #[from]
     PublishMessage(SignedValidatorMessage),
