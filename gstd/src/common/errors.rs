@@ -183,11 +183,11 @@ pub enum UsageError {
     /// function.
     #[cfg_attr(
         not(feature = "ethexe"),
-        doc = "See [`Config::set_system_reserve`](crate::Config::set_system_reserve)."
+        doc = "\n\nSee [`Config::set_system_reserve`](crate::Config::set_system_reserve)."
     )]
     #[cfg_attr(
         feature = "ethexe",
-        doc = "Never occurs under `ethexe` feature, since `Config::set_system_reserve` method is not available."
+        doc = "\n\nNever occurs under `ethexe` feature, since `Config::set_system_reserve` method is not available."
     )]
     #[error("System reservation amount can not be zero in config")]
     ZeroSystemReservationAmount,
@@ -198,11 +198,11 @@ pub enum UsageError {
     /// reply deposit.
     #[cfg_attr(
         not(feature = "ethexe"),
-        doc = "See [`MessageFuture::handle_reply`](crate::msg::MessageFuture::handle_reply)."
+        doc = "\n\nSee [`MessageFuture::handle_reply`](crate::msg::MessageFuture::handle_reply)."
     )]
     #[cfg_attr(
         feature = "ethexe",
-        doc = "Never occurs under `ethexe` feature, since `MessageFuture::handle_reply` method is not available."
+        doc = "\n\nNever occurs under `ethexe` feature, since `MessageFuture::handle_reply` method is not available."
     )]
     #[error("Reply deposit can not be zero when setting reply hook")]
     ZeroReplyDeposit,
