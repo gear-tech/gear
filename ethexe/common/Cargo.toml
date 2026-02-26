@@ -13,6 +13,7 @@ gear-core.workspace = true
 sp-core.workspace = true
 gprimitives.workspace = true
 parity-scale-codec.workspace = true
+scale-info = { workspace = true, features = ["derive"] }
 hex.workspace = true
 serde = { workspace = true, optional = true }
 roast-secp256k1-evm.workspace = true
@@ -36,6 +37,8 @@ gear-workspace-hack.workspace = true
 [dev-dependencies]
 gprimitives = { workspace = true, features = ["ethexe"] }
 serde_json.workspace = true
+indoc.workspace = true
+scale-info = { workspace = true, features = ["docs"] }
 
 [features]
 default = ["std"]
