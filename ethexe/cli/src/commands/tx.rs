@@ -978,7 +978,12 @@ impl TxCommand {
 
                         let injected_transaction = InjectedTransaction {
                             destination: raw_actor_id,
-                            payload: payload.0.clone().try_into().unwrap(),
+                            payload: payload.0.clone().try_into().with_context(|| {
+                                format!(
+                                    "Payload size exceeds the maximum allowed size of {} bytes",
+                                    ethexe_common::injected::MAX_INJECTED_TX_PAYLOAD_SIZE
+                                )
+                            })?,
                             value: raw_value,
                             reference_block: reference_block_hash,
                             salt: LimitedVec::try_from(salt.as_bytes())
