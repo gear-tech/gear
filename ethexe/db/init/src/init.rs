@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{InitConfig, LATEST_VERSION, MIGRATIONS};
+use crate::{InitConfig, LATEST_VERSION, MIGRATIONS, OLDEST_SUPPORTED_VERSION};
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, ensure};
 use ethexe_common::{
@@ -53,8 +53,10 @@ pub async fn initialize_db(config: InitConfig, db: DatabaseRef<'_, '_>) -> Resul
 
         log::info!("Database has version {db_version}");
 
-        for (from_version, &migration) in MIGRATIONS.iter().enumerate() {
-            if from_version >= db_version as usize {
+        for (i, &migration) in MIGRATIONS.iter().enumerate() {
+            let from_version = i as u32 + OLDEST_SUPPORTED_VERSION;
+
+            if from_version >= db_version {
                 Box::into_pin(migration.migrate(&config, &db)).await?;
             }
         }

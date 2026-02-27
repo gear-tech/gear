@@ -28,11 +28,12 @@ mod migration;
 mod v0;
 mod v1;
 
+pub const OLDEST_SUPPORTED_VERSION: u32 = v0::VERSION;
 pub const LATEST_VERSION: u32 = v1::VERSION;
 pub const MIGRATIONS: &[&dyn for<'c> Migration<'c>] = &[&v1::migration_from_v0];
 
 const _: () = assert!(
-    LATEST_VERSION as usize == MIGRATIONS.len(),
+    (LATEST_VERSION - OLDEST_SUPPORTED_VERSION) as usize == MIGRATIONS.len(),
     "Wrong number of migrations available"
 );
 
