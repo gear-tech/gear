@@ -30,7 +30,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
-    gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo},
+    gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
     injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
 use ethexe_ethereum::{Ethereum, mirror::ClaimInfo, router::CodeValidationResult};
@@ -981,7 +981,8 @@ impl TxCommand {
                             payload: payload.0.clone().try_into().unwrap(),
                             value: raw_value,
                             reference_block: reference_block_hash,
-                            salt: U256::from(salt.0),
+                            salt: LimitedVec::try_from(salt.as_bytes())
+                                .expect("`H256` is small enough for a salt"),
                         };
                         let message_id = injected_transaction.to_message_id();
                         let tx_hash = injected_transaction.to_hash().into();
