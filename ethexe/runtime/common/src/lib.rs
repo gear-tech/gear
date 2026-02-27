@@ -42,7 +42,7 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::H256;
+use gprimitives::{H256, MessageId};
 use gsys::{GasMultiplier, Percent};
 use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
@@ -235,34 +235,9 @@ where
 
         // TODO: move to separate function
         if ctx.promise_policy.is_enabled() && is_promise_required {
-            for note in journal.iter() {
-                if let JournalNote::SendDispatch {
-                    message_id,
-                    dispatch,
-                    ..
-                } = note
-                    && *message_id == dispatch_id
-                    && dispatch.kind().is_reply()
-                {
-                    let code = dispatch
-                        .reply_details()
-                        .map(|d| d.to_reply_code())
-                        .expect("reply details must exists for reply dispatch");
-
-                    let reply = ReplyInfo {
-                        value: dispatch.value(),
-                        code,
-                        payload: dispatch.message().payload_bytes().to_vec(),
-                    };
-
-                    let tx_hash = unsafe { HashOf::new(dispatch_id.into_bytes().into()) };
-                    let promise = Promise { reply, tx_hash };
-
-                    ri.publish_promise(&promise);
-                    break;
-                }
-            }
+            process_journal_for_injected_dispatch(ri, &journal, dispatch_id);
         }
+
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
         mega_journal.push((unhandled_journal_notes, message_type, call_reply));
 
@@ -282,6 +257,48 @@ where
         .expect("cannot spend more gas than allowed");
 
     (mega_journal, gas_spent)
+}
+
+/// Finds in [`process_dispatch`]'s the [`JournalNote::SendDispatch`] note and builds from it
+/// a [`ReplyInfo`] and [`Promise`] for injected message.
+fn process_journal_for_injected_dispatch<RI>(
+    ri: &RI,
+    journal: &[JournalNote],
+    dispatch_id: MessageId,
+) where
+    RI: RuntimeInterface,
+{
+    for note in journal.iter() {
+        if let JournalNote::SendDispatch {
+            message_id,
+            dispatch,
+            ..
+        } = note
+            && *message_id == dispatch_id
+            && dispatch.kind().is_reply()
+        {
+            let Some(code) = dispatch.reply_details().map(|d| d.to_reply_code()) else {
+                log::error!(
+                    "received reply dispatch without reply details; protocol invariant violated: \
+                    initial_dispatch_id={dispatch_id:?}, send_dispatch={dispatch:?}"
+                );
+                continue;
+            };
+
+            let reply = ReplyInfo {
+                value: dispatch.value(),
+                code,
+                payload: dispatch.message().payload_bytes().to_vec(),
+            };
+
+            // SAFE: because of protocol logic - injected message id constructs from injected transaction hash.
+            let tx_hash = unsafe { HashOf::new(dispatch_id.into_bytes().into()) };
+            let promise = Promise { reply, tx_hash };
+
+            ri.publish_promise(&promise);
+            break;
+        }
+    }
 }
 
 fn process_dispatch<RI>(

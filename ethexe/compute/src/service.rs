@@ -180,6 +180,8 @@ pub(crate) mod builder {
         }
     }
 
+    /// Production [`ComputeService`] builder.
+    /// Important: production builder allows to set variable only once.
     impl Builder<Production, Unset, Unset, Unset> {
         /// Creates a new production builder.
         pub fn production() -> Self {
@@ -195,8 +197,6 @@ pub(crate) mod builder {
                 .processor_config(ProcessorConfig::default())
         }
     }
-
-    // Important: production builder allows to set variable only once.
 
     impl<D, P> Builder<Production, Unset, D, P> {
         pub fn compute_config(self, config: ComputeConfig) -> Builder<Production, Set, D, P> {

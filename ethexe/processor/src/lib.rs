@@ -108,11 +108,6 @@ pub struct Processor {
     config: ProcessorConfig,
     db: Database,
     creator: InstanceCreator,
-    // TODO: Think about adding the
-    // #[cfg(test)]
-    // promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-    // #[cfg(not(test))]
-    // promise_out_tx: mpsc::UnboundedSender<Promise>,
     promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 }
 
@@ -197,7 +192,6 @@ impl Processor {
             block,
             program_states,
             schedule,
-            // TODO: remove
             injected_transactions,
             gas_allowance,
             events,
