@@ -16,14 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Context as _;
-use ethexe_db::{Database, RawDatabase};
+use crate::migration::Migration;
 use gsigner::Address;
+pub use init::{initialize_db, initialize_empty_db};
 
-mod version1;
+#[cfg(feature = "mock")]
+use ethexe_db::{Database, MemDb, RawDatabase};
 
-pub const DB_VERSION_0: u32 = 0;
-pub const DB_VERSION_1: u32 = 1;
+mod init;
+mod migration;
+
+mod v0;
+mod v1;
+
+pub const LATEST_VERSION: u32 = v1::VERSION;
+pub const MIGRATIONS: &[&dyn Migration] = &[&v1::migration_from_v0];
+
+const _: () = assert!(
+    LATEST_VERSION as usize == MIGRATIONS.len(),
+    "Wrong number of migrations available"
+);
 
 pub struct InitConfig {
     pub ethereum_rpc: String,
@@ -31,18 +43,9 @@ pub struct InitConfig {
     pub slot_duration_secs: u64,
 }
 
-pub async fn initialize_db(config: InitConfig, raw: RawDatabase) -> anyhow::Result<Database> {
-    const _: () = assert!(ethexe_db::VERSION == DB_VERSION_1, "Versions mismatch");
-
-    version1::initialize_db(config, raw.clone()).await?;
-    Database::try_from_raw(raw).context("Failed to create database from raw after initialization")
-}
-
 #[cfg(feature = "mock")]
 pub async fn create_initialized_empty_memory_db(config: InitConfig) -> anyhow::Result<Database> {
-    const _: () = assert!(ethexe_db::VERSION == DB_VERSION_1, "Versions mismatch");
-
-    let raw = RawDatabase::from_one(&ethexe_db::MemDb::default());
-    version1::initialize_empty_db(config, raw.clone()).await?;
+    let raw = RawDatabase::from_one(&MemDb::default());
+    initialize_empty_db(config, &raw).await?;
     Database::try_from_raw(raw)
 }
