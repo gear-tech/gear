@@ -12,7 +12,10 @@ use std::str::FromStr;
 use tokio::task::JoinSet;
 use tracing::info;
 
-use crate::{args::LoadParams, batch::BatchPool};
+use crate::{
+    args::LoadParams,
+    batch::{BatchPool, deploy_send_message_multicall},
+};
 
 /// Entrypoint for the node-loader CLI.
 ///
@@ -94,6 +97,12 @@ async fn load_node(params: LoadParams) -> Result<()> {
     )
     .await?;
 
+    let send_message_multicall = deploy_send_message_multicall(&deployer_api).await?;
+    info!(
+        "send-message multicall deployed at 0x{}",
+        alloy::hex::encode(send_message_multicall.0)
+    );
+
     // Load worker accounts from prefunded accounts (starting from index 1) concurrently so we
     // don't block on each Ethereum handshake during the loop.
     let mut init_tasks: JoinSet<Result<(u32, gsigner::secp256k1::Address, Ethereum)>> =
@@ -146,13 +155,15 @@ async fn load_node(params: LoadParams) -> Result<()> {
 
     // proportionally increase the channel size to workers and batch size
     // so that we can keep up with the load.
-    let (tx, rx) = tokio::sync::broadcast::channel(params.batch_size * params.workers * 48);
+    // Also, code validation is quite slow and can create backpressure, so we want to be able to queue up a large number of batches if that happens.
+    let (tx, rx) = tokio::sync::broadcast::channel(params.batch_size * params.workers * 512);
 
     let batch_pool = BatchPool::<SmallRng>::new(
         apis,
         params.ethexe_node.clone(),
         params.workers,
         params.batch_size,
+        send_message_multicall,
         rx.resubscribe(),
     );
 

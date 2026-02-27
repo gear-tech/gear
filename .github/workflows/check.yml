@@ -106,6 +106,9 @@ jobs:
           git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
         working-directory: ethexe/contracts
 
+      - name: "Check: node-loader BatchMulticall ABI is updated"
+        run: ./ethexe/node-loader/scripts/update-batch-multicall-json.sh --check
+
   clippy:
     strategy:
       fail-fast: false
