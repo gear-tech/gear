@@ -21,7 +21,7 @@ use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
 };
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
@@ -40,7 +40,7 @@ use ethexe_observer::{
     utils::{BlockId, BlockLoader},
 };
 use ethexe_processor::ProcessorConfig;
-use ethexe_prometheus::PrometheusService;
+use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{StreamExt, stream::FuturesUnordered};
@@ -69,6 +69,7 @@ pub enum Event {
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
     Rpc(RpcEvent),
+    Prometheus(PrometheusEvent),
     Fetching(db_sync::HandleResult),
 }
 
@@ -261,7 +262,7 @@ impl Service {
                 "👶 Genesis block hash wasn't found. Call router.lookupGenesisHash() first"
             );
 
-            bail!("Failed to query valid genesis hash");
+            anyhow::bail!("Failed to query valid genesis hash");
         } else {
             log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
         }
@@ -497,9 +498,7 @@ impl Service {
                 event = blob_loader.select_next_some() => event?.into(),
                 event = rpc.maybe_next_some() => event.into(),
                 fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
-                _ = prometheus.maybe_next_some() => {
-                    anyhow::bail!("Prometheus server handle has terminated");
-                },
+                event = prometheus.maybe_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
                     anyhow::bail!("`RPCWorker` has terminated, shutting down...")
                 }
@@ -685,6 +684,18 @@ impl Service {
                     }
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
+                    }
+                },
+                Event::Prometheus(event) => match event {
+                    PrometheusEvent::CollectMetrics { libp2p_metrics } => {
+                        if let Some(network) = &network {
+                            let mut s = String::new();
+                            network.render_libp2p_metrics(&mut s);
+                            let _res = libp2p_metrics.send(s);
+                        }
+                    }
+                    PrometheusEvent::ServerClosed(result) => {
+                        anyhow::bail!("Prometheus server closed with result: {result:?}");
                     }
                 },
                 Event::Fetching(result) => {
