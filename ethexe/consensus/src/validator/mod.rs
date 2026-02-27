@@ -218,8 +218,12 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_announce(announce))
     }
 
-    fn receive_promise_for_signing(&mut self, promise: Promise) -> Result<()> {
-        self.update_inner(|inner| inner.process_raw_promise(promise))
+    fn receive_promise_for_signing(
+        &mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<()> {
+        self.update_inner(|inner| inner.process_raw_promise(promise, announce_hash))
     }
 
     fn receive_validation_request(&mut self, batch: VerifiedValidationRequest) -> Result<()> {
@@ -326,8 +330,12 @@ where
         DefaultProcessing::announce_from_producer(self, announce)
     }
 
-    fn process_raw_promise(self, promise: Promise) -> Result<ValidatorState> {
-        DefaultProcessing::promise_for_signing(self, promise)
+    fn process_raw_promise(
+        self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<ValidatorState> {
+        DefaultProcessing::promise_for_signing(self, promise, announce_hash)
     }
 
     fn process_validation_request(
@@ -418,8 +426,12 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_announce(verified_announce))
     }
 
-    fn process_raw_promise(self, promise: Promise) -> Result<ValidatorState> {
-        delegate_call!(self => process_raw_promise(promise))
+    fn process_raw_promise(
+        self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<ValidatorState> {
+        delegate_call!(self => process_raw_promise(promise, announce_hash))
     }
 
     fn process_validation_request(
@@ -480,10 +492,11 @@ impl DefaultProcessing {
     fn promise_for_signing(
         s: impl Into<ValidatorState>,
         promise: Promise,
+        announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected promise for signing: promise={promise:?}"
+            "unexpected promise for signing: promise={promise:?}, announce_hash={announce_hash:?}"
         ));
         Ok(s)
     }

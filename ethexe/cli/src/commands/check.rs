@@ -19,7 +19,7 @@
 use anyhow::{Context, Result, anyhow, ensure};
 use clap::Parser;
 use ethexe_common::{
-    Announce, HashOf, PromisePolicy, SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRO, LatestData, LatestDataStorageRO, OnChainStorageRO},
 };
 use ethexe_db::{
@@ -227,7 +227,7 @@ impl Checker {
             None
         };
 
-        let processor = Processor::with_config(ProcessorConfig { chunk_size }, db.clone(), None)
+        let processor = Processor::with_config(ProcessorConfig { chunk_size }, db.clone())
             .context("failed to create processor")?;
 
         // Iterate back: from `head` announce to `bottom` announce
@@ -239,16 +239,12 @@ impl Checker {
             let announce_parent_hash = announce.parent;
 
             let mut processor = processor.clone().overlaid();
-            let executable = ethexe_compute::prepare_executable_for_announce(
-                db,
-                announce,
-                PromisePolicy::Disabled,
-                canonical_quarantine,
-            )
-            .context("Unable to preparing announce data for execution")?;
+            let executable =
+                ethexe_compute::prepare_executable_for_announce(db, announce, canonical_quarantine)
+                    .context("Unable to preparing announce data for execution")?;
             let res = processor
                 .as_mut()
-                .process_programs(executable)
+                .process_programs(executable, None)
                 .await
                 .context("failed to re-compute announce")?;
 

@@ -190,7 +190,17 @@ pub(super) trait RunContext {
     /// Get reference to instance creator.
     fn instance_creator(&self) -> &InstanceCreator;
 
+    /// Returns the promises output channel if it set for current execution.
     fn promise_out_tx(&self) -> &Option<mpsc::UnboundedSender<Promise>>;
+
+    /// [`PromisePolicy`] tells processor should it emit promises or not.
+    /// By default if [`RunContext::promise_out_tx`] returns [`Some`] this function will return [`PromisePolicy::Enabled`].
+    fn promise_policy(&self) -> PromisePolicy {
+        match self.promise_out_tx().is_some() {
+            true => PromisePolicy::Enabled,
+            false => PromisePolicy::Disabled,
+        }
+    }
 
     /// Returns the header of the current block.
     fn block_header(&self) -> BlockHeader;
@@ -250,11 +260,6 @@ pub(super) trait RunContext {
         false
     }
 
-    // TODO: add docs
-    fn promise_policy(&self) -> PromisePolicy {
-        PromisePolicy::default()
-    }
-
     /// Checks whether the run must be stopped early without executing the rest chunks.
     ///
     /// In common execution, the run is never stopped early.
@@ -272,12 +277,10 @@ pub(crate) struct CommonRunContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) chunk_size: usize,
     pub(crate) block_header: BlockHeader,
-    pub(crate) promise_policy: PromisePolicy,
     pub(crate) promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 }
 
 impl CommonRunContext {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: Database,
         instance_creator: InstanceCreator,
@@ -285,7 +288,6 @@ impl CommonRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         block_header: BlockHeader,
-        promise_policy: PromisePolicy,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Self {
         CommonRunContext {
@@ -295,7 +297,6 @@ impl CommonRunContext {
             gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
             chunk_size,
             block_header,
-            promise_policy,
             promise_out_tx,
         }
     }
@@ -357,10 +358,6 @@ impl RunContext for CommonRunContext {
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
         states(&self.transitions, processing_queue_type)
-    }
-
-    fn promise_policy(&self) -> PromisePolicy {
-        self.promise_policy
     }
 
     fn chunk_size(&self) -> usize {
@@ -543,7 +540,6 @@ mod chunk_execution_spawn {
             executor: InstanceWrapper,
             db: Box<dyn CASDatabase>,
             gas_allowance_for_chunk: u64,
-            promise_policy: PromisePolicy,
         }
 
         let (db, _, gas_allowance_counter) = ctx.borrow_inner();
@@ -568,12 +564,13 @@ mod chunk_execution_spawn {
                     executor,
                     db: db.clone_boxed(),
                     gas_allowance_for_chunk,
-                    promise_policy: ctx.promise_policy(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
 
+        let promise_policy = ctx.promise_policy();
         let promise_out_tx = ctx.promise_out_tx().clone();
+
         let block_header = ctx.block_header();
         let block_info = BlockInfo {
             height: block_header.height,
@@ -592,7 +589,6 @@ mod chunk_execution_spawn {
                          mut executor,
                          db,
                          gas_allowance_for_chunk,
-                         promise_policy,
                      }| {
                         let (jn, new_state_hash, gas_spent) = executor
                             .run(
@@ -772,7 +768,6 @@ mod tests {
             gas_allowance_counter: GasAllowanceCounter::new(1_000_000),
             chunk_size: CHUNK_PROCESSING_THREADS,
             block_header: BlockHeader::dummy(3),
-            promise_policy: PromisePolicy::Disabled,
             promise_out_tx: None,
         };
 

@@ -287,9 +287,14 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_promise_for_signing(&mut self, promise: Promise) -> Result<()> {
+    fn receive_promise_for_signing(
+        &mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<()> {
         tracing::error!(
-            "Connected consensus node receives the promise for signing, but it not responsible for promises providing: promise={promise:?}"
+            "Connected consensus node receives the promise for signing, but it not responsible for promises providing: \
+            promise={promise:?}, announce_hash={announce_hash}"
         );
         Ok(())
     }

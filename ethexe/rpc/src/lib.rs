@@ -107,7 +107,6 @@ impl RpcServer {
                 chunk_size: self.config.chunk_size,
             },
             self.db.clone(),
-            None,
         )?
         .overlaid();
 

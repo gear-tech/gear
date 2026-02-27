@@ -33,6 +33,7 @@ use gear_core::{
     ids::prelude::CodeIdExt,
 };
 use std::{cell::RefCell, collections::BTreeMap};
+use tokio::sync::mpsc;
 
 thread_local! {
     pub(crate) static PROCESSOR_RESULT: RefCell<FinalizedBlockTransitions> = const { RefCell::new(
@@ -53,6 +54,7 @@ impl ProcessorExt for MockProcessor {
     async fn process_announce(
         &mut self,
         _executable: ExecutableData,
+        _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
         let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
         PROCESSOR_RESULT.with_borrow_mut(|r| {
@@ -166,9 +168,7 @@ impl TestEnv {
         mark_as_not_prepared(&mut chain);
         chain = chain.setup(&db);
 
-        let compute = ComputeServiceBuilder::production_with_defaults(db.clone())
-            .build()
-            .unwrap();
+        let compute = ComputeService::new_with_defaults(db.clone());
 
         TestEnv { db, compute, chain }
     }

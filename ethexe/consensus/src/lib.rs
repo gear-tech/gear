@@ -77,7 +77,11 @@ pub trait ConsensusService:
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()>;
 
     /// Receives the raw promise for signing.
-    fn receive_promise_for_signing(&mut self, promise: Promise) -> Result<()>;
+    fn receive_promise_for_signing(
+        &mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<()>;
 
     /// Process a received validation request
     fn receive_validation_request(&mut self, request: VerifiedValidationRequest) -> Result<()>;

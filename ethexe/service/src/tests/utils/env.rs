@@ -42,7 +42,7 @@ use ethexe_common::{
     },
     network::{SignedValidatorMessage, ValidatorMessage},
 };
-use ethexe_compute::{ComputeConfig, ComputeServiceBuilder};
+use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{
@@ -56,7 +56,7 @@ use ethexe_observer::{
     EthereumConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
-use ethexe_processor::{DEFAULT_CHUNK_SIZE, ProcessorConfig};
+use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
@@ -886,12 +886,8 @@ impl Node {
             "Service is already running"
         );
 
-        let compute = ComputeServiceBuilder::production()
-            .db(self.db.clone())
-            .compute_config(self.compute_config)
-            .processor_config(ProcessorConfig::default())
-            .build()
-            .unwrap();
+        let processor = Processor::new(self.db.clone()).unwrap();
+        let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await

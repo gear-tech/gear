@@ -2493,7 +2493,7 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Compute(ComputeEvent::Promise(promise)) = event {
+            if let TestingEvent::Compute(ComputeEvent::Promise(promise, _)) = event {
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
@@ -3379,5 +3379,3 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         unreachable!();
     }
 }
-
-// TODO: implement test checks that promises produced only by validator

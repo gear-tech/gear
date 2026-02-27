@@ -139,6 +139,10 @@ pub enum PromisePolicy {
     Disabled,
 }
 
+// Producer -> (announce, PromisePolicy::Enabled)
+// Subordinate -> (announce, PromisePolicy::Disabled)
+// ConnectNode -> (announce, PromisePolicy::Disabled)
+
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {

@@ -233,7 +233,6 @@ where
             stop_processing: false,
         };
 
-        // TODO: move to separate function
         if ctx.promise_policy.is_enabled() && is_promise_required {
             process_journal_for_injected_dispatch(ri, &journal, dispatch_id);
         }

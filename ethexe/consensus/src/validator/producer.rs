@@ -104,18 +104,28 @@ impl StateHandler for Producer {
         }
     }
 
-    fn process_raw_promise(mut self, promise: Promise) -> Result<ValidatorState> {
-        let tx_hash = promise.tx_hash;
+    fn process_raw_promise(
+        mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<ValidatorState> {
+        match &self.state {
+            State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
+                let tx_hash = promise.tx_hash;
 
-        let signed_promise =
-            self.ctx
-                .core
-                .signer
-                .signed_message(self.ctx.core.pub_key, promise, None)?;
-        self.ctx.output(signed_promise);
+                let signed_promise =
+                    self.ctx
+                        .core
+                        .signer
+                        .signed_message(self.ctx.core.pub_key, promise, None)?;
+                self.ctx.output(signed_promise);
 
-        tracing::trace!("consensus sign promise for transaction-hash={tx_hash}");
-        Ok(self.into())
+                tracing::trace!("consensus sign promise for transaction-hash={tx_hash}");
+                Ok(self.into())
+            }
+
+            _ => DefaultProcessing::promise_for_signing(self, promise, announce_hash),
+        }
     }
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {

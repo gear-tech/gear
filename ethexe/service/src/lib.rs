@@ -25,7 +25,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
-use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService, ComputeServiceBuilder};
+use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
@@ -39,7 +39,7 @@ use ethexe_observer::{
     ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
-use ethexe_processor::ProcessorConfig;
+use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
@@ -373,12 +373,8 @@ impl Service {
         let processor_config = ProcessorConfig {
             chunk_size: config.node.chunk_processing_threads,
         };
-        let compute = ComputeServiceBuilder::production()
-            .db(db.clone())
-            .compute_config(compute_config)
-            .processor_config(processor_config)
-            .build()
-            .with_context(|| "failed to build compute service")?;
+        let processor = Processor::with_config(processor_config, db.clone())?;
+        let compute = ComputeService::new(compute_config, db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;
 
@@ -552,8 +548,8 @@ impl Service {
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
                     }
-                    ComputeEvent::Promise(promise) => {
-                        consensus.receive_promise_for_signing(promise)?;
+                    ComputeEvent::Promise(promise, announce_hash) => {
+                        consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },
                 Event::Network(event) => {

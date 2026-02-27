@@ -20,7 +20,7 @@
 
 use core::num::NonZero;
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, PromisePolicy, Schedule, SimpleBlockData,
+    CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
     injected::{InjectedTransaction, Promise},
@@ -108,31 +108,22 @@ pub struct Processor {
     config: ProcessorConfig,
     db: Database,
     creator: InstanceCreator,
-    promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 }
 
 /// TODO: consider avoiding re-instantiations on processing events.
 /// Maybe impl `struct EventProcessor`.
 impl Processor {
     /// Creates processor with default config.
-    pub fn new(
-        db: Database,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-    ) -> Result<Self> {
-        Self::with_config(Default::default(), db, promise_out_tx)
+    pub fn new(db: Database) -> Result<Self> {
+        Self::with_config(Default::default(), db)
     }
 
-    pub fn with_config(
-        config: ProcessorConfig,
-        db: Database,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-    ) -> Result<Self> {
+    pub fn with_config(config: ProcessorConfig, db: Database) -> Result<Self> {
         let creator = InstanceCreator::new(host::runtime())?;
         Ok(Self {
             config,
             db,
             creator,
-            promise_out_tx,
         })
     }
 
@@ -185,6 +176,7 @@ impl Processor {
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!("{executable}");
 
@@ -195,7 +187,6 @@ impl Processor {
             injected_transactions,
             gas_allowance,
             events,
-            promise_policy,
         } = executable;
 
         let mut transitions =
@@ -206,7 +197,7 @@ impl Processor {
 
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance, promise_policy)
+                .process_queues(transitions, block, gas_allowance, promise_out_tx)
                 .await?;
         }
         transitions = self.process_tasks(transitions);
@@ -247,7 +238,7 @@ impl Processor {
         transitions: InBlockTransitions,
         block: SimpleBlockData,
         gas_allowance: u64,
-        promise_policy: PromisePolicy,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<InBlockTransitions> {
         CommonRunContext::new(
             self.db.clone(),
@@ -256,8 +247,7 @@ impl Processor {
             gas_allowance,
             self.config.chunk_size,
             block.header,
-            promise_policy,
-            self.promise_out_tx.clone(),
+            promise_out_tx,
         )
         .run()
         .await
@@ -309,7 +299,6 @@ pub struct ExecutableData {
     pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
     pub gas_allowance: Option<u64>,
     pub events: Vec<BlockRequestEvent>,
-    pub promise_policy: PromisePolicy,
 }
 
 #[cfg(test)]
@@ -322,7 +311,6 @@ impl Default for ExecutableData {
             injected_transactions: vec![],
             gas_allowance: Some(ethexe_common::DEFAULT_BLOCK_GAS_LIMIT),
             events: vec![],
-            promise_policy: Default::default(),
         }
     }
 }
