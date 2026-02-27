@@ -2,8 +2,6 @@
 pragma solidity ^0.8.33;
 
 import {IMirror} from "./IMirror.sol";
-import {IRouter} from "./IRouter.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
 
 contract BatchMulticall {
     struct MessageCall {
