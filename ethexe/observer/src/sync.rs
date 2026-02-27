@@ -201,10 +201,14 @@ impl<DB: SyncDB> ChainSync<DB> {
         if let Some(election_ts) = self.election_timestamp_finalized(data.header)
             && self.db.validators(chain_head_era.add(1)).is_none()
         {
-            let next_era_validators = self
+            let mut next_era_validators = self
                 .middleware_query
                 .make_election_at(election_ts, 10)
                 .await?;
+
+            // TODO: !!! temporary fix, for validators order correctness. Remove it in #5181
+            next_era_validators.sort();
+
             self.db
                 .set_validators(chain_head_era.add(1), next_era_validators);
         }
