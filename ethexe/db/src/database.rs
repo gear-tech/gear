@@ -22,7 +22,7 @@ use crate::{
     CASDatabase, KVDatabase,
     overlay::{CASOverlay, KVOverlay},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use delegate::delegate;
 use ethexe_common::{
     Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
@@ -53,7 +53,7 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard},
 };
 
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 #[repr(u64)]
 enum Key {
@@ -144,14 +144,28 @@ impl Key {
 }
 
 impl dyn KVDatabase + '_ {
-    pub fn config(&self) -> Option<Result<DBConfig>> {
+    pub fn version(&self) -> Result<Option<u32>> {
         self.get(&Key::Config.to_bytes())
-            .map(|data| DBConfig::decode(&mut data.as_ref()).map_err(Into::into))
+            .map(|data| {
+                u32::decode(&mut data.as_ref()).context("Failed to decode database version")
+            })
+            .transpose()
     }
 
-    pub fn globals(&self) -> Option<Result<DBGlobals>> {
+    pub fn config(&self) -> Result<DBConfig> {
+        self.get(&Key::Config.to_bytes())
+            .context("Database config is not found")
+            .and_then(|data| {
+                DBConfig::decode(&mut data.as_ref()).context("Failed to decode database config")
+            })
+    }
+
+    pub fn globals(&self) -> Result<DBGlobals> {
         self.get(&Key::Globals.to_bytes())
-            .map(|data| DBGlobals::decode(&mut data.as_ref()).map_err(Into::into))
+            .context("Database globals are not found")
+            .and_then(|data| {
+                DBGlobals::decode(&mut data.as_ref()).context("Failed to decode database globals")
+            })
     }
 
     pub fn set_config(&self, config: DBConfig) {

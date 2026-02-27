@@ -16,16 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::migration::Migration;
 #[cfg(feature = "mock")]
 use ethexe_db::{Database, DatabaseRef, MemDb};
 use gsigner::Address;
+pub use init::{initialize_db, initialize_empty_db};
 
-pub use version1::*;
+mod init;
+mod migration;
 
-mod version1;
+mod v0;
+mod v1;
 
-pub const DB_VERSION_0: u32 = 0;
-pub const DB_VERSION_1: u32 = 1;
+pub const LATEST_VERSION: u32 = v1::VERSION;
+pub const MIGRATIONS: &[&dyn for<'c> Migration<'c>] = &[&v1::migration_from_v0];
+
+const _: () = assert!(
+    LATEST_VERSION as usize == MIGRATIONS.len(),
+    "Wrong number of migrations available"
+);
 
 pub struct InitConfig {
     pub ethereum_rpc: String,
