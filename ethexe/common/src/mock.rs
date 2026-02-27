@@ -19,8 +19,8 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, ComputedAnnounce, Digest, HashOf,
-    ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
@@ -630,23 +630,5 @@ impl BlockData {
         db.set_block_events(self.hash, &self.events);
         db.set_block_synced(self.hash);
         self
-    }
-}
-
-impl Mock for ComputedAnnounce {
-    fn mock(_: ()) -> Self {
-        Self {
-            announce_hash: HashOf::random(),
-            promises: Default::default(),
-        }
-    }
-}
-
-impl Mock<HashOf<Announce>> for ComputedAnnounce {
-    fn mock(announce_hash: HashOf<Announce>) -> Self {
-        Self {
-            announce_hash,
-            promises: Default::default(),
-        }
     }
 }

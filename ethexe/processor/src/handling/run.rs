@@ -113,9 +113,10 @@ use chunk_execution_processing::ChunkJournalsProcessingOutput;
 use chunks_splitting::ActorStateHashWithQueueSize;
 use core_processor::common::JournalNote;
 use ethexe_common::{
-    BlockHeader, StateHashWithQueueSize,
+    BlockHeader, PromisePolicy, StateHashWithQueueSize,
     db::CodesStorageRO,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
+    injected::Promise,
 };
 use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{
@@ -127,6 +128,7 @@ use gear_core::{
 };
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::Itertools;
+use tokio::sync::mpsc;
 
 // Process chosen queue type in chunks
 // Returns whether execution is NOT run out of gas (execution can be continued)
@@ -187,6 +189,18 @@ pub(super) async fn run_for_queue_type(
 pub(super) trait RunContext {
     /// Get reference to instance creator.
     fn instance_creator(&self) -> &InstanceCreator;
+
+    /// Returns the promises output channel if it set for current execution.
+    fn promise_out_tx(&self) -> &Option<mpsc::UnboundedSender<Promise>>;
+
+    /// [`PromisePolicy`] tells processor should it emit promises or not.
+    /// By default if [`RunContext::promise_out_tx`] returns [`Some`] this function will return [`PromisePolicy::Enabled`].
+    fn promise_policy(&self) -> PromisePolicy {
+        match self.promise_out_tx().is_some() {
+            true => PromisePolicy::Enabled,
+            false => PromisePolicy::Disabled,
+        }
+    }
 
     /// Returns the header of the current block.
     fn block_header(&self) -> BlockHeader;
@@ -263,6 +277,7 @@ pub(crate) struct CommonRunContext {
     pub(crate) gas_allowance_counter: GasAllowanceCounter,
     pub(crate) chunk_size: usize,
     pub(crate) block_header: BlockHeader,
+    pub(crate) promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 }
 
 impl CommonRunContext {
@@ -273,6 +288,7 @@ impl CommonRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         block_header: BlockHeader,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Self {
         CommonRunContext {
             db,
@@ -281,6 +297,7 @@ impl CommonRunContext {
             gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
             chunk_size,
             block_header,
+            promise_out_tx,
         }
     }
 
@@ -300,6 +317,10 @@ impl CommonRunContext {
 impl RunContext for CommonRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.instance_creator
+    }
+
+    fn promise_out_tx(&self) -> &Option<mpsc::UnboundedSender<Promise>> {
+        &self.promise_out_tx
     }
 
     fn block_header(&self) -> BlockHeader {
@@ -547,6 +568,9 @@ mod chunk_execution_spawn {
             })
             .collect::<Result<Vec<_>>>()?;
 
+        let promise_policy = ctx.promise_policy();
+        let promise_out_tx = ctx.promise_out_tx().clone();
+
         let block_header = ctx.block_header();
         let block_info = BlockInfo {
             height: block_header.height,
@@ -579,7 +603,9 @@ mod chunk_execution_spawn {
                                         gas_allowance_for_chunk,
                                     ),
                                     block_info,
+                                    promise_policy,
                                 },
+                                promise_out_tx.clone(),
                             )
                             .expect("Some error occurs while running program in instance");
 
@@ -733,7 +759,7 @@ mod tests {
         .take(STATE_SIZE)
         .collect();
 
-        let transitions = InBlockTransitions::new(0, states, Default::default(), vec![]);
+        let transitions = InBlockTransitions::new(0, states, Default::default());
 
         let mut ctx = CommonRunContext {
             db: Database::memory(),
@@ -742,6 +768,7 @@ mod tests {
             gas_allowance_counter: GasAllowanceCounter::new(1_000_000),
             chunk_size: CHUNK_PROCESSING_THREADS,
             block_header: BlockHeader::dummy(3),
+            promise_out_tx: None,
         };
 
         let chunks = chunks_splitting::prepare_execution_chunks(&mut ctx, MessageType::Canonical);
@@ -868,8 +895,7 @@ mod tests {
             (pid2, pid2_state_hash_with_queue_size),
         ]);
 
-        let mut in_block_transitions =
-            InBlockTransitions::new(3, states, Default::default(), vec![]);
+        let mut in_block_transitions = InBlockTransitions::new(3, states, Default::default());
 
         let base_program = pid2;
 

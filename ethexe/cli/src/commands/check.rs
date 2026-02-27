@@ -244,7 +244,7 @@ impl Checker {
                     .context("Unable to preparing announce data for execution")?;
             let res = processor
                 .as_mut()
-                .process_programs(executable)
+                .process_programs(executable, None)
                 .await
                 .context("failed to re-compute announce")?;
 

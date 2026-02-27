@@ -16,9 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::wasm::interface::promise_ri;
+
 use super::interface::database_ri;
 use alloc::vec::Vec;
-use ethexe_common::HashOf;
+use ethexe_common::{HashOf, injected::Promise};
 use ethexe_runtime_common::{
     RuntimeInterface,
     state::{
@@ -149,5 +151,9 @@ impl RuntimeInterface for NativeRuntimeInterface {
 
     fn update_state_hash(&self, hash: &H256) {
         database_ri::update_state_hash(hash);
+    }
+
+    fn publish_promise(&self, promise: &Promise) {
+        promise_ri::publish_promise(promise);
     }
 }

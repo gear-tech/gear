@@ -23,7 +23,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
-    injected::InjectedTransaction,
+    injected::{InjectedTransaction, Promise},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -38,6 +38,7 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
+use tokio::sync::mpsc;
 
 pub use host::InstanceError;
 
@@ -175,6 +176,7 @@ impl Processor {
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!("{executable}");
 
@@ -187,22 +189,15 @@ impl Processor {
             events,
         } = executable;
 
-        let injected_messages = injected_transactions
-            .iter()
-            .map(|tx| tx.data().to_message_id());
-
-        let mut transitions = InBlockTransitions::new(
-            block.header.height,
-            program_states,
-            schedule,
-            injected_messages,
-        );
+        let mut transitions =
+            InBlockTransitions::new(block.header.height, program_states, schedule);
 
         transitions =
             self.process_injected_and_events(transitions, injected_transactions, events)?;
+
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance)
+                .process_queues(transitions, block, gas_allowance, promise_out_tx)
                 .await?;
         }
         transitions = self.process_tasks(transitions);
@@ -243,6 +238,7 @@ impl Processor {
         transitions: InBlockTransitions,
         block: SimpleBlockData,
         gas_allowance: u64,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<InBlockTransitions> {
         CommonRunContext::new(
             self.db.clone(),
@@ -251,6 +247,7 @@ impl Processor {
             gas_allowance,
             self.config.chunk_size,
             block.header,
+            promise_out_tx,
         )
         .run()
         .await
@@ -369,12 +366,8 @@ impl OverlaidProcessor {
             return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
-        let transitions = InBlockTransitions::new(
-            block.header.height,
-            program_states,
-            Schedule::default(),
-            vec![],
-        );
+        let transitions =
+            InBlockTransitions::new(block.header.height, program_states, Schedule::default());
 
         let transitions = self.0.process_injected_and_events(
             transitions,

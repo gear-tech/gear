@@ -16,14 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{Announce, CodeAndIdUnchecked, ComputedAnnounce, HashOf};
+pub use compute::{
+    ComputeConfig, ComputeSubService,
+    utils::{find_canonical_events_post_quarantine, prepare_executable_for_announce},
+};
+use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, injected::Promise};
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
-use std::collections::HashSet;
-
-pub use compute::{ComputeConfig, ComputeSubService, prepare_executable_for_announce};
 pub use service::ComputeService;
+use std::collections::HashSet;
+use tokio::sync::mpsc;
 
 mod codes;
 mod compute;
@@ -38,12 +41,13 @@ pub struct BlockProcessed {
     pub block_hash: H256,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    AnnounceComputed(ComputedAnnounce),
+    AnnounceComputed(HashOf<Announce>),
+    Promise(Promise, HashOf<Announce>),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -83,6 +87,8 @@ pub enum ComputeError {
     ProgramStatesNotFound(HashOf<Announce>),
     #[error("Schedule not found for computed Announce {0:?}")]
     ScheduleNotFound(HashOf<Announce>),
+    #[error("Promise sender dropped")]
+    PromiseSenderDropped,
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -95,6 +101,7 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     fn process_announce(
         &mut self,
         executable: ExecutableData,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked)
     -> Result<ProcessedCodeInfo>;
@@ -104,8 +111,11 @@ impl ProcessorExt for Processor {
     async fn process_announce(
         &mut self,
         executable: ExecutableData,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
-        self.process_programs(executable).await.map_err(Into::into)
+        self.process_programs(executable, promise_out_tx)
+            .await
+            .map_err(Into::into)
     }
 
     fn process_upload_code(

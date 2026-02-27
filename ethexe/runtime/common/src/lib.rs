@@ -28,16 +28,21 @@ use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
 };
-use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
+use ethexe_common::{
+    HashOf, PromisePolicy,
+    gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
+    injected::Promise,
+};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     gas::GasAllowanceCounter,
     gas_metering::Schedule,
     ids::ActorId,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
+    rpc::ReplyInfo,
 };
 use gear_lazy_pages_common::LazyPagesInterface;
-use gprimitives::H256;
+use gprimitives::{H256, MessageId};
 use gsys::{GasMultiplier, Percent};
 use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
@@ -73,6 +78,7 @@ pub struct ProcessQueueContext {
     pub code_metadata: CodeMetadata,
     pub gas_allowance: GasAllowanceCounter,
     pub block_info: BlockInfo,
+    pub promise_policy: PromisePolicy,
 }
 
 pub trait RuntimeInterface: Storage {
@@ -81,6 +87,9 @@ pub trait RuntimeInterface: Storage {
     fn init_lazy_pages(&self);
     fn random_data(&self) -> (Vec<u8>, u32);
     fn update_state_hash(&self, state_hash: &H256);
+    /// Publish a promise produced during execution to the compute service layer.
+    /// The implementation is expected to forward it to external subscribers.
+    fn publish_promise(&self, promise: &Promise);
 }
 
 /// A main low-level interface to perform state changes
@@ -207,9 +216,11 @@ where
     ri.init_lazy_pages();
 
     for dispatch in queue {
-        let origin = dispatch.message_type;
+        let dispatch_id = dispatch.id;
+        let message_type = dispatch.message_type;
         let call_reply = dispatch.call;
         let is_first_execution = dispatch.context.is_none();
+        let is_promise_required = dispatch.kind.is_handle() && dispatch.message_type.is_injected();
 
         let journal = process_dispatch(dispatch, &block_config, &program_state, &ctx, ri);
         let mut handler = RuntimeJournalHandler {
@@ -221,8 +232,13 @@ where
             is_first_execution,
             stop_processing: false,
         };
+
+        if ctx.promise_policy.is_enabled() && is_promise_required {
+            process_journal_for_injected_dispatch(ri, &journal, dispatch_id);
+        }
+
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
-        mega_journal.push((unhandled_journal_notes, origin, call_reply));
+        mega_journal.push((unhandled_journal_notes, message_type, call_reply));
 
         // Update state hash if it was changed.
         if let Some(new_state_hash) = new_state_hash {
@@ -240,6 +256,48 @@ where
         .expect("cannot spend more gas than allowed");
 
     (mega_journal, gas_spent)
+}
+
+/// Finds in [`process_dispatch`]'s the [`JournalNote::SendDispatch`] note and builds from it
+/// a [`ReplyInfo`] and [`Promise`] for injected message.
+fn process_journal_for_injected_dispatch<RI>(
+    ri: &RI,
+    journal: &[JournalNote],
+    dispatch_id: MessageId,
+) where
+    RI: RuntimeInterface,
+{
+    for note in journal.iter() {
+        if let JournalNote::SendDispatch {
+            message_id,
+            dispatch,
+            ..
+        } = note
+            && *message_id == dispatch_id
+            && dispatch.kind().is_reply()
+        {
+            let Some(code) = dispatch.reply_details().map(|d| d.to_reply_code()) else {
+                log::error!(
+                    "received reply dispatch without reply details; protocol invariant violated: \
+                    initial_dispatch_id={dispatch_id:?}, send_dispatch={dispatch:?}"
+                );
+                continue;
+            };
+
+            let reply = ReplyInfo {
+                value: dispatch.value(),
+                code,
+                payload: dispatch.message().payload_bytes().to_vec(),
+            };
+
+            // SAFE: because of protocol logic - injected message id constructs from injected transaction hash.
+            let tx_hash = unsafe { HashOf::new(dispatch_id.into_bytes().into()) };
+            let promise = Promise { reply, tx_hash };
+
+            ri.publish_promise(&promise);
+            break;
+        }
+    }
 }
 
 fn process_dispatch<RI>(

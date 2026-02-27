@@ -25,6 +25,9 @@ pub(crate) mod database_ri;
 #[path = "logging.rs"]
 pub(crate) mod logging_ri;
 
+#[path = "promise.rs"]
+pub(crate) mod promise_ri;
+
 pub(crate) mod utils {
     use ethexe_runtime_common::pack_u32_to_i64;
 

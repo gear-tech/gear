@@ -34,9 +34,9 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Announce, ComputedAnnounce, Digest, HashOf, SimpleBlockData,
+    Announce, Digest, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    injected::{SignedInjectedTransaction, SignedPromise},
+    injected::{Promise, SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
@@ -71,10 +71,17 @@ pub trait ConsensusService:
     fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
 
     /// Process a computed block received
-    fn receive_computed_announce(&mut self, computed_data: ComputedAnnounce) -> Result<()>;
+    fn receive_computed_announce(&mut self, computed_data: HashOf<Announce>) -> Result<()>;
 
     /// Process a received producer announce
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()>;
+
+    /// Receives the raw promise for signing.
+    fn receive_promise_for_signing(
+        &mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<()>;
 
     /// Process a received validation request
     fn receive_validation_request(&mut self, request: VerifiedValidationRequest) -> Result<()>;
@@ -109,8 +116,7 @@ pub enum ConsensusEvent {
     /// Announce from producer was rejected
     AnnounceRejected(HashOf<Announce>),
     /// Outer service have to compute announce
-    #[from]
-    ComputeAnnounce(Announce),
+    ComputeAnnounce(Announce, PromisePolicy),
     /// Outer service have to publish signed message
     #[from]
     PublishMessage(SignedValidatorMessage),
@@ -120,9 +126,8 @@ pub enum ConsensusEvent {
     /// Informational event: commitment was successfully submitted
     #[from]
     CommitmentSubmitted(CommitmentSubmitted),
+    #[from]
+    SignedPromise(SignedPromise),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
-    /// Promises for [`ethexe_common::injected::InjectedTransaction`]s execution in some announce.
-    #[from]
-    Promises(Vec<SignedPromise>),
 }
