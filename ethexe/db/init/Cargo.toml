@@ -18,9 +18,16 @@ anyhow.workspace = true
 parity-scale-codec.workspace = true
 log.workspace = true
 alloy.workspace = true
+scale-info = { workspace = true, features = ["derive"] }
 
 # hakari
 gear-workspace-hack.workspace = true
+
+[dev-dependencies]
+scale-info = { workspace = true, feature = ["docs"] }
+hex.workspace = true
+sha3.workspace = true
+indoc.workspace = true
 
 
 [features]
