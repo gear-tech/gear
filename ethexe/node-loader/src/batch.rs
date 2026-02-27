@@ -2,14 +2,18 @@ use alloy::{
     consensus::Transaction,
     eips::BlockId,
     network::{BlockResponse, Network, primitives::HeaderResponse},
-    primitives::{Address, FixedBytes},
+    primitives::{Address, FixedBytes, U256},
     providers::{Provider, WalletProvider},
     rpc::types::{BlockTransactions, Filter},
-    sol_types::SolCall,
+    sol_types::{SolCall, SolEvent},
 };
 use anyhow::Result;
 use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
-use ethexe_ethereum::{Ethereum, abi::IRouter::commitBatchCall, mirror::events::try_extract_event};
+use ethexe_ethereum::{
+    Ethereum, TryGetReceipt,
+    abi::{IMirror, IRouter::commitBatchCall},
+    mirror::events::try_extract_event,
+};
 use ethexe_sdk::VaraEthApi;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
@@ -24,7 +28,10 @@ use std::{
     marker::PhantomData,
     sync::Arc,
 };
-use tokio::sync::{RwLock, broadcast::Receiver};
+use tokio::sync::{
+    RwLock,
+    broadcast::{Receiver, error::RecvError},
+};
 use tracing::instrument;
 
 use crate::{
@@ -41,11 +48,24 @@ pub mod context;
 pub mod generator;
 pub mod report;
 
+alloy::sol!(
+    #[sol(rpc)]
+    BatchMulticall,
+    "BatchMulticall.json"
+);
+
+pub async fn deploy_send_message_multicall(api: &Ethereum) -> Result<Address> {
+    let multicall = BatchMulticall::deploy(api.provider()).await?;
+
+    Ok(*multicall.address())
+}
+
 pub struct BatchPool<Rng: CallGenRng> {
     apis: Vec<Ethereum>,
     eth_rpc_url: String,
     pool_size: usize,
     batch_size: usize,
+    send_message_multicall: Address,
     task_context: Context,
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     _marker: PhantomData<Rng>,
@@ -125,6 +145,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         eth_rpc_url: String,
         pool_size: usize,
         batch_size: usize,
+        send_message_multicall: Address,
         rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     ) -> Self {
         Self {
@@ -132,6 +153,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             eth_rpc_url,
             pool_size,
             batch_size,
+            send_message_multicall,
             task_context: Context::new(),
             rx,
             _marker: PhantomData,
@@ -180,6 +202,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                 api,
                 vapi,
                 batch_with_seed,
+                self.send_message_multicall,
                 self.rx.resubscribe(),
                 mid_map.clone(),
             ));
@@ -196,6 +219,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                 api,
                 vapi,
                 batch_with_seed,
+                self.send_message_multicall,
                 self.rx.resubscribe(),
                 mid_map.clone(),
             ));
@@ -213,13 +237,24 @@ async fn run_batch(
     api: Ethereum,
     vapi: VaraEthApi,
     batch: BatchWithSeed,
+    send_message_multicall: Address,
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     mid_map: MidMap,
 ) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
     let mut rng = SmallRng::seed_from_u64(seed);
 
-    match run_batch_impl(api, vapi, batch, rx, mid_map, &mut rng).await {
+    match run_batch_impl(
+        api,
+        vapi,
+        batch,
+        send_message_multicall,
+        rx,
+        mid_map,
+        &mut rng,
+    )
+    .await
+    {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             tracing::warn!("Batch failed: {err:?}");
@@ -233,10 +268,14 @@ async fn run_batch_for_worker(
     api: Ethereum,
     vapi: VaraEthApi,
     batch: BatchWithSeed,
+    send_message_multicall: Address,
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     mid_map: MidMap,
 ) -> (usize, Result<BatchRunReport>) {
-    (worker_idx, run_batch(api, vapi, batch, rx, mid_map).await)
+    (
+        worker_idx,
+        run_batch(api, vapi, batch, send_message_multicall, rx, mid_map).await,
+    )
 }
 
 #[instrument(skip_all)]
@@ -244,6 +283,7 @@ async fn run_batch_impl(
     api: Ethereum,
     vapi: VaraEthApi,
     batch: Batch,
+    send_message_multicall: Address,
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     mid_map: MidMap,
     rng: &mut SmallRng,
@@ -254,12 +294,15 @@ async fn run_batch_impl(
             let mut code_ids = Vec::with_capacity(args.len());
 
             for arg in args.iter() {
+                let expected_code_id = CodeId::generate(&arg.0.0);
                 tracing::debug!(
                     "Uploading code {} for program (len = {} bytes)",
-                    CodeId::generate(&arg.0.0),
+                    expected_code_id,
                     arg.0.0.len()
                 );
                 let (_, code_id) = vapi.router().request_code_validation(&arg.0.0).await?;
+                tracing::debug!("Code {code_id} upload requested");
+                assert_eq!(code_id, CodeId::generate(&arg.0.0));
                 vapi.router().wait_for_code_validation(code_id).await?;
                 tracing::debug!("Code {code_id} uploaded and validated");
                 code_ids.push(code_id);
@@ -267,7 +310,7 @@ async fn run_batch_impl(
 
             let mut program_ids = BTreeSet::new();
             let mut messages = BTreeMap::new();
-            let block_hash = api.get_latest_block().await?.hash;
+            let block_number = api.provider().get_block_number().await?;
             for (call_id, (arg, code_id)) in args.iter().zip(code_ids.iter().copied()).enumerate() {
                 let salt = &arg.0.1;
                 let (_, program_id) = api
@@ -283,20 +326,18 @@ async fn run_batch_impl(
                 mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
                 tracing::debug!("[Call with id {call_id}]: Program created {program_id}");
 
-                // Send init message: prefer injected transactions, but keep some
-                // regular on-chain calls to exercise both paths.
                 let fuzzed_value = fuzz_message_value(rng);
-                // TODO: Injected TXs can't send init message
                 tracing::debug!(
-                    "[Call with id {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}"
+                    "[Call with id {call_id}]: Sending init message to {program_id} with value={fuzzed_value}"
                 );
                 let mirror = api.mirror(program_id);
                 let (_, message_id) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
-
+                program_ids.insert(program_id);
                 mid_map.write().await.insert(message_id, program_id);
                 messages.insert(message_id, (program_id, call_id));
-                tracing::debug!("[Call with id {call_id}]: Init message sent {message_id}");
-                program_ids.insert(program_id);
+                tracing::debug!(
+                    "[Call with id {call_id}]: Program created {program_id}, init sent {message_id}"
+                );
             }
 
             let blocks_per_action = 4;
@@ -305,7 +346,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash.0.into(),
+                block_number,
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -315,19 +356,24 @@ async fn run_batch_impl(
         Batch::UploadCode(args) => {
             tracing::info!("Uploading codes");
             let mut code_ids = Vec::with_capacity(args.len());
+            let start = std::time::Instant::now();
 
             for arg in args.iter() {
-                let code_id = CodeId::generate(&arg.0);
-                tracing::debug!("Uploading code {code_id} (len = {})", arg.0.len());
-                let start = std::time::Instant::now();
+                let expected_code_id = CodeId::generate(&arg.0);
+                tracing::debug!("Uploading code {expected_code_id} (len = {})", arg.0.len());
                 let (_, code_id) = vapi.router().request_code_validation(&arg.0).await?;
+                tracing::debug!("Code {code_id} upload requested");
+                assert_eq!(code_id, CodeId::generate(&arg.0));
                 vapi.router().wait_for_code_validation(code_id).await?;
-                tracing::debug!(
-                    "Code {code_id} uploaded and validated in {:?}s",
-                    start.elapsed().as_secs_f64()
-                );
+                tracing::debug!("Code {code_id} uploaded and validated");
                 code_ids.push(code_id);
             }
+
+            tracing::debug!(
+                "Validated {} code(s) in {:?}s",
+                code_ids.len(),
+                start.elapsed().as_secs_f64()
+            );
 
             Ok(Report {
                 codes: code_ids.into_iter().collect(),
@@ -338,28 +384,39 @@ async fn run_batch_impl(
         Batch::SendMessage(args) => {
             tracing::info!("Sending messages");
             let mut messages = BTreeMap::new();
-            let block_hash = api.get_latest_block().await?.hash;
+            let block_number = api.provider().get_block_number().await?;
+            let mut regular_calls = Vec::new();
 
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
                 let fuzzed_value = fuzz_message_value(rng);
-                let message_id = if prefer_injected_tx(rng) {
+                if prefer_injected_tx(rng) {
                     tracing::debug!(
                         "[Call with id {i}]: Sending injected message to {to} with value=0"
                     );
                     let mirror = vapi.mirror(to);
-                    mirror.send_message_injected(&arg.0.1, 0).await?
+                    let message_id = mirror.send_message_injected(&arg.0.1, 0).await?;
+                    messages.insert(message_id, (to, i));
+                    mid_map.write().await.insert(message_id, to);
+                    tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
                 } else {
                     tracing::debug!(
-                        "[Call with id {i}]: Sending message to {to} through Mirror contract with value={fuzzed_value}"
+                        "[Call with id {i}]: Queuing message to {to} via multicall with value={fuzzed_value}"
                     );
-                    let mirror = api.mirror(to);
-                    let (_, mid) = mirror.send_message(&arg.0.1, fuzzed_value).await?;
-                    mid
-                };
-                messages.insert(message_id, (to, i));
-                mid_map.write().await.insert(message_id, to);
-                tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
+                    regular_calls.push((i, to, arg.0.1.clone(), fuzzed_value));
+                }
+            }
+
+            if !regular_calls.is_empty() {
+                let sent =
+                    send_message_batch_via_multicall(&api, send_message_multicall, &regular_calls)
+                        .await?;
+
+                for (call_id, to, message_id) in sent {
+                    messages.insert(message_id, (to, call_id));
+                    mid_map.write().await.insert(message_id, to);
+                    tracing::debug!("[Call with id {call_id}]: Message sent #{message_id} to {to}");
+                }
             }
 
             let blocks_per_action = 1;
@@ -368,7 +425,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash.0.into(),
+                block_number,
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -404,7 +461,7 @@ async fn run_batch_impl(
 
             let mut messages = BTreeMap::new();
 
-            let block_hash = api.get_latest_block().await?.hash;
+            let block_number = api.provider().get_block_number().await?;
 
             for (call_id, arg) in args.iter().enumerate() {
                 let mid = arg.0.0;
@@ -433,7 +490,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash.0.into(),
+                block_number,
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -448,7 +505,7 @@ async fn run_batch_impl(
             tracing::info!("Creating programs");
             let mut programs = BTreeSet::new();
             let mut messages = BTreeMap::new();
-            let block_hash = api.get_latest_block().await?.hash;
+            let block_number = api.provider().get_block_number().await?;
 
             for (call_id, arg) in args.iter().enumerate() {
                 let code_id = arg.0.0;
@@ -465,15 +522,12 @@ async fn run_batch_impl(
                 mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
                 tracing::debug!("[Call with id: {call_id}]: Program created {program_id}");
 
-                // TODO: Ditto
-
-                // send init message to program with payload and value.
                 let fuzzed_value = fuzz_message_value(rng);
                 tracing::debug!(
-                    "[Call with id: {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}",
+                    "[Call with id: {call_id}]: Sending init message to {program_id} with value={fuzzed_value}",
                 );
+                let mirror = api.mirror(program_id);
                 let (_, message_id) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
-
                 programs.insert(program_id);
                 mid_map.write().await.insert(message_id, program_id);
                 messages.insert(message_id, (program_id, call_id));
@@ -488,13 +542,65 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash.0.into(),
+                block_number,
                 mid_map,
                 wait_for_event_blocks,
             )
             .await
         }
     }
+}
+
+async fn send_message_batch_via_multicall(
+    api: &Ethereum,
+    multicall_address: Address,
+    calls: &[(usize, ActorId, Vec<u8>, u128)],
+) -> Result<Vec<(usize, ActorId, MessageId)>> {
+    let multicall = BatchMulticall::new(multicall_address, api.provider());
+
+    let mut value_sum = 0_u128;
+    let mut batched_calls = Vec::with_capacity(calls.len());
+    for (_, actor_id, payload, value) in calls {
+        value_sum = value_sum.saturating_add(*value);
+        batched_calls.push(BatchMulticall::MessageCall {
+            mirror: Address::from(actor_id.to_address_lossy().0),
+            payload: payload.clone().into(),
+            value: *value,
+        });
+    }
+
+    let receipt = multicall
+        .sendMessageBatch(batched_calls)
+        .value(U256::from(value_sum))
+        .send()
+        .await?
+        .try_get_receipt_check_reverted()
+        .await?;
+
+    let mut message_ids = Vec::with_capacity(calls.len());
+    for log in receipt.inner.logs() {
+        if log.topic0() == Some(&ethexe_ethereum::mirror::signatures::MESSAGE_QUEUEING_REQUESTED) {
+            let event =
+                IMirror::MessageQueueingRequested::decode_raw_log(log.topics(), &log.data().data)?;
+            message_ids.push((*event.id).into());
+        }
+    }
+
+    if message_ids.len() != calls.len() {
+        tracing::warn!(
+            expected = calls.len(),
+            actual = message_ids.len(),
+            "multicall send_message produced fewer message events than requested calls"
+        );
+    }
+
+    let mapped = calls
+        .iter()
+        .zip(message_ids)
+        .map(|((call_id, to, ..), mid)| (*call_id, *to, mid))
+        .collect();
+
+    Ok(mapped)
 }
 
 fn blocks_window(action_count: usize, blocks_per_action: usize, headroom_blocks: usize) -> usize {
@@ -786,12 +892,27 @@ async fn parse_mirror_logs(
     Ok(block_stats)
 }
 
-/// Wait for the new events since provided `block_hash`.
+async fn recv_next_header<T: Clone>(rx: &mut Receiver<T>) -> Result<T> {
+    loop {
+        match rx.recv().await {
+            Ok(header) => return Ok(header),
+            Err(RecvError::Lagged(skipped)) => {
+                tracing::warn!(
+                    skipped,
+                    "Header subscription lagged; skipping stale headers and continuing"
+                );
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
+}
+
+/// Wait for the new events since provided `block_number`.
 async fn process_events(
     api: Ethereum,
     mut messages: BTreeMap<MessageId, (ActorId, usize)>,
     mut rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
-    block_hash: FixedBytes<32>,
+    block_number: u64,
     mid_map: MidMap,
     wait_for_event_blocks: usize,
 ) -> Result<Report> {
@@ -799,13 +920,23 @@ async fn process_events(
     let mut exited_programs = BTreeSet::new();
     let initial_messages_len = messages.len();
     let mut stats = ProcessEventsStats {
-        start_search_window_blocks: 5,
+        start_search_window_blocks: 0,
         ..Default::default()
     };
 
     let results = {
-        let mut block = rx.recv().await?;
-
+        let mut block = recv_next_header(&mut rx).await?;
+        while block.number < block_number {
+            stats.start_search_window_blocks += 1;
+            block = recv_next_header(&mut rx).await?;
+        }
+        stats.start_block_found = true;
+        tracing::info!(
+            target_block = block_number,
+            observed_block = block.number,
+            "Start block reached after searching {} blocks",
+            stats.start_search_window_blocks
+        );
         let to: Address = api.provider().default_signer_address();
         let sent_message_ids: BTreeSet<MessageId> = messages.keys().copied().collect();
         let mut transition_outcomes: BTreeMap<MessageId, Option<String>> = BTreeMap::new();
@@ -868,7 +999,7 @@ async fn process_events(
                 utils::capture_mailbox_messages(&api, &v, messages.keys().copied()).await?;
             mailbox_added.append(&mut mailbox_from_events);
 
-            block = rx.recv().await?;
+            block = recv_next_header(&mut rx).await?;
             current_bn = block.hash();
         }
 
@@ -944,7 +1075,7 @@ async fn process_events(
     let unresolved_count = messages.len();
     let unresolved_sample: Vec<MessageId> = messages.keys().copied().take(10).collect();
     tracing::info!(
-        start_block_target = ?block_hash,
+        start_block_target = block_number,
         wait_for_event_blocks,
         batch_messages_total = initial_messages_len,
         results_total = results.len(),
