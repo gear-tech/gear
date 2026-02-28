@@ -1716,6 +1716,14 @@ async fn fast_sync() {
             .unwrap();
     }
 
+    // create one more program without initial message and with zero balance to test zero state programs in fast-sync
+    env.create_program_with_params(code_id, H256::random(), None, 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
     let latest_block = env.latest_block().await.hash;
     alice.events().find_announce_computed(latest_block).await;
 

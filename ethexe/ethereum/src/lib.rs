@@ -52,6 +52,7 @@ use std::time::Duration;
 
 pub mod abi;
 pub mod deploy;
+pub mod ext;
 pub mod middleware;
 pub mod mirror;
 pub mod router;
@@ -95,8 +96,7 @@ impl Ethereum {
         sender_address: Address,
     ) -> Result<Ethereum> {
         let provider = create_provider(ethereum_rpc_url, signer.clone(), sender_address).await?;
-        let router_query =
-            RouterQuery::from_provider(router_address.into(), provider.root().clone());
+        let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         let router = router_address.into();
         let wvara = router_query.wvara_address().await?.into();
         let middleware = router_query.middleware_address().await?.into();

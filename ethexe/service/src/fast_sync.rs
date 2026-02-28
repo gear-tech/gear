@@ -19,8 +19,8 @@
 use crate::Service;
 use anyhow::{Context, Result};
 use ethexe_common::{
-    Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, StateHashWithQueueSize,
+    Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates, ProtocolTimelines,
+    SimpleBlockData, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
         ComputedAnnounceData, OnChainStorageRW, PreparedBlockData,
@@ -42,7 +42,7 @@ use ethexe_db::{
     },
     visitor::DatabaseVisitor,
 };
-use ethexe_ethereum::mirror::MirrorQuery;
+use ethexe_ethereum::ext::ProviderExt as _;
 use ethexe_network::{NetworkService, db_sync};
 use ethexe_observer::{
     ObserverService,
@@ -77,13 +77,26 @@ impl EventData {
     async fn collect(
         block_loader: &impl BlockLoader,
         db: &Database,
-        highest_block: H256,
+        highest_block: SimpleBlockData,
     ) -> Result<Option<Self>> {
         let mut latest_committed: Option<(Digest, Option<HashOf<Announce>>)> = None;
 
-        let mut block = highest_block;
+        let mut pre_loaded_blocks = HashMap::new();
+        let mut block = highest_block.hash;
         'prepared: while !db.block_meta(block).prepared {
-            let block_data = block_loader.load(block, None).await?;
+            if !pre_loaded_blocks.contains_key(&block) {
+                let height = block_loader.load_simple(block.into()).await?.header.height as u64;
+                let batch = block_loader
+                    .load_many(height.saturating_sub(100)..=height)
+                    .await?;
+                pre_loaded_blocks.extend(batch);
+            }
+
+            let block_data = if let Some(data) = pre_loaded_blocks.remove(&block) {
+                data
+            } else {
+                block_loader.load(block, None).await?
+            };
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in block_data.events.into_iter().rev() {
@@ -221,34 +234,6 @@ async fn collect_code_ids(
         .collect();
 
     Ok(code_ids)
-}
-
-/// Collects the program states for a given set of program IDs at a specified block height.
-async fn collect_program_states(
-    observer: &mut ObserverService,
-    at: H256,
-    program_code_ids: &BTreeMap<ActorId, CodeId>,
-) -> Result<BTreeMap<ActorId, H256>> {
-    let mut program_states = BTreeMap::new();
-    let provider = observer.provider();
-
-    for &actor_id in program_code_ids.keys() {
-        let mirror = Address::try_from(actor_id).expect("invalid actor id");
-        let mirror = MirrorQuery::new(provider.clone(), mirror);
-
-        let state_hash = mirror.state_hash_at(at).await.with_context(|| {
-            format!("Failed to get state hash for actor {actor_id} at block {at}",)
-        })?;
-
-        anyhow::ensure!(
-            !state_hash.is_zero(),
-            "State hash is zero for actor {actor_id} at block {at}"
-        );
-
-        program_states.insert(actor_id, state_hash);
-    }
-
-    Ok(program_states)
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -479,7 +464,9 @@ async fn sync_from_network(
     let mut manager = RequestManager::new(db.clone());
 
     for &state in program_states.values() {
-        manager.add(state, RequestMetadata::ProgramState);
+        if !state.is_zero() {
+            manager.add(state, RequestMetadata::ProgramState);
+        }
     }
 
     for &code_id in code_ids {
@@ -567,17 +554,21 @@ async fn sync_from_network(
     program_states
         .into_iter()
         .map(|(program_id, hash)| {
-            let (canonical_queue_size, injected_queue_size) = *restored_cached_queue_sizes
-                .get(&hash)
-                .expect("program state cached queue size must be restored");
-            (
-                program_id,
-                StateHashWithQueueSize {
-                    hash,
-                    canonical_queue_size,
-                    injected_queue_size,
-                },
-            )
+            if hash.is_zero() {
+                (program_id, StateHashWithQueueSize::zero())
+            } else {
+                let (canonical_queue_size, injected_queue_size) = *restored_cached_queue_sizes
+                    .get(&hash)
+                    .expect("program state cached queue size must be restored");
+                (
+                    program_id,
+                    StateHashWithQueueSize {
+                        hash,
+                        canonical_queue_size,
+                        injected_queue_size,
+                    },
+                )
+            }
         })
         .collect()
 }
@@ -664,8 +655,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         // and thus the reorganization can lead us to an empty block
         .load_simple(BlockId::Finalized)
         .await
-        .context("failed to get latest block")?
-        .hash;
+        .context("failed to get latest block")?;
 
     let block_loader = observer.block_loader();
 
@@ -693,10 +683,16 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let code_ids = collect_code_ids(observer, network, db, announce.block_hash).await?;
     let program_code_ids = collect_program_code_ids(observer, network, announce.block_hash).await?;
+
     // we fetch program states from the finalized block
     // because actual states are at the same block as we acquired the latest committed block
-    let program_states =
-        collect_program_states(observer, finalized_block, &program_code_ids).await?;
+    let program_states = observer
+        .provider()
+        .collect_mirror_states(
+            finalized_block.hash,
+            program_code_ids.keys().copied().collect(),
+        )
+        .await?;
 
     let program_states = sync_from_network(network, db, &code_ids, program_states).await;
 
