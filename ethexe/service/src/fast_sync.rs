@@ -19,8 +19,8 @@
 use crate::Service;
 use anyhow::{Context, Result};
 use ethexe_common::{
-    Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, SimpleBlockData, StateHashWithQueueSize,
+    Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates, ProtocolTimelines,
+    SimpleBlockData, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
         ComputedAnnounceData, OnChainStorageRW, PreparedBlockData,
@@ -42,7 +42,7 @@ use ethexe_db::{
     },
     visitor::DatabaseVisitor,
 };
-use ethexe_ethereum::mirror::MirrorQuery;
+use ethexe_ethereum::ext::ProviderExt as _;
 use ethexe_network::{NetworkService, db_sync};
 use ethexe_observer::{
     ObserverService,
@@ -234,29 +234,6 @@ async fn collect_code_ids(
         .collect();
 
     Ok(code_ids)
-}
-
-/// Collects the program states for a given set of program IDs at a specified block height.
-async fn collect_program_states(
-    observer: &mut ObserverService,
-    at: H256,
-    program_code_ids: &BTreeMap<ActorId, CodeId>,
-) -> Result<BTreeMap<ActorId, H256>> {
-    let mut program_states = BTreeMap::new();
-    let provider = observer.provider();
-
-    for &actor_id in program_code_ids.keys() {
-        let mirror = Address::try_from(actor_id).expect("invalid actor id");
-        let mirror = MirrorQuery::new(provider.clone(), mirror);
-
-        let state_hash = mirror.state_hash_at(at).await.with_context(|| {
-            format!("Failed to get state hash for actor {actor_id} at block {at}",)
-        })?;
-
-        program_states.insert(actor_id, state_hash);
-    }
-
-    Ok(program_states)
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -706,10 +683,16 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let code_ids = collect_code_ids(observer, network, db, announce.block_hash).await?;
     let program_code_ids = collect_program_code_ids(observer, network, announce.block_hash).await?;
+
     // we fetch program states from the finalized block
     // because actual states are at the same block as we acquired the latest committed block
-    let program_states =
-        collect_program_states(observer, finalized_block.hash, &program_code_ids).await?;
+    let program_states = observer
+        .provider()
+        .collect_mirror_states(
+            finalized_block.hash,
+            program_code_ids.keys().copied().collect(),
+        )
+        .await?;
 
     let program_states = sync_from_network(network, db, &code_ids, program_states).await;
 

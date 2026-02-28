@@ -246,7 +246,8 @@ impl OngoingRequests {
                     let event = match state {
                         OngoingRequestState::PendingState => Event::PendingStateRequest { request_id },
                         OngoingRequestState::SendRequest(peer, request, reason) => {
-                            let outbound_request_id = behaviour.send_request(&peer, request);
+                            let outbound_request_id = behaviour.send_request(&peer, request.clone());
+                            log::trace!("sending request {outbound_request_id} to {peer} {request:?}, round reason: {reason:?}");
                             self.active_requests.insert(outbound_request_id, request_id);
 
                             Event::NewRequestRound {
@@ -766,14 +767,7 @@ impl OngoingRequest {
             .expect("always Some")
             .inner_request();
 
-        log::trace!("sending request to {peer} {request:?}, round reason: {reason:?}");
-
-        let request = match self
-            .response_handler
-            .as_ref()
-            .expect("always Some")
-            .inner_request()
-        {
+        let request = match request {
             InnerRequest::Hashes(request) if request.0.len() > 100 => {
                 let r = InnerRequest::Hashes(HashesRequest(
                     request.0.iter().take(100).copied().collect(),

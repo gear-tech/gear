@@ -27,7 +27,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, ComputedAnnounce, SimpleBlockData,
+    Address, Announce, ComputedAnnounce, ProtocolTimelines, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     injected::SignedInjectedTransaction,
@@ -103,6 +103,7 @@ pub struct ConnectService {
     db: Database,
     slot_duration: Duration,
     commitment_delay_limit: u32,
+    timelines: ProtocolTimelines,
 
     state: State,
     pending_announces: LruCache<(Address, H256), Announce>,
@@ -118,6 +119,10 @@ impl ConnectService {
     /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
     pub fn new(db: Database, slot_duration: Duration, commitment_delay_limit: u32) -> Self {
         Self {
+            timelines: db
+                .protocol_timelines()
+                .expect("protocol timelines not found in database")
+                .clone(),
             db,
             slot_duration,
             commitment_delay_limit,
@@ -133,9 +138,19 @@ impl ConnectService {
         producer: Address,
     ) -> Result<()> {
         if let Some(announce) = self.pending_announces.pop(&(producer, block.hash)) {
+            tracing::trace!(
+                block = %block.hash,
+                producer = %producer,
+                "Announce for current block has been already received, process it immediately"
+            );
             self.process_announce_from_producer(announce, producer)?;
             self.state = State::WaitingForBlock;
         } else {
+            tracing::trace!(
+                block = %block.hash,
+                producer = %producer,
+                "Announce for current block has not been received yet, wait for it"
+            );
             self.state = State::WaitingForAnnounce { block, producer };
         }
 
@@ -184,11 +199,7 @@ impl ConsensusService for ConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let timelines = self
-                .db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
-            let block_era = timelines.era_from_ts(block.header.timestamp);
+            let block_era = self.timelines.era_from_ts(block.header.timestamp);
             let validators = self.db.validators(block_era).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;
@@ -274,10 +285,19 @@ impl ConsensusService for ConnectService {
             && sender == *producer
             && announce.block_hash == block.hash
         {
+            tracing::trace!(
+                producer = %producer,
+                ?announce,
+                "Received announce from producer, process it immediately"
+            );
             self.process_announce_from_producer(announce, *producer)?;
             self.state = State::WaitingForBlock;
         } else {
-            tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
+            tracing::warn!(
+                sender = %sender,
+                ?announce,
+                "Receive unexpected announce, save to pending announces"
+            );
             self.pending_announces
                 .push((sender, announce.block_hash), announce);
         }
