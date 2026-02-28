@@ -316,10 +316,10 @@ fn recover_announces_chain_if_needed(
     commitment_delay_limit: u32,
     missing_announces: &mut HashMap<HashOf<Announce>, Announce>,
 ) -> Result<()> {
-    // TODO: #4941 append recovery from rejected announces
-    // if node received announce, which was rejected because of incorrect parent,
-    // but later we receive event from ethereum that parent announce was committed,
-    // than node should use previously rejected announce to recover the chain.
+    // Recovery from previously rejected unknown-parent announces is handled in consensus
+    // services (connect and validator) by replaying a local in-memory rejected pool
+    // during post-propagation processing.
+    // This function only recovers committed announces that are missing in local DB.
 
     // Recover backwards the chain of committed announces till last included one
     // According to T1, this chain must not be longer than commitment_delay_limit

@@ -163,6 +163,7 @@ impl StateHandler for Initial {
                     self.ctx.core.commitment_delay_limit,
                     Default::default(),
                 )?;
+                self.ctx.replay_rejected_announces(block.hash)?;
 
                 self.ctx.switch_to_producer_or_subordinate(*block)
             }
@@ -193,6 +194,7 @@ impl StateHandler for Initial {
                     self.ctx.core.commitment_delay_limit,
                     missing_announces,
                 )?;
+                self.ctx.replay_rejected_announces(block.hash)?;
 
                 self.ctx.switch_to_producer_or_subordinate(block)
             }
@@ -261,7 +263,7 @@ mod tests {
     use std::num::NonZeroU32;
 
     use super::*;
-    use crate::{ConsensusEvent, validator::mock::*};
+    use crate::{ConsensusEvent, announces::AnnounceStatus, validator::mock::*};
     use ethexe_common::{
         Announce, HashOf, ValidatorsVec, db::*, mock::*, network::AnnouncesResponse,
     };
@@ -491,6 +493,85 @@ mod tests {
                 "unexpected announces count for block {block_hash}"
             );
         });
+    }
+
+    #[test]
+    fn replay_rejected_chain_after_propagation() {
+        gear_utils::init_default_logger();
+
+        let (mut ctx, _, _) = mock_validator_context();
+        let last = 5;
+        let chain = BlockChain::mock(last as u32).setup(&ctx.core.db);
+        ctx.core.timelines = chain.protocol_timelines;
+        let head = chain.blocks[last].to_simple();
+
+        let announce3 = Announce::with_default_gas(
+            chain.blocks[last - 2].hash,
+            chain.block_top_announce_hash(last - 3),
+        );
+        let announce4 =
+            Announce::with_default_gas(chain.blocks[last - 1].hash, announce3.to_hash());
+        let announce5 = Announce::with_default_gas(chain.blocks[last].hash, announce4.to_hash());
+
+        let announce4_hash = announce4.to_hash();
+        let announce5_hash = announce5.to_hash();
+
+        ctx.rejected_announces
+            .push(announce4_hash, announce4.clone());
+        ctx.rejected_announces
+            .push(announce5_hash, announce5.clone());
+
+        assert!(matches!(
+            announces::accept_announce(&ctx.core.db, announce3).unwrap(),
+            AnnounceStatus::Accepted(_),
+        ));
+
+        let state = Initial::create_with_chain_head(ctx, head)
+            .unwrap()
+            .process_synced_block(head.hash)
+            .unwrap()
+            .process_prepared_block(head.hash)
+            .unwrap();
+
+        let output = &state.context().output;
+        assert!(output.iter().any(|event| {
+            matches!(
+                event,
+                ConsensusEvent::AnnounceAccepted(hash) if *hash == announce4_hash
+            )
+        }));
+        assert!(output.iter().any(|event| {
+            matches!(
+                event,
+                ConsensusEvent::ComputeAnnounce(announce) if announce.to_hash() == announce4_hash
+            )
+        }));
+        assert!(output.iter().any(|event| {
+            matches!(
+                event,
+                ConsensusEvent::AnnounceAccepted(hash) if *hash == announce5_hash
+            )
+        }));
+        assert!(output.iter().any(|event| {
+            matches!(
+                event,
+                ConsensusEvent::ComputeAnnounce(announce) if announce.to_hash() == announce5_hash
+            )
+        }));
+        assert!(
+            state
+                .context()
+                .rejected_announces
+                .peek(&announce4_hash)
+                .is_none()
+        );
+        assert!(
+            state
+                .context()
+                .rejected_announces
+                .peek(&announce5_hash)
+                .is_none()
+        );
     }
 
     #[test]

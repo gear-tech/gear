@@ -3147,13 +3147,13 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
             signatures: Vec<ContractSignature>,
         ) -> anyhow::Result<H256> {
             log::info!("📗 LateCommitter wait for signal to commit ...");
-            self.wait_signal_sender.send(()).unwrap();
+            let _ = self.wait_signal_sender.send(());
             self.commit_signal_receiver
                 .lock()
                 .await
                 .recv()
                 .await
-                .unwrap();
+                .ok_or_else(|| anyhow::anyhow!("commit signal channel closed"))?;
 
             log::info!(
                 "📗 LateCommitter committing batch {}: {:?}",
@@ -3163,7 +3163,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
             let pending = self.router.commit_batch_pending(batch, signatures).await;
 
             // Notify that commitment is sent
-            self.wait_signal_sender.send(()).unwrap();
+            let _ = self.wait_signal_sender.send(());
 
             log::info!("📗 LateCommitter waiting for transaction to be applied ...");
             pending?
@@ -3349,15 +3349,10 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     let latest_block = env.latest_block().await.hash;
     let latest_announce_hash = alice.events().find_announce_computed(latest_block).await;
 
-    if commitment_delay_limit == 3 {
+    if commitment_delay_limit == 3 || commitment_delay_limit == 5 {
         log::info!("📗 Bob accepts announce from Alice at last");
         bob.events()
             .find_announce_accepted(latest_announce_hash)
-            .await;
-    } else if commitment_delay_limit == 5 {
-        log::info!("📗 Bob still rejects announce from Alice");
-        bob.events()
-            .find_announce_rejected(latest_announce_hash)
             .await;
     } else {
         unreachable!();

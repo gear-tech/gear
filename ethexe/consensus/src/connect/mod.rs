@@ -22,14 +22,14 @@
 
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
-    announces::{self, AnnounceStatus, DBAnnouncesExt},
+    announces::{self, AnnounceRejectionReason, AnnounceStatus, DBAnnouncesExt},
     utils,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, ComputedAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::{BlockMetaStorageRO, OnChainStorageRO},
     injected::SignedInjectedTransaction,
     network::{AnnouncesRequest, AnnouncesResponse},
 };
@@ -48,6 +48,8 @@ use std::{
 
 /// Maximum number of pending announces to store
 const MAX_PENDING_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
+/// Maximum number of rejected announces to keep for later replay.
+const MAX_REJECTED_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 
 /// State transition flow:
 ///
@@ -106,6 +108,7 @@ pub struct ConnectService {
 
     state: State,
     pending_announces: LruCache<(Address, H256), Announce>,
+    rejected_announces: LruCache<ethexe_common::HashOf<Announce>, Announce>,
     output: VecDeque<ConsensusEvent>,
 }
 
@@ -123,6 +126,7 @@ impl ConnectService {
             commitment_delay_limit,
             state: State::WaitingForBlock,
             pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
+            rejected_announces: LruCache::new(MAX_REJECTED_ANNOUNCES),
             output: VecDeque::new(),
         }
     }
@@ -132,8 +136,11 @@ impl ConnectService {
         block: SimpleBlockData,
         producer: Address,
     ) -> Result<()> {
+        self.replay_rejected_announces(block.hash)?;
+
         if let Some(announce) = self.pending_announces.pop(&(producer, block.hash)) {
             self.process_announce_from_producer(announce, producer)?;
+            self.replay_rejected_announces(block.hash)?;
             self.state = State::WaitingForBlock;
         } else {
             self.state = State::WaitingForAnnounce { block, producer };
@@ -149,6 +156,11 @@ impl ConnectService {
     ) -> Result<()> {
         match announces::accept_announce(&self.db, announce.clone())? {
             AnnounceStatus::Rejected { announce, reason } => {
+                if matches!(&reason, AnnounceRejectionReason::UnknownParent { .. }) {
+                    self.rejected_announces
+                        .push(announce.to_hash(), announce.clone());
+                }
+
                 tracing::warn!(
                     announce = %announce.to_hash(),
                     producer = %producer,
@@ -167,6 +179,109 @@ impl ConnectService {
         }
 
         Ok(())
+    }
+
+    fn replay_rejected_announces(&mut self, head_block: H256) -> Result<()> {
+        let head_height = self
+            .db
+            .block_header(head_block)
+            .ok_or_else(|| anyhow!("header not found for block({head_block})"))?
+            .height;
+
+        loop {
+            let mut progress = false;
+            let replay_keys = self
+                .rejected_announces
+                .iter()
+                .map(|(hash, _)| *hash)
+                .collect::<Vec<_>>();
+
+            for announce_hash in replay_keys {
+                if self.db.is_announce_included(announce_hash) {
+                    self.rejected_announces.pop(&announce_hash);
+                    progress = true;
+                    continue;
+                }
+
+                let Some(announce_block_hash) = self
+                    .rejected_announces
+                    .peek(&announce_hash)
+                    .map(|announce| announce.block_hash)
+                else {
+                    continue;
+                };
+
+                if self.db.block_meta(announce_block_hash).announces.is_none() {
+                    continue;
+                }
+
+                let Some(announce_height) =
+                    self.db.block_header(announce_block_hash).map(|h| h.height)
+                else {
+                    self.rejected_announces.pop(&announce_hash);
+                    progress = true;
+                    continue;
+                };
+
+                if announce_height.saturating_add(self.commitment_delay_limit) < head_height {
+                    self.rejected_announces.pop(&announce_hash);
+                    progress = true;
+                    continue;
+                }
+
+                let Some(announce) = self.rejected_announces.pop(&announce_hash) else {
+                    continue;
+                };
+
+                match announces::accept_announce(&self.db, announce.clone())? {
+                    AnnounceStatus::Accepted(accepted_hash) => {
+                        self.output
+                            .push_back(ConsensusEvent::AnnounceAccepted(accepted_hash));
+                        self.output
+                            .push_back(ConsensusEvent::ComputeAnnounce(announce));
+                        progress = true;
+                    }
+                    AnnounceStatus::Rejected { reason, announce } => match reason {
+                        AnnounceRejectionReason::UnknownParent { .. } => {
+                            self.rejected_announces.push(announce_hash, announce);
+                        }
+                        AnnounceRejectionReason::AlreadyIncluded(_)
+                        | AnnounceRejectionReason::TxValidity(_) => {
+                            progress = true;
+                        }
+                    },
+                }
+            }
+
+            if !progress {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn can_process_unexpected_announce(&self, block_hash: H256, sender: Address) -> bool {
+        if self.db.block_meta(block_hash).announces.is_none() {
+            return false;
+        }
+
+        let Some(block_header) = self.db.block_header(block_hash) else {
+            return false;
+        };
+        let Some(timelines) = self.db.protocol_timelines() else {
+            return false;
+        };
+        let era_index = timelines.era_from_ts(block_header.timestamp);
+        let Some(validators) = self.db.validators(era_index) else {
+            return false;
+        };
+
+        utils::block_producer_for(
+            &validators,
+            block_header.timestamp,
+            self.slot_duration.as_secs(),
+        ) == sender
     }
 }
 
@@ -270,16 +385,32 @@ impl ConsensusService for ConnectService {
         let (announce, sender) = announce.clone().into_parts();
         let sender = sender.to_address();
 
-        if let State::WaitingForAnnounce { block, producer } = &self.state
-            && sender == *producer
+        let (expected_block, expected_producer) =
+            if let State::WaitingForAnnounce { block, producer } = &self.state {
+                (Some(*block), Some(*producer))
+            } else {
+                (None, None)
+            };
+
+        if let (Some(block), Some(producer)) = (expected_block, expected_producer)
+            && sender == producer
             && announce.block_hash == block.hash
         {
-            self.process_announce_from_producer(announce, *producer)?;
+            self.process_announce_from_producer(announce, producer)?;
+            self.replay_rejected_announces(block.hash)?;
             self.state = State::WaitingForBlock;
         } else {
-            tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
-            self.pending_announces
-                .push((sender, announce.block_hash), announce);
+            let announce_block_hash = announce.block_hash;
+
+            if self.can_process_unexpected_announce(announce_block_hash, sender) {
+                tracing::warn!("Receive unexpected {announce:?}, process immediately");
+                self.process_announce_from_producer(announce, sender)?;
+                self.replay_rejected_announces(announce_block_hash)?;
+            } else {
+                tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
+                self.pending_announces
+                    .push((sender, announce_block_hash), announce);
+            }
         }
 
         Ok(())
@@ -396,5 +527,173 @@ mod tests {
             service.output,
             vec![ConsensusEvent::AnnounceRejected(announce_hash)]
         )
+    }
+
+    #[test]
+    fn replay_rejected_chain_after_parent_included() {
+        let validator_private_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_private_key).to_address();
+        let validators = ValidatorsVec::try_from(vec![validator_address]).unwrap();
+
+        let db = Database::memory();
+        let chain = BlockChain::mock((5, validators)).setup(&db);
+
+        let mut service = ConnectService::new(db, Duration::from_secs(12), 10);
+        let producer = validator_address;
+
+        let missing_parent =
+            Announce::with_default_gas(chain.blocks[3].hash, chain.block_top_announce_hash(2));
+        let missing_parent_hash = missing_parent.to_hash();
+
+        let announce4 = Announce::with_default_gas(chain.blocks[4].hash, missing_parent_hash);
+        let announce4_hash = announce4.to_hash();
+        let announce5 = Announce::with_default_gas(chain.blocks[5].hash, announce4_hash);
+        let announce5_hash = announce5.to_hash();
+
+        service
+            .process_announce_from_producer(announce4.clone(), producer)
+            .unwrap();
+        service
+            .process_announce_from_producer(announce5.clone(), producer)
+            .unwrap();
+
+        assert_eq!(
+            service.output,
+            vec![
+                ConsensusEvent::AnnounceRejected(announce4_hash),
+                ConsensusEvent::AnnounceRejected(announce5_hash),
+            ]
+        );
+        assert!(service.rejected_announces.peek(&announce4_hash).is_some());
+        assert!(service.rejected_announces.peek(&announce5_hash).is_some());
+
+        let (_, parent_newly_included) = service.db.include_announce(missing_parent).unwrap();
+        assert!(parent_newly_included);
+
+        service.output.clear();
+
+        service
+            .process_after_propagation(chain.blocks[5].to_simple(), producer)
+            .unwrap();
+
+        assert_eq!(
+            service.output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce4_hash),
+                ConsensusEvent::ComputeAnnounce(announce4.clone()),
+                ConsensusEvent::AnnounceAccepted(announce5_hash),
+                ConsensusEvent::ComputeAnnounce(announce5.clone()),
+            ]
+        );
+        assert!(service.rejected_announces.peek(&announce4_hash).is_none());
+        assert!(service.rejected_announces.peek(&announce5_hash).is_none());
+        assert!(service.db.is_announce_included(announce4_hash));
+        assert!(service.db.is_announce_included(announce5_hash));
+    }
+
+    #[test]
+    fn replay_rejected_after_pending_parent_processed() {
+        let validator_private_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_private_key).to_address();
+        let validators = ValidatorsVec::try_from(vec![validator_address]).unwrap();
+
+        let db = Database::memory();
+        let chain = BlockChain::mock((5, validators)).setup(&db);
+
+        let mut service = ConnectService::new(db, Duration::from_secs(12), 10);
+        let producer = validator_address;
+
+        let announce4 =
+            Announce::with_default_gas(chain.blocks[4].hash, chain.block_top_announce_hash(3));
+        let announce4_hash = announce4.to_hash();
+        let announce5 = Announce::with_default_gas(chain.blocks[5].hash, announce4_hash);
+        let announce5_hash = announce5.to_hash();
+
+        service
+            .process_announce_from_producer(announce5.clone(), producer)
+            .unwrap();
+        assert_eq!(
+            service.output,
+            vec![ConsensusEvent::AnnounceRejected(announce5_hash)]
+        );
+        assert!(service.rejected_announces.peek(&announce5_hash).is_some());
+
+        service.output.clear();
+        service
+            .pending_announces
+            .push((producer, chain.blocks[4].hash), announce4.clone());
+
+        service
+            .process_after_propagation(chain.blocks[4].to_simple(), producer)
+            .unwrap();
+
+        assert_eq!(
+            service.output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce4_hash),
+                ConsensusEvent::ComputeAnnounce(announce4.clone()),
+                ConsensusEvent::AnnounceAccepted(announce5_hash),
+                ConsensusEvent::ComputeAnnounce(announce5.clone()),
+            ]
+        );
+        assert!(service.rejected_announces.peek(&announce5_hash).is_none());
+        assert!(service.db.is_announce_included(announce4_hash));
+        assert!(service.db.is_announce_included(announce5_hash));
+    }
+
+    #[test]
+    fn replay_rejected_after_late_unexpected_parent_arrival() {
+        let validator_private_key = PrivateKey::random();
+        let validator_address = PublicKey::from(&validator_private_key).to_address();
+        let validators = ValidatorsVec::try_from(vec![validator_address]).unwrap();
+
+        let db = Database::memory();
+        let chain = BlockChain::mock((5, validators)).setup(&db);
+
+        let mut service = ConnectService::new(db, Duration::from_secs(12), 10);
+        let producer = validator_address;
+
+        let announce4 =
+            Announce::with_default_gas(chain.blocks[4].hash, chain.block_top_announce_hash(3));
+        let announce4_hash = announce4.to_hash();
+        let announce5 = Announce::with_default_gas(chain.blocks[5].hash, announce4_hash);
+        let announce5_hash = announce5.to_hash();
+
+        service
+            .process_announce_from_producer(announce5.clone(), producer)
+            .unwrap();
+        assert_eq!(
+            service.output,
+            vec![ConsensusEvent::AnnounceRejected(announce5_hash)]
+        );
+        assert!(service.rejected_announces.peek(&announce5_hash).is_some());
+
+        service.output.clear();
+        service
+            .receive_announce(
+                SignedData::create(&validator_private_key, announce4.clone())
+                    .unwrap()
+                    .into_verified(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            service.output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce4_hash),
+                ConsensusEvent::ComputeAnnounce(announce4.clone()),
+                ConsensusEvent::AnnounceAccepted(announce5_hash),
+                ConsensusEvent::ComputeAnnounce(announce5.clone()),
+            ]
+        );
+        assert!(
+            service
+                .pending_announces
+                .peek(&(producer, chain.blocks[4].hash))
+                .is_none()
+        );
+        assert!(service.rejected_announces.peek(&announce5_hash).is_none());
+        assert!(service.db.is_announce_included(announce4_hash));
+        assert!(service.db.is_announce_included(announce5_hash));
     }
 }
