@@ -15,7 +15,9 @@ ethexe-contracts-pre-commit:
 	@ echo " > Testing contracts" && forge test --root ethexe/contracts -vvv
 	@ echo " > Copying Middleware artifact" && cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
 	@ echo " > Copying Mirror artifact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
+	@ echo " > Copying MirrorWithInstrumentation artifact" && cp ./ethexe/contracts/out/MirrorWithInstrumentation.sol/MirrorWithInstrumentation.json ./ethexe/ethereum
 	@ echo " > Copying Router artifact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
+	@ echo " > Copying RouterWithInstrumentation artifact" && cp ./ethexe/contracts/out/RouterWithInstrumentation.sol/RouterWithInstrumentation.json ./ethexe/ethereum
 	@ echo " > Copying TransparentUpgradeableProxy artifact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
 	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
 

@@ -23,6 +23,8 @@ mod gear;
 
 pub use middleware_abi::*;
 pub use mirror_abi::*;
+pub use mirror_abi_with_instrumentation::*;
+pub use router_with_instrumentation_abi::IRouterWithInstrumentation;
 
 // TODO (breathx): remove this dummy hack to avoid reentrancy issues with
 // the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
@@ -31,6 +33,14 @@ mod mirror_abi {
         #[sol(rpc)]
         IMirror,
         "Mirror.json"
+    );
+}
+
+mod mirror_abi_with_instrumentation {
+    alloy::sol!(
+        #[sol(rpc)]
+        IMirrorWithInstrumentation,
+        "MirrorWithInstrumentation.json"
     );
 }
 
@@ -48,6 +58,15 @@ sol!(
     IRouter,
     "Router.json"
 );
+
+mod router_with_instrumentation_abi {
+    alloy::sol!(
+        #[allow(clippy::too_many_arguments)]
+        #[sol(rpc)]
+        IRouterWithInstrumentation,
+        "RouterWithInstrumentation.json"
+    );
+}
 
 sol!(
     #[sol(rpc)]

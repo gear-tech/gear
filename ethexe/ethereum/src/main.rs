@@ -7,17 +7,26 @@ use ethexe_common::{
     Digest, HashOf, ToDigest,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, SignatureType, StateTransition},
 };
-use ethexe_ethereum::abi::{Gear, IMirror, IRouter, ITransparentUpgradeableProxy, IWrappedVara};
+use ethexe_ethereum::abi::{
+    Gear, IMirror, IMirrorWithInstrumentation, IRouter, ITransparentUpgradeableProxy, IWrappedVara,
+};
 use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{PrivateKey, PublicKey, Secp256k1SignerExt, Signer};
 use revm::{
-    DatabaseRef, ExecuteCommitEvm, ExecuteEvm, MainBuilder, MainContext, MainnetEvm,
+    Database, DatabaseRef, ExecuteCommitEvm, ExecuteEvm, InspectEvm, Inspector, MainBuilder,
+    MainContext, MainnetEvm,
+    bytecode::{Bytecode, OpCode},
     context::{BlockEnv, CfgEnv, Context, ContextTr, JournalTr, TxEnv},
     context_interface::result::{ExecResultAndState, ExecutionResult, Output},
     database::CacheDB,
     database_interface::EmptyDB,
-    primitives::{Address, B256, Bytes, U256, eip4844::VERSIONED_HASH_VERSION_KZG},
+    inspector::{JournalExt, inspectors::GasInspector},
+    interpreter::{
+        CallInputs, CallOutcome, CreateInputs, CreateOutcome, Interpreter, InterpreterTypes,
+        interpreter_types::{Jumps, MemoryTr, StackTr},
+    },
+    primitives::{Address, B256, Bytes, Log, U256, eip4844::VERSIONED_HASH_VERSION_KZG},
 };
 
 /// Default Hardhat/Anvil mnemonic.
@@ -46,8 +55,72 @@ fn derive_signer(index: u32) -> Result<(Signer, PublicKey, Address)> {
     Ok((signer, pubkey, address.into()))
 }
 
+#[derive(Default)]
+struct MyInspector {
+    gas_inspector: GasInspector,
+}
+
+impl<CTX, DB, INTR: InterpreterTypes> Inspector<CTX, INTR> for MyInspector
+where
+    DB: Database,
+    CTX: ContextTr<Db = DB>,
+    CTX::Journal: JournalExt,
+{
+    fn initialize_interp(&mut self, interp: &mut Interpreter<INTR>, _context: &mut CTX) {
+        self.gas_inspector.initialize_interp(&interp.gas);
+    }
+
+    fn step(&mut self, interp: &mut Interpreter<INTR>, context: &mut CTX) {
+        let opcode = interp.bytecode.opcode();
+        let name = OpCode::name_by_op(opcode);
+
+        let gas_remaining = self.gas_inspector.gas_remaining();
+        let memory_size = interp.memory.size();
+
+        println!(
+            "depth:{}, PC:{}, gas:{:#x}({}), OPCODE: {:?}({:?})  refund:{:#x}({}) Stack:{:?}, Data size:{}, Memory gas:{}",
+            context.journal().depth(),
+            interp.bytecode.pc(),
+            gas_remaining,
+            gas_remaining,
+            name,
+            opcode,
+            interp.gas.refunded(),
+            interp.gas.refunded(),
+            interp.stack.data(),
+            memory_size,
+            interp.gas.memory().expansion_cost,
+        );
+
+        self.gas_inspector.step(&interp.gas);
+    }
+
+    fn step_end(&mut self, interp: &mut Interpreter<INTR>, _context: &mut CTX) {
+        self.gas_inspector.step_end(&interp.gas);
+    }
+
+    fn call_end(&mut self, _context: &mut CTX, _inputs: &CallInputs, outcome: &mut CallOutcome) {
+        self.gas_inspector.call_end(outcome)
+    }
+
+    fn create_end(
+        &mut self,
+        _context: &mut CTX,
+        _inputs: &CreateInputs,
+        outcome: &mut CreateOutcome,
+    ) {
+        self.gas_inspector.create_end(outcome)
+    }
+
+    fn log_full(&mut self, _interp: &mut Interpreter<INTR>, _context: &mut CTX, log: Log) {
+        let gas_remaining = self.gas_inspector.gas_remaining();
+        dbg!(gas_remaining);
+        dbg!(log);
+    }
+}
+
 pub struct SimulationContext {
-    evm: MainnetEvm<Context<BlockEnv, TxEnv, CfgEnv, CacheDB<EmptyDB>>>,
+    evm: MainnetEvm<Context<BlockEnv, TxEnv, CfgEnv, CacheDB<EmptyDB>>, MyInspector>,
     block_number: U256,
     block_timestamp: U256,
     deployer_address: Address,
@@ -70,7 +143,7 @@ impl SimulationContext {
                 timestamp: block_timestamp,
                 ..Default::default()
             })
-            .build_mainnet();
+            .build_mainnet_with_inspector(MyInspector::default());
 
         let (_, _, deployer_address) = derive_signer(0)?;
         let deployer_nonce = 0;
@@ -103,17 +176,18 @@ impl SimulationContext {
 
         let mut router = Router::deploy(self, precomputed_mirror_impl, &wrapped_vara)?;
 
-        let mirror_impl = MirrorImpl::deploy(&mut router)?;
-        assert_eq!(mirror_impl.address(), precomputed_mirror_impl);
-
         router.lookup_genesis_hash()?;
 
         for _ in 0..10 {
-            router.commit_batch_simple(None, vec![])?;
+            router.commit_batch_simple(None, vec![], ExecutionMode::ExecuteAndCommit)?;
         }
 
-        let id = router.request_code_validation(&[])?;
-        router.commit_batch_simple(None, vec![CodeCommitment { id, valid: true }])?;
+        let id = router.request_code_validation(b"code1")?;
+        router.commit_batch_simple(
+            None,
+            vec![CodeCommitment { id, valid: true }],
+            ExecutionMode::ExecuteAndCommit,
+        )?;
 
         let uninitialized_actor_id = router.create_program(id, H256([0x01; 32]), None)?;
 
@@ -128,6 +202,8 @@ impl SimulationContext {
             initialized_actor_id.to_address_lossy().0.into(),
             u128::MAX.try_into().expect("infallible"),
         )?;
+
+        router.switch_to_mirror_impl(MirrorImplKind::Regular)?;
 
         router.commit_batch_simple(
             Some(ChainCommitment {
@@ -144,47 +220,21 @@ impl SimulationContext {
                 head_announce: unsafe { HashOf::new(H256([0x01; 32])) },
             }),
             vec![],
+            ExecutionMode::ExecuteAndCommit,
         )?;
 
-        let expiry = 3;
-
-        for _ in 0..expiry {
-            router.context.next_block();
-        }
-
-        let latest_committed_batch_hash = router.latest_committed_batch_hash()?;
-
-        router.commit_batch(
-            BatchCommitment {
-                block_hash: router.context.block_hash(
-                    router
-                        .context
-                        .block_number()
-                        .checked_sub(U256::from(3))
-                        .expect("infallible"),
-                )?,
-                timestamp: router
-                    .context
-                    .block_timestamp_u64()
-                    .checked_sub(3)
-                    .expect("infallible"),
-                previous_batch: latest_committed_batch_hash,
-                expiry,
-                chain_commitment: None,
-                code_commitments: vec![],
-                validators_commitment: None,
-                rewards_commitment: None,
-            },
+        let id = router.request_code_validation(b"code2")?;
+        let code_commitment_gas = router.estimate_commit_batch_gas(
+            None,
+            vec![CodeCommitment { id, valid: true }],
             ExecutionMode::Execute,
         )?;
-
-        for _ in 0..expiry {
-            router.context.prev_block();
-        }
+        dbg!(code_commitment_gas);
 
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn block_number(&self) -> U256 {
         self.block_number
     }
@@ -233,6 +283,7 @@ impl SimulationContext {
         });
     }
 
+    #[allow(dead_code)]
     fn prev_block(&mut self) {
         self.evm.modify_block(|block_env| {
             let one = U256::ONE;
@@ -372,18 +423,118 @@ impl WrappedVara {
 enum ExecutionMode {
     Execute,
     ExecuteAndCommit,
+    ExecuteAndInspect,
+}
+
+#[derive(Debug)]
+pub enum MirrorImplKind {
+    Regular,
+    WithInstrumentation,
+}
+
+pub struct MirrorImpl {
+    address: Address,
+    mirror_impl_bytecode: Bytes,
+    mirror_impl_with_instrumentation_bytecode: Bytes,
+}
+
+impl MirrorImpl {
+    pub fn deploy(context: &mut SimulationContext, router_proxy: Address) -> Result<Self> {
+        let (_, mirror_impl_bytecode) = Self::deploy_with_execution_mode(
+            context,
+            router_proxy,
+            &IMirror::BYTECODE[..],
+            ExecutionMode::Execute,
+        )?;
+        let (_, mirror_impl_with_instrumentation_bytecode) = Self::deploy_with_execution_mode(
+            context,
+            router_proxy,
+            &IMirrorWithInstrumentation::BYTECODE[..],
+            ExecutionMode::Execute,
+        )?;
+
+        let (mirror_impl, _) = Self::deploy_with_execution_mode(
+            context,
+            router_proxy,
+            &IMirror::BYTECODE[..],
+            ExecutionMode::ExecuteAndCommit,
+        )?;
+
+        Ok(Self {
+            address: mirror_impl,
+            mirror_impl_bytecode,
+            mirror_impl_with_instrumentation_bytecode,
+        })
+    }
+
+    fn deploy_with_execution_mode(
+        context: &mut SimulationContext,
+        router_proxy: Address,
+        bytecode: &[u8],
+        execution_mode: ExecutionMode,
+    ) -> Result<(Address, Bytes)> {
+        let tx = TxEnv::builder()
+            .caller(context.deployer_address())
+            .create()
+            .data(
+                [
+                    bytecode,
+                    &SolConstructor::abi_encode(&IMirror::constructorCall {
+                        _router: router_proxy,
+                    })[..],
+                ]
+                .concat()
+                .into(),
+            )
+            .nonce(context.deployer_nonce())
+            .build()
+            .map_err(|_| anyhow!("failed to build TxEnv"))?;
+
+        let execution_result = match execution_mode {
+            ExecutionMode::Execute => context.evm.transact(tx)?.result,
+            ExecutionMode::ExecuteAndCommit => context.evm.transact_commit(tx)?,
+            ExecutionMode::ExecuteAndInspect => context.evm.inspect_one_tx(tx)?,
+        };
+
+        let ExecutionResult::Success {
+            output: Output::Create(mirror_impl_bytecode, Some(mirror_impl)),
+            ..
+        } = execution_result
+        else {
+            bail!("failed to deploy Mirror contract");
+        };
+
+        if let ExecutionMode::ExecuteAndCommit = execution_mode {
+            context.increment_deployer_nonce();
+        }
+
+        Ok((mirror_impl, mirror_impl_bytecode))
+    }
+
+    pub fn address(&self) -> Address {
+        self.address
+    }
+
+    pub fn mirror_impl_bytecode(&self) -> &Bytes {
+        &self.mirror_impl_bytecode
+    }
+
+    pub fn mirror_impl_with_instrumentation_bytecode(&self) -> &Bytes {
+        &self.mirror_impl_with_instrumentation_bytecode
+    }
 }
 
 pub struct Router<'a> {
     context: &'a mut SimulationContext,
     impl_address: Address,
     proxy_address: Address,
+    mirror_impl: MirrorImpl,
 }
 
 impl<'a> Router<'a> {
     pub fn deploy(
         context: &'a mut SimulationContext,
-        mirror_impl: Address,
+        precomputed_mirror_impl: Address,
         wrapped_vara: &WrappedVara,
     ) -> Result<Self> {
         let router_impl = Self::deploy_impl(context)?;
@@ -399,7 +550,7 @@ impl<'a> Router<'a> {
         let router_proxy = Self::deploy_proxy(
             context,
             router_impl,
-            mirror_impl,
+            precomputed_mirror_impl,
             wrapped_vara,
             middleware_address,
             aggregated_public_key,
@@ -411,10 +562,14 @@ impl<'a> Router<'a> {
             .journal_mut()
             .balance_incr(router_proxy, u128::MAX.try_into().expect("infallible"))?;
 
+        let mirror_impl = MirrorImpl::deploy(context, router_proxy)?;
+        assert_eq!(mirror_impl.address(), precomputed_mirror_impl);
+
         Ok(Self {
             context,
             impl_address: router_impl,
             proxy_address: router_proxy,
+            mirror_impl,
         })
     }
 
@@ -503,6 +658,32 @@ impl<'a> Router<'a> {
 
     pub fn proxy_address(&self) -> Address {
         self.proxy_address
+    }
+
+    pub fn mirror_impl(&self) -> &MirrorImpl {
+        &self.mirror_impl
+    }
+
+    pub fn switch_to_mirror_impl(&mut self, kind: MirrorImplKind) -> Result<()> {
+        let mirror_impl = self.mirror_impl();
+        let address = mirror_impl.address();
+        let code = Bytecode::new_legacy(
+            match kind {
+                MirrorImplKind::Regular => mirror_impl.mirror_impl_bytecode(),
+                MirrorImplKind::WithInstrumentation => {
+                    mirror_impl.mirror_impl_with_instrumentation_bytecode()
+                }
+            }
+            .clone(),
+        );
+
+        let journal = self.context.evm.journal_mut();
+        journal.load_account(address)?;
+        journal.set_code(address, code);
+        let state = journal.finalize();
+        self.context.evm.commit(state);
+
+        Ok(())
     }
 
     fn latest_committed_batch_hash(&mut self) -> Result<Digest> {
@@ -668,6 +849,7 @@ impl<'a> Router<'a> {
         let execution_result = match execution_mode {
             ExecutionMode::Execute => self.context.evm.transact(tx)?.result,
             ExecutionMode::ExecuteAndCommit => self.context.evm.transact_commit(tx)?,
+            ExecutionMode::ExecuteAndInspect => self.context.evm.inspect_one_tx(tx)?,
         };
         let ExecutionResult::Success { gas_used, .. } = execution_result else {
             bail!("failed to commit batch");
@@ -684,6 +866,7 @@ impl<'a> Router<'a> {
         &mut self,
         chain_commitment: Option<ChainCommitment>,
         code_commitments: Vec<CodeCommitment>,
+        execution_mode: ExecutionMode,
     ) -> Result<()> {
         self.context.next_block();
 
@@ -700,53 +883,54 @@ impl<'a> Router<'a> {
                 validators_commitment: None,
                 rewards_commitment: None,
             },
-            ExecutionMode::ExecuteAndCommit,
+            execution_mode,
         )?;
 
         Ok(())
     }
-}
 
-pub struct MirrorImpl {
-    address: Address,
-}
+    fn estimate_commit_batch_gas(
+        &mut self,
+        chain_commitment: Option<ChainCommitment>,
+        code_commitments: Vec<CodeCommitment>,
+        execution_mode: ExecutionMode,
+    ) -> Result<u64> {
+        let expiry = 3;
 
-impl MirrorImpl {
-    pub fn deploy(router: &mut Router) -> Result<Self> {
-        let ExecutionResult::Success {
-            output: Output::Create(_, Some(mirror_impl)),
-            ..
-        } = router.context.evm.transact_commit(
-            TxEnv::builder()
-                .caller(router.context.deployer_address())
-                .create()
-                .data(
-                    [
-                        &IMirror::BYTECODE[..],
-                        &SolConstructor::abi_encode(&IMirror::constructorCall {
-                            _router: router.proxy_address(),
-                        })[..],
-                    ]
-                    .concat()
-                    .into(),
-                )
-                .nonce(router.context.deployer_nonce())
-                .build()
-                .map_err(|_| anyhow!("failed to build TxEnv"))?,
-        )?
-        else {
-            bail!("failed to deploy Mirror contract");
-        };
+        for _ in 0..expiry {
+            self.context.next_block();
+        }
 
-        router.context.increment_deployer_nonce();
+        let latest_committed_batch_hash = self.latest_committed_batch_hash()?;
 
-        Ok(Self {
-            address: mirror_impl,
-        })
-    }
+        let gas_used = self.commit_batch(
+            BatchCommitment {
+                block_hash: self.context.block_hash(
+                    self.context
+                        .block_number()
+                        .checked_sub(U256::from(3))
+                        .expect("infallible"),
+                )?,
+                timestamp: self
+                    .context
+                    .block_timestamp_u64()
+                    .checked_sub(3)
+                    .expect("infallible"),
+                previous_batch: latest_committed_batch_hash,
+                expiry,
+                chain_commitment,
+                code_commitments,
+                validators_commitment: None,
+                rewards_commitment: None,
+            },
+            execution_mode,
+        )?;
 
-    pub fn address(&self) -> Address {
-        self.address
+        for _ in 0..expiry {
+            self.context.prev_block();
+        }
+
+        Ok(gas_used)
     }
 }
 
