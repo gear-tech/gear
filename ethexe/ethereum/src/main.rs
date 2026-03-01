@@ -423,6 +423,7 @@ impl WrappedVara {
 enum ExecutionMode {
     Execute,
     ExecuteAndCommit,
+    #[allow(dead_code)]
     ExecuteAndInspect,
 }
 
