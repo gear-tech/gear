@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{peer_score, validator::discovery::SignedValidatorIdentity};
+use crate::{metrics::Libp2pMetrics, peer_score, validator::discovery::SignedValidatorIdentity};
 use anyhow::Context as _;
 use ethexe_common::Address;
 use futures::{FutureExt, Stream, stream::FusedStream};
@@ -28,6 +28,7 @@ use libp2p::{
         Addresses, EntryView, KBucketKey, PeerRecord, PutRecordOk, QueryId, Quorum, store,
         store::{MemoryStore, RecordStore},
     },
+    metrics::Recorder,
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
@@ -37,6 +38,7 @@ use parity_scale_codec::{Decode, Encode, Input};
 use std::{
     collections::{HashMap, VecDeque},
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll, ready},
     time::Duration,
 };
@@ -307,17 +309,19 @@ pub struct Behaviour {
     peer_score: peer_score::Handle,
     cache_candidates_records: HashMap<QueryId, kad::Record>,
     min_quorum_peers: u32,
+    metrics: Arc<Libp2pMetrics>,
 }
 
 impl Behaviour {
-    pub fn new(peer: PeerId, peer_score: peer_score::Handle) -> Self {
-        Self::with_min_quorum(peer, peer_score, KAD_MIN_QUORUM_PEERS)
+    pub fn new(peer: PeerId, peer_score: peer_score::Handle, metrics: Arc<Libp2pMetrics>) -> Self {
+        Self::with_min_quorum(peer, peer_score, KAD_MIN_QUORUM_PEERS, metrics)
     }
 
     fn with_min_quorum(
         peer: PeerId,
         peer_score: peer_score::Handle,
         min_quorum_peers: u32,
+        metrics: Arc<Libp2pMetrics>,
     ) -> Self {
         let mut inner = kad::Config::new(KAD_PROTOCOL_NAME);
         inner
@@ -343,6 +347,7 @@ impl Behaviour {
             peer_score,
             cache_candidates_records: HashMap::new(),
             min_quorum_peers,
+            metrics,
         }
     }
 
@@ -362,6 +367,8 @@ impl Behaviour {
     }
 
     fn handle_inner_event(&mut self, event: kad::Event) -> Poll<Event> {
+        self.metrics.record(&event);
+
         match event {
             kad::Event::RoutingUpdated { peer, .. } => {
                 return Poll::Ready(Event::RoutingUpdated { peer });
@@ -728,6 +735,10 @@ mod tests {
     use libp2p_swarm_test::SwarmExt;
     use std::{collections::BTreeMap, num::NonZeroUsize};
 
+    fn new_metrics() -> Arc<Libp2pMetrics> {
+        Arc::new(Libp2pMetrics::new())
+    }
+
     fn new_identity() -> SignedValidatorIdentity {
         let keypair = Keypair::generate_secp256k1();
         let signer = Signer::memory();
@@ -750,7 +761,12 @@ mod tests {
 
     fn new_behaviour_with_quorum(min_quorum_peers: u32) -> Behaviour {
         let peer_id = Keypair::generate_ed25519().public().to_peer_id();
-        Behaviour::with_min_quorum(peer_id, peer_score::Handle::new_test(), min_quorum_peers)
+        Behaviour::with_min_quorum(
+            peer_id,
+            peer_score::Handle::new_test(),
+            min_quorum_peers,
+            new_metrics(),
+        )
     }
 
     async fn new_swarm() -> Swarm<Behaviour> {
@@ -760,7 +776,13 @@ mod tests {
     async fn new_swarm_with_quorum(min_quorum_peers: u32) -> Swarm<Behaviour> {
         let mut swarm = Swarm::new_ephemeral_tokio(move |keypair| {
             let peer_id = keypair.public().to_peer_id();
-            Behaviour::with_min_quorum(peer_id, peer_score::Handle::new_test(), min_quorum_peers)
+            let metrics = new_metrics();
+            Behaviour::with_min_quorum(
+                peer_id,
+                peer_score::Handle::new_test(),
+                min_quorum_peers,
+                metrics,
+            )
         });
         swarm.listen().with_memory_addr_external().await;
         swarm

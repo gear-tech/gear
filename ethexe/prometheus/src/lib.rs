@@ -40,7 +40,12 @@ use std::{
     sync::LazyLock,
     task::{Context, Poll},
 };
-use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
+use tokio::{
+    net::TcpListener,
+    sync::{mpsc, oneshot},
+    task,
+    task::JoinHandle,
+};
 
 /// Global metric for the number of unbounded channels.
 pub static UNBOUNDED_CHANNELS_COUNTER: LazyLock<GenericCounterVec<AtomicU64>> =
@@ -85,20 +90,40 @@ pub struct PrometheusConfig {
     pub addr: SocketAddr,
 }
 
+#[derive(Debug)]
+pub enum PrometheusEvent {
+    CollectMetrics {
+        libp2p_metrics: oneshot::Sender<String>,
+    },
+    ServerClosed(Result<(), task::JoinError>),
+}
+
 pub struct PrometheusService {
     server: JoinHandle<()>,
+    server_receiver: mpsc::Receiver<PrometheusEvent>,
+    server_closed_returned: bool,
 }
 
 impl Stream for PrometheusService {
-    type Item = Result<()>;
+    type Item = PrometheusEvent;
+
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.server.poll_unpin(cx).map_err(Into::into).map(Some)
+        if let Poll::Ready(res) = self.server.poll_unpin(cx) {
+            self.server_closed_returned = true;
+            return Poll::Ready(Some(PrometheusEvent::ServerClosed(res)));
+        }
+
+        if let Poll::Ready(Some(event)) = self.server_receiver.poll_recv(cx) {
+            return Poll::Ready(Some(event));
+        }
+
+        Poll::Pending
     }
 }
 
 impl FusedStream for PrometheusService {
     fn is_terminated(&self) -> bool {
-        self.server.is_finished()
+        self.server_closed_returned
     }
 }
 
@@ -110,15 +135,23 @@ impl PrometheusService {
             .context("Failed to install prometheus recorder")?;
         let metrics = LivenessMetrics::default();
 
+        let (server_sender, server_receiver) = mpsc::channel(64);
+
         let server = tokio::spawn(
-            start_prometheus_server(config.addr, handle.clone(), metrics, db).map(drop),
+            start_prometheus_server(config.addr, server_sender, handle.clone(), metrics, db)
+                .map(drop),
         );
-        Ok(Self { server })
+        Ok(Self {
+            server,
+            server_receiver,
+            server_closed_returned: false,
+        })
     }
 }
 
 async fn start_prometheus_server(
     prometheus_addr: SocketAddr,
+    sender: mpsc::Sender<PrometheusEvent>,
     handle: PrometheusHandle,
     metrics: LivenessMetrics,
     db: Database,
@@ -129,13 +162,20 @@ async fn start_prometheus_server(
     let (signal, on_exit) = oneshot::channel::<()>();
 
     let service = make_service_fn(move |_| {
+        let sender = sender.clone();
         let handle = handle.clone();
         let metrics = metrics.clone();
         let db = db.clone();
 
         async move {
             Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-                request_metrics(req, handle.clone(), metrics.clone(), db.clone())
+                request_metrics(
+                    req,
+                    sender.clone(),
+                    handle.clone(),
+                    metrics.clone(),
+                    db.clone(),
+                )
             }))
         }
     });
@@ -158,13 +198,29 @@ async fn start_prometheus_server(
 
 async fn request_metrics(
     req: Request<Body>,
+    sender: mpsc::Sender<PrometheusEvent>,
     handle: PrometheusHandle,
     metrics: LivenessMetrics,
     db: Database,
 ) -> Result<Response<Body>> {
     if req.uri().path() == "/metrics" {
         update_liveness_metrics(db, metrics);
-        let metrics = handle.render();
+        let mut metrics = handle.render();
+
+        // we collect metrics from multiple registries
+        debug_assert!(metrics.ends_with('\n'));
+        debug_assert!(!metrics.ends_with("# EOF\n"));
+
+        let (tx, rx) = oneshot::channel();
+        sender
+            .send(PrometheusEvent::CollectMetrics { libp2p_metrics: tx })
+            .await
+            .expect("channel must never be closed");
+
+        // channel can be dropped if the network is disabled
+        if let Ok(libp2p_metrics) = rx.await {
+            metrics += &libp2p_metrics;
+        }
 
         Response::builder()
             .status(StatusCode::OK)
@@ -213,4 +269,47 @@ fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
     metrics
         .time_since_latest_committed_secs
         .set(time_since_latest_committed_secs as f64);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::StreamExt;
+    use std::{net::Ipv4Addr, time::Duration};
+    use tokio::{task, time};
+
+    #[tokio::test]
+    async fn fused_stream_works() {
+        let mut service = PrometheusService::new(
+            PrometheusConfig {
+                name: "".to_string(),
+                addr: (Ipv4Addr::LOCALHOST, 0).into(),
+            },
+            Database::memory(),
+        )
+        .unwrap();
+
+        assert!(!service.is_terminated());
+
+        // wait for the server to finish
+        time::timeout(Duration::from_secs(5), async {
+            service.server.abort();
+            while !service.server.is_finished() {
+                task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+
+        assert!(!service.is_terminated());
+
+        let event = service.select_next_some().await;
+        if let PrometheusEvent::ServerClosed(res) = event {
+            assert!(res.unwrap_err().is_cancelled());
+        } else {
+            unreachable!("unexpected event: {event:?}");
+        }
+
+        assert!(service.is_terminated());
+    }
 }

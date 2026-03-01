@@ -35,9 +35,10 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Ethexe metadata associated with an on-chain block.
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
     /// Block has been prepared, meaning:
     /// all metadata is ready, all predecessors till start block are prepared too.
@@ -141,7 +142,7 @@ pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct AnnounceMeta {
     pub computed: bool,
 }
@@ -173,7 +174,7 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
     );
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct LatestData {
     /// Latest synced block
     pub synced_block: SimpleBlockData,
@@ -225,4 +226,66 @@ pub struct ComputedAnnounceData {
     pub program_states: ProgramStates,
     pub outcome: Vec<StateTransition>,
     pub schedule: Schedule,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use indoc::formatdoc;
+    use scale_info::{PortableRegistry, Registry, meta_type};
+    use sha3::{Digest, Sha3_256};
+
+    #[test]
+    fn ensure_types_unchanged() {
+        const EXPECTED_TYPE_INFO_HASH: &str =
+            "608a1e0af6ae724c1cde0ec3f191f54817bf70f22f3c26376a849662a921cc72";
+
+        let types = [
+            meta_type::<BlockMeta>(),
+            meta_type::<InstrumentedCode>(),
+            meta_type::<CodeMetadata>(),
+            meta_type::<BlockHeader>(),
+            meta_type::<BlockEvent>(),
+            meta_type::<CodeBlobInfo>(),
+            meta_type::<ValidatorsVec>(),
+            meta_type::<ProtocolTimelines>(),
+            meta_type::<HashOf<InjectedTransaction>>(),
+            meta_type::<SignedInjectedTransaction>(),
+            meta_type::<Announce>(),
+            meta_type::<ProgramStates>(),
+            meta_type::<StateTransition>(),
+            meta_type::<Schedule>(),
+            meta_type::<AnnounceMeta>(),
+            meta_type::<LatestData>(),
+        ];
+
+        let mut registry = Registry::new();
+        registry.register_types(types);
+
+        let portable_registry = PortableRegistry::from(registry);
+        let encoded_registry = portable_registry.encode();
+        let type_info_hash = hex::encode(Sha3_256::digest(encoded_registry));
+
+        if type_info_hash != EXPECTED_TYPE_INFO_HASH {
+            panic!(
+                "{}",
+                formatdoc!(
+                    "
+                    Some of database types has been changed.
+
+                    It can break existing databases, so be very careful and think at least
+                    twice before committing such changes. Ensure that SCALE representations
+                    of all changed database types are still the same.
+
+                    If you know what exactly has been changed and sure about it,
+                    please update `EXPECTED_TYPE_INFO_HASH` constant in this test
+                    to the new value to fix the assertion.
+
+                    Expected hash: {EXPECTED_TYPE_INFO_HASH}
+                    Found hash:    {type_info_hash}
+                    "
+                )
+            );
+        }
+    }
 }

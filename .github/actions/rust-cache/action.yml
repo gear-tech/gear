@@ -71,7 +71,7 @@ runs:
         large-packages: false
 
     - id: date
-      run: echo "value=$(date +%Y)-$(( $(date +%W) - $(date +%W) % 2 ))" >> $GITHUB_OUTPUT
+      run: echo "value=$(date +%Y)-$((10#$(date +%W) - 10#$(date +%W) % 2))" >> "$GITHUB_OUTPUT"
       shell: bash
 
     - uses: gear-tech/rust-cache@wasm

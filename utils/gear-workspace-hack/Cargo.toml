@@ -259,8 +259,8 @@ byteorder = { version = "1" }
 bytes = { version = "1", features = ["serde"] }
 c-kzg = { version = "2", default-features = false, features = ["ethereum_kzg_settings", "portable", "serde", "std"] }
 cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
-clap = { version = "4", features = ["derive", "string", "wrap_help"] }
-clap_builder = { version = "4", default-features = false, features = ["color", "std", "string", "suggestions", "usage", "wrap_help"] }
+clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
+clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
 constant_time_eq = { version = "0.4", default-features = false, features = ["std"] }
@@ -538,8 +538,8 @@ bytes = { version = "1", features = ["serde"] }
 c-kzg = { version = "2", default-features = false, features = ["ethereum_kzg_settings", "portable", "serde", "std"] }
 cc = { version = "1", default-features = false, features = ["parallel"] }
 cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
-clap = { version = "4", features = ["derive", "string", "wrap_help"] }
-clap_builder = { version = "4", default-features = false, features = ["color", "std", "string", "suggestions", "usage", "wrap_help"] }
+clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
+clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
 constant_time_eq = { version = "0.4", default-features = false, features = ["std"] }
