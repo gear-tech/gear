@@ -412,8 +412,6 @@ pub(crate) mod utils {
     }
 }
 
-// TODO kuzmindev: implement a test case, when we have a early break on injected queue and do not run the canonical one.
-// Test the correctness of closing the `AnnouncePromisesStream`.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -626,7 +624,7 @@ mod tests {
 
                     let block = announce.block_hash;
                     let txs = (i != 1)
-                        .then(|| vec![test_utils::injected_tx(ping_id, b"PING".to_vec(), block)])
+                        .then(|| vec![test_utils::injected_tx(ping_id, b"PING".into(), block)])
                         .unwrap_or_default();
                     announce.injected_transactions = txs;
                     announce
@@ -638,7 +636,7 @@ mod tests {
                 let mut block_events = (i == 1)
                     .then(|| test_utils::create_program_events(ping_id, ping_code_id))
                     .unwrap_or_default();
-                block_events.extend(test_utils::block_events(5, ping_id, b"PING".to_vec()));
+                block_events.extend(test_utils::block_events(5, ping_id, b"PING".into()));
                 db.set_block_events(announce.block_hash, &block_events);
 
                 parent_announce = announce_hash;
@@ -677,7 +675,7 @@ mod tests {
                 Promise {
                     tx_hash: tx.to_hash(),
                     reply: ReplyInfo {
-                        payload: b"PONG".to_vec(),
+                        payload: b"PONG".into(),
                         value: 0,
                         code: ReplyCode::Success(SuccessReplyReason::Manual),
                     },
@@ -700,6 +698,55 @@ mod tests {
                     }
                 }
                 _ => unreachable!("unexpected event for current test"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compute_with_early_break() {
+        gear_utils::init_default_logger();
+
+        let db = Database::memory();
+        let mut processor = Processor::new(db.clone()).unwrap();
+
+        let ping_code_id = test_utils::upload_code(&mut processor, demo_ping::WASM_BINARY, &db);
+        let ping_id = ActorId::from(0x10000);
+
+        let blockchain = BlockChain::mock(3).setup(&db);
+
+        let first_announce_hash = {
+            let mut announce = blockchain.block_top_announce(1).announce.clone();
+            announce.gas_allowance = Some(DEFAULT_BLOCK_GAS_LIMIT);
+
+            let mut canonical_events = test_utils::create_program_events(ping_id, ping_code_id);
+            canonical_events.push(test_utils::canonical_event(ping_id, b"PING".into()));
+
+            db.set_block_events(announce.block_hash, &canonical_events);
+            db.set_announce(announce)
+        };
+
+        let (announce, announce_hash) = {
+            let mut announce = blockchain.block_top_announce(2).announce.clone();
+            announce.gas_allowance = Some(400_000);
+            announce.parent = first_announce_hash;
+
+            let ref_block = announce.block_hash;
+            let txs = (0..300)
+                .map(|_| test_utils::injected_tx(ping_id, b"PING".into(), ref_block))
+                .collect::<Vec<_>>();
+            announce.injected_transactions = txs;
+            let hash = db.set_announce(announce.clone());
+            (announce, hash)
+        };
+
+        let mut compute_service =
+            ComputeService::new(ComputeConfig::without_quarantine(), db.clone(), processor);
+        compute_service.compute_announce(announce, PromisePolicy::Enabled);
+
+        loop {
+            let event = compute_service.next().await.unwrap().unwrap();
+            if event == ComputeEvent::AnnounceComputed(announce_hash) {
+                break;
             }
         }
     }

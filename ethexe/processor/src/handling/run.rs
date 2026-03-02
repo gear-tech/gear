@@ -304,6 +304,7 @@ impl CommonRunContext {
     pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
         // Start with injected queues processing.
         let can_continue = run_for_queue_type(&mut self, MessageType::Injected).await?;
+        log::error!("can continue = {can_continue}");
 
         if can_continue {
             // If gas is still left in block, process canonical (Ethereum) queues
