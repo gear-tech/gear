@@ -193,7 +193,7 @@ impl Processor {
             InBlockTransitions::new(block.header.height, program_states, schedule);
 
         transitions =
-            self.process_injected_and_events(transitions, injected_transactions, events)?;
+            self.handle_injected_and_events(transitions, injected_transactions, events)?;
 
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
@@ -205,7 +205,7 @@ impl Processor {
         Ok(transitions.finalize())
     }
 
-    fn process_injected_and_events(
+    fn handle_injected_and_events(
         &mut self,
         transitions: InBlockTransitions,
         injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
@@ -369,7 +369,7 @@ impl OverlaidProcessor {
         let transitions =
             InBlockTransitions::new(block.header.height, program_states, Schedule::default());
 
-        let transitions = self.0.process_injected_and_events(
+        let transitions = self.0.handle_injected_and_events(
             transitions,
             vec![],
             vec![BlockRequestEvent::Mirror {

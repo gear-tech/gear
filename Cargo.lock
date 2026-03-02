@@ -5105,6 +5105,7 @@ dependencies = [
 name = "ethexe-compute"
 version = "1.10.0"
 dependencies = [
+ "demo-ping",
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",

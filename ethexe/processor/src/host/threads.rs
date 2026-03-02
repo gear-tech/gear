@@ -144,6 +144,13 @@ pub fn with_params<T>(f: impl FnOnce(&mut ThreadParams) -> T) -> T {
     })
 }
 
+pub fn clear_promise_out_tx() {
+    PARAMS.with_borrow_mut(|maybe_params| {
+        let params = maybe_params.as_mut().expect(UNSET_PANIC);
+        let _ = params.promise_out_tx.take();
+    })
+}
+
 #[derive(Debug)]
 pub struct EthexeHostLazyPages;
 

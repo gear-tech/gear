@@ -188,6 +188,12 @@ impl InstanceWrapper {
 
         let new_state_hash = threads::with_params(|params| params.state_hash);
 
+        // Clear the thread-local sender after the injected queue run. If processing stops here
+        // and we never start the canonical queue, the sender stored in ThreadParams would stay
+        // alive on the worker thread and keep the promise channel open, so the outer
+        // AnnouncePromisesStream would never observe completion.
+        threads::clear_promise_out_tx();
+
         Ok((mega_journal, new_state_hash, gas_spent as u64))
     }
 
