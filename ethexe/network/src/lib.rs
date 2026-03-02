@@ -21,6 +21,7 @@ pub mod db_sync;
 mod gossipsub;
 mod injected;
 mod kad;
+mod metrics;
 pub mod peer_score;
 mod utils;
 mod validator;
@@ -33,6 +34,7 @@ pub use injected::Event as NetworkInjectedEvent;
 
 use crate::{
     db_sync::DbSyncDatabase,
+    metrics::Libp2pMetrics,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
 use anyhow::{Context, anyhow};
@@ -50,6 +52,7 @@ use libp2p::{
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
     futures::StreamExt,
     identify, identity, mdns,
+    metrics::Recorder,
     multiaddr::Protocol,
     ping,
     swarm::{
@@ -61,7 +64,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{collections::HashSet, pin::Pin, sync::Arc, task::Poll, time::Duration};
+use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
@@ -159,6 +162,7 @@ pub struct NetworkService {
     bootstrap_peers: HashSet<PeerId>,
     validator_list: ValidatorList,
     validator_topic: ValidatorTopic,
+    metrics: Arc<Libp2pMetrics>,
 }
 
 impl Stream for NetworkService {
@@ -215,6 +219,8 @@ impl NetworkService {
             db,
         } = runtime_config;
 
+        let mut metrics = Libp2pMetrics::new();
+
         let (validator_list, validator_list_snapshot) = ValidatorList::new(
             ValidatorDatabase::clone_boxed(&db),
             latest_block_header,
@@ -222,7 +228,10 @@ impl NetworkService {
         )
         .context("failed to create validator list")?;
 
-        let keypair = NetworkService::generate_keypair(&network_signer, public_key)?;
+        let keypair = Self::create_keypair(&network_signer, public_key)?;
+
+        let transport = Self::create_transport(&keypair, transport_type, &mut metrics)?;
+        let metrics = Arc::new(metrics);
 
         let behaviour_config = BehaviourConfig {
             router_address,
@@ -234,9 +243,11 @@ impl NetworkService {
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
             allow_non_global_addresses,
+            metrics: metrics.clone(),
         };
-        let mut swarm =
-            NetworkService::create_swarm(keypair.clone(), transport_type, behaviour_config)?;
+        let behaviour = Behaviour::new(behaviour_config)?;
+
+        let mut swarm = Self::create_swarm(keypair.clone(), transport, transport_type, behaviour)?;
 
         let validator_topic = ValidatorTopic::new(
             swarm.behaviour().peer_score.handle(),
@@ -281,10 +292,11 @@ impl NetworkService {
             bootstrap_peers,
             validator_list,
             validator_topic,
+            metrics,
         })
     }
 
-    fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
+    fn create_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
         let mut key = signer.private_key(key)?.to_bytes();
         let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key)
             .expect("Signer provided invalid key; qed");
@@ -295,6 +307,7 @@ impl NetworkService {
     fn create_transport(
         keypair: &identity::Keypair,
         transport_type: TransportType,
+        metrics: &mut Libp2pMetrics,
     ) -> anyhow::Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
         match transport_type {
             TransportType::Default => {
@@ -307,17 +320,19 @@ impl NetworkService {
                 let quic_config = libp2p::quic::Config::new(keypair);
                 let quic = libp2p::quic::tokio::Transport::new(quic_config);
 
-                let tcp_or_quic =
+                let quic_or_tcp =
                     quic.or_transport(tcp)
                         .map(|either_output, _| match either_output {
-                            Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
-                            Either::Right((peer_id, muxer)) => {
-                                (peer_id, StreamMuxerBox::new(muxer))
-                            }
+                            Either::Left((peer_id, muxer)) => (peer_id, Either::Left(muxer)),
+                            Either::Right((peer_id, muxer)) => (peer_id, Either::Right(muxer)),
                         });
-                let dns = libp2p::dns::tokio::Transport::system(tcp_or_quic)?;
+                let dns = libp2p::dns::tokio::Transport::system(quic_or_tcp)?;
 
-                Ok(dns.boxed())
+                let bandwidth = metrics
+                    .create_bandwidth_transport(dns)
+                    .map(|(peer_id, conn), _| (peer_id, StreamMuxerBox::new(conn)));
+
+                Ok(bandwidth.boxed())
             }
             TransportType::Test => Ok(transport::MemoryTransport::default()
                 .or_transport(libp2p::tcp::tokio::Transport::default())
@@ -331,13 +346,10 @@ impl NetworkService {
 
     fn create_swarm(
         keypair: identity::Keypair,
+        transport: transport::Boxed<(PeerId, StreamMuxerBox)>,
         transport_type: TransportType,
-        config: BehaviourConfig,
+        behaviour: Behaviour,
     ) -> anyhow::Result<Swarm<Behaviour>> {
-        let transport = Self::create_transport(&keypair, transport_type)?;
-
-        let behaviour = Behaviour::new(config)?;
-
         let local_peer_id = keypair.public().to_peer_id();
 
         let mut config = SwarmConfig::with_tokio_executor();
@@ -350,6 +362,8 @@ impl NetworkService {
 
     fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) -> Option<NetworkEvent> {
         log::trace!("new swarm event: {event:?}");
+
+        self.metrics.record(&event);
 
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
@@ -391,6 +405,8 @@ impl NetworkService {
     }
 
     fn handle_ping_event(&mut self, event: ping::Event) {
+        self.metrics.record(&event);
+
         let ping::Event {
             peer,
             connection: _,
@@ -404,6 +420,8 @@ impl NetworkService {
     }
 
     fn handle_identify_event(&mut self, event: identify::Event) {
+        self.metrics.record(&event);
+
         match event {
             identify::Event::Received { peer_id, info, .. } => {
                 let behaviour = self.swarm.behaviour_mut();
@@ -545,6 +563,10 @@ impl NetworkService {
         *self.swarm.local_peer_id()
     }
 
+    pub fn render_libp2p_metrics(&self, writer: &mut impl Write) {
+        self.metrics.render(writer);
+    }
+
     pub fn score_handle(&self) -> peer_score::Handle {
         self.swarm.behaviour().peer_score.handle()
     }
@@ -617,6 +639,7 @@ struct BehaviourConfig {
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
     allow_non_global_addresses: bool,
+    metrics: Arc<Libp2pMetrics>,
 }
 
 #[derive(NetworkBehaviour)]
@@ -658,6 +681,7 @@ impl Behaviour {
             general_signer,
             validator_list_snapshot,
             allow_non_global_addresses,
+            metrics,
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
@@ -696,12 +720,16 @@ impl Behaviour {
                 .transpose()?,
         );
 
-        let kad = kad::Behaviour::new(peer_id, peer_score_handle.clone());
+        let kad = kad::Behaviour::new(peer_id, peer_score_handle.clone(), metrics.clone());
         let kad_handle = kad.handle();
 
-        let gossipsub =
-            gossipsub::Behaviour::new(keypair.clone(), peer_score_handle.clone(), router_address)
-                .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
+        let gossipsub = gossipsub::Behaviour::new(
+            keypair.clone(),
+            peer_score_handle.clone(),
+            router_address,
+            metrics.clone(),
+        )
+        .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
 
         let db_sync = db_sync::Behaviour::new(
             db_sync::Config::default(),

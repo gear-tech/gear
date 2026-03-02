@@ -1,0 +1,42 @@
+[package]
+name = "ethexe-node-loader"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "ethexe-node-loader"
+path = "src/main.rs"
+
+[dependencies]
+
+anyhow.workspace = true
+clap = { workspace = true, features = ["derive", "env"] }
+futures.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+gear-workspace-hack.workspace = true
+alloy = { workspace = true, features = ["signer-mnemonic"] }
+ethexe-common = { workspace = true, features = ["std"] }
+ethexe-ethereum.workspace = true
+ethexe-sdk.workspace = true
+gprimitives = { workspace = true, features = ["ethexe"] }
+gear-call-gen.workspace = true
+gear-wasm-gen.workspace = true
+gear-core.workspace = true
+gear-utils.workspace = true
+parity-scale-codec.workspace = true
+rand = { workspace = true }
+gsigner.workspace = true
+demo-syscalls-ethexe = { workspace = true, features = ["ethexe"] }
+
+
+[dev-dependencies]
+
+[lints]
+workspace = true

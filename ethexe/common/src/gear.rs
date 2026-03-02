@@ -25,6 +25,7 @@ use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyRea
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
+use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 // TODO: support query from router.
@@ -296,7 +297,7 @@ pub struct ComputationSettings {
     pub wvara_per_second: u128,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Message {
     pub id: MessageId,
@@ -357,7 +358,7 @@ pub struct ProtocolData {
     pub validated_codes_count: U256,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StateTransition {
     pub actor_id: ActorId,
@@ -407,7 +408,7 @@ impl ToDigest for StateTransition {
     }
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaim {
     pub message_id: MessageId,

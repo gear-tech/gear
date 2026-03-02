@@ -20,8 +20,8 @@ use crate::{
     db_sync::{
         AnnouncesRequest, Config, Event, ExternalDataProvider, HandleResult, HashesRequest,
         InnerAnnouncesResponse, InnerBehaviour, InnerHashesResponse, InnerProgramIdsRequest,
-        InnerProgramIdsResponse, InnerRequest, InnerResponse, NewRequestRoundReason, PeerId,
-        ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
+        InnerProgramIdsResponse, InnerRequest, InnerResponse, Metrics, NewRequestRoundReason,
+        PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
     },
     peer_score::Handle,
     utils::ConnectionMap,
@@ -199,6 +199,7 @@ impl OngoingRequests {
         &mut self,
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,
+        metrics: &Metrics,
     ) -> Poll<Event> {
         loop {
             if let Some(event) = self.pending_events.pop_front() {
@@ -273,6 +274,7 @@ impl OngoingRequests {
 
                 true
             });
+            metrics.ongoing_requests.set(self.requests.len() as f64);
 
             // it means some futures are pending, so we definitely will wake the task
             if !self.requests.is_empty() {

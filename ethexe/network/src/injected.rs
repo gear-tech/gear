@@ -60,6 +60,28 @@ const MAX_TRANSACTIONS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
 /// Maximum number of validators we cache per transaction
 const MAX_VALIDATORS_PER_TRANSACTION: NonZeroUsize = NonZeroUsize::new(20).unwrap();
 
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_injected")]
+struct Metrics {
+    /// Number of injected transactions sent to a validator
+    sent_transactions: metrics::Counter,
+    /// Number of injected transactions received from a user
+    received_transactions: metrics::Counter,
+}
+
+impl Metrics {
+    fn record(&self, event: &Event) {
+        match event {
+            Event::InboundTransaction { .. } => {
+                self.received_transactions.increment(1);
+            }
+            Event::OutboundAcceptance { .. } => {
+                self.sent_transactions.increment(1);
+            }
+        }
+    }
+}
+
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Encode, Decode)]
 pub(crate) struct InnerRequest(SignedInjectedTransaction);
@@ -130,6 +152,7 @@ pub(crate) struct Behaviour {
     pending_requests: HashMap<OutboundRequestId, HashOf<InjectedTransaction>>,
     pending_responses: FuturesUnordered<PendingResponseFuture>,
     transaction_cache: LruCache<HashOf<InjectedTransaction>, LruCache<Address, ()>>,
+    metrics: Metrics,
 }
 
 impl Behaviour {
@@ -143,6 +166,7 @@ impl Behaviour {
             pending_requests: HashMap::new(),
             pending_responses: FuturesUnordered::new(),
             transaction_cache: LruCache::new(MAX_TRANSACTIONS),
+            metrics: Metrics::default(),
         }
     }
 
@@ -357,9 +381,13 @@ impl NetworkBehaviour for Behaviour {
 
         let to_swarm = ready!(self.inner.poll(cx));
         match to_swarm {
-            ToSwarm::GenerateEvent(event) => {
-                self.handle_inner_event(event).map(ToSwarm::GenerateEvent)
-            }
+            ToSwarm::GenerateEvent(event) => self
+                .handle_inner_event(event)
+                .map(|event| {
+                    self.metrics.record(&event);
+                    event
+                })
+                .map(ToSwarm::GenerateEvent),
             to_swarm => Poll::Ready(to_swarm.map_out::<Event>(|_event| {
                 unreachable!("`ToSwarm::GenerateEvent` is handled above")
             })),
