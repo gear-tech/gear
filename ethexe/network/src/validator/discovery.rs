@@ -48,8 +48,8 @@ use libp2p::{
     identity::Keypair,
     multiaddr,
     swarm::{
-        ConnectionDenied, ConnectionId, ExternalAddresses, FromSwarm, NetworkBehaviour, THandler,
-        THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
+        ConnectionDenied, ConnectionId, ExternalAddresses, FromSwarm, NetworkBehaviour,
+        PeerAddresses, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
     },
 };
 use parity_scale_codec::{Decode, Encode, Input, Output};
@@ -385,6 +385,7 @@ struct GetIdentities {
     query_identities: Option<BoxStream<'static, GetRecordResult>>,
     query_identities_interval: ExponentialBackoffInterval,
     pending_events: VecDeque<ToSwarm<Event, THandlerInEvent<Behaviour>>>,
+    peer_addresses: PeerAddresses,
 }
 
 impl GetIdentities {
@@ -429,6 +430,16 @@ impl GetIdentities {
         let Some(identity) = self.verify_record(record)? else {
             return Ok(false);
         };
+
+        for addr in identity.addresses() {
+            if self.peer_addresses.add(identity.peer_id(), addr.clone()) {
+                self.pending_events
+                    .push_back(ToSwarm::NewExternalAddrOfPeer {
+                        peer_id: identity.peer_id(),
+                        address: addr.clone(),
+                    });
+            }
+        }
 
         self.identities.insert(identity.address(), identity);
         Ok(true)
@@ -619,6 +630,7 @@ impl Behaviour {
                 query_identities: None,
                 query_identities_interval: ExponentialBackoffInterval::new(),
                 pending_events: VecDeque::new(),
+                peer_addresses: PeerAddresses::default(),
             },
             put_identity: validator_key.map(|validator_key| PutIdentity {
                 keypair,
@@ -666,6 +678,28 @@ impl NetworkBehaviour for Behaviour {
         _remote_addr: &Multiaddr,
     ) -> Result<THandler<Self>, ConnectionDenied> {
         Ok(dummy::ConnectionHandler)
+    }
+
+    fn handle_pending_outbound_connection(
+        &mut self,
+        _connection_id: ConnectionId,
+        maybe_peer: Option<PeerId>,
+        _addresses: &[Multiaddr],
+        _effective_role: Endpoint,
+    ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+        let Some(peer_id) = maybe_peer else {
+            return Ok(vec![]);
+        };
+
+        let Some(identity) = self
+            .identities()
+            .values()
+            .find(|identity| identity.peer_id() == peer_id)
+        else {
+            return Ok(vec![]);
+        };
+
+        Ok(identity.addresses().iter().cloned().collect())
     }
 
     fn handle_established_outbound_connection(
@@ -717,7 +751,11 @@ mod tests {
     use assert_matches::assert_matches;
     use core::convert::TryFrom;
     use ethexe_common::ValidatorsVec;
-    use libp2p::{Multiaddr, Swarm, identity::Keypair, swarm::behaviour::ExternalAddrConfirmed};
+    use libp2p::{
+        Multiaddr, Swarm,
+        identity::Keypair,
+        swarm::{SwarmEvent, behaviour::ExternalAddrConfirmed},
+    };
     use libp2p_swarm_test::SwarmExt;
     use std::sync::Arc;
     use tokio::time;
@@ -1176,5 +1214,54 @@ mod tests {
         assert_eq!(addresses.len(), 2);
         assert_eq!(*addresses.next().unwrap(), global_addr);
         assert_eq!(*addresses.next().unwrap(), local_addr);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn get_identities_reports_address() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate().unwrap();
+        let network_keypair = Keypair::generate_secp256k1();
+
+        let identity = new_signed_identity(&signer, validator_key, 10);
+        let identity_addr = identity.addresses().iter().next().cloned().unwrap();
+
+        let config = Config {
+            kad: kad::Handle::new_test(),
+            keypair: network_keypair.clone(),
+            validator_key: Some(validator_key),
+            signer: signer.clone(),
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let behaviour = Behaviour::new(config);
+        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| behaviour);
+
+        swarm
+            .behaviour_mut()
+            .get_identities
+            .put_identity(ValidatorIdentityRecord {
+                value: identity.clone(),
+            })
+            .unwrap();
+
+        let event = swarm.next_swarm_event().await;
+        assert_matches!(
+            event,
+            SwarmEvent::NewExternalAddrOfPeer {
+                peer_id,
+                address
+            } if peer_id == identity.peer_id() && address == identity_addr
+        );
+
+        let addresses = swarm
+            .behaviour_mut()
+            .handle_pending_outbound_connection(
+                ConnectionId::new_unchecked(0),
+                Some(identity.peer_id()),
+                &[],
+                Endpoint::Dialer,
+            )
+            .unwrap();
+        assert_eq!(addresses, vec![identity_addr]);
     }
 }
