@@ -22,11 +22,12 @@ use libp2p::{
     StreamProtocol,
     futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     request_response,
-    swarm::ConnectionId,
+    swarm::{ConnectionClosed, ConnectionId, FromSwarm, behaviour::ConnectionEstablished},
 };
 use parity_scale_codec::{Decode, DecodeAll, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
+    convert::Infallible,
     fmt, io,
     marker::PhantomData,
     pin::Pin,
@@ -125,31 +126,91 @@ impl<Req, Resp> Clone for ParityScaleCodec<Req, Resp> {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-pub(crate) struct ConnectionMap {
-    inner: HashMap<PeerId, HashSet<ConnectionId>>,
-    limit: Option<u32>,
+pub(crate) trait ConnectionMapLimit {
+    type Error;
+
+    fn check_limit(
+        &self,
+        connections: &HashMap<PeerId, HashSet<ConnectionId>>,
+        peer_id: PeerId,
+    ) -> Result<(), Self::Error>;
 }
 
-impl ConnectionMap {
-    pub(crate) fn new(limit: Option<u32>) -> Self {
-        Self {
-            inner: Default::default(),
-            limit,
-        }
-    }
+#[derive(Debug)]
+pub(crate) struct ConnectionLimitError {
+    pub limit: u32,
+}
 
-    fn check_limit(&self, peer_id: PeerId) -> Result<(), u32> {
-        let current = self
-            .inner
+pub(crate) struct ConnectionLimit {
+    limit: u32,
+}
+
+impl ConnectionMapLimit for ConnectionLimit {
+    type Error = ConnectionLimitError;
+
+    fn check_limit(
+        &self,
+        connections: &HashMap<PeerId, HashSet<ConnectionId>>,
+        peer_id: PeerId,
+    ) -> Result<(), Self::Error> {
+        let current = connections
             .get(&peer_id)
             .map(|connections| connections.len())
             .unwrap_or(0) as u32;
-        let limit = self.limit.unwrap_or(u32::MAX);
-        if current < limit { Ok(()) } else { Err(limit) }
+        if current < self.limit {
+            Ok(())
+        } else {
+            Err(ConnectionLimitError { limit: self.limit })
+        }
     }
+}
 
-    pub fn peers(&self) -> impl Iterator<Item = PeerId> {
+pub(crate) struct PeerLimitError {
+    pub limit: u32,
+}
+
+pub(crate) struct PeerLimit {
+    limit: u32,
+}
+
+impl ConnectionMapLimit for PeerLimit {
+    type Error = PeerLimitError;
+
+    fn check_limit(
+        &self,
+        connections: &HashMap<PeerId, HashSet<ConnectionId>>,
+        _peer_id: PeerId,
+    ) -> Result<(), Self::Error> {
+        if (connections.len() as u32) < self.limit {
+            Ok(())
+        } else {
+            Err(PeerLimitError { limit: self.limit })
+        }
+    }
+}
+
+pub(crate) struct NoLimits;
+
+impl ConnectionMapLimit for NoLimits {
+    type Error = Infallible;
+
+    fn check_limit(
+        &self,
+        _connections: &HashMap<PeerId, HashSet<ConnectionId>>,
+        _peer_id: PeerId,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ConnectionMap<T> {
+    inner: HashMap<PeerId, HashSet<ConnectionId>>,
+    limit: T,
+}
+
+impl<T: ConnectionMapLimit> ConnectionMap<T> {
+    pub fn peers(&self) -> impl ExactSizeIterator<Item = PeerId> {
         self.inner.keys().copied()
     }
 
@@ -157,10 +218,10 @@ impl ConnectionMap {
         &mut self,
         peer_id: PeerId,
         connection_id: ConnectionId,
-    ) -> Result<(), u32> {
-        self.check_limit(peer_id)?;
-        self.inner.entry(peer_id).or_default().insert(connection_id);
-        Ok(())
+    ) -> Result<bool, T::Error> {
+        self.limit.check_limit(&self.inner, peer_id)?;
+        let new = self.inner.entry(peer_id).or_default().insert(connection_id);
+        Ok(new)
     }
 
     pub(crate) fn remove_connection(&mut self, peer_id: PeerId, connection_id: ConnectionId) {
@@ -171,6 +232,56 @@ impl ConnectionMap {
             if connections.is_empty() {
                 entry.remove();
             }
+        }
+    }
+}
+
+impl ConnectionMap<ConnectionLimit> {
+    pub(crate) fn with_connection_limit(limit: u32) -> Self {
+        Self {
+            inner: Default::default(),
+            limit: ConnectionLimit { limit },
+        }
+    }
+}
+
+impl ConnectionMap<PeerLimit> {
+    pub(crate) fn with_peer_limit(limit: u32) -> Self {
+        Self {
+            inner: Default::default(),
+            limit: PeerLimit { limit },
+        }
+    }
+}
+
+impl ConnectionMap<NoLimits> {
+    pub(crate) fn without_limits() -> Self {
+        Self {
+            inner: Default::default(),
+            limit: NoLimits,
+        }
+    }
+
+    /// Returns true if a new connection added
+    pub(crate) fn on_swarm_event(&mut self, event: FromSwarm) -> bool {
+        match event {
+            FromSwarm::ConnectionEstablished(ConnectionEstablished {
+                peer_id,
+                connection_id,
+                ..
+            }) => {
+                let Ok(new) = self.add_connection(peer_id, connection_id);
+                new
+            }
+            FromSwarm::ConnectionClosed(ConnectionClosed {
+                peer_id,
+                connection_id,
+                ..
+            }) => {
+                self.remove_connection(peer_id, connection_id);
+                false
+            }
+            _ => false,
         }
     }
 }
@@ -287,7 +398,7 @@ pub(crate) mod tests {
     fn connection_map_limit_works() {
         const LIMIT: u32 = 5;
 
-        let mut map = ConnectionMap::new(Some(LIMIT));
+        let mut map = ConnectionMap::with_connection_limit(LIMIT);
 
         let main_peer = PeerId::random();
 
@@ -298,7 +409,8 @@ pub(crate) mod tests {
 
         let limit = map
             .add_connection(main_peer, ConnectionId::new_unchecked(usize::MAX))
-            .unwrap_err();
+            .unwrap_err()
+            .limit;
         assert_eq!(limit, LIMIT);
 
         // new peer so no limit exceeded yet
@@ -311,7 +423,7 @@ pub(crate) mod tests {
 
     #[test]
     fn connection_map_key_cleared() {
-        let mut map = ConnectionMap::new(None);
+        let mut map = ConnectionMap::without_limits();
 
         let peer_set: HashSet<PeerId> = [
             PeerId::random(),
