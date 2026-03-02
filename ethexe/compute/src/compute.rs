@@ -623,9 +623,12 @@ mod tests {
                     announce.parent = parent_announce;
 
                     let block = announce.block_hash;
-                    let txs = (i != 1)
-                        .then(|| vec![test_utils::injected_tx(ping_id, b"PING".into(), block)])
-                        .unwrap_or_default();
+                    let txs = if i != 1 {
+                        vec![test_utils::injected_tx(ping_id, b"PING".into(), block)]
+                    } else {
+                        Default::default()
+                    };
+
                     announce.injected_transactions = txs;
                     announce
                 };
@@ -633,9 +636,11 @@ mod tests {
                 let announce_hash = db.set_announce(announce.clone());
                 db.mutate_announce_meta(announce_hash, |meta| meta.computed = false);
 
-                let mut block_events = (i == 1)
-                    .then(|| test_utils::create_program_events(ping_id, ping_code_id))
-                    .unwrap_or_default();
+                let mut block_events = if i == 1 {
+                    test_utils::create_program_events(ping_id, ping_code_id)
+                } else {
+                    Default::default()
+                };
                 block_events.extend(test_utils::block_events(5, ping_id, b"PING".into()));
                 db.set_block_events(announce.block_hash, &block_events);
 
