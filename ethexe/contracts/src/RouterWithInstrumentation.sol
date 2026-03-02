@@ -25,6 +25,11 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
     // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant TRANSIENT_STORAGE = 0xf02b465737fa6045c2ff53fb2df43c66916ac2166fa303264668fb2f6a1d8c00;
 
+    uint256 public constant COMMIT_BATCH_BEFORE_COMMIT_CODES = 1;
+    uint256 public constant COMMIT_BATCH_AFTER_COMMIT_CODES = 2;
+
+    event DebugEvent(uint256 indexed topic0) anonymous;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -333,7 +338,11 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
         require(router.latestCommittedBatch.timestamp <= _batch.blockTimestamp, BatchTimestampTooEarly());
 
         bytes32 _chainCommitmentHash = _commitChain(router, _batch);
+
+        emit DebugEvent(COMMIT_BATCH_BEFORE_COMMIT_CODES);
         bytes32 _codeCommitmentsHash = _commitCodes(router, _batch);
+        emit DebugEvent(COMMIT_BATCH_AFTER_COMMIT_CODES);
+
         bytes32 _rewardsCommitmentHash = _commitRewards(router, _batch);
         bytes32 _validatorsCommitmentHash = _commitValidators(router, _batch);
 
