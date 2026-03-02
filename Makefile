@@ -24,8 +24,12 @@ ethexe-contracts-pre-commit:
 show:
 	@ ./scripts/gear.sh show
 
+.PHONY: workspace-hack
+workspace-hack:
+	@ cargo hakari generate && ./scripts/hakari-post-process.sh
+
 .PHONY: pre-commit # Here should be no release builds to keep checks fast.
-pre-commit: fmt typos clippy test check-runtime-imports
+pre-commit: fmt typos workspace-hack clippy test check-runtime-imports
 
 .PHONY: check-spec
 check-spec:
