@@ -373,10 +373,9 @@ impl Service {
             None
         };
 
-        let rpc = config
-            .rpc
-            .as_ref()
-            .map(|config| RpcServer::new(config.clone(), db.clone()));
+        let rpc = config.rpc.as_ref().map(|config| {
+            RpcServer::new(config.clone(), db.clone()).with_snapshot_source(rocks_db.clone())
+        });
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let compute = ComputeService::new(compute_config, db.clone(), processor);

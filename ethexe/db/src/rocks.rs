@@ -17,10 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{CASDatabase, KVDatabase};
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use gprimitives::H256;
-use rocksdb::{DB, DBIteratorWithThreadMode, Options};
-use std::{path::PathBuf, sync::Arc};
+use rocksdb::{DB, DBIteratorWithThreadMode, Options, checkpoint::Checkpoint};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 /// Database for storing states and codes in memory.
 #[derive(Debug, Clone)]
@@ -35,6 +38,15 @@ impl RocksDatabase {
         Ok(Self {
             inner: Arc::new(db),
         })
+    }
+
+    /// Create a physical RocksDB checkpoint at the provided destination path.
+    pub fn create_checkpoint(&self, path: impl AsRef<Path>) -> Result<()> {
+        let checkpoint =
+            Checkpoint::new(self.inner.as_ref()).context("failed to create rocksdb checkpoint")?;
+        checkpoint
+            .create_checkpoint(path)
+            .context("failed to materialize rocksdb checkpoint")
     }
 }
 
@@ -218,6 +230,25 @@ mod tests {
     fn kv_multi_thread() {
         with_database(|db| {
             tests::kv_multi_thread(db);
+        });
+    }
+
+    #[test]
+    fn create_checkpoint_and_reopen() {
+        with_database(|db| {
+            let key = b"key";
+            let value = b"value".to_vec();
+            db.put(key, value.clone());
+
+            let checkpoint_dir =
+                tempfile::tempdir().expect("Failed to create temporary directory for checkpoint");
+            let checkpoint_path = checkpoint_dir.path().join("checkpoint");
+            db.create_checkpoint(&checkpoint_path)
+                .expect("Failed to create RocksDB checkpoint");
+
+            let checkpoint_db = RocksDatabase::open(checkpoint_path)
+                .expect("Failed to open RocksDB checkpoint for read");
+            assert_eq!(checkpoint_db.get(key), Some(value));
         });
     }
 }

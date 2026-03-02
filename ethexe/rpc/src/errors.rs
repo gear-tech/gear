@@ -35,3 +35,15 @@ pub fn bad_request(err: impl ToString) -> ErrorObject<'static> {
 pub fn internal() -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Internal error", None::<&str>)
 }
+
+pub fn internal_with(err: impl ToString) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Internal error", Some(err.to_string()))
+}
+
+pub fn unauthorized(err: impl ToString) -> ErrorObject<'static> {
+    ErrorObject::owned(8001, "Unauthorized", Some(err.to_string()))
+}
+
+pub fn unavailable(err: impl ToString) -> ErrorObject<'static> {
+    ErrorObject::owned(8002, "Service unavailable", Some(err.to_string()))
+}

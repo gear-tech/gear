@@ -20,13 +20,16 @@ mod block;
 mod code;
 mod injected;
 mod program;
+mod snapshot;
 
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
 pub use injected::{InjectedApi, InjectedServer};
 pub use program::{FullProgramState, ProgramApi, ProgramServer};
+pub use snapshot::{SnapshotApi, SnapshotServer, SnapshotStreamItem};
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
     block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient,
+    snapshot::SnapshotClient,
 };

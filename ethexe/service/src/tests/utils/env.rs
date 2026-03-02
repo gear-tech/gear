@@ -793,6 +793,7 @@ impl NodeConfig {
             cors: None,
             gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * DEFAULT_BLOCK_GAS_LIMIT,
             chunk_size: DEFAULT_CHUNK_SIZE.get(),
+            snapshot: None,
         };
         self.rpc = Some(service_rpc_config);
 

@@ -16,24 +16,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub use crate::apis::SnapshotStreamItem;
 #[cfg(feature = "client")]
-pub use crate::apis::{BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient};
+pub use crate::apis::{
+    BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient, SnapshotClient,
+};
 
 use anyhow::Result;
 use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
-    ProgramServer,
+    ProgramServer, SnapshotApi, SnapshotServer,
 };
 use ethexe_common::injected::{
     AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
 };
-use ethexe_db::Database;
+use ethexe_db::{Database, RocksDatabase};
 use ethexe_processor::{Processor, ProcessorConfig};
-use futures::{Stream, stream::FusedStream};
-use hyper::header::HeaderValue;
+use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
+use hyper::header::{AUTHORIZATION, HeaderValue};
 use jsonrpsee::{
     RpcModule as JsonrpcModule,
-    server::{PingConfig, Server, ServerHandle},
+    core::server::MethodResponse,
+    server::{
+        PingConfig, Server, ServerHandle,
+        middleware::rpc::{RpcServiceBuilder, RpcServiceT},
+    },
+    types::Request,
 };
 use std::{
     net::SocketAddr,
@@ -72,16 +80,47 @@ pub struct RpcConfig {
     pub gas_allowance: u64,
     /// Amount of processing threads for queue processing.
     pub chunk_size: usize,
+    /// Configuration for snapshot RPC API.
+    pub snapshot: Option<SnapshotRpcConfig>,
+}
+
+/// Configuration of RocksDB snapshot download RPC.
+#[derive(Debug, Clone)]
+pub struct SnapshotRpcConfig {
+    /// Static bearer token used to authorize snapshot methods.
+    pub auth_bearer_token: String,
+    /// Size of one streamed chunk in bytes.
+    pub chunk_size_bytes: usize,
+    /// Snapshot retention period in seconds.
+    pub retention_secs: u64,
+    /// Max number of concurrent snapshot downloads.
+    pub max_concurrent_downloads: u32,
+}
+
+impl SnapshotRpcConfig {
+    pub const DEFAULT_CHUNK_SIZE_BYTES: usize = 1024 * 1024;
+    pub const DEFAULT_RETENTION_SECS: u64 = 600;
+    pub const DEFAULT_MAX_CONCURRENT_DOWNLOADS: u32 = 1;
 }
 
 pub struct RpcServer {
     config: RpcConfig,
     db: Database,
+    snapshot_db: Option<RocksDatabase>,
 }
 
 impl RpcServer {
     pub fn new(config: RpcConfig, db: Database) -> Self {
-        Self { config, db }
+        Self {
+            config,
+            db,
+            snapshot_db: None,
+        }
+    }
+
+    pub fn with_snapshot_source(mut self, snapshot_db: RocksDatabase) -> Self {
+        self.snapshot_db = Some(snapshot_db);
+        self
     }
 
     pub const fn port(&self) -> u16 {
@@ -92,10 +131,31 @@ impl RpcServer {
         let (rpc_sender, rpc_receiver) = mpsc::unbounded_channel();
 
         let cors_layer = self.cors_layer()?;
-        let http_middleware = tower::ServiceBuilder::new().layer(cors_layer);
+        let http_middleware = tower::ServiceBuilder::new().layer(cors_layer).map_request(
+            |mut req: jsonrpsee::server::HttpRequest<_>| {
+                let token = parse_bearer_token(
+                    req.headers()
+                        .get(AUTHORIZATION)
+                        .and_then(|value| value.to_str().ok()),
+                );
+                req.extensions_mut().insert(RpcBearerToken(token));
+                req
+            },
+        );
+        let expected_bearer_token = self
+            .config
+            .snapshot
+            .as_ref()
+            .map(|cfg| cfg.auth_bearer_token.clone());
+        let rpc_middleware =
+            RpcServiceBuilder::new().layer_fn(move |service| SnapshotAuthRpcMiddleware {
+                service,
+                expected_bearer_token: expected_bearer_token.clone(),
+            });
 
         let server = Server::builder()
             .set_http_middleware(http_middleware)
+            .set_rpc_middleware(rpc_middleware)
             // Setup WebSocket pings to detect dead connections.
             // Now it is set to default: ping_interval = 30s, inactive_limit = 40s
             .enable_ws_ping(PingConfig::default())
@@ -109,11 +169,25 @@ impl RpcServer {
             self.db.clone(),
         )?;
 
+        let snapshot = if let Some(snapshot_config) = self.config.snapshot.clone() {
+            self.snapshot_db
+                .clone()
+                .map(|snapshot_db| SnapshotApi::new(self.db.clone(), snapshot_db, snapshot_config))
+        } else {
+            None
+        };
+        if self.config.snapshot.is_some() && snapshot.is_none() {
+            tracing::warn!(
+                "snapshot rpc is configured, but no rocksdb source was provided; snapshot methods are disabled"
+            );
+        }
+
         let server_apis = RpcServerApis {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
             injected: InjectedApi::new(rpc_sender),
+            snapshot,
         };
         let injected_api = server_apis.injected.clone();
 
@@ -183,6 +257,7 @@ struct RpcServerApis {
     pub code: CodeApi,
     pub injected: InjectedApi,
     pub program: ProgramApi,
+    pub snapshot: Option<SnapshotApi>,
 }
 
 impl RpcServerApis {
@@ -201,7 +276,65 @@ impl RpcServerApis {
         module
             .merge(ProgramServer::into_rpc(self.program))
             .expect("No conflicts");
+        if let Some(snapshot) = self.snapshot {
+            module
+                .merge(SnapshotServer::into_rpc(snapshot))
+                .expect("No conflicts");
+        }
 
         module
     }
+}
+
+#[derive(Clone, Debug)]
+struct RpcBearerToken(Option<String>);
+
+#[derive(Clone, Debug)]
+struct SnapshotAuthRpcMiddleware<S> {
+    service: S,
+    expected_bearer_token: Option<String>,
+}
+
+impl<'a, S> RpcServiceT<'a> for SnapshotAuthRpcMiddleware<S>
+where
+    S: RpcServiceT<'a> + 'a,
+    S::Future: Send + 'a,
+{
+    type Future = BoxFuture<'a, MethodResponse>;
+
+    fn call(&self, request: Request<'a>) -> Self::Future {
+        if request.method_name().starts_with("snapshot_")
+            && self.expected_bearer_token.is_some()
+            && !self.is_authorized(&request)
+        {
+            let id = request.id().into_owned();
+            return async move {
+                MethodResponse::error(id, errors::unauthorized("invalid or missing bearer token"))
+            }
+            .boxed();
+        }
+
+        self.service.call(request).boxed()
+    }
+}
+
+impl<S> SnapshotAuthRpcMiddleware<S> {
+    fn is_authorized(&self, request: &Request<'_>) -> bool {
+        let expected = self.expected_bearer_token.as_deref();
+        let actual = request
+            .extensions()
+            .get::<RpcBearerToken>()
+            .and_then(|token| token.0.as_deref());
+        actual == expected
+    }
+}
+
+fn parse_bearer_token(header: Option<&str>) -> Option<String> {
+    let header = header?;
+    let (scheme, token) = header.split_once(' ')?;
+    if !scheme.eq_ignore_ascii_case("bearer") || token.is_empty() {
+        return None;
+    }
+
+    Some(token.to_owned())
 }
