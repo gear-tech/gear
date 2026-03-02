@@ -214,7 +214,7 @@ branch = "gear-polkadot-stable2409-wasm32v1-none"
 features = ["test-helpers"]
 
 ### BEGIN HAKARI SECTION
-[dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { version = "1", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
@@ -489,7 +489,7 @@ wasmtime-runtime = { version = "8", default-features = false, features = ["async
 winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
-[build-dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { version = "1", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
