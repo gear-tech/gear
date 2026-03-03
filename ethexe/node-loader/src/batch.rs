@@ -336,8 +336,8 @@ async fn run_batch_impl(
                 );
             }
 
-            let blocks_per_action = 4;
-            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
+           
+            let wait_for_event_blocks = blocks_window(args.len(), 1, 0);
             process_events(
                 api,
                 messages,
@@ -415,8 +415,8 @@ async fn run_batch_impl(
                 }
             }
 
-            let blocks_per_action = 1;
-            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
+            
+            let wait_for_event_blocks = blocks_window(args.len(), 1, 0);
             process_events(
                 api,
                 messages,
@@ -530,8 +530,8 @@ async fn run_batch_impl(
                 );
             }
 
-            let blocks_per_action = 4;
-            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
+            
+            let wait_for_event_blocks = blocks_window(args.len(), 1, 0);
             process_events(
                 api,
                 messages,

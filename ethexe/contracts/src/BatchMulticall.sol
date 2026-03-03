@@ -23,6 +23,8 @@ contract BatchMulticall {
 
     error InsufficientValue(uint256 expected, uint256 actual);
 
+    receive() external payable {}
+
     function sendMessageBatch(
         MessageCall[] calldata calls
     ) external payable returns (bool[] memory success, bytes32[] memory messageIds) {
