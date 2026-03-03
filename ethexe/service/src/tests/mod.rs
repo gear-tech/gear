@@ -1533,7 +1533,7 @@ async fn send_injected_tx() {
         payload: H256::random().0.to_vec().try_into().unwrap(),
         value: 0,
         reference_block,
-        salt: gprimitives::U256::from(1),
+        salt: vec![1].try_into().unwrap(),
     };
 
     let tx_for_node1 = AddressedInjectedTransaction {
@@ -2464,7 +2464,7 @@ async fn injected_tx_fungible_token() {
         payload: mint_action.encode().try_into().unwrap(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: gprimitives::U256::from(1),
+        salt: vec![1].try_into().unwrap(),
     };
 
     let rpc_tx = AddressedInjectedTransaction {
@@ -2551,7 +2551,7 @@ async fn injected_tx_fungible_token() {
         payload: transfer_action.encode().try_into().unwrap(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: gprimitives::U256::from(1),
+        salt: vec![1].try_into().unwrap(),
     };
 
     let rpc_tx = AddressedInjectedTransaction {
@@ -2682,7 +2682,7 @@ async fn injected_tx_fungible_token_over_network() {
         payload: mint_action.encode().try_into().unwrap(),
         value: 0,
         reference_block: bob_node.db.latest_data().unwrap().prepared_block_hash,
-        salt: gprimitives::U256::from(1),
+        salt: vec![1].try_into().unwrap(),
     };
 
     let rpc_tx = AddressedInjectedTransaction {
