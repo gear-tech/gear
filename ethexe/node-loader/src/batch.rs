@@ -613,13 +613,15 @@ async fn send_message_batch_via_multicall(
     Ok(mapped)
 }
 
+type Call = (usize, CodeId, H256, Vec<u8>, u128, u128);
+
 /// Batch-create programs, send init messages, and top up executable balances via the multicall contract.
 /// Each call contains (call_id, code_id, salt, init_payload, init_value, top_up_value).
 /// Returns (call_id, program_id, message_id) for each created program.
 async fn create_program_batch_via_multicall(
     api: &Ethereum,
     multicall_address: Address,
-    calls: &[(usize, CodeId, H256, Vec<u8>, u128, u128)],
+    calls: &[Call],
 ) -> Result<Vec<(usize, ActorId, MessageId)>> {
     let multicall = BatchMulticall::new(multicall_address, api.provider());
     let router_address = Address(FixedBytes(api.router().address().0));
@@ -640,7 +642,7 @@ async fn create_program_batch_via_multicall(
         .collect();
 
     let receipt = multicall
-        .createProgramBatch(router_address.into(), batched_calls)
+        .createProgramBatch(router_address, batched_calls)
         .value(U256::from(value_sum))
         .send()
         .await?
