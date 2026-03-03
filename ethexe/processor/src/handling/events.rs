@@ -53,7 +53,7 @@ impl ProcessingHandler {
                 storage,
                 tx.to_message_id(),
                 source,
-                tx.payload.0,
+                tx.payload.to_vec(),
                 tx.value,
                 false,
                 MessageType::Injected,
