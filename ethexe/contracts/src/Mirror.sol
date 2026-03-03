@@ -140,11 +140,9 @@ contract Mirror is IMirror {
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
-    function transferLockedValueToInheritor() public onlyIfExited {
-        uint256 balance = address(this).balance;
-        // casting to 'uint128' is safe because ETH supply is less than `type(uint128).max`
-        // forge-lint: disable-next-line(unsafe-typecast)
-        _transferEther(inheritor, uint128(balance));
+    function transferLockedValueToInheritor() external {
+        (, bool success) = _transferLockedValueToInheritor();
+        require(success, TransferLockedValueToInheritorExternalFailed());
     }
 
     /* Router-driven state and funds management */
@@ -207,6 +205,14 @@ contract Mirror is IMirror {
             valueClaimsHash,
             messagesHashesHash
         );
+    }
+
+    function _transferLockedValueToInheritor() private onlyIfExited returns (uint128, bool) {
+        uint256 balance = address(this).balance;
+        // casting to 'uint128' is safe because ETH supply is less than `type(uint128).max`
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint128 balance128 = uint128(balance);
+        return (balance128, _transferEther(inheritor, balance128));
     }
 
     function _sendMessage(bytes calldata _payload, bool _callReply)
@@ -334,7 +340,9 @@ contract Mirror is IMirror {
                     && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
                     && topic1 != OwnedBalanceTopUpRequested.selector
                     && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
-                    && topic1 != Reply.selector && topic1 != ValueClaimed.selector)) {
+                    && topic1 != Reply.selector && topic1 != ValueClaimed.selector
+                    && topic1 != TransferLockedValueToInheritorFailed.selector && topic1 != ReplyTransferFailed.selector
+                    && topic1 != ValueClaimFailed.selector)) {
             return false;
         }
 
@@ -400,13 +408,19 @@ contract Mirror is IMirror {
             (bool success,) = _message.destination.call{gas: 500_000, value: _message.value}(payload);
 
             if (!success) {
-                _transferEther(_message.destination, _message.value);
+                bool transferSuccess = _transferEther(_message.destination, _message.value);
+                if (!transferSuccess) {
+                    emit ReplyTransferFailed(_message.destination, _message.value);
+                }
 
                 /// @dev In case of failed call, we emit appropriate event to inform external users.
                 emit ReplyCallFailed(_message.value, _message.replyDetails.to, _message.replyDetails.code);
             }
         } else {
-            _transferEther(_message.destination, _message.value);
+            bool transferSuccess = _transferEther(_message.destination, _message.value);
+            if (!transferSuccess) {
+                emit ReplyTransferFailed(_message.destination, _message.value);
+            }
 
             emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
         }
@@ -427,9 +441,12 @@ contract Mirror is IMirror {
                 offset += 32;
             }
 
-            _transferEther(claim.destination, claim.value);
-
-            emit ValueClaimed(claim.messageId, claim.value);
+            bool success = _transferEther(claim.destination, claim.value);
+            if (success) {
+                emit ValueClaimed(claim.messageId, claim.value);
+            } else {
+                emit ValueClaimFailed(claim.messageId, claim.value);
+            }
         }
 
         return Hashes.efficientKeccak256AsBytes32(claimsHashesMemPtr, 0, claimsHashesSize);
@@ -442,7 +459,11 @@ contract Mirror is IMirror {
         inheritor = _inheritor;
 
         /// @dev Transfer all available balance to the inheritor.
-        transferLockedValueToInheritor();
+        (uint128 value, bool success) = _transferLockedValueToInheritor();
+        if (!success) {
+            /// @dev In case of failed transfer, we emit appropriate event to inform external users.
+            emit TransferLockedValueToInheritorFailed(_inheritor, value);
+        }
     }
 
     function _updateStateHash(bytes32 _stateHash) private {
@@ -460,11 +481,12 @@ contract Mirror is IMirror {
         return IWrappedVara(wvaraAddr);
     }
 
-    function _transferEther(address destination, uint128 value) private {
+    function _transferEther(address destination, uint128 value) private returns (bool) {
         if (value != 0) {
             (bool success,) = destination.call{value: value}("");
-            require(success, EtherTransferToDestinationFailed());
+            return success;
         }
+        return true;
     }
 
     fallback() external payable {
