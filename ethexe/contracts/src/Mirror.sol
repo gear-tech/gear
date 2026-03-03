@@ -408,8 +408,8 @@ contract Mirror is IMirror {
             (bool success,) = _message.destination.call{gas: 500_000, value: _message.value}(payload);
 
             if (!success) {
-                bool success = _transferEther(_message.destination, _message.value);
-                if (!success) {
+                bool transferSuccess = _transferEther(_message.destination, _message.value);
+                if (!transferSuccess) {
                     emit ReplyTransferFailed(_message.destination, _message.value);
                 }
 
@@ -417,8 +417,8 @@ contract Mirror is IMirror {
                 emit ReplyCallFailed(_message.value, _message.replyDetails.to, _message.replyDetails.code);
             }
         } else {
-            bool success = _transferEther(_message.destination, _message.value);
-            if (!success) {
+            bool transferSuccess = _transferEther(_message.destination, _message.value);
+            if (!transferSuccess) {
                 emit ReplyTransferFailed(_message.destination, _message.value);
             }
 
