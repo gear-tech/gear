@@ -21,12 +21,11 @@ contract BatchMulticall {
     }
 
     error InsufficientValue(uint256 expected, uint256 actual);
-    event SendMessageBatchResult(bytes32[] messageIds, bool[] success);
+    event SendMessageBatchResult(bytes32[] messageIds);
 
     receive() external payable {}
 
     function sendMessageBatch(MessageCall[] calldata calls) external payable {
-        bool[] memory success = new bool[](calls.length);
         bytes32[] memory messageIds = new bytes32[](calls.length);
 
         uint256 consumed;
@@ -42,12 +41,7 @@ contract BatchMulticall {
         for (uint256 i = 0; i < calls.length; ++i) {
             MessageCall calldata item = calls[i];
 
-            try IMirror(item.mirror).sendMessage{value: item.value}(item.payload, false) returns (bytes32 messageId) {
-                success[i] = true;
-                messageIds[i] = messageId;
-            } catch {
-                success[i] = false;
-            }
+            messageIds[i] = IMirror(item.mirror).sendMessage{value: item.value}(item.payload, false);
         }
 
         if (consumed < msg.value) {
@@ -55,7 +49,7 @@ contract BatchMulticall {
             require(refunded, "Refund failed");
         }
 
-        emit SendMessageBatchResult(messageIds, success);
+        emit SendMessageBatchResult(messageIds);
     }
 
     function createProgramBatch(IRouter router, CreateProgramCall[] calldata calls)

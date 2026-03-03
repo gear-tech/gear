@@ -579,36 +579,19 @@ async fn send_message_batch_via_multicall(
     let batch_result = batch_result
         .ok_or_else(|| anyhow::anyhow!("multicall send_message result event not found"))?;
 
-    if batch_result.success.len() != calls.len() || batch_result.messageIds.len() != calls.len() {
+    if batch_result.messageIds.len() != calls.len() {
         return Err(anyhow::anyhow!(
-            "multicall send_message result size mismatch: expected {}, got success={}, messageIds={}",
+            "multicall send_message result size mismatch: expected {}, got messageIds={}",
             calls.len(),
-            batch_result.success.len(),
             batch_result.messageIds.len()
         ));
     }
 
-    let mut mapped = Vec::with_capacity(calls.len());
-    let mut failed_calls = Vec::new();
-    for ((call_id, to, ..), (ok, message_id)) in calls.iter().zip(
-        batch_result
-            .success
-            .into_iter()
-            .zip(batch_result.messageIds),
-    ) {
-        if ok {
-            mapped.push((*call_id, *to, MessageId::new(message_id.0)));
-        } else {
-            failed_calls.push(*call_id);
-        }
-    }
-
-    if !failed_calls.is_empty() {
-        return Err(anyhow::anyhow!(
-            "multicall send_message failed for call ids: {:?}",
-            failed_calls
-        ));
-    }
+    let mapped = calls
+        .iter()
+        .zip(batch_result.messageIds)
+        .map(|((call_id, to, ..), message_id)| (*call_id, *to, MessageId::new(message_id.0)))
+        .collect();
 
     Ok(mapped)
 }
