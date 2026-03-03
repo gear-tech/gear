@@ -37,6 +37,7 @@ const _: () = assert!(
     (LATEST_VERSION - OLDEST_SUPPORTED_VERSION) as usize == MIGRATIONS.len(),
     "Wrong number of migrations available"
 );
+const _: () = assert!(LATEST_VERSION == ethexe_db::VERSION);
 
 pub struct InitConfig {
     pub ethereum_rpc: String,
