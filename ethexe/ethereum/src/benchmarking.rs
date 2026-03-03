@@ -39,7 +39,7 @@ use revm::{
     context::{BlockEnv, CfgEnv, Context, ContextTr, JournalTr, TxEnv},
     context_interface::{
         cfg::gas,
-        result::{ExecResultAndState, ExecutionResult, Output},
+        result::{ExecutionResult, Output},
     },
     database::CacheDB,
     database_interface::EmptyDB,
@@ -223,8 +223,10 @@ impl SimulationContext {
         let (_, _, deployer_address) = derive_signer(0)?;
         let deployer_nonce = 0;
 
-        evm.journal_mut()
-            .balance_incr(deployer_address, u128::MAX.try_into().expect("infallible"))?;
+        let journal = evm.journal_mut();
+        journal.balance_incr(deployer_address, u64::MAX.try_into().expect("infallible"))?;
+        let state = journal.finalize();
+        evm.commit(state);
 
         let validators_with_keys = (1..=Self::VALIDATOR_COUNT)
             .map(derive_signer)
@@ -266,31 +268,40 @@ impl SimulationContext {
 
         let uninitialized_actor_id = router.create_program(id, H256([0x01; 32]), None)?;
 
-        router.context.evm.journal_mut().balance_incr(
+        let journal = router.context.evm.journal_mut();
+        journal.balance_incr(
             uninitialized_actor_id.to_address_lossy().0.into(),
-            u128::MAX.try_into().expect("infallible"),
+            u64::MAX.try_into().expect("infallible"),
         )?;
+        let state = journal.finalize();
+        router.context.evm.commit(state);
 
         let initialized_actor_id = router.create_program(id, H256([0x02; 32]), None)?;
 
-        router.context.evm.journal_mut().balance_incr(
+        let journal = router.context.evm.journal_mut();
+        journal.balance_incr(
             initialized_actor_id.to_address_lossy().0.into(),
-            u128::MAX.try_into().expect("infallible"),
+            u64::MAX.try_into().expect("infallible"),
         )?;
+        let state = journal.finalize();
+        router.context.evm.commit(state);
+
+        let state_transition = StateTransition {
+            actor_id: initialized_actor_id,
+            new_state_hash: H256::random(),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_to_receive_negative_sign: false,
+            value_claims: vec![],
+            messages: vec![],
+        };
+        let head_announce = unsafe { HashOf::new(H256([0x01; 32])) };
 
         router.commit_batch_simple(
             Some(ChainCommitment {
-                transitions: vec![StateTransition {
-                    actor_id: initialized_actor_id,
-                    new_state_hash: H256::random(),
-                    exited: false,
-                    inheritor: ActorId::zero(),
-                    value_to_receive: 0,
-                    value_to_receive_negative_sign: false,
-                    value_claims: vec![],
-                    messages: vec![],
-                }],
-                head_announce: unsafe { HashOf::new(H256([0x01; 32])) },
+                transitions: vec![state_transition.clone()],
+                head_announce,
             }),
             vec![],
             ExecutionMode::ExecuteAndCommit,
@@ -324,14 +335,85 @@ impl SimulationContext {
         const COMMIT_BATCH_AFTER_COMMIT_CODES: u32 = 2;
 
         let id = router.request_code_validation(b"code3")?;
-        let code_commitment_gas_diff = router.estimate_commit_batch_gas_between_topics(
+        let code_commitment_gas = router.estimate_commit_batch_gas_between_topics(
             None,
             vec![CodeCommitment { id, valid: true }],
             router.proxy_address(),
             COMMIT_BATCH_BEFORE_COMMIT_CODES,
             COMMIT_BATCH_AFTER_COMMIT_CODES,
         )?;
-        dbg!(code_commitment_gas_diff);
+        dbg!(code_commitment_gas);
+
+        //
+
+        const PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID: u32 = 1;
+        const PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID: u32 = 2;
+
+        let verify_actor_id_gas = router.estimate_commit_batch_gas_between_topics(
+            Some(ChainCommitment {
+                transitions: vec![state_transition.clone()],
+                head_announce,
+            }),
+            vec![],
+            initialized_actor_id.into(),
+            PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID,
+            PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID,
+        )?;
+        dbg!(verify_actor_id_gas.execution_gas);
+
+        //
+
+        const PERFORM_STATE_TRANSITION_BEFORE_RETRIEVE_ETHER: u32 = 3;
+        const PERFORM_STATE_TRANSITION_AFTER_RETRIEVE_ETHER: u32 = 4;
+
+        let retrieve_ether_gas1 = router.estimate_commit_batch_gas_between_topics(
+            Some(ChainCommitment {
+                transitions: vec![StateTransition {
+                    ..state_transition.clone()
+                }],
+                head_announce,
+            }),
+            vec![],
+            initialized_actor_id.into(),
+            PERFORM_STATE_TRANSITION_BEFORE_RETRIEVE_ETHER,
+            PERFORM_STATE_TRANSITION_AFTER_RETRIEVE_ETHER,
+        )?;
+        dbg!(retrieve_ether_gas1.execution_gas);
+
+        //
+
+        let retrieve_ether_gas2 = router.estimate_commit_batch_gas_between_topics(
+            Some(ChainCommitment {
+                transitions: vec![StateTransition {
+                    value_to_receive_negative_sign: true,
+                    ..state_transition.clone()
+                }],
+                head_announce,
+            }),
+            vec![],
+            initialized_actor_id.into(),
+            PERFORM_STATE_TRANSITION_BEFORE_RETRIEVE_ETHER,
+            PERFORM_STATE_TRANSITION_AFTER_RETRIEVE_ETHER,
+        )?;
+        dbg!(retrieve_ether_gas2.execution_gas);
+
+        //
+
+        let retrieve_ether_gas3 = router.estimate_commit_batch_gas_between_topics(
+            Some(ChainCommitment {
+                transitions: vec![StateTransition {
+                    value_to_receive: 1,
+                    value_to_receive_negative_sign: true,
+                    ..state_transition.clone()
+                }],
+                head_announce,
+            }),
+            vec![],
+            initialized_actor_id.into(),
+            PERFORM_STATE_TRANSITION_BEFORE_RETRIEVE_ETHER,
+            PERFORM_STATE_TRANSITION_AFTER_RETRIEVE_ETHER,
+        )?;
+        dbg!(retrieve_ether_gas3.execution_gas);
 
         Ok(())
     }
@@ -601,7 +683,7 @@ impl MirrorImpl {
         let execution_result = match execution_mode {
             ExecutionMode::Execute => context.evm.transact(tx)?.result,
             ExecutionMode::ExecuteAndCommit => context.evm.transact_commit(tx)?,
-            ExecutionMode::ExecuteAndInspect => context.evm.inspect_one_tx(tx)?,
+            ExecutionMode::ExecuteAndInspect => context.evm.inspect_tx(tx)?.result,
         };
 
         let ExecutionResult::Success {
@@ -686,7 +768,7 @@ impl RouterImpl {
         let execution_result = match execution_mode {
             ExecutionMode::Execute => context.evm.transact(tx)?.result,
             ExecutionMode::ExecuteAndCommit => context.evm.transact_commit(tx)?,
-            ExecutionMode::ExecuteAndInspect => context.evm.inspect_one_tx(tx)?,
+            ExecutionMode::ExecuteAndInspect => context.evm.inspect_tx(tx)?.result,
         };
 
         let ExecutionResult::Success {
@@ -750,10 +832,10 @@ impl<'a> Router<'a> {
             context.validators(),
         )?;
 
-        context
-            .evm
-            .journal_mut()
-            .balance_incr(router_proxy, u128::MAX.try_into().expect("infallible"))?;
+        let journal = context.evm.journal_mut();
+        journal.balance_incr(router_proxy, u64::MAX.try_into().expect("infallible"))?;
+        let state = journal.finalize();
+        context.evm.commit(state);
 
         let mirror_impl = MirrorImpl::deploy(context, router_proxy)?;
         assert_eq!(mirror_impl.address(), precomputed_mirror_impl);
@@ -879,22 +961,22 @@ impl<'a> Router<'a> {
     }
 
     fn latest_committed_batch_hash(&mut self) -> Result<Digest> {
-        let ExecResultAndState {
-            result:
-                ExecutionResult::Success {
-                    output: Output::Call(hash),
-                    ..
-                },
+        let ExecutionResult::Success {
+            output: Output::Call(hash),
             ..
-        } = self.context.evm.transact(
-            TxEnv::builder()
-                .caller(self.context.deployer_address())
-                .call(self.proxy_address())
-                .data(IRouter::latestCommittedBatchHashCall {}.abi_encode().into())
-                .nonce(self.context.deployer_nonce())
-                .build()
-                .map_err(|_| anyhow!("failed to build TxEnv"))?,
-        )?
+        } = self
+            .context
+            .evm
+            .transact(
+                TxEnv::builder()
+                    .caller(self.context.deployer_address())
+                    .call(self.proxy_address())
+                    .data(IRouter::latestCommittedBatchHashCall {}.abi_encode().into())
+                    .nonce(self.context.deployer_nonce())
+                    .build()
+                    .map_err(|_| anyhow!("failed to build TxEnv"))?,
+            )?
+            .result
         else {
             bail!("failed to get latest committed batch hash");
         };
@@ -1048,7 +1130,7 @@ impl<'a> Router<'a> {
         let execution_result = match execution_mode {
             ExecutionMode::Execute => self.context.evm.transact(tx)?.result,
             ExecutionMode::ExecuteAndCommit => self.context.evm.transact_commit(tx)?,
-            ExecutionMode::ExecuteAndInspect => self.context.evm.inspect_one_tx(tx)?,
+            ExecutionMode::ExecuteAndInspect => self.context.evm.inspect_tx(tx)?.result,
         };
         let ExecutionResult::Success {
             gas_used: execution_gas,
