@@ -18,6 +18,7 @@ ethexe-contracts-pre-commit:
 	@ echo " > Copying Router artifact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
 	@ echo " > Copying TransparentUpgradeableProxy artifact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
 	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
+	@ echo " > Copying BatchMulticall" && cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/node-loader/BatchMulticall.json
 
 # Common section
 .PHONY: show

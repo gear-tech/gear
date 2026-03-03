@@ -5,7 +5,6 @@ import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 
-
 contract BatchMulticall {
     struct MessageCall {
         address mirror;
@@ -26,9 +25,7 @@ contract BatchMulticall {
 
     receive() external payable {}
 
-    function sendMessageBatch(
-        MessageCall[] calldata calls
-    ) external payable {
+    function sendMessageBatch(MessageCall[] calldata calls) external payable {
         bool[] memory success = new bool[](calls.length);
         bytes32[] memory messageIds = new bytes32[](calls.length);
 
@@ -45,9 +42,7 @@ contract BatchMulticall {
         for (uint256 i = 0; i < calls.length; ++i) {
             MessageCall calldata item = calls[i];
 
-            try IMirror(item.mirror).sendMessage{value: item.value}(item.payload, false) returns (
-                bytes32 messageId
-            ) {
+            try IMirror(item.mirror).sendMessage{value: item.value}(item.payload, false) returns (bytes32 messageId) {
                 success[i] = true;
                 messageIds[i] = messageId;
             } catch {
@@ -56,17 +51,18 @@ contract BatchMulticall {
         }
 
         if (consumed < msg.value) {
-            (bool refunded, ) = msg.sender.call{value: msg.value - consumed}("");
+            (bool refunded,) = msg.sender.call{value: msg.value - consumed}("");
             require(refunded, "Refund failed");
         }
 
         emit SendMessageBatchResult(messageIds, success);
     }
 
-    function createProgramBatch(
-        IRouter router,
-        CreateProgramCall[] calldata calls
-    ) external payable returns (address[] memory programIds, bytes32[] memory messageIds) {
+    function createProgramBatch(IRouter router, CreateProgramCall[] calldata calls)
+        external
+        payable
+        returns (address[] memory programIds, bytes32[] memory messageIds)
+    {
         programIds = new address[](calls.length);
         messageIds = new bytes32[](calls.length);
 
@@ -96,7 +92,7 @@ contract BatchMulticall {
         }
 
         if (consumed < msg.value) {
-            (bool refunded, ) = msg.sender.call{value: msg.value - consumed}("");
+            (bool refunded,) = msg.sender.call{value: msg.value - consumed}("");
             require(refunded, "Refund failed");
         }
     }
