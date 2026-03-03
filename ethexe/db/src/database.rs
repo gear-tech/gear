@@ -54,7 +54,7 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard},
 };
 
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 1;
 
 #[repr(u64)]
 enum Key {
