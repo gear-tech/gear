@@ -174,7 +174,8 @@ impl Mock<()> for InjectedTransaction {
             payload: LimitedVec::new(),
             value: 0,
             reference_block: Default::default(),
-            salt: gprimitives::U256::from_big_endian(H256::random().as_bytes()),
+            salt: LimitedVec::try_from(H256::random().as_bytes())
+                .expect("`H256` is small enough for a salt"),
         }
     }
 }
