@@ -773,7 +773,7 @@ mod tests {
                 payload: LimitedVec::new(),
                 value: 0,
                 reference_block: H256::random(),
-                salt: gprimitives::U256::from(1),
+                salt: LimitedVec::new(),
             },
         )
         .unwrap();
