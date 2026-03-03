@@ -17,15 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
-use scale_info::{Type, TypeInfo, build::Fields};
+use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
 
 /// Recent block hashes window size used to check transaction mortality.
@@ -70,7 +67,7 @@ pub struct AddressedInjectedTransaction {
 /// IMPORTANT: message id == tx hash == blake2b256 hash of the struct fields concat.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
@@ -87,29 +84,6 @@ pub struct InjectedTransaction {
     /// NOTE: this is also a salt for MessageId generation.
     #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
     pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
-}
-
-// TODO: replace manual impl with derive.
-//       Having a manual implementation
-//       nullifies the main purpose of
-//       `TypeInfo` here.
-//
-//       Blocked by usage of `Bytes: !TypeInfo`.
-impl TypeInfo for InjectedTransaction {
-    type Identity = Self;
-
-    fn type_info() -> Type {
-        Type::builder()
-            .path(scale_info::Path::new("InjectedTransaction", module_path!()))
-            .composite(
-                Fields::named()
-                    .field(|f| f.name("destination").ty::<ActorId>())
-                    .field(|f| f.name("payload").ty::<Vec<u8>>())
-                    .field(|f| f.name("value").ty::<u128>())
-                    .field(|f| f.name("reference_block").ty::<H256>())
-                    .field(|f| f.name("salt").ty::<Vec<u8>>()),
-            )
-    }
 }
 
 impl ToDigest for InjectedTransaction {
