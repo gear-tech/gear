@@ -306,15 +306,19 @@ async fn run_batch_impl(
                 tracing::debug!(
                     "[Call with id {call_id}]: Queuing program create+init via multicall with value={fuzzed_value}"
                 );
-                upload_calls.push((call_id, code_id, salt_to_h256(salt), arg.0.2.clone(), fuzzed_value, TOP_UP_AMOUNT));
+                upload_calls.push((
+                    call_id,
+                    code_id,
+                    salt_to_h256(salt),
+                    arg.0.2.clone(),
+                    fuzzed_value,
+                    TOP_UP_AMOUNT,
+                ));
             }
 
-            let created = create_program_batch_via_multicall(
-                &api,
-                send_message_multicall,
-                &upload_calls,
-            )
-            .await?;
+            let created =
+                create_program_batch_via_multicall(&api, send_message_multicall, &upload_calls)
+                    .await?;
 
             for (call_id, program_id, message_id) in created {
                 program_ids.insert(program_id);
@@ -325,7 +329,6 @@ async fn run_batch_impl(
                 );
             }
 
-           
             let wait_for_event_blocks = blocks_window(args.len(), 1, 0);
             process_events(
                 api,
@@ -404,7 +407,6 @@ async fn run_batch_impl(
                 }
             }
 
-            
             let wait_for_event_blocks = blocks_window(args.len(), 1, 0);
             process_events(
                 api,
@@ -500,15 +502,19 @@ async fn run_batch_impl(
                 tracing::debug!(
                     "[Call with id: {call_id}]: Queuing program create+init via multicall with value={fuzzed_value}"
                 );
-                upload_calls.push((call_id, code_id, salt_to_h256(salt), arg.0.2.clone(), fuzzed_value, TOP_UP_AMOUNT));
+                upload_calls.push((
+                    call_id,
+                    code_id,
+                    salt_to_h256(salt),
+                    arg.0.2.clone(),
+                    fuzzed_value,
+                    TOP_UP_AMOUNT,
+                ));
             }
 
-            let created = create_program_batch_via_multicall(
-                &api,
-                send_message_multicall,
-                &upload_calls,
-            )
-            .await?;
+            let created =
+                create_program_batch_via_multicall(&api, send_message_multicall, &upload_calls)
+                    .await?;
 
             for (call_id, program_id, message_id) in created {
                 programs.insert(program_id);
@@ -519,7 +525,6 @@ async fn run_batch_impl(
                 );
             }
 
-            
             let wait_for_event_blocks = blocks_window(args.len(), 1, 0);
             process_events(
                 api,
@@ -585,10 +590,12 @@ async fn send_message_batch_via_multicall(
 
     let mut mapped = Vec::with_capacity(calls.len());
     let mut failed_calls = Vec::new();
-    for ((call_id, to, ..), (ok, message_id)) in calls
-        .iter()
-        .zip(batch_result.success.into_iter().zip(batch_result.messageIds))
-    {
+    for ((call_id, to, ..), (ok, message_id)) in calls.iter().zip(
+        batch_result
+            .success
+            .into_iter()
+            .zip(batch_result.messageIds),
+    ) {
         if ok {
             mapped.push((*call_id, *to, MessageId::new(message_id.0)));
         } else {

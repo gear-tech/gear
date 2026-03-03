@@ -21,6 +21,7 @@ extend-exclude = [
   "galloc/optimization/fungible_token.ipynb",
   "ethexe/ethereum/*.json",
   "ethexe/contracts/lib/*",
+  "ethexe/node-loader/BatchMulticall.json",
 ]
 
 [default.extend-words]

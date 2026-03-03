@@ -13,11 +13,7 @@ use std::str::FromStr;
 use tokio::task::JoinSet;
 use tracing::info;
 
-use crate::{
-    abi::deploy_send_message_multicall,
-    args::LoadParams,
-    batch::BatchPool,
-};
+use crate::{abi::deploy_send_message_multicall, args::LoadParams, batch::BatchPool};
 
 /// Entrypoint for the node-loader CLI.
 ///
