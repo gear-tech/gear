@@ -35,6 +35,7 @@ use tokio::sync::{
 use tracing::instrument;
 
 use crate::{
+    abi::BatchMulticall,
     args::{LoadParams, SeedVariant},
     batch::{
         context::Context,
@@ -47,18 +48,6 @@ use crate::{
 pub mod context;
 pub mod generator;
 pub mod report;
-
-alloy::sol!(
-    #[sol(rpc)]
-    BatchMulticall,
-    "BatchMulticall.json"
-);
-
-pub async fn deploy_send_message_multicall(api: &Ethereum) -> Result<Address> {
-    let multicall = BatchMulticall::deploy(api.provider()).await?;
-
-    Ok(*multicall.address())
-}
 
 pub struct BatchPool<Rng: CallGenRng> {
     apis: Vec<Ethereum>,
@@ -571,28 +560,48 @@ async fn send_message_batch_via_multicall(
         .try_get_receipt_check_reverted()
         .await?;
 
-    let mut message_ids = Vec::with_capacity(calls.len());
+    let mut batch_result = None;
     for log in receipt.inner.logs() {
-        if log.topic0() == Some(&ethexe_ethereum::mirror::signatures::MESSAGE_QUEUEING_REQUESTED) {
-            let event =
-                IMirror::MessageQueueingRequested::decode_raw_log(log.topics(), &log.data().data)?;
-            message_ids.push((*event.id).into());
+        if log.topic0() == Some(&BatchMulticall::SendMessageBatchResult::SIGNATURE_HASH) {
+            let event = BatchMulticall::SendMessageBatchResult::decode_raw_log(
+                log.topics(),
+                &log.data().data,
+            )?;
+            batch_result = Some(event);
         }
     }
 
-    if message_ids.len() != calls.len() {
-        tracing::warn!(
-            expected = calls.len(),
-            actual = message_ids.len(),
-            "multicall send_message produced fewer message events than requested calls"
-        );
+    let batch_result = batch_result
+        .ok_or_else(|| anyhow::anyhow!("multicall send_message result event not found"))?;
+
+    if batch_result.success.len() != calls.len() || batch_result.messageIds.len() != calls.len() {
+        return Err(anyhow::anyhow!(
+            "multicall send_message result size mismatch: expected {}, got success={}, messageIds={}",
+            calls.len(),
+            batch_result.success.len(),
+            batch_result.messageIds.len()
+        ));
     }
 
-    let mapped = calls
+    let mut mapped = Vec::with_capacity(calls.len());
+    let mut failed_calls = Vec::new();
+    for ((call_id, to, ..), (ok, message_id)) in calls
         .iter()
-        .zip(message_ids)
-        .map(|((call_id, to, ..), mid)| (*call_id, *to, mid))
-        .collect();
+        .zip(batch_result.success.into_iter().zip(batch_result.messageIds))
+    {
+        if ok {
+            mapped.push((*call_id, *to, MessageId::new(message_id.0)));
+        } else {
+            failed_calls.push(*call_id);
+        }
+    }
+
+    if !failed_calls.is_empty() {
+        return Err(anyhow::anyhow!(
+            "multicall send_message failed for call ids: {:?}",
+            failed_calls
+        ));
+    }
 
     Ok(mapped)
 }

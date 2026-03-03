@@ -1,3 +1,4 @@
+mod abi;
 mod args;
 mod batch;
 mod fuzz;
@@ -13,8 +14,9 @@ use tokio::task::JoinSet;
 use tracing::info;
 
 use crate::{
+    abi::deploy_send_message_multicall,
     args::LoadParams,
-    batch::{BatchPool, deploy_send_message_multicall},
+    batch::BatchPool,
 };
 
 /// Entrypoint for the node-loader CLI.
