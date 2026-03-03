@@ -30,8 +30,8 @@ use parity_scale_codec::Encode;
 use std::collections::HashSet;
 
 /// Maximum total size of injected transactions per announce.
-/// Currently set to 2 MB.
-pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE: usize = 2 * 1024 * 1024;
+/// Currently set to 127 KB.
+pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE: usize = 127 * 1024;
 
 /// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
 #[derive(Clone)]
@@ -152,8 +152,12 @@ mod tests {
     use super::*;
     use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
     use ethexe_runtime_common::state::{Program, ProgramState, Storage};
+    use gear_core::limited::LimitedVec;
     use gprimitives::ActorId;
-    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+    use gsigner::{
+        PrivateKey,
+        secp256k1::{Secp256k1SignerExt, Signer},
+    };
 
     #[test]
     fn test_select_for_announce() {
@@ -233,6 +237,24 @@ mod tests {
             tx_pool.inner.len(),
             1,
             "only one valid tx should remain in pool"
+        );
+    }
+
+    #[test]
+    fn validate_max_tx_size() {
+        let tx = InjectedTransaction {
+            destination: ActorId::zero(),
+            payload: LimitedVec::repeat(1),
+            value: u128::MAX,
+            reference_block: H256([u8::MAX; 32]),
+            salt: LimitedVec::repeat(1),
+        };
+
+        let signed_tx = SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap();
+
+        assert_eq!(
+            signed_tx.encoded_size(),
+            MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE
         );
     }
 }

@@ -28,9 +28,10 @@ use sha3::{Digest, Keccak256};
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
 
-/// Maximum size of single injected tx payload.
-/// Currently set to 1 MB.
-pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 1024 * 1024;
+/// Maximum size of single injected transaction payload.
+///
+/// Derived from per-announce injected transactions size limit.
+pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 129_621;
 
 /// Maximum size of injected transaction salt.
 pub const MAX_INJECTED_TX_SALT_SIZE: usize = 256;
