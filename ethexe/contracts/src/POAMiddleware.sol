@@ -27,6 +27,9 @@ contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransi
     bytes32 private constant DEFAULT_ADMIN_ROLE = 0x00;
     uint8 private constant NETWORK_IDENTIFIER = 0;
 
+    // The operators stored in middleware.
+    address[] private operators;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -39,24 +42,7 @@ contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransi
         _setStorageSlot("middleware.storage.MiddlewareV1");
         Storage storage $ = _storage();
 
-        $.eraDuration = _params.eraDuration;
-        $.minVaultEpochDuration = _params.minVaultEpochDuration;
-        $.operatorGracePeriod = _params.operatorGracePeriod;
-        $.vaultGracePeriod = _params.vaultGracePeriod;
-        $.minVetoDuration = _params.minVetoDuration;
-        $.minSlashExecutionDelay = _params.minSlashExecutionDelay;
-        $.maxResolverSetEpochsDelay = _params.maxResolverSetEpochsDelay;
-        $.allowedVaultImplVersion = _params.allowedVaultImplVersion;
-        $.vetoSlasherImplType = _params.vetoSlasherImplType;
-
-        // TODO #4609
-        $.collateral = _params.collateral;
-        $.subnetwork = address(this).subnetwork(NETWORK_IDENTIFIER);
-        $.maxAdminFee = _params.maxAdminFee;
-
         $.router = _params.router;
-
-        $.symbiotic = _params.symbiotic;
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
@@ -68,184 +54,141 @@ contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransi
         _setStorageSlot("middleware.storage.MiddlewareV2");
         Storage storage newStorage = _storage();
 
-        newStorage.eraDuration = oldStorage.eraDuration;
-        newStorage.minVaultEpochDuration = oldStorage.minVaultEpochDuration;
-        newStorage.operatorGracePeriod = oldStorage.operatorGracePeriod;
-        newStorage.vaultGracePeriod = oldStorage.vaultGracePeriod;
-        newStorage.minVetoDuration = oldStorage.minVetoDuration;
-        newStorage.minSlashExecutionDelay = oldStorage.minSlashExecutionDelay;
-        newStorage.maxResolverSetEpochsDelay = oldStorage.maxResolverSetEpochsDelay;
-        newStorage.allowedVaultImplVersion = oldStorage.allowedVaultImplVersion;
-        newStorage.vetoSlasherImplType = oldStorage.vetoSlasherImplType;
-        newStorage.collateral = oldStorage.collateral;
-        newStorage.subnetwork = oldStorage.subnetwork;
-        newStorage.maxAdminFee = oldStorage.maxAdminFee;
         newStorage.router = oldStorage.router;
-        newStorage.symbiotic = oldStorage.symbiotic;
-
-        for (uint256 i = 0; i < oldStorage.operators.length(); i++) {
-            (address key, uint256 value) = oldStorage.operators.at(i);
-            newStorage.operators.set(key, value);
-        }
-
-        for (uint256 i = 0; i < oldStorage.vaults.length(); i++) {
-            (address key, uint256 value) = oldStorage.vaults.at(i);
-            newStorage.vaults.set(key, value);
-        }
     }
 
-    // # Views
-    function eraDuration() public view returns (uint48) {
-        return _storage().eraDuration;
+    // # POA Middleware allowed calls.
+    function setValidators(address[] memory validators) external onlyOwner {
+        operators = validators;
     }
 
-    function minVaultEpochDuration() public view returns (uint48) {
-        return _storage().minVaultEpochDuration;
-    }
-
-    function operatorGracePeriod() external view returns (uint48) {
-        return _storage().operatorGracePeriod;
-    }
-
-    function vaultGracePeriod() external view returns (uint48) {
-        return _storage().vaultGracePeriod;
-    }
-
-    function minVetoDuration() external view returns (uint48) {
-        return _storage().minVetoDuration;
-    }
-
-    function minSlashExecutionDelay() external view returns (uint48) {
-        return _storage().minSlashExecutionDelay;
-    }
-
-    function maxResolverSetEpochsDelay() external view returns (uint256) {
-        return _storage().maxResolverSetEpochsDelay;
-    }
-
-    function allowedVaultImplVersion() external view returns (uint64) {
-        return _storage().allowedVaultImplVersion;
-    }
-
-    function vetoSlasherImplType() external view returns (uint64) {
-        return _storage().vetoSlasherImplType;
-    }
-
-    function collateral() external view returns (address) {
-        return _storage().collateral;
-    }
-
-    function subnetwork() external view returns (bytes32) {
-        return _storage().subnetwork;
-    }
-
-    function maxAdminFee() external view returns (uint256) {
-        return _storage().maxAdminFee;
+    function makeElectionAt(uint48, uint256) external view returns (address[] memory) {
+        return operators;
     }
 
     function router() external view returns (address) {
         return _storage().router;
     }
 
-    function symbioticContracts() external view returns (Gear.SymbioticContracts memory) {
-        return _storage().symbiotic;
+    ///////////////////////////////////////////
+    //         NOT IMPLEMENTED CALLS
+    ///////////////////////////////////////////
+
+    // # Views
+    function eraDuration() public pure returns (uint48) {
+        revert("not implemented");
     }
 
-    // # POA Middleware allowed calls.
-
-    function setValidators(address[] memory validators) external onlyOwner {
-        Storage storage $ = _storage();
-        for (uint256 i = 0; i < validators.length; i++) {
-            $.operators.append(validators[i], 0);
-        }
+    function minVaultEpochDuration() public pure returns (uint48) {
+        revert("not implemented");
     }
 
-    function disableOperator() external {
-        _storage().operators.disable(msg.sender);
+    function operatorGracePeriod() public pure returns (uint48) {
+        revert("not implemented");
     }
 
-    function enableOperator() external {
-        _storage().operators.enable(msg.sender);
+    function vaultGracePeriod() public pure returns (uint48) {
+        revert("not implemented");
     }
 
-    function makeElectionAt(uint48, uint256 maxValidators) external view returns (address[] memory) {
-        require(maxValidators > 0, MaxValidatorsMustBeGreaterThanZero());
-
-        Storage storage $ = _storage();
-        address[] memory operators = new address[]($.operators.length());
-
-        for (uint256 i; i < $.operators.length(); ++i) {
-            (address operator,,) = $.operators.atWithTimes(i);
-            operators[i] = operator;
-        }
-
-        if ($.operators.length() <= maxValidators) {
-            return operators;
-        }
-
-        assembly ("memory-safe") {
-            mstore(operators, maxValidators)
-        }
-
-        return operators;
+    function minVetoDuration() public pure returns (uint48) {
+        revert("not implemented");
     }
 
-    // # Restricted POA Middleware calls.
+    function minSlashExecutionDelay() public pure returns (uint48) {
+        revert("not implemented");
+    }
+
+    function maxResolverSetEpochsDelay() public pure returns (uint256) {
+        revert("not implemented");
+    }
+
+    function allowedVaultImplVersion() public pure returns (uint64) {
+        revert("not implemented");
+    }
+
+    function vetoSlasherImplType() public pure returns (uint64) {
+        revert("not implemented");
+    }
+
+    function collateral() public pure returns (address) {
+        revert("not implemented");
+    }
+
+    function subnetwork() public pure returns (bytes32) {
+        revert("not implemented");
+    }
+
+    function maxAdminFee() public pure returns (uint256) {
+        revert("not implemented");
+    }
+
+    function symbioticContracts() public pure returns (Gear.SymbioticContracts memory) {
+        revert("not implemented");
+    }
+
+    function disableOperator() public pure {
+        revert("not implemented");
+    }
+
+    function enableOperator() public pure {
+        revert("not implemented");
+    }
 
     function changeSlashRequester(address) public pure {
-        revert("Change Slash Requester not supported in Mock Middleware");
+        revert("not implemented");
     }
 
     function changeSlashExecutor(address) public pure {
-        revert("Change Slash Executor not supported in Mock Middleware");
+        revert("not implemented");
     }
 
     function registerOperator() public pure {
-        revert("Register validator by himself is not supported. See `setValidators` method.");
+        revert("not implemented");
     }
 
     function unregisterOperator(address) public pure {
-        revert("Unregister validator by himself is not supported.");
+        revert("not implemented");
     }
 
     function distributeOperatorRewards(address, uint256, bytes32) public pure returns (bytes32) {
-        revert("Rewards not supported in Mock Middleware");
+        revert("not implemented");
     }
 
     function distributeStakerRewards(Gear.StakerRewardsCommitment memory, uint48) public pure returns (bytes32) {
-        revert("Rewards not supported in Mock Middleware");
+        revert("not implemented");
     }
 
     function registerVault(address, address) public pure {
-        revert("Register Vault not supported, SYMBIOTIC not integrated yet");
+        revert("not implemented");
     }
 
     function disableVault(address) public pure {
-        revert("Disable Vault not supported, SYMBIOTIC not integrated yet");
+        revert("not implemented");
     }
 
     function enableVault(address) public pure {
-        revert("Enable Vault not supported, SYMBIOTIC not integrated yet");
+        revert("not implemented");
     }
 
     function unregisterVault(address) public pure {
-        revert("Unregister Vault not supported, SYMBIOTIC not integrated yet");
+        revert("not implemented");
     }
 
     function getOperatorStakeAt(address, uint48) public pure returns (uint256) {
-        revert("POA Middleware do not support stakes.");
+        revert("not implemented");
     }
 
     function getActiveOperatorsStakeAt(uint48) public pure returns (address[] memory, uint256[] memory) {
-        revert("POA Middleware do not support stakes.");
+        revert("not implemented");
     }
 
     function requestSlash(SlashData[] calldata) public pure {
-        revert("Request slash not supported, SYMBIOTIC not integrated yet");
+        revert("not implemented");
     }
 
     function executeSlash(SlashIdentifier[] calldata) public pure {
-        revert("Execute slash not supported, SYMBIOTIC not integrated yet");
+        revert("not implemented");
     }
 
     function _storage() private view returns (Storage storage middleware) {

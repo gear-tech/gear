@@ -106,12 +106,7 @@ impl MiddlewareQuery {
     pub async fn router(&self) -> Result<LocalAddress> {
         Ok(self.0.router().call().await?.into())
     }
-
-    pub async fn symbiotic_contracts(&self) -> Result<middleware_abi::Gear::SymbioticContracts> {
-        self.0.symbioticContracts().call().await.map_err(Into::into)
-    }
 }
-
 #[derive(Clone)]
 pub struct MockElectionProvider {
     predefined_election_at: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,

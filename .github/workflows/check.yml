@@ -89,7 +89,7 @@ jobs:
 
       - name: "Check: ABI files are updated"
         run: |
-          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/POAMiddleware.sol/POAMiddleware.json ./ethexe/ethereum/Middleware.json
           cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
           cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
           cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
