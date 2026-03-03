@@ -5290,6 +5290,7 @@ dependencies = [
  "parity-scale-codec",
  "rand 0.8.5",
  "rayon",
+ "scopeguard",
  "sp-allocator",
  "sp-wasm-interface",
  "thiserror 2.0.17",
