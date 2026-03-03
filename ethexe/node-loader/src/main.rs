@@ -145,6 +145,15 @@ async fn load_node(params: LoadParams) -> Result<()> {
         );
         api.wrapped_vara().approve_all((*address).into()).await?;
         tracing::debug!("Approved all WVARA for 0x{}", alloy::hex::encode(address.0));
+
+        // Approve multicall contract to spend wVARA on behalf of this worker.
+        api.wrapped_vara()
+            .approve_all(send_message_multicall.into())
+            .await?;
+        tracing::debug!(
+            "Approved all WVARA for multicall 0x{}",
+            alloy::hex::encode(send_message_multicall.0)
+        );
     }
 
     let provider = apis

@@ -97,13 +97,11 @@ struct ProcessEventsStats {
     mirror_value_claimed_events: usize,
 }
 
-const INJECTED_TX_RATIO_NUM: u8 = 7;
-const INJECTED_TX_RATIO_DEN: u8 = 10;
-/// This is the amount of VARA to top up newly created programs with.
-///
-/// It is an ERC20 token with 12 decimals, so this is 500,000 VARA.
+/// Amount of wVARA (12 decimals) to top up each program's executable balance.
 const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 
+const INJECTED_TX_RATIO_NUM: u8 = 7;
+const INJECTED_TX_RATIO_DEN: u8 = 10;
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
     (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
@@ -311,27 +309,25 @@ async fn run_batch_impl(
             let mut program_ids = BTreeSet::new();
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
+
+            let mut upload_calls = Vec::with_capacity(args.len());
             for (call_id, (arg, code_id)) in args.iter().zip(code_ids.iter().copied()).enumerate() {
                 let salt = &arg.0.1;
-                let (_, program_id) = api
-                    .router()
-                    .create_program(code_id, salt_to_h256(salt), None)
-                    .await?;
-
-                api.router()
-                    .wvara()
-                    .approve(program_id, TOP_UP_AMOUNT)
-                    .await?;
-                let mirror = api.mirror(program_id);
-                mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
-                tracing::debug!("[Call with id {call_id}]: Program created {program_id}");
-
                 let fuzzed_value = fuzz_message_value(rng);
                 tracing::debug!(
-                    "[Call with id {call_id}]: Sending init message to {program_id} with value={fuzzed_value}"
+                    "[Call with id {call_id}]: Queuing program create+init via multicall with value={fuzzed_value}"
                 );
-                let mirror = api.mirror(program_id);
-                let (_, message_id) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
+                upload_calls.push((call_id, code_id, salt_to_h256(salt), arg.0.2.clone(), fuzzed_value, TOP_UP_AMOUNT));
+            }
+
+            let created = create_program_batch_via_multicall(
+                &api,
+                send_message_multicall,
+                &upload_calls,
+            )
+            .await?;
+
+            for (call_id, program_id, message_id) in created {
                 program_ids.insert(program_id);
                 mid_map.write().await.insert(message_id, program_id);
                 messages.insert(message_id, (program_id, call_id));
@@ -507,32 +503,30 @@ async fn run_batch_impl(
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
 
+            let mut upload_calls = Vec::with_capacity(args.len());
             for (call_id, arg) in args.iter().enumerate() {
                 let code_id = arg.0.0;
                 let salt = &arg.0.1;
-                let (_, program_id) = api
-                    .router()
-                    .create_program(code_id, salt_to_h256(salt), None)
-                    .await?;
-                api.router()
-                    .wvara()
-                    .approve(program_id, TOP_UP_AMOUNT)
-                    .await?;
-                let mirror = api.mirror(program_id);
-                mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
-                tracing::debug!("[Call with id: {call_id}]: Program created {program_id}");
-
                 let fuzzed_value = fuzz_message_value(rng);
                 tracing::debug!(
-                    "[Call with id: {call_id}]: Sending init message to {program_id} with value={fuzzed_value}",
+                    "[Call with id: {call_id}]: Queuing program create+init via multicall with value={fuzzed_value}"
                 );
-                let mirror = api.mirror(program_id);
-                let (_, message_id) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
+                upload_calls.push((call_id, code_id, salt_to_h256(salt), arg.0.2.clone(), fuzzed_value, TOP_UP_AMOUNT));
+            }
+
+            let created = create_program_batch_via_multicall(
+                &api,
+                send_message_multicall,
+                &upload_calls,
+            )
+            .await?;
+
+            for (call_id, program_id, message_id) in created {
                 programs.insert(program_id);
                 mid_map.write().await.insert(message_id, program_id);
                 messages.insert(message_id, (program_id, call_id));
                 tracing::debug!(
-                    "[Call with id: {call_id}]: Successfully sent init message {message_id}"
+                    "[Call with id: {call_id}]: Program created {program_id}, init sent {message_id}"
                 );
             }
 
@@ -598,6 +592,77 @@ async fn send_message_batch_via_multicall(
         .iter()
         .zip(message_ids)
         .map(|((call_id, to, ..), mid)| (*call_id, *to, mid))
+        .collect();
+
+    Ok(mapped)
+}
+
+/// Batch-create programs, send init messages, and top up executable balances via the multicall contract.
+/// Each call contains (call_id, code_id, salt, init_payload, init_value, top_up_value).
+/// Returns (call_id, program_id, message_id) for each created program.
+async fn create_program_batch_via_multicall(
+    api: &Ethereum,
+    multicall_address: Address,
+    calls: &[(usize, CodeId, H256, Vec<u8>, u128, u128)],
+) -> Result<Vec<(usize, ActorId, MessageId)>> {
+    let multicall = BatchMulticall::new(multicall_address, api.provider());
+    let router_address = Address(FixedBytes(api.router().address().0));
+
+    let mut value_sum = 0_u128;
+    let batched_calls: Vec<_> = calls
+        .iter()
+        .map(|(_, code_id, salt, payload, value, top_up)| {
+            value_sum = value_sum.saturating_add(*value);
+            BatchMulticall::CreateProgramCall {
+                codeId: code_id.into_bytes().into(),
+                salt: salt.to_fixed_bytes().into(),
+                initPayload: payload.clone().into(),
+                initValue: *value,
+                topUpValue: *top_up,
+            }
+        })
+        .collect();
+
+    let receipt = multicall
+        .createProgramBatch(router_address.into(), batched_calls)
+        .value(U256::from(value_sum))
+        .send()
+        .await?
+        .try_get_receipt_check_reverted()
+        .await?;
+
+    let mut program_ids = Vec::with_capacity(calls.len());
+    let mut message_ids = Vec::with_capacity(calls.len());
+
+    for log in receipt.inner.logs() {
+        if log.topic0() == Some(&ethexe_ethereum::router::events::signatures::PROGRAM_CREATED) {
+            let event = ethexe_ethereum::abi::IRouter::ProgramCreated::decode_raw_log(
+                log.topics(),
+                &log.data().data,
+            )?;
+            program_ids.push(ActorId::from(*event.actorId.into_word()));
+        } else if log.topic0()
+            == Some(&ethexe_ethereum::mirror::signatures::MESSAGE_QUEUEING_REQUESTED)
+        {
+            let event =
+                IMirror::MessageQueueingRequested::decode_raw_log(log.topics(), &log.data().data)?;
+            message_ids.push((*event.id).into());
+        }
+    }
+
+    if program_ids.len() != calls.len() || message_ids.len() != calls.len() {
+        tracing::warn!(
+            expected = calls.len(),
+            programs = program_ids.len(),
+            messages = message_ids.len(),
+            "multicall create_program produced fewer events than requested calls"
+        );
+    }
+
+    let mapped = calls
+        .iter()
+        .zip(program_ids.into_iter().zip(message_ids))
+        .map(|((call_id, ..), (pid, mid))| (*call_id, pid, mid))
         .collect();
 
     Ok(mapped)
