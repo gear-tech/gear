@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    AlloyProvider,
-    abi::{IMiddleware, middleware_abi},
-};
+use crate::{AlloyProvider, abi::IMiddleware};
 use alloy::{
     primitives::{Address, U256 as AlloyU256},
     providers::{Provider, RootProvider},
@@ -106,12 +103,7 @@ impl MiddlewareQuery {
     pub async fn router(&self) -> Result<LocalAddress> {
         Ok(self.0.router().call().await?.into())
     }
-
-    pub async fn symbiotic_contracts(&self) -> Result<middleware_abi::Gear::SymbioticContracts> {
-        self.0.symbioticContracts().call().await.map_err(Into::into)
-    }
 }
-
 #[derive(Clone)]
 pub struct MockElectionProvider {
     predefined_election_at: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,

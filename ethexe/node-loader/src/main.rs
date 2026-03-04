@@ -1,19 +1,18 @@
-mod abi;
-mod args;
-mod batch;
-mod fuzz;
-mod utils;
-use alloy::{primitives::Address, providers::Provider};
+use crate::{abi::deploy_send_message_multicall, args::LoadParams, batch::BatchPool};
+use alloy::{hex, primitives::Address, providers::Provider};
 use anyhow::Result;
 use args::{Params, parse_cli_params};
 use ethexe_ethereum::Ethereum;
-
 use rand::rngs::SmallRng;
 use std::str::FromStr;
 use tokio::task::JoinSet;
 use tracing::info;
 
-use crate::{abi::deploy_send_message_multicall, args::LoadParams, batch::BatchPool};
+mod abi;
+mod args;
+mod batch;
+mod fuzz;
+mod utils;
 
 /// Entrypoint for the node-loader CLI.
 ///
@@ -82,10 +81,7 @@ async fn load_node(params: LoadParams) -> Result<()> {
             signer_from_private_key(DEPLOYER_ACCOUNT.private_key)?
         };
 
-    info!(
-        "deployer address: 0x{}",
-        alloy::hex::encode(deployer_address.0)
-    );
+    info!("deployer address: 0x{}", hex::encode(deployer_address.0));
 
     let deployer_api = Ethereum::new(
         &params.node,
@@ -98,7 +94,7 @@ async fn load_node(params: LoadParams) -> Result<()> {
     let send_message_multicall = deploy_send_message_multicall(&deployer_api).await?;
     info!(
         "send-message multicall deployed at 0x{}",
-        alloy::hex::encode(send_message_multicall.0)
+        hex::encode(send_message_multicall.0)
     );
 
     // Load worker accounts from prefunded accounts (starting from index 1) concurrently so we
@@ -139,10 +135,10 @@ async fn load_node(params: LoadParams) -> Result<()> {
         tracing::debug!(
             "Minted {} WVARA to 0x{}",
             MINT_AMOUNT,
-            alloy::hex::encode(address.0)
+            hex::encode(address.0)
         );
         api.wrapped_vara().approve_all((*address).into()).await?;
-        tracing::debug!("Approved all WVARA for 0x{}", alloy::hex::encode(address.0));
+        tracing::debug!("Approved all WVARA for 0x{}", hex::encode(address.0));
 
         // Approve multicall contract to spend wVARA on behalf of this worker.
         api.wrapped_vara()
@@ -150,7 +146,7 @@ async fn load_node(params: LoadParams) -> Result<()> {
             .await?;
         tracing::debug!(
             "Approved all WVARA for multicall 0x{}",
-            alloy::hex::encode(send_message_multicall.0)
+            hex::encode(send_message_multicall.0)
         );
     }
 

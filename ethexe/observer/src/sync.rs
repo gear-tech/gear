@@ -25,7 +25,7 @@ use crate::{
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
+    self, BlockData, BlockHeader, CodeBlobInfo, ProtocolTimelines, SimpleBlockData,
     db::{LatestDataStorageRW, OnChainStorageRW},
     events::{BlockEvent, RouterEvent, router::CodeValidationRequestedEvent},
 };
@@ -184,21 +184,22 @@ impl<DB: SyncDB> ChainSync<DB> {
     /// 2. if the election result is `finalized` it requests for next era validators and sets them in database.
     ///
     /// See [`Self::election_timestamp_finalized`] for the our timestamp `finalization` rules.
-    async fn ensure_validators(&self, data: SimpleBlockData) -> Result<()> {
+    async fn ensure_validators(&self, block_data: SimpleBlockData) -> Result<()> {
         let timelines = self
             .db
             .protocol_timelines()
             .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
-        let chain_head_era = timelines.era_from_ts(data.header.timestamp);
+        let chain_head_era = timelines.era_from_ts(block_data.header.timestamp);
 
         // If we don't have validators for current era - set them.
         if self.db.validators(chain_head_era).is_none() {
-            let validators = self.router_query.validators_at(data.hash).await?;
+            let validators = self.router_query.validators_at(block_data.hash).await?;
             self.db.set_validators(chain_head_era, validators);
         }
 
         // Fetch next era validators if timestamp `finalized` and we don't set them in database already.
-        if let Some(election_ts) = self.election_timestamp_finalized(data.header)
+        if let Some(election_ts) =
+            self.election_timestamp_finalized(timelines, block_data.header.timestamp)
             && self.db.validators(chain_head_era.add(1)).is_none()
         {
             let next_era_validators = self
@@ -234,13 +235,16 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     /// Function checks the `election_ts` in current era is `finalized` and if it's true then returns it.
     ///
-    /// By `finalization` we mean the 64 blocks, because of it is closely to real finalization time and
-    /// reorgs for 64 blocks can not happen.
-    fn election_timestamp_finalized(&self, chain_head: BlockHeader) -> Option<u64> {
-        let timelines = self.db.protocol_timelines()?;
-        let election_ts =
-            timelines.era_election_start_ts(timelines.era_from_ts(chain_head.timestamp));
-        (chain_head.timestamp.saturating_sub(election_ts)
+    /// The `finalization` blocks period set in observer's [`RuntimeConfig`].
+    fn election_timestamp_finalized(
+        &self,
+        timelines: ProtocolTimelines,
+        timestamp: u64,
+    ) -> Option<u64> {
+        let timestamp_era = timelines.era_from_ts(timestamp);
+        let election_ts = timelines.era_election_start_ts(timestamp_era);
+
+        (timestamp.saturating_sub(election_ts)
             > self.config.slot_duration_secs * self.config.finalization_period_blocks)
             .then_some(election_ts)
     }

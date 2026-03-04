@@ -1,6 +1,5 @@
-use std::collections::BTreeSet;
-
 use gprimitives::{ActorId, CodeId, MessageId};
+use std::collections::BTreeSet;
 
 #[derive(Debug, Default)]
 pub struct ContextUpdate {

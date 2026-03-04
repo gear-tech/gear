@@ -89,13 +89,15 @@ jobs:
 
       - name: "Check: ABI files are updated"
         run: |
-          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/POAMiddleware.sol/POAMiddleware.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi
 
-          git diff --exit-code ./ethexe/ethereum/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
+          git diff --exit-code ./ethexe/ethereum/abi/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
 
       - name: "Check: Clones.sol is updated"
         run: |
@@ -105,9 +107,6 @@ jobs:
           forge fmt
           git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
         working-directory: ethexe/contracts
-
-      - name: "Check: node-loader BatchMulticall ABI is updated"
-        run: ./ethexe/node-loader/scripts/update-batch-multicall-json.sh --check
 
   clippy:
     strategy:

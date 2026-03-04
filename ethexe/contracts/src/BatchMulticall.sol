@@ -6,6 +6,10 @@ import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 
 contract BatchMulticall {
+    error InsufficientValue(uint256 expected, uint256 actual);
+
+    event SendMessageBatchResult(bytes32[] messageIds);
+
     struct MessageCall {
         address mirror;
         bytes payload;
@@ -19,11 +23,6 @@ contract BatchMulticall {
         uint128 initValue;
         uint128 topUpValue;
     }
-
-    error InsufficientValue(uint256 expected, uint256 actual);
-    event SendMessageBatchResult(bytes32[] messageIds);
-
-    receive() external payable {}
 
     function sendMessageBatch(MessageCall[] calldata calls) external payable {
         bytes32[] memory messageIds = new bytes32[](calls.length);
@@ -39,9 +38,10 @@ contract BatchMulticall {
         }
 
         for (uint256 i = 0; i < calls.length; ++i) {
-            MessageCall calldata item = calls[i];
+            MessageCall calldata messageCall = calls[i];
 
-            messageIds[i] = IMirror(item.mirror).sendMessage{value: item.value}(item.payload, false);
+            messageIds[i] =
+                IMirror(messageCall.mirror).sendMessage{value: messageCall.value}(messageCall.payload, false);
         }
 
         if (consumed < msg.value) {
@@ -55,33 +55,38 @@ contract BatchMulticall {
     function createProgramBatch(IRouter router, CreateProgramCall[] calldata calls)
         external
         payable
-        returns (address[] memory programIds, bytes32[] memory messageIds)
+        returns (address[] memory, bytes32[] memory)
     {
-        programIds = new address[](calls.length);
-        messageIds = new bytes32[](calls.length);
+        address[] memory programIds = new address[](calls.length);
+        bytes32[] memory messageIds = new bytes32[](calls.length);
 
         IWrappedVara wvara = IWrappedVara(router.wrappedVara());
 
         uint256 consumed;
 
         for (uint256 i = 0; i < calls.length; ++i) {
-            CreateProgramCall calldata item = calls[i];
-            consumed += item.initValue;
+            CreateProgramCall calldata createProgramCall = calls[i];
+            consumed += createProgramCall.initValue;
 
             if (consumed > msg.value) {
                 revert InsufficientValue(consumed, msg.value);
             }
 
-            address programId = router.createProgram(item.codeId, item.salt, address(this));
+            address programId = router.createProgram(createProgramCall.codeId, createProgramCall.salt, address(this));
             programIds[i] = programId;
 
-            bytes32 messageId = IMirror(programId).sendMessage{value: item.initValue}(item.initPayload, false);
+            IMirror mirror = IMirror(programId);
+            bytes32 messageId =
+                mirror.sendMessage{value: createProgramCall.initValue}(createProgramCall.initPayload, false);
             messageIds[i] = messageId;
 
-            if (item.topUpValue > 0) {
-                require(wvara.transferFrom(msg.sender, address(this), item.topUpValue), "wVARA transferFrom failed");
-                require(wvara.approve(programId, item.topUpValue), "wVARA approve failed");
-                IMirror(programId).executableBalanceTopUp(item.topUpValue);
+            if (createProgramCall.topUpValue > 0) {
+                require(
+                    wvara.transferFrom(msg.sender, address(this), createProgramCall.topUpValue),
+                    "wVARA transferFrom failed"
+                );
+                require(wvara.approve(programId, createProgramCall.topUpValue), "wVARA approve failed");
+                mirror.executableBalanceTopUp(createProgramCall.topUpValue);
             }
         }
 
@@ -89,5 +94,9 @@ contract BatchMulticall {
             (bool refunded,) = msg.sender.call{value: msg.value - consumed}("");
             require(refunded, "Refund failed");
         }
+
+        return (programIds, messageIds);
     }
+
+    receive() external payable {}
 }

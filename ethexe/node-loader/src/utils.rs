@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use alloy::{
-    network::Network,
     providers::{Provider, RootProvider, WalletProvider},
+    rpc::types::Header,
 };
 use anyhow::Result;
 use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
@@ -77,10 +77,7 @@ pub fn get_wasm_gen_config(
     }
 }
 
-pub async fn listen_blocks(
-    tx: broadcast::Sender<<alloy::network::Ethereum as Network>::HeaderResponse>,
-    provider: RootProvider,
-) -> Result<()> {
+pub async fn listen_blocks(tx: broadcast::Sender<Header>, provider: RootProvider) -> Result<()> {
     let mut retry_count = 0;
     const MAX_RETRIES: usize = 10;
 

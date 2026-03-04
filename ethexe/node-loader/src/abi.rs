@@ -1,11 +1,11 @@
-use alloy::primitives::Address;
+use alloy::{primitives::Address, sol};
 use anyhow::Result;
 use ethexe_ethereum::Ethereum;
 
-alloy::sol!(
+sol!(
     #[sol(rpc)]
     BatchMulticall,
-    "BatchMulticall.json"
+    "../ethereum/abi/BatchMulticall.json"
 );
 
 pub async fn deploy_send_message_multicall(api: &Ethereum) -> Result<Address> {

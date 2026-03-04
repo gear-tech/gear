@@ -1,10 +1,10 @@
 use alloy::{
     consensus::Transaction,
     eips::BlockId,
-    network::{BlockResponse, Network, primitives::HeaderResponse},
+    network::{BlockResponse, primitives::HeaderResponse},
     primitives::{Address, FixedBytes, U256},
     providers::{Provider, WalletProvider},
-    rpc::types::{BlockTransactions, Filter},
+    rpc::types::{BlockTransactions, Filter, Header},
     sol_types::{SolCall, SolEvent},
 };
 use anyhow::Result;
@@ -56,7 +56,7 @@ pub struct BatchPool<Rng: CallGenRng> {
     batch_size: usize,
     send_message_multicall: Address,
     task_context: Context,
-    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    rx: Receiver<Header>,
     _marker: PhantomData<Rng>,
 }
 
@@ -133,7 +133,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         pool_size: usize,
         batch_size: usize,
         send_message_multicall: Address,
-        rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+        rx: Receiver<Header>,
     ) -> Self {
         Self {
             apis,
@@ -147,11 +147,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         }
     }
 
-    pub async fn run(
-        mut self,
-        params: LoadParams,
-        _rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
-    ) -> Result<()> {
+    pub async fn run(mut self, params: LoadParams, _rx: Receiver<Header>) -> Result<()> {
         let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
 
         let run_result = tokio::select! {
@@ -225,7 +221,7 @@ async fn run_batch(
     vapi: VaraEthApi,
     batch: BatchWithSeed,
     send_message_multicall: Address,
-    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    rx: Receiver<Header>,
     mid_map: MidMap,
 ) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
@@ -256,7 +252,7 @@ async fn run_batch_for_worker(
     vapi: VaraEthApi,
     batch: BatchWithSeed,
     send_message_multicall: Address,
-    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    rx: Receiver<Header>,
     mid_map: MidMap,
 ) -> (usize, Result<BatchRunReport>) {
     (
@@ -271,7 +267,7 @@ async fn run_batch_impl(
     vapi: VaraEthApi,
     batch: Batch,
     send_message_multicall: Address,
-    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    rx: Receiver<Header>,
     mid_map: MidMap,
     rng: &mut SmallRng,
 ) -> Result<Report> {
@@ -977,7 +973,7 @@ async fn recv_next_header<T: Clone>(rx: &mut Receiver<T>) -> Result<T> {
 async fn process_events(
     api: Ethereum,
     mut messages: BTreeMap<MessageId, (ActorId, usize)>,
-    mut rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    mut rx: Receiver<Header>,
     block_number: u64,
     mid_map: MidMap,
     wait_for_event_blocks: usize,
