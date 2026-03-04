@@ -31,7 +31,7 @@ use clap::{Parser, Subcommand};
 use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
     gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
-    injected::{AddressedInjectedTransaction, InjectedTransaction},
+    injected::{AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE},
 };
 use ethexe_ethereum::{Ethereum, mirror::ClaimInfo, router::CodeValidationResult};
 use ethexe_rpc::{InjectedClient, ProgramClient};
@@ -981,7 +981,7 @@ impl TxCommand {
                             payload: payload.0.clone().try_into().with_context(|| {
                                 format!(
                                     "Payload size exceeds the maximum allowed size of {} bytes",
-                                    ethexe_common::injected::MAX_INJECTED_TX_PAYLOAD_SIZE
+                                    MAX_INJECTED_TX_PAYLOAD_SIZE
                                 )
                             })?,
                             value: raw_value,
