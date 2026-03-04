@@ -948,7 +948,10 @@ impl Node {
             }
         };
 
-        let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
+        let validator_address = self
+            .validator_config
+            .as_ref()
+            .map(|c| c.public_key.to_address());
 
         let (sender, receiver) = events::channel(self.db.clone());
 
@@ -990,7 +993,7 @@ impl Node {
             rpc,
             sender,
             self.fast_sync,
-            validator_pub_key,
+            validator_address,
         );
 
         let name = self.name.clone();

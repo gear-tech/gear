@@ -316,7 +316,6 @@ impl CommonRunContext {
 
         if can_continue {
             // If gas is still left in block, process canonical (Ethereum) queues
-            log::trace!("running for canonical queue...");
             let _ = run_for_queue_type(&mut self, MessageType::Canonical).await?;
         }
 

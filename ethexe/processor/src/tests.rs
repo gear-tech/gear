@@ -910,7 +910,6 @@ async fn injected_ping_pong() {
         .expect("failed to send message");
 
     let injected_tx = injected(actor_id, b"PING", 0);
-    log::error!("injected tx hash: {:?}", injected_tx.to_hash());
     handler
         .handle_injected_transaction(user_2, injected_tx.clone())
         .expect("failed to send message");

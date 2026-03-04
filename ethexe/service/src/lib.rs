@@ -114,7 +114,7 @@ pub struct Service {
     rpc: Option<RpcServer>,
 
     fast_sync: bool,
-    validator_pub_key: Option<PublicKey>,
+    validator_address: Option<Address>,
 
     #[cfg(test)]
     sender: tests::utils::TestingEventSender,
@@ -288,6 +288,7 @@ impl Service {
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
+        let validator_address = validator_pub_key.map(|key| key.to_address());
 
         // TODO #4642: use validator session key
         let _validator_pub_key_session =
@@ -390,7 +391,7 @@ impl Service {
             prometheus,
             rpc,
             fast_sync,
-            validator_pub_key,
+            validator_address,
             #[cfg(test)]
             sender: unreachable!(),
         })
@@ -418,7 +419,7 @@ impl Service {
         rpc: Option<RpcServer>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
-        validator_pub_key: Option<PublicKey>,
+        validator_address: Option<Address>,
     ) -> Self {
         Self {
             db,
@@ -432,7 +433,7 @@ impl Service {
             rpc,
             sender,
             fast_sync,
-            validator_pub_key,
+            validator_address,
         }
     }
 
@@ -458,11 +459,10 @@ impl Service {
             mut prometheus,
             rpc,
             fast_sync: _,
-            validator_pub_key,
+            validator_address,
             #[cfg(test)]
             sender,
         } = self;
-        let validator_address = validator_pub_key.map(|key| key.to_address());
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
