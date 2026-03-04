@@ -96,7 +96,7 @@ jobs:
           cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum/abi
           cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
 
-          git diff --exit-code ./ethexe/ethereum/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
+          git diff --exit-code ./ethexe/ethereum/abi/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
 
       - name: "Check: Clones.sol is updated"
         run: |
