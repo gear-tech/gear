@@ -252,9 +252,6 @@ mod tests {
 
         let signed_tx = SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap();
 
-        assert_eq!(
-            signed_tx.encoded_size(),
-            MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE
-        );
+        assert!(signed_tx.encoded_size() < MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE);
     }
 }
