@@ -9,8 +9,8 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
-import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 
@@ -25,9 +25,8 @@ contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, Reent
 
     // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant SLOT_STORAGE = 0x0b8c56af6cc9ad401ad225bfe96df77f3049ba17eadac1cb95ee89df1e69d100;
-
-    // keccak256(abi.encode(uint256(keccak256("middleware.poa_storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant POA_SLOT_STORAGE = 0x3a54b08a236eb61e78ba6306701717b68b49aca1037af69eae7d0700dc7d4c00;
+    // keccak256(abi.encode(uint256(keccak256("poa_middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant POA_SLOT_STORAGE = 0x8499392b3fbaf2916a419b541ace4def77aa70073e569284ec9a96534994f700;
 
     bytes32 private constant DEFAULT_ADMIN_ROLE = 0x00;
     uint8 private constant NETWORK_IDENTIFIER = 0;
