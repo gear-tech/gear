@@ -32,7 +32,8 @@ use sp_core::ecdsa::{Pair as SpPair, Public as SpPublic, Signature as SpSignatur
 #[cfg(feature = "codec")]
 use {
     parity_scale_codec::{
-        Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
+        Decode, Encode, Error as CodecError, Input as CodecInput, MaxEncodedLen,
+        Output as CodecOutput,
     },
     scale_info::{TypeInfo, build::Fields},
 };
@@ -233,6 +234,13 @@ impl Encode for Signature {
 }
 
 #[cfg(feature = "codec")]
+impl MaxEncodedLen for Signature {
+    fn max_encoded_len() -> usize {
+        SIGNATURE_SIZE
+    }
+}
+
+#[cfg(feature = "codec")]
 impl TypeInfo for Signature {
     type Identity = Self;
 
@@ -418,7 +426,7 @@ impl<T> VerifiedData<T> {
 /// A signed according to EIP-191 message,that contains the data and its signature.
 /// Always valid after construction.
 #[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
-#[cfg_attr(feature = "codec", derive(Encode, TypeInfo))]
+#[cfg_attr(feature = "codec", derive(Encode, MaxEncodedLen, TypeInfo))]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[display("SignedMessage({data}, {signature}, {address})")]
 pub struct SignedMessage<T: Sized> {

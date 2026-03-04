@@ -21,7 +21,7 @@ use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
 
@@ -35,7 +35,7 @@ pub const VALIDITY_WINDOW: u8 = 32;
 pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 126 * 1024;
 
 /// Maximum size of injected transaction salt.
-pub const MAX_INJECTED_TX_SALT_SIZE: usize = 256;
+pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
@@ -69,7 +69,7 @@ pub struct AddressedInjectedTransaction {
 /// IMPORTANT: message id == tx hash == blake2b256 hash of the struct fields concat.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,

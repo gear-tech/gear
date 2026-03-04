@@ -152,12 +152,9 @@ mod tests {
     use super::*;
     use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
     use ethexe_runtime_common::state::{Program, ProgramState, Storage};
-    use gear_core::limited::LimitedVec;
     use gprimitives::ActorId;
-    use gsigner::{
-        PrivateKey,
-        secp256k1::{Secp256k1SignerExt, Signer},
-    };
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+    use parity_scale_codec::MaxEncodedLen;
 
     #[test]
     fn test_select_for_announce() {
@@ -242,16 +239,9 @@ mod tests {
 
     #[test]
     fn validate_max_tx_size() {
-        let tx = InjectedTransaction {
-            destination: ActorId::zero(),
-            payload: LimitedVec::repeat(1),
-            value: u128::MAX,
-            reference_block: H256([u8::MAX; 32]),
-            salt: LimitedVec::repeat(1),
-        };
-
-        let signed_tx = SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap();
-
-        assert!(signed_tx.encoded_size() < MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE);
+        assert!(
+            SignedInjectedTransaction::max_encoded_len()
+                <= MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE
+        );
     }
 }
