@@ -31,7 +31,7 @@ pub const VALIDITY_WINDOW: u8 = 32;
 /// Maximum size of single injected transaction payload.
 ///
 /// Derived from per-announce injected transactions size limit.
-pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 129_621;
+pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 126 * 1024 + 597;
 
 /// Maximum size of injected transaction salt.
 pub const MAX_INJECTED_TX_SALT_SIZE: usize = 256;
