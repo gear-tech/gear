@@ -79,7 +79,7 @@ pub fn announce_at_or_latest_computed<
         } else {
             computed_announces.into_iter().next().ok_or_else(|| {
                 tracing::error!("No computed announces found at given block {at:?}");
-                errors::db("No computed announces found at given block hash")
+                errors::internal("No computed announces found at given block hash", Some(announce))
             })
         }
     } else {

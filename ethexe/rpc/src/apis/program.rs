@@ -140,7 +140,7 @@ impl ProgramServer for ProgramApi {
         let announce = self
             .db
             .announce(announce_hash)
-            .ok_or_else(|| errors::db("Failed to get announce"))?;
+            .ok_or_else(|| errors::internal("Failed to get announce", Some(announce_hash)))?;
         let block_hash = announce.block_hash;
 
         let executable = ExecutableDataForReply {
@@ -170,7 +170,7 @@ impl ProgramServer for ProgramApi {
             .overlaid()
             .execute_for_reply(executable)
             .await
-            .map_err(errors::runtime)
+            .map_err(|err| errors::runtime(err))
     }
 
     async fn ids(&self) -> RpcResult<Vec<H160>> {

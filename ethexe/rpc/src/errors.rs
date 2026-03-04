@@ -16,22 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use jsonrpsee::types::ErrorObject;
+use jsonrpsee::types::{
+    ErrorCode, ErrorObject,
+    error::{CALL_EXECUTION_FAILED_CODE, INTERNAL_ERROR_CODE, INVALID_REQUEST_CODE},
+};
+use serde::Serialize;
 
-// TODO #4364: https://github.com/gear-tech/gear/issues/4364
-
-pub fn db(err: &'static str) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Database error", Some(err))
-}
-
-pub fn runtime(err: impl ToString) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(err.to_string()))
+pub fn runtime<S>(message: impl ToString, data: Option<S>) -> ErrorObject<'static>
+where
+    S: Serialize,
+{
+    ErrorObject::owned(CALL_EXECUTION_FAILED_CODE, message, data)
 }
 
 pub fn bad_request(err: impl ToString) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Bad request", Some(err.to_string()))
+    ErrorObject::owned(INVALID_REQUEST_CODE, "Bad request", Some(err.to_string()))
 }
 
-pub fn internal() -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Internal error", None::<&str>)
+pub fn internal<S: Serialize>(message: impl ToString, data: Option<S>) -> ErrorObject<'static> {
+    ErrorObject::owned(INTERNAL_ERROR_CODE, message, data)
 }
