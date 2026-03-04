@@ -86,7 +86,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public onlyOwner reinitializer(2) {
+    function reinitialize() public reinitializer(2) {
         __Ownable_init(owner());
 
         Storage storage oldStorage = _storage();
@@ -605,7 +605,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return StorageSlot.getBytes32Slot(SLOT_STORAGE).value;
     }
 
-    function _setStorageSlot(string memory namespace) private onlyOwner {
+    function _setStorageSlot(string memory namespace) private {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
     }

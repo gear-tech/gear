@@ -579,7 +579,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return StorageSlot.getBytes32Slot(SLOT_STORAGE).value;
     }
 
-    function _setStorageSlot(string memory namespace) private onlyOwner {
+    function _setStorageSlot(string memory namespace) private {
         bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
 

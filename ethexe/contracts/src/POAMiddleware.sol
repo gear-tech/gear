@@ -47,7 +47,7 @@ contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, Reent
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public onlyOwner reinitializer(2) {
+    function reinitialize() public reinitializer(2) {
         __Ownable_init(owner());
 
         Storage storage oldStorage = _storage();
@@ -217,12 +217,12 @@ contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, Reent
         return StorageSlot.getBytes32Slot(POA_SLOT_STORAGE).value;
     }
 
-    function _setStorageSlot(string memory namespace) private onlyOwner {
+    function _setStorageSlot(string memory namespace) private {
         bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
     }
 
-    function _setPoaStorageSlot(string memory namespace) private onlyOwner {
+    function _setPoaStorageSlot(string memory namespace) private {
         bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(POA_SLOT_STORAGE).value = slot;
     }
