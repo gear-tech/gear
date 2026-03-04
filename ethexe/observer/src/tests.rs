@@ -18,7 +18,7 @@
 
 use super::*;
 use alloy::node_bindings::Anvil;
-use ethexe_db::Database;
+use ethexe_db::{Database, MemDb};
 use ethexe_ethereum::deploy::EthereumDeployer;
 use gsigner::secp256k1::Signer;
 use std::time::Duration;
@@ -56,7 +56,8 @@ async fn test_deployment() -> Result<()> {
         .deploy()
         .await?;
 
-    let database = Database::memory();
+    let db = MemDb::default();
+    let database = Database::from_one(&db);
 
     let mut observer = ObserverService::new(
         &EthereumConfig {

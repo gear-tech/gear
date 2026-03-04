@@ -233,11 +233,9 @@ impl<DB: SyncDB> ChainSync<DB> {
         }
     }
 
-    // TODO: fix docs after gsobol changes
     /// Function checks the `election_ts` in current era is `finalized` and if it's true then returns it.
     ///
-    /// By `finalization` we mean the 64 blocks, because of it is closely to real finalization time and
-    /// reorgs for 64 blocks can not happen.
+    /// The `finalization` blocks period set in observer's [`RuntimeConfig`].
     fn election_timestamp_finalized(
         &self,
         timelines: ProtocolTimelines,
