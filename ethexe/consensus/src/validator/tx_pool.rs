@@ -26,7 +26,12 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
+use parity_scale_codec::Encode;
 use std::collections::HashSet;
+
+/// Maximum total size of injected transactions per announce.
+/// Currently set to 127 KB.
+pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE: usize = 127 * 1024;
 
 /// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
 #[derive(Clone)]
@@ -71,6 +76,7 @@ where
 
         let mut selected_txs = vec![];
         let mut remove_txs = vec![];
+        let mut size_counter = 0usize;
 
         for (reference_block, tx_hash) in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
@@ -81,7 +87,18 @@ where
             match tx_checker.check_tx_validity(&tx)? {
                 TxValidity::Valid => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
-                    selected_txs.push(tx)
+                    // NOTE: we calculate size with signature, because tx will be sent to network with it.
+                    let tx_size = tx.encoded_size();
+                    if size_counter + tx_size > MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE {
+                        tracing::trace!(
+                            ?tx_hash,
+                            "transaction is valid, but exceeds max announce size limit, so skipping it for future announces"
+                        );
+                        continue;
+                    }
+
+                    selected_txs.push(tx);
+                    size_counter += tx_size;
                 }
                 TxValidity::Duplicate => {
                     // Keep in pool, in case of reorg it can be valid again.
@@ -137,6 +154,7 @@ mod tests {
     use ethexe_runtime_common::state::{Program, ProgramState, Storage};
     use gprimitives::ActorId;
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+    use parity_scale_codec::MaxEncodedLen;
 
     #[test]
     fn test_select_for_announce() {
@@ -216,6 +234,14 @@ mod tests {
             tx_pool.inner.len(),
             1,
             "only one valid tx should remain in pool"
+        );
+    }
+
+    #[test]
+    fn validate_max_tx_size() {
+        assert!(
+            SignedInjectedTransaction::max_encoded_len()
+                <= MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE
         );
     }
 }
