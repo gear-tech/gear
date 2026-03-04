@@ -2,6 +2,7 @@
 pragma solidity ^0.8.33;
 
 import {IMiddleware} from "./IMiddleware.sol";
+import {IPOAMiddleware} from "./IPOAMiddleware.sol";
 import {Gear} from "./libraries/Gear.sol";
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -12,7 +13,7 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 
-contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
 
@@ -24,11 +25,11 @@ contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransi
     // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant SLOT_STORAGE = 0x0b8c56af6cc9ad401ad225bfe96df77f3049ba17eadac1cb95ee89df1e69d100;
 
+    // keccak256(abi.encode(uint256(keccak256("middleware.poa_storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant POA_SLOT_STORAGE = 0x3a54b08a236eb61e78ba6306701717b68b49aca1037af69eae7d0700dc7d4c00;
+
     bytes32 private constant DEFAULT_ADMIN_ROLE = 0x00;
     uint8 private constant NETWORK_IDENTIFIER = 0;
-
-    // The operators stored in middleware.
-    address[] private operators;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -52,18 +53,20 @@ contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransi
         Storage storage oldStorage = _storage();
 
         _setStorageSlot("middleware.storage.MiddlewareV2");
+        _setPoaStorageSlot("middleware.storage.POAMiddlewareV2");
+
         Storage storage newStorage = _storage();
 
         newStorage.router = oldStorage.router;
     }
 
-    // # POA Middleware allowed calls.
+    /// @dev IPOAMiddleware call
     function setValidators(address[] memory validators) external onlyOwner {
-        operators = validators;
+        _poaStorage().operators = validators;
     }
 
     function makeElectionAt(uint48, uint256) external view returns (address[] memory) {
-        return operators;
+        return _poaStorage().operators;
     }
 
     function router() external view returns (address) {
@@ -199,12 +202,28 @@ contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransi
         }
     }
 
+    function _poaStorage() private view returns (PoaStorage storage poaStorage) {
+        bytes32 slot = _getPoaStorageSlot();
+        assembly ("memory-safe") {
+            poaStorage.slot := slot
+        }
+    }
+
     function _getStorageSlot() private view returns (bytes32) {
         return StorageSlot.getBytes32Slot(SLOT_STORAGE).value;
+    }
+
+    function _getPoaStorageSlot() private view returns (bytes32) {
+        return StorageSlot.getBytes32Slot(POA_SLOT_STORAGE).value;
     }
 
     function _setStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
+    }
+
+    function _setPoaStorageSlot(string memory namespace) private onlyOwner {
+        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
+        StorageSlot.getBytes32Slot(POA_SLOT_STORAGE).value = slot;
     }
 }
