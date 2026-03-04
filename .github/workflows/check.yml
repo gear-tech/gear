@@ -42,6 +42,8 @@ jobs:
           submodules: recursive
       - name: typos-action
         uses: crate-ci/typos@master
+        with:
+          args: --exclude "ethexe/ethereum/abi/**"
 
   ethexe-contracts:
     runs-on: ubuntu-latest
