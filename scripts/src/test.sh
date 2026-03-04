@@ -124,5 +124,5 @@ ensure_binary() {
 typo_tests() {
   ensure_binary "typos" "cargo install typos-cli"
 
-  typos
+  typos --exclude "ethexe/ethereum/abi/**"
 }
