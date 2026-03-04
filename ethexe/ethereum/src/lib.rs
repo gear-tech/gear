@@ -43,7 +43,6 @@ use alloy::{
 use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{BlockHeader, Digest, SimpleBlockData, ecdsa::PublicKey};
-use futures::StreamExt;
 use gprimitives::{ActorId, H256, MessageId};
 use gsigner::secp256k1::{Address, Secp256k1SignerExt, Signer};
 use middleware::Middleware;
@@ -394,10 +393,7 @@ macro_rules! signatures_consts {
 
 pub(crate) use signatures_consts;
 
-use crate::{
-    middleware::{ElectionProvider, MiddlewareQuery},
-    wvara::WVara,
-};
+use crate::wvara::WVara;
 
 /// A helping trait for converting various types into `alloy::eips::BlockId`.
 pub trait IntoBlockId {
@@ -455,38 +451,4 @@ mod tests {
 
         assert_eq!(recovered_address, address);
     }
-}
-
-#[tokio::test]
-async fn query_current_validators() {
-    let router_addr = alloy::primitives::address!("0xBC888a8B050B9B76a985d91c815d2c4f2131a58A");
-    let rpc = "wss://hoodi-reth-rpc.gear-tech.io/ws";
-
-    let provider: RootProvider = RootProvider::connect(&rpc).await.unwrap();
-    println!("Connected to provider");
-
-    let router_query = RouterQuery::from_provider(router_addr, provider.clone());
-    let middleware_addr = router_query.middleware_address().await.unwrap();
-
-    let middleware_query = MiddlewareQuery::from_provider(middleware_addr, provider.clone());
-
-    let mut sub = provider.subscribe_blocks().await.unwrap().into_stream();
-    let block = sub.next().await.unwrap();
-
-    let elected_validators = middleware_query
-        .make_election_at(block.timestamp, 100)
-        .await
-        .unwrap();
-    let router_validators = router_query.validators().await.unwrap();
-
-    println!("router_validators = {router_validators:?}");
-    println!("===========================");
-    println!("===========================");
-    println!("hello world!");
-    println!("elected validators = {elected_validators:?}");
-    // On Router validators are sorted
-    // router_validators =  0x2ad8150a579e12f6dfb418100dbca0b0255e8dba, 0x7462303a1aae98c96f8cad6ecec91dad29537518, 0xaee0cc6caa1cfbee638470a995b9bb75c1ab0972, 0xcc4e78ea999374e348e6d583af19b0f0e6689de8
-    // ===========================
-    // ===========================
-    // elected validators = 0x7462303a1aae98c96f8cad6ecec91dad29537518, 0xaee0cc6caa1cfbee638470a995b9bb75c1ab0972, 0xcc4e78ea999374e348e6d583af19b0f0e6689de8, 0x2ad8150a579e12f6dfb418100dbca0b0255e8dba
 }

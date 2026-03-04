@@ -17,11 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use alloy::{eips::merge::SLOT_DURATION_SECS, node_bindings::Anvil};
-use ethexe_common::db::OnChainStorageRO;
-use ethexe_db::{Database, MemDb};
+use alloy::node_bindings::Anvil;
+use ethexe_db::Database;
 use ethexe_ethereum::deploy::EthereumDeployer;
-use gsigner::{PrivateKey, secp256k1::Signer};
+use gsigner::secp256k1::Signer;
 use std::time::Duration;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
@@ -131,47 +130,4 @@ async fn test_deployment() -> Result<()> {
     };
 
     Ok(())
-}
-
-
-#[tokio::test]
-async fn test_fetching_validators() {
-    gear_utils::init_default_logger();
-    const BLOCK_TIME_SECS: u64 = 12;
-
-    let anvil = Anvil::new().block_time(SLOT_DURATION_SECS).try_spawn()?;
-    let ethereum_rpc = anvil.ws_endpoint();
-
-    let signer = Signer::memory();
-    let public_key = signer.generate()?;
-    let sender_address = sender_public_key.to_address();
-
-    let validators: Vec<Address> = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
-
-    let ethereum = EthereumDeployer::new(&ethereum_rpc, signer, sender_address)
-        .await
-        .unwrap()
-        .with_validators(validators.try_into().unwrap())
-        .with_middleware()
-        .deploy()
-        .await
-        .unwrap();
-
-    let database = Database::memory();
-
-    let mut observer = ObserverService::new(
-        &EthereumConfig {
-            rpc: ethereum_rpc,
-            router_address: ethereum.router().address(),
-            block_time: Duration::from_secs(SLOT_DURATION_SECS),
-            beacon_rpc: Default::default(),
-        },
-        u32::MAX,
-        database.clone(),
-    )
-    .await
-    .expect("failed to create observer");
-
-    let timelines = database.protocol_timelines().unwrap();
-    let middleware = ethereum.middleware();
 }

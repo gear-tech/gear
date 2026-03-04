@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    AlloyProvider,
-    abi::{IMiddleware, middleware_abi},
-};
+use crate::{AlloyProvider, abi::IMiddleware};
 use alloy::{
     primitives::{Address, U256 as AlloyU256},
     providers::{Provider, RootProvider},
