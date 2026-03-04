@@ -218,7 +218,7 @@ contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, Reent
     }
 
     function _setStorageSlot(string memory namespace) private onlyOwner {
-        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
+        bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
     }
 
