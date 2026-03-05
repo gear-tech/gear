@@ -375,12 +375,11 @@ impl SimulationContext {
         unsafe { HashOf::new(H256([0x01; 32])) }
     }
 
+    // TODO: consider to esitmate gas per state transition field
     fn state_transition_gas(state_transition: StateTransition) -> u64 {
         let alloy_state_transition: Gear::StateTransition = state_transition.clone().into();
         let calldata: Bytes = alloy_state_transition.abi_encode().into();
-        let calldata_gas = calldata.calldata_gas().total_gas();
-
-        calldata_gas
+        calldata.calldata_gas().total_gas()
     }
 
     fn verify_actor_id_gas(router: &mut Router, initialized_actor_id: ActorId) -> Result<u64> {
