@@ -91,6 +91,7 @@ const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 
 const INJECTED_TX_RATIO_NUM: u8 = 7;
 const INJECTED_TX_RATIO_DEN: u8 = 10;
+const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
     (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
@@ -370,6 +371,8 @@ async fn run_batch_impl(
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
             let mut regular_calls = Vec::new();
+            let mut injected_tx_count = 0usize;
+            let mut multicall_tx_count = 0usize;
 
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
@@ -382,6 +385,7 @@ async fn run_batch_impl(
                     let message_id = mirror.send_message_injected(&arg.0.1, 0).await?;
                     messages.insert(message_id, (to, i));
                     mid_map.write().await.insert(message_id, to);
+                    injected_tx_count = injected_tx_count.saturating_add(1);
                     tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
                 } else {
                     tracing::debug!(
@@ -392,9 +396,10 @@ async fn run_batch_impl(
             }
 
             if !regular_calls.is_empty() {
-                let sent =
+                let (sent, tx_count) =
                     send_message_batch_via_multicall(&api, send_message_multicall, &regular_calls)
                         .await?;
+                multicall_tx_count = tx_count;
 
                 for (call_id, to, message_id) in sent {
                     messages.insert(message_id, (to, call_id));
@@ -403,7 +408,8 @@ async fn run_batch_impl(
                 }
             }
 
-            let wait_for_event_blocks = blocks_window(args.len(), 1, 0);
+            let dispatched_txs = injected_tx_count.saturating_add(multicall_tx_count);
+            let wait_for_event_blocks = blocks_window(dispatched_txs, 1, 0);
             process_events(
                 api,
                 messages,
@@ -539,57 +545,137 @@ async fn send_message_batch_via_multicall(
     api: &Ethereum,
     multicall_address: Address,
     calls: &[(usize, ActorId, Vec<u8>, u128)],
-) -> Result<Vec<(usize, ActorId, MessageId)>> {
+) -> Result<(Vec<(usize, ActorId, MessageId)>, usize)> {
     let multicall = BatchMulticall::new(multicall_address, api.provider());
 
-    let mut value_sum = 0_u128;
-    let mut batched_calls = Vec::with_capacity(calls.len());
-    for (_, actor_id, payload, value) in calls {
-        value_sum = value_sum.saturating_add(*value);
-        batched_calls.push(BatchMulticall::MessageCall {
-            mirror: Address::from(actor_id.to_address_lossy().0),
-            payload: payload.clone().into(),
-            value: *value,
-        });
+    if calls.is_empty() {
+        return Ok((Vec::new(), 0));
     }
 
-    let receipt = multicall
-        .sendMessageBatch(batched_calls)
-        .value(U256::from(value_sum))
-        .send()
-        .await?
-        .try_get_receipt_check_reverted()
-        .await?;
+    let mut mapped = Vec::with_capacity(calls.len());
+    let mut tx_count = 0usize;
+    let mut offset = 0usize;
 
-    let mut batch_result = None;
-    for log in receipt.inner.logs() {
-        if log.topic0() == Some(&BatchMulticall::SendMessageBatchResult::SIGNATURE_HASH) {
-            let event = BatchMulticall::SendMessageBatchResult::decode_raw_log(
-                log.topics(),
-                &log.data().data,
-            )?;
-            batch_result = Some(event);
+    while offset < calls.len() {
+        let chunk_start = offset;
+        let mut value_sum = 0_u128;
+        let mut chunk_end = offset;
+        let mut batched_calls = Vec::new();
+
+        while chunk_end < calls.len() {
+            let (_, actor_id, payload, value) = &calls[chunk_end];
+            let mut candidate_calls = batched_calls.clone();
+            candidate_calls.push(BatchMulticall::MessageCall {
+                mirror: Address::from(actor_id.to_address_lossy().0),
+                payload: payload.clone().into(),
+                value: *value,
+            });
+
+            let candidate_value_sum = value_sum.saturating_add(*value);
+            let candidate_calldata_len = multicall
+                .sendMessageBatch(candidate_calls.clone())
+                .value(U256::from(candidate_value_sum));
+            let candidate_calldata_len = candidate_calldata_len.calldata().len();
+
+            tracing::trace!(
+                chunk_start,
+                candidate_end = chunk_end + 1,
+                candidate_calls = candidate_calls.len(),
+                candidate_calldata_len,
+                max_calldata_len = MAX_MULTICALL_CALLDATA_BYTES,
+                "Evaluated multicall send_message chunk candidate"
+            );
+
+            if candidate_calldata_len > MAX_MULTICALL_CALLDATA_BYTES {
+                if batched_calls.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "single send_message call exceeds calldata limit: {} > {} bytes",
+                        candidate_calldata_len,
+                        MAX_MULTICALL_CALLDATA_BYTES
+                    ));
+                }
+
+                tracing::debug!(
+                    chunk_start,
+                    split_before = chunk_end,
+                    accepted_calls = batched_calls.len(),
+                    candidate_calldata_len,
+                    max_calldata_len = MAX_MULTICALL_CALLDATA_BYTES,
+                    "Splitting send_message multicall due to calldata size limit"
+                );
+
+                break;
+            }
+
+            batched_calls = candidate_calls;
+            value_sum = candidate_value_sum;
+            chunk_end += 1;
         }
+
+        tracing::debug!(
+            chunk_start,
+            chunk_end,
+            chunk_calls = batched_calls.len(),
+            chunk_value = value_sum,
+            "Submitting send_message multicall chunk"
+        );
+
+        let receipt = multicall
+            .sendMessageBatch(batched_calls)
+            .value(U256::from(value_sum))
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        let mut batch_result = None;
+        for log in receipt.inner.logs() {
+            if log.topic0() == Some(&BatchMulticall::SendMessageBatchResult::SIGNATURE_HASH) {
+                let event = BatchMulticall::SendMessageBatchResult::decode_raw_log(
+                    log.topics(),
+                    &log.data().data,
+                )?;
+                batch_result = Some(event);
+            }
+        }
+
+        let batch_result = batch_result
+            .ok_or_else(|| anyhow::anyhow!("multicall send_message result event not found"))?;
+
+        let chunk_calls = &calls[offset..chunk_end];
+        if batch_result.messageIds.len() != chunk_calls.len() {
+            return Err(anyhow::anyhow!(
+                "multicall send_message result size mismatch: expected {}, got messageIds={}",
+                chunk_calls.len(),
+                batch_result.messageIds.len()
+            ));
+        }
+
+        tracing::debug!(
+            chunk_start,
+            chunk_end,
+            chunk_calls = chunk_calls.len(),
+            returned_message_ids = batch_result.messageIds.len(),
+            "Processed send_message multicall chunk result"
+        );
+
+        mapped.extend(
+            chunk_calls.iter().zip(batch_result.messageIds).map(
+                |((call_id, to, ..), message_id)| (*call_id, *to, MessageId::new(message_id.0)),
+            ),
+        );
+
+        tx_count = tx_count.saturating_add(1);
+        offset = chunk_end;
     }
 
-    let batch_result = batch_result
-        .ok_or_else(|| anyhow::anyhow!("multicall send_message result event not found"))?;
+    tracing::info!(
+        total_calls = calls.len(),
+        multicall_txs = tx_count,
+        "Completed send_message multicall batching"
+    );
 
-    if batch_result.messageIds.len() != calls.len() {
-        return Err(anyhow::anyhow!(
-            "multicall send_message result size mismatch: expected {}, got messageIds={}",
-            calls.len(),
-            batch_result.messageIds.len()
-        ));
-    }
-
-    let mapped = calls
-        .iter()
-        .zip(batch_result.messageIds)
-        .map(|((call_id, to, ..), message_id)| (*call_id, *to, MessageId::new(message_id.0)))
-        .collect();
-
-    Ok(mapped)
+    Ok((mapped, tx_count))
 }
 
 type Call = (usize, CodeId, H256, Vec<u8>, u128, u128);
