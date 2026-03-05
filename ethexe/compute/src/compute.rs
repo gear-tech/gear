@@ -520,10 +520,10 @@ mod tests {
         ) -> SignedInjectedTransaction {
             let tx = InjectedTransaction {
                 destination,
-                payload: payload.into(),
+                payload: payload.try_into().unwrap(),
                 value: 0,
                 reference_block: ref_block,
-                salt: H256::random().0.to_vec().into(),
+                salt: H256::random().0.to_vec().try_into().unwrap(),
             };
             let pk = PrivateKey::random();
             SignedMessage::create(pk, tx).unwrap()
