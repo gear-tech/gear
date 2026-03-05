@@ -9,12 +9,19 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 
-contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+contract POAMiddleware is
+    IMiddleware,
+    IPOAMiddleware,
+    OwnableUpgradeable,
+    ReentrancyGuardTransientUpgradeable,
+    UUPSUpgradeable
+{
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
 
@@ -47,7 +54,7 @@ contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, Reent
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public reinitializer(2) {
+    function reinitialize() public onlyOwner reinitializer(2) {
         __Ownable_init(owner());
 
         Storage storage oldStorage = _storage();
@@ -59,6 +66,12 @@ contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, Reent
 
         newStorage.router = oldStorage.router;
     }
+
+    /**
+     * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract.
+     *      Called by {upgradeToAndCall}.
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /// @dev IPOAMiddleware call
     function setValidators(address[] memory validators) external onlyOwner {
@@ -217,12 +230,12 @@ contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, Reent
         return StorageSlot.getBytes32Slot(POA_SLOT_STORAGE).value;
     }
 
-    function _setStorageSlot(string memory namespace) private {
+    function _setStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
     }
 
-    function _setPoaStorageSlot(string memory namespace) private {
+    function _setPoaStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(POA_SLOT_STORAGE).value = slot;
     }

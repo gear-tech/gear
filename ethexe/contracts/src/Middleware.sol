@@ -9,6 +9,8 @@ import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
@@ -33,7 +35,7 @@ import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultSta
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
-contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable, UUPSUpgradeable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
 
@@ -86,7 +88,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public reinitializer(2) {
+    function reinitialize() public onlyOwner reinitializer(2) {
         __Ownable_init(owner());
 
         Storage storage oldStorage = _storage();
@@ -119,6 +121,12 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
             newStorage.vaults.set(key, value);
         }
     }
+
+    /**
+     * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract.
+     *      Called by {upgradeToAndCall}.
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // # Views
     function eraDuration() public view returns (uint48) {
@@ -605,8 +613,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return StorageSlot.getBytes32Slot(SLOT_STORAGE).value;
     }
 
-    function _setStorageSlot(string memory namespace) private {
-        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
+    function _setStorageSlot(string memory namespace) private onlyOwner {
+        bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
     }
 
