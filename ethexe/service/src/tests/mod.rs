@@ -1530,10 +1530,10 @@ async fn send_injected_tx() {
     // Prepare tx data
     let tx = InjectedTransaction {
         destination: ActorId::from(H160::random()),
-        payload: H256::random().0.to_vec().into(),
+        payload: H256::random().0.to_vec().try_into().unwrap(),
         value: 0,
         reference_block,
-        salt: H256::random().0.to_vec().into(),
+        salt: vec![1].try_into().unwrap(),
     };
 
     let tx_for_node1 = AddressedInjectedTransaction {
@@ -2465,10 +2465,10 @@ async fn injected_tx_fungible_token() {
 
     let mint_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: mint_action.encode().into(),
+        payload: mint_action.encode().try_into().unwrap(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8].into(),
+        salt: vec![1].try_into().unwrap(),
     };
 
     let rpc_tx = AddressedInjectedTransaction {
@@ -2564,10 +2564,10 @@ async fn injected_tx_fungible_token() {
     };
     let transfer_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: transfer_action.encode().into(),
+        payload: transfer_action.encode().try_into().unwrap(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8, 2u8, 3u8].into(),
+        salt: vec![1].try_into().unwrap(),
     };
 
     let rpc_tx = AddressedInjectedTransaction {
@@ -2695,10 +2695,10 @@ async fn injected_tx_fungible_token_over_network() {
 
     let mint_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: mint_action.encode().into(),
+        payload: mint_action.encode().try_into().unwrap(),
         value: 0,
         reference_block: bob_node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8].into(),
+        salt: vec![1].try_into().unwrap(),
     };
 
     let rpc_tx = AddressedInjectedTransaction {
