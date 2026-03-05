@@ -313,7 +313,7 @@ async fn run_batch_impl(
                 ));
             }
 
-            let created =
+            let (created, tx_count) =
                 create_program_batch_via_multicall(&api, send_message_multicall, &upload_calls)
                     .await?;
 
@@ -326,7 +326,7 @@ async fn run_batch_impl(
                 );
             }
 
-            let wait_for_event_blocks = blocks_window(args.len(), 1, 0);
+            let wait_for_event_blocks = blocks_window(tx_count, 1, 0);
             process_events(
                 api,
                 messages,
@@ -514,7 +514,7 @@ async fn run_batch_impl(
                 ));
             }
 
-            let created =
+            let (created, tx_count) =
                 create_program_batch_via_multicall(&api, send_message_multicall, &upload_calls)
                     .await?;
 
@@ -527,7 +527,7 @@ async fn run_batch_impl(
                 );
             }
 
-            let wait_for_event_blocks = blocks_window(args.len(), 1, 0);
+            let wait_for_event_blocks = blocks_window(tx_count, 1, 0);
             process_events(
                 api,
                 messages,
@@ -687,68 +687,152 @@ async fn create_program_batch_via_multicall(
     api: &Ethereum,
     multicall_address: Address,
     calls: &[Call],
-) -> Result<Vec<(usize, ActorId, MessageId)>> {
+) -> Result<(Vec<(usize, ActorId, MessageId)>, usize)> {
     let multicall = BatchMulticall::new(multicall_address, api.provider());
     let router_address = Address(FixedBytes(api.router().address().0));
 
-    let mut value_sum = 0_u128;
-    let batched_calls: Vec<_> = calls
-        .iter()
-        .map(|(_, code_id, salt, payload, value, top_up)| {
-            value_sum = value_sum.saturating_add(*value);
-            BatchMulticall::CreateProgramCall {
+    if calls.is_empty() {
+        return Ok((Vec::new(), 0));
+    }
+
+    let mut mapped = Vec::with_capacity(calls.len());
+    let mut tx_count = 0usize;
+    let mut offset = 0usize;
+
+    while offset < calls.len() {
+        let chunk_start = offset;
+        let mut value_sum = 0_u128;
+        let mut chunk_end = offset;
+        let mut batched_calls = Vec::new();
+
+        while chunk_end < calls.len() {
+            let (_, code_id, salt, payload, value, top_up) = &calls[chunk_end];
+            let mut candidate_calls = batched_calls.clone();
+            candidate_calls.push(BatchMulticall::CreateProgramCall {
                 codeId: code_id.into_bytes().into(),
                 salt: salt.to_fixed_bytes().into(),
                 initPayload: payload.clone().into(),
                 initValue: *value,
                 topUpValue: *top_up,
+            });
+
+            let candidate_value_sum = value_sum.saturating_add(*value);
+            let candidate_calldata_len = multicall
+                .createProgramBatch(router_address, candidate_calls.clone())
+                .value(U256::from(candidate_value_sum));
+            let candidate_calldata_len = candidate_calldata_len.calldata().len();
+
+            tracing::trace!(
+                chunk_start,
+                candidate_end = chunk_end + 1,
+                candidate_calls = candidate_calls.len(),
+                candidate_calldata_len,
+                max_calldata_len = MAX_MULTICALL_CALLDATA_BYTES,
+                "Evaluated multicall create_program chunk candidate"
+            );
+
+            if candidate_calldata_len > MAX_MULTICALL_CALLDATA_BYTES {
+                if batched_calls.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "single create_program call exceeds calldata limit: {} > {} bytes",
+                        candidate_calldata_len,
+                        MAX_MULTICALL_CALLDATA_BYTES
+                    ));
+                }
+
+                tracing::debug!(
+                    chunk_start,
+                    split_before = chunk_end,
+                    accepted_calls = batched_calls.len(),
+                    candidate_calldata_len,
+                    max_calldata_len = MAX_MULTICALL_CALLDATA_BYTES,
+                    "Splitting create_program multicall due to calldata size limit"
+                );
+
+                break;
             }
-        })
-        .collect();
 
-    let receipt = multicall
-        .createProgramBatch(router_address, batched_calls)
-        .value(U256::from(value_sum))
-        .send()
-        .await?
-        .try_get_receipt_check_reverted()
-        .await?;
-
-    let mut program_ids = Vec::with_capacity(calls.len());
-    let mut message_ids = Vec::with_capacity(calls.len());
-
-    for log in receipt.inner.logs() {
-        if log.topic0() == Some(&ethexe_ethereum::router::events::signatures::PROGRAM_CREATED) {
-            let event = ethexe_ethereum::abi::IRouter::ProgramCreated::decode_raw_log(
-                log.topics(),
-                &log.data().data,
-            )?;
-            program_ids.push(ActorId::from(*event.actorId.into_word()));
-        } else if log.topic0()
-            == Some(&ethexe_ethereum::mirror::signatures::MESSAGE_QUEUEING_REQUESTED)
-        {
-            let event =
-                IMirror::MessageQueueingRequested::decode_raw_log(log.topics(), &log.data().data)?;
-            message_ids.push((*event.id).into());
+            batched_calls = candidate_calls;
+            value_sum = candidate_value_sum;
+            chunk_end += 1;
         }
-    }
 
-    if program_ids.len() != calls.len() || message_ids.len() != calls.len() {
-        tracing::warn!(
-            expected = calls.len(),
-            programs = program_ids.len(),
-            messages = message_ids.len(),
-            "multicall create_program produced fewer events than requested calls"
+        tracing::debug!(
+            chunk_start,
+            chunk_end,
+            chunk_calls = batched_calls.len(),
+            chunk_value = value_sum,
+            "Submitting create_program multicall chunk"
         );
+
+        let receipt = multicall
+            .createProgramBatch(router_address, batched_calls)
+            .value(U256::from(value_sum))
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        let mut program_ids = Vec::new();
+        let mut message_ids = Vec::new();
+
+        for log in receipt.inner.logs() {
+            if log.topic0() == Some(&ethexe_ethereum::router::events::signatures::PROGRAM_CREATED) {
+                let event = ethexe_ethereum::abi::IRouter::ProgramCreated::decode_raw_log(
+                    log.topics(),
+                    &log.data().data,
+                )?;
+                program_ids.push(ActorId::from(*event.actorId.into_word()));
+            } else if log.topic0()
+                == Some(&ethexe_ethereum::mirror::signatures::MESSAGE_QUEUEING_REQUESTED)
+            {
+                let event = IMirror::MessageQueueingRequested::decode_raw_log(
+                    log.topics(),
+                    &log.data().data,
+                )?;
+                message_ids.push((*event.id).into());
+            }
+        }
+
+        let chunk_calls = &calls[offset..chunk_end];
+        if program_ids.len() != chunk_calls.len() || message_ids.len() != chunk_calls.len() {
+            tracing::warn!(
+                chunk_start,
+                chunk_end,
+                expected = chunk_calls.len(),
+                programs = program_ids.len(),
+                messages = message_ids.len(),
+                "multicall create_program chunk produced fewer events than requested calls"
+            );
+        }
+
+        tracing::debug!(
+            chunk_start,
+            chunk_end,
+            chunk_calls = chunk_calls.len(),
+            returned_program_ids = program_ids.len(),
+            returned_message_ids = message_ids.len(),
+            "Processed create_program multicall chunk result"
+        );
+
+        mapped.extend(
+            chunk_calls
+                .iter()
+                .zip(program_ids.into_iter().zip(message_ids))
+                .map(|((call_id, ..), (pid, mid))| (*call_id, pid, mid)),
+        );
+
+        tx_count = tx_count.saturating_add(1);
+        offset = chunk_end;
     }
 
-    let mapped = calls
-        .iter()
-        .zip(program_ids.into_iter().zip(message_ids))
-        .map(|((call_id, ..), (pid, mid))| (*call_id, pid, mid))
-        .collect();
+    tracing::info!(
+        total_calls = calls.len(),
+        multicall_txs = tx_count,
+        "Completed create_program multicall batching"
+    );
 
-    Ok(mapped)
+    Ok((mapped, tx_count))
 }
 
 fn blocks_window(action_count: usize, blocks_per_action: usize, headroom_blocks: usize) -> usize {
