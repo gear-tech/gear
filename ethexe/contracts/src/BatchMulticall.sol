@@ -74,11 +74,7 @@ contract BatchMulticall {
 
             address programId = router.createProgram(createProgramCall.codeId, createProgramCall.salt, address(this));
             programIds[i] = programId;
-
             IMirror mirror = IMirror(programId);
-            bytes32 messageId =
-                mirror.sendMessage{value: createProgramCall.initValue}(createProgramCall.initPayload, false);
-            messageIds[i] = messageId;
 
             if (createProgramCall.topUpValue > 0) {
                 require(
@@ -88,6 +84,10 @@ contract BatchMulticall {
                 require(wvara.approve(programId, createProgramCall.topUpValue), "wVARA approve failed");
                 mirror.executableBalanceTopUp(createProgramCall.topUpValue);
             }
+
+            bytes32 messageId =
+                mirror.sendMessage{value: createProgramCall.initValue}(createProgramCall.initPayload, false);
+            messageIds[i] = messageId;
         }
 
         if (consumed < msg.value) {
