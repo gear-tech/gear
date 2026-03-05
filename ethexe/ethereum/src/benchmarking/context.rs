@@ -16,25 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::benchmarking::{
-    ExecutionMode, Router,
-    contracts::{MirrorImplKind, RouterImplKind, WrappedVara},
-    inspector::SimulationInspector,
-    mnemonic,
+use crate::{
+    abi::Gear,
+    benchmarking::{
+        contracts::{ExecutionMode, MirrorImplKind, Router, RouterImplKind, WrappedVara},
+        extensions::CalldataGasExt,
+        inspector::SimulationInspector,
+        mnemonic,
+    },
 };
+use alloy::sol_types::SolValue;
 use anyhow::Result;
 use ethexe_common::{
-    HashOf,
+    Announce, HashOf,
     gear::{ChainCommitment, CodeCommitment, StateTransition},
 };
-use gprimitives::{ActorId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{PublicKey, Signer};
 use revm::{
     DatabaseRef, ExecuteCommitEvm, MainBuilder, MainContext, MainnetEvm,
     context::{BlockEnv, CfgEnv, Context, ContextTr, JournalTr, TxEnv},
     database::CacheDB,
     database_interface::EmptyDB,
-    primitives::{Address, U256},
+    primitives::{Address, Bytes, U256},
 };
 
 pub struct SimulationContext {
@@ -111,35 +115,26 @@ impl SimulationContext {
 
         let uninitialized_actor_id = router.create_program(id, H256([0x01; 32]), None)?;
 
-        let journal = router.context.evm.journal_mut();
+        let journal = router.context().evm().journal_mut();
         journal.balance_incr(
             uninitialized_actor_id.to_address_lossy().0.into(),
             u64::MAX.try_into().expect("infallible"),
         )?;
         let state = journal.finalize();
-        router.context.evm.commit(state);
+        router.context().evm().commit(state);
 
         let initialized_actor_id = router.create_program(id, H256([0x02; 32]), None)?;
 
-        let journal = router.context.evm.journal_mut();
+        let journal = router.context().evm().journal_mut();
         journal.balance_incr(
             initialized_actor_id.to_address_lossy().0.into(),
             u64::MAX.try_into().expect("infallible"),
         )?;
         let state = journal.finalize();
-        router.context.evm.commit(state);
+        router.context().evm().commit(state);
 
-        let state_transition = StateTransition {
-            actor_id: initialized_actor_id,
-            new_state_hash: H256::random(),
-            exited: false,
-            inheritor: ActorId::zero(),
-            value_to_receive: 0,
-            value_to_receive_negative_sign: false,
-            value_claims: vec![],
-            messages: vec![],
-        };
-        let head_announce = unsafe { HashOf::new(H256([0x01; 32])) };
+        let state_transition = Self::state_transition(initialized_actor_id);
+        let head_announce = Self::head_announce();
 
         router.commit_batch_simple(
             Some(ChainCommitment {
@@ -150,59 +145,24 @@ impl SimulationContext {
             ExecutionMode::ExecuteAndCommit,
         )?;
 
-        //
-
         router.switch_to_mirror_impl(MirrorImplKind::Regular)?;
         router.switch_to_router_impl(RouterImplKind::Regular)?;
 
-        let empty_batch_gas =
-            router.estimate_commit_batch_gas(None, vec![], ExecutionMode::Execute)?;
+        let empty_batch_gas = Self::empty_batch_gas(&mut router)?;
         dbg!(empty_batch_gas);
-
-        //
-
-        let id = router.request_code_validation(b"code2")?;
-        let code_commitment_gas = router.estimate_commit_batch_gas(
-            None,
-            vec![CodeCommitment { id, valid: true }],
-            ExecutionMode::Execute,
-        )?;
-        dbg!(code_commitment_gas);
-
-        //
 
         router.switch_to_mirror_impl(MirrorImplKind::WithInstrumentation)?;
         router.switch_to_router_impl(RouterImplKind::WithInstrumentation)?;
 
-        const COMMIT_BATCH_BEFORE_COMMIT_CODES: u32 = 1;
-        const COMMIT_BATCH_AFTER_COMMIT_CODES: u32 = 2;
-
-        let id = router.request_code_validation(b"code3")?;
-        let code_commitment_gas = router.estimate_commit_batch_gas_between_topics(
-            None,
-            vec![CodeCommitment { id, valid: true }],
-            router.proxy_address(),
-            COMMIT_BATCH_BEFORE_COMMIT_CODES,
-            COMMIT_BATCH_AFTER_COMMIT_CODES,
-        )?;
+        let id = router.request_code_validation(b"code2")?;
+        let code_commitment_gas = Self::code_commitment_gas(&mut router, id)?;
         dbg!(code_commitment_gas);
 
-        //
+        let empty_state_transition_gas = Self::state_transition_gas(state_transition.clone());
+        dbg!(empty_state_transition_gas);
 
-        const PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID: u32 = 1;
-        const PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID: u32 = 2;
-
-        let verify_actor_id_gas = router.estimate_commit_batch_gas_between_topics(
-            Some(ChainCommitment {
-                transitions: vec![state_transition.clone()],
-                head_announce,
-            }),
-            vec![],
-            initialized_actor_id.into(),
-            PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID,
-            PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID,
-        )?;
-        dbg!(verify_actor_id_gas.execution_gas);
+        let verify_actor_id_gas = Self::verify_actor_id_gas(&mut router, initialized_actor_id)?;
+        dbg!(verify_actor_id_gas);
 
         //
 
@@ -367,5 +327,76 @@ impl SimulationContext {
             .len()
             .try_into()
             .expect("conversion failed")
+    }
+
+    fn empty_batch_gas(router: &mut Router) -> Result<u64> {
+        let empty_batch_gas = router
+            .estimate_commit_batch_gas(None, vec![], ExecutionMode::Execute)?
+            .total_tx_gas();
+        Ok(empty_batch_gas)
+    }
+
+    fn code_commitment_gas(router: &mut Router, id: CodeId) -> Result<u64> {
+        const COMMIT_BATCH_BEFORE_COMMIT_CODES: u32 = 1;
+        const COMMIT_BATCH_AFTER_COMMIT_CODES: u32 = 2;
+
+        let code_commitment = CodeCommitment { id, valid: true };
+        let alloy_code_commitment: Gear::CodeCommitment = code_commitment.clone().into();
+        let calldata: Bytes = alloy_code_commitment.abi_encode().into();
+        let calldata_gas = calldata.calldata_gas().total_gas();
+
+        let code_commitment_gas = router.estimate_commit_batch_gas_between_topics(
+            None,
+            vec![code_commitment],
+            router.proxy_address(),
+            COMMIT_BATCH_BEFORE_COMMIT_CODES,
+            COMMIT_BATCH_AFTER_COMMIT_CODES,
+        )?;
+        Ok(code_commitment_gas
+            .execution_gas
+            .checked_add(calldata_gas)
+            .expect("infallible"))
+    }
+
+    fn state_transition(actor_id: ActorId) -> StateTransition {
+        StateTransition {
+            actor_id,
+            new_state_hash: H256::random(),
+            exited: false,
+            inheritor: ActorId::zero(),
+            value_to_receive: 0,
+            value_to_receive_negative_sign: false,
+            value_claims: vec![],
+            messages: vec![],
+        }
+    }
+
+    fn head_announce() -> HashOf<Announce> {
+        unsafe { HashOf::new(H256([0x01; 32])) }
+    }
+
+    fn state_transition_gas(state_transition: StateTransition) -> u64 {
+        let alloy_state_transition: Gear::StateTransition = state_transition.clone().into();
+        let calldata: Bytes = alloy_state_transition.abi_encode().into();
+        let calldata_gas = calldata.calldata_gas().total_gas();
+
+        calldata_gas
+    }
+
+    fn verify_actor_id_gas(router: &mut Router, initialized_actor_id: ActorId) -> Result<u64> {
+        const PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID: u32 = 1;
+        const PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID: u32 = 2;
+
+        let verify_actor_id_gas = router.estimate_commit_batch_gas_between_topics(
+            Some(ChainCommitment {
+                transitions: vec![Self::state_transition(initialized_actor_id)],
+                head_announce: Self::head_announce(),
+            }),
+            vec![],
+            initialized_actor_id.into(),
+            PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID,
+            PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID,
+        )?;
+        Ok(verify_actor_id_gas.execution_gas)
     }
 }

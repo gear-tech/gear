@@ -16,12 +16,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use mirror_impl::{MirrorImpl, MirrorImplKind};
-pub use router::{ExecutionMode, Router};
-pub use router_impl::{RouterImpl, RouterImplKind};
-pub use wvara::WrappedVara;
+use revm::primitives::Bytes;
 
-mod mirror_impl;
-mod router;
-mod router_impl;
-mod wvara;
+#[derive(Debug)]
+pub struct CalldataGas {
+    pub zero_bytes: usize,
+    pub non_zero_bytes: usize,
+}
+
+impl CalldataGas {
+    pub fn total_gas(&self) -> u64 {
+        (self.zero_bytes * 4 + self.non_zero_bytes * 16) as u64
+    }
+}
+
+pub trait CalldataGasExt {
+    fn calldata_gas(&self) -> CalldataGas;
+}
+
+impl CalldataGasExt for Bytes {
+    fn calldata_gas(&self) -> CalldataGas {
+        let zero_bytes = self.iter().filter(|&&b| b == 0).count();
+        let non_zero_bytes = self.len() - zero_bytes;
+
+        CalldataGas {
+            zero_bytes,
+            non_zero_bytes,
+        }
+    }
+}

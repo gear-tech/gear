@@ -18,7 +18,7 @@
 
 use crate::{
     abi::{IMirror, IMirrorWithInstrumentation},
-    benchmarking::{ExecutionMode, context::SimulationContext},
+    benchmarking::{SimulationContext, contracts::ExecutionMode},
 };
 use alloy::sol_types::SolConstructor;
 use anyhow::{Result, anyhow, bail};

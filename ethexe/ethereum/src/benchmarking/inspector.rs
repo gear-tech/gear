@@ -77,7 +77,8 @@ where
 
         /*use revm::{
             bytecode::OpCode,
-            interpreter_types::{Jumps, MemoryTr, StackTr},
+            context::JournalTr,
+            interpreter::interpreter_types::{Jumps, MemoryTr, StackTr},
         };
 
         let opcode = interp.bytecode.opcode();

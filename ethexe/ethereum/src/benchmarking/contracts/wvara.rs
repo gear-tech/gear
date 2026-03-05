@@ -18,7 +18,7 @@
 
 use crate::{
     abi::{ITransparentUpgradeableProxy, IWrappedVara},
-    benchmarking::context::SimulationContext,
+    benchmarking::SimulationContext,
 };
 use alloy::sol_types::SolConstructor;
 use anyhow::{Result, anyhow, bail};

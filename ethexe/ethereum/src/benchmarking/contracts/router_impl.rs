@@ -18,7 +18,7 @@
 
 use crate::{
     abi::{IRouter, IRouterWithInstrumentation},
-    benchmarking::{ExecutionMode, SimulationContext},
+    benchmarking::{SimulationContext, contracts::ExecutionMode},
 };
 use anyhow::{Result, anyhow, bail};
 use revm::{
