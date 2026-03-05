@@ -32,7 +32,7 @@ mod mirror_abi {
     alloy::sol!(
         #[sol(rpc)]
         IMirror,
-        "Mirror.json"
+        "abi/Mirror.json"
     );
 }
 
@@ -40,7 +40,7 @@ mod mirror_abi_with_instrumentation {
     alloy::sol!(
         #[sol(rpc)]
         IMirrorWithInstrumentation,
-        "MirrorWithInstrumentation.json"
+        "abi/MirrorWithInstrumentation.json"
     );
 }
 
@@ -48,7 +48,7 @@ pub mod middleware_abi {
     alloy::sol!(
         #[sol(rpc)]
         IMiddleware,
-        "Middleware.json"
+        "abi/Middleware.json"
     );
 }
 
@@ -56,7 +56,7 @@ sol!(
     #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IRouter,
-    "Router.json"
+    "abi/Router.json"
 );
 
 mod router_with_instrumentation_abi {
@@ -64,21 +64,21 @@ mod router_with_instrumentation_abi {
         #[allow(clippy::too_many_arguments)]
         #[sol(rpc)]
         IRouterWithInstrumentation,
-        "RouterWithInstrumentation.json"
+        "abi/RouterWithInstrumentation.json"
     );
 }
 
 sol!(
     #[sol(rpc)]
     ITransparentUpgradeableProxy,
-    "TransparentUpgradeableProxy.json"
+    "abi/TransparentUpgradeableProxy.json"
 );
 
 sol!(
     #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IWrappedVara,
-    "WrappedVara.json"
+    "abi/WrappedVara.json"
 );
 
 /// Bindings for Symbiotic contracts.
