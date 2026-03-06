@@ -21,6 +21,7 @@ use crate::{
     benchmarking::{
         SimulationContext,
         contracts::{MirrorImpl, RouterImpl, WrappedVara},
+        extensions::CalldataGasExt,
     },
 };
 use alloy::sol_types::{SolCall, SolConstructor};
@@ -407,12 +408,7 @@ impl<'a> Router<'a> {
         .abi_encode()
         .into();
 
-        let calldata = data.as_ref();
-
-        let zero_bytes = calldata.iter().filter(|&&b| b == 0).count();
-        let non_zero_bytes = calldata.len() - zero_bytes;
-
-        let calldata_gas = ((16 * non_zero_bytes) + (4 * zero_bytes)) as u64;
+        let calldata_gas = data.calldata_gas().total_gas();
 
         let tx = TxEnv::builder()
             .caller(self.context.deployer_address())

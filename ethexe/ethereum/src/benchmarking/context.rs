@@ -288,29 +288,6 @@ impl SimulationContext {
     fn head_announce() -> HashOf<Announce> {
         unsafe { HashOf::new(H256([0x01; 32])) }
     }
-
-    fn retrieve_ether_gas(
-        router: &mut Router,
-        initialized_actor_id: ActorId,
-        value_to_receive: u128,
-        value_to_receive_negative_sign: bool,
-    ) -> Result<u64> {
-        let retrieve_ether_gas = router.estimate_commit_batch_gas_between_topics(
-            Some(ChainCommitment {
-                transitions: vec![StateTransition {
-                    value_to_receive,
-                    value_to_receive_negative_sign,
-                    ..Self::state_transition(initialized_actor_id)
-                }],
-                head_announce: Self::head_announce(),
-            }),
-            vec![],
-            initialized_actor_id.into(),
-            Self::PERFORM_STATE_TRANSITION_BEFORE_RETRIEVE_ETHER,
-            Self::PERFORM_STATE_TRANSITION_AFTER_RETRIEVE_ETHER,
-        )?;
-        Ok(retrieve_ether_gas.execution_gas)
-    }
 }
 
 pub struct InitializedSimulationContext<'a> {
