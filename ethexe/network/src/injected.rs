@@ -18,7 +18,6 @@
 
 use crate::{
     db_sync::{Multiaddr, PeerId},
-    peer_score,
     utils::ParityScaleCodec,
     validator::discovery::ValidatorIdentities,
 };
@@ -52,8 +51,7 @@ use std::{
 };
 use tokio::sync::oneshot;
 
-const STREAM_PROTOCOL: StreamProtocol =
-    StreamProtocol::new(concat!("/ethexe/injected-tx/", env!("CARGO_PKG_VERSION")));
+const STREAM_PROTOCOL: StreamProtocol = StreamProtocol::new("/ethexe/injected-tx/1.0.0");
 
 /// The maximum number of concurrent requests is allowed to be handled
 const MAX_PENDING_REQUESTS: NonZeroUsize = NonZeroUsize::new(20).unwrap();
@@ -61,6 +59,28 @@ const MAX_PENDING_REQUESTS: NonZeroUsize = NonZeroUsize::new(20).unwrap();
 const MAX_TRANSACTIONS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
 /// Maximum number of validators we cache per transaction
 const MAX_VALIDATORS_PER_TRANSACTION: NonZeroUsize = NonZeroUsize::new(20).unwrap();
+
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_injected")]
+struct Metrics {
+    /// Number of injected transactions sent to a validator
+    sent_transactions: metrics::Counter,
+    /// Number of injected transactions received from a user
+    received_transactions: metrics::Counter,
+}
+
+impl Metrics {
+    fn record(&self, event: &Event) {
+        match event {
+            Event::InboundTransaction { .. } => {
+                self.received_transactions.increment(1);
+            }
+            Event::OutboundAcceptance { .. } => {
+                self.sent_transactions.increment(1);
+            }
+        }
+    }
+}
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Encode, Decode)]
@@ -129,24 +149,24 @@ type PendingResponseFuture = BoxFuture<'static, (ResponseChannel<InnerResponse>,
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
-    peer_score: peer_score::Handle,
     pending_requests: HashMap<OutboundRequestId, HashOf<InjectedTransaction>>,
     pending_responses: FuturesUnordered<PendingResponseFuture>,
     transaction_cache: LruCache<HashOf<InjectedTransaction>, LruCache<Address, ()>>,
+    metrics: Metrics,
 }
 
 impl Behaviour {
-    pub fn new(peer_score: peer_score::Handle) -> Self {
+    pub fn new() -> Self {
         let inner = request_response::Behaviour::new(
             [(STREAM_PROTOCOL, ProtocolSupport::Full)],
             request_response::Config::default(),
         );
         Self {
             inner,
-            peer_score,
             pending_requests: HashMap::new(),
             pending_responses: FuturesUnordered::new(),
             transaction_cache: LruCache::new(MAX_TRANSACTIONS),
+            metrics: Metrics::default(),
         }
     }
 
@@ -250,7 +270,6 @@ impl Behaviour {
                     log::debug!(
                         "request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
                     );
-                    self.peer_score.unsupported_protocol(peer);
                 }
 
                 let acceptance = Err(error.to_string()).into();
@@ -268,7 +287,6 @@ impl Behaviour {
                 log::debug!(
                     "request from {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
                 );
-                self.peer_score.unsupported_protocol(peer);
             }
             request_response::Event::InboundFailure { .. } => {}
             request_response::Event::ResponseSent { .. } => {}
@@ -363,9 +381,13 @@ impl NetworkBehaviour for Behaviour {
 
         let to_swarm = ready!(self.inner.poll(cx));
         match to_swarm {
-            ToSwarm::GenerateEvent(event) => {
-                self.handle_inner_event(event).map(ToSwarm::GenerateEvent)
-            }
+            ToSwarm::GenerateEvent(event) => self
+                .handle_inner_event(event)
+                .map(|event| {
+                    self.metrics.record(&event);
+                    event
+                })
+                .map(ToSwarm::GenerateEvent),
             to_swarm => Poll::Ready(to_swarm.map_out::<Event>(|_event| {
                 unreachable!("`ToSwarm::GenerateEvent` is handled above")
             })),
@@ -415,7 +437,7 @@ mod tests {
 
         let mut swarm = Swarm::new(
             transport,
-            Behaviour::new(peer_score::Handle::new_test()),
+            Behaviour::new(),
             peer_id,
             libp2p::swarm::Config::with_tokio_executor(),
         );
@@ -548,7 +570,7 @@ mod tests {
     async fn too_many_pending_requests() {
         init_logger();
 
-        let mut alice = Behaviour::new(peer_score::Handle::new_test());
+        let mut alice = Behaviour::new();
         let (_bob, bob_identity) = new_swarm().await;
         let bob_address = bob_identity.address();
 
@@ -570,7 +592,7 @@ mod tests {
     async fn transaction_already_sent() {
         init_logger();
 
-        let mut alice = Behaviour::new(peer_score::Handle::new_test());
+        let mut alice = Behaviour::new();
         let (_bob, bob_identity) = new_swarm().await;
 
         let transaction = addressed_injected_tx(bob_identity.address());
@@ -588,7 +610,7 @@ mod tests {
 
     #[tokio::test]
     async fn validator_not_found() {
-        let mut alice = Behaviour::new(peer_score::Handle::new_test());
+        let mut alice = Behaviour::new();
 
         let transaction = addressed_injected_tx(Address::default());
 

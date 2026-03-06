@@ -21,7 +21,7 @@ use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
 };
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
@@ -68,8 +68,8 @@ pub enum Event {
     Network(NetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
-    Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
+    Prometheus(PrometheusEvent),
     Fetching(db_sync::HandleResult),
 }
 
@@ -232,6 +232,12 @@ impl Service {
             .context("failed to create blob loader")?
             .into_box();
 
+        let prometheus = if let Some(config) = config.prometheus.clone() {
+            Some(PrometheusService::new(config, db.clone())?)
+        } else {
+            None
+        };
+
         let observer =
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
@@ -256,7 +262,7 @@ impl Service {
                 "👶 Genesis block hash wasn't found. Call router.lookupGenesisHash() first"
             );
 
-            bail!("Failed to query valid genesis hash");
+            anyhow::bail!("Failed to query valid genesis hash");
         } else {
             log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
         }
@@ -273,17 +279,9 @@ impl Service {
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
-        let processor = Processor::with_config(
-            ProcessorConfig {
-                chunk_size: config.node.chunk_processing_threads,
-            },
-            db.clone(),
-        )
-        .with_context(|| "failed to create processor")?;
-
         log::info!(
             "🔧 Amount of chunk processing threads for programs processing: {}",
-            processor.config().chunk_size
+            config.node.chunk_processing_threads
         );
 
         let signer = Signer::fs(config.node.key_path.clone())?;
@@ -333,12 +331,6 @@ impl Service {
             }
         };
 
-        let prometheus = if let Some(config) = config.prometheus.clone() {
-            Some(PrometheusService::new(config)?)
-        } else {
-            None
-        };
-
         let network = if let Some(net_config) = &config.network {
             // TODO: #4918 create Signer object correctly for test/prod environments
             let network_signer = Signer::fs(
@@ -379,6 +371,10 @@ impl Service {
             .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
+        let processor_config = ProcessorConfig {
+            chunk_size: config.node.chunk_processing_threads,
+        };
+        let processor = Processor::with_config(processor_config, db.clone())?;
         let compute = ComputeService::new(compute_config, db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;
@@ -496,12 +492,11 @@ impl Service {
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
-                event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
                 fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
+                event = prometheus.maybe_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
-                    log::info!("`RPCWorker` has terminated, shutting down...");
-                    continue;
+                    anyhow::bail!("`RPCWorker` has terminated, shutting down...")
                 }
             };
 
@@ -544,18 +539,17 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes)?;
                     }
-                    ComputeEvent::AnnounceComputed(computed_data) => {
-                        if let Some(ref mut rpc) = rpc {
-                            rpc.receive_computed_data(computed_data.clone());
-                        }
-
-                        consensus.receive_computed_announce(computed_data)?;
+                    ComputeEvent::AnnounceComputed(announce_hash) => {
+                        consensus.receive_computed_announce(announce_hash)?
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
+                    }
+                    ComputeEvent::Promise(promise, announce_hash) => {
+                        consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },
                 Event::Network(event) => {
@@ -611,40 +605,6 @@ impl Service {
                         | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
-                Event::Prometheus(event) => {
-                    let Some(p) = prometheus.as_mut() else {
-                        unreachable!("couldn't produce event without prometheus");
-                    };
-
-                    match event {
-                        PrometheusEvent::CollectMetrics => {
-                            let last_block = observer.last_block_number();
-                            let pending_codes = blob_loader.pending_codes_len();
-
-                            p.update_observer_metrics(last_block, pending_codes);
-
-                            // Collect compute service metrics
-                            let metrics = compute.get_metrics();
-
-                            p.update_compute_metrics(
-                                metrics.blocks_queue_len,
-                                metrics.waiting_codes_count,
-                                metrics.process_codes_count,
-                                metrics
-                                    .latest_committed_block
-                                    .as_ref()
-                                    .map(|b| b.header.height as u64),
-                                metrics
-                                    .latest_committed_block
-                                    .as_ref()
-                                    .map(|b| b.header.timestamp),
-                                metrics.time_since_latest_committed_secs,
-                            );
-
-                            // TODO #4643: support metrics for consensus service
-                        }
-                    }
-                }
                 Event::Rpc(event) => {
                     log::trace!("Received RPC event: {event:?}");
 
@@ -682,7 +642,22 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
+                    ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
+                        compute.compute_announce(announce, promise_policy)
+                    }
+                    ConsensusEvent::SignedPromise(compact_promise) => {
+                        if rpc.is_none() && network.is_none() {
+                            panic!("Promise without network or rpc");
+                        }
+
+                        if let Some(rpc) = &rpc {
+                            rpc.provide_compact_promise(compact_promise.clone());
+                        }
+
+                        if let Some(network) = &mut network {
+                            network.publish_promise(compact_promise);
+                        }
+                    }
                     ConsensusEvent::PublishMessage(message) => {
                         let Some(network) = network.as_mut() else {
                             continue;
@@ -706,20 +681,17 @@ impl Service {
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }
-                    ConsensusEvent::Promises(compact_promises) => {
-                        if rpc.is_none() && network.is_none() {
-                            panic!("Promise without network or rpc");
+                },
+                Event::Prometheus(event) => match event {
+                    PrometheusEvent::CollectMetrics { libp2p_metrics } => {
+                        if let Some(network) = &network {
+                            let mut s = String::new();
+                            network.render_libp2p_metrics(&mut s);
+                            let _res = libp2p_metrics.send(s);
                         }
-
-                        if let Some(rpc) = &rpc {
-                            rpc.provide_compact_promises(compact_promises.clone());
-                        }
-
-                        if let Some(network) = &mut network {
-                            compact_promises.into_iter().for_each(|compact_promise| {
-                                network.publish_promise(compact_promise);
-                            });
-                        }
+                    }
+                    PrometheusEvent::ServerClosed(result) => {
+                        anyhow::bail!("Prometheus server closed with result: {result:?}");
                     }
                 },
                 Event::Fetching(result) => {

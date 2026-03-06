@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{peer_score, validator::discovery::SignedValidatorIdentity};
+use crate::{metrics::Libp2pMetrics, peer_score, validator::discovery::SignedValidatorIdentity};
 use anyhow::Context as _;
 use ethexe_common::Address;
 use futures::{FutureExt, Stream, stream::FusedStream};
@@ -28,22 +28,23 @@ use libp2p::{
         Addresses, EntryView, KBucketKey, PeerRecord, PutRecordOk, QueryId, Quorum, store,
         store::{MemoryStore, RecordStore},
     },
+    metrics::Recorder,
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
     },
 };
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Input};
 use std::{
     collections::{HashMap, VecDeque},
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll, ready},
     time::Duration,
 };
 use tokio::sync::{mpsc, oneshot};
 
-const KAD_PROTOCOL_NAME: StreamProtocol =
-    StreamProtocol::new(concat!("/ethexe/kad/", env!("CARGO_PKG_VERSION")));
+const KAD_PROTOCOL_NAME: StreamProtocol = StreamProtocol::new("/ethexe/kad/1.0.0");
 const KAD_RECORD_TTL_SECS: u64 = 3600; // 1 hour
 const KAD_RECORD_TTL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS);
 const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS / 4);
@@ -73,14 +74,30 @@ impl ValidatorIdentityRecord {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Unwrap, Clone)]
+/// Decode helper for [`RecordKey`] to support backward compatibility
+struct MaybeRecordKey(Option<RecordKey>);
+
+impl Decode for MaybeRecordKey {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+        let variant = input.read_byte()?;
+        match variant {
+            0 => {
+                let key = ValidatorIdentityKey::decode(input)?;
+                Ok(MaybeRecordKey(Some(RecordKey::ValidatorIdentity(key))))
+            }
+            _ => Ok(MaybeRecordKey(None)),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Encode, derive_more::From, derive_more::Unwrap, Clone)]
 pub enum RecordKey {
     ValidatorIdentity(ValidatorIdentityKey),
 }
 
 impl RecordKey {
-    fn new(key: &kad::RecordKey) -> Result<Self, parity_scale_codec::Error> {
-        Decode::decode(&mut &key.as_ref()[..])
+    fn new(key: &kad::RecordKey) -> Result<Option<Self>, parity_scale_codec::Error> {
+        MaybeRecordKey::decode(&mut &key.as_ref()[..]).map(|k| k.0)
     }
 
     fn into_kad_key(self) -> kad::RecordKey {
@@ -94,10 +111,10 @@ pub enum Record {
 }
 
 impl Record {
-    fn new(record: &kad::Record) -> anyhow::Result<Self> {
+    fn new(record: &kad::Record) -> anyhow::Result<Option<Self>> {
         let key = RecordKey::new(&record.key)?;
         match key {
-            RecordKey::ValidatorIdentity(key) => {
+            Some(RecordKey::ValidatorIdentity(key)) => {
                 let value: SignedValidatorIdentity = Decode::decode(&mut &record.value[..])
                     .context("failed to decode validator identity")?;
 
@@ -107,8 +124,11 @@ impl Record {
                     "validator address of record key mismatches address of record value"
                 );
 
-                Ok(Self::ValidatorIdentity(ValidatorIdentityRecord { value }))
+                Ok(Some(Self::ValidatorIdentity(ValidatorIdentityRecord {
+                    value,
+                })))
             }
+            None => Ok(None),
         }
     }
 
@@ -119,11 +139,11 @@ impl Record {
     }
 
     fn into_kad_record(self) -> kad::Record {
-        let key = self.key();
+        let key = self.key().into_kad_key();
         match self {
             Record::ValidatorIdentity(record) => {
                 let ValidatorIdentityRecord { value } = record;
-                kad::Record::new(key.encode(), value.encode())
+                kad::Record::new(key, value.encode())
             }
         }
     }
@@ -289,17 +309,19 @@ pub struct Behaviour {
     peer_score: peer_score::Handle,
     cache_candidates_records: HashMap<QueryId, kad::Record>,
     min_quorum_peers: u32,
+    metrics: Arc<Libp2pMetrics>,
 }
 
 impl Behaviour {
-    pub fn new(peer: PeerId, peer_score: peer_score::Handle) -> Self {
-        Self::with_min_quorum(peer, peer_score, KAD_MIN_QUORUM_PEERS)
+    pub fn new(peer: PeerId, peer_score: peer_score::Handle, metrics: Arc<Libp2pMetrics>) -> Self {
+        Self::with_min_quorum(peer, peer_score, KAD_MIN_QUORUM_PEERS, metrics)
     }
 
     fn with_min_quorum(
         peer: PeerId,
         peer_score: peer_score::Handle,
         min_quorum_peers: u32,
+        metrics: Arc<Libp2pMetrics>,
     ) -> Self {
         let mut inner = kad::Config::new(KAD_PROTOCOL_NAME);
         inner
@@ -325,6 +347,7 @@ impl Behaviour {
             peer_score,
             cache_candidates_records: HashMap::new(),
             min_quorum_peers,
+            metrics,
         }
     }
 
@@ -344,6 +367,8 @@ impl Behaviour {
     }
 
     fn handle_inner_event(&mut self, event: kad::Event) -> Poll<Event> {
+        self.metrics.record(&event);
+
         match event {
             kad::Event::RoutingUpdated { peer, .. } => {
                 return Poll::Ready(Event::RoutingUpdated { peer });
@@ -359,7 +384,11 @@ impl Behaviour {
                 let original_record =
                     record.expect("`StoreInserts::FilterBoth` implies `record` is always present");
                 let record = match Record::new(&original_record) {
-                    Ok(record) => record,
+                    Ok(Some(record)) => record,
+                    Ok(None) => {
+                        log::trace!("unknown record type: {original_record:?}");
+                        return Poll::Pending;
+                    }
                     Err(err) => {
                         log::trace!("failed to parse record during inbound request: {err:?}");
                         self.peer_score.invalid_data(source);
@@ -396,11 +425,14 @@ impl Behaviour {
                             }
 
                             let record = match Record::new(&original_record) {
-                                Ok(record) => record,
+                                Ok(Some(record)) => record,
+                                Ok(None) => {
+                                    log::trace!("unknown record type: {original_record:?}");
+                                    return Poll::Pending;
+                                }
                                 Err(err) => {
                                     log::trace!("failed to get record: {err}");
                                     if let Some(peer) = peer {
-                                        // NOTE: not backward compatible if `Record` has a new variant, and it is decoded by the old node
                                         self.peer_score.invalid_data(peer);
                                     } else {
                                         #[cfg(debug_assertions)]
@@ -444,7 +476,8 @@ impl Behaviour {
                             closest_peers: _,
                         }) => {
                             let key = RecordKey::new(&key)
-                                .expect("invalid record key that we got from local storage");
+                                .expect("invalid record key that we got from local storage")
+                                .expect("unknown record key that we got from local storage");
 
                             let err = GetRecordError::NotFound { key };
 
@@ -462,7 +495,8 @@ impl Behaviour {
                         Ok(PutRecordOk { key }) => {
                             let key = RecordKey::new(&key)
                                 // we are the ones who called `Kad::put_record` and thus the key must be decoded without issues
-                                .expect("invalid record key that we put ourselves");
+                                .expect("invalid record key that we put ourselves")
+                                .expect("unknown record key that we put ourselves");
                             Ok(key)
                         }
                         Err(err) => Err(PutRecordError::Kad(err)),
@@ -701,6 +735,10 @@ mod tests {
     use libp2p_swarm_test::SwarmExt;
     use std::{collections::BTreeMap, num::NonZeroUsize};
 
+    fn new_metrics() -> Arc<Libp2pMetrics> {
+        Arc::new(Libp2pMetrics::new())
+    }
+
     fn new_identity() -> SignedValidatorIdentity {
         let keypair = Keypair::generate_secp256k1();
         let signer = Signer::memory();
@@ -723,7 +761,12 @@ mod tests {
 
     fn new_behaviour_with_quorum(min_quorum_peers: u32) -> Behaviour {
         let peer_id = Keypair::generate_ed25519().public().to_peer_id();
-        Behaviour::with_min_quorum(peer_id, peer_score::Handle::new_test(), min_quorum_peers)
+        Behaviour::with_min_quorum(
+            peer_id,
+            peer_score::Handle::new_test(),
+            min_quorum_peers,
+            new_metrics(),
+        )
     }
 
     async fn new_swarm() -> Swarm<Behaviour> {
@@ -733,7 +776,13 @@ mod tests {
     async fn new_swarm_with_quorum(min_quorum_peers: u32) -> Swarm<Behaviour> {
         let mut swarm = Swarm::new_ephemeral_tokio(move |keypair| {
             let peer_id = keypair.public().to_peer_id();
-            Behaviour::with_min_quorum(peer_id, peer_score::Handle::new_test(), min_quorum_peers)
+            let metrics = new_metrics();
+            Behaviour::with_min_quorum(
+                peer_id,
+                peer_score::Handle::new_test(),
+                min_quorum_peers,
+                metrics,
+            )
         });
         swarm.listen().with_memory_addr_external().await;
         swarm
@@ -791,6 +840,7 @@ mod tests {
 
         let record = Record::new(&kad_record)
             .expect("record must decode")
+            .expect("no unknown variant")
             .unwrap_validator_identity();
         assert_eq!(record.value, signed);
     }
@@ -802,11 +852,23 @@ mod tests {
             validator: Address::from(42u64),
         };
         let kad_record = kad::Record::new(
-            RecordKey::ValidatorIdentity(mismatched_key).encode(),
+            RecordKey::ValidatorIdentity(mismatched_key).into_kad_key(),
             signed.encode(),
         );
 
         Record::new(&kad_record).unwrap_err();
+    }
+
+    #[test]
+    fn unknown_record_type() {
+        let signed = new_identity();
+
+        let known_record = kad::Record::new(vec![0], signed.encode());
+        Record::new(&known_record).unwrap_err();
+
+        let unknown_record = kad::Record::new(vec![1], signed.encode());
+        let record = Record::new(&unknown_record).unwrap();
+        assert_eq!(record, None);
     }
 
     #[test]

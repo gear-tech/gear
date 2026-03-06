@@ -19,8 +19,8 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, ComputedAnnounce, Digest, HashOf,
-    ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
@@ -31,6 +31,7 @@ use crate::{
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
+    limited::LimitedVec,
     message::{ReplyCode, SuccessReplyReason},
     rpc::ReplyInfo,
 };
@@ -172,10 +173,11 @@ impl Mock<()> for InjectedTransaction {
     fn mock((): ()) -> Self {
         Self {
             destination: Default::default(),
-            payload: vec![].into(),
+            payload: LimitedVec::new(),
             value: 0,
             reference_block: Default::default(),
-            salt: H256::random().0.to_vec().into(),
+            salt: LimitedVec::try_from(H256::random().as_bytes())
+                .expect("`H256` is small enough for a salt"),
         }
     }
 }
@@ -193,6 +195,25 @@ impl Mock<PrivateKey> for AddressedInjectedTransaction {
 impl Mock<()> for AddressedInjectedTransaction {
     fn mock(_args: ()) -> Self {
         AddressedInjectedTransaction::mock(PrivateKey::random())
+    }
+}
+
+impl Mock<()> for Promise {
+    fn mock(_args: ()) -> Self {
+        Promise::mock(HashOf::random())
+    }
+}
+
+impl Mock<HashOf<InjectedTransaction>> for Promise {
+    fn mock(tx_hash: HashOf<InjectedTransaction>) -> Self {
+        Promise {
+            tx_hash,
+            reply: ReplyInfo {
+                payload: H256::random().0.to_vec().try_into().unwrap(),
+                value: 42,
+                code: ReplyCode::Success(SuccessReplyReason::Manual),
+            },
+        }
     }
 }
 
@@ -634,42 +655,5 @@ impl BlockData {
         db.set_block_events(self.hash, &self.events);
         db.set_block_synced(self.hash);
         self
-    }
-}
-
-impl Mock for ComputedAnnounce {
-    fn mock(_: ()) -> Self {
-        Self {
-            announce_hash: HashOf::random(),
-            promises: Default::default(),
-        }
-    }
-}
-
-impl Mock<HashOf<Announce>> for ComputedAnnounce {
-    fn mock(announce_hash: HashOf<Announce>) -> Self {
-        Self {
-            announce_hash,
-            promises: Default::default(),
-        }
-    }
-}
-
-impl Mock<HashOf<InjectedTransaction>> for Promise {
-    fn mock(tx_hash: HashOf<InjectedTransaction>) -> Self {
-        Self {
-            tx_hash,
-            reply: ReplyInfo {
-                payload: vec![],
-                value: 0,
-                code: ReplyCode::Success(SuccessReplyReason::Manual),
-            },
-        }
-    }
-}
-
-impl Mock for Promise {
-    fn mock(_args: ()) -> Self {
-        Promise::mock(HashOf::zero())
     }
 }

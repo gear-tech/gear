@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{RpcEvent, errors};
+use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf, SignedMessage,
@@ -76,9 +76,10 @@ pub struct InjectedApi {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
     promise_waiters: PromiseWaiters,
-
     /// The mapping from injected transaction hash to its promise signature.
     promises_computation_waiting: Arc<DashMap<HashOf<InjectedTransaction>, CompactSignedPromise>>,
+    /// The metrics related to [`InjectedApi`]
+    metrics: InjectedApiMetrics,
 }
 
 #[async_trait]
@@ -102,6 +103,7 @@ impl InjectedServer for InjectedApi {
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
+        self.metrics.send_and_watch_injected_tx_calls.increment(1);
 
         // Check, that transaction wasn't already send.
         if self.promise_waiters.get(&tx_hash).is_some() {
@@ -163,6 +165,7 @@ impl InjectedApi {
             rpc_sender,
             promise_waiters: PromiseWaiters::default(),
             promises_computation_waiting: Default::default(),
+            metrics: InjectedApiMetrics::default(),
         }
     }
 
@@ -185,19 +188,16 @@ impl InjectedApi {
         }
     }
 
-    pub fn receive_computed_promises(&self, promises: Vec<Promise>) {
-        promises.into_iter().for_each(|promise| {
-            // In case of `None` nothing to do, because of promise already in RPC database.
-            if let Some((_, compact_promise)) =
-                self.promises_computation_waiting.remove(&promise.tx_hash)
-            {
-                let (signature, address) =
-                    (*compact_promise.signature(), compact_promise.address());
-                self.db
-                    .set_promise_signature(promise.tx_hash, signature, address);
-                self.send_promise(promise, compact_promise);
-            }
-        })
+    pub fn receive_raw_promise(&self, promise: Promise) {
+        // In case of `None` nothing to do, because of promise already in RPC database.
+        if let Some((_, compact_promise)) =
+            self.promises_computation_waiting.remove(&promise.tx_hash)
+        {
+            let (signature, address) = (*compact_promise.signature(), compact_promise.address());
+            self.db
+                .set_promise_signature(promise.tx_hash, signature, address);
+            self.send_promise(promise, compact_promise);
+        }
     }
 
     pub fn send_promise(&self, promise: Promise, compact_promise: CompactSignedPromise) {
@@ -222,9 +222,14 @@ impl InjectedApi {
             );
             return;
         };
+        self.metrics.injected_tx_active_subscriptions.decrement(1);
 
-        if let Err(promise) = promise_sender.send(message) {
-            tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
+        match promise_sender.send(message.clone()) {
+            Ok(()) => {
+                self.metrics.injected_tx_promises_given.increment(1);
+                tracing::trace!(promise = ?promise, "sent promise to subscriber");
+            }
+            Err(promise) => tracing::trace!(promise = ?promise, "rpc promise receiver dropped"),
         }
     }
 
@@ -240,6 +245,9 @@ impl InjectedApi {
         transaction: AddressedInjectedTransaction,
     ) -> Result<InjectedTransactionAcceptance, ErrorObjectOwned> {
         let tx_hash = transaction.tx.data().to_hash();
+        tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
+        self.metrics.send_injected_tx_calls.increment(1);
+
         let (response_sender, response_receiver) = oneshot::channel();
 
         if transaction.tx.data().value != 0 {
@@ -288,6 +296,8 @@ impl InjectedApi {
     ) {
         // This clone is cheap, as it only increases the ref count.
         let promise_waiters = self.promise_waiters.clone();
+        self.metrics.injected_tx_active_subscriptions.increment(1);
+        let metrics = self.metrics.clone();
 
         tokio::spawn(async move {
             // Waiting for promise or client disconnection.
@@ -303,6 +313,7 @@ impl InjectedApi {
                 },
                 _ = sink.closed() => {
                     promise_waiters.remove(&tx_hash);
+                    metrics.injected_tx_active_subscriptions.decrement(1);
                     return;
                 },
             };
@@ -323,7 +334,7 @@ impl InjectedApi {
                     tx_hash = ?tx_hash,
                     error = %err,
                     "failed to send subscription message"
-                )
+                );
             }
         });
     }

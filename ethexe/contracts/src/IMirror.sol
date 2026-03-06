@@ -95,6 +95,30 @@ interface IMirror {
      */
     event ValueClaimed(bytes32 claimedId, uint128 value);
 
+    /**
+     * @dev Emitted when the program fails to transfer locked value to inheritor after exit.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about failed transfer of locked value to inheritor after exit.
+     */
+    event TransferLockedValueToInheritorFailed(address inheritor, uint128 value);
+
+    /**
+     * @dev Emitted when the program fails to transfer value to destination after failed call
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about failed transfer of value to destination after failed call.
+     */
+    event ReplyTransferFailed(address destination, uint128 value);
+
+    /**
+     * @dev Emitted when a user fails in claiming value request and doesn't receive balance.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about failed value claim.
+     */
+    event ValueClaimFailed(bytes32 claimedId, uint128 value);
+
     /* Errors section */
 
     error InitMessageNotCreated();
@@ -111,7 +135,7 @@ interface IMirror {
 
     error EtherTransferToRouterFailed();
 
-    error EtherTransferToDestinationFailed();
+    error TransferLockedValueToInheritorExternalFailed();
 
     error InitializerAlreadySet();
 

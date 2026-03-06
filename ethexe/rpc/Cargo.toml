@@ -28,6 +28,8 @@ gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
 dashmap.workspace = true
+metrics.workspace = true
+metrics-derive.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]

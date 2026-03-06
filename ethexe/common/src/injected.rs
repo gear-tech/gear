@@ -19,14 +19,24 @@
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
-use gear_core::rpc::ReplyInfo;
+use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
-use parity_scale_codec::{Decode, Encode};
-use sha3::{Digest as _, Keccak256};
-use sp_core::Bytes;
+use gsigner::{PrivateKey, secp256k1::signature::SignResult};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
+use sha3::{Digest, Keccak256};
 
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
+
+/// Maximum size of single injected transaction payload.
+///
+/// Limited by the maximum injected transactions size per announce.
+/// Currently is 126 KiB.
+pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 126 * 1024;
+
+/// Maximum size of injected transaction salt.
+pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
@@ -60,12 +70,13 @@ pub struct AddressedInjectedTransaction {
 /// IMPORTANT: message id == tx hash == blake2b256 hash of the struct fields concat.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
-    pub payload: Bytes,
+    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
     pub value: u128,
@@ -74,7 +85,8 @@ pub struct InjectedTransaction {
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    pub salt: Bytes,
+    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
 }
 
 impl ToDigest for InjectedTransaction {
@@ -133,12 +145,6 @@ pub struct Promise {
 /// It will be shared among other validators as a proof of promise.
 pub type SignedPromise = SignedMessage<Promise>;
 
-/// A wrapper on top of [`CompactPromiseHashes`].
-///
-/// [`CompactPromiseHashes`] is a lightweight version of [`SignedPromise`], that is
-/// needed to reduce the amount of data transferred in network between validators.
-pub type CompactSignedPromise = SignedMessage<CompactPromiseHashes>;
-
 impl Promise {
     /// Calculates the `blake2b` hash from promise's reply.
     pub fn reply_hash(&self) -> HashOf<ReplyInfo> {
@@ -162,6 +168,31 @@ impl ToDigest for Promise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // The hash of `Promise` equals to hash of `CompactPromiseHashes`.
         CompactPromiseHashes::from(self).update_hasher(hasher);
+    }
+}
+
+/// A wrapper on top of [`CompactPromiseHashes`].
+///
+/// [`CompactPromiseHashes`] is a lightweight version of [`SignedPromise`], that is
+/// needed to reduce the amount of data transferred in network between validators.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
+pub struct CompactSignedPromise(SignedMessage<CompactPromiseHashes>);
+
+impl From<&SignedPromise> for CompactSignedPromise {
+    fn from(signed_promise: &SignedPromise) -> Self {
+        let hashes = CompactPromiseHashes::from(signed_promise.data());
+        let message = SignedMessage::try_from_parts(
+            hashes,
+            signed_promise.signature().clone(),
+            signed_promise.address(),
+        );
+        CompactSignedPromise(message.unwrap())
+    }
+}
+
+impl CompactSignedPromise {
+    pub fn create(private_key: PrivateKey, hashes: CompactPromiseHashes) -> SignResult<Self> {
+        SignedMessage::create(private_key, hashes).map(|message| CompactSignedPromise(message))
     }
 }
 
@@ -269,5 +300,30 @@ mod tests {
         let signed_promise = SignedMessage::try_from_parts(promise.clone(), signature, address)
             .expect("SignedMessage<Promise> was correctly constructed from CompactSignedPromise");
         assert_eq!(signed_promise.into_data(), promise);
+    }
+}
+
+/// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
+#[cfg(feature = "std")]
+mod serde_hex {
+    pub fn serialize<S, const N: usize>(
+        data: &super::LimitedVec<u8, N>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        alloy_primitives::hex::serialize(data.to_vec(), serializer)
+    }
+
+    pub fn deserialize<'de, D, const N: usize>(
+        deserializer: D,
+    ) -> Result<super::LimitedVec<u8, N>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
+        super::LimitedVec::<u8, N>::try_from(vec)
+            .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
     }
 }

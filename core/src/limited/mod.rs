@@ -23,3 +23,15 @@ mod vec;
 
 pub use str::{LimitedStr, LimitedStrError};
 pub use vec::{LimitedVec, LimitedVecError};
+
+mod private {
+    use core::marker::PhantomData;
+
+    /// Visitor type for manual [`scale_decode::DecodeAsType`]
+    /// implementations for limited collections.
+    pub struct LimitedVisitor<T, R>(PhantomData<(T, R)>);
+
+    impl<T, R> LimitedVisitor<T, R> {
+        pub(crate) const DEFAULT: Self = Self(PhantomData);
+    }
+}

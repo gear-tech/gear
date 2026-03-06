@@ -21,3 +21,8 @@ log.workspace = true
 prometheus.workspace = true
 tokio.workspace = true
 gear-workspace-hack.workspace = true
+metrics-exporter-prometheus = { workspace = true, features = ["http-listener"] }
+metrics.workspace = true
+metrics-derive.workspace = true
+ethexe-db.workspace = true
+ethexe-common.workspace = true

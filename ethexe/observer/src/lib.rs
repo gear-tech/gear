@@ -49,6 +49,10 @@ mod tests;
 
 type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription<Header>>>;
 
+/// The wrapper on top of [`ChainSync::sync`] future.
+/// It is needed to measure time taken for syncing a block.
+type SyncFuture = future_timing::Timed<BoxFuture<'static, Result<H256>>>;
+
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
     pub rpc: String,
@@ -61,6 +65,19 @@ pub struct EthereumConfig {
 pub enum ObserverEvent {
     Block(SimpleBlockData),
     BlockSynced(H256),
+}
+
+/// Metrics for the observer service.
+/// The main purpose is to monitor the performance and health of the observer.
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_observer")]
+pub(crate) struct ObserverMetrics {
+    /// The last Ethereum's block number.
+    pub last_block_number: metrics::Gauge,
+    /// The statistics about time for blocks arrival latency.
+    pub blocks_latency: metrics::Histogram,
+    /// The statistics about time for blocks syncing.
+    pub block_syncing_latency: metrics::Histogram,
 }
 
 #[derive(Clone, Debug)]
@@ -86,11 +103,11 @@ pub struct ObserverService {
     config: RuntimeConfig,
     chain_sync: ChainSync<Database>,
 
-    last_block_number: u32,
+    metrics: ObserverMetrics,
     headers_stream: SubscriptionStream<Header>,
 
     block_sync_queue: VecDeque<Header>,
-    sync_future: Option<BoxFuture<'static, Result<H256>>>,
+    sync_future: Option<SyncFuture>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -128,6 +145,11 @@ impl Stream for ObserverService {
                 return Poll::Pending;
             };
 
+            self.metrics
+                .blocks_latency
+                .record(current_timestamp().saturating_sub(header.timestamp) as f64);
+            self.metrics.last_block_number.set(header.number as f64);
+
             let data = SimpleBlockData {
                 hash: H256(header.hash.0),
                 header: BlockHeader {
@@ -146,12 +168,18 @@ impl Stream for ObserverService {
         if self.sync_future.is_none()
             && let Some(header) = self.block_sync_queue.pop_back()
         {
-            self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
+            self.sync_future = Some(future_timing::timed(
+                self.chain_sync.clone().sync(header).boxed(),
+            ));
         }
 
         if let Some(fut) = self.sync_future.as_mut()
-            && let Poll::Ready(result) = fut.poll_unpin(cx)
+            && let Poll::Ready(timing_result) = fut.poll_unpin(cx)
         {
+            let (timing, result) = timing_result.into_parts();
+            self.metrics
+                .block_syncing_latency
+                .record((timing.busy() + timing.idle()).as_secs_f64());
             self.sync_future = None;
 
             let maybe_event = result.map(ObserverEvent::BlockSynced);
@@ -212,7 +240,7 @@ impl ObserverService {
             chain_sync,
             sync_future: None,
             block_sync_queue: VecDeque::new(),
-            last_block_number: 0,
+            metrics: ObserverMetrics::default(),
             subscription_future: None,
             headers_stream,
         })
@@ -269,10 +297,6 @@ impl ObserverService {
         &self.provider
     }
 
-    pub fn last_block_number(&self) -> u32 {
-        self.last_block_number
-    }
-
     pub fn block_loader(&self) -> EthereumBlockLoader {
         EthereumBlockLoader::new(self.provider.clone(), self.config.router_address)
     }
@@ -280,4 +304,12 @@ impl ObserverService {
     pub fn router_query(&self) -> RouterQuery {
         RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
     }
+}
+
+/// Function returns the current system timestamp in seconds.
+fn current_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }

@@ -79,7 +79,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
-use tokio::{task, task::JoinHandle};
+use tokio::task::{self, JoinHandle};
 use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.

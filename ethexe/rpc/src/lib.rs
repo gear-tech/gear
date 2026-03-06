@@ -24,9 +24,8 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::{
-    ComputedAnnounce,
-    injected::{AddressedInjectedTransaction, CompactSignedPromise, InjectedTransactionAcceptance},
+use ethexe_common::injected::{
+    AddressedInjectedTransaction, CompactSignedPromise, InjectedTransactionAcceptance, Promise,
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -46,6 +45,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
 mod errors;
+mod metrics;
 mod utils;
 
 #[cfg(all(test, feature = "client"))]
@@ -107,7 +107,8 @@ impl RpcServer {
                 chunk_size: self.config.chunk_size,
             },
             self.db.clone(),
-        )?;
+        )?
+        .overlaid();
 
         let server_apis = RpcServerApis {
             code: CodeApi::new(self.db.clone()),
@@ -137,7 +138,9 @@ impl RpcServer {
 }
 
 pub struct RpcService {
+    /// Receiver for incoming RPC events to forward to the main service.
     receiver: mpsc::UnboundedReceiver<RpcEvent>,
+    /// Injected API implementation.
     injected_api: InjectedApi,
 }
 
@@ -149,9 +152,8 @@ impl RpcService {
         }
     }
 
-    pub fn receive_computed_data(&self, computed_data: ComputedAnnounce) {
-        self.injected_api
-            .receive_computed_promises(computed_data.promises);
+    pub fn receive_raw_promise(&self, promise: Promise) {
+        self.injected_api.receive_raw_promise(promise);
     }
 
     pub fn provide_compact_promise(&self, compact_promise: CompactSignedPromise) {

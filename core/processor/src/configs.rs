@@ -25,9 +25,10 @@ use gear_core::{
 };
 
 pub use gear_wasm_instrument::syscalls::SyscallName;
+use parity_scale_codec::{Decode, Encode};
 
 /// Contextual block information.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Encode, Decode)]
 pub struct BlockInfo {
     /// Height.
     pub height: u32,

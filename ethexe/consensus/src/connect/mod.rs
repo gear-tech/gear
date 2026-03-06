@@ -27,10 +27,10 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, ComputedAnnounce, SimpleBlockData,
+    Address, Announce, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
-    injected::SignedInjectedTransaction,
+    injected::{Promise, SignedInjectedTransaction},
     network::{AnnouncesRequest, AnnouncesResponse},
 };
 use ethexe_db::Database;
@@ -161,8 +161,10 @@ impl ConnectService {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.output
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
-                self.output
-                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
+                self.output.push_back(ConsensusEvent::ComputeAnnounce(
+                    announce,
+                    PromisePolicy::Disabled,
+                ));
             }
         }
 
@@ -262,7 +264,7 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_computed_announce(&mut self, _computed_data: ComputedAnnounce) -> Result<()> {
+    fn receive_computed_announce(&mut self, _announce_hash: HashOf<Announce>) -> Result<()> {
         Ok(())
     }
 
@@ -282,6 +284,18 @@ impl ConsensusService for ConnectService {
                 .push((sender, announce.block_hash), announce);
         }
 
+        Ok(())
+    }
+
+    fn receive_promise_for_signing(
+        &mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<()> {
+        tracing::error!(
+            "Connected consensus node receives the promise for signing, but it not responsible for promises providing: \
+            promise={promise:?}, announce_hash={announce_hash}"
+        );
         Ok(())
     }
 

@@ -24,12 +24,22 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_processor::{ProcessedCodeInfo, ValidCodeInfo};
 use gprimitives::CodeId;
+use metrics::Gauge;
 use std::task::{Context, Poll};
 use tokio::task::JoinSet;
+
+/// Metrics for the [`CodesSubService`].
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute:codes")]
+struct Metrics {
+    /// The number of currently processing codes.
+    processing_codes: Gauge,
+}
 
 pub struct CodesSubService<P: ProcessorExt> {
     db: Database,
     processor: P,
+    metrics: Metrics,
 
     processions: JoinSet<Result<CodeId>>,
 }
@@ -39,6 +49,7 @@ impl<P: ProcessorExt> CodesSubService<P> {
         Self {
             db,
             processor,
+            metrics: Metrics::default(),
             processions: JoinSet::new(),
         }
     }
@@ -60,7 +71,6 @@ impl<P: ProcessorExt> CodesSubService<P> {
                     "Instrumented code {code_id:?} must exist in database"
                 );
             }
-
             self.processions.spawn(async move { Ok(code_id) });
         } else {
             let db = self.db.clone();
@@ -90,10 +100,10 @@ impl<P: ProcessorExt> CodesSubService<P> {
                 )
             });
         }
-    }
 
-    pub fn process_codes_count(&self) -> usize {
-        self.processions.len()
+        self.metrics
+            .processing_codes
+            .set(self.processions.len() as f64);
     }
 }
 
@@ -102,7 +112,12 @@ impl<P: ProcessorExt> SubService for CodesSubService<P> {
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         futures::ready!(self.processions.poll_join_next(cx))
-            .map(|res| res.map_err(ComputeError::CodeProcessJoin)?)
+            .map(|res| {
+                self.metrics
+                    .processing_codes
+                    .set(self.processions.len() as f64);
+                res.map_err(ComputeError::CodeProcessJoin)?
+            })
             .map_or(Poll::Pending, Poll::Ready)
     }
 }

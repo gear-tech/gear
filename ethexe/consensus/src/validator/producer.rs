@@ -22,14 +22,16 @@ use super::{
 use crate::{
     ConsensusEvent,
     announces::{self, DBAnnouncesExt},
-    utils::sign_announce_promises,
     validator::DefaultProcessing,
 };
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, network::ValidatorMessage,
+    Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec,
+    db::BlockMetaStorageRO,
+    gear::BatchCommitment,
+    injected::{CompactPromiseHashes, Promise},
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -76,20 +78,10 @@ impl StateHandler for Producer {
 
     fn process_computed_announce(
         mut self,
-        computed_data: ComputedAnnounce,
+        announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
         match &self.state {
-            State::WaitingAnnounceComputed(expected)
-                if *expected == computed_data.announce_hash =>
-            {
-                if !computed_data.promises.is_empty() {
-                    let (signer, public_key) = (&self.ctx.core.signer, self.ctx.core.pub_key);
-                    let signed_promises =
-                        sign_announce_promises(signer, public_key, computed_data.promises)?;
-
-                    self.ctx.output(ConsensusEvent::Promises(signed_promises));
-                }
-
+            State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
                 // Aggregate commitment for the block and use `announce_hash` as head for chain commitment.
                 // `announce_hash` is computed and included in the db already, so it's safe to use it.
                 self.state = State::AggregateBatchCommitment {
@@ -97,7 +89,7 @@ impl StateHandler for Producer {
                         .ctx
                         .core
                         .clone()
-                        .aggregate_batch_commitment(self.block, computed_data.announce_hash)
+                        .aggregate_batch_commitment(self.block, announce_hash)
                         .boxed(),
                 };
 
@@ -106,12 +98,40 @@ impl StateHandler for Producer {
             State::WaitingAnnounceComputed(expected) => {
                 self.warning(format!(
                     "Computed announce {} is not expected, expected {expected}",
-                    computed_data.announce_hash
+                    announce_hash
                 ));
 
                 Ok(self.into())
             }
-            _ => DefaultProcessing::computed_announce(self, computed_data),
+            _ => DefaultProcessing::computed_announce(self, announce_hash),
+        }
+    }
+
+    fn process_raw_promise(
+        mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<ValidatorState> {
+        match &self.state {
+            State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
+                let tx_hash = promise.tx_hash;
+
+                let promise_hashes = CompactPromiseHashes::from(&promise);
+                let signed_promise = self
+                    .ctx
+                    .core
+                    .signer
+                    .signed_message(self.ctx.core.pub_key, promise_hashes, None)?
+                    .into();
+
+                self.ctx
+                    .output(ConsensusEvent::SignedPromise(signed_promise));
+
+                tracing::trace!("consensus sign promise for transaction-hash={tx_hash}");
+                Ok(self.into())
+            }
+
+            _ => DefaultProcessing::promise_for_signing(self, promise, announce_hash),
         }
     }
 
@@ -228,7 +248,10 @@ impl Producer {
         self.state = State::WaitingAnnounceComputed(announce_hash);
         self.ctx
             .output(ConsensusEvent::PublishMessage(message.into()));
-        self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
+        self.ctx.output(ConsensusEvent::ComputeAnnounce(
+            announce,
+            PromisePolicy::Enabled,
+        ));
 
         Ok(self.into())
     }
@@ -288,7 +311,7 @@ mod tests {
         .setup(&state.context().core.db);
 
         let state = state
-            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
+            .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_state(|state| state.is_initial())
             .await
@@ -335,7 +358,7 @@ mod tests {
         .setup(&state.context().core.db);
 
         let mut state = state
-            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
+            .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await
@@ -380,7 +403,7 @@ mod tests {
         .setup(&state.context().core.db);
 
         let (state, event) = state
-            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
+            .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_event()
             .await
@@ -424,7 +447,7 @@ mod tests {
         .setup(&state.context().core.db);
 
         let mut state = state
-            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
+            .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await
@@ -476,7 +499,7 @@ mod tests {
             assert!(state.is_producer(), "Expected producer state, got {state}");
             assert!(event.is_compute_announce());
 
-            Ok((state, event.unwrap_compute_announce().to_hash()))
+            Ok((state, event.unwrap_compute_announce().0.to_hash()))
         }
     }
 }
