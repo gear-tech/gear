@@ -28,12 +28,6 @@ use revm::{
     primitives::{Address, Bytes},
 };
 
-#[derive(Debug)]
-pub enum RouterImplKind {
-    Regular,
-    WithInstrumentation,
-}
-
 pub struct RouterImpl {
     address: Address,
     router_impl_bytecode: Bytes,

@@ -29,12 +29,6 @@ use revm::{
     primitives::{Address, Bytes},
 };
 
-#[derive(Debug)]
-pub enum MirrorImplKind {
-    Regular,
-    WithInstrumentation,
-}
-
 pub struct MirrorImpl {
     address: Address,
     mirror_impl_bytecode: Bytes,

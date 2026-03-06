@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use mirror_impl::{MirrorImpl, MirrorImplKind};
-pub use router::{ExecutionMode, Router};
-pub use router_impl::{RouterImpl, RouterImplKind};
+pub use mirror_impl::MirrorImpl;
+pub use router::{ContractImplKind, ExecutionMode, Router};
+pub use router_impl::RouterImpl;
 pub use wvara::WrappedVara;
 
 mod mirror_impl;

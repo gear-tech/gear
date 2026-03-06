@@ -20,7 +20,7 @@ use crate::{
     abi::{Gear, IRouter, ITransparentUpgradeableProxy},
     benchmarking::{
         SimulationContext,
-        contracts::{MirrorImpl, MirrorImplKind, RouterImpl, RouterImplKind, WrappedVara},
+        contracts::{MirrorImpl, RouterImpl, WrappedVara},
     },
 };
 use alloy::sol_types::{SolCall, SolConstructor};
@@ -39,6 +39,12 @@ use revm::{
     context_interface::result::{ExecutionResult, Output},
     primitives::{Address, B256, Bytes, U256, eip4844::VERSIONED_HASH_VERSION_KZG},
 };
+
+#[derive(Debug, Clone, Copy)]
+pub enum ContractImplKind {
+    Regular,
+    WithInstrumentation,
+}
 
 #[derive(Debug)]
 pub struct GasResult {
@@ -191,13 +197,13 @@ impl<'a> Router<'a> {
         &self.mirror_impl
     }
 
-    pub fn switch_to_mirror_impl(&mut self, kind: MirrorImplKind) -> Result<()> {
+    fn switch_to_mirror_impl(&mut self, kind: ContractImplKind) -> Result<()> {
         let mirror_impl = self.mirror_impl();
         let address = mirror_impl.address();
         let code = Bytecode::new_legacy(
             match kind {
-                MirrorImplKind::Regular => mirror_impl.mirror_impl_bytecode(),
-                MirrorImplKind::WithInstrumentation => {
+                ContractImplKind::Regular => mirror_impl.mirror_impl_bytecode(),
+                ContractImplKind::WithInstrumentation => {
                     mirror_impl.mirror_impl_with_instrumentation_bytecode()
                 }
             }
@@ -213,12 +219,12 @@ impl<'a> Router<'a> {
         Ok(())
     }
 
-    pub fn switch_to_router_impl(&mut self, kind: RouterImplKind) -> Result<()> {
+    fn switch_to_router_impl(&mut self, kind: ContractImplKind) -> Result<()> {
         let address = self.router_impl.address();
         let code = Bytecode::new_legacy(
             match kind {
-                RouterImplKind::Regular => self.router_impl.router_impl_bytecode(),
-                RouterImplKind::WithInstrumentation => {
+                ContractImplKind::Regular => self.router_impl.router_impl_bytecode(),
+                ContractImplKind::WithInstrumentation => {
                     self.router_impl.router_impl_with_instrumentation_bytecode()
                 }
             }
@@ -231,6 +237,12 @@ impl<'a> Router<'a> {
         let state = journal.finalize();
         self.context.evm().commit(state);
 
+        Ok(())
+    }
+
+    pub fn switch_to_impl(&mut self, contract_impl_kind: ContractImplKind) -> Result<()> {
+        self.switch_to_mirror_impl(contract_impl_kind)?;
+        self.switch_to_router_impl(contract_impl_kind)?;
         Ok(())
     }
 
