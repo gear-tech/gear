@@ -18,13 +18,13 @@
 
 use crate::{
     Params,
-    params::{MergeParams, NodeParams},
+    params::{MergeParams, NetworkParams, NodeParams},
 };
 use anyhow::{Context as _, Result};
 use clap::Args;
-use ethexe_service::Service;
+use ethexe_service::{Service, config::Config};
 use std::time::Duration;
-use tokio::runtime::Builder;
+use tokio::{runtime::Builder, task::JoinSet};
 
 /// Run the node.
 #[derive(Debug, Args)]
@@ -55,6 +55,7 @@ impl RunCommand {
         crate::enable_logging(default)?;
 
         let mut anvil_instance = None;
+        let mut extra_validator_keys = Vec::new();
 
         if let Some(node) = self.params.node.as_mut()
             && node.dev
@@ -71,17 +72,23 @@ impl RunCommand {
                 .pre_funded_accounts
                 .unwrap_or(NodeParams::DEFAULT_PRE_FUNDED_ACCOUNTS)
                 .get();
-            let (anvil, validator_public_key, router_address) = Builder::new_multi_thread()
+            let dev_validators = node
+                .dev_validators
+                .unwrap_or(NodeParams::DEFAULT_DEV_VALIDATORS)
+                .get();
+            let (anvil, validator_public_keys, router_address) = Builder::new_multi_thread()
                 .enable_all()
                 .build()?
                 .block_on(Service::configure_dev_environment(
                     node.keys_dir(),
                     block_time,
                     pre_funded_accounts,
+                    dev_validators,
                 ))?;
 
-            node.validator = Some(validator_public_key.to_string());
-            node.validator_session = Some(validator_public_key.to_string());
+            let primary_key = validator_public_keys[0];
+            node.validator = Some(primary_key.to_string());
+            node.validator_session = Some(primary_key.to_string());
             if node.canonical_quarantine.is_none() {
                 // disable quarantine in dev mode if not set explicitly
                 node.canonical_quarantine = Some(0);
@@ -95,6 +102,15 @@ impl RunCommand {
 
             // make sure RPC is enabled as RPC is disabled by default
             self.params.rpc.get_or_insert_with(Default::default);
+
+            if dev_validators > 1 {
+                // enable network for multi-validator mode
+                self.params
+                    .network
+                    .get_or_insert_with(|| NetworkParams::dev_defaults());
+
+                extra_validator_keys = validator_public_keys[1..].to_vec();
+            }
 
             anvil_instance = Some(anvil);
         }
@@ -123,17 +139,59 @@ impl RunCommand {
             .build()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let service = Service::new(&config)
-                    .await
-                    .with_context(|| "failed to create ethexe primary service")?;
+                if extra_validator_keys.is_empty() {
+                    let service = Service::new(&config)
+                        .await
+                        .with_context(|| "failed to create ethexe primary service")?;
 
-                tokio::select! {
-                    res = service.run() => res,
-                    _ = tokio::signal::ctrl_c() => {
-                        log::info!("Received SIGINT, shutting down");
-                        Ok(())
+                    tokio::select! {
+                        res = service.run() => res,
+                        _ = tokio::signal::ctrl_c() => {
+                            log::info!("Received SIGINT, shutting down");
+                            Ok(())
+                        }
                     }
+                } else {
+                    Self::run_multi_validator(config, extra_validator_keys).await
                 }
             })
+    }
+
+    async fn run_multi_validator(
+        primary_config: Config,
+        extra_validator_keys: Vec<gsigner::secp256k1::PublicKey>,
+    ) -> Result<()> {
+        let mut tasks = JoinSet::new();
+
+        // Spawn extra validator services first
+        for (i, key) in extra_validator_keys.iter().enumerate() {
+            let validator_config = primary_config.clone_for_dev_validator(key, i + 1)?;
+
+            log::info!("🚀 Starting validator-{}", i + 1);
+
+            let service = Service::new(&validator_config)
+                .await
+                .with_context(|| format!("failed to create validator-{} service", i + 1))?;
+
+            tasks.spawn(async move { service.run().await });
+        }
+
+        log::info!("🚀 Starting validator-0 (primary)");
+
+        let primary_service = Service::new(&primary_config)
+            .await
+            .with_context(|| "failed to create primary validator service")?;
+
+        tasks.spawn(async move { primary_service.run().await });
+
+        tokio::select! {
+            Some(result) = tasks.join_next() => {
+                result.with_context(|| "validator task panicked")?
+            }
+            _ = tokio::signal::ctrl_c() => {
+                log::info!("Received SIGINT, shutting down");
+                Ok(())
+            }
+        }
     }
 }

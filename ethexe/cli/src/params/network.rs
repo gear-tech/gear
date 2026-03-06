@@ -67,6 +67,18 @@ impl NetworkParams {
     /// Default network port.
     pub const DEFAULT_NETWORK_PORT: u16 = 20333;
 
+    /// Create default network params suitable for dev mode.
+    pub fn dev_defaults() -> Self {
+        Self {
+            network_key: None,
+            network_bootnodes: None,
+            network_public_addr: None,
+            network_listen_addr: None,
+            network_port: None,
+            no_network: false,
+        }
+    }
+
     /// Convert self into a proper `NetworkConfig` object, if network is enabled.
     pub fn into_config(
         self,

@@ -57,6 +57,11 @@ pub struct NodeParams {
     #[serde(rename = "pre-funded-accounts")]
     pub pre_funded_accounts: Option<NonZero<u32>>,
 
+    /// Number of validators to run in dev mode.
+    #[arg(long)]
+    #[serde(rename = "dev-validators")]
+    pub dev_validators: Option<NonZero<u32>>,
+
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
     pub validator: Option<String>,
@@ -111,6 +116,8 @@ impl NodeParams {
     pub const DEFAULT_MAX_DEPTH: NonZero<u32> = NonZero::new(100_000).unwrap();
     /// Default number of pre-funded accounts in dev mode.
     pub const DEFAULT_PRE_FUNDED_ACCOUNTS: NonZero<u32> = NonZero::new(10).unwrap();
+    /// Default number of validators in dev mode.
+    pub const DEFAULT_DEV_VALIDATORS: NonZero<u32> = NonZero::new(1).unwrap();
 
     /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
@@ -204,6 +211,7 @@ impl MergeParams for NodeParams {
             dev: self.dev || with.dev,
 
             pre_funded_accounts: self.pre_funded_accounts.or(with.pre_funded_accounts),
+            dev_validators: self.dev_validators.or(with.dev_validators),
             validator: self.validator.or(with.validator),
             validator_session: self.validator_session.or(with.validator_session),
 

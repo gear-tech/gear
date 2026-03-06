@@ -121,18 +121,23 @@ pub struct Service {
 }
 
 impl Service {
-    /// Number of reserved dev accounts (deployer, validator).
-    const RESERVED_DEV_ACCOUNTS: u32 = 2;
+    /// Number of reserved dev accounts (deployer).
+    const RESERVED_DEV_ACCOUNTS: u32 = 1;
 
     pub async fn configure_dev_environment(
         key_path: PathBuf,
         block_time: Duration,
         pre_funded_accounts: u32,
-    ) -> Result<(AnvilInstance, PublicKey, Address)> {
+        dev_validators: u32,
+    ) -> Result<(AnvilInstance, Vec<PublicKey>, Address)> {
         let signer = Signer::fs(key_path).with_context(|| "failed to open dev keystore")?;
 
         let pre_funded_accounts = pre_funded_accounts
-            .checked_add(Self::RESERVED_DEV_ACCOUNTS)
+            .checked_add(
+                Self::RESERVED_DEV_ACCOUNTS
+                    .checked_add(dev_validators)
+                    .with_context(|| "number of dev validators is too large")?,
+            )
             .with_context(|| {
                 format!("number of pre-funded accounts is too large: {pre_funded_accounts}")
             })?;
@@ -152,15 +157,20 @@ impl Service {
             .zip(anvil.addresses().iter().map(|addr| Address::from(*addr)));
 
         let (deployer_private_key, deployer_address) = it.next().expect("infallible");
-        let (validator_private_key, validator_address) = it.next().expect("infallible");
-
         signer.import(deployer_private_key.clone())?;
-        let validator_public_key = signer.import(validator_private_key.clone())?;
 
         log::info!("🔐 Available Accounts:");
-
         log::info!("     Deployer:  {deployer_address} {deployer_private_key}");
-        log::info!("     Validator: {validator_address} {validator_private_key}");
+
+        let mut validator_public_keys = Vec::with_capacity(dev_validators as usize);
+        let mut validator_addresses = Vec::with_capacity(dev_validators as usize);
+        for i in 0..dev_validators {
+            let (validator_private_key, validator_address) = it.next().expect("infallible");
+            let validator_public_key = signer.import(validator_private_key.clone())?;
+            log::info!("     Validator: {validator_address} {validator_private_key} (#{i})");
+            validator_public_keys.push(validator_public_key);
+            validator_addresses.push(validator_address);
+        }
 
         for ((sender_private_key, sender_address), i) in it.clone().zip(1_usize..) {
             log::info!("     Sender:    {sender_address} {sender_private_key} (#{i})");
@@ -171,7 +181,7 @@ impl Service {
             EthereumDeployer::new(&anvil.ws_endpoint(), signer.clone(), deployer_address)
                 .await
                 .unwrap()
-                .with_validators(vec![validator_address].try_into().unwrap())
+                .with_validators(validator_addresses.clone().try_into().unwrap())
                 .deploy()
                 .await?;
 
@@ -191,11 +201,13 @@ impl Service {
             .anvil_set_balance(deployer_address.into(), balance)
             .await?;
 
-        provider
-            .anvil_set_balance(validator_address.into(), balance)
-            .await?;
+        for &validator_address in &validator_addresses {
+            provider
+                .anvil_set_balance(validator_address.into(), balance)
+                .await?;
 
-        wvara.mint(validator_address.into(), amount).await?;
+            wvara.mint(validator_address.into(), amount).await?;
+        }
 
         for (_, sender_address) in it {
             provider
@@ -209,7 +221,7 @@ impl Service {
             .anvil_set_interval_mining(block_time.as_secs())
             .await?;
 
-        Ok((anvil, validator_public_key, ethereum.router().address()))
+        Ok((anvil, validator_public_keys, ethereum.router().address()))
     }
 
     pub async fn new(config: &Config) -> Result<Self> {

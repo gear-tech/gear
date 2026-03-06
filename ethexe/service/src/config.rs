@@ -48,9 +48,54 @@ impl Config {
             log::info!("🛜  Network public key: {}", network.public_key);
         }
     }
+
+    /// Create a config clone for a secondary dev validator with its own database
+    /// and network identity.
+    pub fn clone_for_dev_validator(
+        &self,
+        key: &PublicKey,
+        index: usize,
+    ) -> Result<Config> {
+        let tmp_dir = tempfile::Builder::new()
+            .prefix(&format!("ethexe-validator-{index}"))
+            .tempdir()
+            .map_err(|e| anyhow::anyhow!("couldn't create temp dir for validator-{index}: {e}"))?;
+        let db_path = tmp_dir.path().to_path_buf();
+        // Leak the TempDir to keep it alive for the process lifetime
+        std::mem::forget(tmp_dir);
+
+        let network = self.network.as_ref().map(|net| {
+            let signer = gsigner::secp256k1::Signer::fs(
+                self.node.key_path.parent().unwrap().join("net"),
+            )
+            .expect("failed to open net keystore");
+            let net_key = signer.generate().expect("failed to generate network key");
+
+            NetworkConfig {
+                public_key: net_key,
+                listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
+                bootstrap_addresses: Default::default(),
+                external_addresses: Default::default(),
+                ..net.clone()
+            }
+        });
+
+        Ok(Config {
+            node: NodeConfig {
+                database_path: db_path,
+                validator: ConfigPublicKey::Enabled(*key),
+                validator_session: ConfigPublicKey::Enabled(*key),
+                ..self.node.clone()
+            },
+            ethereum: self.ethereum.clone(),
+            network,
+            rpc: None, // only primary node exposes RPC
+            prometheus: None, // only primary node exposes metrics
+        })
+    }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct NodeConfig {
     pub database_path: PathBuf,
     pub key_path: PathBuf,
