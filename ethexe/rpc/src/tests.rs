@@ -24,7 +24,7 @@ use ethexe_common::{
     db::InjectedStorageRW,
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, CompactPromiseHashes, CompactSignedPromise, Promise},
+    injected::{AddressedInjectedTransaction, CompactSignedPromise, Promise},
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -66,7 +66,7 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = self.create_promises_bundle(tx_batch.drain(..));
+                        let promises = self.promises_bundle(tx_batch.drain(..));
                         self.rpc.provide_compact_promises(promises);
                     },
                     _ = self.handle.clone().stopped() => {
@@ -83,7 +83,7 @@ impl MockService {
         })
     }
 
-    fn create_promises_bundle(
+    fn promises_bundle(
         &self,
         txs: impl IntoIterator<Item = AddressedInjectedTransaction>,
     ) -> Vec<CompactSignedPromise> {
@@ -92,8 +92,7 @@ impl MockService {
             .map(|tx| {
                 let promise = Promise::mock(tx.tx.data().to_hash());
                 self.db.set_promise(promise.clone());
-                let promise_hashes = CompactPromiseHashes::from(&promise);
-                CompactSignedPromise::create(pk.clone(), promise_hashes).unwrap()
+                CompactSignedPromise::create_from_promise(pk.clone(), &promise).unwrap()
             })
             .collect()
     }

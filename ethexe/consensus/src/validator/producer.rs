@@ -30,7 +30,7 @@ use ethexe_common::{
     Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec,
     db::BlockMetaStorageRO,
     gear::BatchCommitment,
-    injected::{CompactPromiseHashes, Promise},
+    injected::{CompactSignedPromise, Promise},
     network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
@@ -116,16 +116,16 @@ impl StateHandler for Producer {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
                 let tx_hash = promise.tx_hash;
 
-                let promise_hashes = CompactPromiseHashes::from(&promise);
-                let signed_promise = self
-                    .ctx
-                    .core
-                    .signer
-                    .signed_message(self.ctx.core.pub_key, promise_hashes, None)?
-                    .into();
+                let signed_promise =
+                    self.ctx
+                        .core
+                        .signer
+                        .signed_message(self.ctx.core.pub_key, promise, None)?;
+                let compact_signed_promise =
+                    CompactSignedPromise::from_signed_promise_unchecked(&signed_promise);
 
                 self.ctx
-                    .output(ConsensusEvent::SignedPromise(signed_promise));
+                    .output(ConsensusEvent::SignedPromise(compact_signed_promise));
 
                 tracing::trace!("consensus sign promise for transaction-hash={tx_hash}");
                 Ok(self.into())

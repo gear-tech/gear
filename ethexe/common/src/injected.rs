@@ -148,71 +148,40 @@ pub type SignedPromise = SignedMessage<Promise>;
 impl Promise {
     /// Calculates the `blake2b` hash from promise's reply.
     pub fn reply_hash(&self) -> HashOf<ReplyInfo> {
-        let ReplyInfo {
-            payload,
-            code,
-            value,
-        } = &self.reply;
+        // Safety by implementation
+        unsafe { HashOf::new(self.reply.to_hash()) }
+    }
 
-        let bytes = [
-            payload.as_ref(),
-            code.to_bytes().as_ref(),
-            value.to_be_bytes().as_ref(),
-        ]
-        .concat();
-        unsafe { HashOf::new(gear_core::utils::hash(&bytes).into()) }
+    /// Converts promise to its [`PromiseHashes`].
+    pub fn to_hashes(&self) -> PromiseHashes {
+        PromiseHashes {
+            tx_hash: self.tx_hash,
+            reply_hash: self.reply_hash(),
+        }
     }
 }
 
 impl ToDigest for Promise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // The hash of `Promise` equals to hash of `CompactPromiseHashes`.
-        CompactPromiseHashes::from(self).update_hasher(hasher);
+        self.to_hashes().update_hasher(hasher);
     }
 }
 
-/// A wrapper on top of [`CompactPromiseHashes`].
+/// A wrapper on top of [`PromiseHashes`].
 ///
-/// [`CompactPromiseHashes`] is a lightweight version of [`SignedPromise`], that is
+/// [`CompactSignedPromise`] is a lightweight version of [`SignedPromise`], that is
 /// needed to reduce the amount of data transferred in network between validators.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
-pub struct CompactSignedPromise(SignedMessage<CompactPromiseHashes>);
+pub struct CompactSignedPromise(SignedMessage<PromiseHashes>);
 
-impl From<&SignedPromise> for CompactSignedPromise {
-    fn from(signed_promise: &SignedPromise) -> Self {
-        let hashes = CompactPromiseHashes::from(signed_promise.data());
-        let message = SignedMessage::try_from_parts(
-            hashes,
-            signed_promise.signature().clone(),
-            signed_promise.address(),
-        );
-        CompactSignedPromise(message.unwrap())
-    }
-}
-
-impl CompactSignedPromise {
-    pub fn create(private_key: PrivateKey, hashes: CompactPromiseHashes) -> SignResult<Self> {
-        SignedMessage::create(private_key, hashes).map(|message| CompactSignedPromise(message))
-    }
-}
-
-/// The hashes of [`Promise`].
+/// The hashes of [`Promise`] parts.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct CompactPromiseHashes {
+pub struct PromiseHashes {
     pub tx_hash: HashOf<InjectedTransaction>,
     pub reply_hash: HashOf<ReplyInfo>,
 }
 
-impl From<&Promise> for CompactPromiseHashes {
-    fn from(promise: &Promise) -> Self {
-        Self {
-            tx_hash: promise.tx_hash,
-            reply_hash: promise.reply_hash(),
-        }
-    }
-}
-
-impl ToDigest for CompactPromiseHashes {
+impl ToDigest for PromiseHashes {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
             tx_hash,
@@ -221,6 +190,65 @@ impl ToDigest for CompactPromiseHashes {
 
         hasher.update(tx_hash.inner());
         hasher.update(reply_hash.inner());
+    }
+}
+
+impl CompactSignedPromise {
+    /// Create the [`CompactSignedPromise`] from private key and hashes.
+    pub fn create(private_key: PrivateKey, promise_hashes: PromiseHashes) -> SignResult<Self> {
+        SignedMessage::create(private_key, promise_hashes).map(CompactSignedPromise)
+    }
+
+    pub fn create_from_promise(private_key: PrivateKey, promise: &Promise) -> SignResult<Self> {
+        Self::create(private_key, promise.to_hashes())
+    }
+
+    /// Create the [`CompactSignedPromise`] from a valid [`SignedPromise`].
+    ///
+    /// # Panics
+    /// Panics if the digest of [`Promise`] and [`PromiseHashes`] ever diverge.
+    /// This must hold by construction; tests enforce the invariant.
+    pub fn from_signed_promise_unchecked(signed_promise: &SignedPromise) -> Self {
+        Self::try_from(signed_promise)
+            .expect("SignedPromise and PromiseHashes must have identical digest")
+    }
+}
+
+impl TryFrom<&SignedPromise> for CompactSignedPromise {
+    type Error = &'static str;
+
+    fn try_from(signed_promise: &SignedPromise) -> Result<Self, Self::Error> {
+        SignedMessage::try_from_parts(
+            signed_promise.data().to_hashes(),
+            *signed_promise.signature(),
+            signed_promise.address(),
+        )
+        .map(CompactSignedPromise)
+    }
+}
+
+/// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
+#[cfg(feature = "std")]
+mod serde_hex {
+    pub fn serialize<S, const N: usize>(
+        data: &super::LimitedVec<u8, N>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        alloy_primitives::hex::serialize(data.to_vec(), serializer)
+    }
+
+    pub fn deserialize<'de, D, const N: usize>(
+        deserializer: D,
+    ) -> Result<super::LimitedVec<u8, N>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
+        super::LimitedVec::<u8, N>::try_from(vec)
+            .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
     }
 }
 
@@ -271,59 +299,41 @@ mod tests {
 
     #[test]
     fn promise_hashes_digest_equal_to_promise_digest() {
-        let promise = {
-            let mut promise = Promise::mock(());
-            promise.reply.value = 123;
-            promise.reply.payload = vec![1u8, 2u8, 42u8, 66u8];
-            promise
-        };
-        let promise_digest = promise.to_digest();
-        let promise_hashes = CompactPromiseHashes::from(&promise);
+        let promise = Promise::mock(());
 
-        let promise_hashes_digest = promise_hashes.to_digest();
-        assert_eq!(promise_digest, promise_hashes_digest);
+        assert_eq!(promise.to_digest(), promise.to_hashes().to_digest());
     }
 
     #[test]
-    fn compact_signature_valid_for_promise() {
-        let pk = PrivateKey::random();
-
+    fn signatures_equal_for_promise_and_compact_promise() {
+        let private_key = PrivateKey::random();
         let promise = Promise::mock(());
-        let promise_hashes = CompactPromiseHashes::from(&promise);
-        let compact_signed_promise = CompactSignedPromise::create(pk, promise_hashes).unwrap();
 
-        let (signature, address) = (
-            *compact_signed_promise.signature(),
-            compact_signed_promise.address(),
+        let signed_promise = SignedPromise::create(private_key.clone(), promise.clone()).unwrap();
+        let compact_signed_promise =
+            CompactSignedPromise::create_from_promise(private_key, &promise).unwrap();
+
+        assert_eq!(signed_promise.address(), compact_signed_promise.address());
+        assert_eq!(
+            signed_promise.signature().clone(),
+            compact_signed_promise.signature().clone()
         );
-
-        let signed_promise = SignedMessage::try_from_parts(promise.clone(), signature, address)
-            .expect("SignedMessage<Promise> was correctly constructed from CompactSignedPromise");
-        assert_eq!(signed_promise.into_data(), promise);
-    }
-}
-
-/// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
-#[cfg(feature = "std")]
-mod serde_hex {
-    pub fn serialize<S, const N: usize>(
-        data: &super::LimitedVec<u8, N>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        alloy_primitives::hex::serialize(data.to_vec(), serializer)
     }
 
-    pub fn deserialize<'de, D, const N: usize>(
-        deserializer: D,
-    ) -> Result<super::LimitedVec<u8, N>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
-        super::LimitedVec::<u8, N>::try_from(vec)
-            .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
+    #[test]
+    fn compact_signed_promise_correctly_builds_from_signed_promise() {
+        let private_key = PrivateKey::random();
+        let promise = Promise::mock(());
+
+        let signed_promise = SignedPromise::create(private_key.clone(), promise).unwrap();
+
+        let compact_signed_promise =
+            CompactSignedPromise::try_from(&signed_promise).expect("valid signed promise");
+
+        assert_eq!(signed_promise.address(), compact_signed_promise.address());
+        assert_eq!(
+            signed_promise.signature().clone(),
+            compact_signed_promise.signature().clone()
+        );
     }
 }

@@ -209,7 +209,7 @@ impl Mock<HashOf<InjectedTransaction>> for Promise {
         Promise {
             tx_hash,
             reply: ReplyInfo {
-                payload: H256::random().0.to_vec().try_into().unwrap(),
+                payload: H256::random().0.to_vec(),
                 value: 42,
                 code: ReplyCode::Success(SuccessReplyReason::Manual),
             },

@@ -20,10 +20,13 @@
 
 use alloc::vec::Vec;
 use gear_core_errors::ReplyCode;
+use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
+
+use crate::utils;
 
 /// Pre-calculated gas consumption estimate for a message.
 ///
@@ -63,6 +66,25 @@ pub struct ReplyInfo {
     /// Reply code of the reply.
     #[cfg_attr(feature = "std", serde(with = "serialize_reply_code"))]
     pub code: ReplyCode,
+}
+
+impl ReplyInfo {
+    /// Calculates `blake2b` hash from [`ReplyInfo`].
+    pub fn to_hash(&self) -> H256 {
+        let ReplyInfo {
+            payload,
+            value,
+            code,
+        } = self;
+
+        let bytes = [
+            payload.as_ref(),
+            value.to_be_bytes().as_ref(),
+            code.to_bytes().as_ref(),
+        ]
+        .concat();
+        utils::hash(&bytes).into()
+    }
 }
 
 /// Serializer and deserializer for ReplyCode as 0x-prefixed hex string.

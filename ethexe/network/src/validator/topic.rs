@@ -330,7 +330,7 @@ mod tests {
     use assert_matches::assert_matches;
     use ethexe_common::{
         self, Announce,
-        injected::{CompactPromiseHashes, Promise, SignedPromise},
+        injected::{Promise, SignedPromise},
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
@@ -393,11 +393,8 @@ mod tests {
         public_key: PublicKey,
         promise: Promise,
     ) -> CompactSignedPromise {
-        let promise_hashes = CompactPromiseHashes::from(&promise);
-        signer
-            .signed_message(public_key, promise_hashes, None)
-            .unwrap()
-            .into()
+        let signed_promise = signer.signed_message(public_key, promise, None).unwrap();
+        CompactSignedPromise::from_signed_promise_unchecked(&signed_promise)
     }
 
     #[test]
