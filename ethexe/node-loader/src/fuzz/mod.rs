@@ -25,7 +25,7 @@
 mod cmd_gen;
 
 use crate::args::FuzzParams;
-use alloy::primitives::Address;
+use alloy::{hex, primitives::Address, providers::Provider, rpc::types::Filter};
 use anyhow::Result;
 use demo_syscalls_ethexe::InitConfig;
 use ethexe_ethereum::Ethereum;
@@ -48,7 +48,7 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
         crate::signer_from_private_key(crate::DEPLOYER_ACCOUNT.private_key)?
     };
 
-    info!("Fuzz deployer address: 0x{}", alloy::hex::encode(address.0));
+    info!("Fuzz deployer address: 0x{}", hex::encode(address.0));
 
     let api = Ethereum::new(&params.node, router_addr.into(), signer.clone(), address).await?;
     let vapi = VaraEthApi::new(&params.ethexe_node, api.clone()).await?;
@@ -76,10 +76,7 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     info!("Program topped up");
 
     let init_config = InitConfig { echo_dest: None };
-    let init_block = {
-        use alloy::providers::Provider;
-        api.provider().get_block_number().await?
-    };
+    let init_block = api.provider().get_block_number().await?;
     let (_, init_mid) = mirror.send_message(&init_config.encode(), 0).await?;
     info!("Init message sent: {init_mid}");
 
@@ -113,10 +110,7 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
             payload.len()
         );
 
-        let start_block = {
-            use alloy::providers::Provider;
-            api.provider().get_block_number().await?
-        };
+        let start_block = api.provider().get_block_number().await?;
         let (_, msg_id) = mirror.send_message(&payload, 0).await?;
         debug!("Message sent: {msg_id}");
 
@@ -160,7 +154,6 @@ async fn wait_for_reply(
     start_block: u64,
     max_blocks: usize,
 ) -> Result<Option<String>> {
-    use alloy::{providers::Provider, rpc::types::Filter};
     use ethexe_common::events::MirrorEvent;
     use ethexe_ethereum::mirror::events::try_extract_event;
     use gear_core::ids::prelude::MessageIdExt;
