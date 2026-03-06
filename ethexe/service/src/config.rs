@@ -51,11 +51,7 @@ impl Config {
 
     /// Create a config clone for a secondary dev validator with its own database
     /// and network identity.
-    pub fn clone_for_dev_validator(
-        &self,
-        key: &PublicKey,
-        index: usize,
-    ) -> Result<Config> {
+    pub fn clone_for_dev_validator(&self, key: &PublicKey, index: usize) -> Result<Config> {
         let tmp_dir = tempfile::Builder::new()
             .prefix(&format!("ethexe-validator-{index}"))
             .tempdir()
@@ -65,10 +61,9 @@ impl Config {
         std::mem::forget(tmp_dir);
 
         let network = self.network.as_ref().map(|net| {
-            let signer = gsigner::secp256k1::Signer::fs(
-                self.node.key_path.parent().unwrap().join("net"),
-            )
-            .expect("failed to open net keystore");
+            let signer =
+                gsigner::secp256k1::Signer::fs(self.node.key_path.parent().unwrap().join("net"))
+                    .expect("failed to open net keystore");
             let net_key = signer.generate().expect("failed to generate network key");
 
             NetworkConfig {
@@ -89,7 +84,7 @@ impl Config {
             },
             ethereum: self.ethereum.clone(),
             network,
-            rpc: None, // only primary node exposes RPC
+            rpc: None,        // only primary node exposes RPC
             prometheus: None, // only primary node exposes metrics
         })
     }
