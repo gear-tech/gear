@@ -179,8 +179,12 @@ impl ConnectionMapLimit for PeerLimit {
     fn check_limit(
         &self,
         connections: &HashMap<PeerId, HashSet<ConnectionId>>,
-        _peer_id: PeerId,
+        peer_id: PeerId,
     ) -> Result<(), Self::Error> {
+        if connections.contains_key(&peer_id) {
+            return Ok(());
+        }
+
         if (connections.len() as u32) < self.limit {
             Ok(())
         } else {

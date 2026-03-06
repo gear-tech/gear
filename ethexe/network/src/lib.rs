@@ -23,6 +23,7 @@ mod injected;
 mod kad;
 mod metrics;
 pub mod peer_score;
+mod slots;
 mod utils;
 mod validator;
 
@@ -55,11 +56,7 @@ use libp2p::{
     metrics::Recorder,
     multiaddr::Protocol,
     ping,
-    swarm::{
-        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
-        behaviour::toggle::Toggle,
-        dial_opts::{DialOpts, PeerCondition},
-    },
+    swarm::{Config as SwarmConfig, NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle},
     yamux,
 };
 #[cfg(test)]
@@ -277,6 +274,7 @@ impl NetworkService {
                 })
                 .context("bootstrap nodes are not allowed without peer ID")?;
 
+            swarm.add_peer_address(peer_id, multiaddr.clone());
             swarm.behaviour_mut().kad.add_address(peer_id, multiaddr);
             bootstrap_peers.insert(peer_id);
         }
@@ -378,10 +376,13 @@ impl NetworkService {
         match event {
             BehaviourEvent::CustomConnectionLimits(event) => match event {},
             BehaviourEvent::ConnectionLimits(event) => match event {},
+            BehaviourEvent::Slots(event) => match event {},
             BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
             BehaviourEvent::Ping(event) => self.handle_ping_event(event),
             BehaviourEvent::Identify(event) => self.handle_identify_event(event),
-            BehaviourEvent::Mdns4(event) => self.handle_mdns_event(event),
+            BehaviourEvent::Mdns4(_event) => {
+                // we use the `NewExternalAddrOfPeer` event produced by mDNS behaviour
+            }
             BehaviourEvent::Kad(event) => self.handle_kad_event(event),
             BehaviourEvent::Gossipsub(event) => return self.handle_gossipsub_event(event),
             BehaviourEvent::DbSync(_event) => {}
@@ -446,25 +447,6 @@ impl NetworkService {
                 log::debug!("{peer_id} is not identified: {error}");
             }
             _ => {}
-        }
-    }
-
-    fn handle_mdns_event(&mut self, event: mdns::Event) {
-        match event {
-            mdns::Event::Discovered(peers) => {
-                for (peer_id, multiaddr) in peers {
-                    if let Err(e) = self.swarm.dial(
-                        DialOpts::peer_id(peer_id)
-                            .condition(PeerCondition::Disconnected)
-                            .addresses(vec![multiaddr])
-                            .extend_addresses_through_behaviour()
-                            .build(),
-                    ) {
-                        log::error!("dialing failed for mDNS address: {e:?}");
-                    }
-                }
-            }
-            mdns::Event::Expired(_peers) => {}
         }
     }
 
@@ -648,6 +630,8 @@ pub(crate) struct Behaviour {
     pub custom_connection_limits: custom_connection_limits::Behaviour,
     // limit connections
     pub connection_limits: connection_limits::Behaviour,
+    // peer amount manager
+    pub slots: slots::Behaviour,
     // peer scoring system
     pub peer_score: peer_score::Behaviour,
     // fast peer liveliness check
@@ -657,7 +641,6 @@ pub(crate) struct Behaviour {
     // local discovery for IPv4 only
     pub mdns4: Toggle<mdns::tokio::Behaviour>,
     // global traversal discovery
-    // TODO: consider to cache records in fs
     pub kad: kad::Behaviour,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
@@ -704,6 +687,8 @@ impl Behaviour {
         let connection_limits = connection_limits::ConnectionLimits::default()
             .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
+
+        let slots = slots::Behaviour::new(slots::Config::default());
 
         let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
         let peer_score_handle = peer_score.handle();
@@ -753,6 +738,7 @@ impl Behaviour {
         Ok(Self {
             custom_connection_limits,
             connection_limits,
+            slots,
             peer_score,
             ping,
             identify,
