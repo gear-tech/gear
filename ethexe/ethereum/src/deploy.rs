@@ -436,8 +436,12 @@ where
 fn generate_secret_sharing_commitment(
     identifiers: &[Identifier],
 ) -> VerifiableSecretSharingCommitment {
+    let max_signers = identifiers
+        .len()
+        .try_into()
+        .expect("too many identifiers for u16");
     let (mut secret_shares, _) = keys::generate_with_dealer(
-        1,
+        max_signers,
         1,
         IdentifierList::Custom(identifiers),
         rand::thread_rng(),
