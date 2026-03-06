@@ -107,7 +107,7 @@ impl RunCommand {
                 // enable network for multi-validator mode
                 self.params
                     .network
-                    .get_or_insert_with(|| NetworkParams::dev_defaults());
+                    .get_or_insert_with(NetworkParams::dev_defaults);
 
                 extra_validator_keys = validator_public_keys[1..].to_vec();
             }
