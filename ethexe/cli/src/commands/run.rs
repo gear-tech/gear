@@ -24,7 +24,7 @@ use anyhow::{Context as _, Result};
 use clap::Args;
 use ethexe_service::{Service, config::Config};
 use std::time::Duration;
-use tokio::{runtime::Builder, task::JoinSet};
+use tokio::runtime::Builder;
 
 /// Run the node.
 #[derive(Debug, Args)]
@@ -161,16 +161,17 @@ impl RunCommand {
         primary_config: Config,
         extra_validator_keys: Vec<gsigner::secp256k1::PublicKey>,
     ) -> Result<()> {
-        let mut tasks = JoinSet::new();
+        // Use std::thread::spawn to ensure each validator runs on its own dedicated OS thread.
+        // This is required because we have `thread_local!` storages that are not designed
+        // to be shared across multiple nodes in the *same* process.
+        let mut handles = Vec::with_capacity(extra_validator_keys.len() + 1);
 
-        // Spawn extra validator services, each pinned to its own dedicated thread
-        // The reason for this is that we have a few `thread_local!` storages that
-        // are not designed to be shared across multiple nodes in the *same* process.
+        // Spawn extra validator services, each on its own dedicated thread
         for (i, key) in extra_validator_keys.iter().enumerate() {
             let validator_config = primary_config.clone_for_dev_validator(key, i + 1)?;
             let idx = i + 1;
 
-            tasks.spawn_blocking(move || {
+            let handle = std::thread::spawn(move || {
                 log::info!("🚀 Starting validator-{idx} on dedicated thread");
 
                 Builder::new_current_thread()
@@ -184,10 +185,12 @@ impl RunCommand {
                         service.run().await
                     })
             });
+
+            handles.push(handle);
         }
 
         // Run primary validator on its own dedicated thread as well
-        tasks.spawn_blocking(move || {
+        let primary_handle = std::thread::spawn(move || {
             log::info!("🚀 Starting validator-0 (primary) on dedicated thread");
 
             Builder::new_current_thread()
@@ -202,12 +205,23 @@ impl RunCommand {
                 })
         });
 
+        handles.push(primary_handle);
+
+        // Wait for ctrl_c or for any thread to finish
         tokio::select! {
-            Some(result) = tasks.join_next() => {
-                result.with_context(|| "validator task panicked")?
-            }
             _ = tokio::signal::ctrl_c() => {
                 log::info!("Received SIGINT, shutting down");
+                Ok(())
+            }
+            _ = async {
+                // Wait for any thread to finish (join returns Result<Result<_, _>, _>)
+                for handle in handles {
+                    if let Err(e) = handle.join() {
+                        log::error!("Validator thread panicked: {:?}", e);
+                    }
+                }
+            } => {
+                log::info!("All validator threads completed");
                 Ok(())
             }
         }
