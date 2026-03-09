@@ -71,7 +71,7 @@ pub trait ConsensusService:
     fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
 
     /// Process a computed block received
-    fn receive_computed_announce(&mut self, computed_data: HashOf<Announce>) -> Result<()>;
+    fn receive_computed_announce(&mut self, computed_announce: HashOf<Announce>) -> Result<()>;
 
     /// Process a received producer announce
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()>;
