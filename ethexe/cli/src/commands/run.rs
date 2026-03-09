@@ -163,26 +163,44 @@ impl RunCommand {
     ) -> Result<()> {
         let mut tasks = JoinSet::new();
 
-        // Spawn extra validator services first
+        // Spawn extra validator services, each pinned to its own dedicated thread
+        // The reason for this is that we have a few `thread_local!` storages that
+        // are not designed to be shared across multiple nodes in the *same* process.
         for (i, key) in extra_validator_keys.iter().enumerate() {
             let validator_config = primary_config.clone_for_dev_validator(key, i + 1)?;
+            let idx = i + 1;
 
-            log::info!("🚀 Starting validator-{}", i + 1);
+            tasks.spawn_blocking(move || {
+                log::info!("🚀 Starting validator-{idx} on dedicated thread");
 
-            let service = Service::new(&validator_config)
-                .await
-                .with_context(|| format!("failed to create validator-{} service", i + 1))?;
-
-            tasks.spawn(async move { service.run().await });
+                Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("failed to create tokio runtime for validator")
+                    .block_on(async {
+                        let service = Service::new(&validator_config)
+                            .await
+                            .with_context(|| format!("failed to create validator-{idx} service"))?;
+                        service.run().await
+                    })
+            });
         }
 
-        log::info!("🚀 Starting validator-0 (primary)");
+        // Run primary validator on its own dedicated thread as well
+        tasks.spawn_blocking(move || {
+            log::info!("🚀 Starting validator-0 (primary) on dedicated thread");
 
-        let primary_service = Service::new(&primary_config)
-            .await
-            .with_context(|| "failed to create primary validator service")?;
-
-        tasks.spawn(async move { primary_service.run().await });
+            Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("failed to create tokio runtime for primary validator")
+                .block_on(async {
+                    let service = Service::new(&primary_config)
+                        .await
+                        .with_context(|| "failed to create primary validator service")?;
+                    service.run().await
+                })
+        });
 
         tokio::select! {
             Some(result) = tasks.join_next() => {
