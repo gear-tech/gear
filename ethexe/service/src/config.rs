@@ -60,20 +60,37 @@ impl Config {
         // Leak the TempDir to keep it alive for the process lifetime
         std::mem::forget(tmp_dir);
 
-        let network = self.network.as_ref().map(|net| {
-            let signer =
-                gsigner::secp256k1::Signer::fs(self.node.key_path.parent().unwrap().join("net"))
-                    .expect("failed to open net keystore");
-            let net_key = signer.generate().expect("failed to generate network key");
+        let network = self
+            .network
+            .as_ref()
+            .map(|net| -> Result<_> {
+                let net_keys_dir = self
+                    .node
+                    .key_path
+                    .parent()
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "key path '{}' has no parent directory",
+                            self.node.key_path.display()
+                        )
+                    })?
+                    .join("net");
+                let signer = gsigner::secp256k1::Signer::fs(net_keys_dir).map_err(|e| {
+                    anyhow::anyhow!("failed to open net keystore for dev validator: {e}")
+                })?;
+                let net_key = signer.generate().map_err(|e| {
+                    anyhow::anyhow!("failed to generate network key for dev validator: {e}")
+                })?;
 
-            NetworkConfig {
-                public_key: net_key,
-                listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
-                bootstrap_addresses: Default::default(),
-                external_addresses: Default::default(),
-                ..net.clone()
-            }
-        });
+                Ok(NetworkConfig {
+                    public_key: net_key,
+                    listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
+                    bootstrap_addresses: Default::default(),
+                    external_addresses: Default::default(),
+                    ..net.clone()
+                })
+            })
+            .transpose()?;
 
         Ok(Config {
             node: NodeConfig {
