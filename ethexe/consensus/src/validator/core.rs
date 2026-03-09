@@ -232,7 +232,8 @@ impl ValidatorCore {
             // TODO #4908: max validators must be configurable
             max_validators: 10,
         };
-        let mut elected_validators = match self.middleware.make_election_at(request).await {
+
+        let elected_validators = match self.middleware.make_election_at(request).await {
             Ok(validators) => validators,
             Err(e) => {
                 tracing::warn!(
@@ -244,9 +245,6 @@ impl ValidatorCore {
                 return Ok(None);
             }
         };
-
-        // Sort elected validators, because of RPC can not guarantee the determinism of returned validators order.
-        elected_validators.sort();
 
         let (aggregated_public_key, verifiable_secret_sharing_commitment) =
             match utils::generate_roast_keys(&elected_validators) {

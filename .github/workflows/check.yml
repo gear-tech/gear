@@ -89,13 +89,15 @@ jobs:
 
       - name: "Check: ABI files are updated"
         run: |
-          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/POAMiddleware.sol/POAMiddleware.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi
 
-          git diff --exit-code ./ethexe/ethereum/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
+          git diff --exit-code ./ethexe/ethereum/abi/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
 
       - name: "Check: Clones.sol is updated"
         run: |
@@ -180,9 +182,12 @@ jobs:
           target: x86_64-unknown-linux-gnu
 
       - name: "Check if workspace hack Cargo.toml is up-to-date"
-        uses: ./.github/actions/cargo-hakari
-        with:
-          args: generate --diff
+        run: |
+          cargo hakari generate && ./scripts/hakari-post-process.sh
+          git diff --exit-code utils/gear-workspace-hack/Cargo.toml || {
+            echo "::error::workspace hack Cargo.toml is out of date. Run 'make workspace-hack' and commit the result."
+            exit 1
+          }
 
       - name: "Check if all workspace crates depend on workspace hack"
         uses: ./.github/actions/cargo-hakari

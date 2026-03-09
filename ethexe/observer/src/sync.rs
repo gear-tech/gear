@@ -177,17 +177,20 @@ impl ChainSync {
     /// 2. if the election result is `finalized` it requests for next era validators and sets them in database.
     ///
     /// See [`Self::election_timestamp_finalized`] for the our timestamp `finalization` rules.
-    async fn ensure_validators(&self, data: SimpleBlockData) -> Result<()> {
-        let chain_head_era = self.config.timelines.era_from_ts(data.header.timestamp);
+    async fn ensure_validators(&self, block_data: SimpleBlockData) -> Result<()> {
+        let chain_head_era = self
+            .config
+            .timelines
+            .era_from_ts(block_data.header.timestamp);
 
         // If we don't have validators for current era - set them.
         if self.db.validators(chain_head_era).is_none() {
-            let validators = self.router_query.validators_at(data.hash).await?;
+            let validators = self.router_query.validators_at(block_data.hash).await?;
             self.db.set_validators(chain_head_era, validators);
         }
 
         // Fetch next era validators if timestamp `finalized` and we don't set them in database already.
-        if let Some(election_ts) = self.election_timestamp_finalized(data.header)
+        if let Some(election_ts) = self.election_timestamp_finalized(block_data.header.timestamp)
             && self.db.validators(chain_head_era.add(1)).is_none()
         {
             let next_era_validators = self
@@ -219,14 +222,13 @@ impl ChainSync {
 
     /// Function checks the `election_ts` in current era is `finalized` and if it's true then returns it.
     ///
-    /// By `finalization` we mean the 64 blocks, because of it is closely to real finalization time and
-    /// reorgs for 64 blocks can not happen.
-    fn election_timestamp_finalized(&self, chain_head: BlockHeader) -> Option<u64> {
+    /// The `finalization` blocks period set in observer's [`RuntimeConfig`].
+    fn election_timestamp_finalized(&self, timestamp: u64) -> Option<u64> {
         let election_ts = self
             .config
             .timelines
-            .era_election_start_ts(self.config.timelines.era_from_ts(chain_head.timestamp));
-        (chain_head.timestamp.saturating_sub(election_ts)
+            .era_election_start_ts(self.config.timelines.era_from_ts(timestamp));
+        (timestamp.saturating_sub(election_ts)
             > self.config.timelines.slot * self.config.finalization_period_blocks)
             .then_some(election_ts)
     }

@@ -125,10 +125,10 @@ mod utils {
     ) -> InjectedTransaction {
         InjectedTransaction {
             destination,
-            payload: payload.as_ref().to_vec().into(),
+            payload: payload.as_ref().to_vec().try_into().unwrap(),
             value,
             reference_block: H256::random(),
-            salt: H256::random().0.to_vec().into(),
+            salt: H256::random().0.to_vec().try_into().unwrap(),
         }
     }
 }

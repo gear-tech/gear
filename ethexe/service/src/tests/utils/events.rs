@@ -141,6 +141,7 @@ pub enum TestingEvent {
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
     Rpc(TestingRpcEvent),
+    Prometheus,
     Fetching,
 }
 
@@ -153,6 +154,7 @@ impl TestingEvent {
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
+            Event::Prometheus(_event) => Self::Prometheus,
             Event::Fetching(_) => Self::Fetching,
         }
     }
