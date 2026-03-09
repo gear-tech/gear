@@ -24,12 +24,8 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::{
-    HashOf,
-    injected::{
-        AddressedInjectedTransaction, CompactSignedPromise, InjectedTransaction,
-        InjectedTransactionAcceptance,
-    },
+use ethexe_common::injected::{
+    AddressedInjectedTransaction, CompactSignedPromise, InjectedTransactionAcceptance, Promise,
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -156,19 +152,12 @@ impl RpcService {
         }
     }
 
-    pub fn provide_promise_computed(&self, promise_tx_hash: HashOf<InjectedTransaction>) {
-        self.injected_api.on_computed_promise(promise_tx_hash);
+    pub fn receive_computed_promise(&self, promise: Promise) {
+        self.injected_api.on_computed_promise(promise);
     }
 
-    pub fn provide_compact_promise(&self, compact_promise: CompactSignedPromise) {
+    pub fn receive_compact_promise(&self, compact_promise: CompactSignedPromise) {
         self.injected_api.on_compact_promise(compact_promise);
-    }
-
-    #[cfg(test)]
-    pub fn provide_compact_promises(&self, compact_promises: Vec<CompactSignedPromise>) {
-        compact_promises
-            .into_iter()
-            .for_each(|compact_promise| self.provide_compact_promise(compact_promise));
     }
 }
 

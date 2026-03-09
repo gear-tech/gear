@@ -25,8 +25,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, PromiseEmissionMode, db::InjectedStorageRW, gear::CodeState,
-    network::VerifiedValidatorMessage,
+    COMMITMENT_DELAY_LIMIT, PromiseEmissionMode, gear::CodeState, network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -559,7 +558,10 @@ impl Service {
                         // Nothing
                     }
                     ComputeEvent::Promise(promise, announce_hash) => {
-                        self.db.set_promise(&promise);
+                        if let Some(ref rpc) = rpc {
+                            rpc.receive_computed_promise(promise.clone());
+                        }
+
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },
@@ -608,7 +610,7 @@ impl Service {
                         },
                         NetworkEvent::PromiseMessage(compact_promise) => {
                             if let Some(rpc) = &rpc {
-                                rpc.provide_compact_promise(compact_promise);
+                                rpc.receive_compact_promise(compact_promise);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
@@ -662,7 +664,7 @@ impl Service {
                         }
 
                         if let Some(rpc) = &rpc {
-                            rpc.provide_compact_promise(compact_promise.clone());
+                            rpc.receive_compact_promise(compact_promise.clone());
                         }
 
                         if let Some(network) = &mut network {

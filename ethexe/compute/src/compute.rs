@@ -189,11 +189,6 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         })
         .ok_or(ComputeError::LatestDataNotFound)?;
 
-        // TODO: store injected promises in db
-        // promises.clone().into_iter().for_each(|promise| {
-        //     db.set_promise(promise);
-        // });
-
         Ok(announce_hash)
     }
 }

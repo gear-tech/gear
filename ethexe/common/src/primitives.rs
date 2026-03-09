@@ -129,13 +129,12 @@ impl ToDigest for Announce {
     }
 }
 
-#[derive(Clone, Debug, Copy, Default, PartialEq, Eq, derive_more::IsVariant)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::IsVariant)]
 pub enum PromiseEmissionMode {
     /// Node should always emit promises during announces execution.
     /// Always set [`PromisePolicy::Enabled`].
     AlwaysEmit,
     /// [`PromisePolicy`] is set by consensus service.
-    #[default]
     ConsensusDriven,
 }
 

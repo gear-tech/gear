@@ -165,6 +165,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             producer_delay: Duration::from_millis(1),
+            promise_emission_mode: PromiseEmissionMode::ConsensusDriven,
         },
         pending_events: VecDeque::new(),
         output: VecDeque::new(),

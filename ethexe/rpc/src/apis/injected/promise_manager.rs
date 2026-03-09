@@ -20,7 +20,7 @@ use anyhow::Result;
 use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
     HashOf, SignedMessage,
-    db::InjectedStorageRO,
+    db::{InjectedStorageRO, InjectedStorageRW},
     injected::{CompactSignedPromise, InjectedTransaction, Promise, SignedPromise},
 };
 use ethexe_db::Database;
@@ -122,12 +122,11 @@ impl PromiseSubscriptionManager {
         }
     }
 
-    pub fn on_computed_promise(&self, promise_tx_hash: HashOf<InjectedTransaction>) {
-        if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise_tx_hash) {
-            let Some(promise) = self.db.promise(promise_tx_hash) else {
-                unreachable!("promise must be computed and set to database")
-            };
+    pub fn on_computed_promise(&self, promise: Promise) {
+        // Set computed promise to RPC database
+        self.db.set_promise(&promise);
 
+        if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) {
             match utils::try_build_signed_promise(promise, &compact_promise) {
                 Ok(signed_promise) => self.dispatch_promise(signed_promise),
                 Err(_err) => {} // handle error, maybe reinsert to map.

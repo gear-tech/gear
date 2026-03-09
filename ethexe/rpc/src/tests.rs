@@ -67,7 +67,9 @@ impl MockService {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
                         let promises = self.promises_bundle(tx_batch.drain(..));
-                        self.rpc.provide_compact_promises(promises);
+                        promises.into_iter().for_each(|promise| {
+                            self.rpc.receive_compact_promise(promise);
+                        });
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")

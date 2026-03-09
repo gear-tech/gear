@@ -23,7 +23,8 @@ use super::{
     spawner,
 };
 use ethexe_common::{
-    HashOf,
+    HashOf, SignedMessage,
+    db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
         SignedPromise,
@@ -39,6 +40,7 @@ use tokio::sync::mpsc;
 
 #[derive(Clone)]
 pub struct InjectedApi {
+    db: Database,
     manager: PromiseSubscriptionManager,
     relayer: TransactionsRelayer,
 }
@@ -79,6 +81,7 @@ impl Deref for InjectedApi {
 impl InjectedApi {
     pub fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
+            db: db.clone(),
             manager: PromiseSubscriptionManager::new(db),
             relayer: TransactionsRelayer::new(rpc_sender),
         }
@@ -126,32 +129,36 @@ impl InjectedApi {
 
     async fn get_transaction_promise(
         &self,
-        _tx_hash: HashOf<InjectedTransaction>,
+        tx_hash: HashOf<InjectedTransaction>,
     ) -> RpcResult<Option<SignedPromise>> {
-        // let Some(promise) = self.db.promise(tx_hash) else {
-        //     tracing::trace!(?tx_hash, "promise not found for injected transaction");
-        //     return Ok(None);
-        // };
+        if self.db.injected_transaction(tx_hash).is_some() {
+            // TODO: add error message here
+            return Err(errors::bad_request(""));
+        }
 
-        // let Some((signature, address)) = self.db.promise_signature(tx_hash) else {
-        //     tracing::trace!(
-        //         ?tx_hash,
-        //         "promise signature not found for injected transaction"
-        //     );
-        //     return Ok(None);
-        // };
+        let Some(promise) = self.db.promise(tx_hash) else {
+            tracing::trace!(?tx_hash, "promise not found for injected transaction");
+            return Ok(None);
+        };
 
-        // match SignedMessage::try_from_parts(promise, signature, address) {
-        //     Ok(message) => Ok(Some(message)),
-        //     Err(err) => {
-        //         tracing::trace!(
-        //             ?tx_hash,
-        //             ?err,
-        //             "failed to build signed promise from parts for injected transaction"
-        //         );
-        //         Ok(None)
-        //     }
-        // }
-        todo!()
+        let Some((signature, address)) = self.db.promise_signature(tx_hash) else {
+            tracing::trace!(
+                ?tx_hash,
+                "promise signature not found for injected transaction"
+            );
+            return Ok(None);
+        };
+
+        match SignedMessage::try_from_parts(promise, signature, address) {
+            Ok(message) => Ok(Some(message)),
+            Err(err) => {
+                tracing::trace!(
+                    ?tx_hash,
+                    ?err,
+                    "failed to build signed promise from parts for injected transaction"
+                );
+                Ok(None)
+            }
+        }
     }
 }
