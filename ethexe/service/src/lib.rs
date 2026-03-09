@@ -24,7 +24,10 @@ use alloy::{
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
-use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
+use ethexe_common::{
+    COMMITMENT_DELAY_LIMIT, PromiseEmissionMode, db::InjectedStorageRW, gear::CodeState,
+    network::VerifiedValidatorMessage,
+};
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
@@ -238,6 +241,17 @@ impl Service {
             None
         };
 
+        let rpc = config
+            .rpc
+            .as_ref()
+            .map(|config| RpcServer::new(config.clone(), db.clone()));
+
+        let promise_emission_mode = if rpc.is_some() {
+            PromiseEmissionMode::AlwaysEmit
+        } else {
+            PromiseEmissionMode::ConsensusDriven
+        };
+
         let observer =
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
@@ -320,6 +334,7 @@ impl Service {
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
                         chain_deepness_threshold: config.node.chain_deepness_threshold,
+                        promise_emission_mode,
                     },
                 )?)
             } else {
@@ -364,11 +379,6 @@ impl Service {
         } else {
             None
         };
-
-        let rpc = config
-            .rpc
-            .as_ref()
-            .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let processor_config = ProcessorConfig {
@@ -549,6 +559,7 @@ impl Service {
                         // Nothing
                     }
                     ComputeEvent::Promise(promise, announce_hash) => {
+                        self.db.set_promise(&promise);
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },

@@ -91,7 +91,7 @@ impl MockService {
         txs.into_iter()
             .map(|tx| {
                 let promise = Promise::mock(tx.tx.data().to_hash());
-                self.db.set_promise(promise.clone());
+                self.db.set_promise(&promise);
                 CompactSignedPromise::create_from_promise(pk.clone(), &promise).unwrap()
             })
             .collect()
@@ -114,7 +114,7 @@ async fn start_new_server(listen_addr: SocketAddr, db: Database) -> (ServerHandl
 
 /// This helper function waits until all promise subscriptions being closed and cleaned up.
 async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
-    while injected_api.promise_subscribers_count() > 0 {
+    while injected_api.subscribers_count() > 0 {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
 }

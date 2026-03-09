@@ -163,7 +163,8 @@ impl ConnectService {
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
                 self.output.push_back(ConsensusEvent::ComputeAnnounce(
                     announce,
-                    PromisePolicy::Disabled,
+                    // TODO: FIXME
+                    PromisePolicy::Enabled,
                 ));
             }
         }

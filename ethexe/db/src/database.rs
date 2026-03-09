@@ -650,7 +650,7 @@ impl InjectedStorageRW for Database {
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
     }
 
-    fn set_promise(&self, promise: Promise) {
+    fn set_promise(&self, promise: &Promise) {
         tracing::trace!(?promise, "Set promise for injected transaction");
 
         self.kv

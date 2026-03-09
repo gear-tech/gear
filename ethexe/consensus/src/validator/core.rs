@@ -26,7 +26,8 @@ use crate::{
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
-    Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, Announce, Digest, HashOf, PromiseEmissionMode, ProtocolTimelines, SimpleBlockData,
+    ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::{AnnounceStorageRO, BlockMetaStorageRO, OnChainStorageRO},
     ecdsa::{ContractSignature, PublicKey},
@@ -70,6 +71,8 @@ pub struct ValidatorCore {
     pub commitment_delay_limit: u32,
     /// Delay before producer starts to creating new announce after block prepared.
     pub producer_delay: Duration,
+    /// Promise emission mode for consensus service.
+    pub promise_emission_mode: PromiseEmissionMode,
 }
 
 impl Clone for ValidatorCore {
@@ -89,6 +92,7 @@ impl Clone for ValidatorCore {
             block_gas_limit: self.block_gas_limit,
             commitment_delay_limit: self.commitment_delay_limit,
             producer_delay: self.producer_delay,
+            promise_emission_mode: self.promise_emission_mode,
         }
     }
 }

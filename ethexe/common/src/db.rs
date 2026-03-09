@@ -147,7 +147,7 @@ pub trait InjectedStorageRO {
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
 
-    fn set_promise(&self, promise: Promise);
+    fn set_promise(&self, promise: &Promise);
 
     fn set_promise_signature(
         &self,

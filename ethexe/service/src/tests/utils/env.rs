@@ -31,8 +31,8 @@ use alloy::{
 use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
-    ValidatorsVec,
+    Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, PromiseEmissionMode,
+    SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{
@@ -889,6 +889,17 @@ impl Node {
         let processor = Processor::new(self.db.clone()).unwrap();
         let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
+        let rpc = self
+            .service_rpc_config
+            .as_ref()
+            .map(|service_rpc_config| RpcServer::new(service_rpc_config.clone(), self.db.clone()));
+
+        let promise_emission_mode = if rpc.is_some() {
+            PromiseEmissionMode::AlwaysEmit
+        } else {
+            PromiseEmissionMode::ConsensusDriven
+        };
+
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
             .unwrap();
@@ -935,6 +946,7 @@ impl Node {
                             producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
                             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+                            promise_emission_mode,
                         },
                     )
                     .unwrap(),
@@ -973,11 +985,6 @@ impl Node {
             let peer_id = network.as_ref().unwrap().local_peer_id();
             self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
         }
-
-        let rpc = self
-            .service_rpc_config
-            .as_ref()
-            .map(|service_rpc_config| RpcServer::new(service_rpc_config.clone(), self.db.clone()));
 
         self.receiver = Some(receiver);
 
