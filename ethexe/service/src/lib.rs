@@ -24,7 +24,9 @@ use alloy::{
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
-use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
+use ethexe_common::{
+    COMMITMENT_DELAY_LIMIT, PromiseEmissionMode, gear::CodeState, network::VerifiedValidatorMessage,
+};
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
@@ -238,6 +240,17 @@ impl Service {
             None
         };
 
+        let rpc = config
+            .rpc
+            .as_ref()
+            .map(|config| RpcServer::new(config.clone(), db.clone()));
+
+        let promise_emission_mode = if rpc.is_some() {
+            PromiseEmissionMode::AlwaysEmit
+        } else {
+            PromiseEmissionMode::ConsensusDriven
+        };
+
         let observer =
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
@@ -320,6 +333,7 @@ impl Service {
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
                         chain_deepness_threshold: config.node.chain_deepness_threshold,
+                        promise_emission_mode,
                     },
                 )?)
             } else {
@@ -364,11 +378,6 @@ impl Service {
         } else {
             None
         };
-
-        let rpc = config
-            .rpc
-            .as_ref()
-            .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let processor_config = ProcessorConfig {
@@ -549,6 +558,10 @@ impl Service {
                         // Nothing
                     }
                     ComputeEvent::Promise(promise, announce_hash) => {
+                        if let Some(ref rpc) = rpc {
+                            rpc.receive_computed_promise(promise.clone());
+                        }
+
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },
@@ -595,9 +608,9 @@ impl Service {
                                 let _res = response_sender.send(acceptance);
                             }
                         },
-                        NetworkEvent::PromiseMessage(promise) => {
+                        NetworkEvent::PromiseMessage(compact_promise) => {
                             if let Some(rpc) = &rpc {
-                                rpc.provide_promise(promise);
+                                rpc.receive_compact_promise(compact_promise);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
@@ -645,17 +658,17 @@ impl Service {
                     ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
                         compute.compute_announce(announce, promise_policy)
                     }
-                    ConsensusEvent::SignedPromise(signed_promise) => {
+                    ConsensusEvent::SignedPromise(compact_promise) => {
                         if rpc.is_none() && network.is_none() {
                             panic!("Promise without network or rpc");
                         }
 
                         if let Some(rpc) = &rpc {
-                            rpc.provide_promise(signed_promise.clone());
+                            rpc.receive_compact_promise(compact_promise.clone());
                         }
 
                         if let Some(network) = &mut network {
-                            network.publish_promise(signed_promise);
+                            network.publish_promise(compact_promise);
                         }
                     }
                     ConsensusEvent::PublishMessage(message) => {

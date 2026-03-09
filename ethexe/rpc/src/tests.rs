@@ -20,19 +20,16 @@ use crate::{
     InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
     RpcService,
 };
-
 use ethexe_common::{
+    db::InjectedStorageRW,
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, SignedPromise},
+    injected::{AddressedInjectedTransaction, CompactSignedPromise, Promise},
     mock::Mock,
 };
 use ethexe_db::Database;
 use futures::StreamExt;
-use gear_core::{
-    message::{ReplyCode, SuccessReplyReason},
-    rpc::ReplyInfo,
-};
+use gear_core::message::{ReplyCode, SuccessReplyReason};
 use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
@@ -42,13 +39,15 @@ use tokio::task::{JoinHandle, JoinSet};
 struct MockService {
     rpc: RpcService,
     handle: ServerHandle,
+    db: Database,
 }
 
 impl MockService {
     /// Creates a new mock service which runs an RPC server listening on the given address.
     pub async fn new(listen_addr: SocketAddr) -> Self {
-        let (handle, rpc) = start_new_server(listen_addr).await;
-        Self { rpc, handle }
+        let db = Database::memory();
+        let (handle, rpc) = start_new_server(listen_addr, db.clone()).await;
+        Self { rpc, handle, db }
     }
 
     pub fn injected_api(&self) -> InjectedApi {
@@ -67,8 +66,10 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = tx_batch.drain(..).map(Self::create_promise_for).collect();
-                        self.rpc.provide_promises(promises);
+                        let promises = self.promises_bundle(tx_batch.drain(..));
+                        promises.into_iter().for_each(|promise| {
+                            self.rpc.receive_compact_promise(promise);
+                        });
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -84,28 +85,30 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: AddressedInjectedTransaction) -> SignedPromise {
-        let promise = Promise {
-            tx_hash: tx.tx.data().to_hash(),
-            reply: ReplyInfo {
-                payload: vec![],
-                value: 0,
-                code: ReplyCode::Success(SuccessReplyReason::Manual),
-            },
-        };
-        SignedPromise::create(PrivateKey::random(), promise).expect("Signing promise will succeed")
+    fn promises_bundle(
+        &self,
+        txs: impl IntoIterator<Item = AddressedInjectedTransaction>,
+    ) -> Vec<CompactSignedPromise> {
+        let pk = PrivateKey::random();
+        txs.into_iter()
+            .map(|tx| {
+                let promise = Promise::mock(tx.tx.data().to_hash());
+                self.db.set_promise(&promise);
+                CompactSignedPromise::create_from_promise(pk.clone(), &promise).unwrap()
+            })
+            .collect()
     }
 }
 
 /// Starts a new RPC server listening on the given address.
-async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService) {
+async fn start_new_server(listen_addr: SocketAddr, db: Database) -> (ServerHandle, RpcService) {
     let rpc_config = RpcConfig {
         listen_addr,
         cors: None,
         gas_allowance: MAX_BLOCK_GAS_LIMIT,
         chunk_size: 2,
     };
-    RpcServer::new(rpc_config, Database::memory())
+    RpcServer::new(rpc_config, db)
         .run_server()
         .await
         .expect("RPC Server will start successfully")
@@ -113,7 +116,7 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
 
 /// This helper function waits until all promise subscriptions being closed and cleaned up.
 async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
-    while injected_api.promise_subscribers_count() > 0 {
+    while injected_api.subscribers_count() > 0 {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
 }

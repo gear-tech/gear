@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,16 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod block;
-mod code;
-mod injected;
-mod program;
+pub use server::InjectedApi;
+pub use r#trait::InjectedServer;
 
 #[cfg(feature = "client")]
-pub use crate::apis::{
-    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient,
-};
-pub use block::{BlockApi, BlockServer};
-pub use code::{CodeApi, CodeServer};
-pub use injected::{InjectedApi, InjectedServer};
-pub use program::{FullProgramState, ProgramApi, ProgramServer};
+pub use r#trait::InjectedClient;
+
+mod promise_manager;
+mod relay;
+mod server;
+mod spawner;
+mod r#trait;

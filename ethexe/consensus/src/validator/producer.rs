@@ -27,8 +27,11 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, injected::Promise, network::ValidatorMessage,
+    Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec,
+    db::BlockMetaStorageRO,
+    gear::BatchCommitment,
+    injected::{CompactSignedPromise, Promise},
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -118,7 +121,11 @@ impl StateHandler for Producer {
                         .core
                         .signer
                         .signed_message(self.ctx.core.pub_key, promise, None)?;
-                self.ctx.output(signed_promise);
+                let compact_signed_promise =
+                    CompactSignedPromise::from_signed_promise_unchecked(&signed_promise);
+
+                self.ctx
+                    .output(ConsensusEvent::SignedPromise(compact_signed_promise));
 
                 tracing::trace!("consensus sign promise for transaction-hash={tx_hash}");
                 Ok(self.into())

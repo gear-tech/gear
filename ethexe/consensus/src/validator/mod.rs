@@ -54,7 +54,7 @@ use anyhow::{Result, anyhow};
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, PromiseEmissionMode, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
@@ -115,6 +115,8 @@ pub struct ValidatorConfig {
     pub router_address: Address,
     /// Threshold for producer to submit commitment despite of no transitions
     pub chain_deepness_threshold: u32,
+    /// Promise emission mode.
+    pub promise_emission_mode: PromiseEmissionMode,
 }
 
 impl ValidatorService {
@@ -153,6 +155,7 @@ impl ValidatorService {
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
                 producer_delay: config.producer_delay,
+                promise_emission_mode: config.promise_emission_mode,
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),

@@ -12,6 +12,7 @@ ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 gear-core = { workspace = true, features = ["std"] }
 gprimitives = { workspace = true, features = ["std"] }
+gsigner = {workspace = true, features = ["secp256k1", "codec"]}
 
 anyhow.workspace = true
 dashmap.workspace = true

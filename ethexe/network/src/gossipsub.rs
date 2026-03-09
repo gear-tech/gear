@@ -24,7 +24,7 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{Address, injected::SignedPromise, network::SignedValidatorMessage};
+use ethexe_common::{Address, injected::CompactSignedPromise, network::SignedValidatorMessage};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -47,7 +47,7 @@ use std::{
 pub enum Message {
     // TODO: rename to `Validators`
     Commitments(SignedValidatorMessage),
-    Promise(SignedPromise),
+    Promise(CompactSignedPromise),
 }
 
 impl Message {
@@ -185,7 +185,7 @@ impl Behaviour {
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.promises_topic.hash() {
-                    SignedPromise::decode(&mut &data[..]).map(Message::Promise)
+                    CompactSignedPromise::decode(&mut &data[..]).map(Message::Promise)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };
