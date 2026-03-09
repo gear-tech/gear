@@ -1,8 +1,6 @@
-use std::collections::BTreeSet;
-
-use gprimitives::{ActorId, CodeId, MessageId};
-
 use crate::batch::context::ContextUpdate;
+use gprimitives::{ActorId, CodeId, MessageId};
+use std::collections::BTreeSet;
 
 #[derive(Default)]
 pub struct Report {
