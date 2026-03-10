@@ -45,7 +45,7 @@ pub struct ComputeConfig {
 
 /// Metrics for the [`ComputeSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
-#[metrics(scope = "ethexe_compute:compute")]
+#[metrics(scope = "ethexe_compute_compute")]
 struct Metrics {
     /// The latency of announce processing in seconds represented as f64.
     announce_processing_latency: metrics::Histogram,

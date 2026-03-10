@@ -75,6 +75,9 @@ $ source .env
 $ forge script script/upgrades/Mirror.s.sol:MirrorScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/upgrades/Mirror.s.sol:MirrorScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 
+$ forge script script/upgrades/POAMiddleware.s.sol:POAMiddlewareScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
+$ forge script script/upgrades/POAMiddleware.s.sol:POAMiddlewareScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
+
 $ forge script script/upgrades/Router.s.sol:RouterScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/upgrades/Router.s.sol:RouterScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 
