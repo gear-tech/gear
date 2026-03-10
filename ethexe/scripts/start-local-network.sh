@@ -53,9 +53,11 @@ CONTRACTS_DIR="ethexe/contracts"
 
 ENABLE_NODE_LOADER="false"
 NODE_LOADER_WORKERS="3"
-NODE_LOADER_BATCH_SIZE="5"
-NODE_LOADER_LOG_FILE="/tmp/ethexe-node-loader.log"
 NODE_LOADER_BIN="target/release/ethexe-node-loader"
+NODE_LOADER_BIN_IN_CONTAINER="/workspace/target/release/ethexe-node-loader"
+NODE_LOADER_CONTAINER_NAME="ethexe-node-loader"
+NODE_LOADER_IMAGE="rust:1-trixie"
+NODE_LOADER_BATCH_SIZE="5"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
@@ -174,8 +176,11 @@ Options:
   --enable-node-loader true|false         Start node-loader (default: false)
   --node-loader-workers N                 Node-loader workers (default: 3)
   --node-loader-batch-size N              Node-loader batch size (default: 5)
-  --node-loader-log-file PATH             Node-loader log file (default: /tmp/ethexe-node-loader.log)
   --node-loader-bin PATH                  Node-loader binary path (default: target/release/ethexe-node-loader)
+    --node-loader-bin-in-container PATH     Node-loader binary path in container
+                                                                                    (default: /workspace/target/release/ethexe-node-loader)
+    --node-loader-container-name NAME       Node-loader container name (default: ethexe-node-loader)
+    --node-loader-image IMAGE               Node-loader image (default: rust:1-trixie)
 
 Example:
   ./ethexe/scripts/start-local-network.sh \
@@ -316,14 +321,24 @@ parse_args() {
                 NODE_LOADER_BATCH_SIZE="$2"
                 shift 2
                 ;;
-            --node-loader-log-file)
-                require_option_value "$1" "${2:-}"
-                NODE_LOADER_LOG_FILE="$2"
-                shift 2
-                ;;
             --node-loader-bin)
                 require_option_value "$1" "${2:-}"
                 NODE_LOADER_BIN="$2"
+                shift 2
+                ;;
+            --node-loader-bin-in-container)
+                require_option_value "$1" "${2:-}"
+                NODE_LOADER_BIN_IN_CONTAINER="$2"
+                shift 2
+                ;;
+            --node-loader-container-name)
+                require_option_value "$1" "${2:-}"
+                NODE_LOADER_CONTAINER_NAME="$2"
+                shift 2
+                ;;
+            --node-loader-image)
+                require_option_value "$1" "${2:-}"
+                NODE_LOADER_IMAGE="$2"
                 shift 2
                 ;;
             *)
@@ -382,12 +397,7 @@ cleanup() {
 
     remove_container_if_exists "$ANVIL_CONTAINER_NAME"
 
-    if [[ -n "${NODE_LOADER_PID:-}" ]]; then
-        kill "$NODE_LOADER_PID" 2>/dev/null || true
-        sleep 0.1
-        kill -9 "$NODE_LOADER_PID" 2>/dev/null || true
-        log_info "Stopped node-loader (PID: $NODE_LOADER_PID)"
-    fi
+    remove_container_if_exists "$NODE_LOADER_CONTAINER_NAME"
 
     if docker network inspect "$DOCKER_NETWORK_NAME" >/dev/null 2>&1; then
         docker network rm "$DOCKER_NETWORK_NAME" >/dev/null 2>&1 || true
@@ -620,6 +630,7 @@ start_nodes() {
         cmd+=" --validator $validator_pub_key"
         cmd+=" --validator-session $validator_pub_key"
         cmd+=" --network-key $network_pub_key"
+        cmd+=" --rpc-external"
         cmd+=" --ethereum-rpc ws://$ANVIL_CONTAINER_NAME:8545"
         cmd+=" --ethereum-beacon-rpc http://$ANVIL_CONTAINER_NAME:8545"
         cmd+=" --ethereum-router $ROUTER_ADDRESS"
@@ -671,26 +682,36 @@ start_node_loader() {
 
     local ethexe_nodes=""
     for ((i=0; i<NUM_VALIDATORS; i++)); do
-        local rpc_port=$((RPC_PORT_START + i))
         if [[ -n "$ethexe_nodes" ]]; then
             ethexe_nodes+=","
         fi
-        ethexe_nodes+="ws://localhost:$rpc_port"
+        ethexe_nodes+="ws://${NODE_CONTAINER_PREFIX}-${i}:$CONTAINER_RPC_PORT"
     done
-    
+
+    local anvil_url="ws://$ANVIL_CONTAINER_NAME:8545"
+
     log_info "Node-loader will use ethexe nodes: $ethexe_nodes"
-    export RUST_LOG=debug,alloy_rpc_client=off,alloy_provider=off,alloy_pubsub=off
-    export RUST_LOG_STYLE=never
-    nohup "$NODE_LOADER_BIN" load \
-        --node "ws://localhost:$ANVIL_PORT" \
-        --ethexe-nodes "$ethexe_nodes" \
-        --router-address "$ROUTER_ADDRESS" \
-        --workers "$NODE_LOADER_WORKERS" \
-        --batch-size "$NODE_LOADER_BATCH_SIZE" \
-        > "$NODE_LOADER_LOG_FILE" 2>&1 &
-    
-    NODE_LOADER_PID=$!
-    log_info "Node-loader started with PID: $NODE_LOADER_PID (log: $NODE_LOADER_LOG_FILE)"
+
+    remove_container_if_exists "$NODE_LOADER_CONTAINER_NAME"
+
+    local cmd="$NODE_LOADER_BIN_IN_CONTAINER load"
+    cmd+=" --node $anvil_url"
+    cmd+=" --ethexe-node $ethexe_nodes"
+    cmd+=" --router-address $ROUTER_ADDRESS"
+    cmd+=" --workers $NODE_LOADER_WORKERS"
+    cmd+=" --batch-size $NODE_LOADER_BATCH_SIZE"
+
+    docker run -d \
+        --name "$NODE_LOADER_CONTAINER_NAME" \
+        --network "$DOCKER_NETWORK_NAME" \
+        -e RUST_LOG=debug,alloy_rpc_client=off,alloy_provider=off,alloy_pubsub=off \
+        -e RUST_LOG_STYLE=never \
+        -v "$WORKSPACE_ROOT:/workspace" \
+        -w /workspace \
+        "$NODE_LOADER_IMAGE" \
+        bash -lc "$cmd" >/dev/null
+
+    log_info "Node-loader started in container: $NODE_LOADER_CONTAINER_NAME (log: docker logs -f $NODE_LOADER_CONTAINER_NAME)"
 }
 
 print_summary() {
@@ -723,16 +744,18 @@ print_summary() {
     echo ""
     if [[ "$ENABLE_NODE_LOADER" == "true" ]]; then
         echo "Node-Loader:"
-        echo "  PID:       $NODE_LOADER_PID"
+        echo "  Mode:      container"
+        echo "  Container: $NODE_LOADER_CONTAINER_NAME"
+        echo "  Image:     $NODE_LOADER_IMAGE"
+        echo "  Logs:      docker logs -f $NODE_LOADER_CONTAINER_NAME"
         echo "  Workers:   $NODE_LOADER_WORKERS"
         echo "  Batch Size: $NODE_LOADER_BATCH_SIZE"
-        echo "  Log File:  $NODE_LOADER_LOG_FILE"
         echo ""
     fi
     echo "================================================================================"
     echo ""
     echo "To stop all nodes and anvil:"
-    echo "  docker rm -f $ANVIL_CONTAINER_NAME ${NODE_CONTAINER_NAMES[*]}"
+    echo "  docker rm -f $ANVIL_CONTAINER_NAME ${NODE_CONTAINER_NAMES[*]} $NODE_LOADER_CONTAINER_NAME"
     echo ""
     echo "To tail logs of a specific node: docker logs -f ${NODE_CONTAINER_PREFIX}-<N>"
     echo ""
@@ -743,6 +766,7 @@ main() {
     log_info "Base directory: $BASE_DIR"
     
     remove_container_if_exists "$ANVIL_CONTAINER_NAME"
+    remove_container_if_exists "$NODE_LOADER_CONTAINER_NAME"
     for ((i=0; i<NUM_VALIDATORS; i++)); do
         remove_container_if_exists "${NODE_CONTAINER_PREFIX}-${i}"
     done
