@@ -234,7 +234,7 @@ where
         };
 
         if ctx.promise_policy.is_enabled() && is_promise_required {
-            process_journal_for_injected_dispatch(ri, &journal, dispatch_id);
+            parse_journal_for_injected_dispatch(ri, &journal, dispatch_id);
         }
 
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
@@ -260,11 +260,8 @@ where
 
 /// Finds in [`process_dispatch`]'s the [`JournalNote::SendDispatch`] note and builds from it
 /// a [`ReplyInfo`] and [`Promise`] for injected message.
-fn process_journal_for_injected_dispatch<RI>(
-    ri: &RI,
-    journal: &[JournalNote],
-    dispatch_id: MessageId,
-) where
+fn parse_journal_for_injected_dispatch<RI>(ri: &RI, journal: &[JournalNote], dispatch_id: MessageId)
+where
     RI: RuntimeInterface,
 {
     for note in journal.iter() {

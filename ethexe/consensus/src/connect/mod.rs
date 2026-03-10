@@ -296,6 +296,10 @@ impl ConsensusService for ConnectService {
             "Connected consensus node receives the promise for signing, but it not responsible for promises providing: \
             promise={promise:?}, announce_hash={announce_hash}"
         );
+        debug_assert!(
+            false,
+            "Connect node received the promise for signing, this should never happen"
+        );
         Ok(())
     }
 

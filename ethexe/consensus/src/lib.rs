@@ -120,14 +120,14 @@ pub enum ConsensusEvent {
     /// Outer service have to publish signed message
     #[from]
     PublishMessage(SignedValidatorMessage),
+    #[from]
+    PublishPromise(SignedPromise),
     /// Outer service have to request announces
     #[from]
     RequestAnnounces(AnnouncesRequest),
     /// Informational event: commitment was successfully submitted
     #[from]
     CommitmentSubmitted(CommitmentSubmitted),
-    #[from]
-    SignedPromise(SignedPromise),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }

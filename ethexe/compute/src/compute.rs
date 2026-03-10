@@ -124,7 +124,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             return Err(ComputeError::BlockNotPrepared(block_hash));
         }
 
-        let not_computed_announces = utils::find_parent_not_computed_announces(&announce, &db)?;
+        let not_computed_announces = utils::collect_not_computed_predecessors(&announce, &db)?;
         if !not_computed_announces.is_empty() {
             log::trace!(
                 "compute-sub-service: announce({announce_hash}) contains a {} previous not computed announce, start computing...",
@@ -341,7 +341,7 @@ pub(crate) mod utils {
         })
     }
 
-    pub(super) fn find_parent_not_computed_announces<DB>(
+    pub(super) fn collect_not_computed_predecessors<DB>(
         announce: &Announce,
         db: &DB,
     ) -> Result<VecDeque<(HashOf<Announce>, Announce)>>
@@ -757,7 +757,7 @@ mod tests {
     }
 
     #[test]
-    fn find_not_computed_announces_work_correctly() {
+    fn collect_not_computed_predecessors_work_correctly() {
         const BLOCKCHAIN_LEN: usize = 10;
 
         let db = Database::memory();
@@ -785,7 +785,7 @@ mod tests {
             .block_top_announce(BLOCKCHAIN_LEN - 1)
             .announce
             .clone();
-        let not_computed_announces = utils::find_parent_not_computed_announces(&head_announce, &db)
+        let not_computed_announces = utils::collect_not_computed_predecessors(&head_announce, &db)
             .unwrap()
             .into_iter()
             .map(|v| v.0)

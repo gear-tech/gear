@@ -645,7 +645,7 @@ impl Service {
                     ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
                         compute.compute_announce(announce, promise_policy)
                     }
-                    ConsensusEvent::SignedPromise(signed_promise) => {
+                    ConsensusEvent::PublishPromise(signed_promise) => {
                         if rpc.is_none() && network.is_none() {
                             panic!("Promise without network or rpc");
                         }
