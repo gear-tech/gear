@@ -279,11 +279,11 @@ contract Router is
         _router().implAddresses.mirror = newMirror;
     }
 
-    function pause() external onlyOwner whenNotPaused {
+    function pause() public onlyOwner {
         _pause();
     }
 
-    function unpause() external onlyOwner whenPaused {
+    function unpause() public onlyOwner {
         _unpause();
     }
 
