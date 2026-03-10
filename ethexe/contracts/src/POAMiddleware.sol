@@ -202,7 +202,7 @@ contract POAMiddleware is IMiddleware, IPOAMiddleware, OwnableUpgradeable, Reent
         }
     }
 
-    function _poaStorage() private view returns (POAStorage storage poaStorage) {
+    function _poaStorage() private view returns (PoaStorage storage poaStorage) {
         bytes32 slot = _getPoaStorageSlot();
         assembly ("memory-safe") {
             poaStorage.slot := slot

@@ -9,6 +9,7 @@ import {ClonesSmall} from "./libraries/ClonesSmall.sol";
 import {Gear} from "./libraries/Gear.sol";
 import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
@@ -19,7 +20,7 @@ import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
 
-contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+contract Router is IRouter, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardTransientUpgradeable {
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
     // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
@@ -43,6 +44,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
+        __Pausable_init();
         __ReentrancyGuardTransient_init();
 
         // Because of validator storages impl we have to check, that current timestamp is greater than 0.
@@ -207,6 +209,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         );
     }
 
+    function paused() public view override(IRouter, PausableUpgradeable) returns (bool) {
+        return super.paused();
+    }
+
     function computeSettings() public view returns (Gear.ComputationSettings memory) {
         return _router().computeSettings;
     }
@@ -260,8 +266,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         _router().implAddresses.mirror = newMirror;
     }
 
+    function pause() external onlyOwner whenNotPaused {
+        _pause();
+    }
+
+    function unpause() external onlyOwner whenPaused {
+        _unpause();
+    }
+
     // # Calls.
-    function lookupGenesisHash() external {
+    function lookupGenesisHash() external whenNotPaused {
         Storage storage router = _router();
 
         require(router.genesisBlock.hash == bytes32(0), GenesisHashAlreadySet());
@@ -273,7 +287,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         router.genesisBlock.hash = blockhash(router.genesisBlock.number);
     }
 
-    function requestCodeValidation(bytes32 _codeId) external {
+    function requestCodeValidation(bytes32 _codeId) external whenNotPaused {
         require(blobhash(0) != 0, BlobNotFound());
 
         Storage storage router = _router();
@@ -286,7 +300,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         emit CodeValidationRequested(_codeId);
     }
 
-    function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer) external returns (address) {
+    function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer)
+        external
+        whenNotPaused
+        returns (address)
+    {
         address mirror = _createProgram(_codeId, _salt, true);
 
         IMirror(mirror)
@@ -300,7 +318,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         bytes32 _salt,
         address _overrideInitializer,
         address _abiInterface
-    ) external returns (address) {
+    ) external whenNotPaused returns (address) {
         address mirror = _createProgram(_codeId, _salt, false);
 
         IMirror(mirror)

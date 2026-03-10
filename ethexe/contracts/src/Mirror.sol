@@ -96,6 +96,17 @@ contract Mirror is IMirror {
         require(msg.sender == router, CallerNotRouter());
     }
 
+    modifier whenNotPaused() {
+        _whenNotPaused();
+        _;
+    }
+
+    function _whenNotPaused() internal view {
+        if (IRouter(router).paused()) {
+            revert("This call is unavailable, because the Router is paused");
+        }
+    }
+
     /// @dev Non-zero Vara value must be transferred from source to router in functions marked with this modifier.
     modifier retrievingVara(uint128 value) {
         _retrievingVara(value);
@@ -117,13 +128,19 @@ contract Mirror is IMirror {
         }
     }
 
-    /* Primary Gear logic */
+    // # External calls. Primary Gear logic.
 
-    function sendMessage(bytes calldata _payload, bool _callReply) external payable returns (bytes32) {
+    function sendMessage(bytes calldata _payload, bool _callReply) external payable whenNotPaused returns (bytes32) {
         return _sendMessage(_payload, _callReply);
     }
 
-    function sendReply(bytes32 _repliedTo, bytes calldata _payload) external payable onlyIfActive onlyAfterInitMessage {
+    function sendReply(bytes32 _repliedTo, bytes calldata _payload)
+        external
+        payable
+        whenNotPaused
+        onlyIfActive
+        onlyAfterInitMessage
+    {
         uint128 _value = uint128(msg.value);
 
         _retrievingEther(_value);
@@ -132,15 +149,15 @@ contract Mirror is IMirror {
     }
 
     // TODO (breathx): consider and support claimValue after exit.
-    function claimValue(bytes32 _claimedId) external onlyIfActive onlyAfterInitMessage {
+    function claimValue(bytes32 _claimedId) external whenNotPaused onlyIfActive onlyAfterInitMessage {
         emit ValueClaimingRequested(_claimedId, msg.sender);
     }
 
-    function executableBalanceTopUp(uint128 _value) external onlyIfActive retrievingVara(_value) {
+    function executableBalanceTopUp(uint128 _value) external whenNotPaused onlyIfActive retrievingVara(_value) {
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
-    function transferLockedValueToInheritor() external {
+    function transferLockedValueToInheritor() external whenNotPaused {
         (, bool success) = _transferLockedValueToInheritor();
         require(success, TransferLockedValueToInheritorExternalFailed());
     }
@@ -206,6 +223,8 @@ contract Mirror is IMirror {
             messagesHashesHash
         );
     }
+
+    // # Private calls
 
     function _transferLockedValueToInheritor() private onlyIfExited returns (uint128, bool) {
         uint256 balance = address(this).balance;
@@ -489,7 +508,7 @@ contract Mirror is IMirror {
         return true;
     }
 
-    fallback() external payable {
+    fallback() external payable whenNotPaused {
         if (msg.value > 0 && msg.data.length == 0) {
             uint128 value = uint128(msg.value);
 
