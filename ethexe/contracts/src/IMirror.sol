@@ -149,6 +149,8 @@ interface IMirror {
 
     error InvalidFallbackCall();
 
+    error ProtocolIsPaused();
+
     /* Functions section */
 
     /* Operational functions */

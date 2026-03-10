@@ -102,9 +102,7 @@ contract Mirror is IMirror {
     }
 
     function _whenNotPaused() internal view {
-        if (IRouter(router).paused()) {
-            revert("This call is unavailable, because the Router is paused");
-        }
+        require(!IRouter(router).paused(), ProtocolIsPaused());
     }
 
     /// @dev Non-zero Vara value must be transferred from source to router in functions marked with this modifier.
