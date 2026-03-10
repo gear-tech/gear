@@ -61,9 +61,7 @@ contract Base is POCBaseTest {
         vm.startPrank(admin);
         {
             wrappedVara = WrappedVara(
-                Upgrades.deployTransparentProxy(
-                    "WrappedVara.sol", address(admin), abi.encodeCall(WrappedVara.initialize, (admin))
-                )
+                Upgrades.deployUUPSProxy("WrappedVara.sol", abi.encodeCall(WrappedVara.initialize, (admin)))
             );
         }
         vm.stopPrank();
@@ -85,9 +83,7 @@ contract Base is POCBaseTest {
         {
             IMiddleware.InitParams memory initParams = _defaultMiddlewareInitParams();
             middleware = Middleware(
-                Upgrades.deployTransparentProxy(
-                    "Middleware.sol", admin, abi.encodeCall(Middleware.initialize, (initParams))
-                )
+                Upgrades.deployUUPSProxy("Middleware.sol", abi.encodeCall(Middleware.initialize, (initParams)))
             );
         }
         vm.stopPrank();
@@ -109,9 +105,8 @@ contract Base is POCBaseTest {
         vm.startPrank(admin, admin);
         {
             router = Router(
-                payable(Upgrades.deployTransparentProxy(
+                payable(Upgrades.deployUUPSProxy(
                         "Router.sol",
-                        admin,
                         abi.encodeCall(
                             Router.initialize,
                             (
