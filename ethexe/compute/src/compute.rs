@@ -83,6 +83,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
 
     input: VecDeque<(Announce, PromisePolicy)>,
 
+    // TODO kuzmindev: consider to refactor this (move to separate stream).
     computation: Option<ComputationFuture>,
     promises_stream: Option<utils::AnnouncePromisesStream>,
     pending_event: Option<Result<ComputeEvent>>,
