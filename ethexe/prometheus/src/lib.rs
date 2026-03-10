@@ -73,7 +73,7 @@ pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyL
 });
 
 #[derive(Clone, metrics_derive::Metrics)]
-#[metrics(scope = "ethexe:liveness")]
+#[metrics(scope = "ethexe_liveness")]
 pub struct LivenessMetrics {
     /// Number of the block which is corresponding to the latest committed announce
     pub latest_committed_block_number: Gauge,

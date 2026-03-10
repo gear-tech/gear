@@ -2,7 +2,8 @@
 pragma solidity ^0.8.33;
 
 interface IPOAMiddleware {
-    struct PoaStorage {
+    /// forge-lint: disable-next-item(pascal-case-struct)
+    struct POAStorage {
         address[] operators;
     }
 
