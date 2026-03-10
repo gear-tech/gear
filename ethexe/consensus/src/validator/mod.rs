@@ -41,6 +41,7 @@
 
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
+    announces::{self, AnnounceRejectionReason, AnnounceStatus, DBAnnouncesExt},
     validator::{
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
@@ -54,9 +55,9 @@ use anyhow::{Result, anyhow};
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, ComputedAnnounce, SimpleBlockData, ToDigest,
+    Address, Announce, ComputedAnnounce, HashOf, SimpleBlockData, ToDigest,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::{BlockMetaStorageRO, OnChainStorageRO},
     ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
     network::AnnouncesResponse,
@@ -71,9 +72,11 @@ use futures::{
 use gprimitives::H256;
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use initial::Initial;
+use lru::LruCache;
 use std::{
     collections::VecDeque,
     fmt,
+    num::NonZeroUsize,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -89,6 +92,9 @@ mod tx_pool;
 
 #[cfg(test)]
 mod mock;
+
+/// Maximum number of rejected announces to keep for later replay.
+const MAX_REJECTED_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(1024).unwrap();
 
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
@@ -156,6 +162,7 @@ impl ValidatorService {
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
+            rejected_announces: LruCache::new(MAX_REJECTED_ANNOUNCES),
             tasks: Default::default(),
         };
 
@@ -533,6 +540,8 @@ struct ValidatorContext {
     pending_events: VecDeque<PendingEvent>,
     /// Output events for outer services. Populates during the poll.
     output: VecDeque<ConsensusEvent>,
+    /// Rejected announces that can be retried later.
+    rejected_announces: LruCache<HashOf<Announce>, Announce>,
 
     /// Ongoing consensus tasks, if any.
     #[debug("{}", tasks.len())]
@@ -553,5 +562,104 @@ impl ValidatorContext {
             .core
             .signer
             .signed_message(self.core.pub_key, data, None)?)
+    }
+
+    fn cache_rejected_announce(
+        &mut self,
+        announce_hash: HashOf<Announce>,
+        announce: Announce,
+        reason: &AnnounceRejectionReason,
+    ) {
+        if matches!(reason, AnnounceRejectionReason::UnknownParent { .. }) {
+            self.rejected_announces.push(announce_hash, announce);
+        }
+    }
+
+    fn replay_rejected_announces(&mut self, head_block: H256) -> Result<()> {
+        let head_height = self
+            .core
+            .db
+            .block_header(head_block)
+            .ok_or_else(|| anyhow!("header not found for block({head_block})"))?
+            .height;
+
+        loop {
+            let mut progress = false;
+            let replay_keys = self
+                .rejected_announces
+                .iter()
+                .map(|(hash, _)| *hash)
+                .collect::<Vec<_>>();
+
+            for announce_hash in replay_keys {
+                if self.core.db.is_announce_included(announce_hash) {
+                    self.rejected_announces.pop(&announce_hash);
+                    progress = true;
+                    continue;
+                }
+
+                let Some(announce_block_hash) = self
+                    .rejected_announces
+                    .peek(&announce_hash)
+                    .map(|announce| announce.block_hash)
+                else {
+                    continue;
+                };
+
+                if self
+                    .core
+                    .db
+                    .block_meta(announce_block_hash)
+                    .announces
+                    .is_none()
+                {
+                    continue;
+                }
+
+                let Some(announce_height) = self
+                    .core
+                    .db
+                    .block_header(announce_block_hash)
+                    .map(|h| h.height)
+                else {
+                    self.rejected_announces.pop(&announce_hash);
+                    progress = true;
+                    continue;
+                };
+
+                if announce_height.saturating_add(self.core.commitment_delay_limit) < head_height {
+                    self.rejected_announces.pop(&announce_hash);
+                    progress = true;
+                    continue;
+                }
+
+                let Some(announce) = self.rejected_announces.pop(&announce_hash) else {
+                    continue;
+                };
+
+                match announces::accept_announce(&self.core.db, announce.clone())? {
+                    AnnounceStatus::Accepted(accepted_hash) => {
+                        self.output(ConsensusEvent::AnnounceAccepted(accepted_hash));
+                        self.output(ConsensusEvent::ComputeAnnounce(announce));
+                        progress = true;
+                    }
+                    AnnounceStatus::Rejected { reason, announce } => match reason {
+                        AnnounceRejectionReason::UnknownParent { .. } => {
+                            self.rejected_announces.push(announce_hash, announce);
+                        }
+                        AnnounceRejectionReason::AlreadyIncluded(_)
+                        | AnnounceRejectionReason::TxValidity(_) => {
+                            progress = true;
+                        }
+                    },
+                }
+            }
+
+            if !progress {
+                break;
+            }
+        }
+
+        Ok(())
     }
 }
