@@ -32,6 +32,7 @@ gear-workspace-hack.workspace = true
 anyhow.workspace = true
 derive_more.workspace = true
 scopeguard.workspace = true
+futures.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

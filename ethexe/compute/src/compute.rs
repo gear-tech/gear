@@ -27,9 +27,9 @@ use ethexe_common::{
     injected::Promise,
 };
 use ethexe_db::Database;
-use ethexe_processor::ExecutableData;
+use ethexe_processor::{ExecutableData, event_stream::Event};
 use ethexe_runtime_common::FinalizedBlockTransitions;
-use futures::{FutureExt, StreamExt, future::BoxFuture};
+use futures::{FutureExt, StreamExt, TryStreamExt, future::BoxFuture};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
@@ -74,6 +74,7 @@ impl ComputeConfig {
 
 /// Type alias for computation future with timing.
 type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<HashOf<Announce>>>>;
+type ComputationStream = futures::stream::BoxStream<Result<ComputeEvent>>;
 
 pub struct ComputeSubService<P: ProcessorExt> {
     db: Database,
@@ -83,9 +84,10 @@ pub struct ComputeSubService<P: ProcessorExt> {
 
     input: VecDeque<(Announce, PromisePolicy)>,
 
-    computation: Option<ComputationFuture>,
-    promises_stream: Option<utils::AnnouncePromisesStream>,
-    pending_event: Option<Result<ComputeEvent>>,
+    // computation: Option<ComputationFuture>,
+    computation_stream: Option<utils::ComputationStream<P>>,
+    // promises_stream: Option<utils::AnnouncePromisesStream>,
+    // pending_event: Option<Result<ComputeEvent>>,
 }
 
 impl<P: ProcessorExt> ComputeSubService<P> {
@@ -96,9 +98,10 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             config,
             metrics: Metrics::default(),
             input: VecDeque::new(),
-            computation: None,
-            promises_stream: None,
-            pending_event: None,
+            computation_stream: None
+            // computation: None,
+            // promises_stream: None,
+            // pending_event: None,
         }
     }
 
@@ -110,156 +113,232 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         self.input.push_back((announce, promise_policy));
     }
 
-    async fn compute(
+    // async fn compute(
+    //     db: Database,
+    //     config: ComputeConfig,
+    //     mut processor: P,
+    //     announce: Announce,
+    //     promise_policy: PromisePolicy,
+    // ) -> Result<HashOf<Announce>> {
+    //     let announce_hash = announce.to_hash();
+    //     let block_hash = announce.block_hash;
+
+    //     if !db.block_meta(block_hash).prepared {
+    //         return Err(ComputeError::BlockNotPrepared(block_hash));
+    //     }
+
+    //     let not_computed_announces = utils::find_parent_not_computed_announces(&announce, &db)?;
+    //     if !not_computed_announces.is_empty() {
+    //         log::trace!(
+    //             "compute-sub-service: announce({announce_hash}) contains a {} previous not computed announce, start computing...",
+    //             not_computed_announces.len(),
+    //         );
+
+    //         for (announce_hash, announce) in not_computed_announces {
+    //             // Set the promise_out_tx = None, because we want to receive the promises only from target announce.
+    //             Self::compute_one(
+    //                 &db,
+    //                 &mut processor,
+    //                 config,
+    //                 announce_hash,
+    //                 announce,
+    //                 PromisePolicy::Disabled,
+    //             )
+    //             .await?;
+    //         }
+    //     }
+
+    //     // Compute the target announce
+    //     Self::compute_one(
+    //         &db,
+    //         &mut processor,
+    //         config,
+    //         announce_hash,
+    //         announce,
+    //         promise_policy,
+    //     )
+    //     .await
+    // }
+
+    fn computation_stream(
         db: Database,
+        processor: P,
         config: ComputeConfig,
-        mut processor: P,
-        announce: Announce,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-    ) -> Result<HashOf<Announce>> {
-        let announce_hash = announce.to_hash();
-        let block_hash = announce.block_hash;
-
-        if !db.block_meta(block_hash).prepared {
-            return Err(ComputeError::BlockNotPrepared(block_hash));
-        }
-
-        let not_computed_announces = utils::find_parent_not_computed_announces(&announce, &db)?;
-        if !not_computed_announces.is_empty() {
-            log::trace!(
-                "compute-sub-service: announce({announce_hash}) contains a {} previous not computed announce, start computing...",
-                not_computed_announces.len(),
-            );
-
-            for (announce_hash, announce) in not_computed_announces {
-                // Set the promise_out_tx = None, because we want to receive the promises only from target announce.
-                Self::compute_one(&db, &mut processor, config, announce_hash, announce, None)
-                    .await?;
+        promise_policy: PromisePolicy,
+    ) -> Result<utils::ComputationStream<P>> {
+        let stream = match promise_policy {
+            PromisePolicy::Disabled => {
+                futures::stream::once(processor.process_announce(executable))
+                    .map(|result| {
+                        result.map(|transitions| {
+                            utils::update_db_from_transitions(transitions, &db);
+                            ComputeEvent::AnnounceComputed(announce_hash)
+                        })
+                    })
+                    .boxed()
             }
-        }
+            PromisePolicy::Enabled => processor
+                .process_announce_with_promises(executable)?
+                .map(|event| match event {
+                    Event::Promise(promise) => Ok(ComputeEvent::Promise(promise, announce_hash)),
+                    Event::BlockTransitions(result) => result.map(|transitions| {
+                        utils::update_db_from_transitions(transitions, &db);
+                        ComputeEvent::AnnounceComputed(announce_hash)
+                    }),
+                })
+                .map_err(Into::into)
+                .boxed(),
+        };
 
-        // Compute the target announce
-        Self::compute_one(
-            &db,
-            &mut processor,
+        Ok(utils::ComputationStream::new(
+            db,
+            processor,
             config,
-            announce_hash,
-            announce,
-            promise_out_tx,
-        )
-        .await
+            not_computed,
+            stream,
+        ))
     }
 
-    async fn compute_one(
-        db: &Database,
-        processor: &mut P,
-        config: ComputeConfig,
-        announce_hash: HashOf<Announce>,
-        announce: Announce,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-    ) -> Result<HashOf<Announce>> {
-        let executable =
-            utils::prepare_executable_for_announce(db, announce, config.canonical_quarantine())?;
-        let processing_result = processor
-            .process_announce(executable, promise_out_tx)
-            .await?;
+    // async fn compute_announce(
+    //     db: &Database,
+    //     processor: P,
+    //     announce: Announce,
+    //     config: ComputeConfig,
+    // ) {
+    //     let executable =
+    //         utils::prepare_executable_for_announce(db, announce, config.canonical_quarantine())?;
+    //     let r = processor
+    //         .process_announce(executable)
+    //         .map(|result| {
+    //             result.map(|transitions| {
+    //                 utils::update_db_from_transitions(transitions, db);
+    //                 ComputeEvent::AnnounceComputed(announce_hash)
+    //             })
+    //         })
+    //         .await;
+    // }
 
-        let FinalizedBlockTransitions {
-            transitions,
-            states,
-            schedule,
-            program_creations,
-        } = processing_result;
+    // async fn compute_one(
+    //     db: &Database,
+    //     processor: &mut P,
+    //     config: ComputeConfig,
+    //     announce_hash: HashOf<Announce>,
+    //     announce: Announce,
+    //     promise_policy: PromisePolicy,
+    // ) -> Result<HashOf<Announce>> {
+    //     let executable =
+    //         utils::prepare_executable_for_announce(db, announce, config.canonical_quarantine())?;
 
-        program_creations
-            .into_iter()
-            .for_each(|(program_id, code_id)| {
-                db.set_program_code_id(program_id, code_id);
-            });
+    //     // TODO: check here the promise_policy
+    //     let one_stream =
+    //         futures::stream::once(processor.process_announce(executable)).map(|result| {
+    //             result.map(|transitions| {
+    //                 utils::update_db_from_transitions(transitions, db);
+    //                 ComputeEvent::AnnounceComputed(announce_hash)
+    //             })
+    //         });
+    //     let processor_stream = processor
+    //         .process_announce_with_promises(executable)?
+    //         .map(|event| match event {
+    //             Event::Promise(promise) => Ok(ComputeEvent::Promise(promise, announce_hash)),
+    //             Event::BlockTransitions(result) => result.map(|transitions| {
+    //                 utils::update_db_from_transitions(transitions, db);
+    //                 ComputeEvent::AnnounceComputed(announce_hash)
+    //             }),
+    //         });
 
-        db.set_announce_outcome(announce_hash, transitions);
-        db.set_announce_program_states(announce_hash, states);
-        db.set_announce_schedule(announce_hash, schedule);
-        db.mutate_announce_meta(announce_hash, |meta| {
-            meta.computed = true;
-        });
-
-        db.mutate_latest_data(|data| {
-            data.computed_announce_hash = announce_hash;
-        })
-        .ok_or(ComputeError::LatestDataNotFound)?;
-
-        Ok(announce_hash)
-    }
+    //     Ok(announce_hash)
+    // }
 }
 
 impl<P: ProcessorExt> SubService for ComputeSubService<P> {
     type Output = ComputeEvent;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
-        if self.computation.is_none()
-            && self.promises_stream.is_none()
+        if self.computation_stream.is_none()
             && let Some((announce, promise_policy)) = self.input.pop_front()
         {
-            let maybe_promise_out_tx = match promise_policy {
-                PromisePolicy::Enabled => {
-                    let (sender, receiver) = mpsc::unbounded_channel();
-                    self.promises_stream = Some(utils::AnnouncePromisesStream::new(
-                        receiver,
-                        announce.to_hash(),
-                    ));
+            // let maybe_promise_out_tx = match promise_policy {
+            //     PromisePolicy::Enabled => {
+            //         let (sender, receiver) = mpsc::unbounded_channel();
+            //         self.promises_stream = Some(utils::AnnouncePromisesStream::new(
+            //             receiver,
+            //             announce.to_hash(),
+            //         ));
 
-                    Some(sender)
-                }
-                PromisePolicy::Disabled => None,
-            };
+            //         Some(sender)
+            //     }
+            //     PromisePolicy::Disabled => None,
+            // };
 
-            self.computation = Some(future_timing::timed(
-                Self::compute(
-                    self.db.clone(),
-                    self.config,
-                    self.processor.clone(),
-                    announce,
-                    maybe_promise_out_tx,
-                )
-                .boxed(),
-            ));
+            // self.computation_stream = Some(future_timing::timed(
+            //     Self::compute(
+            //         self.db.clone(),
+            //         self.config,
+            //         self.processor.clone(),
+            //         announce,
+            //         promise_policy,
+            //     )
+            //     .boxed(),
+            // ));
+            self.computation_stream = Some(Self::computation_stream(
+                self.db.clone(),
+                self.processor.clone(),
+                self.config.clone(),
+                promise_policy,
+            )?);
         }
 
-        if let Some(ref mut stream) = self.promises_stream
-            && let Poll::Ready(maybe_event) = stream.poll_next_unpin(cx)
+        // if let Some(ref mut stream) = self.promises_stream
+        //     && let Poll::Ready(maybe_event) = stream.poll_next_unpin(cx)
+        // {
+        //     match maybe_event {
+        //         Some(event) => return Poll::Ready(Ok(event)),
+        //         None => {
+        //             log::trace!("announce's promises stream is ended");
+        //             self.promises_stream = None;
+
+        //             // Checking for possible event of finishing announce computation.
+        //             if let Some(event) = self.pending_event.take() {
+        //                 return Poll::Ready(event);
+        //             }
+        //         }
+        //     }
+        // }
+
+        // if let Some(ref mut computation) = self.computation
+        //     && let Poll::Ready(timing_result) = computation.poll_unpin(cx)
+        // {
+        //     let (timing, result) = timing_result.into_parts();
+        //     self.metrics
+        //         .announce_processing_latency
+        //         .record((timing.busy() + timing.idle()).as_secs_f64());
+
+        //     self.computation = None;
+
+        //     match self.promises_stream.is_some() {
+        //         true => {
+        //             // We cannot return [`ComputeEvent::AnnounceComputed`] before all promises will be given.
+        //             self.pending_event = Some(result.map(Into::into));
+        //         }
+        //         false => {
+        //             return Poll::Ready(result.map(Into::into));
+        //         }
+        //     }
+        // }
+
+        if let Some(ref mut stream) = self.computation_stream
+            && let Poll::Ready(maybe_result) = stream.poll_next_unpin(cx)
         {
-            match maybe_event {
-                Some(event) => return Poll::Ready(Ok(event)),
+            match maybe_result {
+                Some(Ok(event)) => return Poll::Ready(Ok(event)),
+                Some(Err(err)) => {
+                    self.computation_stream = None;
+                    return Poll::Ready(Err(err));
+                }
                 None => {
-                    log::trace!("announce's promises stream is ended");
-                    self.promises_stream = None;
-
-                    // Checking for possible event of finishing announce computation.
-                    if let Some(event) = self.pending_event.take() {
-                        return Poll::Ready(event);
-                    }
-                }
-            }
-        }
-
-        if let Some(ref mut computation) = self.computation
-            && let Poll::Ready(timing_result) = computation.poll_unpin(cx)
-        {
-            let (timing, result) = timing_result.into_parts();
-            self.metrics
-                .announce_processing_latency
-                .record((timing.busy() + timing.idle()).as_secs_f64());
-
-            self.computation = None;
-
-            match self.promises_stream.is_some() {
-                true => {
-                    // We cannot return [`ComputeEvent::AnnounceComputed`] before all promises will be given.
-                    self.pending_event = Some(result.map(Into::into));
-                }
-                false => {
-                    return Poll::Ready(result.map(Into::into));
+                    unimplemented!("TODO: FIX THIS CASE");
+                    self.computation_stream = None;
                 }
             }
         }
@@ -268,38 +347,81 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
     }
 }
 
-/// The utils for [`ComputeSubService`].
+/// Utils for [`ComputeSubService`].
 pub(crate) mod utils {
     use super::*;
-    use futures::Stream;
+    use futures::{Stream, stream::BoxStream};
     use std::pin::Pin;
 
-    /// The stream of promises from announce execution.
-    pub(super) struct AnnouncePromisesStream {
-        receiver: mpsc::UnboundedReceiver<Promise>,
-        announce_hash: HashOf<Announce>,
+    type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<()>>>;
+
+    pub(super) struct ComputationStream<P> {
+        not_computed_announces: VecDeque<(HashOf<Announce>, Announce)>,
+        event_stream: BoxStream<Result<ComputeEvent>>,
+
+        db: Database,
+        processor: P,
+        config: ComputeConfig,
+        announce_computing_future: Option<ComputationFuture>,
     }
 
-    impl AnnouncePromisesStream {
+    impl<P> ComputationStream<P> {
         pub fn new(
-            receiver: mpsc::UnboundedReceiver<Promise>,
-            announce_hash: HashOf<Announce>,
+            db: Database,
+            processor: P,
+            config: ComputeConfig,
+            not_computed: VecDeque<(HashOf<Announce>, Announce)>,
+            stream: BoxStream<Result<ComputeEvent>>,
         ) -> Self {
             Self {
-                receiver,
-                announce_hash,
+                not_computed_announces: not_computed,
+                event_stream: stream,
+
+                db,
+                processor,
+                config,
+                announce_computing_future: None,
             }
         }
     }
 
-    impl Stream for AnnouncePromisesStream {
-        type Item = ComputeEvent;
+    impl<P: ProcessorExt> Stream for ComputationStream<P> {
+        type Item = Result<ComputeEvent>;
 
         fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            Poll::Ready(
-                futures::ready!(self.receiver.poll_recv(cx))
-                    .map(|promise| ComputeEvent::Promise(promise, self.announce_hash)),
-            )
+            if self.announce_computing_future.is_none()
+                && let Some((announce_hash, announce)) = self.not_computed_announces.pop_front()
+            {
+                let canonical_quarantine = self.config.canonical_quarantine();
+                match utils::prepare_executable_for_announce(
+                    &self.db,
+                    announce,
+                    canonical_quarantine,
+                ) {
+                    Ok(executable) => {
+                        let future = self.processor.process_announce(executable).map(|result| {
+                            result.map(|transitions| {
+                                utils::update_db_from_transitions(transitions, &self.db);
+                            })
+                        });
+                        self.announce_computing_future = Some(future_timing::timed(future.boxed()))
+                    }
+                    Err(e) => return Poll::Ready(Some(Err(e))),
+                };
+            }
+
+            if let Some(ref mut future) = self.announce_computing_future {
+                let (timing, result) = futures::ready!(future.poll_unpin(cx)).into_parts();
+                match result {
+                    Ok(()) => {
+                        self.announce_computing_future = None;
+                        cx.waker().wake_by_ref();
+                    }
+                    Err(e) => return Poll::Ready(Some(Err(e))),
+                }
+            }
+
+            self.event_stream.poll_next_unpin(cx)
         }
     }
 
@@ -409,6 +531,37 @@ pub(crate) mod utils {
 
         db.block_events(block_hash)
             .ok_or(ComputeError::BlockEventsNotFound(block_hash))
+    }
+
+    pub fn update_db_from_transitions(
+        transitions: FinalizedBlockTransitions,
+        db: &Database,
+    ) -> Result<()> {
+        let FinalizedBlockTransitions {
+            transitions,
+            states,
+            schedule,
+            program_creations,
+        } = processing_result;
+
+        program_creations
+            .into_iter()
+            .for_each(|(program_id, code_id)| {
+                db.set_program_code_id(program_id, code_id);
+            });
+
+        db.set_announce_outcome(announce_hash, transitions);
+        db.set_announce_program_states(announce_hash, states);
+        db.set_announce_schedule(announce_hash, schedule);
+        db.mutate_announce_meta(announce_hash, |meta| {
+            meta.computed = true;
+        });
+
+        db.mutate_latest_data(|data| {
+            data.computed_announce_hash = announce_hash;
+        })
+        .ok_or(ComputeError::LatestDataNotFound)?;
+        Ok(())
     }
 }
 

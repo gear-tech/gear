@@ -150,7 +150,7 @@ async fn ping_init() {
         schedule,
         program_creations,
         ..
-    } = processor.process_programs(executable, None).await.unwrap();
+    } = processor.process_programs(executable).await.unwrap();
     program_creations
         .into_iter()
         .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));

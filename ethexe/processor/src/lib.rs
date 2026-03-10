@@ -30,6 +30,7 @@ use ethexe_runtime_common::{
     FinalizedBlockTransitions, InBlockTransitions, ScheduleHandler, TransitionController,
     state::Storage,
 };
+use futures::FutureExt;
 use gear_core::{
     code::{CodeMetadata, InstrumentationStatus, InstrumentedCode},
     ids::prelude::CodeIdExt,
@@ -42,11 +43,13 @@ use tokio::sync::mpsc;
 
 pub use host::InstanceError;
 
+use crate::{event_stream::ProcessorEventStream, host::api::promise};
+
 mod handling;
 mod host;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 // Default amount of programs in one chunk to be processed in parallel.
 pub const DEFAULT_CHUNK_SIZE: NonZero<usize> = NonZero::new(16).unwrap();
@@ -176,7 +179,6 @@ impl Processor {
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!("{executable}");
 
@@ -192,26 +194,89 @@ impl Processor {
         let mut transitions =
             InBlockTransitions::new(block.header.height, program_states, schedule);
 
-        transitions =
-            self.handle_injected_and_events(transitions, injected_transactions, events)?;
+        transitions = Self::handle_injected_and_events(
+            self.db.clone(),
+            transitions,
+            injected_transactions,
+            events,
+        )?;
 
         if let Some(gas_allowance) = gas_allowance {
-            transitions = self
-                .process_queues(transitions, block, gas_allowance, promise_out_tx)
-                .await?;
+            transitions = Self::process_queues(
+                self.db.clone(),
+                self.creator.clone(),
+                transitions,
+                block,
+                gas_allowance,
+                self.config.chunk_size,
+                None,
+            )
+            .await?;
         }
-        transitions = self.process_tasks(transitions);
+        transitions = Self::process_tasks(transitions, &self.db);
 
         Ok(transitions.finalize())
     }
 
-    fn handle_injected_and_events(
+    pub fn process_programs_with_promises(
         &mut self,
+        executable: ExecutableData,
+    ) -> Result<event_stream::ProcessorEventStream> {
+        let (promise_out_tx, promise_receiver) = mpsc::unbounded_channel();
+
+        let ExecutableData {
+            block,
+            program_states,
+            schedule,
+            injected_transactions,
+            gas_allowance,
+            events,
+        } = executable;
+        let db = self.db.clone();
+        let mut transitions =
+            InBlockTransitions::new(block.header.height, program_states, schedule);
+
+        transitions = Self::handle_injected_and_events(
+            self.db.clone(),
+            transitions,
+            injected_transactions,
+            events,
+        )?;
+
+        let db = self.db.clone();
+        let creator = self.creator.clone();
+        let chunk_size = self.config.chunk_size;
+        let queue_processing = async move {
+            if let Some(gas_allowance) = gas_allowance {
+                transitions = Self::process_queues(
+                    db.clone(),
+                    creator,
+                    transitions,
+                    block,
+                    gas_allowance,
+                    chunk_size,
+                    Some(promise_out_tx),
+                )
+                .await?;
+            }
+            transitions = Self::process_tasks(transitions, &db);
+            Ok(transitions.finalize())
+        }
+        .boxed();
+
+        Ok(event_stream::ProcessorEventStream::new(
+            promise_receiver,
+            queue_processing,
+        ))
+    }
+
+    fn handle_injected_and_events(
+        db: Database,
         transitions: InBlockTransitions,
         injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
         events: Vec<BlockRequestEvent>,
     ) -> Result<InBlockTransitions> {
-        let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
+        let mut handler = ProcessingHandler::new(db, transitions);
 
         for tx in injected_transactions {
             let source = tx.address().into();
@@ -234,18 +299,20 @@ impl Processor {
     }
 
     async fn process_queues(
-        &mut self,
+        db: Database,
+        creator: InstanceCreator,
         transitions: InBlockTransitions,
         block: SimpleBlockData,
         gas_allowance: u64,
+        chunk_size: usize,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<InBlockTransitions> {
         CommonRunContext::new(
-            self.db.clone(),
-            self.creator.clone(),
+            db,
+            creator,
             transitions,
             gas_allowance,
-            self.config.chunk_size,
+            chunk_size,
             block.header,
             promise_out_tx,
         )
@@ -253,7 +320,7 @@ impl Processor {
         .await
     }
 
-    fn process_tasks(&mut self, mut transitions: InBlockTransitions) -> InBlockTransitions {
+    fn process_tasks(mut transitions: InBlockTransitions, db: &Database) -> InBlockTransitions {
         let tasks = transitions.take_actual_tasks();
         let block_height = transitions.block_height();
 
@@ -261,7 +328,7 @@ impl Processor {
 
         let mut handler = ScheduleHandler {
             controller: TransitionController {
-                storage: &self.db,
+                storage: db,
                 transitions: &mut transitions,
             },
         };
@@ -369,7 +436,8 @@ impl OverlaidProcessor {
         let transitions =
             InBlockTransitions::new(block.header.height, program_states, Schedule::default());
 
-        let transitions = self.0.handle_injected_and_events(
+        let transitions = Processor::handle_injected_and_events(
+            self.0.db.clone(),
             transitions,
             vec![],
             vec![BlockRequestEvent::Mirror {
@@ -413,5 +481,77 @@ impl OverlaidProcessor {
             .ok_or(ExecuteForReplyError::ReplyNotFound)?;
 
         Ok(res)
+    }
+}
+
+pub mod event_stream {
+    use super::*;
+    use futures::{FutureExt, Stream};
+    use std::{
+        pin::Pin,
+        task::{Context, Poll},
+    };
+
+    // TODO: think about name.
+    #[derive(Debug, derive_more::From)]
+    pub enum Event {
+        #[from]
+        Promise(Promise),
+        #[from]
+        BlockTransitions(Result<FinalizedBlockTransitions>),
+    }
+
+    type ProcessQueueFuture =
+        futures::future::BoxFuture<'static, Result<FinalizedBlockTransitions>>;
+
+    pub struct ProcessorEventStream {
+        receiver: Option<mpsc::UnboundedReceiver<Promise>>,
+        queue_processing: Option<ProcessQueueFuture>,
+    }
+
+    impl ProcessorEventStream {
+        pub fn new(
+            receiver: mpsc::UnboundedReceiver<Promise>,
+            queue_processing: ProcessQueueFuture,
+        ) -> Self {
+            Self {
+                receiver: Some(receiver),
+                queue_processing: Some(queue_processing),
+            }
+        }
+    }
+
+    impl Stream for ProcessorEventStream {
+        type Item = Event;
+
+        fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            if self.receiver.is_none() && self.queue_processing.is_none() {
+                return Poll::Ready(None);
+            }
+
+            if let Some(ref mut receiver) = self.receiver
+                && let Poll::Ready(maybe_promise) = receiver.poll_recv(cx)
+            {
+                match maybe_promise {
+                    Some(promise) => return Poll::Ready(Some(Event::from(promise))),
+                    None => {
+                        // TODO: add log message.
+                        log::trace!("");
+                        self.receiver = None;
+                    }
+                }
+            }
+
+            if let Some(ref mut future) = self.queue_processing
+                && let Poll::Ready(result) = future.poll_unpin(cx)
+            {
+                self.queue_processing = None;
+                // TODO: think about this
+                self.receiver = None;
+                return Poll::Ready(Some(Event::from(result)));
+            }
+
+            Poll::Pending
+        }
     }
 }

@@ -21,8 +21,12 @@ pub use compute::{
     utils::{find_canonical_events_post_quarantine, prepare_executable_for_announce},
 };
 use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, injected::Promise};
-use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
+use ethexe_processor::{
+    ExecutableData, ProcessedCodeInfo, Processor, ProcessorError,
+    event_stream::ProcessorEventStream,
+};
 use ethexe_runtime_common::FinalizedBlockTransitions;
+use futures::TryFutureExt;
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
@@ -101,8 +105,11 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     fn process_announce(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
+    fn process_announce_with_promises(
+        &mut self,
+        executable: ExecutableData,
+    ) -> Result<ProcessorEventStream>;
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked)
     -> Result<ProcessedCodeInfo>;
 }
@@ -111,10 +118,15 @@ impl ProcessorExt for Processor {
     async fn process_announce(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
-        self.process_programs(executable, promise_out_tx)
-            .await
+        self.process_programs(executable).await.map_err(Into::into)
+    }
+
+    fn process_announce_with_promises(
+        &mut self,
+        executable: ExecutableData,
+    ) -> Result<ProcessorEventStream> {
+        self.process_programs_with_promises(executable)
             .map_err(Into::into)
     }
 
