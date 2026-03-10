@@ -102,7 +102,7 @@ contract Mirror is IMirror {
     }
 
     function _whenNotPaused() internal view {
-        require(!IRouter(router).paused(), ProtocolIsPaused());
+        require(!IRouter(router).paused(), EnforcedPause());
     }
 
     /// @dev Non-zero Vara value must be transferred from source to router in functions marked with this modifier.
