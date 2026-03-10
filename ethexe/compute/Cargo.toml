@@ -35,4 +35,4 @@ wasmparser.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 ntest.workspace = true
 # test examples
-demo-ping.workspace = true
+demo-ping = { workspace = true, features = ["ethexe"] }
