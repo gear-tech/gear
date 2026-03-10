@@ -617,7 +617,7 @@ contract Router is
         emit StorageSlotChanged(slot);
     }
 
-    receive() external payable {
+    receive() external payable whenNotPaused {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
 
