@@ -27,8 +27,13 @@ pub struct LoadParams {
     /// Ethexe node
     #[arg(long, default_value = "ws://localhost:8545")]
     pub node: String,
-    #[arg(long, default_value = "ws://localhost:9944")]
-    pub ethexe_node: String,
+    #[arg(
+        long = "ethexe-node",
+        value_delimiter = ',',
+        num_args = 1..,
+        default_value = "ws://localhost:9944"
+    )]
+    pub ethexe_nodes: Vec<String>,
 
     /// Router address to send messages into.
     #[arg(long, default_value = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9")]

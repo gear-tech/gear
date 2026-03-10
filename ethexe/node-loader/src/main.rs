@@ -163,12 +163,12 @@ async fn load_node(params: LoadParams) -> Result<()> {
 
     let batch_pool = BatchPool::<SmallRng>::new(
         apis,
-        params.ethexe_node.clone(),
+        params.ethexe_nodes.clone(),
         params.workers,
         params.batch_size,
         send_message_multicall,
         rx.resubscribe(),
-    );
+    )?;
 
     let run_result = tokio::select! {
         r = utils::listen_blocks(tx, provider.root().clone()) => r,

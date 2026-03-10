@@ -7,7 +7,7 @@ use alloy::{
     rpc::types::{BlockTransactions, Filter, Header},
     sol_types::{SolCall, SolEvent},
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
 use ethexe_ethereum::{
     Ethereum, TryGetReceipt,
@@ -51,7 +51,7 @@ pub mod report;
 
 pub struct BatchPool<Rng: CallGenRng> {
     apis: Vec<Ethereum>,
-    eth_rpc_url: String,
+    rpc_pool: Arc<EthexeRpcPool>,
     pool_size: usize,
     batch_size: usize,
     send_message_multicall: Address,
@@ -92,6 +92,295 @@ const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 const INJECTED_TX_RATIO_NUM: u8 = 7;
 const INJECTED_TX_RATIO_DEN: u8 = 10;
 const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
+const RPC_MAX_ATTEMPTS: usize = 3;
+
+struct EthexeRpcEndpoint {
+    url: String,
+    client: RwLock<Option<Arc<VaraEthApi>>>,
+}
+
+struct EthexeRpcPool {
+    endpoints: Vec<EthexeRpcEndpoint>,
+}
+
+impl EthexeRpcPool {
+    fn new(urls: Vec<String>) -> Result<Self> {
+        if urls.is_empty() {
+            return Err(anyhow!(
+                "at least one --ethexe-node endpoint must be provided"
+            ));
+        }
+
+        let endpoints = urls
+            .into_iter()
+            .enumerate()
+            .map(|(idx, url)| {
+                tracing::info!(endpoint_idx = idx, endpoint = %url, "Configured ethexe RPC endpoint");
+                EthexeRpcEndpoint {
+                    url,
+                    client: RwLock::new(None),
+                }
+            })
+            .collect();
+
+        Ok(Self { endpoints })
+    }
+
+    fn random_endpoint_index(&self, rng: &mut impl RngCore) -> usize {
+        (rng.next_u32() as usize) % self.endpoints.len()
+    }
+
+    async fn reconnect_client(
+        &self,
+        endpoint_idx: usize,
+        api: &Ethereum,
+    ) -> Result<Arc<VaraEthApi>> {
+        let endpoint = self
+            .endpoints
+            .get(endpoint_idx)
+            .ok_or_else(|| anyhow!("invalid endpoint index: {endpoint_idx}"))?;
+
+        tracing::warn!(
+            endpoint_idx,
+            endpoint = %endpoint.url,
+            "Connecting ethexe RPC client"
+        );
+
+        let client = Arc::new(VaraEthApi::new(&endpoint.url, api.clone()).await?);
+        let mut lock = endpoint.client.write().await;
+        *lock = Some(client.clone());
+
+        tracing::info!(
+            endpoint_idx,
+            endpoint = %endpoint.url,
+            "Connected ethexe RPC client"
+        );
+
+        Ok(client)
+    }
+
+    async fn get_or_connect_client(
+        &self,
+        endpoint_idx: usize,
+        api: &Ethereum,
+    ) -> Result<Arc<VaraEthApi>> {
+        let endpoint = self
+            .endpoints
+            .get(endpoint_idx)
+            .ok_or_else(|| anyhow!("invalid endpoint index: {endpoint_idx}"))?;
+
+        if let Some(client) = endpoint.client.read().await.clone() {
+            return Ok(client);
+        }
+
+        self.reconnect_client(endpoint_idx, api).await
+    }
+
+    async fn invalidate_client(&self, endpoint_idx: usize) {
+        if let Some(endpoint) = self.endpoints.get(endpoint_idx) {
+            let mut lock = endpoint.client.write().await;
+            *lock = None;
+        }
+    }
+
+    async fn request_code_validation(
+        &self,
+        endpoint_idx: usize,
+        api: &Ethereum,
+        code: &[u8],
+    ) -> Result<CodeId> {
+        for attempt in 1..=RPC_MAX_ATTEMPTS {
+            let client = match self.get_or_connect_client(endpoint_idx, api).await {
+                Ok(client) => client,
+                Err(err) if attempt < RPC_MAX_ATTEMPTS && is_retryable_rpc_error(&err) => {
+                    tracing::warn!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "failed to acquire ethexe RPC client; reconnecting and retrying"
+                    );
+                    self.invalidate_client(endpoint_idx).await;
+                    continue;
+                }
+                Err(err) => {
+                    tracing::error!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "failed to acquire ethexe RPC client"
+                    );
+                    return Err(err);
+                }
+            };
+
+            match client.router().request_code_validation(code).await {
+                Ok((_, code_id)) => return Ok(code_id),
+                Err(err) if attempt < RPC_MAX_ATTEMPTS && is_retryable_rpc_error(&err) => {
+                    tracing::warn!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "request_code_validation failed; reconnecting and retrying"
+                    );
+                    self.invalidate_client(endpoint_idx).await;
+                }
+                Err(err) => {
+                    tracing::error!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "request_code_validation failed"
+                    );
+                    return Err(err.into());
+                }
+            }
+        }
+
+        Err(anyhow!("request_code_validation exhausted retries"))
+    }
+
+    async fn wait_for_code_validation(
+        &self,
+        endpoint_idx: usize,
+        api: &Ethereum,
+        code_id: CodeId,
+    ) -> Result<()> {
+        for attempt in 1..=RPC_MAX_ATTEMPTS {
+            let client = match self.get_or_connect_client(endpoint_idx, api).await {
+                Ok(client) => client,
+                Err(err) if attempt < RPC_MAX_ATTEMPTS && is_retryable_rpc_error(&err) => {
+                    tracing::warn!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "failed to acquire ethexe RPC client; reconnecting and retrying"
+                    );
+                    self.invalidate_client(endpoint_idx).await;
+                    continue;
+                }
+                Err(err) => {
+                    tracing::error!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "failed to acquire ethexe RPC client"
+                    );
+                    return Err(err);
+                }
+            };
+
+            match client.router().wait_for_code_validation(code_id).await {
+                Ok(_) => return Ok(()),
+                Err(err) if attempt < RPC_MAX_ATTEMPTS && is_retryable_rpc_error(&err) => {
+                    tracing::warn!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "wait_for_code_validation failed; reconnecting and retrying"
+                    );
+                    self.invalidate_client(endpoint_idx).await;
+                }
+                Err(err) => {
+                    tracing::error!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "wait_for_code_validation failed"
+                    );
+                    return Err(err.into());
+                }
+            }
+        }
+
+        Err(anyhow!("wait_for_code_validation exhausted retries"))
+    }
+
+    async fn send_message_injected(
+        &self,
+        endpoint_idx: usize,
+        api: &Ethereum,
+        actor: ActorId,
+        payload: &[u8],
+        value: u128,
+    ) -> Result<MessageId> {
+        for attempt in 1..=RPC_MAX_ATTEMPTS {
+            let client = match self.get_or_connect_client(endpoint_idx, api).await {
+                Ok(client) => client,
+                Err(err) if attempt < RPC_MAX_ATTEMPTS && is_retryable_rpc_error(&err) => {
+                    tracing::warn!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "failed to acquire ethexe RPC client; reconnecting and retrying"
+                    );
+                    self.invalidate_client(endpoint_idx).await;
+                    continue;
+                }
+                Err(err) => {
+                    tracing::error!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "failed to acquire ethexe RPC client"
+                    );
+                    return Err(err);
+                }
+            };
+
+            match client
+                .mirror(actor)
+                .send_message_injected(payload, value)
+                .await
+            {
+                Ok(mid) => return Ok(mid),
+                Err(err) if attempt < RPC_MAX_ATTEMPTS && is_retryable_rpc_error(&err) => {
+                    tracing::warn!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "send_message_injected failed; reconnecting and retrying"
+                    );
+                    self.invalidate_client(endpoint_idx).await;
+                }
+                Err(err) => {
+                    tracing::error!(
+                        endpoint_idx,
+                        attempt,
+                        max_attempts = RPC_MAX_ATTEMPTS,
+                        error = %err,
+                        "send_message_injected failed"
+                    );
+                    return Err(err.into());
+                }
+            }
+        }
+
+        Err(anyhow!("send_message_injected exhausted retries"))
+    }
+}
+
+fn is_retryable_rpc_error(err: &impl std::fmt::Display) -> bool {
+    let lower = err.to_string().to_ascii_lowercase();
+    lower.contains("connection")
+        || lower.contains("transport")
+        || lower.contains("timeout")
+        || lower.contains("closed")
+        || lower.contains("broken pipe")
+        || lower.contains("temporarily unavailable")
+        || lower.contains("eof")
+}
+
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
     (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
@@ -130,22 +419,22 @@ pub struct Event {
 impl<Rng: CallGenRng> BatchPool<Rng> {
     pub fn new(
         apis: Vec<Ethereum>,
-        eth_rpc_url: String,
+        ethexe_rpc_urls: Vec<String>,
         pool_size: usize,
         batch_size: usize,
         send_message_multicall: Address,
         rx: Receiver<Header>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        Ok(Self {
             apis,
-            eth_rpc_url,
+            rpc_pool: Arc::new(EthexeRpcPool::new(ethexe_rpc_urls)?),
             pool_size,
             batch_size,
             send_message_multicall,
             task_context: Context::new(),
             rx,
             _marker: PhantomData,
-        }
+        })
     }
 
     pub async fn run(mut self, params: LoadParams, _rx: Receiver<Header>) -> Result<()> {
@@ -166,6 +455,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         let mut batches = FuturesUnordered::new();
         let mid_map = MidMap::default();
         let seed = loader_seed.unwrap_or_else(gear_utils::now_millis);
+        let mut rpc_rng = SmallRng::seed_from_u64(seed ^ 0xA17E_7E11);
         tracing::info!(
             message = "Running task pool with params",
             seed,
@@ -180,11 +470,12 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         for worker_idx in 0..self.pool_size {
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
             let api = self.apis[worker_idx].clone();
-            let vapi = VaraEthApi::new(&self.eth_rpc_url, api.clone()).await?;
+            let endpoint_idx = self.rpc_pool.random_endpoint_index(&mut rpc_rng);
             batches.push(run_batch_for_worker(
                 worker_idx,
                 api,
-                vapi,
+                self.rpc_pool.clone(),
+                endpoint_idx,
                 batch_with_seed,
                 self.send_message_multicall,
                 self.rx.resubscribe(),
@@ -197,11 +488,12 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
             let api = self.apis[worker_idx].clone();
-            let vapi = VaraEthApi::new(&self.eth_rpc_url, api.clone()).await?;
+            let endpoint_idx = self.rpc_pool.random_endpoint_index(&mut rpc_rng);
             batches.push(run_batch_for_worker(
                 worker_idx,
                 api,
-                vapi,
+                self.rpc_pool.clone(),
+                endpoint_idx,
                 batch_with_seed,
                 self.send_message_multicall,
                 self.rx.resubscribe(),
@@ -219,7 +511,8 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
 async fn run_batch(
     api: Ethereum,
-    vapi: VaraEthApi,
+    rpc_pool: Arc<EthexeRpcPool>,
+    endpoint_idx: usize,
     batch: BatchWithSeed,
     send_message_multicall: Address,
     rx: Receiver<Header>,
@@ -230,7 +523,8 @@ async fn run_batch(
 
     match run_batch_impl(
         api,
-        vapi,
+        rpc_pool,
+        endpoint_idx,
         batch,
         send_message_multicall,
         rx,
@@ -250,22 +544,38 @@ async fn run_batch(
 async fn run_batch_for_worker(
     worker_idx: usize,
     api: Ethereum,
-    vapi: VaraEthApi,
+    rpc_pool: Arc<EthexeRpcPool>,
+    endpoint_idx: usize,
     batch: BatchWithSeed,
     send_message_multicall: Address,
     rx: Receiver<Header>,
     mid_map: MidMap,
 ) -> (usize, Result<BatchRunReport>) {
+    tracing::debug!(
+        worker_idx,
+        endpoint_idx,
+        "Running batch on pooled ethexe RPC endpoint"
+    );
     (
         worker_idx,
-        run_batch(api, vapi, batch, send_message_multicall, rx, mid_map).await,
+        run_batch(
+            api,
+            rpc_pool,
+            endpoint_idx,
+            batch,
+            send_message_multicall,
+            rx,
+            mid_map,
+        )
+        .await,
     )
 }
 
 #[instrument(skip_all)]
 async fn run_batch_impl(
     api: Ethereum,
-    vapi: VaraEthApi,
+    rpc_pool: Arc<EthexeRpcPool>,
+    endpoint_idx: usize,
     batch: Batch,
     send_message_multicall: Address,
     rx: Receiver<Header>,
@@ -284,10 +594,14 @@ async fn run_batch_impl(
                     expected_code_id,
                     arg.0.0.len()
                 );
-                let (_, code_id) = vapi.router().request_code_validation(&arg.0.0).await?;
+                let code_id = rpc_pool
+                    .request_code_validation(endpoint_idx, &api, &arg.0.0)
+                    .await?;
                 tracing::debug!("Code {code_id} upload requested");
                 assert_eq!(code_id, CodeId::generate(&arg.0.0));
-                vapi.router().wait_for_code_validation(code_id).await?;
+                rpc_pool
+                    .wait_for_code_validation(endpoint_idx, &api, code_id)
+                    .await?;
                 tracing::debug!("Code {code_id} uploaded and validated");
                 code_ids.push(code_id);
             }
@@ -346,10 +660,14 @@ async fn run_batch_impl(
             for arg in args.iter() {
                 let expected_code_id = CodeId::generate(&arg.0);
                 tracing::debug!("Uploading code {expected_code_id} (len = {})", arg.0.len());
-                let (_, code_id) = vapi.router().request_code_validation(&arg.0).await?;
+                let code_id = rpc_pool
+                    .request_code_validation(endpoint_idx, &api, &arg.0)
+                    .await?;
                 tracing::debug!("Code {code_id} upload requested");
                 assert_eq!(code_id, CodeId::generate(&arg.0));
-                vapi.router().wait_for_code_validation(code_id).await?;
+                rpc_pool
+                    .wait_for_code_validation(endpoint_idx, &api, code_id)
+                    .await?;
                 tracing::debug!("Code {code_id} uploaded and validated");
                 code_ids.push(code_id);
             }
@@ -381,8 +699,9 @@ async fn run_batch_impl(
                     tracing::debug!(
                         "[Call with id {i}]: Sending injected message to {to} with value=0"
                     );
-                    let mirror = vapi.mirror(to);
-                    let message_id = mirror.send_message_injected(&arg.0.1, 0).await?;
+                    let message_id = rpc_pool
+                        .send_message_injected(endpoint_idx, &api, to, &arg.0.1, 0)
+                        .await?;
                     messages.insert(message_id, (to, i));
                     mid_map.write().await.insert(message_id, to);
                     injected_tx_count = injected_tx_count.saturating_add(1);
