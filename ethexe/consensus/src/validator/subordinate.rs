@@ -25,11 +25,13 @@ use crate::{
     announces::{self, AnnounceStatus},
     validator::participant::Participant,
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Announce, ComputedAnnounce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    db::AnnounceStorageRO,
+    network::NetworkAnnounce,
 };
 use std::mem;
 
@@ -165,11 +167,17 @@ impl Subordinate {
         }
     }
 
-    fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
-        match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
+    fn send_announce_for_computation(
+        mut self,
+        network_announce: NetworkAnnounce,
+    ) -> Result<ValidatorState> {
+        match announces::accept_announce(&self.ctx.core.db, network_announce)? {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx
                     .output(ConsensusEvent::AnnounceAccepted(announce_hash));
+                let announce = self.ctx.core.db.announce(announce_hash).ok_or_else(|| {
+                    anyhow!("accepted announce {announce_hash} is missing from database")
+                })?;
                 self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
                 self.state = State::WaitingAnnounceComputed { announce_hash };
 
@@ -231,7 +239,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce1.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce1.data().clone())
+                ConsensusEvent::ComputeAnnounce(Announce::from(announce1.data()))
             ]
         );
         // announce2 must stay in pending events, because it's not from current producer.
@@ -291,7 +299,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                announce.data().clone().into()
+                Announce::from(announce.data()).into()
             ]
         );
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
@@ -320,7 +328,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                announce.data().clone().into()
+                Announce::from(announce.data()).into()
             ]
         );
 
@@ -333,7 +341,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone())
+                ConsensusEvent::ComputeAnnounce(Announce::from(announce.data()))
             ]
         );
     }
@@ -362,7 +370,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                announce.data().clone().into()
+                Announce::from(announce.data()).into()
             ]
         );
 
@@ -397,7 +405,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(producer_announce.data().to_hash()),
-                producer_announce.data().clone().into()
+                Announce::from(producer_announce.data()).into()
             ]
         );
         assert_eq!(s.context().pending_events, vec![alice_announce.into()]);

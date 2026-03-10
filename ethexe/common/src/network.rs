@@ -26,7 +26,9 @@ use core::{hash::Hash, num::NonZeroU32};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
-pub type ValidatorAnnounce = ValidatorMessage<Announce>;
+pub use crate::primitives::{NetworkAnnounce, NetworkAnnounceFromAnnounceError};
+
+pub type ValidatorAnnounce = ValidatorMessage<NetworkAnnounce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
 pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
 
@@ -115,14 +117,14 @@ pub struct AnnouncesResponse {
     /// Corresponding request for this response
     request: AnnouncesRequest,
     /// List of announces
-    announces: Vec<Announce>,
+    announces: Vec<NetworkAnnounce>,
 }
 
 impl AnnouncesResponse {
     /// # Safety
     ///
     /// Response must be only created by network service
-    pub unsafe fn from_parts(request: AnnouncesRequest, announces: Vec<Announce>) -> Self {
+    pub unsafe fn from_parts(request: AnnouncesRequest, announces: Vec<NetworkAnnounce>) -> Self {
         Self { request, announces }
     }
 
@@ -130,11 +132,11 @@ impl AnnouncesResponse {
         &self.request
     }
 
-    pub fn announces(&self) -> &[Announce] {
+    pub fn announces(&self) -> &[NetworkAnnounce] {
         &self.announces
     }
 
-    pub fn into_parts(self) -> (AnnouncesRequest, Vec<Announce>) {
+    pub fn into_parts(self) -> (AnnouncesRequest, Vec<NetworkAnnounce>) {
         (self.request, self.announces)
     }
 }

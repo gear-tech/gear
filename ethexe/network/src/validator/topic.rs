@@ -328,11 +328,10 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        Announce,
         gear_core::{message::ReplyCode, rpc::ReplyInfo},
         injected::Promise,
         mock::Mock,
-        network::{SignedValidatorMessage, ValidatorMessage},
+        network::{NetworkAnnounce, SignedValidatorMessage, ValidatorMessage},
     };
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use nonempty::{NonEmpty, nonempty};
@@ -366,7 +365,7 @@ mod tests {
                 pub_key,
                 ValidatorMessage {
                     era_index,
-                    payload: Announce::mock(()),
+                    payload: NetworkAnnounce::mock(()),
                 },
                 None,
             )

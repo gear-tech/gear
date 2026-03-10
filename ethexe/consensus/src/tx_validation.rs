@@ -179,12 +179,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
 
             announce_hash = announce.parent;
 
-            txs.extend(
-                announce
-                    .injected_transactions
-                    .into_iter()
-                    .map(|tx| tx.data().to_hash()),
-            );
+            txs.extend(announce.injected_transactions.into_iter());
         }
 
         Ok(txs)
@@ -196,7 +191,7 @@ mod tests {
     use super::*;
     use ethexe_common::{
         MaybeHashOf, SimpleBlockData, StateHashWithQueueSize,
-        db::{AnnounceStorageRW, OnChainStorageRW},
+        db::{AnnounceStorageRW, InjectedStorageRW, OnChainStorageRW},
         ecdsa::PrivateKey,
         injected::VALIDITY_WINDOW,
         mock::*,
@@ -223,9 +218,12 @@ mod tests {
     ) -> HashOf<Announce> {
         let announce = Announce {
             parent,
-            injected_transactions: txs,
+            injected_transactions: txs.iter().map(|tx| tx.data().to_hash()).collect(),
             ..Announce::mock(())
         };
+
+        txs.into_iter()
+            .for_each(|tx| db.set_injected_transaction(tx));
         let announce_hash = db.set_announce(announce);
 
         let mut state = ProgramState::zero();

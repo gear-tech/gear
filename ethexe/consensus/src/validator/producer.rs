@@ -27,8 +27,10 @@ use crate::{
 use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, network::ValidatorMessage,
+    Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec,
+    db::BlockMetaStorageRO,
+    gear::BatchCommitment,
+    network::{NetworkAnnounce, ValidatorMessage},
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -198,6 +200,16 @@ impl Producer {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
+            injected_transactions: injected_transactions
+                .iter()
+                .map(|tx| tx.data().to_hash())
+                .collect(),
+        };
+
+        let network_announce = NetworkAnnounce {
+            block_hash: self.block.hash,
+            parent,
+            gas_allowance: Some(self.ctx.core.block_gas_limit),
             injected_transactions,
         };
 
@@ -222,7 +234,7 @@ impl Producer {
             .era_from_ts(self.block.header.timestamp);
         let message = ValidatorMessage {
             era_index,
-            payload: announce.clone(),
+            payload: network_announce,
         };
         let message = self
             .ctx

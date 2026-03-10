@@ -184,7 +184,12 @@ impl StateHandler for Initial {
                     .into_parts()
                     .1
                     .into_iter()
-                    .map(|a| (a.to_hash(), a))
+                    .map(|network_announce| {
+                        let announce = network_announce
+                            .into_announce_persisting_injected_transactions(&self.ctx.core.db);
+
+                        (announce.to_hash(), announce)
+                    })
                     .collect();
 
                 announces::propagate_announces(
@@ -263,7 +268,10 @@ mod tests {
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
     use ethexe_common::{
-        Announce, HashOf, ValidatorsVec, db::*, mock::*, network::AnnouncesResponse,
+        Announce, HashOf, ValidatorsVec,
+        db::*,
+        mock::*,
+        network::{AnnouncesResponse, NetworkAnnounce},
     };
     use gprimitives::H256;
     use nonempty::nonempty;
@@ -380,14 +388,19 @@ mod tests {
             AnnouncesResponse::from_parts(
                 expected_request,
                 vec![
-                    chain
-                        .announces
-                        .get(&chain.block_top_announce_hash(last - 3))
-                        .unwrap()
-                        .announce
-                        .clone(),
-                    announce2.clone(),
-                    announce1.clone(),
+                    NetworkAnnounce::try_from(
+                        chain
+                            .announces
+                            .get(&chain.block_top_announce_hash(last - 3))
+                            .unwrap()
+                            .announce
+                            .clone(),
+                    )
+                    .expect("test announce has no injected transactions"),
+                    NetworkAnnounce::try_from(announce2.clone())
+                        .expect("test announce has no injected transactions"),
+                    NetworkAnnounce::try_from(announce1.clone())
+                        .expect("test announce has no injected transactions"),
                 ],
             )
         };
@@ -567,7 +580,10 @@ mod tests {
                     head: invalid_announce_hash,
                     until: NonZeroU32::new(1).unwrap().into(),
                 },
-                vec![invalid_announce],
+                vec![
+                    NetworkAnnounce::try_from(invalid_announce)
+                        .expect("test announce has no injected transactions"),
+                ],
             )
         };
 
@@ -641,13 +657,17 @@ mod tests {
             AnnouncesResponse::from_parts(
                 expected_request,
                 vec![
-                    chain
-                        .announces
-                        .get(&chain.block_top_announce_hash(last - 7))
-                        .unwrap()
-                        .announce
-                        .clone(),
-                    unknown_announce,
+                    NetworkAnnounce::try_from(
+                        chain
+                            .announces
+                            .get(&chain.block_top_announce_hash(last - 7))
+                            .unwrap()
+                            .announce
+                            .clone(),
+                    )
+                    .expect("test announce has no injected transactions"),
+                    NetworkAnnounce::try_from(unknown_announce)
+                        .expect("test announce has no injected transactions"),
                 ],
             )
         };

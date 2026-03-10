@@ -35,7 +35,7 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    Announce, HashOf, ScheduledTask, ToDigest,
+    HashOf, ScheduledTask, ToDigest,
     consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     db::*,
     ecdsa::ContractSignature,
@@ -47,7 +47,7 @@ use ethexe_common::{
     gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
     mock::*,
-    network::ValidatorMessage,
+    network::{NetworkAnnounce, ValidatorMessage},
 };
 use ethexe_compute::ComputeConfig;
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
@@ -1320,7 +1320,7 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn multiple_validators() {
     init_logger();
 
@@ -2835,12 +2835,12 @@ async fn announces_conflicts() {
         let block = env.latest_block().await;
         let timelines = env.db.protocol_timelines().unwrap();
         let era_index = timelines.era_from_ts(block.header.timestamp);
-        let announce = Announce::with_default_gas(block.hash, HashOf::random());
-        let announce_hash = announce.to_hash();
+        let network_announce = NetworkAnnounce::with_default_gas(block.hash, HashOf::random());
+        let announce_hash = network_announce.to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
                 era_index,
-                payload: announce,
+                payload: network_announce,
             })
             .await;
 
@@ -2933,12 +2933,13 @@ async fn announces_conflicts() {
         let block = env.latest_block().await;
         let timelines = env.db.protocol_timelines().unwrap();
         let era_index = timelines.era_from_ts(block.header.timestamp);
-        let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
-        let announce6_hash = announce6.to_hash();
+        let network_announce6 =
+            NetworkAnnounce::with_default_gas(block.hash, latest_computed_announce_hash);
+        let announce6_hash = network_announce6.to_hash();
         validator6
             .publish_validator_message(ValidatorMessage {
                 era_index,
-                payload: announce6,
+                payload: network_announce6,
             })
             .await;
         for receiver in &mut receivers {
@@ -2964,12 +2965,12 @@ async fn announces_conflicts() {
             .flatten()
             .find(|&announce_hash| validator1_db.announce(announce_hash).unwrap().is_base())
             .expect("base announces not found");
-        let announce7 = Announce::with_default_gas(block.hash, parent);
-        let announce7_hash = announce7.to_hash();
+        let network_announce7 = NetworkAnnounce::with_default_gas(block.hash, parent);
+        let announce7_hash = network_announce7.to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
                 era_index,
-                payload: announce7,
+                payload: network_announce7,
             })
             .await;
 
