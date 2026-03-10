@@ -279,7 +279,7 @@ impl EthexeRpcPool {
                             "request_code_validation transport failure",
                         )
                         .await;
-                        last_err = Some(err.into());
+                        last_err = Some(err);
                     }
                     Err(err) => {
                         tracing::error!(
@@ -289,7 +289,7 @@ impl EthexeRpcPool {
                             error = %err,
                             "request_code_validation failed"
                         );
-                        return Err(err.into());
+                        return Err(err);
                     }
                 }
             }
@@ -359,7 +359,7 @@ impl EthexeRpcPool {
                             "wait_for_code_validation transport failure",
                         )
                         .await;
-                        last_err = Some(err.into());
+                        last_err = Some(err);
                     }
                     Err(err) => {
                         tracing::error!(
@@ -369,7 +369,7 @@ impl EthexeRpcPool {
                             error = %err,
                             "wait_for_code_validation failed"
                         );
-                        return Err(err.into());
+                        return Err(err);
                     }
                 }
             }
@@ -445,7 +445,7 @@ impl EthexeRpcPool {
                             "send_message_injected transport failure",
                         )
                         .await;
-                        last_err = Some(err.into());
+                        last_err = Some(err);
                     }
                     Err(err) => {
                         tracing::error!(
@@ -455,7 +455,7 @@ impl EthexeRpcPool {
                             error = %err,
                             "send_message_injected failed"
                         );
-                        return Err(err.into());
+                        return Err(err);
                     }
                 }
             }
@@ -666,6 +666,7 @@ async fn run_batch(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_batch_for_worker(
     worker_idx: usize,
     api: Ethereum,
@@ -697,6 +698,7 @@ async fn run_batch_for_worker(
 }
 
 #[instrument(skip_all)]
+#[allow(clippy::too_many_arguments)]
 async fn run_batch_impl(
     api: Ethereum,
     rpc_pool: Arc<EthexeRpcPool>,
@@ -765,7 +767,7 @@ async fn run_batch_impl(
                 );
             }
 
-            let wait_for_event_blocks = blocks_window(tx_count, 2, 10);
+            let wait_for_event_blocks = blocks_window(tx_count, 2, 6);
             process_events(
                 api,
                 messages,
@@ -853,7 +855,7 @@ async fn run_batch_impl(
             }
 
             let dispatched_txs = injected_tx_count.saturating_add(multicall_tx_count);
-            let wait_for_event_blocks = blocks_window(dispatched_txs, 1, 10);
+            let wait_for_event_blocks = blocks_window(dispatched_txs, 1, 6);
             process_events(
                 api,
                 messages,
@@ -918,7 +920,7 @@ async fn run_batch_impl(
             }
 
             let blocks_per_action = 1;
-            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 10);
+            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 6);
             process_events(
                 api,
                 messages,
@@ -971,7 +973,7 @@ async fn run_batch_impl(
                 );
             }
 
-            let wait_for_event_blocks = blocks_window(tx_count, 1, 10);
+            let wait_for_event_blocks = blocks_window(tx_count, 1, 6);
             process_events(
                 api,
                 messages,

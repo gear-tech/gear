@@ -654,6 +654,7 @@ start_nodes() {
             -p "$rpc_port:$CONTAINER_RPC_PORT" \
             -p "$prometheus_port:$CONTAINER_PROMETHEUS_PORT" \
             -e RUST_LOG_STYLE=never \
+            -e RUST_BACKTRACE=1 \
             -v "$WORKSPACE_ROOT:/workspace" \
             -v "$node_dir:/data" \
             -w /workspace \
