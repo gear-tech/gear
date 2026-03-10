@@ -1488,7 +1488,7 @@ async fn many_validators_repeated_ping() {
     init_logger();
 
     const VALIDATORS_COUNT: usize = 32;
-    const PING_ROUNDS: usize = 176;
+    const PING_ROUNDS: usize = 512;
 
     log::info!(
         "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
@@ -1519,7 +1519,8 @@ async fn many_validators_repeated_ping() {
     let mut running_validators = Vec::with_capacity(VALIDATORS_COUNT);
     for (i, validator_cfg) in env.validators.clone().into_iter().enumerate() {
         log::info!("📗 Starting validator-{i}");
-        let mut node = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg));
+        let mut node =
+            env.new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg));
         node.start_service().await;
         running_validators.push(node);
     }
@@ -1554,7 +1555,10 @@ async fn many_validators_repeated_ping() {
             .await
             .unwrap();
 
-        assert_eq!(reply.program_id, ping_id, "unexpected program for round {i}");
+        assert_eq!(
+            reply.program_id, ping_id,
+            "unexpected program for round {i}"
+        );
         assert_eq!(
             reply.code,
             ReplyCode::Success(SuccessReplyReason::Manual),
@@ -1566,7 +1570,6 @@ async fn many_validators_repeated_ping() {
 
     log::info!("📗 Completed all ping rounds successfully");
 
-   
     assert_eq!(running_validators.len(), VALIDATORS_COUNT);
 }
 
