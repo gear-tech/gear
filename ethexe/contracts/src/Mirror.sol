@@ -352,12 +352,20 @@ contract Mirror is IMirror {
          * @dev SECURITY:
          *      Very important check because custom events can match our hashes!
          *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
+         *
+         *      // TODO #5209: check that on CI
+         *
+         *      Command to re-generate selectors check:
+         *      ```bash
+         *      grep -Po "    event\s+\K[^(]+" ethexe/contracts/src/IMirror.sol | xargs -I{} echo "topic1 != {}.selector &&"
+         *      ```
          */
         if (!(topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
                     && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
                     && topic1 != OwnedBalanceTopUpRequested.selector
                     && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
-                    && topic1 != Reply.selector && topic1 != ValueClaimed.selector
+                    && topic1 != MessageCallFailed.selector && topic1 != Reply.selector
+                    && topic1 != ReplyCallFailed.selector && topic1 != ValueClaimed.selector
                     && topic1 != TransferLockedValueToInheritorFailed.selector && topic1 != ReplyTransferFailed.selector
                     && topic1 != ValueClaimFailed.selector)) {
             return false;
@@ -500,7 +508,7 @@ contract Mirror is IMirror {
 
     function _transferEther(address destination, uint128 value) private returns (bool) {
         if (value != 0) {
-            (bool success,) = destination.call{value: value}("");
+            (bool success,) = destination.call{gas: 5_000, value: value}("");
             return success;
         }
         return true;
