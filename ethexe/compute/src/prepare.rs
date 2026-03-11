@@ -65,7 +65,7 @@ enum State {
 
 /// Metrics for the [`PrepareSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
-#[metrics(scope = "ethexe_compute:prepare")]
+#[metrics(scope = "ethexe_compute_prepare")]
 struct Metrics {
     /// Number of codes waiting for loading to advance block processing
     pub waiting_codes_count: Gauge,

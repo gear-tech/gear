@@ -119,6 +119,15 @@ contract MirrorWithInstrumentation is IMirror {
         require(msg.sender == router, CallerNotRouter());
     }
 
+    modifier whenNotPaused() {
+        _whenNotPaused();
+        _;
+    }
+
+    function _whenNotPaused() internal view {
+        require(!IRouter(router).paused(), EnforcedPause());
+    }
+
     /// @dev Non-zero Vara value must be transferred from source to router in functions marked with this modifier.
     modifier retrievingVara(uint128 value) {
         _retrievingVara(value);
@@ -140,13 +149,19 @@ contract MirrorWithInstrumentation is IMirror {
         }
     }
 
-    /* Primary Gear logic */
+    // # External calls. Primary Gear logic.
 
-    function sendMessage(bytes calldata _payload, bool _callReply) external payable returns (bytes32) {
+    function sendMessage(bytes calldata _payload, bool _callReply) external payable whenNotPaused returns (bytes32) {
         return _sendMessage(_payload, _callReply);
     }
 
-    function sendReply(bytes32 _repliedTo, bytes calldata _payload) external payable onlyIfActive onlyAfterInitMessage {
+    function sendReply(bytes32 _repliedTo, bytes calldata _payload)
+        external
+        payable
+        whenNotPaused
+        onlyIfActive
+        onlyAfterInitMessage
+    {
         uint128 _value = uint128(msg.value);
 
         _retrievingEther(_value);
@@ -155,15 +170,15 @@ contract MirrorWithInstrumentation is IMirror {
     }
 
     // TODO (breathx): consider and support claimValue after exit.
-    function claimValue(bytes32 _claimedId) external onlyIfActive onlyAfterInitMessage {
+    function claimValue(bytes32 _claimedId) external whenNotPaused onlyIfActive onlyAfterInitMessage {
         emit ValueClaimingRequested(_claimedId, msg.sender);
     }
 
-    function executableBalanceTopUp(uint128 _value) external onlyIfActive retrievingVara(_value) {
+    function executableBalanceTopUp(uint128 _value) external whenNotPaused onlyIfActive retrievingVara(_value) {
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
-    function transferLockedValueToInheritor() external {
+    function transferLockedValueToInheritor() external whenNotPaused {
         (, bool success) = _transferLockedValueToInheritor();
         require(success, TransferLockedValueToInheritorExternalFailed());
     }
@@ -244,6 +259,8 @@ contract MirrorWithInstrumentation is IMirror {
         emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_RETURN_HASH);
         return ret;
     }
+
+    // # Private calls
 
     function _transferLockedValueToInheritor() private onlyIfExited returns (uint128, bool) {
         uint256 balance = address(this).balance;
@@ -373,12 +390,20 @@ contract MirrorWithInstrumentation is IMirror {
          * @dev SECURITY:
          *      Very important check because custom events can match our hashes!
          *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
+         *
+         *      // TODO #5209: check that on CI
+         *
+         *      Command to re-generate selectors check:
+         *      ```bash
+         *      grep -Po "    event\s+\K[^(]+" ethexe/contracts/src/IMirror.sol | xargs -I{} echo "topic1 != {}.selector &&"
+         *      ```
          */
         if (!(topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
                     && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
                     && topic1 != OwnedBalanceTopUpRequested.selector
                     && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
-                    && topic1 != Reply.selector && topic1 != ValueClaimed.selector
+                    && topic1 != MessageCallFailed.selector && topic1 != Reply.selector
+                    && topic1 != ReplyCallFailed.selector && topic1 != ValueClaimed.selector
                     && topic1 != TransferLockedValueToInheritorFailed.selector && topic1 != ReplyTransferFailed.selector
                     && topic1 != ValueClaimFailed.selector)) {
             return false;
@@ -521,13 +546,13 @@ contract MirrorWithInstrumentation is IMirror {
 
     function _transferEther(address destination, uint128 value) private returns (bool) {
         if (value != 0) {
-            (bool success,) = destination.call{value: value}("");
+            (bool success,) = destination.call{gas: 5_000, value: value}("");
             return success;
         }
         return true;
     }
 
-    fallback() external payable {
+    fallback() external payable whenNotPaused {
         if (msg.value > 0 && msg.data.length == 0) {
             uint128 value = uint128(msg.value);
 

@@ -9,9 +9,11 @@ import {ClonesSmall} from "./libraries/ClonesSmall.sol";
 import {Gear} from "./libraries/Gear.sol";
 import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
@@ -19,7 +21,13 @@ import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
 
-contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+contract RouterWithInstrumentation is
+    IRouter,
+    OwnableUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardTransientUpgradeable,
+    UUPSUpgradeable
+{
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
     // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
@@ -48,6 +56,7 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
+        __Pausable_init();
         __ReentrancyGuardTransient_init();
 
         // Because of validator storages impl we have to check, that current timestamp is greater than 0.
@@ -79,7 +88,7 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public reinitializer(2) {
+    function reinitialize() public onlyOwner reinitializer(2) {
         __Ownable_init(owner());
 
         Storage storage oldRouter = _router();
@@ -119,6 +128,12 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
 
         // All protocol data must be removed - so leave it zeroed in new router.
     }
+
+    /**
+     * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract.
+     *      Called by {upgradeToAndCall}.
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // # Views.
 
@@ -212,6 +227,10 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
         );
     }
 
+    function paused() public view override(IRouter, PausableUpgradeable) returns (bool) {
+        return super.paused();
+    }
+
     function computeSettings() public view returns (Gear.ComputationSettings memory) {
         return _router().computeSettings;
     }
@@ -265,8 +284,16 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
         _router().implAddresses.mirror = newMirror;
     }
 
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
     // # Calls.
-    function lookupGenesisHash() external {
+    function lookupGenesisHash() external whenNotPaused {
         Storage storage router = _router();
 
         require(router.genesisBlock.hash == bytes32(0), GenesisHashAlreadySet());
@@ -278,7 +305,7 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
         router.genesisBlock.hash = blockhash(router.genesisBlock.number);
     }
 
-    function requestCodeValidation(bytes32 _codeId) external {
+    function requestCodeValidation(bytes32 _codeId) external whenNotPaused {
         require(blobhash(0) != 0, BlobNotFound());
 
         Storage storage router = _router();
@@ -291,7 +318,11 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
         emit CodeValidationRequested(_codeId);
     }
 
-    function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer) external returns (address) {
+    function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer)
+        external
+        whenNotPaused
+        returns (address)
+    {
         address mirror = _createProgram(_codeId, _salt, true);
 
         IMirror(mirror)
@@ -305,7 +336,7 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
         bytes32 _salt,
         address _overrideInitializer,
         address _abiInterface
-    ) external returns (address) {
+    ) external whenNotPaused returns (address) {
         address mirror = _createProgram(_codeId, _salt, false);
 
         IMirror(mirror)
@@ -595,7 +626,7 @@ contract RouterWithInstrumentation is IRouter, OwnableUpgradeable, ReentrancyGua
         emit StorageSlotChanged(slot);
     }
 
-    receive() external payable {
+    receive() external payable whenNotPaused {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
 

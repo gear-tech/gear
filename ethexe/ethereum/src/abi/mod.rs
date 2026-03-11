@@ -70,8 +70,8 @@ mod router_with_instrumentation_abi {
 
 sol!(
     #[sol(rpc)]
-    ITransparentUpgradeableProxy,
-    "abi/TransparentUpgradeableProxy.json"
+    IERC1967Proxy,
+    "abi/ERC1967Proxy.json"
 );
 
 sol!(
