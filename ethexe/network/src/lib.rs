@@ -71,7 +71,10 @@ pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO
 
 const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
-const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
+const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 500;
+const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
+const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
+const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 
 pub trait NetworkServiceDatabase: DbSyncDatabase + ValidatorDatabase {}
 impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase {}
@@ -616,7 +619,7 @@ struct BehaviourConfig {
 pub(crate) struct Behaviour {
     // custom options to limit connections
     pub custom_connection_limits: custom_connection_limits::Behaviour,
-    // limit connections
+    // hard caps
     pub connection_limits: connection_limits::Behaviour,
     // peer amount manager
     pub slots: slots::Behaviour,
@@ -671,7 +674,10 @@ impl Behaviour {
             custom_connection_limits::Behaviour::new(custom_connection_limits);
 
         let connection_limits = connection_limits::ConnectionLimits::default()
-            .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS));
+            .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS))
+            .with_max_established_outgoing(Some(MAX_ESTABLISHED_OUTGOING_CONNECTIONS))
+            .with_max_pending_incoming(Some(MAX_PENDING_INCOMING_CONNECTIONS))
+            .with_max_pending_outgoing(Some(MAX_PENDING_OUTGOING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
 
         let slots = slots::Behaviour::new(slots::Config::default());
