@@ -20,7 +20,9 @@ use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
-    db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, LatestDataStorageRO, OnChainStorageRO},
+    db::{
+        AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, LatestDataStorageRO, OnChainStorageRO,
+    },
     injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
