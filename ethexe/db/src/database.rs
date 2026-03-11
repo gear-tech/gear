@@ -190,7 +190,7 @@ impl dyn KVDatabase + '_ {
     }
 }
 
-impl<'a> Storage for dyn CASDatabase + 'a {
+impl Storage for dyn CASDatabase + '_ {
     fn program_state(&self, hash: H256) -> Option<ProgramState> {
         if hash.is_zero() {
             return Some(ProgramState::zero());
@@ -684,7 +684,7 @@ impl InjectedStorageRW for RawDatabase {
     }
 }
 
-#[derive(derive_more::Debug)]
+#[derive(derive_more::Debug, Clone)]
 #[debug("Database(CAS + KV)")]
 pub struct Database {
     raw: RawDatabase,
@@ -692,25 +692,12 @@ pub struct Database {
     config: Arc<RwLock<DBConfig>>,
 }
 
-impl Clone for Database {
-    fn clone(&self) -> Self {
-        Self {
-            raw: self.raw.clone(),
-            config: self.config.clone(),
-            globals: self.globals.clone(),
-        }
-    }
-}
-
 impl Database {
     pub fn try_from_raw(raw: RawDatabase) -> Result<Self> {
-        let config = DBConfig::decode(
-            &mut (raw
-                .kv
-                .get(&Key::Config.to_bytes())
-                .ok_or_else(|| anyhow::anyhow!("Database config not found"))?)
-            .as_ref(),
-        )?;
+        let config = raw
+            .kv
+            .config()
+            .ok_or_else(|| anyhow::anyhow!("Database config not found"))??;
 
         if config.version != VERSION {
             return Err(anyhow::anyhow!(
@@ -720,13 +707,10 @@ impl Database {
             ));
         }
 
-        let globals = DBGlobals::decode(
-            &mut (raw
-                .kv
-                .get(&Key::Globals.to_bytes())
-                .ok_or_else(|| anyhow::anyhow!("Database globals not found"))?)
-            .as_ref(),
-        )?;
+        let globals = raw
+            .kv
+            .globals()
+            .ok_or_else(|| anyhow::anyhow!("Database globals not found"))??;
 
         let db = Self {
             raw,
