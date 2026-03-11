@@ -150,7 +150,6 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage + LatestDataStorageRO>
             && reference_block_height + VALIDITY_WINDOW as u32 > chain_head_height)
     }
 
-    // TODO #4808: branch check must be until genesis block
     fn is_reference_block_on_current_branch(&self, reference_block: H256) -> Result<bool> {
         let mut block_hash = self.chain_head.hash;
         for _ in 0..VALIDITY_WINDOW {
