@@ -30,7 +30,7 @@ use tokio::task::JoinSet;
 
 /// Metrics for the [`CodesSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
-#[metrics(scope = "ethexe_compute:codes")]
+#[metrics(scope = "ethexe_compute_codes")]
 struct Metrics {
     /// The number of currently processing codes.
     processing_codes: Gauge,
