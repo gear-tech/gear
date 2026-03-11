@@ -149,6 +149,13 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
     let db = Database::memory();
     let timelines = ProtocolTimelines::mock(());
 
+    let limits = BatchLimits {
+        chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+        commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+    };
+    let middleware = MiddlewareWrapper::from_inner(ethereum.clone());
+    let batch_builder = BatchBuilder::new(limits, db.clone(), middleware.clone(), timelines);
+
     let ctx = ValidatorContext {
         core: ValidatorCore {
             slot_duration: Duration::from_secs(1),
@@ -160,7 +167,8 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             signer,
             db: db.clone(),
             committer: Box::new(ethereum.clone()),
-            middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
+            middleware,
+            batch_builder,
             injected_pool: InjectedTxPool::new(db.clone()),
             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,

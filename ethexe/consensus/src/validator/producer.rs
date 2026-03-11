@@ -101,6 +101,7 @@ impl StateHandler for Producer {
                     future: self
                         .ctx
                         .core
+                        .batch_builder
                         .clone()
                         .aggregate_batch_commitment(self.block, computed_data.announce_hash)
                         .boxed(),

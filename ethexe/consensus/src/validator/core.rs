@@ -21,18 +21,16 @@
 use crate::{
     announces,
     utils::{self, CodeNotValidatedError},
-    validator::tx_pool::InjectedTxPool,
+    validator::{batch::BatchBuilder, tx_pool::InjectedTxPool},
 };
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO},
     ecdsa::{ContractSignature, PublicKey},
-    gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
-    },
+    gear::BatchCommitment,
     injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
@@ -57,10 +55,13 @@ pub struct ValidatorCore {
     pub db: Database,
     #[debug(skip)]
     pub committer: Box<dyn BatchCommitter>,
+    /// Maybe remove from here
     #[debug(skip)]
     pub middleware: MiddlewareWrapper,
     #[debug(skip)]
     pub injected_pool: InjectedTxPool,
+    #[debug(skip)]
+    pub batch_builder: BatchBuilder,
 
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
     pub chain_deepness_threshold: u32,
@@ -84,6 +85,7 @@ impl Clone for ValidatorCore {
             db: self.db.clone(),
             committer: self.committer.clone_boxed(),
             middleware: self.middleware.clone(),
+            batch_builder: self.batch_builder.clone(),
             injected_pool: self.injected_pool.clone(),
             chain_deepness_threshold: self.chain_deepness_threshold,
             block_gas_limit: self.block_gas_limit,
@@ -94,190 +96,6 @@ impl Clone for ValidatorCore {
 }
 
 impl ValidatorCore {
-    pub async fn aggregate_batch_commitment(
-        mut self,
-        block: SimpleBlockData,
-        announce_hash: HashOf<Announce>,
-    ) -> Result<Option<BatchCommitment>> {
-        let chain_commitment = self.aggregate_chain_commitment(block.hash, announce_hash)?;
-        let code_commitments = self.aggregate_code_commitments(block.hash)?;
-        let validators_commitment = self.aggregate_validators_commitment(&block).await?;
-        let rewards_commitment = self.aggregate_rewards_commitment(&block).await?;
-
-        utils::create_batch_commitment(
-            &self.db,
-            &block,
-            chain_commitment,
-            code_commitments,
-            validators_commitment,
-            rewards_commitment,
-            self.commitment_delay_limit,
-        )
-    }
-
-    pub fn aggregate_chain_commitment(
-        &self,
-        at_block_hash: H256,
-        announce_hash: HashOf<Announce>,
-    ) -> Result<Option<ChainCommitment>> {
-        let (commitment, deepness) =
-            utils::try_aggregate_chain_commitment(&self.db, at_block_hash, announce_hash).map_err(
-                |e| anyhow!("Aggregating chain commitment for block {at_block_hash}: {e}"),
-            )?;
-
-        if commitment.transitions.is_empty() && deepness <= self.chain_deepness_threshold {
-            // No transitions and chain is not deep enough, skip chain commitment
-            Ok(None)
-        } else {
-            Ok(Some(commitment))
-        }
-    }
-
-    pub fn aggregate_code_commitments(&self, block_hash: H256) -> Result<Vec<CodeCommitment>> {
-        let queue =
-            self.db.block_meta(block_hash).codes_queue.ok_or_else(|| {
-                anyhow!("Computed block {block_hash} codes queue is not in storage")
-            })?;
-
-        Ok(utils::aggregate_code_commitments(&self.db, queue, false)
-            .expect("Error is not possible here, because fail_if_not_found is false"))
-    }
-
-    pub async fn aggregate_validators_commitment(
-        &mut self,
-        block: &SimpleBlockData,
-    ) -> Result<Option<ValidatorsCommitment>> {
-        let block_era = self.timelines.era_from_ts(block.header.timestamp);
-        let election_ts = self.timelines.era_election_start_ts(block_era);
-
-        if block.header.timestamp < election_ts {
-            tracing::trace!(
-                block = %block.hash,
-                timestamp = %block.header.timestamp,
-                election_ts = %election_ts,
-                genesis_ts = %self.timelines.genesis_ts,
-                "Election period for next era has not started yet. Skipping validators commitment");
-
-            return Ok(None);
-        }
-
-        let latest_era_validators_committed = self
-            .db
-            .block_validators_committed_for_era(block.hash)
-            .ok_or_else(|| {
-                anyhow!(
-                    "not found latest_era_validators_committed in database for block: {}",
-                    block.hash
-                )
-            })?;
-
-        if latest_era_validators_committed == block_era + 1 {
-            tracing::trace!(
-                current_era = %block_era,
-                latest_era_validators_committed = %latest_era_validators_committed,
-                "Validators for next era are already committed. Skipping validators commitment"
-            );
-
-            return Ok(None);
-        } else if latest_era_validators_committed > block_era + 1 {
-            // This case considered as restricted,
-            // because validators cannot be committed for eras later than the next one
-            anyhow::bail!("validators was committed for an era later than the next one");
-        } else if latest_era_validators_committed < block_era {
-            tracing::warn!(
-                current_era = %block_era,
-                latest_era_validators_committed = %latest_era_validators_committed,
-                "Validators commitment for previous eras are missing. Still try to commit validators for next era"
-            );
-
-            // TODO: !!! consider what to do if we missed commitment for previous eras,
-            // currently we just try to commit for next era
-        } else if latest_era_validators_committed == block_era {
-            tracing::info!(
-                current_era = %block_era,
-                latest_era_validators_committed = %latest_era_validators_committed,
-                "it is time to commit validators for next era",
-            )
-        } else {
-            unreachable!("no other options are possible here");
-        }
-
-        let mut iter_block = *block;
-        let election_block = loop {
-            let parent_hash = iter_block.header.parent_hash;
-            let Some(parent_header) = self.db.block_header(parent_hash) else {
-                // This case can happen if node is started with fast sync and does not have full blocks history
-                tracing::warn!(
-                    iter_block = %iter_block.hash,
-                    parent = %parent_hash,
-                    "Parent block header not found when searching for election block, skipping validators commitment"
-                );
-
-                return Ok(None);
-            };
-
-            if parent_header.timestamp < election_ts {
-                break iter_block;
-            }
-
-            iter_block = SimpleBlockData {
-                hash: iter_block.header.parent_hash,
-                header: parent_header,
-            }
-        };
-
-        let request = ElectionRequest {
-            at_block_hash: election_block.hash,
-            at_timestamp: election_ts,
-            // TODO #4908: max validators must be configurable
-            max_validators: 10,
-        };
-
-        let elected_validators = match self.middleware.make_election_at(request).await {
-            Ok(validators) => validators,
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    block = %block.hash,
-                    "Failed to get elected validators from middleware, skipping validators commitment"
-                );
-
-                return Ok(None);
-            }
-        };
-
-        let (aggregated_public_key, verifiable_secret_sharing_commitment) =
-            match utils::generate_roast_keys(&elected_validators) {
-                Ok(keys) => keys,
-                Err(e) => {
-                    tracing::error!(
-                        error = %e,
-                        block = %block.hash,
-                        "Failed to generate ROAST keys for elected validators, skipping validators commitment"
-                    );
-
-                    return Ok(None);
-                }
-            };
-
-        let commitment = ValidatorsCommitment {
-            aggregated_public_key,
-            verifiable_secret_sharing_commitment,
-            validators: elected_validators,
-            era_index: block_era + 1,
-        };
-
-        Ok(Some(commitment))
-    }
-
-    // TODO #4742
-    pub async fn aggregate_rewards_commitment(
-        &mut self,
-        _block: &SimpleBlockData,
-    ) -> Result<Option<RewardsCommitment>> {
-        Ok(None)
-    }
-
     pub async fn validate_batch_commitment_request(
         mut self,
         block: SimpleBlockData,
@@ -377,7 +195,9 @@ impl ValidatorCore {
             };
 
         let validators_commitment = if validators {
-            let Some(commitment) = Self::aggregate_validators_commitment(&mut self, &block).await?
+            let Some(commitment) =
+                BatchBuilder::aggregate_validators_commitment(&mut self.batch_builder, &block)
+                    .await?
             else {
                 return Ok(ValidationStatus::Rejected {
                     request,
@@ -390,7 +210,8 @@ impl ValidatorCore {
         };
 
         let rewards_commitment = if rewards {
-            let Some(commitment) = Self::aggregate_rewards_commitment(&mut self, &block).await?
+            let Some(commitment) =
+                BatchBuilder::aggregate_rewards_commitment(&mut self.batch_builder, &block).await?
             else {
                 return Ok(ValidationStatus::Rejected {
                     request,
@@ -505,9 +326,10 @@ impl<T: BatchCommitter + 'static> From<T> for Box<dyn BatchCommitter> {
 /// If requests are equal result can be reused by [`MiddlewareWrapper`] to reduce the amount of rpc calls.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ElectionRequest {
-    at_block_hash: H256,
-    at_timestamp: u64,
-    max_validators: u32,
+    // TODO: remove this pub here
+    pub at_block_hash: H256,
+    pub at_timestamp: u64,
+    pub max_validators: u32,
 }
 
 /// [`MiddlewareWrapper`] is a wrapper around the dyn [`ElectionProvider`] trait.
@@ -574,7 +396,7 @@ impl BatchCommitter for Router {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{db::*, mock::*};
+    use ethexe_common::{db::*, gear::CodeCommitment, mock::*};
     use gear_core::ids::prelude::CodeIdExt;
 
     fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
@@ -815,7 +637,9 @@ mod tests {
                 chain.protocol_timelines.election = 5 * chain.slot_duration as u64;
             })
             .setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        // ctx.core.timelines = chain.protocol_timelines;
+        // TODO: remove this hack
+        ctx.core.batch_builder.timelines = chain.protocol_timelines;
 
         let validators1: ValidatorsVec = vec![Address([1; 20]), Address([2; 20]), Address([3; 20])]
             .try_into()
@@ -835,6 +659,7 @@ mod tests {
         // Before election
         let commitment = ctx
             .core
+            .batch_builder
             .aggregate_validators_commitment(&chain.blocks[4].to_simple())
             .await
             .unwrap();
@@ -843,6 +668,7 @@ mod tests {
         // Right at election start
         let commitment = ctx
             .core
+            .batch_builder
             .aggregate_validators_commitment(&chain.blocks[5].to_simple())
             .await
             .unwrap()
@@ -853,6 +679,7 @@ mod tests {
         // Inside election period
         let commitment = ctx
             .core
+            .batch_builder
             .aggregate_validators_commitment(&chain.blocks[7].to_simple())
             .await
             .unwrap()
@@ -866,6 +693,7 @@ mod tests {
             .set_block_validators_committed_for_era(chain.blocks[7].hash, 1);
         let commitment = ctx
             .core
+            .batch_builder
             .aggregate_validators_commitment(&chain.blocks[7].to_simple())
             .await
             .unwrap();
@@ -877,6 +705,7 @@ mod tests {
             .set_block_validators_committed_for_era(chain.blocks[15].hash, 0);
         let commitment = ctx
             .core
+            .batch_builder
             .aggregate_validators_commitment(&chain.blocks[15].to_simple())
             .await
             .unwrap()
@@ -889,6 +718,7 @@ mod tests {
             .db
             .set_block_validators_committed_for_era(chain.blocks[15].hash, 3);
         ctx.core
+            .batch_builder
             .aggregate_validators_commitment(&chain.blocks[15].to_simple())
             .await
             .unwrap_err();
