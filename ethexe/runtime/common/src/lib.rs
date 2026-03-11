@@ -233,7 +233,12 @@ where
             stop_processing: false,
         };
 
-        if ctx.promise_policy.is_enabled() && is_promise_required {
+        // Promise policy must be disabled for the canonical queue.
+        if ctx.queue_type.is_canonical() && ctx.promise_policy.is_enabled() {
+            debug_assert!(false, "Promise policy must be disabled for canonical queue");
+        }
+
+        if is_promise_required && ctx.promise_policy.is_enabled() {
             parse_journal_for_injected_dispatch(ri, &journal, dispatch_id);
         }
 
