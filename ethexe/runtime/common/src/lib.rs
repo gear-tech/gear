@@ -269,36 +269,40 @@ fn parse_journal_for_injected_dispatch<RI>(ri: &RI, journal: &[JournalNote], dis
 where
     RI: RuntimeInterface,
 {
-    for note in journal.iter() {
-        if let JournalNote::SendDispatch {
+    let maybe_reply = journal.iter().find_map(|note| {
+        let JournalNote::SendDispatch {
             message_id,
             dispatch,
             ..
         } = note
-            && *message_id == dispatch_id
-            && dispatch.kind().is_reply()
-        {
-            let Some(code) = dispatch.reply_details().map(|d| d.to_reply_code()) else {
-                log::error!(
-                    "received reply dispatch without reply details; protocol invariant violated: \
-                    initial_dispatch_id={dispatch_id:?}, send_dispatch={dispatch:?}"
-                );
-                continue;
-            };
+        else {
+            return None;
+        };
 
-            let reply = ReplyInfo {
-                value: dispatch.value(),
-                code,
-                payload: dispatch.message().payload_bytes().to_vec(),
-            };
-
-            // SAFE: because of protocol logic - injected message id constructs from injected transaction hash.
-            let tx_hash = unsafe { HashOf::new(dispatch_id.into_bytes().into()) };
-            let promise = Promise { reply, tx_hash };
-
-            ri.publish_promise(&promise);
-            break;
+        if *message_id != dispatch_id || !dispatch.kind().is_reply() {
+            return None;
         }
+
+        let Some(code) = dispatch.reply_details().map(|d| d.to_reply_code()) else {
+            log::error!(
+                "received reply dispatch without reply details; protocol invariant violated: \
+                    initial_dispatch_id={dispatch_id:?}, send_dispatch={dispatch:?}"
+            );
+            return None;
+        };
+
+        Some(ReplyInfo {
+            value: dispatch.value(),
+            code,
+            payload: dispatch.message().payload_bytes().to_vec(),
+        })
+    });
+
+    if let Some(reply) = maybe_reply {
+        // SAFE: because of protocol logic - injected message id constructs from injected transaction hash.
+        let tx_hash = unsafe { HashOf::new(dispatch_id.into_bytes().into()) };
+        let promise = Promise { reply, tx_hash };
+        ri.publish_promise(&promise);
     }
 }
 
