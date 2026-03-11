@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{Gear, IRouter, ITransparentUpgradeableProxy},
+    abi::{Gear, IERC1967Proxy, IRouter},
     benchmarking::{
         SimulationContext,
         contracts::{MirrorImpl, RouterImpl, WrappedVara},
@@ -143,28 +143,25 @@ impl<'a> Router<'a> {
                 .create()
                 .data(
                     [
-                        &ITransparentUpgradeableProxy::BYTECODE[..],
-                        &SolConstructor::abi_encode(
-                            &ITransparentUpgradeableProxy::constructorCall {
-                                _logic: router_impl,
-                                initialOwner: deployer_address,
-                                _data: Bytes::copy_from_slice(
-                                    &IRouter::initializeCall {
-                                        _owner: deployer_address,
-                                        _mirror: mirror_impl,
-                                        _wrappedVara: wrapped_vara.proxy_address(),
-                                        _middleware: middleware_address,
-                                        _eraDuration: U256::from(24 * 60 * 60),
-                                        _electionDuration: U256::from(2 * 60 * 60),
-                                        _validationDelay: U256::from(5 * 60),
-                                        _aggregatedPublicKey: aggregated_public_key,
-                                        _verifiableSecretSharingCommitment: Bytes::new(),
-                                        _validators: validators,
-                                    }
-                                    .abi_encode(),
-                                ),
-                            },
-                        )[..],
+                        &IERC1967Proxy::BYTECODE[..],
+                        &SolConstructor::abi_encode(&IERC1967Proxy::constructorCall {
+                            implementation: router_impl,
+                            _data: Bytes::copy_from_slice(
+                                &IRouter::initializeCall {
+                                    _owner: deployer_address,
+                                    _mirror: mirror_impl,
+                                    _wrappedVara: wrapped_vara.proxy_address(),
+                                    _middleware: middleware_address,
+                                    _eraDuration: U256::from(24 * 60 * 60),
+                                    _electionDuration: U256::from(2 * 60 * 60),
+                                    _validationDelay: U256::from(5 * 60),
+                                    _aggregatedPublicKey: aggregated_public_key,
+                                    _verifiableSecretSharingCommitment: Bytes::new(),
+                                    _validators: validators,
+                                }
+                                .abi_encode(),
+                            ),
+                        })[..],
                     ]
                     .concat()
                     .into(),

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    abi::{ITransparentUpgradeableProxy, IWrappedVara},
+    abi::{IERC1967Proxy, IWrappedVara},
     benchmarking::SimulationContext,
 };
 use alloy::sol_types::SolConstructor;
@@ -86,14 +86,11 @@ impl WrappedVara {
                 .create()
                 .data(
                     [
-                        &ITransparentUpgradeableProxy::BYTECODE[..],
-                        &SolConstructor::abi_encode(
-                            &ITransparentUpgradeableProxy::constructorCall {
-                                _logic: wrapped_vara_impl,
-                                initialOwner: deployer_address,
-                                _data: Bytes::new(),
-                            },
-                        )[..],
+                        &IERC1967Proxy::BYTECODE[..],
+                        &SolConstructor::abi_encode(&IERC1967Proxy::constructorCall {
+                            implementation: wrapped_vara_impl,
+                            _data: Bytes::new(),
+                        })[..],
                     ]
                     .concat()
                     .into(),
