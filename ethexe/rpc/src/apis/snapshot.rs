@@ -46,7 +46,7 @@ const SNAPSHOT_ARCHIVE_NAME: &str = "snapshot.tar.zst";
 const SNAPSHOT_CHECKPOINT_DIR_NAME: &str = "checkpoint";
 const SNAPSHOT_COMPRESSION: &str = "tar.zst";
 // 1KiB
-const SNAPSHOT_MIN_CHUNK_IN_BYTES: usize = 1_024 * 1_024;
+const SNAPSHOT_MIN_CHUNK_IN_BYTES: usize = 1_024;
 
 static SNAPSHOT_SERVICE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
