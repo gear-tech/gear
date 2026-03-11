@@ -747,8 +747,8 @@ impl Database {
             latest_computed_announce_hash: HashOf::zero(),
         };
 
-        mem_db.put(&Key::Config.to_bytes(), config.encode());
-        mem_db.put(&Key::Globals.to_bytes(), globals.encode());
+        <dyn KVDatabase>::set_config(&mem_db, config);
+        <dyn KVDatabase>::set_globals(&mem_db, globals);
 
         Self::try_from_raw(RawDatabase::from_one(&mem_db)).unwrap()
     }
@@ -934,7 +934,7 @@ impl GlobalsStorageRW for Database {
             .write()
             .expect("Failed to lock globals for writing");
         let res = f(&mut globals);
-        self.raw.kv.put(&Key::Globals.to_bytes(), globals.encode());
+        self.raw.kv.set_globals(globals.clone());
         res
     }
 }
@@ -958,7 +958,7 @@ mod mock {
                 .write()
                 .expect("Failed to lock config for writing")
                 .clone_from(&config);
-            self.raw.kv.put(&Key::Config.to_bytes(), config.encode());
+            self.raw.kv.set_config(config);
         }
     }
 
@@ -968,7 +968,7 @@ mod mock {
                 .write()
                 .expect("Failed to lock globals for writing")
                 .clone_from(&globals);
-            self.raw.kv.put(&Key::Globals.to_bytes(), globals.encode());
+            self.raw.kv.set_globals(globals);
         }
     }
 }
