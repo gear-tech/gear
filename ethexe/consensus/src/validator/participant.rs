@@ -20,7 +20,8 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::core::ValidationStatus};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::batch::ValidationStatus};
+
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -178,8 +179,9 @@ impl Participant {
             future: self
                 .ctx
                 .core
+                .batch_manager
                 .clone()
-                .validate_batch_commitment_request(self.block, request)
+                .validate(self.block, request)
                 .boxed(),
         };
 

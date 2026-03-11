@@ -42,7 +42,7 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     validator::{
-        batch::{BatchBuilder, BatchLimits},
+        batch::{BatchCommitmentManager, BatchLimits},
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
         participant::Participant,
@@ -143,9 +143,10 @@ impl ValidatorService {
         let limits = BatchLimits {
             chain_deepness_threshold: config.chain_deepness_threshold,
             commitment_delay_limit: config.commitment_delay_limit,
+            max_codes_limit: 20,
         };
         let middleware = MiddlewareWrapper::from_inner(election_provider);
-        let batch_builder = BatchBuilder::new(limits, db.clone(), middleware.clone(), timelines);
+        let batch_manager = BatchCommitmentManager::new(limits, timelines, db.clone(), middleware);
 
         let ctx = ValidatorContext {
             core: ValidatorCore {
@@ -157,8 +158,7 @@ impl ValidatorService {
                 signer,
                 db: db.clone(),
                 committer: committer.into(),
-                middleware,
-                batch_builder,
+                batch_manager,
                 injected_pool: InjectedTxPool::new(db),
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,

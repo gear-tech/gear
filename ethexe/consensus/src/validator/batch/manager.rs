@@ -16,63 +16,56 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, ValidationStatus};
 use crate::{
-    utils,
+    announces,
     validator::core::{ElectionRequest, MiddlewareWrapper},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Announce, HashOf, ProtocolTimelines, SimpleBlockData,
-    db::{BlockMetaStorageRO, OnChainStorageRO},
+    Announce, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest,
+    consensus::BatchCommitmentValidationRequest,
+    db::{AnnounceStorageRO, BlockMetaStorageRO, BlockMetaStorageRW, OnChainStorageRO},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
 };
 use ethexe_db::Database;
 use gprimitives::H256;
+use hashbrown::HashSet;
 
-/// The builder for [`ethexe_common::gear::BatchCommitment`].
-#[derive(Clone, derive_more::Debug)]
-pub struct BatchBuilder {
-    db: Database,
+#[derive(derive_more::Debug, Clone)]
+pub struct BatchCommitmentManager {
+    /// Limits for batch building and verifying
     limits: BatchLimits,
-    // TODO: FIX this
+    // TODO: hack for tests, remove this `pub(crate)`
     pub(crate) timelines: ProtocolTimelines,
+    #[debug(skip)]
+    db: Database,
     #[debug(skip)]
     middleware: MiddlewareWrapper,
 }
 
-/// This struct represents the limits for batch.
-#[derive(Debug, Clone)]
-pub struct BatchLimits {
-    // MOVED from ValidatorCore.
-    /// Minimum deepness threshold to create chain commitment even if there are no transitions.
-    pub chain_deepness_threshold: u32,
-    /// Time limit in blocks for announce to be committed after its creation.
-    pub commitment_delay_limit: u32,
-}
+impl BatchCommitmentManager {
+    // Public API.
 
-impl BatchBuilder {
     pub fn new(
         limits: BatchLimits,
+        timelines: ProtocolTimelines,
         db: Database,
         middleware: MiddlewareWrapper,
-        timelines: ProtocolTimelines,
     ) -> Self {
-        // TODO: FIXME after gsobol migration PR
-        // let timelines = db.config().timelines();
-
         Self {
-            db,
             limits,
             timelines,
+            db,
             middleware,
         }
     }
 
-    pub async fn aggregate_batch_commitment(
-        mut self,
+    pub async fn build(
+        self,
         block: SimpleBlockData,
         announce_hash: HashOf<Announce>,
     ) -> Result<Option<BatchCommitment>> {
@@ -81,7 +74,7 @@ impl BatchBuilder {
         let validators_commitment = self.aggregate_validators_commitment(&block).await?;
         let rewards_commitment = self.aggregate_rewards_commitment(&block).await?;
 
-        utils::create_batch_commitment(
+        super::utils::create_batch_commitment(
             &self.db,
             &block,
             chain_commitment,
@@ -92,15 +85,168 @@ impl BatchBuilder {
         )
     }
 
+    pub async fn validate(
+        self,
+        block: SimpleBlockData,
+        request: BatchCommitmentValidationRequest,
+    ) -> Result<ValidationStatus> {
+        let &BatchCommitmentValidationRequest {
+            digest,
+            head,
+            ref codes,
+            validators,
+            rewards,
+        } = &request;
+
+        if head.is_none() && codes.is_empty() && !validators && !rewards {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::EmptyBatch,
+            });
+        }
+
+        if crate::utils::has_duplicates(codes.as_slice()) {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::CodesHasDuplicates,
+            });
+        }
+
+        // Check requested codes wait for commitment
+        let waiting_codes = self
+            .db
+            .block_meta(block.hash)
+            .codes_queue
+            .ok_or_else(|| {
+                anyhow!(
+                    "Cannot get from db block codes queue for block {}",
+                    block.hash
+                )
+            })?
+            .into_iter()
+            .collect::<HashSet<_>>();
+        if let Some(&code_id) = codes.iter().find(|&id| !waiting_codes.contains(id)) {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::CodeNotWaitingForCommitment(code_id),
+            });
+        }
+
+        let chain_commitment = if let Some(head) = head {
+            // TODO #4791: support commitment head from another block in chain,
+            // have to check head block is predecessor of current block
+
+            let candidates = self
+                .db
+                .block_meta(block.hash)
+                .announces
+                .into_iter()
+                .flatten();
+            let best_announce_hash =
+                announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
+            if head != best_announce_hash {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadAnnounceIsNotBest {
+                        requested: head,
+                        best: best_announce_hash,
+                    },
+                });
+            }
+
+            // Head announce in validation request is best for `block`.
+            // This guarantees that announce is successor of last committed announce at `block`,
+            // but does not guarantee that announce is computed by this node.
+            if !self.db.announce_meta(head).computed {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadAnnounceNotComputed(head),
+                });
+            }
+
+            let (commitment, _) =
+                super::utils::try_aggregate_chain_commitment(&self.db, block.hash, head)
+                    .context("batch commitment request validation")?;
+
+            Some(commitment)
+        } else {
+            None
+        };
+
+        let code_commitments =
+            match super::utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
+                Ok(commitments) => commitments,
+                Err(CodeNotValidatedError(code_id)) => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
+                    });
+                }
+            };
+
+        let validators_commitment = if validators {
+            // TODO: Remove this `self`, implement a raw function
+            let Some(commitment) = self.aggregate_validators_commitment(&block).await? else {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::ValidatorsNotReady,
+                });
+            };
+            Some(commitment)
+        } else {
+            None
+        };
+
+        let rewards_commitment = if rewards {
+            // TODO: remove the `self` here, implement a raw function.
+            let Some(commitment) = self.aggregate_rewards_commitment(&block).await? else {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::RewardsNotReady,
+                });
+            };
+            Some(commitment)
+        } else {
+            None
+        };
+
+        let batch = super::utils::create_batch_commitment(
+            &self.db,
+            &block,
+            chain_commitment,
+            code_commitments,
+            validators_commitment,
+            rewards_commitment,
+            self.limits.commitment_delay_limit,
+        )?
+        .ok_or_else(|| anyhow!("Batch commitment is empty for current block"))?;
+
+        let batch_digest = batch.to_digest();
+        if batch_digest != digest {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::BatchDigestMismatch {
+                    expected: digest,
+                    found: batch_digest,
+                },
+            });
+        }
+
+        Ok(ValidationStatus::Accepted(digest))
+    }
+
+    // Inner calls
+
     pub fn aggregate_chain_commitment(
         &self,
         at_block_hash: H256,
         announce_hash: HashOf<Announce>,
     ) -> Result<Option<ChainCommitment>> {
         let (commitment, deepness) =
-            utils::try_aggregate_chain_commitment(&self.db, at_block_hash, announce_hash).map_err(
-                |e| anyhow!("Aggregating chain commitment for block {at_block_hash}: {e}"),
-            )?;
+            super::utils::try_aggregate_chain_commitment(&self.db, at_block_hash, announce_hash)
+                .map_err(|e| {
+                    anyhow!("Aggregating chain commitment for block {at_block_hash}: {e}")
+                })?;
 
         if commitment.transitions.is_empty() && deepness <= self.limits.chain_deepness_threshold {
             // No transitions and chain is not deep enough, skip chain commitment
@@ -111,17 +257,32 @@ impl BatchBuilder {
     }
 
     pub fn aggregate_code_commitments(&self, block_hash: H256) -> Result<Vec<CodeCommitment>> {
-        let queue =
+        // TODO: FIXME rewrite it to do in one db query
+        let mut queue =
             self.db.block_meta(block_hash).codes_queue.ok_or_else(|| {
                 anyhow!("Computed block {block_hash} codes queue is not in storage")
             })?;
 
-        Ok(utils::aggregate_code_commitments(&self.db, queue, false)
-            .expect("Error is not possible here, because fail_if_not_found is false"))
+        let queue_for_batch = if queue.len() > self.limits.max_codes_limit {
+            queue
+                .drain(..self.limits.max_codes_limit)
+                .collect::<Vec<_>>()
+        } else {
+            queue.drain(..).collect::<Vec<_>>()
+        };
+
+        // Save other codes in database.
+        self.db
+            .mutate_block_meta(block_hash, |meta| meta.codes_queue = Some(queue));
+
+        Ok(
+            super::utils::aggregate_code_commitments(&self.db, queue_for_batch, false)
+                .expect("Error is not possible here, because fail_if_not_found is false"),
+        )
     }
 
     pub async fn aggregate_validators_commitment(
-        &mut self,
+        &self,
         block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
         let block_era = self.timelines.era_from_ts(block.header.timestamp);
@@ -224,7 +385,7 @@ impl BatchBuilder {
         };
 
         let (aggregated_public_key, verifiable_secret_sharing_commitment) =
-            match utils::generate_roast_keys(&elected_validators) {
+            match crate::utils::generate_roast_keys(&elected_validators) {
                 Ok(keys) => keys,
                 Err(e) => {
                     tracing::error!(
@@ -249,7 +410,7 @@ impl BatchBuilder {
 
     // TODO #4742
     pub async fn aggregate_rewards_commitment(
-        &mut self,
+        &self,
         _block: &SimpleBlockData,
     ) -> Result<Option<RewardsCommitment>> {
         Ok(None)
