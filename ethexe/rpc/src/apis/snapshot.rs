@@ -45,6 +45,9 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
 const SNAPSHOT_ARCHIVE_NAME: &str = "snapshot.tar.zst";
 const SNAPSHOT_CHECKPOINT_DIR_NAME: &str = "checkpoint";
 const SNAPSHOT_COMPRESSION: &str = "tar.zst";
+// 1KiB
+const SNAPSHOT_MIN_CHUNK_IN_BYTES: usize = 1_024 * 1_024;
+
 static SNAPSHOT_SERVICE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -152,7 +155,7 @@ struct PreparedSnapshot {
 
 impl SnapshotService {
     fn new(db: Database, rocks_db: RocksDatabase, cfg: SnapshotRpcConfig) -> Self {
-        let chunk_size_bytes = cfg.chunk_size_bytes.max(1);
+        let chunk_size_bytes = cfg.chunk_size_bytes.max(SNAPSHOT_MIN_CHUNK_IN_BYTES);
         let max_concurrent_downloads = cfg.max_concurrent_downloads.max(1);
         let service_prefix = format!(
             "svc{:x}",
