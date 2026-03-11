@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, BlockData, BlockHeader, CodeBlobInfo, ComputedAnnounce, Digest, HashOf,
-    ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    Address, Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
@@ -619,24 +619,6 @@ impl Mock<()> for DBConfig {
             timelines: ProtocolTimelines::mock(()),
             genesis_block_hash: H256::random(),
             genesis_announce_hash: HashOf::random(),
-        }
-    }
-}
-
-impl Mock for ComputedAnnounce {
-    fn mock(_: ()) -> Self {
-        Self {
-            announce_hash: HashOf::random(),
-            promises: Default::default(),
-        }
-    }
-}
-
-impl Mock<HashOf<Announce>> for ComputedAnnounce {
-    fn mock(announce_hash: HashOf<Announce>) -> Self {
-        Self {
-            announce_hash,
-            promises: Default::default(),
         }
     }
 }

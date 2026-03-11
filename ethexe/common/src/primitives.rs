@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest,
-    events::BlockEvent,
-    injected::{Promise, SignedInjectedTransaction},
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent,
+    injected::SignedInjectedTransaction,
 };
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -130,23 +129,14 @@ impl ToDigest for Announce {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComputedAnnounce {
-    pub announce_hash: HashOf<Announce>,
-    pub promises: Vec<Promise>,
-}
-
-impl ComputedAnnounce {
-    pub fn from_announce_hash(announce_hash: HashOf<Announce>) -> Self {
-        Self {
-            announce_hash,
-            promises: Default::default(),
-        }
-    }
-
-    pub fn merge_promises(&mut self, other: ComputedAnnounce) {
-        self.promises.extend(other.promises);
-    }
+/// [`PromisePolicy`] tells processor whether should it emits promises or not.
+#[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Encode, Decode, derive_more::IsVariant)]
+pub enum PromisePolicy {
+    /// Emits promises in execution process.
+    Enabled,
+    // Do not emit promises in execution process.
+    #[default]
+    Disabled,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]

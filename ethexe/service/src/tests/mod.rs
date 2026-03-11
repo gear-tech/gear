@@ -49,7 +49,7 @@ use ethexe_common::{
     mock::*,
     network::ValidatorMessage,
 };
-use ethexe_compute::ComputeConfig;
+use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::verifier::IntegrityVerifier;
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
@@ -1541,13 +1541,14 @@ async fn send_injected_tx() {
     };
 
     // Send request
-    log::info!("Sending tx pool request to node-1");
-    let _r = node1
+    log::info!("Sending transaction to node-1");
+    let acceptance = node1
         .rpc_http_client()
         .unwrap()
         .send_transaction(tx_for_node1.clone())
         .await
         .expect("rpc server is set");
+    assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
 
     // Tx executable validation takes time, so wait for event.
     node1
@@ -2390,7 +2391,10 @@ async fn injected_tx_fungible_token() {
             .validator(env.validators[0]),
     );
     node.start_service().await;
-    let rpc_client = node.rpc_http_client().expect("RPC client provide by node");
+    let rpc_client = node
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provide by node");
 
     // 1. Create Fungible token config
     let token_config = demo_fungible_token::InitConfig {
@@ -2462,11 +2466,10 @@ async fn injected_tx_fungible_token() {
             .unwrap(),
     };
 
-    let acceptance = rpc_client
-        .send_transaction(rpc_tx)
+    let mut subscription = rpc_client
+        .send_transaction_and_watch(rpc_tx)
         .await
         .expect("successfully send transaction to RPC");
-    assert!(matches!(acceptance, InjectedTransactionAcceptance::Accept));
 
     let expected_event = demo_fungible_token::FTEvent::Transfer {
         from: ActorId::new([0u8; 32]),
@@ -2477,10 +2480,7 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
-                && !promises.is_empty()
-            {
-                let promise = promises.first().unwrap().data();
+            if let TestingEvent::Compute(ComputeEvent::Promise(promise, _)) = event {
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
@@ -2495,6 +2495,22 @@ async fn injected_tx_fungible_token() {
         })
         .await;
     tracing::info!("✅ Tokens mint successfully");
+
+    let subscription_promise = subscription
+        .next()
+        .await
+        .expect("subscription produce value")
+        .expect("no errors for correct injected transaction");
+    assert_eq!(subscription_promise.data().tx_hash, mint_tx.to_hash());
+    assert_eq!(subscription_promise.data().reply.value, 0);
+    assert_eq!(
+        subscription_promise.data().reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(
+        subscription_promise.into_data().reply.payload,
+        expected_event.encode()
+    );
 
     let db = node.db.clone();
     node.events()
