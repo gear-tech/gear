@@ -30,8 +30,8 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
-    gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo},
-    injected::{AddressedInjectedTransaction, InjectedTransaction},
+    gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
+    injected::{AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE},
 };
 use ethexe_ethereum::{Ethereum, mirror::ClaimInfo, router::CodeValidationResult};
 use ethexe_rpc::{InjectedClient, ProgramClient};
@@ -978,10 +978,16 @@ impl TxCommand {
 
                         let injected_transaction = InjectedTransaction {
                             destination: raw_actor_id,
-                            payload: payload.0.clone().into(),
+                            payload: payload.0.clone().try_into().with_context(|| {
+                                format!(
+                                    "Payload size exceeds the maximum allowed size of {} bytes",
+                                    MAX_INJECTED_TX_PAYLOAD_SIZE
+                                )
+                            })?,
                             value: raw_value,
                             reference_block: reference_block_hash,
-                            salt: salt.0.to_vec().into(),
+                            salt: LimitedVec::try_from(salt.as_bytes())
+                                .expect("`H256` is small enough for a salt"),
                         };
                         let message_id = injected_transaction.to_message_id();
                         let tx_hash = injected_transaction.to_hash().into();
@@ -1723,7 +1729,7 @@ pub enum TxSubcommand {
         #[arg(short, long, requires = "injected")]
         rpc_url: Option<String>,
         /// Flag to send injected transaction. If false, normal transaction is sent.
-        #[arg(short, long, default_value = "false", requires = "rpc-url")]
+        #[arg(short, long, default_value = "false", requires = "rpc_url")]
         injected: bool,
         /// Flag to watch for reply from mirror. If false, command will do not wait for reply.
         #[arg(short, long, default_value = "false")]

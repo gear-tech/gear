@@ -30,7 +30,7 @@ mod mirror_abi {
     alloy::sol!(
         #[sol(rpc)]
         IMirror,
-        "Mirror.json"
+        "abi/Mirror.json"
     );
 }
 
@@ -38,7 +38,7 @@ pub mod middleware_abi {
     alloy::sol!(
         #[sol(rpc)]
         IMiddleware,
-        "Middleware.json"
+        "abi/Middleware.json"
     );
 }
 
@@ -46,20 +46,20 @@ sol!(
     #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IRouter,
-    "Router.json"
+    "abi/Router.json"
 );
 
 sol!(
     #[sol(rpc)]
-    ITransparentUpgradeableProxy,
-    "TransparentUpgradeableProxy.json"
+    IERC1967Proxy,
+    "abi/ERC1967Proxy.json"
 );
 
 sol!(
     #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IWrappedVara,
-    "WrappedVara.json"
+    "abi/WrappedVara.json"
 );
 
 /// Bindings for Symbiotic contracts.

@@ -33,22 +33,19 @@ contract DeploymentScript is Script {
         vm.startBroadcast(privateKey);
 
         wrappedVara = WrappedVara(
-            Upgrades.deployTransparentProxy(
-                "WrappedVara.sol", deployerAddress, abi.encodeCall(WrappedVara.initialize, (deployerAddress))
-            )
+            Upgrades.deployUUPSProxy("WrappedVara.sol", abi.encodeCall(WrappedVara.initialize, (deployerAddress)))
         );
 
-        bool isDevMode = vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE");
+        bool isPoa = vm.envExists("IS_POA") && vm.envBool("IS_POA");
 
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
 
-        uint256 middlewareNonce = vm.getNonce(deployerAddress) + (isDevMode ? 4 : 5);
+        uint256 middlewareNonce = vm.getNonce(deployerAddress) + (isPoa ? 4 : 5);
         address middlewareAddress = vm.computeCreateAddress(deployerAddress, middlewareNonce);
 
         router = Router(
-            payable(Upgrades.deployTransparentProxy(
+            payable(Upgrades.deployUUPSProxy(
                     "Router.sol",
-                    deployerAddress,
                     abi.encodeCall(
                         Router.initialize,
                         (
@@ -69,8 +66,9 @@ contract DeploymentScript is Script {
 
         mirror = new Mirror(address(router));
 
-        // In dev mode will be deployed POA Middleware
-        if (isDevMode) {
+        // In Proof of Authority (PoA) mode, Symbiotic contracts & Middleware will not be deployed
+        // instead, POAMiddleware contract will be deployed
+        if (isPoa) {
             Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
                 vaultRegistry: address(0),
                 operatorRegistry: address(0),
@@ -102,9 +100,7 @@ contract DeploymentScript is Script {
             });
 
             POAMiddleware poaMiddleware = POAMiddleware(
-                Upgrades.deployTransparentProxy(
-                    "POAMiddleware.sol", deployerAddress, abi.encodeCall(POAMiddleware.initialize, (initParams))
-                )
+                Upgrades.deployUUPSProxy("POAMiddleware.sol", abi.encodeCall(POAMiddleware.initialize, (initParams)))
             );
 
             vm.assertEq(middlewareAddress, address(poaMiddleware));
@@ -145,9 +141,7 @@ contract DeploymentScript is Script {
             });
 
             middleware = Middleware(
-                Upgrades.deployTransparentProxy(
-                    "Middleware.sol", deployerAddress, abi.encodeCall(Middleware.initialize, (initParams))
-                )
+                Upgrades.deployUUPSProxy("Middleware.sol", abi.encodeCall(Middleware.initialize, (initParams)))
             );
             vm.assertEq(middlewareAddress, address(middleware));
         }

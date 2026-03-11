@@ -19,7 +19,7 @@ extend-ignore-identifiers-re = [
 [files]
 extend-exclude = [
   "galloc/optimization/fungible_token.ipynb",
-  "ethexe/ethereum/*.json",
+  "ethexe/ethereum/abi/*.json",
   "ethexe/contracts/lib/*",
 ]
 

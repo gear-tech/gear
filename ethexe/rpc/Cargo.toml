@@ -47,6 +47,7 @@ ethexe-common = { workspace = true, features = ["std", "mock"] }
 ntest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tracing-subscriber.workspace = true
 
 [features]
 client = ["jsonrpsee/client"]
