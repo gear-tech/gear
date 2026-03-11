@@ -351,10 +351,6 @@ pub(crate) mod utils {
     {
         let mut parent_hash = announce.parent;
         let mut announces_chain = VecDeque::new();
-        let start_announce_hash = db
-            .latest_data()
-            .ok_or_else(|| ComputeError::LatestDataNotFound)?
-            .start_announce_hash;
 
         loop {
             if db.announce_meta(parent_hash).computed {
@@ -367,11 +363,6 @@ pub(crate) mod utils {
 
             let next_parent_hash = parent_announce.parent;
             announces_chain.push_front((parent_hash, parent_announce));
-
-            // This was a start announce, no need to go further.
-            if parent_hash == start_announce_hash {
-                break;
-            }
 
             parent_hash = next_parent_hash;
         }
@@ -762,23 +753,20 @@ mod tests {
         const BLOCKCHAIN_LEN: usize = 10;
 
         let db = Database::memory();
-        let mut blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32).setup(&db);
+        let blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32).setup(&db);
 
-        // Setup announces except the head to not-computed state.
-        blockchain
-            .announces
-            .iter_mut()
-            .enumerate()
-            .for_each(|(idx, (announce_hash, _))| {
-                // Set the announces to not computed state
-                if idx != BLOCKCHAIN_LEN - 1 {
-                    db.mutate_announce_meta(*announce_hash, |meta| {
-                        meta.computed = false;
-                    });
-                }
-            });
+        // Setup announces except the start-announce to not-computed state.
+        (0..BLOCKCHAIN_LEN - 1).for_each(|idx| {
+            let announce_hash = blockchain.block_top_announce(idx).announce.to_hash();
 
-        let expected_not_computed_announces = (0..BLOCKCHAIN_LEN - 1)
+            if idx == 0 {
+                db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
+            } else {
+                db.mutate_announce_meta(announce_hash, |meta| meta.computed = false);
+            }
+        });
+
+        let expected_not_computed_announces = (1..BLOCKCHAIN_LEN - 1)
             .map(|idx| blockchain.block_top_announce(idx).announce.to_hash())
             .collect::<Vec<_>>();
 
