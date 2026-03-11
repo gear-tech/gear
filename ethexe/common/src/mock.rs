@@ -370,24 +370,6 @@ impl BlockChain {
         db.set_latest_data(latest_data);
         db.set_protocol_timelines(timelines);
 
-        if let Some(genesis) = blocks.front() {
-            db.mutate_latest_data(|latest| {
-                latest.genesis_block_hash = genesis.hash;
-                latest.start_block_hash = genesis.hash;
-            })
-            .unwrap();
-
-            if let Some(prepared) = &genesis.prepared
-                && let Some(first_announce) = prepared.announces.iter().flatten().next()
-            {
-                db.mutate_latest_data(|latest| {
-                    latest.genesis_announce_hash = *first_announce;
-                    latest.start_announce_hash = *first_announce;
-                })
-                .unwrap();
-            }
-        }
-
         for BlockFullData {
             hash,
             synced,
@@ -395,11 +377,6 @@ impl BlockChain {
         } in blocks
         {
             if let Some(SyncedBlockData { header, events }) = synced {
-                db.mutate_latest_data(|latest| {
-                    latest.synced_block = SimpleBlockData { hash, header }
-                })
-                .unwrap();
-
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
@@ -416,16 +393,6 @@ impl BlockChain {
                 last_committed_announce,
             }) = prepared
             {
-                db.mutate_latest_data(|latest| {
-                    latest.prepared_block_hash = hash;
-                });
-
-                if let Some(announce_hash) = announces.iter().flatten().last().copied() {
-                    db.mutate_latest_data(|latest| {
-                        latest.computed_announce_hash = announce_hash;
-                    });
-                }
-
                 db.mutate_block_meta(hash, |meta| {
                     *meta = BlockMeta {
                         prepared: true,
