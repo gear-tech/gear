@@ -179,6 +179,7 @@ interface IRouter {
     function validators() external view returns (address[] memory);
     function validatorsCount() external view returns (uint256);
     function validatorsThreshold() external view returns (uint256);
+    function paused() external view returns (bool);
 
     function computeSettings() external view returns (Gear.ComputationSettings memory);
 
@@ -193,6 +194,8 @@ interface IRouter {
 
     // # Owner calls.
     function setMirror(address newMirror) external;
+    function pause() external;
+    function unpause() external;
 
     // # Calls.
     function lookupGenesisHash() external;
