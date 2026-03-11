@@ -36,6 +36,7 @@ pub use injected::Event as NetworkInjectedEvent;
 use crate::{
     db_sync::DbSyncDatabase,
     metrics::Libp2pMetrics,
+    utils::MultiaddrExt,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
 use anyhow::{Context, anyhow};
@@ -159,6 +160,7 @@ pub struct NetworkService {
     validator_list: ValidatorList,
     validator_topic: ValidatorTopic,
     metrics: Arc<Libp2pMetrics>,
+    allow_non_global_addresses: bool,
 }
 
 impl Stream for NetworkService {
@@ -290,6 +292,7 @@ impl NetworkService {
             validator_list,
             validator_topic,
             metrics,
+            allow_non_global_addresses,
         })
     }
 
@@ -413,7 +416,9 @@ impl NetworkService {
                 // add listen addresses of new peers to KadDHT
                 // according to `identify` and `kad` protocols docs
                 for listen_addr in info.listen_addrs {
-                    behaviour.kad.add_address(peer_id, listen_addr);
+                    if self.allow_non_global_addresses || listen_addr.is_global() {
+                        behaviour.kad.add_address(peer_id, listen_addr);
+                    }
                 }
 
                 // NOTE: it means we have to trust bootstrap peers about our external address

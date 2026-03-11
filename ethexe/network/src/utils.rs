@@ -18,10 +18,11 @@
 
 use crate::db_sync::PeerId;
 use async_trait::async_trait;
+use ip_network::IpNetwork;
 use libp2p::{
-    StreamProtocol,
+    Multiaddr, StreamProtocol,
     futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    request_response,
+    multiaddr, request_response,
     swarm::{ConnectionClosed, ConnectionId, FromSwarm, behaviour::ConnectionEstablished},
 };
 use parity_scale_codec::{Decode, DecodeAll, Encode};
@@ -123,6 +124,21 @@ impl<Req, Resp> Copy for ParityScaleCodec<Req, Resp> {}
 impl<Req, Resp> Clone for ParityScaleCodec<Req, Resp> {
     fn clone(&self) -> Self {
         *self
+    }
+}
+
+pub(crate) trait MultiaddrExt {
+    fn is_global(&self) -> bool;
+}
+
+impl MultiaddrExt for Multiaddr {
+    fn is_global(&self) -> bool {
+        // we use `ip_network` crate instead of std method because it's unstable
+        self.iter().all(|protocol| match protocol {
+            multiaddr::Protocol::Ip4(ip) => IpNetwork::from(ip).is_global(),
+            multiaddr::Protocol::Ip6(ip) => IpNetwork::from(ip).is_global(),
+            _ => true,
+        })
     }
 }
 

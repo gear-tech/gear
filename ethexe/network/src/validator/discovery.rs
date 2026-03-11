@@ -26,7 +26,7 @@ use crate::{
         self, GetRecordResult, PutRecordFuture, RecordKey, ValidatorIdentityKey,
         ValidatorIdentityRecord,
     },
-    utils::ExponentialBackoffInterval,
+    utils::{ExponentialBackoffInterval, MultiaddrExt},
     validator::list::ValidatorListSnapshot,
 };
 use anyhow::Context as _;
@@ -41,7 +41,6 @@ use futures::{
 };
 use gsigner::secp256k1::{PrivateKey, Secp256k1SignerExt, Signer};
 use indexmap::IndexSet;
-use ip_network::IpNetwork;
 use libp2p::{
     Multiaddr,
     core::{Endpoint, transport::PortUse},
@@ -518,18 +517,10 @@ struct PutIdentity {
 
 impl PutIdentity {
     fn new_identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
-        let external_addresses = self.external_addresses.iter().filter(|addr| {
-            if self.allow_non_global_addresses {
-                return true;
-            }
-
-            // we use `ip_network` crate instead of std method because it's unstable
-            addr.iter().all(|protocol| match protocol {
-                multiaddr::Protocol::Ip4(ip) => IpNetwork::from(ip).is_global(),
-                multiaddr::Protocol::Ip6(ip) => IpNetwork::from(ip).is_global(),
-                _ => true,
-            })
-        });
+        let external_addresses = self
+            .external_addresses
+            .iter()
+            .filter(|addr| self.allow_non_global_addresses || addr.is_global());
 
         let addresses = ValidatorAddresses::from_external_addresses(
             self.keypair.public().to_peer_id(),
