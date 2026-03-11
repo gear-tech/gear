@@ -28,8 +28,7 @@ use libp2p::{
     core::{Endpoint, transport::PortUse},
     kad,
     kad::{
-        Addresses, EntryView, GetClosestPeersError, GetClosestPeersOk, KBucketKey, PeerRecord,
-        PutRecordOk, QueryId, Quorum, store,
+        GetClosestPeersError, GetClosestPeersOk, PeerRecord, PutRecordOk, QueryId, Quorum, store,
         store::{MemoryStore, RecordStore},
     },
     metrics::Recorder,
@@ -367,13 +366,6 @@ impl Behaviour {
 
     pub fn add_address(&mut self, peer_id: PeerId, multiaddr: Multiaddr) {
         self.inner.add_address(&peer_id, multiaddr);
-    }
-
-    pub fn remove_peer(
-        &mut self,
-        peer_id: PeerId,
-    ) -> Option<EntryView<KBucketKey<PeerId>, Addresses>> {
-        self.inner.remove_peer(&peer_id)
     }
 
     fn handle_inner_event(&mut self, event: kad::Event) -> Poll<Event> {

@@ -443,14 +443,6 @@ impl NetworkService {
 
     fn handle_kad_event(&mut self, event: kad::Event) {
         match event {
-            kad::Event::RoutingUpdated { peer } => {
-                let behaviour = self.swarm.behaviour_mut();
-                if let Some(mdns4) = behaviour.mdns4.as_ref()
-                    && mdns4.discovered_nodes().any(|&p| p == peer)
-                {
-                    let _res = behaviour.kad.remove_peer(peer);
-                }
-            }
             kad::Event::InboundPutRecord {
                 source: _,
                 validator,
@@ -468,7 +460,8 @@ impl NetworkService {
                     }
                 });
             }
-            kad::Event::GetRecordStarted { query_id: _ }
+            kad::Event::RoutingUpdated { peer: _ }
+            | kad::Event::GetRecordStarted { query_id: _ }
             | kad::Event::GetRecordProgressed { query_id: _ }
             | kad::Event::GetRecordEarlyFinished { query_id: _ }
             | kad::Event::GetRecordFinished { query_id: _ }
