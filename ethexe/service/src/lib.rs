@@ -29,7 +29,7 @@ use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_db::{Database, DatabaseRef, RocksDatabase};
+use ethexe_db::{Database, RawDatabase, RocksDatabase};
 use ethexe_db_init::InitConfig;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
@@ -221,20 +221,15 @@ impl Service {
         )
         .with_context(|| "failed to open database")?;
 
-        ethexe_db_init::initialize_db(
+        let db = ethexe_db_init::initialize_db(
             InitConfig {
                 ethereum_rpc: config.ethereum.rpc.clone(),
                 router_address: config.ethereum.router_address,
                 slot_duration_secs: config.ethereum.block_time.as_secs(),
             },
-            DatabaseRef {
-                cas: &rocks_db,
-                kv: &rocks_db,
-            },
+            RawDatabase::from_one(&rocks_db),
         )
         .await?;
-
-        let db = Database::from_one(&rocks_db)?;
 
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: config.ethereum.rpc.clone(),

@@ -29,7 +29,7 @@ mod rocks;
 pub mod verifier;
 pub mod visitor;
 
-pub use database::{Database, DatabaseRef, VERSION};
+pub use database::{Database, RawDatabase, VERSION};
 pub use mem::MemDb;
 pub use rocks::RocksDatabase;
 

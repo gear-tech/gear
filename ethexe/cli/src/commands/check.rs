@@ -23,7 +23,7 @@ use ethexe_common::{
     db::{AnnounceStorageRO, DBGlobals, GlobalsStorageRO, OnChainStorageRO},
 };
 use ethexe_db::{
-    Database, RocksDatabase,
+    Database, RawDatabase, RocksDatabase,
     iterator::{BlockNode, DatabaseIterator},
     verifier::IntegrityVerifier,
     visitor::{self},
@@ -81,7 +81,7 @@ impl CheckCommand {
         }
 
         let rocks_db = RocksDatabase::open(self.db).context("failed to open rocks database")?;
-        let db = Database::from_one(&rocks_db)?;
+        let db = Database::try_from_raw(RawDatabase::from_one(&rocks_db))?;
 
         let globals = db.globals().clone();
 

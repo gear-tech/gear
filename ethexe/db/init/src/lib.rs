@@ -16,11 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(feature = "mock")]
-use ethexe_db::{Database, DatabaseRef, MemDb};
+use anyhow::Context as _;
+use ethexe_db::{Database, RawDatabase};
 use gsigner::Address;
-
-pub use version1::*;
 
 mod version1;
 
@@ -33,9 +31,18 @@ pub struct InitConfig {
     pub slot_duration_secs: u64,
 }
 
+pub async fn initialize_db(config: InitConfig, raw: RawDatabase) -> anyhow::Result<Database> {
+    const _: () = assert!(ethexe_db::VERSION == DB_VERSION_1, "Versions mismatch");
+
+    version1::initialize_db(config, raw.clone()).await?;
+    Database::try_from_raw(raw).context("Failed to create database from raw after initialization")
+}
+
 #[cfg(feature = "mock")]
 pub async fn create_initialized_empty_memory_db(config: InitConfig) -> anyhow::Result<Database> {
-    let db = MemDb::default();
-    initialize_empty_db(config, DatabaseRef { kv: &db, cas: &db }).await?;
-    Database::from_one(&db)
+    const _: () = assert!(ethexe_db::VERSION == DB_VERSION_1, "Versions mismatch");
+
+    let raw = RawDatabase::from_one(&ethexe_db::MemDb::default());
+    version1::initialize_empty_db(config, raw.clone()).await?;
+    Database::try_from_raw(raw)
 }

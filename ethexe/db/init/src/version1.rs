@@ -24,12 +24,12 @@ use ethexe_common::{
     db::{ComputedAnnounceData, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
 };
-use ethexe_db::DatabaseRef;
+use ethexe_db::RawDatabase;
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
 use parity_scale_codec::Decode;
 
-pub async fn initialize_db<'a, 'b>(config: InitConfig, db: DatabaseRef<'a, 'b>) -> Result<()> {
+pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<()> {
     if ethexe_db::VERSION != DB_VERSION_1 {
         bail!(
             "Cannot initializing database to version {DB_VERSION_1}, because current impl version is {}",
@@ -100,10 +100,7 @@ pub async fn initialize_db<'a, 'b>(config: InitConfig, db: DatabaseRef<'a, 'b>) 
     Ok(())
 }
 
-pub async fn initialize_empty_db<'a, 'b>(
-    config: InitConfig,
-    db: DatabaseRef<'a, 'b>,
-) -> Result<()> {
+pub async fn initialize_empty_db(config: InitConfig, db: RawDatabase) -> Result<()> {
     if ethexe_db::VERSION != DB_VERSION_1 {
         bail!(
             "Cannot initializing database to version 1, because current impl version is {}",
@@ -190,10 +187,7 @@ pub async fn initialize_empty_db<'a, 'b>(
     Ok(())
 }
 
-pub async fn migration_from_version0<'a, 'b>(
-    config: InitConfig,
-    db: DatabaseRef<'a, 'b>,
-) -> Result<()> {
+pub async fn migration_from_version0(config: InitConfig, db: RawDatabase) -> Result<()> {
     if ethexe_db::VERSION != DB_VERSION_1 {
         bail!(
             "Cannot migrate database to version 1 from version 0, because current impl version is {}",
