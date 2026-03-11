@@ -23,7 +23,7 @@ use crate::{db_sync::requests::OngoingRequests, utils::AlternateCollectionFmt};
 pub(crate) use crate::{
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
-    peer_score,
+    slots::peer_score,
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;

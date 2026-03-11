@@ -16,16 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::slots::peer_score::PeerScore;
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use itertools::Either;
 use libp2p::{
-    Multiaddr, PeerId,
+    Multiaddr, PeerId, allow_block_list,
     core::{Endpoint, transport::PortUse},
     ping,
     swarm::{
         CloseConnection, ConnectionClosed, ConnectionDenied, ConnectionHandler,
         ConnectionHandlerSelect, ConnectionId, FromSwarm, NetworkBehaviour, PeerAddresses,
-        THandler, THandlerInEvent, THandlerOutEvent, ToSwarm, dial_opts::DialOpts, dummy,
+        THandler, THandlerInEvent, THandlerOutEvent, ToSwarm, dial_opts::DialOpts,
     },
 };
 use rand::seq::{IteratorRandom, SliceRandom};
@@ -38,6 +39,15 @@ use std::{
     time::Duration,
 };
 use tokio::{time, time::Interval};
+
+pub mod peer_score;
+
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_peer_score")]
+struct Metrics {
+    /// Number of blocked peers
+    blocked_peers: metrics::Gauge,
+}
 
 pub struct Config {
     inbound_max_peers: u32,
@@ -126,11 +136,21 @@ enum PeriodKind {
 }
 
 type PeriodFuture = BoxFuture<'static, (PeerId, PeriodKind)>;
+type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedPeers>;
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum Event {
+    PeerScore(peer_score::Event),
+}
 
 pub struct Behaviour {
     /// Track the lowest peer ping
     ping: ping::Behaviour,
+    /// Blocked peers
+    block_list: BlockListBehaviour,
+    peer_score: PeerScore,
     config: Config,
+    metrics: Metrics,
     peers: HashMap<PeerId, PeerEntry>,
     pending_events: VecDeque<ToSwarm<Infallible, Infallible>>,
     addresses: PeerAddresses,
@@ -145,14 +165,21 @@ impl Behaviour {
     pub fn new(config: Config) -> Self {
         Self {
             ping: ping::Behaviour::default(),
+            block_list: BlockListBehaviour::default(),
             driver: time::interval(config.driver_interval),
+            peer_score: PeerScore::default(),
             config,
+            metrics: Metrics::default(),
             peers: HashMap::new(),
             pending_events: VecDeque::new(),
             addresses: Default::default(),
             periods: FuturesUnordered::new(),
             pending_outbound_peers: 0,
         }
+    }
+
+    pub(crate) fn peer_score_handle(&self) -> peer_score::Handle {
+        self.peer_score.handle()
     }
 
     fn inbound_peers(&self) -> impl Iterator<Item = &PeerId> {
@@ -263,7 +290,9 @@ impl Behaviour {
                 let peer_entry = entry.get_mut();
                 peer_entry.connections.remove(&connection_id);
                 if peer_entry.connections.is_empty() {
-                    debug_assert_eq!(peer_entry.state, PeerState::Connected);
+                    // peer can be in Connected state if the grace period is ended
+                    // peer can be in JustConnected state if the peer is blocked beforehand via peer scoring
+                    debug_assert_ne!(peer_entry.state, PeerState::JustDisconnected);
                     peer_entry.state = PeerState::JustDisconnected;
 
                     let backoff_period = self.config.backoff_period;
@@ -286,6 +315,12 @@ impl Behaviour {
         match kind {
             PeriodKind::GracePeriod => {
                 let entry = self.peers.get_mut(&peer).expect("unknown peer");
+
+                // peer can be in JustDisconnected state if the peer is blocked beforehand via peer scoring
+                if let PeerState::JustDisconnected = entry.state {
+                    return;
+                }
+
                 debug_assert_eq!(entry.state, PeerState::JustConnected);
                 debug_assert!(!entry.connections.is_empty());
                 entry.state = PeerState::Connected;
@@ -298,7 +333,7 @@ impl Behaviour {
         }
     }
 
-    fn on_driver_tick(&mut self) {
+    fn dial_peers(&mut self) {
         let outbounds_peers = self.outbound_peers().count();
         let Some(needed_outbound_peers) = (self.config.outbound_min_peers as usize)
             .checked_sub(outbounds_peers)
@@ -320,6 +355,10 @@ impl Behaviour {
                 .build();
             self.pending_events.push_back(ToSwarm::Dial { opts });
         }
+    }
+
+    fn on_driver_tick(&mut self) {
+        self.dial_peers();
     }
 
     fn handle_ping_event(&mut self, event: ping::Event) {
@@ -345,12 +384,28 @@ impl Behaviour {
             }
         }
     }
+
+    fn handle_peer_score_event(&mut self, event: &peer_score::Event) {
+        match event {
+            peer_score::Event::PeerBlocked {
+                peer_id,
+                last_reason: _,
+            } => {
+                self.block_list.block_peer(*peer_id);
+                self.metrics.blocked_peers.increment(1);
+            }
+            peer_score::Event::PeerUnblocked { peer_id } => {
+                self.block_list.unblock_peer(*peer_id);
+                self.metrics.blocked_peers.decrement(1);
+            }
+        }
+    }
 }
 
 impl NetworkBehaviour for Behaviour {
     type ConnectionHandler =
-        ConnectionHandlerSelect<THandler<ping::Behaviour>, dummy::ConnectionHandler>;
-    type ToSwarm = Infallible;
+        ConnectionHandlerSelect<THandler<ping::Behaviour>, THandler<BlockListBehaviour>>;
+    type ToSwarm = Event;
 
     fn handle_pending_inbound_connection(
         &mut self,
@@ -359,7 +414,13 @@ impl NetworkBehaviour for Behaviour {
         remote_addr: &Multiaddr,
     ) -> Result<(), ConnectionDenied> {
         self.ping
-            .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+            .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)?;
+        self.block_list.handle_pending_inbound_connection(
+            connection_id,
+            local_addr,
+            remote_addr,
+        )?;
+        Ok(())
     }
 
     fn handle_established_inbound_connection(
@@ -375,10 +436,16 @@ impl NetworkBehaviour for Behaviour {
             local_addr,
             remote_addr,
         )?;
+        let block_list_handler = self.block_list.handle_established_inbound_connection(
+            connection_id,
+            peer,
+            local_addr,
+            remote_addr,
+        )?;
 
         self.add_inbound_connection(peer, connection_id)?;
 
-        Ok(ping_handler.select(dummy::ConnectionHandler))
+        Ok(ping_handler.select(block_list_handler))
     }
 
     fn handle_pending_outbound_connection(
@@ -388,14 +455,20 @@ impl NetworkBehaviour for Behaviour {
         addresses: &[Multiaddr],
         effective_role: Endpoint,
     ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+        self.pending_outbound_peers += 1;
+
         let ping_addresses = self.ping.handle_pending_outbound_connection(
             connection_id,
             maybe_peer,
             addresses,
             effective_role,
         )?;
-
-        self.pending_outbound_peers += 1;
+        let block_list_addresses = self.block_list.handle_pending_outbound_connection(
+            connection_id,
+            maybe_peer,
+            addresses,
+            effective_role,
+        )?;
 
         if self.outbound_peers().count() >= self.config.outbound_max_peers as usize {
             return Err(SlotConnectionError::LimitExceeded {
@@ -405,7 +478,7 @@ impl NetworkBehaviour for Behaviour {
             .into());
         }
 
-        Ok(ping_addresses)
+        Ok([ping_addresses, block_list_addresses].concat())
     }
 
     fn handle_established_outbound_connection(
@@ -423,15 +496,23 @@ impl NetworkBehaviour for Behaviour {
             role_override,
             port_use,
         )?;
+        let block_list_handler = self.block_list.handle_established_outbound_connection(
+            connection_id,
+            peer,
+            addr,
+            role_override,
+            port_use,
+        )?;
 
         self.pending_outbound_peers -= 1;
         self.add_outbound_connection(peer, connection_id)?;
 
-        Ok(ping_handler.select(dummy::ConnectionHandler))
+        Ok(ping_handler.select(block_list_handler))
     }
 
     fn on_swarm_event(&mut self, event: FromSwarm) {
         self.ping.on_swarm_event(event);
+        self.block_list.on_swarm_event(event);
         self.addresses.on_swarm_event(&event);
 
         match event {
@@ -462,7 +543,10 @@ impl NetworkBehaviour for Behaviour {
                 self.ping
                     .on_connection_handler_event(peer_id, connection_id, event)
             }
-            Either::Right(event) => match event {},
+            Either::Right(event) => {
+                self.block_list
+                    .on_connection_handler_event(peer_id, connection_id, event)
+            }
         }
     }
 
@@ -471,7 +555,11 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Some(to_swarm) = self.pending_events.pop_front() {
-            return Poll::Ready(to_swarm.map_in(|event| match event {}));
+            return Poll::Ready(
+                to_swarm
+                    .map_in(|event| match event {})
+                    .map_out(|event| match event {}),
+            );
         }
 
         if let Poll::Ready(Some((peer, kind))) = self.periods.poll_next_unpin(cx) {
@@ -486,15 +574,24 @@ impl NetworkBehaviour for Behaviour {
             match to_swarm {
                 ToSwarm::GenerateEvent(event) => self.handle_ping_event(event),
                 to_swarm => {
-                    return Poll::Ready(
-                        to_swarm
-                            .map_in(|event| match event {})
-                            .map_out::<Infallible>(|_event| {
-                                unreachable!("`ToSwarm::GenerateEvent` is handled above")
-                            }),
-                    );
+                    return Poll::Ready(to_swarm.map_in(|event| match event {}).map_out(
+                        |_event| unreachable!("`ToSwarm::GenerateEvent` is handled above"),
+                    ));
                 }
             };
+        }
+
+        if let Poll::Ready(to_swarm) = self.block_list.poll(cx) {
+            return Poll::Ready(
+                to_swarm
+                    .map_in(|event| match event {})
+                    .map_out(|event| match event {}),
+            );
+        }
+
+        if let Poll::Ready(event) = self.peer_score.poll(cx) {
+            self.handle_peer_score_event(&event);
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::PeerScore(event)));
         }
 
         Poll::Pending
@@ -504,7 +601,7 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::init_logger;
+    use crate::{slots::peer_score::ScoreDecreaseReason, utils::tests::init_logger};
     use assert_matches::assert_matches;
     use libp2p::{
         Swarm,
@@ -598,5 +695,58 @@ mod tests {
             .unwrap_limit_exceeded();
         assert_eq!(limit, Config::default().outbound_max_peers);
         assert_eq!(direction, PeerDirection::Outbound);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn block_list_used() {
+        init_logger();
+
+        let mut alice = new_swarm().await;
+        let alice_handle = alice.behaviour().peer_score_handle();
+
+        let mut bob = new_swarm().await;
+        let bob_peer_id = *bob.local_peer_id();
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        for _ in 0..i8::MAX {
+            alice_handle.invalid_data(bob_peer_id);
+        }
+
+        let event = alice.next_behaviour_event().await;
+        assert!(
+            alice
+                .behaviour()
+                .block_list
+                .blocked_peers()
+                .contains(&bob_peer_id)
+        );
+        assert_eq!(
+            event,
+            Event::PeerScore(peer_score::Event::PeerBlocked {
+                peer_id: bob_peer_id,
+                last_reason: ScoreDecreaseReason::InvalidData
+            })
+        );
+
+        let event = alice.next_swarm_event().await;
+        assert_matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id);
+
+        time::advance(peer_score::Config::default().forget_time).await;
+
+        let event = alice.next_behaviour_event().await;
+        assert!(
+            !alice
+                .behaviour()
+                .block_list
+                .blocked_peers()
+                .contains(&bob_peer_id)
+        );
+        assert_eq!(
+            event,
+            Event::PeerScore(peer_score::Event::PeerUnblocked {
+                peer_id: bob_peer_id
+            })
+        );
     }
 }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,15 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::export::{Multiaddr, PeerId};
-use libp2p::{
-    allow_block_list,
-    core::{Endpoint, transport::PortUse},
-    swarm::{
-        ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
-        THandlerOutEvent, ToSwarm,
-    },
-};
+use crate::export::PeerId;
 use std::{
     collections::{HashMap, VecDeque},
     task::{Context, Poll},
@@ -35,13 +27,6 @@ use tokio::{
     time,
     time::{Instant, Interval},
 };
-
-#[derive(Clone, metrics_derive::Metrics)]
-#[metrics(scope = "ethexe_network_peer_score")]
-struct Metrics {
-    /// Number of blocked peers
-    blocked_peers: metrics::Gauge,
-}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum ScoreDecreaseReason {
@@ -98,12 +83,12 @@ pub(crate) enum Event {
 /// Behaviour config.
 #[derive(Debug, Clone)]
 pub(crate) struct Config {
-    excessive_data: i8,
-    invalid_data: i8,
-    decay: i8,
-    blocked_threshold: i8,
-    driver_time: Duration,
-    forget_time: Duration,
+    pub excessive_data: i8,
+    pub invalid_data: i8,
+    pub decay: i8,
+    pub blocked_threshold: i8,
+    pub driver_time: Duration,
+    pub forget_time: Duration,
 }
 
 impl Config {
@@ -167,20 +152,22 @@ impl ScoreEntry {
     }
 }
 
-type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedPeers>;
-
-pub(crate) struct Behaviour {
+pub(crate) struct PeerScore {
     pending_events: VecDeque<Event>,
     config: Config,
-    block_list: BlockListBehaviour,
     handle: Handle,
     rx: mpsc::UnboundedReceiver<(PeerId, ScoreDecreaseReason)>,
     peers: HashMap<PeerId, ScoreEntry>,
     driver: Interval,
-    metrics: Metrics,
 }
 
-impl Behaviour {
+impl Default for PeerScore {
+    fn default() -> Self {
+        Self::new(Config::new())
+    }
+}
+
+impl PeerScore {
     pub(crate) fn new(config: Config) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         let handle = Handle(tx);
@@ -188,11 +175,9 @@ impl Behaviour {
             pending_events: VecDeque::new(),
             driver: time::interval(config.driver_time),
             config,
-            block_list: BlockListBehaviour::default(),
             handle,
             rx,
             peers: HashMap::new(),
-            metrics: Metrics::default(),
         }
     }
 
@@ -201,7 +186,7 @@ impl Behaviour {
     }
 
     #[cfg(test)]
-    fn get_score(&self, peer_id: PeerId) -> Option<i8> {
+    pub(crate) fn get_score(&self, peer_id: PeerId) -> Option<i8> {
         self.peers.get(&peer_id).map(|entry| entry.score)
     }
 
@@ -212,24 +197,17 @@ impl Behaviour {
             let now_blocked = entry.is_blocked(self.config.blocked_threshold);
 
             if was_blocked && !now_blocked {
-                self.block_list.unblock_peer(peer_id);
                 self.pending_events
                     .push_back(Event::PeerUnblocked { peer_id });
             }
 
             // remove the peer score entry if it is not updated for a long time
             if entry.is_expired(self.config.forget_time) {
-                // should be unblocked during decay
-                debug_assert!(!self.block_list.blocked_peers().contains(&peer_id));
                 return false;
             }
 
             true
         });
-
-        self.metrics
-            .blocked_peers
-            .set(self.block_list.blocked_peers().len() as f64);
     }
 
     fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) -> Option<Event> {
@@ -240,7 +218,6 @@ impl Behaviour {
         let now_blocked = entry.is_blocked(self.config.blocked_threshold);
 
         if !was_blocked && now_blocked {
-            self.block_list.block_peer(peer_id);
             return Some(Event::PeerBlocked {
                 peer_id,
                 last_reason: reason,
@@ -249,89 +226,10 @@ impl Behaviour {
 
         None
     }
-}
 
-impl NetworkBehaviour for Behaviour {
-    type ConnectionHandler = THandler<BlockListBehaviour>;
-    type ToSwarm = Event;
-
-    fn handle_pending_inbound_connection(
-        &mut self,
-        connection_id: ConnectionId,
-        local_addr: &Multiaddr,
-        remote_addr: &Multiaddr,
-    ) -> Result<(), ConnectionDenied> {
-        self.block_list
-            .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
-    }
-
-    fn handle_established_inbound_connection(
-        &mut self,
-        connection_id: ConnectionId,
-        peer: PeerId,
-        local_addr: &Multiaddr,
-        remote_addr: &Multiaddr,
-    ) -> Result<THandler<Self>, ConnectionDenied> {
-        self.block_list.handle_established_inbound_connection(
-            connection_id,
-            peer,
-            local_addr,
-            remote_addr,
-        )
-    }
-
-    fn handle_pending_outbound_connection(
-        &mut self,
-        connection_id: ConnectionId,
-        maybe_peer: Option<PeerId>,
-        addresses: &[Multiaddr],
-        effective_role: Endpoint,
-    ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
-        self.block_list.handle_pending_outbound_connection(
-            connection_id,
-            maybe_peer,
-            addresses,
-            effective_role,
-        )
-    }
-
-    fn handle_established_outbound_connection(
-        &mut self,
-        connection_id: ConnectionId,
-        peer: PeerId,
-        addr: &Multiaddr,
-        role_override: Endpoint,
-        port_use: PortUse,
-    ) -> Result<THandler<Self>, ConnectionDenied> {
-        self.block_list.handle_established_outbound_connection(
-            connection_id,
-            peer,
-            addr,
-            role_override,
-            port_use,
-        )
-    }
-
-    fn on_swarm_event(&mut self, event: FromSwarm) {
-        self.block_list.on_swarm_event(event);
-    }
-
-    fn on_connection_handler_event(
-        &mut self,
-        peer_id: PeerId,
-        connection_id: ConnectionId,
-        event: THandlerOutEvent<Self>,
-    ) {
-        self.block_list
-            .on_connection_handler_event(peer_id, connection_id, event);
-    }
-
-    fn poll(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Event> {
         if let Some(event) = self.pending_events.pop_front() {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
+            return Poll::Ready(event);
         }
 
         if let Poll::Ready(_instant) = self.driver.poll_tick(cx) {
@@ -339,18 +237,14 @@ impl NetworkBehaviour for Behaviour {
 
             // return event produced by `on_driver_tick` immediately instead of waking
             if let Some(event) = self.pending_events.pop_front() {
-                return Poll::Ready(ToSwarm::GenerateEvent(event));
+                return Poll::Ready(event);
             }
-        }
-
-        if let Poll::Ready(to_swarm) = self.block_list.poll(cx) {
-            return Poll::Ready(to_swarm.map_out(|infallible| match infallible {}));
         }
 
         if let Poll::Ready(Some((peer_id, reason))) = self.rx.poll_recv(cx)
             && let Some(event) = self.on_score_decrease(peer_id, reason)
         {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
+            return Poll::Ready(event);
         }
 
         Poll::Pending
@@ -358,26 +252,25 @@ impl NetworkBehaviour for Behaviour {
 }
 
 #[cfg(test)]
+impl PeerScore {
+    async fn next(&mut self) -> Event {
+        time::timeout(
+            Duration::from_secs(10),
+            std::future::poll_fn(|cx| self.poll(cx)),
+        )
+        .await
+        .unwrap()
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
-    use assert_matches::assert_matches;
     use futures::future;
-    use libp2p::{Swarm, swarm::SwarmEvent};
-    use libp2p_swarm_test::SwarmExt;
     use tokio::time;
 
-    async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {
-        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| Behaviour::new(config));
-        swarm.listen().with_memory_addr_external().await;
-        swarm
-    }
-
-    async fn new_swarm() -> Swarm<Behaviour> {
-        new_swarm_with_config(Config::default()).await
-    }
-
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn smoke() {
         const EXCESSIVE_DATA: i8 = Config::new().blocked_threshold / 3 - 1;
 
@@ -387,34 +280,25 @@ mod tests {
             excessive_data: EXCESSIVE_DATA,
             ..Default::default()
         };
-        let mut alice = new_swarm_with_config(alice_config.clone()).await;
-        let mut chad = new_swarm().await;
-        let chad_peer_id = *chad.local_peer_id();
-        alice.connect(&mut chad).await;
-        tokio::spawn(chad.loop_on_next());
+        let mut alice = PeerScore::new(alice_config.clone());
+        let chad_peer_id = PeerId::random();
 
-        let handle = alice.behaviour_mut().handle();
+        let handle = alice.handle();
         handle.excessive_data(chad_peer_id);
 
-        let event = future::poll_immediate(alice.next_behaviour_event()).await;
+        let event = future::poll_immediate(alice.next()).await;
         assert_eq!(event, None);
-        assert_eq!(
-            alice.behaviour().get_score(chad_peer_id),
-            Some(EXCESSIVE_DATA)
-        );
+        assert_eq!(alice.get_score(chad_peer_id), Some(EXCESSIVE_DATA));
 
         handle.excessive_data(chad_peer_id);
 
-        let event = future::poll_immediate(alice.next_behaviour_event()).await;
+        let event = future::poll_immediate(alice.next()).await;
         assert_eq!(event, None);
-        assert_eq!(
-            alice.behaviour().get_score(chad_peer_id),
-            Some(2 * EXCESSIVE_DATA)
-        );
+        assert_eq!(alice.get_score(chad_peer_id), Some(2 * EXCESSIVE_DATA));
 
         handle.excessive_data(chad_peer_id);
 
-        let event = alice.next_behaviour_event().await;
+        let event = alice.next().await;
         assert_eq!(
             event,
             Event::PeerBlocked {
@@ -422,24 +306,11 @@ mod tests {
                 last_reason: ScoreDecreaseReason::ExcessiveData
             }
         );
-        assert_eq!(
-            alice.behaviour().get_score(chad_peer_id),
-            Some(3 * EXCESSIVE_DATA)
-        );
+        assert_eq!(alice.get_score(chad_peer_id), Some(3 * EXCESSIVE_DATA));
 
-        let event = alice.next_swarm_event().await;
-        assert_matches!(
-            event,
-            SwarmEvent::ConnectionClosed {
-                peer_id,
-                num_established: 0,
-                ..
-            } if peer_id == chad_peer_id
-        );
+        time::advance(alice_config.driver_time).await;
 
-        time::sleep(alice_config.driver_time).await;
-
-        let event = alice.next_behaviour_event().await;
+        let event = future::poll_fn(|cx| alice.poll(cx)).await;
         assert_eq!(
             event,
             Event::PeerUnblocked {
@@ -447,7 +318,7 @@ mod tests {
             }
         );
         assert_eq!(
-            alice.behaviour().get_score(chad_peer_id),
+            alice.get_score(chad_peer_id),
             Some(EXCESSIVE_DATA * 3 + alice_config.decay)
         );
     }
@@ -456,13 +327,11 @@ mod tests {
     async fn peer_forgot() {
         init_logger();
 
-        let mut alice = new_swarm().await;
-        let alice = alice.behaviour_mut();
+        let mut alice = PeerScore::default();
 
         let peer_id = PeerId::random();
 
         let event = alice.on_score_decrease(peer_id, ScoreDecreaseReason::InvalidData);
-        assert!(alice.block_list.blocked_peers().contains(&peer_id));
         assert_eq!(
             event,
             Some(Event::PeerBlocked {
@@ -479,7 +348,6 @@ mod tests {
             alice.on_driver_tick();
         }
 
-        assert!(!alice.block_list.blocked_peers().contains(&peer_id));
         assert_eq!(
             alice.pending_events.pop_front(),
             Some(Event::PeerUnblocked { peer_id })
