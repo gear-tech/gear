@@ -56,6 +56,7 @@ use libp2p::{
     identify, identity, mdns,
     metrics::Recorder,
     multiaddr::Protocol,
+    ping,
     swarm::{Config as SwarmConfig, NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle},
     yamux,
 };
@@ -383,6 +384,7 @@ impl NetworkService {
             BehaviourEvent::ConnectionLimits(event) => match event {},
             BehaviourEvent::Slots(event) => match event {},
             BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
+            BehaviourEvent::Ping(event) => self.handle_ping_event(event),
             BehaviourEvent::Identify(event) => self.handle_identify_event(event),
             BehaviourEvent::Mdns4(_event) => {
                 // we use the `NewExternalAddrOfPeer` event produced by mDNS behaviour
@@ -406,6 +408,22 @@ impl NetworkService {
                 last_reason: _,
             } => Some(NetworkEvent::PeerBlocked(peer_id)),
             _ => None,
+        }
+    }
+
+    fn handle_ping_event(&mut self, event: ping::Event) {
+        self.metrics.record(&event);
+
+        let ping::Event {
+            peer,
+            connection: _,
+            result,
+        } = event;
+
+        if let Err(err) = result {
+            // NOTE: the unsupported protocol is an error too
+            log::debug!("disconnect peer {peer} on failed ping: {err}");
+            let _res = self.swarm.disconnect_peer_id(peer);
         }
     }
 
@@ -627,6 +645,8 @@ pub(crate) struct Behaviour {
     pub slots: slots::Behaviour,
     // peer scoring system
     pub peer_score: peer_score::Behaviour,
+    // fast peer liveliness check
+    pub ping: ping::Behaviour,
     // friend or foe system
     pub identify: identify::Behaviour,
     // local discovery for IPv4 only
@@ -687,6 +707,8 @@ impl Behaviour {
         let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
         let peer_score_handle = peer_score.handle();
 
+        let ping = ping::Behaviour::default();
+
         let identify_config = identify::Config::new(PROTOCOL_VERSION.to_string(), keypair.public())
             .with_agent_version(AGENT_VERSION.to_string());
         let identify = identify::Behaviour::new(identify_config);
@@ -732,6 +754,7 @@ impl Behaviour {
             connection_limits,
             slots,
             peer_score,
+            ping,
             identify,
             mdns4,
             kad,

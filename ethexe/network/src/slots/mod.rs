@@ -17,21 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use assert_matches::debug_assert_matches;
-use itertools::Either;
 use libp2p::{
     Multiaddr, PeerId,
     core::{Endpoint, transport::PortUse},
-    ping,
     swarm::{
-        CloseConnection, ConnectionClosed, ConnectionDenied, ConnectionHandler,
-        ConnectionHandlerSelect, ConnectionId, DialFailure, FromSwarm, NetworkBehaviour,
-        PeerAddresses, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm, dial_opts::DialOpts,
-        dummy,
+        CloseConnection, ConnectionClosed, ConnectionDenied, ConnectionId, DialFailure, FromSwarm,
+        NetworkBehaviour, PeerAddresses, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
+        dial_opts::DialOpts, dummy,
     },
 };
 use rand::seq::SliceRandom;
 use std::{
-    cmp,
     collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
     convert::Infallible,
     num::NonZeroUsize,
@@ -139,13 +135,10 @@ struct PeerEntry {
     connections: HashSet<ConnectionId>,
     direction: PeerDirection,
     state: PeerState,
-    lowest_ping: Duration,
     connected_at: Instant,
 }
 
 pub struct Behaviour {
-    /// Track the lowest peer ping
-    ping: ping::Behaviour,
     config: Config,
     peers: HashMap<PeerId, PeerEntry>,
     pending_events: VecDeque<ToSwarm<Infallible, Infallible>>,
@@ -158,7 +151,6 @@ pub struct Behaviour {
 impl Behaviour {
     pub fn new(config: Config) -> Self {
         Self {
-            ping: ping::Behaviour::default(),
             driver: time::interval(config.driver_interval),
             config,
             peers: HashMap::new(),
@@ -231,7 +223,6 @@ impl Behaviour {
                 connections: Default::default(),
                 direction,
                 state: PeerState::JustConnected,
-                lowest_ping: Duration::MAX,
                 connected_at: Instant::now(),
             }),
         };
@@ -355,80 +346,33 @@ impl Behaviour {
         self.evict_inbound_overflowing_peers();
         self.dial_peers();
     }
-
-    fn handle_ping_event(&mut self, event: ping::Event) {
-        let ping::Event {
-            peer,
-            connection: _,
-            result,
-        } = event;
-
-        let entry = self.peers.get_mut(&peer).expect("unknown peer");
-
-        match result {
-            Ok(ping) => {
-                entry.lowest_ping = cmp::min(entry.lowest_ping, ping);
-            }
-            Err(err) => {
-                // NOTE: the unsupported protocol is an error too
-                log::debug!("disconnect peer {peer} on failed ping: {err}");
-                self.pending_events.push_back(ToSwarm::CloseConnection {
-                    peer_id: peer,
-                    connection: CloseConnection::All,
-                })
-            }
-        }
-    }
 }
 
 impl NetworkBehaviour for Behaviour {
-    type ConnectionHandler =
-        ConnectionHandlerSelect<THandler<ping::Behaviour>, dummy::ConnectionHandler>;
+    type ConnectionHandler = dummy::ConnectionHandler;
     type ToSwarm = Infallible;
-
-    fn handle_pending_inbound_connection(
-        &mut self,
-        connection_id: ConnectionId,
-        local_addr: &Multiaddr,
-        remote_addr: &Multiaddr,
-    ) -> Result<(), ConnectionDenied> {
-        self.ping
-            .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
-    }
 
     fn handle_established_inbound_connection(
         &mut self,
         connection_id: ConnectionId,
         peer: PeerId,
-        local_addr: &Multiaddr,
-        remote_addr: &Multiaddr,
+        _local_addr: &Multiaddr,
+        _remote_addr: &Multiaddr,
     ) -> Result<THandler<Self>, ConnectionDenied> {
-        let ping_handler = self.ping.handle_established_inbound_connection(
-            connection_id,
-            peer,
-            local_addr,
-            remote_addr,
-        )?;
         self.add_inbound_connection(peer, connection_id)?;
 
-        Ok(ping_handler.select(dummy::ConnectionHandler))
+        Ok(dummy::ConnectionHandler)
     }
 
     fn handle_pending_outbound_connection(
         &mut self,
-        connection_id: ConnectionId,
+        _connection_id: ConnectionId,
         maybe_peer: Option<PeerId>,
-        addresses: &[Multiaddr],
-        effective_role: Endpoint,
+        _addresses: &[Multiaddr],
+        _effective_role: Endpoint,
     ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
         self.pending_outbound_peers.extend(maybe_peer);
 
-        let ping_addresses = self.ping.handle_pending_outbound_connection(
-            connection_id,
-            maybe_peer,
-            addresses,
-            effective_role,
-        )?;
         if self.outbound_peers().count() >= self.config.outbound_max_peers as usize {
             return Err(SlotConnectionError::LimitExceeded {
                 limit: self.config.outbound_max_peers,
@@ -437,32 +381,24 @@ impl NetworkBehaviour for Behaviour {
             .into());
         }
 
-        Ok(ping_addresses)
+        Ok(vec![])
     }
 
     fn handle_established_outbound_connection(
         &mut self,
         connection_id: ConnectionId,
         peer: PeerId,
-        addr: &Multiaddr,
-        role_override: Endpoint,
-        port_use: PortUse,
+        _addr: &Multiaddr,
+        _role_override: Endpoint,
+        _port_use: PortUse,
     ) -> Result<THandler<Self>, ConnectionDenied> {
-        let ping_handler = self.ping.handle_established_outbound_connection(
-            connection_id,
-            peer,
-            addr,
-            role_override,
-            port_use,
-        )?;
         self.pending_outbound_peers.remove(&peer);
         self.add_outbound_connection(peer, connection_id)?;
 
-        Ok(ping_handler.select(dummy::ConnectionHandler))
+        Ok(dummy::ConnectionHandler)
     }
 
     fn on_swarm_event(&mut self, event: FromSwarm) {
-        self.ping.on_swarm_event(event);
         self.addresses.on_swarm_event(&event);
 
         match event {
@@ -488,17 +424,10 @@ impl NetworkBehaviour for Behaviour {
 
     fn on_connection_handler_event(
         &mut self,
-        peer_id: PeerId,
-        connection_id: ConnectionId,
-        event: THandlerOutEvent<Self>,
+        _peer_id: PeerId,
+        _connection_id: ConnectionId,
+        _event: THandlerOutEvent<Self>,
     ) {
-        match event {
-            Either::Left(event) => {
-                self.ping
-                    .on_connection_handler_event(peer_id, connection_id, event)
-            }
-            Either::Right(event) => match event {},
-        }
     }
 
     fn poll(
@@ -506,26 +435,11 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Some(to_swarm) = self.pending_events.pop_front() {
-            return Poll::Ready(
-                to_swarm
-                    .map_in(|event| match event {})
-                    .map_out(|event| match event {}),
-            );
+            return Poll::Ready(to_swarm);
         }
 
         if let Poll::Ready(_instant) = self.driver.poll_tick(cx) {
             self.on_driver_tick();
-        }
-
-        if let Poll::Ready(to_swarm) = self.ping.poll(cx) {
-            match to_swarm {
-                ToSwarm::GenerateEvent(event) => self.handle_ping_event(event),
-                to_swarm => {
-                    return Poll::Ready(to_swarm.map_in(|event| match event {}).map_out(
-                        |_event| unreachable!("`ToSwarm::GenerateEvent` is handled above"),
-                    ));
-                }
-            };
         }
 
         Poll::Pending
