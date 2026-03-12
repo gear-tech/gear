@@ -23,7 +23,7 @@ use crate::{
         InnerProgramIdsResponse, InnerRequest, InnerResponse, Metrics, NewRequestRoundReason,
         PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
     },
-    slots::peer_score::Handle,
+    peer_score::Handle,
     utils::{ConnectionMap, NoLimits},
 };
 use anyhow::Context as _;

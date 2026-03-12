@@ -19,11 +19,10 @@
 mod requests;
 mod responses;
 
-use crate::{db_sync::requests::OngoingRequests, utils::AlternateCollectionFmt};
+use crate::{db_sync::requests::OngoingRequests, peer_score, utils::AlternateCollectionFmt};
 pub(crate) use crate::{
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
-    slots::peer_score,
     utils::ParityScaleCodec,
 };
 use async_trait::async_trait;

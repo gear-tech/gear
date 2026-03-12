@@ -21,7 +21,7 @@ pub(crate) use libp2p::gossipsub::*;
 use crate::{
     db_sync::{Multiaddr, PeerId},
     metrics::Libp2pMetrics,
-    slots::peer_score,
+    peer_score,
 };
 use anyhow::anyhow;
 use ethexe_common::{Address, injected::SignedPromise, network::SignedValidatorMessage};

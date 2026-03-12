@@ -22,6 +22,7 @@ mod gossipsub;
 mod injected;
 mod kad;
 mod metrics;
+pub mod peer_score;
 mod slots;
 mod utils;
 mod validator;
@@ -35,7 +36,6 @@ pub use injected::Event as NetworkInjectedEvent;
 use crate::{
     db_sync::DbSyncDatabase,
     metrics::Libp2pMetrics,
-    slots::peer_score,
     utils::MultiaddrExt,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
@@ -251,7 +251,7 @@ impl NetworkService {
         let mut swarm = Self::create_swarm(keypair.clone(), transport, transport_type, behaviour)?;
 
         let validator_topic = ValidatorTopic::new(
-            swarm.behaviour().slots.peer_score_handle(),
+            swarm.behaviour().peer_score.handle(),
             validator_list_snapshot,
         );
 
@@ -381,7 +381,8 @@ impl NetworkService {
         match event {
             BehaviourEvent::CustomConnectionLimits(event) => match event {},
             BehaviourEvent::ConnectionLimits(event) => match event {},
-            BehaviourEvent::Slots(event) => return self.handle_slots_event(event),
+            BehaviourEvent::Slots(event) => match event {},
+            BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
             BehaviourEvent::Identify(event) => self.handle_identify_event(event),
             BehaviourEvent::Mdns4(_event) => {
                 // we use the `NewExternalAddrOfPeer` event produced by mDNS behaviour
@@ -398,12 +399,12 @@ impl NetworkService {
         None
     }
 
-    fn handle_slots_event(&mut self, slots: slots::Event) -> Option<NetworkEvent> {
-        match slots {
-            slots::Event::PeerScore(peer_score::Event::PeerBlocked {
+    fn handle_peer_score_event(&mut self, event: peer_score::Event) -> Option<NetworkEvent> {
+        match event {
+            peer_score::Event::PeerBlocked {
                 peer_id,
                 last_reason: _,
-            }) => Some(NetworkEvent::PeerBlocked(peer_id)),
+            } => Some(NetworkEvent::PeerBlocked(peer_id)),
             _ => None,
         }
     }
@@ -542,7 +543,7 @@ impl NetworkService {
     }
 
     pub fn score_handle(&self) -> peer_score::Handle {
-        self.swarm.behaviour().slots.peer_score_handle()
+        self.swarm.behaviour().peer_score.handle()
     }
 
     pub fn db_sync_handle(&self) -> db_sync::Handle {
@@ -624,6 +625,8 @@ pub(crate) struct Behaviour {
     pub connection_limits: connection_limits::Behaviour,
     // peer amount manager
     pub slots: slots::Behaviour,
+    // peer scoring system
+    pub peer_score: peer_score::Behaviour,
     // friend or foe system
     pub identify: identify::Behaviour,
     // local discovery for IPv4 only
@@ -680,7 +683,9 @@ impl Behaviour {
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
 
         let slots = slots::Behaviour::new(slots::Config::default());
-        let peer_score_handle = slots.peer_score_handle();
+
+        let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
+        let peer_score_handle = peer_score.handle();
 
         let identify_config = identify::Config::new(PROTOCOL_VERSION.to_string(), keypair.public())
             .with_agent_version(AGENT_VERSION.to_string());
@@ -726,6 +731,7 @@ impl Behaviour {
             custom_connection_limits,
             connection_limits,
             slots,
+            peer_score,
             identify,
             mdns4,
             kad,

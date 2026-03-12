@@ -20,7 +20,7 @@
 //! against on-chain state.
 
 use crate::{
-    db_sync::PeerId, gossipsub::MessageAcceptance, slots::peer_score,
+    db_sync::PeerId, gossipsub::MessageAcceptance, peer_score,
     validator::list::ValidatorListSnapshot,
 };
 use ethexe_common::{

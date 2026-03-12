@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    metrics::Libp2pMetrics, slots::peer_score, utils::ExponentialBackoffInterval,
+    metrics::Libp2pMetrics, peer_score, utils::ExponentialBackoffInterval,
     validator::discovery::SignedValidatorIdentity,
 };
 use anyhow::Context as _;
