@@ -200,6 +200,8 @@ impl Processor {
                 .process_queues(transitions, block, gas_allowance, promise_out_tx)
                 .await?;
         }
+
+        // TODO: #5135 tasks must be processed before queues
         transitions = self.process_tasks(transitions);
 
         Ok(transitions.finalize())

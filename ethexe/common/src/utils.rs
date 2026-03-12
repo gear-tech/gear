@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, HashOf, ProtocolTimelines, SimpleBlockData, ValidatorsVec,
+    Announce, HashOf,
     db::{
-        AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, ComputedAnnounceData, LatestData,
-        LatestDataStorageRW, OnChainStorageRW, PreparedBlockData,
+        AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, ComputedAnnounceData, OnChainStorageRW,
+        PreparedBlockData,
     },
 };
 use gprimitives::H256;
@@ -42,109 +42,6 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     let [_, _, b1, b2, b3, b4, b5, b6] = val.to_be_bytes();
 
     [b1, b2, b3, b4, b5, b6]
-}
-
-pub fn setup_start_block_in_db<
-    DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceStorageRW + LatestDataStorageRW,
->(
-    db: &DB,
-    start_block_hash: H256,
-    start_block_data: PreparedBlockData,
-    start_announce_data: ComputedAnnounceData,
-    timelines: ProtocolTimelines,
-) {
-    let announce_hash = start_announce_data.announce.to_hash();
-    let latest_synced_block = SimpleBlockData {
-        hash: start_block_hash,
-        header: start_block_data.header,
-    };
-
-    assert_eq!(
-        start_block_data.announces,
-        [announce_hash].into(),
-        "start block and announce data incompatible"
-    );
-
-    setup_block_in_db(db, start_block_hash, start_block_data);
-    setup_announce_in_db(db, start_announce_data);
-
-    db.set_protocol_timelines(timelines);
-
-    db.mutate_latest_data(|latest| {
-        latest.synced_block = latest_synced_block;
-        latest.prepared_block_hash = start_block_hash;
-        latest.computed_announce_hash = announce_hash;
-        latest.start_block_hash = start_block_hash;
-        latest.start_announce_hash = announce_hash;
-    })
-    .expect("Latest data must be set before `setup_genesis_in_db` calling");
-}
-
-pub fn setup_genesis_in_db<
-    DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceStorageRW + LatestDataStorageRW,
->(
-    db: &DB,
-    genesis_block: SimpleBlockData,
-    genesis_validators: ValidatorsVec,
-    timelines: ProtocolTimelines,
-) {
-    let genesis_announce = Announce::base(genesis_block.hash, HashOf::zero());
-    let genesis_announce_hash = setup_announce_in_db(
-        db,
-        ComputedAnnounceData {
-            announce: genesis_announce,
-            program_states: Default::default(),
-            outcome: Default::default(),
-            schedule: Default::default(),
-        },
-    );
-
-    setup_block_in_db(
-        db,
-        genesis_block.hash,
-        PreparedBlockData {
-            header: genesis_block.header,
-            events: Default::default(),
-            codes_queue: Default::default(),
-            announces: [genesis_announce_hash].into(),
-            last_committed_batch: Default::default(),
-            last_committed_announce: HashOf::zero(),
-            latest_era_with_committed_validators: 0,
-        },
-    );
-
-    // We understand, that genesis block is always in era 0, but we calculate it from timestamp to prevent some
-    // possible mismatches in future.
-    db.set_validators(
-        timelines.era_from_ts(genesis_block.header.timestamp),
-        genesis_validators,
-    );
-
-    db.set_protocol_timelines(timelines);
-
-    if let Some(latest) = db.latest_data() {
-        assert_eq!(
-            latest.genesis_block_hash, genesis_block.hash,
-            "genesis_block_hash mismatch - you should clean database"
-        );
-        assert_eq!(
-            latest.genesis_announce_hash, genesis_announce_hash,
-            "genesis_announce_hash mismatch - you should clean database"
-        );
-    } else {
-        db.set_latest_data(LatestData {
-            synced_block: SimpleBlockData {
-                hash: genesis_block.hash,
-                header: genesis_block.header,
-            },
-            prepared_block_hash: genesis_block.hash,
-            computed_announce_hash: genesis_announce_hash,
-            genesis_block_hash: genesis_block.hash,
-            genesis_announce_hash,
-            start_block_hash: genesis_block.hash,
-            start_announce_hash: genesis_announce_hash,
-        });
-    }
 }
 
 pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(

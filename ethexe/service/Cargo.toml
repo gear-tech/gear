@@ -15,15 +15,17 @@ ethexe-network.workspace = true
 ethexe-observer.workspace = true
 ethexe-blob-loader.workspace = true
 ethexe-processor.workspace = true
-gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
+ethexe-db-init.workspace = true
 ethexe-consensus.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common = { workspace = true, features = ["std", "mock"] }
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std", "ethexe"] }
+
 log.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
@@ -60,6 +62,8 @@ alloy = { workspace = true, features = [
 ntest.workspace = true
 gear-core-errors.workspace = true
 ethexe-network.workspace = true
+ethexe-db = { workspace = true, features = ["mock"] }
+ethexe-db-init = { workspace = true, features = ["mock"] }
 roast-secp256k1-evm.workspace = true
 ethexe-rpc = { workspace = true, features = ["client"] }
 tracing.workspace = true
