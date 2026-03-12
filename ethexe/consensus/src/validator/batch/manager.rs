@@ -19,14 +19,17 @@
 use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, ValidationStatus};
 use crate::{
     announces,
-    validator::core::{ElectionRequest, MiddlewareWrapper},
+    validator::{
+        batch::types::{BatchGasCounter, BatchGasWeights},
+        core::{ElectionRequest, MiddlewareWrapper},
+    },
 };
 
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
     Announce, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, BlockMetaStorageRW, OnChainStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, OnChainStorageRO},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -35,10 +38,22 @@ use ethexe_db::Database;
 use gprimitives::H256;
 use hashbrown::HashSet;
 
+// !!! CONCEPT
+// Gas counter, initialize the batch commitment only with validators and rewards commitments, then iterate
+// through uncommitted announces and try to include them in batch. If this not happen we do not include it.
+//
+// It should be done by using `BatchSizeCounter` struct (like GasCounter) in runtime.
+
+// TODO:
+/// !!! IMPORTANT: after batch gas counter implement the batch size counter, because on Ethereum exists
+/// a limit for a one transaction
+
 #[derive(derive_more::Debug, Clone)]
 pub struct BatchCommitmentManager {
     /// Limits for batch building and verifying
     limits: BatchLimits,
+    ///
+    gas_weights: BatchGasWeights,
     // TODO: hack for tests, remove this `pub(crate)`
     pub(crate) timelines: ProtocolTimelines,
     #[debug(skip)]
@@ -52,27 +67,90 @@ impl BatchCommitmentManager {
 
     pub fn new(
         limits: BatchLimits,
+        gas_weights: BatchGasWeights,
         timelines: ProtocolTimelines,
         db: Database,
         middleware: MiddlewareWrapper,
     ) -> Self {
         Self {
             limits,
+            gas_weights,
             timelines,
             db,
             middleware,
         }
     }
 
+    /// Maybe rename this function
     pub async fn build(
         self,
         block: SimpleBlockData,
         announce_hash: HashOf<Announce>,
     ) -> Result<Option<BatchCommitment>> {
-        let chain_commitment = self.aggregate_chain_commitment(block.hash, announce_hash)?;
-        let code_commitments = self.aggregate_code_commitments(block.hash)?;
+        let mut gas_counter = BatchGasCounter::new(self.gas_weights.clone());
+
         let validators_commitment = self.aggregate_validators_commitment(&block).await?;
+        if validators_commitment.is_some() && !gas_counter.charge_for_validators_commitment() {
+            bail!(
+                "Invalid gas weight for batch commitment, not enough gas for validators commitment"
+            )
+        }
+
         let rewards_commitment = self.aggregate_rewards_commitment(&block).await?;
+        if rewards_commitment.is_some() && !gas_counter.charge_for_rewards_commitment() {
+            bail!("Invalid gas weight for batch commitment, not enough gas for rewards commitment")
+        }
+
+        let not_committed_announces =
+            super::utils::collect_not_committed_predecessors(&self.db, announce_hash)?;
+        let deepness = not_committed_announces.len() as u32;
+
+        let mut chain_commitment: Option<ChainCommitment> = None;
+        let mut code_commitments = Vec::new();
+        for announce_hash in not_committed_announces {
+            let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
+            if !gas_counter.charge_for_transitions(transitions.len() as u64) {
+                break;
+            }
+
+            let announce_block_hash = self
+                .db
+                .announce(announce_hash)
+                .ok_or_else(|| anyhow!(""))?
+                .block_hash;
+
+            // TODO: fix this behaviour, because new commitments contains previous.
+            let commitments = self.aggregate_code_commitments(announce_block_hash)?;
+            if !gas_counter.charge_for_code_commitments(commitments.len() as u64) {
+                break;
+            }
+
+            match chain_commitment {
+                Some(ref mut commitment) => {
+                    commitment.head_announce = announce_hash;
+                    commitment.transitions.extend(transitions);
+                }
+                None if !transitions.is_empty() => {
+                    chain_commitment = Some(ChainCommitment {
+                        transitions,
+                        head_announce: announce_hash,
+                    })
+                }
+                _ => {} // nothing to do if no transitions
+            }
+            code_commitments = commitments;
+        }
+
+        // let chain_commitment = self.aggregate_chain_commitment(block.hash, announce_hash)?;
+        // let code_commitments = self.aggregate_code_commitments(block.hash)?;
+
+        if let Some(ref commitment) = chain_commitment
+            && commitment.transitions.is_empty()
+            && deepness <= self.limits.chain_deepness_threshold
+        {
+            // No transitions and chain is not deep enough, skip chain commitment
+            chain_commitment = None;
+        }
 
         super::utils::create_batch_commitment(
             &self.db,
@@ -256,27 +334,32 @@ impl BatchCommitmentManager {
         }
     }
 
+    pub fn announce_code_commitments(
+        &self,
+        announce_block_hash: H256,
+    ) -> Result<Vec<CodeCommitment>> {
+        let queue = self
+            .db
+            .block_meta(announce_block_hash)
+            .codes_queue
+            .ok_or_else(|| {
+                anyhow!("Computed block {announce_block_hash} codes queue is not in storage")
+            })?;
+
+        Ok(
+            super::utils::aggregate_code_commitments(&self.db, queue, false)
+                .expect("Error is not possible here, because fail_if_not_found is false"),
+        )
+    }
+
     pub fn aggregate_code_commitments(&self, block_hash: H256) -> Result<Vec<CodeCommitment>> {
-        // TODO: FIXME rewrite it to do in one db query
-        let mut queue =
+        let queue =
             self.db.block_meta(block_hash).codes_queue.ok_or_else(|| {
                 anyhow!("Computed block {block_hash} codes queue is not in storage")
             })?;
 
-        let queue_for_batch = if queue.len() > self.limits.max_codes_limit {
-            queue
-                .drain(..self.limits.max_codes_limit)
-                .collect::<Vec<_>>()
-        } else {
-            queue.drain(..).collect::<Vec<_>>()
-        };
-
-        // Save other codes in database.
-        self.db
-            .mutate_block_meta(block_hash, |meta| meta.codes_queue = Some(queue));
-
         Ok(
-            super::utils::aggregate_code_commitments(&self.db, queue_for_batch, false)
+            super::utils::aggregate_code_commitments(&self.db, queue, false)
                 .expect("Error is not possible here, because fail_if_not_found is false"),
         )
     }

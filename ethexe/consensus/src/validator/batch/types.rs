@@ -22,13 +22,100 @@ use gprimitives::CodeId;
 /// This struct represents the limits for batch.
 #[derive(Debug, Clone)]
 pub struct BatchLimits {
-    // MOVED from ValidatorCore.
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
     pub chain_deepness_threshold: u32,
     /// Time limit in blocks for announce to be committed after its creation.
     pub commitment_delay_limit: u32,
-    /// The maximum number of codes batch commitment can contain.
-    pub max_codes_limit: usize,
+}
+
+/// The gas weights for [`BatchCommitment`](ethexe_common::gear::BatchCommitment) parts.
+/// This weight are using for batch building in [`BatchGasCounter`].  #[derive(Debug, Clone)]
+#[derive(Debug, Clone)]
+pub struct BatchGasWeights {
+    pub max_gas_per_batch: u64,
+    pub validators_commitment_gas: u64,
+    pub rewards_commitment_gas: u64,
+    pub state_transition_gas: u64,
+    pub code_commitment_gas: u64,
+}
+
+// TODO: remove default from here
+impl Default for BatchGasWeights {
+    fn default() -> Self {
+        Self {
+            max_gas_per_batch: 1_000_000_000,
+            validators_commitment_gas: 100,
+            rewards_commitment_gas: 30,
+            state_transition_gas: 50,
+            code_commitment_gas: 10,
+        }
+    }
+}
+
+// BatchSizeCounter (max_codes_limit * 200, max_transitions: 10)
+
+// If we will have gas measures in (eth):
+// validators_commitment gas: 10k gas
+// single transition gas: 5k gas
+// single code commitment: 1k gas
+//
+// And we will have:
+// maximum batch tx gas: 500k gas.
+
+/// Size counter for batch commitment. Track the size of data included into batch.
+#[derive(Debug, Clone)]
+pub(crate) struct BatchGasCounter {
+    gas_left: u64,
+    gas_weights: BatchGasWeights,
+}
+
+impl BatchGasCounter {
+    /// Creates new batch gas counter.
+    pub fn new(gas_weights: BatchGasWeights) -> Self {
+        Self {
+            gas_left: gas_weights.max_gas_per_batch,
+            gas_weights,
+        }
+    }
+
+    pub fn charge_for_validators_commitment(&mut self) -> bool {
+        self.charge_inner(self.gas_weights.validators_commitment_gas)
+    }
+
+    pub fn charge_for_rewards_commitment(&mut self) -> bool {
+        self.charge_inner(self.gas_weights.rewards_commitment_gas)
+    }
+
+    pub fn charge_for_transitions(&mut self, transitions_len: u64) -> bool {
+        match self
+            .gas_weights
+            .state_transition_gas
+            .checked_mul(transitions_len)
+        {
+            Some(transitions_gas) => self.charge_inner(transitions_gas),
+            None => false,
+        }
+    }
+
+    pub fn charge_for_code_commitments(&mut self, commitments_len: u64) -> bool {
+        match self
+            .gas_weights
+            .code_commitment_gas
+            .checked_mul(commitments_len)
+        {
+            Some(code_commitments_gas) => self.charge_inner(code_commitments_gas),
+            None => false,
+        }
+    }
+
+    // Inner function for correct gas charging.
+    fn charge_inner(&mut self, value: u64) -> bool {
+        if let Some(gas) = self.gas_left.checked_sub(value) {
+            self.gas_left = gas;
+            return true;
+        }
+        return false;
+    }
 }
 
 #[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]

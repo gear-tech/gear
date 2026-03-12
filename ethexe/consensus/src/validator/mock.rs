@@ -152,11 +152,11 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
     let limits = BatchLimits {
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
-        max_codes_limit: 20,
     };
+    let gas_weights = BatchGasWeights::default();
     let middleware = MiddlewareWrapper::from_inner(ethereum.clone());
     let batch_manager =
-        BatchCommitmentManager::new(limits, timelines, db.clone(), middleware.clone());
+        BatchCommitmentManager::new(limits, gas_weights, timelines, db.clone(), middleware);
 
     let ctx = ValidatorContext {
         core: ValidatorCore {

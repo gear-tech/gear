@@ -32,6 +32,53 @@ use gprimitives::{CodeId, H256};
 /// How often to log warning during chain commitment aggregation
 const LOG_WARNING_FREQUENCY: u32 = 10_000;
 
+pub fn collect_not_committed_predecessors<DB: AnnounceStorageRO + BlockMetaStorageRO>(
+    db: &DB,
+    head_announce_hash: HashOf<Announce>,
+) -> Result<Vec<HashOf<Announce>>> {
+    if !db.announce_meta(head_announce_hash).computed {
+        anyhow::bail!(
+            "Head announce {head_announce_hash:?} is not computed, cannot aggregate chain commitment"
+        );
+    }
+    let announce_block_hash = db
+        .announce(head_announce_hash)
+        .ok_or_else(|| anyhow!(""))?
+        .block_hash;
+
+    let Some(last_committed_announce_hash) =
+        db.block_meta(announce_block_hash).last_committed_announce
+    else {
+        anyhow::bail!(
+            "Last committed announce not found in db for prepared block {announce_block_hash}"
+        );
+    };
+
+    let mut announces = Vec::new();
+    let mut announce_hash = head_announce_hash;
+
+    // Maybe remove this loop to prevent infinite searching
+    loop {
+        if announce_hash == last_committed_announce_hash {
+            break;
+        }
+
+        if !db.announce_meta(announce_hash).computed {
+            // All announces till last committed must be computed.
+            // Even fast-sync guarantees that.
+            anyhow::bail!("Not computed announce in chain {announce_hash:?}");
+        }
+        announces.push(announce_hash);
+
+        announce_hash = db
+            .announce(announce_hash)
+            .ok_or_else(|| anyhow!("Computed announce {announce_hash:?} body not found in db"))?
+            .parent;
+    }
+
+    Ok(announces.into_iter().rev().collect())
+}
+
 pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
@@ -103,6 +150,8 @@ pub fn aggregate_code_commitments<DB: CodesStorageRO>(
 /// Must be guaranteed by caller that:
 /// 1) `head_announce_hash` is computed
 /// 2) `head_announce_hash` is successor of `at_block_hash` last committed announce
+
+// TODO: think to remove this
 pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
     db: &DB,
     at_block_hash: H256,
@@ -157,6 +206,18 @@ pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO
         },
         counter,
     ))
+}
+
+pub fn announce_transitions<DB: AnnounceStorageRO>(
+    db: &DB,
+    announce_hash: HashOf<Announce>,
+) -> Result<Vec<StateTransition>> {
+    let Some(mut announce_transitions) = db.announce_outcome(announce_hash) else {
+        anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
+    };
+
+    sort_transitions_by_value_to_receive(&mut announce_transitions);
+    Ok(announce_transitions)
 }
 
 pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
