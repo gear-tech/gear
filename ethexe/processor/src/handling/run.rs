@@ -122,6 +122,7 @@ use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{
     BlockInfo, InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
+use futures::prelude::*;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     gas::GasAllowanceCounter,
@@ -523,9 +524,9 @@ pub(super) mod chunks_splitting {
 
 mod chunk_execution_spawn {
     use super::*;
-    use crate::host::InstanceWrapper;
+    use crate::{DEFAULT_CHUNK_SIZE, handling::thread_pool::ThreadPool, host::InstanceWrapper};
     use ethexe_runtime_common::ProcessQueueContext;
-    use std::num::NonZero;
+    use std::sync::LazyLock;
 
     /// An alias introduced for better readability of the chunks execution steps.
     pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
@@ -542,7 +543,9 @@ mod chunk_execution_spawn {
         queue_type: MessageType,
     ) -> Result<Vec<ChunkItemOutput>> {
         struct Executable {
-            index: usize,
+            queue_type: MessageType,
+            block_info: BlockInfo,
+            promise_policy: PromisePolicy,
             program_id: ActorId,
             state_hash: H256,
             instrumented_code: InstrumentedCode,
@@ -550,7 +553,49 @@ mod chunk_execution_spawn {
             executor: InstanceWrapper,
             db: Box<dyn CASDatabase>,
             gas_allowance_for_chunk: u64,
+            promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
         }
+
+        static THREAD_POOL: LazyLock<ThreadPool<Executable, Result<ChunkItemOutput>>> =
+            LazyLock::new(|| {
+                let n_cpus = std::thread::available_parallelism()
+                    .unwrap_or(DEFAULT_CHUNK_SIZE)
+                    .min(DEFAULT_CHUNK_SIZE)
+                    .get();
+
+                ThreadPool::new(
+                    n_cpus,
+                    |Executable {
+                         queue_type,
+                         block_info,
+                         promise_policy,
+                         program_id,
+                         state_hash,
+                         instrumented_code,
+                         code_metadata,
+                         mut executor,
+                         db,
+                         gas_allowance_for_chunk,
+                         promise_out_tx,
+                     }| {
+                        let (jn, new_state_hash, gas_spent) = executor.run(
+                            db,
+                            ProcessQueueContext {
+                                program_id,
+                                state_root: state_hash,
+                                queue_type,
+                                instrumented_code,
+                                code_metadata,
+                                gas_allowance: GasAllowanceCounter::new(gas_allowance_for_chunk),
+                                block_info,
+                                promise_policy,
+                            },
+                            promise_out_tx,
+                        )?;
+                        Ok((program_id, new_state_hash, jn, gas_spent))
+                    },
+                )
+            });
 
         let (db, _, gas_allowance_counter) = ctx.borrow_inner();
         let gas_allowance_for_chunk = gas_allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
@@ -564,21 +609,17 @@ mod chunk_execution_spawn {
             timestamp: block_header.timestamp,
         };
 
-        let chunk_size = chunk.len();
-        let n_cpus = std::thread::available_parallelism()
-            .map_or(chunk_size, NonZero::get)
-            .min(chunk_size);
+        let output_futures = chunk
+            .into_iter()
+            .map(|(program_id, state_hash)| {
+                let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
 
-        let (task_tx, task_rx) = crossbeam::channel::bounded(chunk_size);
+                let executor = ctx.instance_creator().instantiate()?;
 
-        for (index, (program_id, state_hash)) in chunk.into_iter().enumerate() {
-            let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
-
-            let executor = ctx.instance_creator().instantiate()?;
-
-            task_tx
-                .try_send(Executable {
-                    index,
+                Ok(THREAD_POOL.spawn_task(Executable {
+                    queue_type,
+                    block_info,
+                    promise_policy,
                     program_id,
                     state_hash,
                     instrumented_code,
@@ -586,85 +627,16 @@ mod chunk_execution_spawn {
                     executor,
                     db: db.clone_boxed(),
                     gas_allowance_for_chunk,
-                })
-                .expect("Channel has enough size not to fail");
-        }
-
-        let worker_threads = (0..n_cpus)
-            .map(|_| {
-                let task_rx = task_rx.clone();
-                let promise_out_tx = ctx.promise_out_tx().clone();
-                let (result_tx, result_rx) = tokio::sync::oneshot::channel();
-                std::thread::spawn(move || {
-                    let mut results = vec![];
-
-                    for executable in task_rx {
-                        let Executable {
-                            index,
-                            program_id,
-                            state_hash,
-                            instrumented_code,
-                            code_metadata,
-                            mut executor,
-                            db,
-                            gas_allowance_for_chunk,
-                        } = executable;
-
-                        let result = executor
-                            .run(
-                                db,
-                                ProcessQueueContext {
-                                    program_id,
-                                    state_root: state_hash,
-                                    queue_type,
-                                    instrumented_code,
-                                    code_metadata,
-                                    gas_allowance: GasAllowanceCounter::new(
-                                        gas_allowance_for_chunk,
-                                    ),
-                                    block_info,
-                                    promise_policy,
-                                },
-                                promise_out_tx.clone(),
-                            )
-                            .map(|(jn, new_state_hash, gas_spent)| {
-                                (index, (program_id, new_state_hash, jn, gas_spent))
-                            });
-
-                        results.push(result);
-                    }
-
-                    // The main thread can drop the receiver if the future is cancelled
-                    let _ = result_tx.send(results);
-                });
-
-                result_rx
+                    promise_out_tx: ctx.promise_out_tx().clone(),
+                }))
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>>>()?;
 
-        let mut maybe_outputs = vec![None; chunk_size];
-
-        for result_rx in worker_threads {
-            let results = result_rx.await.expect("Worker thread must not die");
-
-            for result in results {
-                let (index, output) = result?;
-                let prev_result = maybe_outputs
-                    .get_mut(index)
-                    .expect("Result indices cannot be out of bound")
-                    .replace(output);
-
-                assert!(
-                    prev_result.is_none(),
-                    "Only one result must be received for one task"
-                )
-            }
-        }
-
-        Ok(maybe_outputs
-            .into_iter()
-            .collect::<Option<Vec<_>>>()
-            .expect("All outputs must be received at this point"))
+        stream::iter(output_futures)
+            .buffered(DEFAULT_CHUNK_SIZE.get())
+            .map(|opt| opt.expect("worker thread has panicked"))
+            .try_collect()
+            .await
     }
 }
 
