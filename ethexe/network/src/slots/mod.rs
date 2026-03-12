@@ -18,7 +18,7 @@
 
 use crate::slots::peer_score::PeerScore;
 use assert_matches::debug_assert_matches;
-use itertools::{Either, Itertools};
+use itertools::Either;
 use libp2p::{
     Multiaddr, PeerId, allow_block_list,
     core::{Endpoint, transport::PortUse},
@@ -29,7 +29,7 @@ use libp2p::{
         PeerAddresses, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm, dial_opts::DialOpts,
     },
 };
-use rand::seq::{IteratorRandom, SliceRandom};
+use rand::seq::SliceRandom;
 use std::{
     cmp,
     collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
@@ -54,6 +54,8 @@ struct Metrics {
 
 pub struct Config {
     inbound_max_peers: u32,
+    inbound_overflowing_peers: u32,
+    inbound_overflowing_peer_action_timeout: Duration,
     outbound_min_peers: u32,
     outbound_max_peers: u32,
     grace_period: Duration,
@@ -64,7 +66,9 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            inbound_max_peers: 50,
+            inbound_max_peers: 45,
+            inbound_overflowing_peers: 5,
+            inbound_overflowing_peer_action_timeout: Duration::from_secs(20),
             outbound_min_peers: 25,
             outbound_max_peers: 50,
             grace_period: Duration::from_secs(5),
@@ -117,12 +121,33 @@ enum PeerState {
     JustDisconnected(Instant),
 }
 
+#[derive(Debug, Eq, PartialEq)]
+enum InboundPeerDirection {
+    Normal,
+    Overflowing { latest_action: Option<Instant> },
+}
+
 #[derive(Debug, Eq, PartialEq, derive_more::Display, derive_more::IsVariant)]
 enum PeerDirection {
     #[display("inbound")]
-    Inbound,
+    Inbound(InboundPeerDirection),
     #[display("outbound")]
     Outbound,
+}
+
+impl PeerDirection {
+    fn is_evictable_overflowing_inbound(&self, timeout: Duration) -> bool {
+        match self {
+            Self::Inbound(InboundPeerDirection::Overflowing {
+                latest_action: Some(latest_action),
+            }) => latest_action.elapsed() > timeout,
+            Self::Inbound(InboundPeerDirection::Overflowing {
+                latest_action: None,
+            }) => true,
+            Self::Inbound(InboundPeerDirection::Normal) => false,
+            Self::Outbound => false,
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -177,10 +202,22 @@ impl Behaviour {
         self.peer_score.handle()
     }
 
+    pub(crate) fn peer_action(&mut self, peer: &PeerId) {
+        let entry = self
+            .peers
+            .get_mut(peer)
+            .expect("we track all connected peers");
+        if let PeerDirection::Inbound(InboundPeerDirection::Overflowing { latest_action }) =
+            &mut entry.direction
+        {
+            *latest_action = Some(Instant::now());
+        }
+    }
+
     fn inbound_peers(&self) -> impl Iterator<Item = (&PeerId, &PeerEntry)> {
         self.peers
             .iter()
-            .filter(|(_peer, entry)| entry.direction == PeerDirection::Inbound)
+            .filter(|(_peer, entry)| entry.direction.is_inbound())
     }
 
     fn outbound_peers(&self) -> impl Iterator<Item = &PeerId> {
@@ -190,30 +227,6 @@ impl Behaviour {
             .map(|(peer, _)| peer)
     }
 
-    fn evict_peer(&mut self) -> bool {
-        let mut candidates: Vec<_> = self
-            .inbound_peers()
-            .filter(|(_peer, entry)| entry.state == PeerState::Connected)
-            .collect();
-        candidates.sort_by_key(|(peer, entry)| {
-            (
-                self.peer_score.get(peer),
-                entry.lowest_ping,
-                cmp::Reverse(entry.connected_at),
-            )
-        });
-
-        if let Some((&peer, _entry)) = candidates.get(0) {
-            self.pending_events.push_back(ToSwarm::CloseConnection {
-                peer_id: peer,
-                connection: CloseConnection::All,
-            });
-            true
-        } else {
-            false
-        }
-    }
-
     fn add_connection(
         &mut self,
         peer: PeerId,
@@ -221,18 +234,22 @@ impl Behaviour {
         direction: PeerDirection,
     ) -> Result<(), ConnectionDenied> {
         let (limit, peers) = match direction {
-            PeerDirection::Inbound => (
-                self.config.inbound_max_peers,
-                itertools::Either::Left(self.inbound_peers()),
-            ),
+            PeerDirection::Inbound(_) => {
+                (self.config.inbound_max_peers, self.inbound_peers().count())
+            }
             PeerDirection::Outbound => (
                 self.config.outbound_max_peers,
-                itertools::Either::Right(self.outbound_peers()),
+                self.outbound_peers().count(),
             ),
         };
 
-        // check if limit exceeded, but try to evict a peer if the connection is incoming
-        if peers.count() >= limit as usize && !(direction.is_inbound() && self.evict_peer()) {
+        // if we exceed the inbound connection limit, then check we have a free overflowing slot
+        #[rustfmt::skip]
+        let is_overflowing_inbound_connection =
+            direction.is_inbound()
+            && peers >= limit as usize
+            && (self.config.inbound_max_peers + self.config.inbound_overflowing_peers).saturating_sub(peers as u32) > 0;
+        if peers >= limit as usize && !is_overflowing_inbound_connection {
             return Err(SlotConnectionError::LimitExceeded { limit, direction }.into());
         }
 
@@ -252,8 +269,18 @@ impl Behaviour {
                 connected_at: Instant::now(),
             }),
         };
+        let entry = entry.get_mut();
 
-        entry.get_mut().connections.insert(connection_id);
+        // TODO: we might want to check peer existed before
+        if let PeerDirection::Inbound(direction) = &mut entry.direction
+            && is_overflowing_inbound_connection
+        {
+            *direction = InboundPeerDirection::Overflowing {
+                latest_action: None,
+            };
+        }
+
+        entry.connections.insert(connection_id);
 
         Ok(())
     }
@@ -263,7 +290,11 @@ impl Behaviour {
         peer: PeerId,
         connection_id: ConnectionId,
     ) -> Result<(), ConnectionDenied> {
-        self.add_connection(peer, connection_id, PeerDirection::Inbound)
+        self.add_connection(
+            peer,
+            connection_id,
+            PeerDirection::Inbound(InboundPeerDirection::Normal),
+        )
     }
 
     fn add_outbound_connection(
@@ -309,6 +340,26 @@ impl Behaviour {
         });
     }
 
+    // TODO: close only inbound connections
+    fn evict_inbound_overflowing_peers(&mut self) {
+        let peers = self
+            .inbound_peers()
+            .filter(|(_peer, entry)| {
+                entry.direction.is_evictable_overflowing_inbound(
+                    self.config.inbound_overflowing_peer_action_timeout,
+                )
+            })
+            .map(|(&peer, entry)| peer)
+            .collect::<Vec<_>>();
+
+        for peer_id in peers {
+            self.pending_events.push_back(ToSwarm::CloseConnection {
+                peer_id,
+                connection: CloseConnection::All,
+            })
+        }
+    }
+
     fn dial_peers(&mut self) {
         let outbounds_peers = self.outbound_peers().count();
         let Some(needed_outbound_peers) = (self.config.outbound_min_peers as usize)
@@ -335,6 +386,7 @@ impl Behaviour {
 
     fn on_driver_tick(&mut self) {
         self.update_periods();
+        self.evict_inbound_overflowing_peers();
         self.dial_peers();
     }
 
@@ -504,14 +556,12 @@ impl NetworkBehaviour for Behaviour {
                 self.remove_connection(peer_id, connection_id);
             }
             FromSwarm::DialFailure(DialFailure {
-                peer_id,
+                peer_id: Some(peer_id),
                 error: _,
                 connection_id: _,
             }) => {
-                if let Some(peer_id) = peer_id {
-                    let is_removed = self.pending_outbound_peers.remove(&peer_id);
-                    debug_assert!(is_removed);
-                }
+                let is_removed = self.pending_outbound_peers.remove(&peer_id);
+                debug_assert!(is_removed);
             }
             _ => {}
         }
@@ -641,7 +691,10 @@ mod tests {
                 .unwrap()
                 .unwrap_limit_exceeded();
             assert_eq!(limit, Config::default().inbound_max_peers);
-            assert_eq!(direction, PeerDirection::Inbound);
+            assert_eq!(
+                direction,
+                PeerDirection::Inbound(InboundPeerDirection::Normal)
+            );
         } else {
             unreachable!("unexpected event: {event:?}");
         }

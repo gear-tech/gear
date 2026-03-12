@@ -505,6 +505,15 @@ impl NetworkService {
     }
 
     fn handle_injected_event(&mut self, event: injected::Event) -> Option<NetworkEvent> {
+        if let injected::Event::InboundTransaction {
+            peer,
+            transaction: _,
+            channel: _,
+        } = &event
+        {
+            self.swarm.behaviour_mut().slots.peer_action(peer);
+        }
+
         Some(NetworkEvent::InjectedTransaction(event))
     }
 

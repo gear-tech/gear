@@ -94,7 +94,8 @@ pub(crate) struct InnerResponse(InjectedTransactionAcceptance);
 pub enum Event {
     /// Peer sent a new transaction to us
     InboundTransaction {
-        transaction: SignedInjectedTransaction,
+        peer: PeerId,
+        transaction: Box<SignedInjectedTransaction>,
         channel: oneshot::Sender<InjectedTransactionAcceptance>,
     },
     /// We got a response from a validator we sent transaction to
@@ -109,14 +110,16 @@ impl Event {
     fn unwrap_new_injected_transaction(
         self,
     ) -> (
+        PeerId,
         SignedInjectedTransaction,
         oneshot::Sender<InjectedTransactionAcceptance>,
     ) {
         match self {
             Event::InboundTransaction {
+                peer,
                 transaction,
                 channel,
-            } => (transaction, channel),
+            } => (peer, *transaction, channel),
             _ => panic!("Expected InboundTransaction event"),
         }
     }
@@ -212,7 +215,7 @@ impl Behaviour {
     ) -> Poll<Event> {
         match event {
             request_response::Event::Message {
-                peer: _,
+                peer,
                 connection_id: _,
                 message:
                     Message::Request {
@@ -231,7 +234,8 @@ impl Behaviour {
                 self.pending_responses.push(fut.boxed());
 
                 return Poll::Ready(Event::InboundTransaction {
-                    transaction,
+                    peer,
+                    transaction: Box::new(transaction),
                     channel: tx,
                 });
             }
@@ -461,6 +465,7 @@ mod tests {
         init_logger();
 
         let (mut alice, _) = new_swarm().await;
+        let alice_peer_id = *alice.local_peer_id();
         let (mut bob, bob_identity) = new_swarm().await;
 
         let transaction = addressed_injected_tx(bob_identity.address());
@@ -478,10 +483,11 @@ mod tests {
             assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
         });
 
-        let (new_tx, channel) = bob
+        let (peer, new_tx, channel) = bob
             .next_behaviour_event()
             .await
             .unwrap_new_injected_transaction();
+        assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction.tx);
         channel.send(InjectedTransactionAcceptance::Accept).unwrap();
         tokio::spawn(bob.loop_on_next());
@@ -494,6 +500,7 @@ mod tests {
         const REJECT_REASON: &str = "test reason";
 
         let (mut alice, _) = new_swarm().await;
+        let alice_peer_id = *alice.local_peer_id();
         let (mut bob, bob_identity) = new_swarm().await;
 
         let transaction = addressed_injected_tx(bob_identity.address());
@@ -516,10 +523,11 @@ mod tests {
             );
         });
 
-        let (new_tx, channel) = bob
+        let (peer, new_tx, channel) = bob
             .next_behaviour_event()
             .await
             .unwrap_new_injected_transaction();
+        assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction.tx);
         channel
             .send(InjectedTransactionAcceptance::Reject {
@@ -534,6 +542,7 @@ mod tests {
     #[tokio::test]
     async fn outbound_failure_rejected() {
         let (mut alice, _) = new_swarm().await;
+        let alice_peer_id = *alice.local_peer_id();
         let (mut bob, bob_identity) = new_swarm().await;
 
         let transaction = addressed_injected_tx(bob_identity.address());
@@ -556,10 +565,11 @@ mod tests {
             );
         });
 
-        let (new_tx, _channel) = bob
+        let (peer, new_tx, _channel) = bob
             .next_behaviour_event()
             .await
             .unwrap_new_injected_transaction();
+        assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction.tx);
         drop(bob);
 
