@@ -18,7 +18,7 @@
 
 use crate::slots::peer_score::PeerScore;
 use assert_matches::debug_assert_matches;
-use itertools::Either;
+use itertools::{Either, Itertools};
 use libp2p::{
     Multiaddr, PeerId, allow_block_list,
     core::{Endpoint, transport::PortUse},
@@ -112,7 +112,7 @@ impl From<SlotConnectionError> for ConnectionDenied {
 
 #[derive(Debug, Eq, PartialEq)]
 enum PeerState {
-    JustConnected(Instant),
+    JustConnected,
     Connected,
     JustDisconnected(Instant),
 }
@@ -131,6 +131,7 @@ struct PeerEntry {
     direction: PeerDirection,
     state: PeerState,
     lowest_ping: Duration,
+    connected_at: Instant,
 }
 
 type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedPeers>;
@@ -176,11 +177,10 @@ impl Behaviour {
         self.peer_score.handle()
     }
 
-    fn inbound_peers(&self) -> impl Iterator<Item = &PeerId> {
+    fn inbound_peers(&self) -> impl Iterator<Item = (&PeerId, &PeerEntry)> {
         self.peers
             .iter()
             .filter(|(_peer, entry)| entry.direction == PeerDirection::Inbound)
-            .map(|(peer, _)| peer)
     }
 
     fn outbound_peers(&self) -> impl Iterator<Item = &PeerId> {
@@ -191,13 +191,19 @@ impl Behaviour {
     }
 
     fn evict_peer(&mut self) -> bool {
-        let peer = self
-            .peers
-            .iter()
+        let mut candidates: Vec<_> = self
+            .inbound_peers()
             .filter(|(_peer, entry)| entry.state == PeerState::Connected)
-            .choose_stable(&mut rand::thread_rng());
+            .collect();
+        candidates.sort_by_key(|(peer, entry)| {
+            (
+                self.peer_score.get(peer),
+                entry.lowest_ping,
+                cmp::Reverse(entry.connected_at),
+            )
+        });
 
-        if let Some((&peer, _entry)) = peer {
+        if let Some((&peer, _entry)) = candidates.get(0) {
             self.pending_events.push_back(ToSwarm::CloseConnection {
                 peer_id: peer,
                 connection: CloseConnection::All,
@@ -241,8 +247,9 @@ impl Behaviour {
             Entry::Vacant(entry) => entry.insert_entry(PeerEntry {
                 connections: Default::default(),
                 direction,
-                state: PeerState::JustConnected(Instant::now()),
+                state: PeerState::JustConnected,
                 lowest_ping: Duration::MAX,
+                connected_at: Instant::now(),
             }),
         };
 
@@ -277,7 +284,7 @@ impl Behaviour {
                     // peer can be in JustConnected state if the peer is blocked beforehand via peer scoring
                     debug_assert_matches!(
                         peer_entry.state,
-                        PeerState::JustConnected(_) | PeerState::Connected
+                        PeerState::JustConnected | PeerState::Connected
                     );
                     peer_entry.state = PeerState::JustDisconnected(Instant::now());
                 }
@@ -290,8 +297,8 @@ impl Behaviour {
 
     fn update_periods(&mut self) {
         self.peers.retain(|_peer, entry| match entry.state {
-            PeerState::JustConnected(at) => {
-                if at.elapsed() > self.config.grace_period {
+            PeerState::JustConnected => {
+                if entry.connected_at.elapsed() > self.config.grace_period {
                     entry.state = PeerState::Connected;
                 }
 
