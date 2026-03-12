@@ -558,13 +558,7 @@ mod chunk_execution_spawn {
 
         static THREAD_POOL: LazyLock<ThreadPool<Executable, Result<ChunkItemOutput>>> =
             LazyLock::new(|| {
-                let n_cpus = std::thread::available_parallelism()
-                    .unwrap_or(DEFAULT_CHUNK_SIZE)
-                    .min(DEFAULT_CHUNK_SIZE)
-                    .get();
-
                 ThreadPool::new(
-                    n_cpus,
                     |Executable {
                          queue_type,
                          block_info,

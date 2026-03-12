@@ -19,6 +19,8 @@
 //! Small custom thread pool interface, because `rayon` is too smart
 //! and `threadpool` is not smart enough.
 
+use std::num::NonZero;
+
 type Task<I, O> = (I, tokio::sync::oneshot::Sender<O>);
 
 /// Thread pool that handler tasks of type `I`
@@ -37,7 +39,9 @@ where
     F: FnMut(I) -> O + Send + Clone + 'static,
 {
     /// Creates a new thread pool.
-    pub fn new(n_threads: usize, handler: F) -> Self {
+    pub fn new(handler: F) -> Self {
+        let n_cpus = std::thread::available_parallelism().map_or(1, NonZero::get);
+
         let (task_tx, task_rx) = crossbeam::channel::unbounded();
 
         let thread_pool = Self {
@@ -46,7 +50,7 @@ where
             handler,
         };
 
-        for _ in 0..n_threads {
+        for _ in 0..n_cpus {
             thread_pool.spawn_worker();
         }
 
