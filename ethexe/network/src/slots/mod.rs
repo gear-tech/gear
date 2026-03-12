@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::slots::peer_score::PeerScore;
-use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
+use assert_matches::debug_assert_matches;
 use itertools::Either;
 use libp2p::{
     Multiaddr, PeerId, allow_block_list,
@@ -38,7 +38,10 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
-use tokio::{time, time::Interval};
+use tokio::{
+    time,
+    time::{Instant, Interval},
+};
 
 pub mod peer_score;
 
@@ -109,9 +112,9 @@ impl From<SlotConnectionError> for ConnectionDenied {
 
 #[derive(Debug, Eq, PartialEq)]
 enum PeerState {
-    JustConnected,
+    JustConnected(Instant),
     Connected,
-    JustDisconnected,
+    JustDisconnected(Instant),
 }
 
 #[derive(Debug, Eq, PartialEq, derive_more::Display, derive_more::IsVariant)]
@@ -130,12 +133,6 @@ struct PeerEntry {
     lowest_ping: Duration,
 }
 
-enum PeriodKind {
-    GracePeriod,
-    BackoffPeriod,
-}
-
-type PeriodFuture = BoxFuture<'static, (PeerId, PeriodKind)>;
 type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedPeers>;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -155,8 +152,6 @@ pub struct Behaviour {
     pending_events: VecDeque<ToSwarm<Infallible, Infallible>>,
     addresses: PeerAddresses,
     driver: Interval,
-    /// Track grace and backoff periods
-    periods: FuturesUnordered<PeriodFuture>,
     /// How many peers we are dialing currently
     pending_outbound_peers: usize,
 }
@@ -173,7 +168,6 @@ impl Behaviour {
             peers: HashMap::new(),
             pending_events: VecDeque::new(),
             addresses: Default::default(),
-            periods: FuturesUnordered::new(),
             pending_outbound_peers: 0,
         }
     }
@@ -238,29 +232,18 @@ impl Behaviour {
 
         let mut entry = match self.peers.entry(peer) {
             Entry::Occupied(entry) => {
-                if let PeerState::JustDisconnected = entry.get().state {
+                if let PeerState::JustDisconnected(_) = entry.get().state {
                     return Err(SlotConnectionError::ActiveBackoffPeriod.into());
                 }
 
                 entry
             }
-            Entry::Vacant(entry) => {
-                let grace_period = self.config.grace_period;
-                self.periods.push(
-                    async move {
-                        time::sleep(grace_period).await;
-                        (peer, PeriodKind::GracePeriod)
-                    }
-                    .boxed(),
-                );
-
-                entry.insert_entry(PeerEntry {
-                    connections: Default::default(),
-                    direction,
-                    state: PeerState::JustConnected,
-                    lowest_ping: Duration::MAX,
-                })
-            }
+            Entry::Vacant(entry) => entry.insert_entry(PeerEntry {
+                connections: Default::default(),
+                direction,
+                state: PeerState::JustConnected(Instant::now()),
+                lowest_ping: Duration::MAX,
+            }),
         };
 
         entry.get_mut().connections.insert(connection_id);
@@ -292,17 +275,11 @@ impl Behaviour {
                 if peer_entry.connections.is_empty() {
                     // peer can be in Connected state if the grace period is ended
                     // peer can be in JustConnected state if the peer is blocked beforehand via peer scoring
-                    debug_assert_ne!(peer_entry.state, PeerState::JustDisconnected);
-                    peer_entry.state = PeerState::JustDisconnected;
-
-                    let backoff_period = self.config.backoff_period;
-                    self.periods.push(
-                        async move {
-                            time::sleep(backoff_period).await;
-                            (peer, PeriodKind::BackoffPeriod)
-                        }
-                        .boxed(),
-                    )
+                    debug_assert_matches!(
+                        peer_entry.state,
+                        PeerState::JustConnected(_) | PeerState::Connected
+                    );
+                    peer_entry.state = PeerState::JustDisconnected(Instant::now());
                 }
 
                 true
@@ -311,26 +288,18 @@ impl Behaviour {
         }
     }
 
-    fn on_period_ended(&mut self, peer: PeerId, kind: PeriodKind) {
-        match kind {
-            PeriodKind::GracePeriod => {
-                let entry = self.peers.get_mut(&peer).expect("unknown peer");
-
-                // peer can be in JustDisconnected state if the peer is blocked beforehand via peer scoring
-                if let PeerState::JustDisconnected = entry.state {
-                    return;
+    fn update_periods(&mut self) {
+        self.peers.retain(|_peer, entry| match entry.state {
+            PeerState::JustConnected(at) => {
+                if at.elapsed() > self.config.grace_period {
+                    entry.state = PeerState::Connected;
                 }
 
-                debug_assert_eq!(entry.state, PeerState::JustConnected);
-                debug_assert!(!entry.connections.is_empty());
-                entry.state = PeerState::Connected;
+                true
             }
-            PeriodKind::BackoffPeriod => {
-                let entry = self.peers.remove(&peer).expect("unknown peer");
-                debug_assert_eq!(entry.state, PeerState::JustDisconnected);
-                debug_assert_eq!(entry.connections, HashSet::default());
-            }
-        }
+            PeerState::Connected => true,
+            PeerState::JustDisconnected(at) => at.elapsed() <= self.config.backoff_period,
+        });
     }
 
     fn dial_peers(&mut self) {
@@ -358,6 +327,7 @@ impl Behaviour {
     }
 
     fn on_driver_tick(&mut self) {
+        self.update_periods();
         self.dial_peers();
     }
 
@@ -560,10 +530,6 @@ impl NetworkBehaviour for Behaviour {
                     .map_in(|event| match event {})
                     .map_out(|event| match event {}),
             );
-        }
-
-        if let Poll::Ready(Some((peer, kind))) = self.periods.poll_next_unpin(cx) {
-            self.on_period_ended(peer, kind)
         }
 
         if let Poll::Ready(_instant) = self.driver.poll_tick(cx) {
