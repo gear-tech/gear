@@ -525,7 +525,7 @@ mod chunk_execution_spawn {
     use super::*;
     use crate::host::InstanceWrapper;
     use ethexe_runtime_common::ProcessQueueContext;
-    use rayon::iter::{IntoParallelIterator, ParallelIterator};
+    use std::num::NonZero;
 
     /// An alias introduced for better readability of the chunks execution steps.
     pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
@@ -542,6 +542,7 @@ mod chunk_execution_spawn {
         queue_type: MessageType,
     ) -> Result<Vec<ChunkItemOutput>> {
         struct Executable {
+            index: usize,
             program_id: ActorId,
             state_hash: H256,
             instrumented_code: InstrumentedCode,
@@ -555,17 +556,27 @@ mod chunk_execution_spawn {
         let gas_allowance_for_chunk = gas_allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
         let db = db.clone_boxed();
 
-        let executable_chunk = chunk
-            .into_iter()
-            .map(|(program_id, state_hash)| {
-                let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
+        let promise_policy = ctx.promise_policy();
 
-                let executor = ctx
-                    .instance_creator()
-                    .instantiate()
-                    .expect("Failed to instantiate executor");
+        let block_header = ctx.block_header();
+        let block_info = BlockInfo {
+            height: block_header.height,
+            timestamp: block_header.timestamp,
+        };
 
-                Ok(Executable {
+        let chunk_size = chunk.len();
+        let n_cpus = std::thread::available_parallelism().map_or(chunk_size, NonZero::get);
+
+        let (task_tx, task_rx) = crossbeam::channel::bounded(chunk_size);
+
+        for (index, (program_id, state_hash)) in chunk.into_iter().enumerate() {
+            let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
+
+            let executor = ctx.instance_creator().instantiate()?;
+
+            task_tx
+                .try_send(Executable {
+                    index,
                     program_id,
                     state_hash,
                     instrumented_code,
@@ -574,32 +585,30 @@ mod chunk_execution_spawn {
                     db: db.clone_boxed(),
                     gas_allowance_for_chunk,
                 })
-            })
-            .collect::<Result<Vec<_>>>()?;
+                .expect("Channel has enough size not to fail");
+        }
 
-        let promise_policy = ctx.promise_policy();
-        let promise_out_tx = ctx.promise_out_tx().clone();
+        let worker_threads = (0..n_cpus)
+            .map(|_| {
+                let task_rx = task_rx.clone();
+                let promise_out_tx = ctx.promise_out_tx().clone();
+                let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+                std::thread::spawn(move || {
+                    let mut results = vec![];
 
-        let block_header = ctx.block_header();
-        let block_info = BlockInfo {
-            height: block_header.height,
-            timestamp: block_header.timestamp,
-        };
+                    for executable in task_rx {
+                        let Executable {
+                            index,
+                            program_id,
+                            state_hash,
+                            instrumented_code,
+                            code_metadata,
+                            mut executor,
+                            db,
+                            gas_allowance_for_chunk,
+                        } = executable;
 
-        let output = tokio::task::spawn_blocking(move || {
-            executable_chunk
-                .into_par_iter()
-                .map(
-                    |Executable {
-                         program_id,
-                         state_hash,
-                         instrumented_code,
-                         code_metadata,
-                         mut executor,
-                         db,
-                         gas_allowance_for_chunk,
-                     }| {
-                        let (jn, new_state_hash, gas_spent) = executor
+                        let result = executor
                             .run(
                                 db,
                                 ProcessQueueContext {
@@ -616,17 +625,44 @@ mod chunk_execution_spawn {
                                 },
                                 promise_out_tx.clone(),
                             )
-                            .expect("Some error occurs while running program in instance");
+                            .map(|(jn, new_state_hash, gas_spent)| {
+                                (index, (program_id, new_state_hash, jn, gas_spent))
+                            });
 
-                        (program_id, new_state_hash, jn, gas_spent)
-                    },
+                        results.push(result);
+                    }
+
+                    // The main thread can drop the receiver if the future is cancelled
+                    let _ = result_tx.send(results);
+                });
+
+                result_rx
+            })
+            .collect::<Vec<_>>();
+
+        let mut maybe_outputs = vec![None; chunk_size];
+
+        for result_rx in worker_threads {
+            let results = result_rx.await.expect("Worker thread must not die");
+
+            for result in results {
+                let (index, output) = result?;
+                let prev_result = maybe_outputs
+                    .get_mut(index)
+                    .expect("Result indices cannot be out of bound")
+                    .replace(output);
+
+                assert!(
+                    prev_result.is_none(),
+                    "Only one result must be received for one task"
                 )
-                .collect()
-        })
-        .await
-        .expect("Failed to join worker thread");
+            }
+        }
 
-        Ok(output)
+        Ok(maybe_outputs
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .expect("All outputs must be received at this point"))
     }
 }
 
