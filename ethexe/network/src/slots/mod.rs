@@ -25,8 +25,8 @@ use libp2p::{
     ping,
     swarm::{
         CloseConnection, ConnectionClosed, ConnectionDenied, ConnectionHandler,
-        ConnectionHandlerSelect, ConnectionId, FromSwarm, NetworkBehaviour, PeerAddresses,
-        THandler, THandlerInEvent, THandlerOutEvent, ToSwarm, dial_opts::DialOpts,
+        ConnectionHandlerSelect, ConnectionId, DialFailure, FromSwarm, NetworkBehaviour,
+        PeerAddresses, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm, dial_opts::DialOpts,
     },
 };
 use rand::seq::{IteratorRandom, SliceRandom};
@@ -153,7 +153,7 @@ pub struct Behaviour {
     addresses: PeerAddresses,
     driver: Interval,
     /// How many peers we are dialing currently
-    pending_outbound_peers: usize,
+    pending_outbound_peers: HashSet<PeerId>,
 }
 
 impl Behaviour {
@@ -168,7 +168,7 @@ impl Behaviour {
             peers: HashMap::new(),
             pending_events: VecDeque::new(),
             addresses: Default::default(),
-            pending_outbound_peers: 0,
+            pending_outbound_peers: Default::default(),
         }
     }
 
@@ -306,7 +306,7 @@ impl Behaviour {
         let outbounds_peers = self.outbound_peers().count();
         let Some(needed_outbound_peers) = (self.config.outbound_min_peers as usize)
             .checked_sub(outbounds_peers)
-            .and_then(|peers| peers.checked_sub(self.pending_outbound_peers))
+            .and_then(|peers| peers.checked_sub(self.pending_outbound_peers.len()))
             .and_then(NonZeroUsize::new)
         else {
             return;
@@ -425,7 +425,7 @@ impl NetworkBehaviour for Behaviour {
         addresses: &[Multiaddr],
         effective_role: Endpoint,
     ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
-        self.pending_outbound_peers += 1;
+        self.pending_outbound_peers.extend(maybe_peer);
 
         let ping_addresses = self.ping.handle_pending_outbound_connection(
             connection_id,
@@ -474,7 +474,8 @@ impl NetworkBehaviour for Behaviour {
             port_use,
         )?;
 
-        self.pending_outbound_peers -= 1;
+        let is_removed = self.pending_outbound_peers.remove(&peer);
+        debug_assert!(is_removed);
         self.add_outbound_connection(peer, connection_id)?;
 
         Ok(ping_handler.select(block_list_handler))
@@ -495,8 +496,15 @@ impl NetworkBehaviour for Behaviour {
             }) => {
                 self.remove_connection(peer_id, connection_id);
             }
-            FromSwarm::DialFailure(_) => {
-                self.pending_outbound_peers -= 1;
+            FromSwarm::DialFailure(DialFailure {
+                peer_id,
+                error: _,
+                connection_id: _,
+            }) => {
+                if let Some(peer_id) = peer_id {
+                    let is_removed = self.pending_outbound_peers.remove(&peer_id);
+                    debug_assert!(is_removed);
+                }
             }
             _ => {}
         }
