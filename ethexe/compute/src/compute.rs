@@ -20,8 +20,8 @@ use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubServic
 use ethexe_common::{
     Announce, HashOf, PromisePolicy, SimpleBlockData,
     db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW,
-        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW, ConfigStorageRO,
+        GlobalsStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
     injected::Promise,
@@ -185,10 +185,9 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             meta.computed = true;
         });
 
-        db.mutate_latest_data(|data| {
-            data.computed_announce_hash = announce_hash;
-        })
-        .ok_or(ComputeError::LatestDataNotFound)?;
+        db.globals_mutate(|globals| {
+            globals.latest_computed_announce_hash = announce_hash;
+        });
 
         Ok(announce_hash)
     }
@@ -347,7 +346,7 @@ pub(crate) mod utils {
         db: &DB,
     ) -> Result<VecDeque<(HashOf<Announce>, Announce)>>
     where
-        DB: AnnounceStorageRO + LatestDataStorageRO,
+        DB: AnnounceStorageRO,
     {
         let mut parent_hash = announce.parent;
         let mut announces_chain = VecDeque::new();
@@ -376,10 +375,7 @@ pub(crate) mod utils {
         mut block_hash: H256,
         canonical_quarantine: u8,
     ) -> Result<Vec<BlockEvent>> {
-        let genesis_block = db
-            .latest_data()
-            .ok_or_else(|| ComputeError::LatestDataNotFound)?
-            .genesis_block_hash;
+        let genesis_block = db.config().genesis_block_hash;
 
         let mut block_header = db
             .block_header(block_hash)
@@ -413,7 +409,7 @@ mod tests {
     };
     use ethexe_common::{
         DEFAULT_BLOCK_GAS_LIMIT,
-        db::OnChainStorageRW,
+        db::{GlobalsStorageRO, OnChainStorageRW},
         events::{
             RouterEvent, mirror::ExecutableBalanceTopUpRequestedEvent, router::ProgramCreatedEvent,
         },
@@ -534,7 +530,7 @@ mod tests {
 
         let announce = Announce {
             block_hash,
-            parent: db.latest_data().unwrap().genesis_announce_hash,
+            parent: db.config().genesis_announce_hash,
             gas_allowance: Some(100),
             injected_transactions: vec![],
         };
@@ -570,10 +566,7 @@ mod tests {
         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
 
         // Verify latest announce
-        assert_eq!(
-            db.latest_data().unwrap().computed_announce_hash,
-            announce_hash
-        );
+        assert_eq!(db.globals().latest_computed_announce_hash, announce_hash);
     }
 
     #[tokio::test]
@@ -596,8 +589,8 @@ mod tests {
 
             let announce_hash = db.set_announce(announce);
             db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
-            db.mutate_latest_data(|data| {
-                data.start_announce_hash = announce_hash;
+            db.globals_mutate(|globals| {
+                globals.start_announce_hash = announce_hash;
             });
             db.set_announce_program_states(announce_hash, Default::default());
             db.set_announce_schedule(announce_hash, Default::default());

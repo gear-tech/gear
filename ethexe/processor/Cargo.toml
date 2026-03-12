@@ -42,4 +42,5 @@ demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-panic-payload = { workspace = true, features = ["debug", "ethexe"] }
 wat.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
+ethexe-db = { workspace = true, features = ["mock"] }
 gear-core-errors.workspace = true

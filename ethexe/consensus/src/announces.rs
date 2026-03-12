@@ -93,7 +93,7 @@ use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     db::{
-        AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, LatestDataStorageRO,
+        AnnounceStorageRW, BlockMetaStorageRW, GlobalsStorageRO, InjectedStorageRW,
         OnChainStorageRO,
     },
     network::{AnnouncesRequest, AnnouncesRequestUntil},
@@ -107,7 +107,7 @@ pub trait DBAnnouncesExt:
     AnnounceStorageRW
     + BlockMetaStorageRW
     + OnChainStorageRO
-    + LatestDataStorageRO
+    + GlobalsStorageRO
     + InjectedStorageRW
     + Storage
 {
@@ -134,7 +134,7 @@ impl<
     DB: AnnounceStorageRW
         + BlockMetaStorageRW
         + OnChainStorageRO
-        + LatestDataStorageRO
+        + GlobalsStorageRO
         + InjectedStorageRW
         + Storage,
 > DBAnnouncesExt for DB
@@ -500,10 +500,7 @@ pub fn check_for_missing_announces(
         #[cfg(debug_assertions)]
         {
             // debug check that all announces in the chain are present (check only up to 100 announces)
-            let start_announce_hash = db
-                .latest_data()
-                .expect("Latest data not found")
-                .start_announce_hash;
+            let start_announce_hash = db.globals().start_announce_hash;
 
             let start_announce_block_height = db
                 .announce(start_announce_hash)
@@ -562,10 +559,7 @@ fn find_announces_common_predecessor(
     block_hash: H256,
     commitment_delay_limit: u32,
 ) -> Result<HashOf<Announce>> {
-    let start_announce_hash = db
-        .latest_data()
-        .ok_or_else(|| anyhow!("Latest data not found"))?
-        .start_announce_hash;
+    let start_announce_hash = db.globals().start_announce_hash;
 
     let mut announces = db
         .block_meta(block_hash)
@@ -628,10 +622,7 @@ pub fn best_announce(
         return Err(anyhow!("No announces provided"));
     };
 
-    let start_announce_hash = db
-        .latest_data()
-        .ok_or_else(|| anyhow!("Latest data not found"))?
-        .start_announce_hash;
+    let start_announce_hash = db.globals().start_announce_hash;
 
     let announce_points = |mut announce_hash| -> Result<u32> {
         let mut points = 0;

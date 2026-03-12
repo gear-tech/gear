@@ -21,7 +21,7 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     db::{
-        AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, LatestDataStorageRO, OnChainStorageRO,
+        AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
     },
     injected::{InjectedTransaction, SignedInjectedTransaction},
 };
@@ -45,11 +45,11 @@ pub(crate) struct InjectedTxPool<DB = Database> {
 
 impl<DB> InjectedTxPool<DB>
 where
-    DB: OnChainStorageRO
-        + InjectedStorageRW
+    DB: InjectedStorageRW
+        + OnChainStorageRO
         + AnnounceStorageRO
         + CodesStorageRO
-        + LatestDataStorageRO
+        + GlobalsStorageRO
         + Storage
         + Clone,
 {

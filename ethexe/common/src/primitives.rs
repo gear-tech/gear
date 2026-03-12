@@ -220,14 +220,16 @@ impl CodeAndId {
 /// for example `max_validators` in election.
 #[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ProtocolTimelines {
-    // The genesis timestamp of the GearExe network.
+    // The genesis timestamp of the GearExe network in seconds.
     pub genesis_ts: u64,
     // The duration of an era in seconds.
     pub era: u64,
-    // The election duration in seconds before the end of an era when the next set of validators elected.
+    /// The election duration in seconds before the end of an era when the next set of validators elected.
     ///  (start of era)[ - - - - - - - - - - -  + - - - - ] (end of era)
     ///                                         ^ election
     pub election: u64,
+    /// The slot duration in seconds.
+    pub slot: u64,
 }
 
 impl ProtocolTimelines {
@@ -279,6 +281,7 @@ mod tests {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era
@@ -298,6 +301,7 @@ mod tests {
             genesis_ts: 100,
             era: 234,
             election: 200,
+            slot: 10,
         }
         .era_from_ts(50);
     }
@@ -308,6 +312,7 @@ mod tests {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era

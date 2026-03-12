@@ -19,7 +19,7 @@
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Announce, HashOf, ProgramStates, SimpleBlockData,
-    db::{AnnounceStorageRO, LatestDataStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, GlobalsStorageRO, OnChainStorageRO},
     injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
 };
 use ethexe_runtime_common::state::Storage;
@@ -54,9 +54,7 @@ pub struct TxValidityChecker<DB> {
     latest_states: ProgramStates,
 }
 
-impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage + LatestDataStorageRO>
-    TxValidityChecker<DB>
-{
+impl<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO + Storage> TxValidityChecker<DB> {
     pub fn new_for_announce(
         db: DB,
         chain_head: SimpleBlockData,
@@ -73,11 +71,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage + LatestDataStorageRO>
                 .parent;
         }
 
-        let start_block_hash = db
-            .latest_data()
-            .ok_or_else(|| anyhow!("Latest data not found in db"))?
-            .start_block_hash;
-
+        let start_block_hash = db.globals().start_block_hash;
         Ok(Self {
             recent_included_txs: Self::collect_recent_included_txs(&db, announce)?,
             latest_states: db
@@ -448,8 +442,8 @@ mod tests {
                 let blocks_head = chain.blocks.split_off(8);
                 let _ = chain.blocks.split_off(1);
                 chain.blocks.extend(blocks_head);
-                chain.latest_data.start_block_hash = chain.blocks[1].hash;
-                chain.latest_data.start_announce_hash = chain.block_top_announce_hash(1);
+                chain.globals.start_block_hash = chain.blocks[1].hash;
+                chain.globals.start_announce_hash = chain.block_top_announce_hash(1);
             })
             .setup(&db);
 
