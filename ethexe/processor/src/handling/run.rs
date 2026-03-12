@@ -565,7 +565,9 @@ mod chunk_execution_spawn {
         };
 
         let chunk_size = chunk.len();
-        let n_cpus = std::thread::available_parallelism().map_or(chunk_size, NonZero::get);
+        let n_cpus = std::thread::available_parallelism()
+            .map_or(chunk_size, NonZero::get)
+            .min(chunk_size);
 
         let (task_tx, task_rx) = crossbeam::channel::bounded(chunk_size);
 
