@@ -16,6 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Peer slot management for the network swarm.
+//!
+//! The behaviour separates peers into inbound and outbound groups based on the
+//! direction of the first established connection. Outbound peers are dialed up
+//! to a configured minimum, while inbound peers are accepted up to the normal
+//! limit plus a small "overflowing" reserve. Overflowing inbound peers are
+//! temporary: if they do not show recent useful activity, they are evicted.
+//! Newly connected peers also spend a short grace period in a transitional
+//! state before they become fully connected for slot-management purposes.
+
 use crate::utils::{ConnectionMap, NoLimits, PeerAddresses};
 use assert_matches::debug_assert_matches;
 use libp2p::{
@@ -39,6 +49,13 @@ use tokio::{
     time::{Instant, Interval},
 };
 
+/// Slot configuration for [`Behaviour`].
+///
+/// The limits are tracked per peer, not per connection. Once a peer is first
+/// observed as inbound or outbound, later connections keep that direction.
+/// The grace period controls how long a newly connected peer stays in the
+/// `JustConnected` state, while the backoff period controls how long a fully
+/// disconnected peer stays in `JustDisconnected`.
 pub struct Config {
     inbound_max_peers: u32,
     inbound_overflowing_peers: u32,
@@ -140,6 +157,14 @@ struct PeerEntry {
     state: PeerState,
 }
 
+/// Per-peer slot manager used inside the main network behaviour.
+///
+/// Responsibilities:
+/// - enforce inbound and outbound peer limits
+/// - keep newly connected peers in a short grace period
+/// - keep a short backoff window after disconnects
+/// - evict idle overflowing inbound peers
+/// - schedule outbound dials until the minimum outbound peer count is reached
 pub struct Behaviour {
     config: Config,
     pending_outbound_peers: ConnectionMap<NoLimits>,
@@ -161,6 +186,10 @@ impl Behaviour {
         }
     }
 
+    /// Marks recent useful activity for a connected peer.
+    ///
+    /// Only overflowing inbound peers use this signal. Their eviction timeout is
+    /// measured from the latest reported action.
     pub(crate) fn report_peer_action(&mut self, peer: &PeerId) {
         let entry = self
             .peers
@@ -224,6 +253,7 @@ impl Behaviour {
         connection_id: ConnectionId,
         direction: PeerDirection,
     ) -> Result<(), ConnectionDenied> {
+        // existing peers keep the direction of their first connection
         if let Some(entry) = self.peers.get_mut(&peer) {
             if let PeerState::JustDisconnected(_) = entry.state {
                 return Err(SlotConnectionError::ActiveBackoffPeriod.into());
@@ -348,6 +378,8 @@ impl Behaviour {
     }
 
     fn dial_peers(&mut self) {
+        // pending outbound dials count towards the minimum to avoid repeated
+        // dial scheduling for the same deficit
         let active_outbound_peers = self.outbound_peers().count();
         let pending_outbound_peers = self.pending_outbound_peers.peers().len();
         let needed_outbound_peers = (self.config.outbound_min_peers as usize)
