@@ -71,7 +71,7 @@ impl Config {
     }
 }
 
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
 enum SlotConnectionError {
     #[display("limit of {limit} {direction} peers exceeded")]
     LimitExceeded {
@@ -723,7 +723,7 @@ mod tests {
             .unwrap_err()
             .downcast::<SlotConnectionError>()
             .unwrap();
-        assert_matches!(err, SlotConnectionError::ActiveBackoffPeriod);
+        assert_eq!(err, SlotConnectionError::ActiveBackoffPeriod);
     }
 
     #[tokio::test]
@@ -742,7 +742,7 @@ mod tests {
             .unwrap_err()
             .downcast::<SlotConnectionError>()
             .unwrap();
-        assert_matches!(err, SlotConnectionError::ActiveBackoffPeriod);
+        assert_eq!(err, SlotConnectionError::ActiveBackoffPeriod);
     }
 
     #[tokio::test]
@@ -777,7 +777,7 @@ mod tests {
             .unwrap_err()
             .downcast::<SlotConnectionError>()
             .unwrap();
-        assert_matches!(err, SlotConnectionError::ActiveBackoffPeriod);
+        assert_eq!(err, SlotConnectionError::ActiveBackoffPeriod);
         assert!(!behaviour.pending_outbound_peers.contains_peer(&peer_id));
     }
 
