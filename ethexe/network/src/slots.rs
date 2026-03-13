@@ -48,6 +48,17 @@ use tokio::{
     time::{Instant, Interval},
 };
 
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_slots")]
+struct Metrics {
+    /// Number of inbound peers (including overflowing ones)
+    inbound_peers: metrics::Gauge,
+    /// Number of inbound overflowing peers
+    inbound_overflowing_peers: metrics::Gauge,
+    /// Number of outbound peers
+    outbound_peers: metrics::Gauge,
+}
+
 /// Slot configuration for [`Behaviour`].
 ///
 /// The limits are tracked per peer, not per connection. Once a peer is first
@@ -120,7 +131,7 @@ enum PeerState {
     JustDisconnected(Instant),
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, derive_more::IsVariant)]
 enum InboundPeerDirection {
     Normal,
     Overflowing { latest_action: Instant },
@@ -168,6 +179,7 @@ pub struct Behaviour {
     pending_events: VecDeque<ToSwarm<Infallible, Infallible>>,
     addresses: PeerAddresses,
     driver: Interval,
+    metrics: Metrics,
 }
 
 impl Behaviour {
@@ -179,6 +191,7 @@ impl Behaviour {
             peers: HashMap::new(),
             pending_events: VecDeque::new(),
             addresses: Default::default(),
+            metrics: Metrics::default(),
         }
     }
 
@@ -293,6 +306,18 @@ impl Behaviour {
             };
         }
 
+        match &entry.direction {
+            PeerDirection::Inbound(inbound) => {
+                self.metrics.inbound_peers.increment(1);
+                if inbound.is_overflowing() {
+                    self.metrics.inbound_overflowing_peers.increment(1);
+                }
+            }
+            PeerDirection::Outbound => {
+                self.metrics.outbound_peers.increment(1);
+            }
+        }
+
         entry.connections.insert(connection_id);
 
         Ok(())
@@ -321,11 +346,23 @@ impl Behaviour {
     fn remove_connection(&mut self, peer: PeerId, connection_id: ConnectionId) -> bool {
         match self.peers.entry(peer) {
             Entry::Occupied(mut entry) => {
-                let peer_entry = entry.get_mut();
-                peer_entry.connections.remove(&connection_id);
-                if peer_entry.connections.is_empty() {
-                    debug_assert_eq!(peer_entry.state, PeerState::Connected);
-                    peer_entry.state = PeerState::JustDisconnected(Instant::now());
+                let entry = entry.get_mut();
+                entry.connections.remove(&connection_id);
+                if entry.connections.is_empty() {
+                    debug_assert_eq!(entry.state, PeerState::Connected);
+                    entry.state = PeerState::JustDisconnected(Instant::now());
+
+                    match &entry.direction {
+                        PeerDirection::Inbound(inbound) => {
+                            self.metrics.inbound_peers.decrement(1);
+                            if inbound.is_overflowing() {
+                                self.metrics.inbound_overflowing_peers.decrement(1);
+                            }
+                        }
+                        PeerDirection::Outbound => {
+                            self.metrics.outbound_peers.decrement(1);
+                        }
+                    }
                 }
 
                 true
