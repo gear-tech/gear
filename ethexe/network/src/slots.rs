@@ -725,6 +725,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_outbound_connection_keeps_initial_inbound_direction() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        behaviour
+            .add_inbound_connection(peer_id, ConnectionId::new_unchecked(1))
+            .unwrap();
+        behaviour
+            .add_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
+            .unwrap();
+
+        let entry = behaviour.peers.get(&peer_id).unwrap();
+        assert_eq!(
+            entry.direction,
+            PeerDirection::Inbound(InboundPeerDirection::Normal)
+        );
+        assert_eq!(
+            entry.connections,
+            [
+                ConnectionId::new_unchecked(1),
+                ConnectionId::new_unchecked(2)
+            ]
+            .into_iter()
+            .collect::<HashSet<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn add_inbound_connection_keeps_initial_outbound_direction() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        behaviour
+            .add_outbound_connection(peer_id, ConnectionId::new_unchecked(1))
+            .unwrap();
+        behaviour
+            .add_inbound_connection(peer_id, ConnectionId::new_unchecked(2))
+            .unwrap();
+
+        let entry = behaviour.peers.get(&peer_id).unwrap();
+        assert_eq!(entry.direction, PeerDirection::Outbound);
+        assert_eq!(
+            entry.connections,
+            [
+                ConnectionId::new_unchecked(1),
+                ConnectionId::new_unchecked(2)
+            ]
+            .into_iter()
+            .collect::<HashSet<_>>()
+        );
+    }
+
+    #[tokio::test]
     async fn dial_peers_dials_all_needed_known_peers() {
         init_logger();
 
