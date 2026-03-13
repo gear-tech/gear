@@ -523,6 +523,20 @@ mod tests {
             .collect()
     }
 
+    fn drain_evicted_peers(behaviour: &mut Behaviour) -> Vec<PeerId> {
+        behaviour
+            .pending_events
+            .drain(..)
+            .map(|event| match event {
+                ToSwarm::CloseConnection {
+                    peer_id,
+                    connection: CloseConnection::All,
+                } => peer_id,
+                event => panic!("unexpected event: {event:?}"),
+            })
+            .collect()
+    }
+
     #[tokio::test]
     async fn inbound_peers_limit() {
         init_logger();
@@ -776,5 +790,103 @@ mod tests {
                 .map(|entry| &entry.state),
             Some(&PeerState::Connected)
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn evict_inbound_overflowing_peers_closes_only_evictable_peers() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let overflowing_without_action = PeerId::random();
+        behaviour.peers.insert(
+            overflowing_without_action,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(1)].into(),
+                direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
+                    latest_action: None,
+                }),
+                state: PeerState::Connected,
+            },
+        );
+
+        let stale_overflowing = PeerId::random();
+        behaviour.peers.insert(
+            stale_overflowing,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(2)].into(),
+                direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
+                    latest_action: Some(Instant::now()),
+                }),
+                state: PeerState::Connected,
+            },
+        );
+
+        let recent_overflowing = PeerId::random();
+        behaviour.peers.insert(
+            recent_overflowing,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(3)].into(),
+                direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
+                    latest_action: Some(Instant::now()),
+                }),
+                state: PeerState::Connected,
+            },
+        );
+
+        let normal_inbound = PeerId::random();
+        behaviour.peers.insert(
+            normal_inbound,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(4)].into(),
+                direction: PeerDirection::Inbound(InboundPeerDirection::Normal),
+                state: PeerState::Connected,
+            },
+        );
+
+        let outbound = PeerId::random();
+        behaviour.peers.insert(
+            outbound,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(5)].into(),
+                direction: PeerDirection::Outbound,
+                state: PeerState::Connected,
+            },
+        );
+
+        time::advance(behaviour.config.inbound_overflowing_peer_action_timeout).await;
+        behaviour.peer_action(&recent_overflowing);
+        time::advance(Duration::from_millis(1)).await;
+
+        behaviour.evict_inbound_overflowing_peers();
+
+        let mut evicted = drain_evicted_peers(&mut behaviour);
+        evicted.sort();
+        let mut expected = [overflowing_without_action, stale_overflowing];
+        expected.sort();
+        assert_eq!(evicted, expected);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn evict_inbound_overflowing_peers_waits_until_timeout_is_exceeded() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        behaviour.peers.insert(
+            peer_id,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(1)].into(),
+                direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
+                    latest_action: Some(Instant::now()),
+                }),
+                state: PeerState::Connected,
+            },
+        );
+
+        time::advance(behaviour.config.inbound_overflowing_peer_action_timeout).await;
+        behaviour.evict_inbound_overflowing_peers();
+        assert!(behaviour.pending_events.is_empty());
+
+        time::advance(Duration::from_millis(1)).await;
+        behaviour.evict_inbound_overflowing_peers();
+        assert_eq!(drain_evicted_peers(&mut behaviour), [peer_id]);
     }
 }
