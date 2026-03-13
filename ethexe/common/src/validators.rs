@@ -23,6 +23,7 @@ use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, Display, IntoIterator};
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::{TypeInfo, build::Fields};
 
 /// [`ValidatorsVec`] is a wrapper over non-empty vector of [`Address`].
 /// It is needed because `NonEmpty` does not implement `Encode` and `Decode`.
@@ -48,12 +49,33 @@ impl Decode for ValidatorsVec {
     }
 }
 
+impl TypeInfo for ValidatorsVec {
+    type Identity = Self;
+
+    fn type_info() -> scale_info::Type {
+        scale_info::Type::builder()
+            .path(scale_info::Path::new("ValidatorsVec", module_path!()))
+            .composite(Fields::unnamed().field(|f| f.ty::<Vec<Address>>()))
+    }
+}
+
 #[derive(Debug, Display)]
 #[display("ValidatorsVec cannot be created from an empty collection")]
 pub struct EmptyValidatorsError;
 
 #[cfg(feature = "std")]
 impl std::error::Error for EmptyValidatorsError {}
+
+#[cfg(feature = "mock")]
+impl FromIterator<Address> for ValidatorsVec {
+    #[track_caller]
+    fn from_iter<T: IntoIterator<Item = Address>>(iter: T) -> Self {
+        let vec: Vec<Address> = iter.into_iter().collect();
+        NonEmpty::from_vec(vec)
+            .map(ValidatorsVec)
+            .expect("ValidatorsVec cannot be created from an empty collection")
+    }
+}
 
 impl TryFrom<Vec<Address>> for ValidatorsVec {
     type Error = EmptyValidatorsError;

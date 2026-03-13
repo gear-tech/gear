@@ -27,10 +27,10 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, ComputedAnnounce, ProtocolTimelines, SimpleBlockData,
+    Address, Announce, HashOf, PromisePolicy, ProtocolTimelines, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
-    injected::SignedInjectedTransaction,
+    db::{ConfigStorageRO, OnChainStorageRO},
+    injected::{Promise, SignedInjectedTransaction},
     network::{AnnouncesRequest, AnnouncesResponse},
 };
 use ethexe_db::Database;
@@ -118,14 +118,13 @@ impl ConnectService {
     /// - `slot_duration`: Duration of each slot in the consensus protocol.
     /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
     pub fn new(db: Database, slot_duration: Duration, commitment_delay_limit: u32) -> Self {
+        let timelines = db.config().timelines;
+
         Self {
-            timelines: db
-                .protocol_timelines()
-                .expect("protocol timelines not found in database")
-                .clone(),
             db,
             slot_duration,
             commitment_delay_limit,
+            timelines,
             state: State::WaitingForBlock,
             pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
             output: VecDeque::new(),
@@ -176,8 +175,10 @@ impl ConnectService {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.output
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
-                self.output
-                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
+                self.output.push_back(ConsensusEvent::ComputeAnnounce(
+                    announce,
+                    PromisePolicy::Disabled,
+                ));
             }
         }
 
@@ -273,7 +274,7 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_computed_announce(&mut self, _computed_data: ComputedAnnounce) -> Result<()> {
+    fn receive_computed_announce(&mut self, _announce_hash: HashOf<Announce>) -> Result<()> {
         Ok(())
     }
 
@@ -302,6 +303,22 @@ impl ConsensusService for ConnectService {
                 .push((sender, announce.block_hash), announce);
         }
 
+        Ok(())
+    }
+
+    fn receive_promise_for_signing(
+        &mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<()> {
+        tracing::error!(
+            "Connected consensus node receives the promise for signing, but it not responsible for promises providing: \
+            promise={promise:?}, announce_hash={announce_hash}"
+        );
+        debug_assert!(
+            false,
+            "Connect node received the promise for signing, this should never happen"
+        );
         Ok(())
     }
 

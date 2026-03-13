@@ -30,7 +30,8 @@ use async_trait::async_trait;
 use ethexe_common::{
     Announce,
     db::{
-        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, LatestDataStorageRO,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO,
+        HashStorageRO,
     },
     gear::CodeState,
     network::{AnnouncesRequest, AnnouncesResponse},
@@ -60,6 +61,15 @@ use tokio::sync::{mpsc, oneshot};
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/db-sync/", env!("CARGO_PKG_VERSION")));
+
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_db_sync")]
+struct Metrics {
+    /// Number of either active or pending requests
+    ongoing_requests: metrics::Gauge,
+    /// Number of incoming dropped requests
+    incoming_dropped_requests: metrics::Counter,
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum NewRequestRoundReason {
@@ -94,7 +104,7 @@ pub enum Event {
     },
     /// Request is in pending state because of lack of available peers
     PendingStateRequest {
-        //// The ID of request
+        /// The ID of request
         request_id: RequestId,
     },
     /// Request completion done
@@ -360,7 +370,13 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest,
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait DbSyncDatabase:
-    Send + HashStorageRO + LatestDataStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO
+    Send
+    + HashStorageRO
+    + BlockMetaStorageRO
+    + AnnounceStorageRO
+    + CodesStorageRO
+    + ConfigStorageRO
+    + GlobalsStorageRO
 {
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
 }
@@ -378,6 +394,7 @@ pub(crate) struct Behaviour {
     peer_score_handle: peer_score::Handle,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
+    metrics: Metrics,
 }
 
 impl Behaviour {
@@ -404,6 +421,7 @@ impl Behaviour {
                 external_data_provider,
             ),
             ongoing_responses: OngoingResponses::new(db, &config),
+            metrics: Metrics::default(),
         }
     }
 
@@ -436,6 +454,7 @@ impl Behaviour {
                         peer_id: peer,
                     }
                 } else {
+                    self.metrics.incoming_dropped_requests.increment(1);
                     Event::IncomingRequestDropped { peer_id: peer }
                 };
 
@@ -579,7 +598,10 @@ impl NetworkBehaviour for Behaviour {
             }
         }
 
-        if let Poll::Ready(request_event) = self.ongoing_requests.poll(cx, &mut self.inner) {
+        if let Poll::Ready(request_event) =
+            self.ongoing_requests
+                .poll(cx, &mut self.inner, &self.metrics)
+        {
             return Poll::Ready(ToSwarm::GenerateEvent(request_event));
         }
 
@@ -611,7 +633,7 @@ pub(crate) mod tests {
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
     use ethexe_common::{Announce, HashOf, StateHashWithQueueSize, db::*};
-    use ethexe_db::{Database, MemDb};
+    use ethexe_db::Database;
     use libp2p::{
         Swarm, Transport,
         core::{transport::MemoryTransport, upgrade::Version},
@@ -645,7 +667,7 @@ pub(crate) mod tests {
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database, DataProvider) {
         let data_provider = DataProvider::default();
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let behaviour = Behaviour::new(
             config,
             peer_score::Handle::new_test(),
@@ -670,8 +692,8 @@ pub(crate) mod tests {
         let (mut bob, bob_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
-        let hello_hash = bob_db.write_hash(b"hello");
-        let world_hash = bob_db.write_hash(b"world");
+        let hello_hash = bob_db.cas().write(b"hello");
+        let world_hash = bob_db.cas().write(b"world");
 
         alice.connect(&mut bob).await;
         tokio::spawn(async move {
@@ -1000,9 +1022,9 @@ pub(crate) mod tests {
         tokio::spawn(charlie.loop_on_next());
         tokio::spawn(dave.loop_on_next());
 
-        let hello_hash = bob_db.write_hash(b"hello");
-        let world_hash = charlie_db.write_hash(b"world");
-        let mark_hash = dave_db.write_hash(b"!");
+        let hello_hash = bob_db.cas().write(b"hello");
+        let world_hash = charlie_db.cas().write(b"world");
+        let mark_hash = dave_db.cas().write(b"!");
 
         let request = alice_handle.request(Request::hashes([hello_hash, world_hash, mark_hash]));
         let request_id = request.request_id();
@@ -1058,8 +1080,8 @@ pub(crate) mod tests {
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
 
-        let hello_hash = bob_db.write_hash(b"hello");
-        let world_hash = charlie_db.write_hash(b"world");
+        let hello_hash = bob_db.cas().write(b"hello");
+        let world_hash = charlie_db.cas().write(b"world");
 
         let request = alice_handle.request(Request::hashes([hello_hash, world_hash]));
         let request_id = request.request_id();
@@ -1243,7 +1265,7 @@ pub(crate) mod tests {
         alice.connect(&mut charlie).await;
         tokio::spawn(charlie.loop_on_next());
 
-        let key = charlie_db.write_hash(b"test");
+        let key = charlie_db.cas().write(b"test");
         assert_eq!(request_key, key);
         let request = alice_handle.retry(retriable_request);
         let request_id = request.request_id();

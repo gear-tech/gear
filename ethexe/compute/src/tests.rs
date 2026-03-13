@@ -18,7 +18,7 @@
 
 use super::*;
 use ethexe_common::{
-    CodeBlobInfo,
+    CodeBlobInfo, PromisePolicy,
     db::*,
     events::{
         BlockEvent, RouterEvent,
@@ -27,13 +27,13 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_db::Database;
-use ethexe_processor::Processor;
 use futures::StreamExt;
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
 use std::{cell::RefCell, collections::BTreeMap};
+use tokio::sync::mpsc;
 
 thread_local! {
     pub(crate) static PROCESSOR_RESULT: RefCell<FinalizedBlockTransitions> = const { RefCell::new(
@@ -41,7 +41,6 @@ thread_local! {
             transitions: Vec::new(),
             states: BTreeMap::new(),
             schedule: BTreeMap::new(),
-            promises: Vec::new(),
             program_creations: Vec::new(),
         }
     ) };
@@ -55,6 +54,7 @@ impl ProcessorExt for MockProcessor {
     async fn process_announce(
         &mut self,
         _executable: ExecutableData,
+        _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
         let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
         PROCESSOR_RESULT.with_borrow_mut(|r| {
@@ -62,7 +62,6 @@ impl ProcessorExt for MockProcessor {
                 transitions: vec![],
                 states: BTreeMap::new(),
                 schedule: BTreeMap::new(),
-                promises: vec![],
                 program_creations: vec![],
             }
         });
@@ -169,8 +168,7 @@ impl TestEnv {
         mark_as_not_prepared(&mut chain);
         chain = chain.setup(&db);
 
-        let config = ComputeConfig::without_quarantine();
-        let compute = ComputeService::new(config, db.clone(), Processor::new(db.clone()).unwrap());
+        let compute = ComputeService::new_with_defaults(db.clone());
 
         TestEnv { db, compute, chain }
     }
@@ -221,7 +219,8 @@ impl TestEnv {
 
     async fn compute_and_assert_announce(&mut self, announce: Announce) {
         let announce_hash = announce.to_hash();
-        self.compute.compute_announce(announce.clone());
+        self.compute
+            .compute_announce(announce.clone(), PromisePolicy::Disabled);
 
         let event = self
             .compute
@@ -230,8 +229,8 @@ impl TestEnv {
             .unwrap()
             .expect("expect block will be processing");
 
-        let computed_data = event.unwrap_announce_computed();
-        assert_eq!(computed_data.announce_hash, announce_hash);
+        let computed_announce = event.unwrap_announce_computed();
+        assert_eq!(computed_announce, announce_hash);
 
         self.db.mutate_block_meta(announce.block_hash, |meta| {
             meta.announces.get_or_insert_default().insert(announce_hash);

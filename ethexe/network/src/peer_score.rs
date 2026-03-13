@@ -36,6 +36,13 @@ use tokio::{
     time::{Instant, Interval},
 };
 
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_peer_score")]
+struct Metrics {
+    /// Number of blocked peers
+    blocked_peers: metrics::Gauge,
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum ScoreDecreaseReason {
     UnsupportedProtocol,
@@ -180,6 +187,7 @@ pub(crate) struct Behaviour {
     rx: mpsc::UnboundedReceiver<(PeerId, ScoreDecreaseReason)>,
     peers: HashMap<PeerId, ScoreEntry>,
     driver: Interval,
+    metrics: Metrics,
 }
 
 impl Behaviour {
@@ -194,6 +202,7 @@ impl Behaviour {
             handle,
             rx,
             peers: HashMap::new(),
+            metrics: Metrics::default(),
         }
     }
 
@@ -226,7 +235,11 @@ impl Behaviour {
             }
 
             true
-        })
+        });
+
+        self.metrics
+            .blocked_peers
+            .set(self.block_list.blocked_peers().len() as f64);
     }
 
     fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) -> Option<Event> {

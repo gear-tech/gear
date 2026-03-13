@@ -232,7 +232,8 @@ impl ValidatorCore {
             // TODO #4908: max validators must be configurable
             max_validators: 10,
         };
-        let mut elected_validators = match self.middleware.make_election_at(request).await {
+
+        let elected_validators = match self.middleware.make_election_at(request).await {
             Ok(validators) => validators,
             Err(e) => {
                 tracing::warn!(
@@ -244,9 +245,6 @@ impl ValidatorCore {
                 return Ok(None);
             }
         };
-
-        // Sort elected validators, because of RPC can not guarantee the determinism of returned validators order.
-        elected_validators.sort();
 
         let (aggregated_public_key, verifiable_secret_sharing_commitment) =
             match utils::generate_roast_keys(&elected_validators) {
@@ -819,24 +817,24 @@ mod tests {
         let (mut ctx, _, eth) = mock_validator_context();
         let chain = BlockChain::mock(20)
             .tap_mut(|chain| {
-                chain.protocol_timelines.era = 10 * chain.slot_duration as u64;
-                chain.protocol_timelines.election = 5 * chain.slot_duration as u64;
+                chain.config.timelines.era = 10 * chain.config.timelines.slot;
+                chain.config.timelines.election = 5 * chain.config.timelines.slot;
             })
             .setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
 
-        let validators1: ValidatorsVec = vec![Address([1; 20]), Address([2; 20]), Address([3; 20])]
-            .try_into()
-            .unwrap();
-        let validators2: ValidatorsVec = vec![Address([4; 20]), Address([5; 20]), Address([6; 20])]
-            .try_into()
-            .unwrap();
+        let validators1: ValidatorsVec = [Address([1; 20]), Address([2; 20]), Address([3; 20])]
+            .into_iter()
+            .collect();
+        let validators2: ValidatorsVec = [Address([4; 20]), Address([5; 20]), Address([6; 20])]
+            .into_iter()
+            .collect();
         eth.predefined_election_at.write().await.insert(
-            chain.protocol_timelines.era_election_start_ts(0),
+            chain.config.timelines.era_election_start_ts(0),
             validators1.clone(),
         );
         eth.predefined_election_at.write().await.insert(
-            chain.protocol_timelines.era_election_start_ts(1),
+            chain.config.timelines.era_election_start_ts(1),
             validators2.clone(),
         );
 

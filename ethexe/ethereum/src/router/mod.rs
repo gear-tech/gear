@@ -345,11 +345,11 @@ pub struct RouterQuery {
 }
 
 impl RouterQuery {
-    pub async fn new(rpc_url: &str, router_address: Address) -> Result<Self> {
+    pub async fn new(rpc_url: &str, router_address: impl Into<AlloyAddress>) -> Result<Self> {
         let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self {
-            instance: QueryInstance::new(AlloyAddress::new(router_address.0), provider),
+            instance: QueryInstance::new(router_address.into(), provider),
         })
     }
 
