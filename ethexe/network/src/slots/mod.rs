@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::utils::{ConnectionMap, NoLimits};
 use assert_matches::debug_assert_matches;
 use libp2p::{
     Multiaddr, PeerId,
@@ -30,7 +31,6 @@ use rand::seq::SliceRandom;
 use std::{
     collections::{HashMap, HashSet, VecDeque, hash_map::Entry},
     convert::Infallible,
-    num::NonZeroUsize,
     task::{Context, Poll},
     time::Duration,
 };
@@ -135,17 +135,17 @@ struct PeerEntry {
     connections: HashSet<ConnectionId>,
     direction: PeerDirection,
     state: PeerState,
+    // TODO: move into PeerState::JustConnected
     connected_at: Instant,
 }
 
 pub struct Behaviour {
     config: Config,
+    pending_outbound_peers: ConnectionMap<NoLimits>,
     peers: HashMap<PeerId, PeerEntry>,
     pending_events: VecDeque<ToSwarm<Infallible, Infallible>>,
     addresses: PeerAddresses,
     driver: Interval,
-    /// How many peers we are dialing currently
-    pending_outbound_peers: HashSet<PeerId>,
 }
 
 impl Behaviour {
@@ -153,10 +153,10 @@ impl Behaviour {
         Self {
             driver: time::interval(config.driver_interval),
             config,
+            pending_outbound_peers: ConnectionMap::without_limits(),
             peers: HashMap::new(),
             pending_events: VecDeque::new(),
             addresses: Default::default(),
-            pending_outbound_peers: Default::default(),
         }
     }
 
@@ -183,6 +183,34 @@ impl Behaviour {
             .iter()
             .filter(|(_peer, entry)| entry.direction == PeerDirection::Outbound)
             .map(|(peer, _)| peer)
+    }
+
+    fn add_pending_outbound_connection(
+        &mut self,
+        peer: PeerId,
+        connection: ConnectionId,
+    ) -> Result<(), ConnectionDenied> {
+        // no need to track known peer
+        if self.peers.contains_key(&peer) {
+            return Ok(());
+        }
+
+        if self.outbound_peers().count() >= self.config.outbound_max_peers as usize {
+            return Err(SlotConnectionError::LimitExceeded {
+                limit: self.config.outbound_max_peers,
+                direction: PeerDirection::Outbound,
+            }
+            .into());
+        }
+
+        let Ok(_added) = self.pending_outbound_peers.add_connection(peer, connection);
+
+        Ok(())
+    }
+
+    fn remove_pending_outbound_connection(&mut self, peer: PeerId, connection: ConnectionId) {
+        self.pending_outbound_peers
+            .remove_connection(peer, connection);
     }
 
     fn add_connection(
@@ -283,7 +311,7 @@ impl Behaviour {
         }
     }
 
-    fn update_periods(&mut self) {
+    fn update_on_periods(&mut self) {
         self.peers.retain(|_peer, entry| match entry.state {
             PeerState::JustConnected => {
                 if entry.connected_at.elapsed() > self.config.grace_period {
@@ -297,7 +325,6 @@ impl Behaviour {
         });
     }
 
-    // TODO: close only inbound connections
     fn evict_inbound_overflowing_peers(&mut self) {
         let peers = self
             .inbound_peers()
@@ -318,18 +345,19 @@ impl Behaviour {
     }
 
     fn dial_peers(&mut self) {
-        let outbounds_peers = self.outbound_peers().count();
-        let Some(needed_outbound_peers) = (self.config.outbound_min_peers as usize)
-            .checked_sub(outbounds_peers)
-            .and_then(|peers| peers.checked_sub(self.pending_outbound_peers.len()))
-            .and_then(NonZeroUsize::new)
-        else {
+        let active_outbound_peers = self.outbound_peers().count();
+        let pending_outbound_peers = self.pending_outbound_peers.peers().len();
+        let needed_outbound_peers = (self.config.outbound_min_peers as usize)
+            .saturating_sub(active_outbound_peers)
+            .saturating_sub(pending_outbound_peers);
+        if needed_outbound_peers > 0 {
             return;
-        };
+        }
 
+        // TODO: we collect active, but must collect observed ones
         let mut peers: Vec<PeerId> = self.peers.keys().copied().collect();
         peers.shuffle(&mut rand::thread_rng());
-        let peers = peers.into_iter().take(needed_outbound_peers.get());
+        let peers = peers.into_iter().take(needed_outbound_peers);
 
         for peer in peers {
             let addresses: Vec<Multiaddr> = self.addresses.get(&peer).collect();
@@ -342,7 +370,7 @@ impl Behaviour {
     }
 
     fn on_driver_tick(&mut self) {
-        self.update_periods();
+        self.update_on_periods();
         self.evict_inbound_overflowing_peers();
         self.dial_peers();
     }
@@ -366,20 +394,17 @@ impl NetworkBehaviour for Behaviour {
 
     fn handle_pending_outbound_connection(
         &mut self,
-        _connection_id: ConnectionId,
+        connection_id: ConnectionId,
         maybe_peer: Option<PeerId>,
         _addresses: &[Multiaddr],
         _effective_role: Endpoint,
     ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
-        self.pending_outbound_peers.extend(maybe_peer);
+        // we cannot track unknown peer, so actual limiting is enforced when peer identity is known
+        let Some(peer) = maybe_peer else {
+            return Ok(vec![]);
+        };
 
-        if self.outbound_peers().count() >= self.config.outbound_max_peers as usize {
-            return Err(SlotConnectionError::LimitExceeded {
-                limit: self.config.outbound_max_peers,
-                direction: PeerDirection::Outbound,
-            }
-            .into());
-        }
+        self.add_pending_outbound_connection(peer, connection_id)?;
 
         Ok(vec![])
     }
@@ -392,7 +417,7 @@ impl NetworkBehaviour for Behaviour {
         _role_override: Endpoint,
         _port_use: PortUse,
     ) -> Result<THandler<Self>, ConnectionDenied> {
-        self.pending_outbound_peers.remove(&peer);
+        self.remove_pending_outbound_connection(peer, connection_id);
         self.add_outbound_connection(peer, connection_id)?;
 
         Ok(dummy::ConnectionHandler)
@@ -414,9 +439,9 @@ impl NetworkBehaviour for Behaviour {
             FromSwarm::DialFailure(DialFailure {
                 peer_id: Some(peer_id),
                 error: _,
-                connection_id: _,
+                connection_id,
             }) => {
-                self.pending_outbound_peers.remove(&peer_id);
+                self.remove_pending_outbound_connection(peer_id, connection_id);
             }
             _ => {}
         }
