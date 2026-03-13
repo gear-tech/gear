@@ -186,34 +186,6 @@ impl ConnectionMapLimit for ConnectionLimit {
     }
 }
 
-pub(crate) struct PeerLimitError {
-    pub limit: u32,
-}
-
-pub(crate) struct PeerLimit {
-    limit: u32,
-}
-
-impl ConnectionMapLimit for PeerLimit {
-    type Error = PeerLimitError;
-
-    fn check_limit(
-        &self,
-        connections: &HashMap<PeerId, HashSet<ConnectionId>>,
-        peer_id: PeerId,
-    ) -> Result<(), Self::Error> {
-        if connections.contains_key(&peer_id) {
-            return Ok(());
-        }
-
-        if (connections.len() as u32) < self.limit {
-            Ok(())
-        } else {
-            Err(PeerLimitError { limit: self.limit })
-        }
-    }
-}
-
 pub(crate) struct NoLimits;
 
 impl ConnectionMapLimit for NoLimits {
@@ -270,15 +242,6 @@ impl ConnectionMap<ConnectionLimit> {
         Self {
             inner: Default::default(),
             limit: ConnectionLimit { limit },
-        }
-    }
-}
-
-impl ConnectionMap<PeerLimit> {
-    pub(crate) fn with_peer_limit(limit: u32) -> Self {
-        Self {
-            inner: Default::default(),
-            limit: PeerLimit { limit },
         }
     }
 }
@@ -405,11 +368,12 @@ impl ExponentialBackoffInterval {
     }
 }
 
+/// Literally [`libp2p::swarm::PeerAddresses`], but we can iterate over peers
 #[derive(Debug)]
 pub struct PeerAddresses(LruCache<PeerId, LruCache<Multiaddr, ()>>);
 
 impl PeerAddresses {
-    pub fn new(number_of_peers: NonZeroUsize) -> Self {
+    fn new(number_of_peers: NonZeroUsize) -> Self {
         Self(LruCache::new(number_of_peers))
     }
 
@@ -453,14 +417,6 @@ impl PeerAddresses {
         }
     }
 
-    pub fn get(&mut self, peer: &PeerId) -> impl Iterator<Item = Multiaddr> + '_ {
-        self.0
-            .get(peer)
-            .into_iter()
-            .flat_map(|c| c.iter().map(|(m, ())| m))
-            .cloned()
-    }
-
     pub fn remove(&mut self, peer: &PeerId, address: &Multiaddr) -> bool {
         match self.0.get_mut(peer) {
             Some(addrs) => match Self::prepare_addr(peer, address) {
@@ -480,7 +436,7 @@ impl PeerAddresses {
 
 impl Default for PeerAddresses {
     fn default() -> Self {
-        Self(LruCache::new(NonZeroUsize::new(100).unwrap()))
+        Self::new(NonZeroUsize::new(100).unwrap())
     }
 }
 
