@@ -46,3 +46,4 @@ libp2p-swarm-test = { version = "0.6.0", default-features = false, features = ["
 tokio = { workspace = true, features = ["full", "test-util"] }
 tracing-subscriber.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
+ethexe-db = { workspace = true, features = ["mock"] }

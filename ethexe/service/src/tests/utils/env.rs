@@ -19,8 +19,8 @@
 use crate::{
     RouterDataProvider, Service,
     tests::utils::{
-        InfiniteStreamExt, TestingEvent, TestingNetworkEvent, events,
-        events::{ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
+        InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
+        events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
 use alloy::{
@@ -45,6 +45,7 @@ use ethexe_common::{
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::Database;
+use ethexe_db_init::InitConfig;
 use ethexe_ethereum::{
     Ethereum,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
@@ -53,7 +54,7 @@ use ethexe_ethereum::{
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
-    EthereumConfig, ObserverService,
+    EthereumConfig, ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
@@ -79,7 +80,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
-use tokio::{task, task::JoinHandle};
+use tokio::task::{self, JoinHandle};
 use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.
@@ -231,7 +232,11 @@ impl TestEnv {
         let router_query = router.query();
         let router_address = router.address();
 
-        let db = Database::memory();
+        let db = new_empty_initialized_memory_db(InitConfig {
+            ethereum_rpc: ws_rpc_url.clone(),
+            router_address,
+            slot_duration_secs: block_time.as_secs(),
+        })?;
 
         let eth_cfg = EthereumConfig {
             rpc: ws_rpc_url.clone(),
@@ -239,9 +244,15 @@ impl TestEnv {
             router_address,
             block_time: config.block_time,
         };
-        let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
-            .await
-            .unwrap();
+        let mut observer = ObserverService::new(
+            db.clone(),
+            ObserverConfig {
+                rpc: &ws_rpc_url,
+                max_sync_depth: None,
+            },
+        )
+        .await
+        .unwrap();
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)
@@ -302,7 +313,7 @@ impl TestEnv {
                 general_signer: signer.clone(),
                 network_signer: signer.clone(),
                 external_data_provider: Box::new(RouterDataProvider(router_query.clone())),
-                db: Box::new(db.clone()),
+                db: db.clone(),
             };
 
             let mut service = NetworkService::new(config, runtime_config).unwrap();
@@ -354,7 +365,10 @@ impl TestEnv {
             fast_sync,
         } = config;
 
-        let db = db.unwrap_or_else(Database::memory);
+        let db = match db {
+            Some(db) => db,
+            None => self.new_initialized_db(),
+        };
 
         let (network_address, network_bootstrap_address) = self
             .bootstrap_network
@@ -392,6 +406,15 @@ impl TestEnv {
             commitment_delay_limit: self.commitment_delay_limit,
             running_service_handle: None,
         }
+    }
+
+    pub fn new_initialized_db(&self) -> Database {
+        new_empty_initialized_memory_db(InitConfig {
+            ethereum_rpc: self.eth_cfg.rpc.clone(),
+            router_address: self.eth_cfg.router_address,
+            slot_duration_secs: self.eth_cfg.block_time.as_secs(),
+        })
+        .unwrap()
     }
 
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
@@ -889,9 +912,15 @@ impl Node {
         let processor = Processor::new(self.db.clone()).unwrap();
         let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
-        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
-            .await
-            .unwrap();
+        let observer = ObserverService::new(
+            self.db.clone(),
+            ObserverConfig {
+                rpc: &self.eth_cfg.rpc,
+                max_sync_depth: None,
+            },
+        )
+        .await
+        .unwrap();
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)
@@ -1096,7 +1125,7 @@ impl Node {
             general_signer: self.signer.clone(),
             network_signer: self.signer.clone(),
             external_data_provider: Box::new(RouterDataProvider(self.router_query.clone())),
-            db: Box::new(self.db.clone()),
+            db: self.db.clone(),
         };
 
         let network = NetworkService::new(config, runtime_config).unwrap();
@@ -1116,14 +1145,9 @@ impl Node {
             self.name
         );
 
-        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
-            .await
-            .unwrap();
-        let latest_block = observer
-            .block_loader()
-            .load_simple(BlockId::Latest)
-            .await
-            .unwrap();
+        let provider = RootProvider::connect(&self.eth_cfg.rpc).await.unwrap();
+        let block_loader = EthereumBlockLoader::new(provider, self.eth_cfg.router_address);
+        let latest_block = block_loader.load_simple(BlockId::Latest).await.unwrap();
         let latest_validators = self
             .router_query
             .validators_at(latest_block.hash)
@@ -1302,4 +1326,11 @@ impl WaitForReplyTo {
 
         Ok(info)
     }
+}
+
+pub fn new_empty_initialized_memory_db(config: InitConfig) -> anyhow::Result<Database> {
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::block_in_place(|| {
+        handle.block_on(ethexe_db_init::create_initialized_empty_memory_db(config))
+    })
 }

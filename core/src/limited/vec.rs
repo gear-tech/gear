@@ -25,7 +25,7 @@ use alloc::{vec, vec::Vec};
 use crate::limited::private::LimitedVisitor;
 use derive_more::{AsMut, AsRef, Debug, Deref, DerefMut, Display, Error, Into, IntoIterator};
 use gprimitives::utils::ByteSliceFormatter;
-use parity_scale_codec::{Compact, decode_vec_with_len};
+use parity_scale_codec::{Compact, MaxEncodedLen, decode_vec_with_len};
 use scale_decode::{
     IntoVisitor, TypeResolver, Visitor,
     error::ErrorKind,
@@ -77,6 +77,20 @@ impl<T: Decode, const N: usize> Decode for LimitedVec<T, N> {
         Self::validate_len(len).map_err(|e| e.as_str())?;
 
         decode_vec_with_len(input, len).map(Self)
+    }
+}
+
+impl<T: MaxEncodedLen, const N: usize> MaxEncodedLen for LimitedVec<T, N> {
+    fn max_encoded_len() -> usize {
+        assert!(
+            N <= u32::MAX as usize,
+            "`LimitedVec<{}>` size limit is too large to be encoded",
+            N
+        );
+
+        Compact(N as u32)
+            .encoded_size()
+            .saturating_add(N * T::max_encoded_len())
     }
 }
 
