@@ -47,9 +47,7 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
     let globals_key = [H256::from_low_u64_be(14).0.as_slice(), &[0u8; 8]].concat();
     let config_key = [H256::from_low_u64_be(15).0.as_slice(), &[0u8; 8]].concat();
 
-    let latest_data = db
-        .kv
-        .get(latest_data_key.as_bytes())
+    let latest_data = unsafe { db.kv.take(latest_data_key.as_bytes()) }
         .ok_or_else(|| anyhow!("latest data not found for db at version {}", v0::VERSION))
         .map(|bytes| v0::LatestData::decode(&mut bytes.as_slice()))?
         .context("failed to decode LatestData during migration")?;
@@ -64,9 +62,7 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
 
     db.kv.put(&globals_key, globals.encode());
 
-    let timelines = db
-        .kv
-        .get(timelines_key.as_bytes())
+    let timelines = unsafe { db.kv.take(timelines_key.as_bytes()) }
         .ok_or_else(|| anyhow!("timelines not found for db at version 0"))
         .map(|bytes| v0::ProtocolTimelines::decode(&mut bytes.as_slice()))?
         .context("failed to decode ProtocolTimelines during migration")?;
