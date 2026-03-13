@@ -23,11 +23,8 @@
 //! to a configured minimum, while inbound peers are accepted up to the normal
 //! limit plus a small "overflowing" reserve. Overflowing inbound peers are
 //! temporary: if they do not show recent useful activity, they are evicted.
-//! Newly connected peers also spend a short grace period in a transitional
-//! state before they become fully connected for slot-management purposes.
 
 use crate::utils::{ConnectionMap, NoLimits, PeerAddresses};
-use assert_matches::debug_assert_matches;
 use libp2p::{
     Multiaddr, PeerId,
     core::{Endpoint, transport::PortUse},
@@ -53,16 +50,14 @@ use tokio::{
 ///
 /// The limits are tracked per peer, not per connection. Once a peer is first
 /// observed as inbound or outbound, later connections keep that direction.
-/// The grace period controls how long a newly connected peer stays in the
-/// `JustConnected` state, while the backoff period controls how long a fully
-/// disconnected peer stays in `JustDisconnected`.
+/// The backoff period controls how long a fully disconnected peer stays in
+/// `JustDisconnected`.
 pub struct Config {
     inbound_max_peers: u32,
     inbound_overflowing_peers: u32,
     inbound_overflowing_peer_action_timeout: Duration,
     outbound_min_peers: u32,
     outbound_max_peers: u32,
-    grace_period: Duration,
     backoff_period: Duration,
     driver_interval: Duration,
 }
@@ -75,7 +70,6 @@ impl Default for Config {
             inbound_overflowing_peer_action_timeout: Duration::from_secs(20),
             outbound_min_peers: 25,
             outbound_max_peers: 50,
-            grace_period: Duration::from_secs(5),
             backoff_period: Duration::from_secs(5),
             driver_interval: Duration::from_secs(1),
         }
@@ -119,7 +113,6 @@ impl From<SlotConnectionError> for ConnectionDenied {
 
 #[derive(Debug, Eq, PartialEq)]
 enum PeerState {
-    JustConnected(Instant),
     Connected,
     JustDisconnected(Instant),
 }
@@ -161,7 +154,6 @@ struct PeerEntry {
 ///
 /// Responsibilities:
 /// - enforce inbound and outbound peer limits
-/// - keep newly connected peers in a short grace period
 /// - keep a short backoff window after disconnects
 /// - evict idle overflowing inbound peers
 /// - schedule outbound dials until the minimum outbound peer count is reached
@@ -286,10 +278,9 @@ impl Behaviour {
         let entry = self.peers.entry(peer).or_insert_with(|| PeerEntry {
             connections: Default::default(),
             direction,
-            state: PeerState::JustConnected(Instant::now()),
+            state: PeerState::Connected,
         });
 
-        // TODO: we might want to check peer existed before
         if let PeerDirection::Inbound(direction) = &mut entry.direction
             && is_overflowing_inbound_connection
         {
@@ -329,12 +320,7 @@ impl Behaviour {
                 let peer_entry = entry.get_mut();
                 peer_entry.connections.remove(&connection_id);
                 if peer_entry.connections.is_empty() {
-                    // peer can be in Connected state if the grace period is ended
-                    // peer can be in JustConnected state if the peer is blocked beforehand via peer scoring
-                    debug_assert_matches!(
-                        peer_entry.state,
-                        PeerState::JustConnected(_) | PeerState::Connected
-                    );
+                    debug_assert_eq!(peer_entry.state, PeerState::Connected);
                     peer_entry.state = PeerState::JustDisconnected(Instant::now());
                 }
 
@@ -346,13 +332,6 @@ impl Behaviour {
 
     fn update_on_periods(&mut self) {
         self.peers.retain(|_peer, entry| match entry.state {
-            PeerState::JustConnected(at) => {
-                if at.elapsed() > self.config.grace_period {
-                    entry.state = PeerState::Connected;
-                }
-
-                true
-            }
             PeerState::Connected => true,
             PeerState::JustDisconnected(at) => at.elapsed() <= self.config.backoff_period,
         });
@@ -1039,44 +1018,6 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn update_on_periods_promotes_just_connected_only_after_grace_period() {
-        let mut behaviour = Behaviour::new(Config::default());
-
-        let peer_id = PeerId::random();
-        behaviour.peers.insert(
-            peer_id,
-            PeerEntry {
-                connections: [ConnectionId::new_unchecked(1)].into(),
-                direction: PeerDirection::Outbound,
-                state: PeerState::JustConnected(Instant::now()),
-            },
-        );
-
-        // the grace period is not done yet
-        behaviour.update_on_periods();
-        assert_matches!(
-            behaviour.peers.get(&peer_id).map(|entry| &entry.state),
-            Some(PeerState::JustConnected(_))
-        );
-
-        // the grace period is exactly ended
-        time::advance(behaviour.config.grace_period).await;
-        behaviour.update_on_periods();
-        assert_matches!(
-            behaviour.peers.get(&peer_id).map(|entry| &entry.state),
-            Some(PeerState::JustConnected(_))
-        );
-
-        // after the grace period peer must be promoted to `Connected state
-        time::advance(Duration::from_millis(1)).await;
-        behaviour.update_on_periods();
-        assert_eq!(
-            behaviour.peers.get(&peer_id).map(|entry| &entry.state),
-            Some(&PeerState::Connected)
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
     async fn update_on_periods_removes_just_disconnected_only_after_backoff_period() {
         let config = Config {
             backoff_period: Duration::from_secs(5),
@@ -1120,7 +1061,7 @@ mod tests {
         behaviour.update_on_periods();
         assert!(behaviour.peers.contains_key(&disconnected_peer_id));
 
-        // after the backoff period peer must be promoted to `JustConnected state
+        // after the backoff period peer must be removed
         time::advance(Duration::from_millis(1)).await;
         behaviour.update_on_periods();
         assert!(!behaviour.peers.contains_key(&disconnected_peer_id));
