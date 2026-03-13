@@ -41,6 +41,7 @@ use parity_scale_codec::{Decode, Encode, Input};
 use std::{
     collections::{HashMap, VecDeque},
     iter,
+    num::NonZeroUsize,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, ready},
@@ -226,7 +227,18 @@ pub struct GetRecordOk {
 #[derive(Debug, PartialEq, Eq, derive_more::Display, Clone)]
 pub enum GetRecordError {
     #[display("Record not found: key={key:?}")]
-    NotFound { key: RecordKey },
+    NotFound {
+        key: RecordKey,
+        closest_peers: Vec<PeerId>,
+    },
+    #[display("the quorum failed; needed {quorum} peers; key={key:?}")]
+    QuorumFailed {
+        key: RecordKey,
+        records: Vec<PeerRecord>,
+        quorum: NonZeroUsize,
+    },
+    #[display("the request timed out: key={key:?}")]
+    Timeout { key: RecordKey },
 }
 
 pub struct GetRecordStream {
@@ -486,23 +498,44 @@ impl Behaviour {
 
                             return Poll::Ready(Event::GetRecordFinished { query_id: id });
                         }
-                        Err(kad::GetRecordError::NotFound {
-                            key,
-                            closest_peers: _,
-                        }) => {
-                            let key = RecordKey::new(&key)
-                                .expect("invalid record key that we got from local storage")
-                                .expect("unknown record key that we got from local storage");
+                        Err(err) => {
+                            let key = match &err {
+                                kad::GetRecordError::NotFound {
+                                    key,
+                                    closest_peers: _,
+                                }
+                                | kad::GetRecordError::QuorumFailed {
+                                    key,
+                                    records: _,
+                                    quorum: _,
+                                }
+                                | kad::GetRecordError::Timeout { key } => RecordKey::new(key)
+                                    .expect("invalid record key that we got from local storage")
+                                    .expect("unknown record key that we got from local storage"),
+                            };
 
-                            let err = GetRecordError::NotFound { key };
+                            let err = match err {
+                                kad::GetRecordError::NotFound {
+                                    key: _,
+                                    closest_peers,
+                                } => GetRecordError::NotFound { key, closest_peers },
+                                kad::GetRecordError::QuorumFailed {
+                                    key: _,
+                                    records,
+                                    quorum,
+                                } => GetRecordError::QuorumFailed {
+                                    key,
+                                    records,
+                                    quorum,
+                                },
+                                kad::GetRecordError::Timeout { key: _ } => {
+                                    GetRecordError::Timeout { key }
+                                }
+                            };
 
                             let channel =
                                 self.get_record_queries.remove(&id).expect("unknown query");
                             let _res = channel.send(Err(err));
-                        }
-                        Err(err) => {
-                            // TODO: query from `get_record_queries` is not removed in this branch
-                            log::trace!("failed to get record: {err}");
                         }
                     }
                 }
@@ -1104,7 +1137,11 @@ mod tests {
         };
 
         let _ = swarm.behaviour_mut().handle_inner_event(event);
-        let Err(GetRecordError::NotFound { key }) = stream.next().await.unwrap() else {
+        let Err(GetRecordError::NotFound {
+            key,
+            closest_peers: _,
+        }) = stream.next().await.unwrap()
+        else {
             panic!("expected not found")
         };
         let ValidatorIdentityKey { validator: got } = key.unwrap_validator_identity();
