@@ -191,8 +191,12 @@ impl Behaviour {
         peer: PeerId,
         connection: ConnectionId,
     ) -> Result<(), ConnectionDenied> {
-        // no need to track known peer
-        if self.peers.contains_key(&peer) {
+        // no need to track already connected peer, but peers in backoff must still be denied.
+        if let Some(entry) = self.peers.get(&peer) {
+            if let PeerState::JustDisconnected(_) = entry.state {
+                return Err(SlotConnectionError::ActiveBackoffPeriod.into());
+            }
+
             return Ok(());
         }
 
@@ -752,6 +756,25 @@ mod tests {
             .add_pending_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
             .unwrap();
 
+        assert!(!behaviour.pending_outbound_peers.contains_peer(&peer_id));
+    }
+
+    #[tokio::test]
+    async fn add_pending_outbound_connection_rejects_known_peer_in_backoff_period() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        let first_connection_id = ConnectionId::new_unchecked(1);
+        behaviour
+            .add_outbound_connection(peer_id, first_connection_id)
+            .unwrap();
+        behaviour.remove_connection(peer_id, first_connection_id);
+
+        let err = behaviour
+            .add_pending_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
+            .unwrap_err();
+        let err = err.downcast::<SlotConnectionError>().unwrap();
+        assert_matches!(err, SlotConnectionError::ActiveBackoffPeriod);
         assert!(!behaviour.pending_outbound_peers.contains_peer(&peer_id));
     }
 
