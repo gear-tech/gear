@@ -16,12 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::migration::Migration;
+use self::migration::Migration;
 use gsigner::Address;
-pub use init::{initialize_db, initialize_empty_db};
+pub use init::initialize_db;
 
 #[cfg(feature = "mock")]
-use ethexe_db::{Database, MemDb, RawDatabase};
+use crate::{Database, MemDb, RawDatabase};
+
+#[cfg(test)]
+use migration::test;
 
 mod init;
 mod migration;
@@ -37,7 +40,6 @@ const _: () = assert!(
     (LATEST_VERSION - OLDEST_SUPPORTED_VERSION) as usize == MIGRATIONS.len(),
     "Wrong number of migrations available"
 );
-const _: () = assert!(LATEST_VERSION == ethexe_db::VERSION);
 
 pub struct InitConfig {
     pub ethereum_rpc: String,
@@ -48,6 +50,6 @@ pub struct InitConfig {
 #[cfg(feature = "mock")]
 pub async fn create_initialized_empty_memory_db(config: InitConfig) -> anyhow::Result<Database> {
     let raw = RawDatabase::from_one(&MemDb::default());
-    initialize_empty_db(config, &raw).await?;
+    init::initialize_empty_db(config, &raw).await?;
     Database::try_from_raw(raw)
 }

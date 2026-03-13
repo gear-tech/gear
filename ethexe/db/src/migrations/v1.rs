@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{InitConfig, v0, v1};
+use crate::RawDatabase;
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::ProtocolTimelines;
-use ethexe_db::RawDatabase;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
@@ -93,7 +93,7 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migration::test::assert_migration_types_hash;
+    use crate::migrations::test::assert_migration_types_hash;
     use scale_info::meta_type;
 
     #[test]

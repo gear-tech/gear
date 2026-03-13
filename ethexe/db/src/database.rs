@@ -19,7 +19,7 @@
 //! Database for ethexe.
 
 use crate::{
-    CASDatabase, KVDatabase,
+    CASDatabase, KVDatabase, VERSION,
     overlay::{CASOverlay, KVOverlay},
 };
 use anyhow::{Context, Result};
@@ -53,8 +53,6 @@ use std::{
     mem::size_of,
     sync::{Arc, RwLock, RwLockReadGuard},
 };
-
-pub const VERSION: u32 = 1;
 
 #[repr(u64)]
 enum Key {
