@@ -110,7 +110,7 @@ enum PeerState {
 #[derive(Debug, Eq, PartialEq)]
 enum InboundPeerDirection {
     Normal,
-    Overflowing { latest_action: Option<Instant> },
+    Overflowing { latest_action: Instant },
 }
 
 #[derive(Debug, Eq, PartialEq, derive_more::Display, derive_more::IsVariant)]
@@ -124,12 +124,9 @@ enum PeerDirection {
 impl PeerDirection {
     fn is_evictable_overflowing_inbound(&self, timeout: Duration) -> bool {
         match self {
-            Self::Inbound(InboundPeerDirection::Overflowing {
-                latest_action: Some(latest_action),
-            }) => latest_action.elapsed() > timeout,
-            Self::Inbound(InboundPeerDirection::Overflowing {
-                latest_action: None,
-            }) => true,
+            Self::Inbound(InboundPeerDirection::Overflowing { latest_action }) => {
+                latest_action.elapsed() > timeout
+            }
             Self::Inbound(InboundPeerDirection::Normal) => false,
             Self::Outbound => false,
         }
@@ -172,7 +169,7 @@ impl Behaviour {
         if let PeerDirection::Inbound(InboundPeerDirection::Overflowing { latest_action }) =
             &mut entry.direction
         {
-            *latest_action = Some(Instant::now());
+            *latest_action = Instant::now();
         }
     }
 
@@ -263,7 +260,7 @@ impl Behaviour {
             && is_overflowing_inbound_connection
         {
             *direction = InboundPeerDirection::Overflowing {
-                latest_action: None,
+                latest_action: Instant::now(),
             };
         }
 
@@ -636,14 +633,14 @@ mod tests {
                 .map(|entry| &entry.direction),
             Some(&PeerDirection::Inbound(InboundPeerDirection::Normal))
         );
-        assert_eq!(
+        assert_matches!(
             behaviour
                 .peers
                 .get(&overflowing_peer_id)
                 .map(|entry| &entry.direction),
-            Some(&PeerDirection::Inbound(InboundPeerDirection::Overflowing {
-                latest_action: None,
-            }))
+            Some(PeerDirection::Inbound(
+                InboundPeerDirection::Overflowing { .. }
+            ))
         );
     }
 
@@ -831,30 +828,33 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn report_peer_action_updates_latest_action_for_overflowing_inbound_peer() {
         let mut behaviour = Behaviour::new(Config::default());
 
         let peer_id = PeerId::random();
+        let initial_action_at = Instant::now();
         behaviour.peers.insert(
             peer_id,
             PeerEntry {
                 connections: [ConnectionId::new_unchecked(1)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
-                    latest_action: None,
+                    latest_action: initial_action_at,
                 }),
                 state: PeerState::Connected,
             },
         );
 
+        time::advance(Duration::from_millis(1)).await;
         behaviour.report_peer_action(&peer_id);
 
-        assert_matches!(
-            behaviour.peers.get(&peer_id).map(|entry| &entry.direction),
-            Some(PeerDirection::Inbound(InboundPeerDirection::Overflowing {
-                latest_action: Some(_),
-            }))
-        );
+        let updated_action_at = match &behaviour.peers.get(&peer_id).unwrap().direction {
+            PeerDirection::Inbound(InboundPeerDirection::Overflowing { latest_action }) => {
+                *latest_action
+            }
+            direction => panic!("unexpected direction: {direction:?}"),
+        };
+        assert!(updated_action_at > initial_action_at);
     }
 
     #[tokio::test]
@@ -1079,37 +1079,25 @@ mod tests {
     async fn evict_inbound_overflowing_peers_closes_only_evictable_peers() {
         let mut behaviour = Behaviour::new(Config::default());
 
-        let overflowing_without_action = PeerId::random();
-        behaviour.peers.insert(
-            overflowing_without_action,
-            PeerEntry {
-                connections: [ConnectionId::new_unchecked(1)].into(),
-                direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
-                    latest_action: None,
-                }),
-                state: PeerState::Connected,
-            },
-        );
-
         let stale_overflowing = PeerId::random();
         behaviour.peers.insert(
             stale_overflowing,
             PeerEntry {
-                connections: [ConnectionId::new_unchecked(2)].into(),
+                connections: [ConnectionId::new_unchecked(1)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
-                    latest_action: Some(Instant::now()),
+                    latest_action: Instant::now(),
                 }),
                 state: PeerState::Connected,
             },
         );
 
-        let recent_overflowing = PeerId::random();
+        let refreshed_overflowing = PeerId::random();
         behaviour.peers.insert(
-            recent_overflowing,
+            refreshed_overflowing,
             PeerEntry {
-                connections: [ConnectionId::new_unchecked(3)].into(),
+                connections: [ConnectionId::new_unchecked(2)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
-                    latest_action: Some(Instant::now()),
+                    latest_action: Instant::now(),
                 }),
                 state: PeerState::Connected,
             },
@@ -1119,7 +1107,7 @@ mod tests {
         behaviour.peers.insert(
             normal_inbound,
             PeerEntry {
-                connections: [ConnectionId::new_unchecked(4)].into(),
+                connections: [ConnectionId::new_unchecked(3)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Normal),
                 state: PeerState::Connected,
             },
@@ -1129,23 +1117,19 @@ mod tests {
         behaviour.peers.insert(
             outbound,
             PeerEntry {
-                connections: [ConnectionId::new_unchecked(5)].into(),
+                connections: [ConnectionId::new_unchecked(4)].into(),
                 direction: PeerDirection::Outbound,
                 state: PeerState::Connected,
             },
         );
 
         time::advance(behaviour.config.inbound_overflowing_peer_action_timeout).await;
-        behaviour.report_peer_action(&recent_overflowing);
+        behaviour.report_peer_action(&refreshed_overflowing);
         time::advance(Duration::from_millis(1)).await;
 
         behaviour.evict_inbound_overflowing_peers();
 
-        let mut evicted = drain_evicted_peers(&mut behaviour);
-        evicted.sort();
-        let mut expected = [overflowing_without_action, stale_overflowing];
-        expected.sort();
-        assert_eq!(evicted, expected);
+        assert_eq!(drain_evicted_peers(&mut behaviour), [stale_overflowing]);
     }
 
     #[tokio::test(start_paused = true)]
@@ -1158,7 +1142,7 @@ mod tests {
             PeerEntry {
                 connections: [ConnectionId::new_unchecked(1)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
-                    latest_action: Some(Instant::now()),
+                    latest_action: Instant::now(),
                 }),
                 state: PeerState::Connected,
             },
@@ -1171,5 +1155,35 @@ mod tests {
         time::advance(Duration::from_millis(1)).await;
         behaviour.evict_inbound_overflowing_peers();
         assert_eq!(drain_evicted_peers(&mut behaviour), [peer_id]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn evict_inbound_overflowing_peers_does_not_evict_fresh_overflowing_peer() {
+        let config = Config {
+            inbound_max_peers: 1,
+            inbound_overflowing_peers: 1,
+            ..Default::default()
+        };
+        let mut behaviour = Behaviour::new(config);
+
+        behaviour
+            .add_inbound_connection(PeerId::random(), ConnectionId::new_unchecked(1))
+            .unwrap();
+
+        let overflowing_peer_id = PeerId::random();
+        behaviour
+            .add_inbound_connection(overflowing_peer_id, ConnectionId::new_unchecked(2))
+            .unwrap();
+
+        behaviour.evict_inbound_overflowing_peers();
+        assert!(behaviour.pending_events.is_empty());
+
+        time::advance(behaviour.config.inbound_overflowing_peer_action_timeout).await;
+        behaviour.evict_inbound_overflowing_peers();
+        assert!(behaviour.pending_events.is_empty());
+
+        time::advance(Duration::from_millis(1)).await;
+        behaviour.evict_inbound_overflowing_peers();
+        assert_eq!(drain_evicted_peers(&mut behaviour), [overflowing_peer_id]);
     }
 }
