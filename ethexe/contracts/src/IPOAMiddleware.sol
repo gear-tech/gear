@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-/// @title Gear.exe POAMiddleware Interface
 interface IPOAMiddleware {
-    struct PoaStorage {
+    /// forge-lint: disable-next-item(pascal-case-struct)
+    struct POAStorage {
         address[] operators;
     }
 
