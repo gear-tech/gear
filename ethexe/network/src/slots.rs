@@ -720,8 +720,9 @@ mod tests {
 
         let err = behaviour
             .add_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
-            .unwrap_err();
-        let err = err.downcast::<SlotConnectionError>().unwrap();
+            .unwrap_err()
+            .downcast::<SlotConnectionError>()
+            .unwrap();
         assert_matches!(err, SlotConnectionError::ActiveBackoffPeriod);
     }
 
@@ -738,8 +739,9 @@ mod tests {
 
         let err = behaviour
             .add_inbound_connection(peer_id, ConnectionId::new_unchecked(2))
-            .unwrap_err();
-        let err = err.downcast::<SlotConnectionError>().unwrap();
+            .unwrap_err()
+            .downcast::<SlotConnectionError>()
+            .unwrap();
         assert_matches!(err, SlotConnectionError::ActiveBackoffPeriod);
     }
 
@@ -772,8 +774,9 @@ mod tests {
 
         let err = behaviour
             .add_pending_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
-            .unwrap_err();
-        let err = err.downcast::<SlotConnectionError>().unwrap();
+            .unwrap_err()
+            .downcast::<SlotConnectionError>()
+            .unwrap();
         assert_matches!(err, SlotConnectionError::ActiveBackoffPeriod);
         assert!(!behaviour.pending_outbound_peers.contains_peer(&peer_id));
     }
