@@ -23,6 +23,8 @@
 //! to a configured minimum, while inbound peers are accepted up to the normal
 //! limit plus a small "overflowing" reserve. Overflowing inbound peers are
 //! temporary: if they do not show recent useful activity, they are evicted.
+//! Fully disconnected peers stay in a short backoff window so the same peer
+//! cannot immediately feed dial storms by being retried over and over.
 
 use crate::utils::{ConnectionMap, NoLimits, PeerAddresses};
 use libp2p::{
@@ -51,7 +53,8 @@ use tokio::{
 /// The limits are tracked per peer, not per connection. Once a peer is first
 /// observed as inbound or outbound, later connections keep that direction.
 /// The backoff period controls how long a fully disconnected peer stays in
-/// `JustDisconnected`.
+/// `JustDisconnected`, preventing that peer from immediately entering dial
+/// storms through repeated redials and reconnect attempts.
 pub struct Config {
     inbound_max_peers: u32,
     inbound_overflowing_peers: u32,
@@ -154,7 +157,8 @@ struct PeerEntry {
 ///
 /// Responsibilities:
 /// - enforce inbound and outbound peer limits
-/// - keep a short backoff window after disconnects
+/// - keep a short post-disconnect backoff window so the same peer cannot
+///   immediately participate in dial storms again
 /// - evict idle overflowing inbound peers
 /// - schedule outbound dials until the minimum outbound peer count is reached
 pub struct Behaviour {
