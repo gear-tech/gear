@@ -778,6 +778,75 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn report_peer_action_updates_latest_action_for_overflowing_inbound_peer() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        behaviour.peers.insert(
+            peer_id,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(1)].into(),
+                direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
+                    latest_action: None,
+                }),
+                state: PeerState::Connected,
+            },
+        );
+
+        behaviour.report_peer_action(&peer_id);
+
+        assert_matches!(
+            behaviour.peers.get(&peer_id).map(|entry| &entry.direction),
+            Some(PeerDirection::Inbound(InboundPeerDirection::Overflowing {
+                latest_action: Some(_),
+            }))
+        );
+    }
+
+    #[tokio::test]
+    async fn report_peer_action_is_noop_for_non_overflowing_peers() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let normal_inbound_peer_id = PeerId::random();
+        behaviour.peers.insert(
+            normal_inbound_peer_id,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(1)].into(),
+                direction: PeerDirection::Inbound(InboundPeerDirection::Normal),
+                state: PeerState::Connected,
+            },
+        );
+
+        let outbound_peer_id = PeerId::random();
+        behaviour.peers.insert(
+            outbound_peer_id,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(2)].into(),
+                direction: PeerDirection::Outbound,
+                state: PeerState::Connected,
+            },
+        );
+
+        behaviour.report_peer_action(&normal_inbound_peer_id);
+        behaviour.report_peer_action(&outbound_peer_id);
+
+        assert_eq!(
+            behaviour
+                .peers
+                .get(&normal_inbound_peer_id)
+                .map(|entry| &entry.direction),
+            Some(&PeerDirection::Inbound(InboundPeerDirection::Normal))
+        );
+        assert_eq!(
+            behaviour
+                .peers
+                .get(&outbound_peer_id)
+                .map(|entry| &entry.direction),
+            Some(&PeerDirection::Outbound)
+        );
+    }
+
+    #[tokio::test]
     async fn dial_peers_dials_all_needed_known_peers() {
         init_logger();
 
