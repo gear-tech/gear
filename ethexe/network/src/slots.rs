@@ -682,4 +682,99 @@ mod tests {
 
         assert!(alice.behaviour_mut().pending_events.is_empty());
     }
+
+    #[tokio::test(start_paused = true)]
+    async fn update_on_periods_promotes_just_connected_only_after_grace_period() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        behaviour.peers.insert(
+            peer_id,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(1)].into(),
+                direction: PeerDirection::Outbound,
+                state: PeerState::JustConnected(Instant::now()),
+            },
+        );
+
+        // the grace period is not done yet
+        behaviour.update_on_periods();
+        assert_matches!(
+            behaviour.peers.get(&peer_id).map(|entry| &entry.state),
+            Some(PeerState::JustConnected(_))
+        );
+
+        // the grace period is exactly ended
+        time::advance(behaviour.config.grace_period).await;
+        behaviour.update_on_periods();
+        assert_matches!(
+            behaviour.peers.get(&peer_id).map(|entry| &entry.state),
+            Some(PeerState::JustConnected(_))
+        );
+
+        // after the grace period peer must be promoted to `Connected state
+        time::advance(Duration::from_millis(1)).await;
+        behaviour.update_on_periods();
+        assert_eq!(
+            behaviour.peers.get(&peer_id).map(|entry| &entry.state),
+            Some(&PeerState::Connected)
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn update_on_periods_removes_just_disconnected_only_after_backoff_period() {
+        let config = Config {
+            backoff_period: Duration::from_secs(5),
+            ..Default::default()
+        };
+        let mut behaviour = Behaviour::new(config);
+
+        let disconnected_peer_id = PeerId::random();
+        behaviour.peers.insert(
+            disconnected_peer_id,
+            PeerEntry {
+                connections: Default::default(),
+                direction: PeerDirection::Outbound,
+                state: PeerState::JustDisconnected(Instant::now()),
+            },
+        );
+
+        let connected_peer_id = PeerId::random();
+        behaviour.peers.insert(
+            connected_peer_id,
+            PeerEntry {
+                connections: [ConnectionId::new_unchecked(2)].into(),
+                direction: PeerDirection::Outbound,
+                state: PeerState::Connected,
+            },
+        );
+
+        // the backoff period is not ended
+        behaviour.update_on_periods();
+        assert!(behaviour.peers.contains_key(&disconnected_peer_id));
+        assert_eq!(
+            behaviour
+                .peers
+                .get(&connected_peer_id)
+                .map(|entry| &entry.state),
+            Some(&PeerState::Connected)
+        );
+
+        // the backoff period is exactly ended
+        time::advance(behaviour.config.backoff_period).await;
+        behaviour.update_on_periods();
+        assert!(behaviour.peers.contains_key(&disconnected_peer_id));
+
+        // after the backoff period peer must be promoted to `JustConnected state
+        time::advance(Duration::from_millis(1)).await;
+        behaviour.update_on_periods();
+        assert!(!behaviour.peers.contains_key(&disconnected_peer_id));
+        assert_eq!(
+            behaviour
+                .peers
+                .get(&connected_peer_id)
+                .map(|entry| &entry.state),
+            Some(&PeerState::Connected)
+        );
+    }
 }
