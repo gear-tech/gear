@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils::{ConnectionMap, NoLimits};
+use crate::utils::{ConnectionMap, NoLimits, PeerAddresses};
 use assert_matches::debug_assert_matches;
 use libp2p::{
     Multiaddr, PeerId,
     core::{Endpoint, transport::PortUse},
     swarm::{
         CloseConnection, ConnectionClosed, ConnectionDenied, ConnectionId, DialFailure, FromSwarm,
-        NetworkBehaviour, PeerAddresses, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
+        NetworkBehaviour, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
         dial_opts::DialOpts, dummy,
     },
 };
@@ -62,6 +62,13 @@ impl Default for Config {
             backoff_period: Duration::from_secs(5),
             driver_interval: Duration::from_secs(1),
         }
+    }
+}
+
+impl Config {
+    #[cfg(test)]
+    fn incoming_peers_total(&self) -> u32 {
+        self.inbound_max_peers + self.inbound_overflowing_peers
     }
 }
 
@@ -217,6 +224,11 @@ impl Behaviour {
         connection_id: ConnectionId,
         direction: PeerDirection,
     ) -> Result<(), ConnectionDenied> {
+        if let Some(entry) = self.peers.get_mut(&peer) {
+            entry.connections.insert(connection_id);
+            return Ok(());
+        }
+
         let (limit, peers) = match direction {
             PeerDirection::Inbound(_) => {
                 (self.config.inbound_max_peers, self.inbound_peers().count())
@@ -347,17 +359,22 @@ impl Behaviour {
         let needed_outbound_peers = (self.config.outbound_min_peers as usize)
             .saturating_sub(active_outbound_peers)
             .saturating_sub(pending_outbound_peers);
-        if needed_outbound_peers > 0 {
+        if needed_outbound_peers == 0 {
             return;
         }
 
-        // TODO: we collect active, but must collect observed ones
-        let mut peers: Vec<PeerId> = self.peers.keys().copied().collect();
+        let mut peers: Vec<_> = self
+            .addresses
+            .iter()
+            .filter(|(peer, _)| {
+                !self.pending_outbound_peers.contains_peer(peer) && !self.peers.contains_key(peer)
+            })
+            .collect();
         peers.shuffle(&mut rand::thread_rng());
         let peers = peers.into_iter().take(needed_outbound_peers);
 
-        for peer in peers {
-            let addresses: Vec<Multiaddr> = self.addresses.get(&peer).collect();
+        for (&peer, addresses) in peers {
+            let addresses = addresses.into_iter().cloned().collect();
             let opts = DialOpts::peer_id(peer)
                 .addresses(addresses)
                 .extend_addresses_through_behaviour()
@@ -498,7 +515,7 @@ mod tests {
         let alice_peer_id = *alice.local_peer_id();
         let alice_addrs = alice.external_addresses().cloned().collect();
 
-        for _ in 0..Config::default().inbound_max_peers {
+        for _ in 0..Config::default().incoming_peers_total() {
             let mut peer = new_swarm().await;
             peer.connect(&mut alice).await;
             tokio::spawn(peer.loop_on_next());

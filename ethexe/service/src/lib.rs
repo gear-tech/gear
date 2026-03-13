@@ -578,10 +578,11 @@ impl Service {
                         }
                         NetworkEvent::InjectedTransaction(event) => match event {
                             ethexe_network::NetworkInjectedEvent::InboundTransaction {
+                                peer: _,
                                 transaction,
                                 channel,
                             } => {
-                                let res = consensus.receive_injected_transaction(transaction);
+                                let res = consensus.receive_injected_transaction(*transaction);
                                 channel
                                     .send(res.into())
                                     .expect("channel must never be closed");

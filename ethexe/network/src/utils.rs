@@ -23,14 +23,19 @@ use libp2p::{
     Multiaddr, StreamProtocol,
     futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     multiaddr, request_response,
-    swarm::{ConnectionClosed, ConnectionId, FromSwarm, behaviour::ConnectionEstablished},
+    swarm::{
+        ConnectionClosed, ConnectionId, DialError, DialFailure, FromSwarm, NewExternalAddrOfPeer,
+        behaviour::ConnectionEstablished,
+    },
 };
+use lru::LruCache;
 use parity_scale_codec::{Decode, DecodeAll, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
     convert::Infallible,
     fmt, io,
     marker::PhantomData,
+    num::NonZeroUsize,
     pin::Pin,
     task::{Context, Poll, ready},
     time::Duration,
@@ -230,6 +235,10 @@ pub(crate) struct ConnectionMap<T> {
 }
 
 impl<T: ConnectionMapLimit> ConnectionMap<T> {
+    pub fn contains_peer(&self, peer_id: &PeerId) -> bool {
+        self.inner.contains_key(peer_id)
+    }
+
     pub fn peers(&self) -> impl ExactSizeIterator<Item = PeerId> {
         self.inner.keys().copied()
     }
@@ -393,6 +402,85 @@ impl ExponentialBackoffInterval {
         self.reset(new_duration);
 
         Poll::Ready(())
+    }
+}
+
+#[derive(Debug)]
+pub struct PeerAddresses(LruCache<PeerId, LruCache<Multiaddr, ()>>);
+
+impl PeerAddresses {
+    pub fn new(number_of_peers: NonZeroUsize) -> Self {
+        Self(LruCache::new(number_of_peers))
+    }
+
+    fn prepare_addr(peer: &PeerId, addr: &Multiaddr) -> Result<Multiaddr, Multiaddr> {
+        addr.clone().with_p2p(*peer)
+    }
+
+    pub fn on_swarm_event(&mut self, event: &FromSwarm) -> bool {
+        match event {
+            FromSwarm::NewExternalAddrOfPeer(NewExternalAddrOfPeer { peer_id, addr }) => {
+                self.add(*peer_id, (*addr).clone())
+            }
+            FromSwarm::DialFailure(DialFailure {
+                peer_id: Some(peer_id),
+                error: DialError::Transport(errors),
+                ..
+            }) => {
+                for (addr, _error) in errors {
+                    self.remove(peer_id, addr);
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn add(&mut self, peer: PeerId, address: Multiaddr) -> bool {
+        match Self::prepare_addr(&peer, &address) {
+            Ok(address) => {
+                if let Some(cached) = self.0.get_mut(&peer) {
+                    cached.put(address, ()).is_none()
+                } else {
+                    let mut set = LruCache::new(NonZeroUsize::new(10).expect("10 > 0"));
+                    set.put(address, ());
+                    self.0.put(peer, set);
+
+                    true
+                }
+            }
+            Err(_) => false,
+        }
+    }
+
+    pub fn get(&mut self, peer: &PeerId) -> impl Iterator<Item = Multiaddr> + '_ {
+        self.0
+            .get(peer)
+            .into_iter()
+            .flat_map(|c| c.iter().map(|(m, ())| m))
+            .cloned()
+    }
+
+    pub fn remove(&mut self, peer: &PeerId, address: &Multiaddr) -> bool {
+        match self.0.get_mut(peer) {
+            Some(addrs) => match Self::prepare_addr(peer, address) {
+                Ok(address) => addrs.pop(&address).is_some(),
+                Err(_) => false,
+            },
+            None => false,
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&PeerId, impl Iterator<Item = &Multiaddr>)> {
+        self.0
+            .iter()
+            .map(|(peer, set)| (peer, set.iter().map(|(addr, ())| addr)))
+    }
+}
+
+impl Default for PeerAddresses {
+    fn default() -> Self {
+        Self(LruCache::new(NonZeroUsize::new(100).unwrap()))
     }
 }
 
