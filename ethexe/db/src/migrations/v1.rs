@@ -38,7 +38,7 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
     // 2) Timelines is moved to more common DBConfig.
     //    DB keys have the same prefix, but appends 8 zero bytes in the end.
 
-    let provider: RootProvider = RootProvider::connect(&config.ethereum_rpc).await.unwrap();
+    let provider: RootProvider = RootProvider::connect(&config.ethereum_rpc).await?;
     let chain_id = provider.get_chain_id().await?;
 
     let latest_data_key = H256::from_low_u64_be(14);

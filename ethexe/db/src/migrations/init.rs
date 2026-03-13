@@ -96,7 +96,7 @@ async fn validate_db(config: InitConfig, db: &RawDatabase) -> Result<()> {
 }
 
 pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result<()> {
-    let provider = RootProvider::connect(&config.ethereum_rpc).await.unwrap();
+    let provider = RootProvider::connect(&config.ethereum_rpc).await?;
     let chain_id = provider.get_chain_id().await?;
     let storage_view = RouterQuery::from_provider(config.router_address, provider)
         .storage_view_at(alloy::eips::BlockId::latest())
