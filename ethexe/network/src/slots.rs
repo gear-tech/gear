@@ -165,7 +165,7 @@ impl Behaviour {
         }
     }
 
-    pub(crate) fn peer_action(&mut self, peer: &PeerId) {
+    pub(crate) fn report_peer_action(&mut self, peer: &PeerId) {
         let entry = self
             .peers
             .get_mut(peer)
@@ -853,7 +853,7 @@ mod tests {
         );
 
         time::advance(behaviour.config.inbound_overflowing_peer_action_timeout).await;
-        behaviour.peer_action(&recent_overflowing);
+        behaviour.report_peer_action(&recent_overflowing);
         time::advance(Duration::from_millis(1)).await;
 
         behaviour.evict_inbound_overflowing_peers();

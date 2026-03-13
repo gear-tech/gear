@@ -530,7 +530,7 @@ impl NetworkService {
             channel: _,
         } = &event
         {
-            self.swarm.behaviour_mut().slots.peer_action(peer);
+            self.swarm.behaviour_mut().slots.report_peer_action(peer);
         }
 
         Some(NetworkEvent::InjectedTransaction(event))
