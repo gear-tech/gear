@@ -365,17 +365,17 @@ impl<T: fmt::Debug> fmt::Debug for AlternateCollectionFmt<T> {
 pub struct ExponentialBackoffInterval {
     delay: Pin<Box<time::Sleep>>,
     next_duration: Duration,
+    max: Duration,
 }
 
 impl ExponentialBackoffInterval {
-    pub const START: Duration = Duration::from_secs(2);
     pub const FACTOR: u32 = 2;
-    pub const MAX: Duration = Duration::from_secs(600);
 
-    pub fn new() -> Self {
+    pub fn new(start: Duration, max: Duration) -> Self {
         Self {
-            delay: Box::pin(time::sleep(Self::START)),
-            next_duration: Self::START,
+            delay: Box::pin(time::sleep(start)),
+            next_duration: start,
+            max,
         }
     }
 
@@ -392,13 +392,13 @@ impl ExponentialBackoffInterval {
     }
 
     pub fn tick_at_max(&mut self) {
-        self.reset(Self::MAX);
+        self.reset(self.max);
     }
 
     pub fn poll_tick(&mut self, cx: &mut Context) -> Poll<()> {
         ready!(self.delay.as_mut().poll(cx));
 
-        let new_duration = (self.next_duration * Self::FACTOR).min(Self::MAX);
+        let new_duration = (self.next_duration * Self::FACTOR).min(self.max);
         self.reset(new_duration);
 
         Poll::Ready(())
@@ -491,9 +491,12 @@ pub(crate) mod tests {
         utils::{ConnectionMap, ExponentialBackoffInterval},
     };
     use libp2p::swarm::ConnectionId;
-    use std::{collections::HashSet, future};
+    use std::{collections::HashSet, future, time::Duration};
     use tokio::time;
     use tracing_subscriber::EnvFilter;
+
+    const TIMER_START: Duration = Duration::from_secs(1);
+    const TIMER_MAX: Duration = Duration::from_secs(60);
 
     pub fn init_logger() {
         let _ = tracing_subscriber::fmt()
@@ -568,46 +571,46 @@ pub(crate) mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn interval_smoke() {
-        let mut interval = ExponentialBackoffInterval::new();
+        let mut interval = ExponentialBackoffInterval::new(TIMER_START, TIMER_MAX);
         assert_eq!(
             interval.next_duration,
-            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(0)
+            TIMER_START * ExponentialBackoffInterval::FACTOR.pow(0)
         );
 
         future::poll_fn(|cx| interval.poll_tick(cx)).await;
         assert_eq!(
             interval.next_duration,
-            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(1)
+            TIMER_START * ExponentialBackoffInterval::FACTOR.pow(1)
         );
 
         future::poll_fn(|cx| interval.poll_tick(cx)).await;
         assert_eq!(
             interval.next_duration,
-            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(2)
+            TIMER_START * ExponentialBackoffInterval::FACTOR.pow(2)
         );
 
-        while interval.next_duration != ExponentialBackoffInterval::MAX {
+        while interval.next_duration != TIMER_MAX {
             future::poll_fn(|cx| interval.poll_tick(cx)).await;
         }
 
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(interval.next_duration, TIMER_MAX);
+        assert_eq!(interval.next_duration, TIMER_MAX);
+        assert_eq!(interval.next_duration, TIMER_MAX);
     }
 
     #[tokio::test(start_paused = true)]
     async fn interval_tick_at_max() {
-        let mut interval = ExponentialBackoffInterval::new();
+        let mut interval = ExponentialBackoffInterval::new(TIMER_START, TIMER_MAX);
         interval.tick_at_max();
 
         let instant = time::Instant::now();
 
         future::poll_fn(|cx| interval.poll_tick(cx)).await;
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
-        assert_eq!(instant.elapsed(), ExponentialBackoffInterval::MAX);
+        assert_eq!(interval.next_duration, TIMER_MAX);
+        assert_eq!(instant.elapsed(), TIMER_MAX);
 
         future::poll_fn(|cx| interval.poll_tick(cx)).await;
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
-        assert_eq!(instant.elapsed(), ExponentialBackoffInterval::MAX * 2);
+        assert_eq!(interval.next_duration, TIMER_MAX);
+        assert_eq!(instant.elapsed(), TIMER_MAX * 2);
     }
 }

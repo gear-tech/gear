@@ -56,7 +56,7 @@ use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
     task::{Context, Poll, ready},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 /// From Substrate sources:
@@ -66,6 +66,10 @@ const MAX_IDENTITY_ADDRESSES: usize = 10;
 ///
 /// Limit is to not flood the network
 const MAX_IN_FLIGHT_QUERIES: usize = 10;
+/// Timer for GET and PUT queries starts after this time, ensuring Kademlia has been bootstrapped
+const KAD_TIMER_START: Duration = Duration::from_secs(2);
+/// How often to initiate GET and PUT queries once an exponential backoff timer reaches its limits
+const KAD_TIMER_MAX: Duration = Duration::from_secs(600);
 
 pub type ValidatorIdentities = HashMap<Address, SignedValidatorIdentity>;
 
@@ -619,7 +623,7 @@ impl Behaviour {
                 snapshot,
                 identities: HashMap::new(),
                 query_identities: None,
-                query_identities_interval: ExponentialBackoffInterval::new(),
+                query_identities_interval: Self::default_exponential_backoff_interval(),
                 pending_events: VecDeque::new(),
                 peer_addresses: PeerAddresses::default(),
             },
@@ -628,12 +632,16 @@ impl Behaviour {
                 validator_key,
                 signer,
                 allow_non_global_addresses,
-                interval: ExponentialBackoffInterval::new(),
+                interval: Self::default_exponential_backoff_interval(),
                 external_addresses: ExternalAddresses::default(),
                 fut: None,
             }),
             metrics: Metrics::default(),
         }
+    }
+
+    fn default_exponential_backoff_interval() -> ExponentialBackoffInterval {
+        ExponentialBackoffInterval::new(KAD_TIMER_START, KAD_TIMER_MAX)
     }
 
     pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
@@ -876,7 +884,7 @@ mod tests {
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.add_external_address(test_addr());
 
-        time::advance(ExponentialBackoffInterval::START).await;
+        time::advance(KAD_TIMER_START).await;
 
         let event = swarm.next_behaviour_event().await;
         assert_matches!(event, Event::GetIdentitiesStarted);
@@ -1136,7 +1144,7 @@ mod tests {
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.add_external_address(test_addr());
 
-        time::advance(ExponentialBackoffInterval::START).await;
+        time::advance(KAD_TIMER_START).await;
 
         let event = swarm.next_behaviour_event().await;
         assert_eq!(event, Event::GetIdentitiesStarted);
@@ -1149,10 +1157,7 @@ mod tests {
         let event = swarm.next_behaviour_event().await;
         assert_eq!(event, Event::PutIdentityTicksAtMax);
         let put_identity = &swarm.behaviour().put_identity.as_ref().unwrap();
-        assert_eq!(
-            put_identity.interval.period(),
-            ExponentialBackoffInterval::MAX
-        );
+        assert_eq!(put_identity.interval.period(), KAD_TIMER_MAX);
         assert!(put_identity.fut.is_none());
     }
 
@@ -1178,7 +1183,7 @@ mod tests {
             validator_key,
             signer,
             allow_non_global_addresses: false,
-            interval: ExponentialBackoffInterval::new(),
+            interval: Behaviour::default_exponential_backoff_interval(),
             external_addresses: Default::default(),
             fut: None,
         };

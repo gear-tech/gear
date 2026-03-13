@@ -59,6 +59,8 @@ const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SEC
 // old record, so that we can update them once we notice
 // they have old records.
 const KAD_MIN_QUORUM_PEERS: u32 = 4;
+const DISCOVERY_TIMER_START: Duration = Duration::from_secs(1);
+const DISCOVERY_TIMER_MAX: Duration = Duration::from_secs(60);
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, Clone)]
 pub struct ValidatorIdentityKey {
@@ -356,7 +358,10 @@ impl Behaviour {
             min_quorum_peers,
             metrics,
             peer_addresses: Default::default(),
-            discovery_timer: ExponentialBackoffInterval::new(),
+            discovery_timer: ExponentialBackoffInterval::new(
+                DISCOVERY_TIMER_START,
+                DISCOVERY_TIMER_MAX,
+            ),
         }
     }
 
@@ -1282,7 +1287,7 @@ mod tests {
         let event = alice.next_behaviour_event().await;
         assert_matches!(event, Event::RoutingUpdated { peer } if peer == bob_peer_id);
 
-        time::advance(ExponentialBackoffInterval::START).await;
+        time::advance(DISCOVERY_TIMER_START).await;
 
         time::timeout(Duration::from_secs(10), async {
             loop {
