@@ -90,9 +90,10 @@ where
         &self,
         input: II,
     ) -> impl Stream<Item = Option<O>> {
-        let rxs = input.into_iter().map(|input| self.spawn_task(input));
-
-        stream::iter(rxs).then(|f| f)
+        input
+            .into_iter()
+            .map(|input| self.spawn_task(input))
+            .collect::<stream::FuturesOrdered<_>>()
     }
 }
 
