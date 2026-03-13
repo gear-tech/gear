@@ -19,67 +19,63 @@
 //! Small custom thread pool interface, because `rayon` is too smart
 //! and `threadpool` is not smart enough.
 
-use std::num::NonZero;
+use futures::prelude::*;
+use std::{num::NonZero, panic::UnwindSafe};
 
-type Task<I, O> = (I, tokio::sync::oneshot::Sender<O>);
+type Task<I, O> = (I, tokio::sync::oneshot::Sender<Option<O>>);
 
 /// Thread pool that handler tasks of type `I`
 /// and produces outputs of type `O`.
 #[derive(Debug, Clone)]
-pub struct ThreadPool<I, O, F = fn(I) -> O> {
+pub struct ThreadPool<I, O> {
     task_tx: crossbeam::channel::Sender<Task<I, O>>,
-    task_rx: crossbeam::channel::Receiver<Task<I, O>>,
-    handler: F,
 }
 
-impl<I, O, F> ThreadPool<I, O, F>
+impl<I, O> ThreadPool<I, O>
 where
-    I: Send + 'static,
+    I: Send + UnwindSafe + 'static,
     O: Send + 'static,
-    F: FnMut(I) -> O + Send + Clone + 'static,
 {
     /// Creates a new thread pool.
-    pub fn new(handler: F) -> Self {
+    pub fn new<F>(handler: F) -> Self
+    where
+        F: FnMut(I) -> O + Send + Clone + UnwindSafe + 'static,
+    {
         let n_cpus = std::thread::available_parallelism().map_or(1, NonZero::get);
 
-        let (task_tx, task_rx) = crossbeam::channel::unbounded();
-
-        let thread_pool = Self {
-            task_tx,
-            task_rx,
-            handler,
-        };
+        let (task_tx, task_rx) = crossbeam::channel::unbounded::<Task<I, O>>();
 
         for _ in 0..n_cpus {
-            thread_pool.spawn_worker();
+            let task_rx = task_rx.clone();
+            let handler = handler.clone();
+
+            std::thread::spawn(move || {
+                loop {
+                    let Ok((task, sender)) = task_rx.recv() else {
+                        // All connected `ThreadPool` instances were dropped
+                        break;
+                    };
+
+                    let mut handler = handler.clone();
+
+                    // Output receiver could be cancelled
+                    let _ = sender.send(std::panic::catch_unwind(move || handler(task)).ok());
+                }
+            });
         }
 
-        thread_pool
-    }
-
-    fn spawn_worker(&self) {
-        let task_rx = self.task_rx.clone();
-        let handler = self.handler.clone();
-
-        std::thread::spawn(move || {
-            loop {
-                let Ok((task, sender)) = task_rx.recv() else {
-                    // All connected `ThreadPool` instances were dropped
-                    break;
-                };
-
-                let mut handler = handler.clone();
-
-                // Output receiver could be cancelled
-                let _ = sender.send(handler(task));
-            }
-        });
+        Self { task_tx }
     }
 
     /// Spawns a given task.
     ///
     /// Returns `Some(result)` if a worker successfully
     /// processed the task and `None` if the worker panicked.
+    ///
+    /// # Panics
+    ///
+    /// Panics if worker thread dies despite using
+    /// `std::panic::catch_unwind` around the handler.
     pub fn spawn_task(&self, input: I) -> impl Future<Output = Option<O>> {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -87,13 +83,15 @@ where
             .try_send((input, tx))
             .expect("The channel is unbounded");
 
-        async move {
-            rx.await
-                .inspect_err(|_| {
-                    // Respawn panicked thread
-                    self.spawn_worker();
-                })
-                .ok()
-        }
+        async move { rx.await.expect("Worker thread has died") }
+    }
+
+    pub fn spawn_tasks<II: IntoIterator<Item = I>>(
+        &self,
+        input: II,
+    ) -> impl Stream<Item = Option<O>> {
+        let rxs = input.into_iter().map(|input| self.spawn_task(input));
+
+        stream::iter(rxs).then(|f| f)
     }
 }
