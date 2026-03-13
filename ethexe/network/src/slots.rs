@@ -66,7 +66,6 @@ impl Default for Config {
 }
 
 impl Config {
-    #[cfg(test)]
     fn incoming_peers_total(&self) -> u32 {
         self.inbound_max_peers + self.inbound_overflowing_peers
     }
@@ -225,6 +224,10 @@ impl Behaviour {
         direction: PeerDirection,
     ) -> Result<(), ConnectionDenied> {
         if let Some(entry) = self.peers.get_mut(&peer) {
+            if let PeerState::JustDisconnected(_) = entry.state {
+                return Err(SlotConnectionError::ActiveBackoffPeriod.into());
+            }
+
             entry.connections.insert(connection_id);
             return Ok(());
         }
@@ -244,26 +247,16 @@ impl Behaviour {
         let is_overflowing_inbound_connection =
             direction.is_inbound()
             && peers >= limit as usize
-            && (self.config.inbound_max_peers + self.config.inbound_overflowing_peers).saturating_sub(peers as u32) > 0;
+            && self.config.incoming_peers_total().saturating_sub(peers as u32) > 0;
         if peers >= limit as usize && !is_overflowing_inbound_connection {
             return Err(SlotConnectionError::LimitExceeded { limit, direction }.into());
         }
 
-        let mut entry = match self.peers.entry(peer) {
-            Entry::Occupied(entry) => {
-                if let PeerState::JustDisconnected(_) = entry.get().state {
-                    return Err(SlotConnectionError::ActiveBackoffPeriod.into());
-                }
-
-                entry
-            }
-            Entry::Vacant(entry) => entry.insert_entry(PeerEntry {
-                connections: Default::default(),
-                direction,
-                state: PeerState::JustConnected(Instant::now()),
-            }),
-        };
-        let entry = entry.get_mut();
+        let entry = self.peers.entry(peer).or_insert_with(|| PeerEntry {
+            connections: Default::default(),
+            direction,
+            state: PeerState::JustConnected(Instant::now()),
+        });
 
         // TODO: we might want to check peer existed before
         if let PeerDirection::Inbound(direction) = &mut entry.direction
@@ -615,6 +608,120 @@ mod tests {
             .unwrap_limit_exceeded();
         assert_eq!(limit, Config::default().outbound_max_peers);
         assert_eq!(direction, PeerDirection::Outbound);
+    }
+
+    #[tokio::test]
+    async fn add_inbound_connection_uses_overflowing_slots_after_normal_limit() {
+        let config = Config {
+            inbound_max_peers: 1,
+            inbound_overflowing_peers: 1,
+            ..Default::default()
+        };
+        let mut behaviour = Behaviour::new(config);
+
+        let normal_peer_id = PeerId::random();
+        behaviour
+            .add_inbound_connection(normal_peer_id, ConnectionId::new_unchecked(1))
+            .unwrap();
+
+        let overflowing_peer_id = PeerId::random();
+        behaviour
+            .add_inbound_connection(overflowing_peer_id, ConnectionId::new_unchecked(2))
+            .unwrap();
+
+        assert_eq!(
+            behaviour
+                .peers
+                .get(&normal_peer_id)
+                .map(|entry| &entry.direction),
+            Some(&PeerDirection::Inbound(InboundPeerDirection::Normal))
+        );
+        assert_eq!(
+            behaviour
+                .peers
+                .get(&overflowing_peer_id)
+                .map(|entry| &entry.direction),
+            Some(&PeerDirection::Inbound(InboundPeerDirection::Overflowing {
+                latest_action: None,
+            }))
+        );
+    }
+
+    #[tokio::test]
+    async fn add_inbound_connection_rejects_when_all_inbound_slots_are_used() {
+        let config = Config {
+            inbound_max_peers: 1,
+            inbound_overflowing_peers: 1,
+            ..Default::default()
+        };
+        let mut behaviour = Behaviour::new(config);
+
+        behaviour
+            .add_inbound_connection(PeerId::random(), ConnectionId::new_unchecked(1))
+            .unwrap();
+        behaviour
+            .add_inbound_connection(PeerId::random(), ConnectionId::new_unchecked(2))
+            .unwrap();
+
+        let err = behaviour
+            .add_inbound_connection(PeerId::random(), ConnectionId::new_unchecked(3))
+            .unwrap_err();
+        let (limit, direction) = err
+            .downcast::<SlotConnectionError>()
+            .unwrap()
+            .unwrap_limit_exceeded();
+        assert_eq!(limit, behaviour.config.inbound_max_peers);
+        assert_eq!(
+            direction,
+            PeerDirection::Inbound(InboundPeerDirection::Normal)
+        );
+    }
+
+    #[tokio::test]
+    async fn add_outbound_connection_allows_multiple_connections_for_known_peer_at_limit() {
+        let config = Config {
+            outbound_max_peers: 1,
+            ..Default::default()
+        };
+        let mut behaviour = Behaviour::new(config);
+
+        let known_peer_id = PeerId::random();
+        behaviour
+            .add_outbound_connection(known_peer_id, ConnectionId::new_unchecked(1))
+            .unwrap();
+        behaviour
+            .add_outbound_connection(known_peer_id, ConnectionId::new_unchecked(2))
+            .unwrap();
+
+        let entry = behaviour.peers.get(&known_peer_id).unwrap();
+        assert_eq!(entry.direction, PeerDirection::Outbound);
+        assert_eq!(
+            entry.connections,
+            [
+                ConnectionId::new_unchecked(1),
+                ConnectionId::new_unchecked(2)
+            ]
+            .into_iter()
+            .collect::<HashSet<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn add_outbound_connection_rejects_peer_in_backoff_period() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        let first_connection_id = ConnectionId::new_unchecked(1);
+        behaviour
+            .add_outbound_connection(peer_id, first_connection_id)
+            .unwrap();
+        behaviour.remove_connection(peer_id, first_connection_id);
+
+        let err = behaviour
+            .add_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
+            .unwrap_err();
+        let err = err.downcast::<SlotConnectionError>().unwrap();
+        assert_matches!(err, SlotConnectionError::ActiveBackoffPeriod);
     }
 
     #[tokio::test]
