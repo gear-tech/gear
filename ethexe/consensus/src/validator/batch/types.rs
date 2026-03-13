@@ -16,8 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{Announce, Digest, HashOf, consensus::BatchCommitmentValidationRequest};
+use alloy::sol_types::SolValue;
+use ethexe_common::{
+    Announce, Digest, HashOf,
+    consensus::BatchCommitmentValidationRequest,
+    gear::{
+        ChainCommitment, CodeCommitment, RewardsCommitment, StateTransition, ValidatorsCommitment,
+    },
+};
+use ethexe_ethereum::abi::Gear;
 use gprimitives::CodeId;
+use parity_scale_codec::Encode;
+
+// We assume that maximum Ethereum transaction's payload is 100 KB.
+const MAX_BATCH_SIZE: u64 = 100 * 1024;
+
+/// Сделать подсчет для скольки программ мы будем комитить транзишены.
 
 /// This struct represents the limits for batch.
 #[derive(Debug, Clone)]
@@ -110,14 +124,80 @@ impl BatchGasCounter {
 
     // Inner function for correct gas charging.
     fn charge_inner(&mut self, value: u64) -> bool {
-        if let Some(gas) = self.gas_left.checked_sub(value) {
-            self.gas_left = gas;
-            return true;
+        match self.gas_left.checked_sub(value) {
+            Some(gas) => {
+                self.gas_left = gas;
+                true
+            }
+            None => false,
         }
-        return false;
     }
 }
 
+// TODO !!!: For batch size counter need to write a proptest for correctness batch size counting.
+#[derive(Debug, Clone)]
+pub(crate) struct BatchSizeCounter(u64);
+
+impl BatchSizeCounter {
+    pub fn new() -> Self {
+        Self(MAX_BATCH_SIZE)
+    }
+
+    pub fn charge_for_validators_commitment(
+        &mut self,
+        commitment: &Option<ValidatorsCommitment>,
+    ) -> bool {
+        let commitment: Vec<Gear::ValidatorsCommitment> =
+            commitment.iter().cloned().map(Into::into).collect();
+
+        self.charge(&commitment)
+    }
+
+    pub fn charge_for_rewards_commitment(
+        &mut self,
+        commitment: &Option<RewardsCommitment>,
+    ) -> bool {
+        let commitment: Vec<Gear::RewardsCommitment> =
+            commitment.iter().cloned().map(Into::into).collect();
+
+        self.charge(&commitment)
+    }
+
+    pub fn charge_for_chain_commitment(&mut self, commitment: &Option<ChainCommitment>) -> bool {
+        let commitment: Vec<Gear::ChainCommitment> =
+            commitment.iter().cloned().map(Into::into).collect();
+
+        self.charge(&commitment)
+    }
+
+    pub fn charge_for_state_transitions(&mut self, transitions: &[StateTransition]) -> bool {
+        let transitions: Vec<Gear::StateTransition> =
+            transitions.iter().cloned().map(Into::into).collect();
+
+        self.charge(&transitions)
+    }
+
+    pub fn charge_for_code_commitments(&mut self, commitments: &[CodeCommitment]) -> bool {
+        let commitments: Vec<Gear::CodeCommitment> =
+            commitments.iter().cloned().map(Into::into).collect();
+
+        self.charge(&commitments)
+    }
+
+    fn charge<V: SolValue>(&mut self, value: &V) -> bool {
+        let encoded_size = value.abi_encoded_size();
+
+        match self.0.checked_sub(encoded_size as u64) {
+            Some(size_left) => {
+                self.0 = size_left;
+                true
+            }
+            None => false,
+        }
+    }
+}
+
+// TODO: maybe this upper
 #[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]
 pub enum ValidationStatus {
     #[display("accepted batch commitment with digest {_0:?}")]
@@ -139,6 +219,7 @@ pub enum ValidationRejectReason {
     CodeNotWaitingForCommitment(CodeId),
     #[display("code id {_0} is not processed yet")]
     CodeIsNotProcessedYet(CodeId),
+    // TODO: rename this variant, because now support commitments not only for best announces.
     #[display("requested head announce {requested} is not the best announce {best}")]
     HeadAnnounceIsNotBest {
         requested: HashOf<Announce>,
@@ -156,6 +237,10 @@ pub enum ValidationRejectReason {
     RewardsNotReady,
     #[display("batch commitment digest mismatch: expected {expected}, found {found}")]
     BatchDigestMismatch { expected: Digest, found: Digest },
+    #[display("batch gas limit exceeded")]
+    BatchGasLimitExceeded,
+    #[display("batch size limit exceeded")]
+    BatchSizeLimitExceeded,
 }
 
 #[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]

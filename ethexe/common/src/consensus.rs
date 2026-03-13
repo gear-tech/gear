@@ -62,6 +62,10 @@ impl BatchCommitmentValidationRequest {
             validators: batch.validators_commitment.is_some(),
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.head.is_none() && self.codes.is_empty() && !self.validators && !self.rewards
+    }
 }
 
 impl ToDigest for BatchCommitmentValidationRequest {

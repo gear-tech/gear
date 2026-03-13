@@ -20,7 +20,7 @@ use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, V
 use crate::{
     announces,
     validator::{
-        batch::types::{BatchGasCounter, BatchGasWeights},
+        batch::types::{BatchGasCounter, BatchGasWeights, BatchSizeCounter},
         core::{ElectionRequest, MiddlewareWrapper},
     },
 };
@@ -88,6 +88,7 @@ impl BatchCommitmentManager {
         announce_hash: HashOf<Announce>,
     ) -> Result<Option<BatchCommitment>> {
         let mut gas_counter = BatchGasCounter::new(self.gas_weights.clone());
+        let mut size_counter = BatchSizeCounter::new();
 
         let validators_commitment = self.aggregate_validators_commitment(&block).await?;
         if validators_commitment.is_some() && !gas_counter.charge_for_validators_commitment() {
@@ -95,10 +96,22 @@ impl BatchCommitmentManager {
                 "Invalid gas weight for batch commitment, not enough gas for validators commitment"
             )
         }
+        if !size_counter.charge_for_validators_commitment(&validators_commitment) {
+            // TODO: fix comment
+            bail!(
+                "Shouldn't happen because the calldata size is enough for at least validators commitment"
+            )
+        }
 
         let rewards_commitment = self.aggregate_rewards_commitment(&block).await?;
         if rewards_commitment.is_some() && !gas_counter.charge_for_rewards_commitment() {
             bail!("Invalid gas weight for batch commitment, not enough gas for rewards commitment")
+        }
+        if !size_counter.charge_for_rewards_commitment(&rewards_commitment) {
+            // TODO: fix comment
+            bail!(
+                "Shouldn't happen because the calldata size is enough for at least rewards commitment"
+            )
         }
 
         let not_committed_announces =
@@ -109,7 +122,10 @@ impl BatchCommitmentManager {
         let mut code_commitments = Vec::new();
         for announce_hash in not_committed_announces {
             let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
-            if !gas_counter.charge_for_transitions(transitions.len() as u64) {
+            // TODO: add logging for break cases
+            if !gas_counter.charge_for_transitions(transitions.len() as u64)
+                || !size_counter.charge_for_state_transitions(&transitions)
+            {
                 break;
             }
 
@@ -121,7 +137,9 @@ impl BatchCommitmentManager {
 
             // TODO: fix this behaviour, because new commitments contains previous.
             let commitments = self.aggregate_code_commitments(announce_block_hash)?;
-            if !gas_counter.charge_for_code_commitments(commitments.len() as u64) {
+            if !gas_counter.charge_for_code_commitments(commitments.len() as u64)
+                || !size_counter.charge_for_code_commitments(&commitments)
+            {
                 break;
             }
 
@@ -140,9 +158,6 @@ impl BatchCommitmentManager {
             }
             code_commitments = commitments;
         }
-
-        // let chain_commitment = self.aggregate_chain_commitment(block.hash, announce_hash)?;
-        // let code_commitments = self.aggregate_code_commitments(block.hash)?;
 
         if let Some(ref commitment) = chain_commitment
             && commitment.transitions.is_empty()
@@ -168,6 +183,13 @@ impl BatchCommitmentManager {
         block: SimpleBlockData,
         request: BatchCommitmentValidationRequest,
     ) -> Result<ValidationStatus> {
+        if request.is_empty() {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::EmptyBatch,
+            });
+        }
+
         let &BatchCommitmentValidationRequest {
             digest,
             head,
@@ -176,12 +198,8 @@ impl BatchCommitmentManager {
             rewards,
         } = &request;
 
-        if head.is_none() && codes.is_empty() && !validators && !rewards {
-            return Ok(ValidationStatus::Rejected {
-                request,
-                reason: ValidationRejectReason::EmptyBatch,
-            });
-        }
+        let mut gas_counter = BatchGasCounter::new(self.gas_weights.clone());
+        let mut size_counter = BatchSizeCounter::new();
 
         if crate::utils::has_duplicates(codes.as_slice()) {
             return Ok(ValidationStatus::Rejected {
@@ -209,6 +227,28 @@ impl BatchCommitmentManager {
                 reason: ValidationRejectReason::CodeNotWaitingForCommitment(code_id),
             });
         }
+        let code_commitments =
+            match super::utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
+                Ok(commitments) => commitments,
+                Err(CodeNotValidatedError(code_id)) => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
+                    });
+                }
+            };
+        if !gas_counter.charge_for_code_commitments(code_commitments.len() as u64) {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::BatchGasLimitExceeded,
+            });
+        }
+        if !size_counter.charge_for_code_commitments(&code_commitments) {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::BatchSizeLimitExceeded,
+            });
+        }
 
         let chain_commitment = if let Some(head) = head {
             // TODO #4791: support commitment head from another block in chain,
@@ -220,16 +260,25 @@ impl BatchCommitmentManager {
                 .announces
                 .into_iter()
                 .flatten();
+
             let best_announce_hash =
                 announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
-            if head != best_announce_hash {
-                return Ok(ValidationStatus::Rejected {
-                    request,
-                    reason: ValidationRejectReason::HeadAnnounceIsNotBest {
-                        requested: head,
-                        best: best_announce_hash,
-                    },
-                });
+
+            // TODO: remove const from here
+            // TODO: here a bug because now we do not check
+            // that validator correctly build announces and include announces as much as possible
+            match announces::is_predecessor_of_best_announce(&self.db, best_announce_hash, head, 10)
+            {
+                Ok(true) => {} // nothing to do
+                _ => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::HeadAnnounceIsNotBest {
+                            requested: head,
+                            best: best_announce_hash,
+                        },
+                    });
+                }
             }
 
             // Head announce in validation request is best for `block`.
@@ -251,42 +300,51 @@ impl BatchCommitmentManager {
             None
         };
 
-        let code_commitments =
-            match super::utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
-                Ok(commitments) => commitments,
-                Err(CodeNotValidatedError(code_id)) => {
+        if !size_counter.charge_for_chain_commitment(&chain_commitment) {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::BatchSizeLimitExceeded,
+            });
+        }
+
+        let validators_commitment = match validators {
+            true => match self.aggregate_validators_commitment(&block).await? {
+                commitment @ Some(_) => commitment,
+                None => {
                     return Ok(ValidationStatus::Rejected {
                         request,
-                        reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
+                        reason: ValidationRejectReason::ValidatorsNotReady,
                     });
                 }
-            };
+            },
+            false => None,
+        };
+        if !size_counter.charge_for_validators_commitment(&validators_commitment) {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::BatchSizeLimitExceeded,
+            });
+        }
 
-        let validators_commitment = if validators {
-            // TODO: Remove this `self`, implement a raw function
-            let Some(commitment) = self.aggregate_validators_commitment(&block).await? else {
-                return Ok(ValidationStatus::Rejected {
-                    request,
-                    reason: ValidationRejectReason::ValidatorsNotReady,
-                });
-            };
-            Some(commitment)
-        } else {
-            None
+        let rewards_commitment = match rewards {
+            true => match self.aggregate_rewards_commitment(&block).await? {
+                commitment @ Some(_) => commitment,
+                None => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::RewardsNotReady,
+                    });
+                }
+            },
+            false => None,
         };
 
-        let rewards_commitment = if rewards {
-            // TODO: remove the `self` here, implement a raw function.
-            let Some(commitment) = self.aggregate_rewards_commitment(&block).await? else {
-                return Ok(ValidationStatus::Rejected {
-                    request,
-                    reason: ValidationRejectReason::RewardsNotReady,
-                });
-            };
-            Some(commitment)
-        } else {
-            None
-        };
+        if !size_counter.charge_for_rewards_commitment(&rewards_commitment) {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::BatchSizeLimitExceeded,
+            });
+        }
 
         let batch = super::utils::create_batch_commitment(
             &self.db,
@@ -309,6 +367,7 @@ impl BatchCommitmentManager {
                 },
             });
         }
+        // 42 lines of code to return the rejection status - to complex for me.
 
         Ok(ValidationStatus::Accepted(digest))
     }
