@@ -20,9 +20,9 @@
 //! and `threadpool` is not smart enough.
 
 use futures::prelude::*;
-use std::{num::NonZero, panic::UnwindSafe};
+use std::{num::NonZero, panic::UnwindSafe, thread};
 
-type Task<I, O> = (I, tokio::sync::oneshot::Sender<Option<O>>);
+type Task<I, O> = (I, tokio::sync::oneshot::Sender<thread::Result<O>>);
 
 /// Thread pool that handler tasks of type `I`
 /// and produces outputs of type `O`.
@@ -59,7 +59,7 @@ where
                     let mut handler = handler.clone();
 
                     // Output receiver could be cancelled
-                    let _ = sender.send(std::panic::catch_unwind(move || handler(task)).ok());
+                    let _ = sender.send(std::panic::catch_unwind(move || handler(task)));
                 }
             });
         }
@@ -69,30 +69,34 @@ where
 
     /// Spawns a given task.
     ///
-    /// Returns `Some(result)` if a worker successfully
-    /// processed the task and `None` if the worker panicked.
+    /// Returns `Ok(result)` if a worker successfully
+    /// processed the task and `Err(panic_info)` if the worker panicked.
     ///
     /// # Panics
     ///
     /// Panics if worker thread dies despite using
     /// `std::panic::catch_unwind` around the handler.
-    pub fn spawn_task(&self, input: I) -> impl Future<Output = Option<O>> {
+    pub async fn spawn(&self, input: I) -> thread::Result<O> {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
         self.task_tx
             .try_send((input, tx))
             .expect("The channel is unbounded");
 
-        async move { rx.await.expect("Worker thread has died") }
+        rx.await.expect("Worker thread has died")
     }
 
-    pub fn spawn_tasks<II: IntoIterator<Item = I>>(
+    /// Spawns tasks from an iterator of inputs,
+    /// producing a stream of outputs.
+    ///
+    /// The outputs are ordered the same as inputs.
+    pub fn spawn_many<II: IntoIterator<Item = I>>(
         &self,
         input: II,
-    ) -> impl Stream<Item = Option<O>> {
+    ) -> impl Stream<Item = thread::Result<O>> {
         input
             .into_iter()
-            .map(|input| self.spawn_task(input))
+            .map(|input| self.spawn(input))
             .collect::<stream::FuturesOrdered<_>>()
     }
 }
@@ -106,12 +110,13 @@ mod tests {
         let thread_pool = ThreadPool::new(|n| "amogus".repeat(n));
 
         assert_eq!(
-            thread_pool.spawn_task(2).await.as_deref(),
+            thread_pool.spawn(2).await.as_deref().ok(),
             Some("amogusamogus")
         );
         assert_eq!(
             thread_pool
-                .spawn_tasks([0, 1, 2, 3])
+                .spawn_many([0, 1, 2, 3])
+                .map(Result::ok)
                 .collect::<Vec<_>>()
                 .await,
             vec![
@@ -126,7 +131,7 @@ mod tests {
 
         // Ensure that panics don't break things
         for _ in 0..n_cpus * 2 {
-            assert!(thread_pool.spawn_task(usize::MAX).await.is_none())
+            assert!(thread_pool.spawn(usize::MAX).await.is_err())
         }
     }
 }

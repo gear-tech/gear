@@ -629,8 +629,8 @@ mod chunk_execution_spawn {
             .collect::<Result<Vec<_>>>()?;
 
         THREAD_POOL
-            .spawn_tasks(executables)
-            .map(|opt| opt.expect("Chunk execution has panicked"))
+            .spawn_many(executables)
+            .map(|res| res.unwrap_or_else(|err| std::panic::resume_unwind(err)))
             .try_collect()
             .await
     }
