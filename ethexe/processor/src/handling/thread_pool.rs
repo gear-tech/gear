@@ -95,3 +95,37 @@ where
         stream::iter(rxs).then(|f| f)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_thread_pool() {
+        let thread_pool = ThreadPool::new(|n| "amogus".repeat(n));
+
+        assert_eq!(
+            thread_pool.spawn_task(2).await.as_deref(),
+            Some("amogusamogus")
+        );
+        assert_eq!(
+            thread_pool
+                .spawn_tasks([0, 1, 2, 3])
+                .collect::<Vec<_>>()
+                .await,
+            vec![
+                Some("".into()),
+                Some("amogus".into()),
+                Some("amogusamogus".into()),
+                Some("amogusamogusamogus".into()),
+            ]
+        );
+
+        let n_cpus = std::thread::available_parallelism().map_or(1, NonZero::get);
+
+        // Ensure that panics don't break things
+        for _ in 0..n_cpus * 2 {
+            assert!(thread_pool.spawn_task(usize::MAX).await.is_none())
+        }
+    }
+}
