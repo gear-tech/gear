@@ -507,6 +507,22 @@ mod tests {
         new_swarm_with_config(Config::default()).await
     }
 
+    fn random_multiaddr() -> Multiaddr {
+        let port: u64 = rand::random();
+        format!("/memory/{port}").parse().unwrap()
+    }
+
+    fn drain_dialled_peers(behaviour: &mut Behaviour) -> Vec<PeerId> {
+        behaviour
+            .pending_events
+            .drain(..)
+            .map(|event| match event {
+                ToSwarm::Dial { opts } => opts.get_peer_id().expect("peer id is set"),
+                event => panic!("unexpected event: {event:?}"),
+            })
+            .collect()
+    }
+
     #[tokio::test]
     async fn inbound_peers_limit() {
         init_logger();
@@ -585,5 +601,85 @@ mod tests {
             .unwrap_limit_exceeded();
         assert_eq!(limit, Config::default().outbound_max_peers);
         assert_eq!(direction, PeerDirection::Outbound);
+    }
+
+    #[tokio::test]
+    async fn dial_peers_dials_all_needed_known_peers() {
+        init_logger();
+
+        let mut alice = new_swarm().await;
+
+        let mut peers = [PeerId::random(), PeerId::random(), PeerId::random()];
+        for peer in peers {
+            alice.add_peer_address(peer, random_multiaddr());
+        }
+
+        alice.behaviour_mut().dial_peers();
+
+        let mut dialled = drain_dialled_peers(alice.behaviour_mut());
+        dialled.sort();
+        peers.sort();
+        assert_eq!(dialled, peers);
+    }
+
+    #[tokio::test]
+    async fn dial_peers_skips_connected_and_pending_peers() {
+        let config = Config {
+            outbound_min_peers: 3,
+            ..Default::default()
+        };
+        let mut alice = new_swarm_with_config(config).await;
+
+        let mut outbound_peer = new_swarm().await;
+        alice.connect(&mut outbound_peer).await;
+        tokio::spawn(outbound_peer.loop_on_next());
+
+        let mut inbound_peer = new_swarm().await;
+        inbound_peer.connect(&mut alice).await;
+        tokio::spawn(inbound_peer.loop_on_next());
+
+        // pending outbound peer
+        alice
+            .dial(
+                DialOpts::peer_id(PeerId::random())
+                    .addresses(vec![random_multiaddr()])
+                    .build(),
+            )
+            .unwrap();
+
+        let eligible_peer_id = PeerId::random();
+        alice.add_peer_address(eligible_peer_id, random_multiaddr());
+
+        alice.behaviour_mut().dial_peers();
+
+        let dialled = drain_dialled_peers(alice.behaviour_mut());
+        assert_eq!(dialled, [eligible_peer_id]);
+    }
+
+    #[tokio::test]
+    async fn dial_peers_is_noop_when_minimum_is_already_satisfied() {
+        let config = Config {
+            outbound_min_peers: 2,
+            ..Default::default()
+        };
+        let mut alice = new_swarm_with_config(config).await;
+
+        let mut outbound_peer = new_swarm().await;
+        alice.connect(&mut outbound_peer).await;
+
+        // pending outbound peer
+        alice
+            .dial(
+                DialOpts::peer_id(PeerId::random())
+                    .addresses(vec![random_multiaddr()])
+                    .build(),
+            )
+            .unwrap();
+
+        alice.add_peer_address(PeerId::random(), random_multiaddr());
+
+        alice.behaviour_mut().dial_peers();
+
+        assert!(alice.behaviour_mut().pending_events.is_empty());
     }
 }
