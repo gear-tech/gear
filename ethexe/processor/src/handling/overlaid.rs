@@ -25,17 +25,15 @@ use crate::{
     host::InstanceCreator,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType, injected::Promise};
-use ethexe_db::{CASDatabase, Database};
+use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType};
+use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
-    gas::GasAllowanceCounter,
     message::ReplyDetails,
 };
 use gprimitives::{ActorId, MessageId};
 use std::collections::HashSet;
-use tokio::sync::mpsc;
 
 /// Overlay execution context.
 ///
@@ -172,21 +170,12 @@ impl OverlaidRunContext {
 }
 
 impl RunContext for OverlaidRunContext {
-    fn instance_creator(&self) -> &InstanceCreator {
-        &self.inner.instance_creator
+    fn inner(&self) -> &CommonRunContext {
+        &self.inner
     }
 
-    fn promise_out_tx(&self) -> &Option<mpsc::UnboundedSender<Promise>> {
-        // OverlaidRunContext should never produce promises
-        &None
-    }
-
-    fn block_header(&self) -> BlockHeader {
-        self.inner.block_header
-    }
-
-    fn chunk_size(&self) -> usize {
-        self.inner.chunk_size
+    fn inner_mut(&mut self) -> &mut CommonRunContext {
+        &mut self.inner
     }
 
     fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
@@ -197,20 +186,6 @@ impl RunContext for OverlaidRunContext {
             .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))?;
 
         run::instrumented_code_and_metadata(&self.inner.db, code_id)
-    }
-
-    fn borrow_inner(
-        &mut self,
-    ) -> (
-        &dyn CASDatabase,
-        &mut InBlockTransitions,
-        &mut GasAllowanceCounter,
-    ) {
-        (
-            self.inner.db.cas(),
-            &mut self.inner.transitions,
-            &mut self.inner.gas_allowance_counter,
-        )
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {

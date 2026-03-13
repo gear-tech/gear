@@ -19,7 +19,7 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData,
+    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, SimpleBlockData,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
@@ -501,7 +501,7 @@ async fn many_waits() {
 
     let mut handler = setup_handler(processor.db.clone(), block1);
 
-    let amount = 10000;
+    let amount = OUTGOING_MESSAGES_SOFT_LIMIT as u64;
     for i in 0..amount {
         let program_id = ActorId::from(i);
 

@@ -65,6 +65,11 @@ mod transitions;
 pub const VERSION: u32 = 1;
 pub const RUNTIME_ID: u32 = 1;
 
+pub const MAX_OUTGOING_MESSAGES_PER_EXECUTION: u32 = 4;
+pub const MAX_OUTGOING_MESSAGES_BYTES_PER_EXECUTION: u32 = 4 * 1024;
+pub const MAX_OUTGOING_MESSAGES_PER_RUN: u32 = 16;
+pub const MAX_OUTGOING_MESSAGES_BYTES_PER_RUN: u32 = 4 * 1024;
+
 pub type ProgramJournals = Vec<(Vec<JournalNote>, MessageType, bool)>;
 
 /// Context passed to the runtime in order to
@@ -199,8 +204,8 @@ where
         gas_multiplier: GasMultiplier::from_value_per_gas(100),
         costs: Schedule::default().process_costs(),
         max_pages: MAX_WASM_PAGES_AMOUNT.into(),
-        outgoing_limit: 1024,
-        outgoing_bytes_limit: 64 * 1024 * 1024,
+        outgoing_limit: MAX_OUTGOING_MESSAGES_PER_EXECUTION,
+        outgoing_bytes_limit: MAX_OUTGOING_MESSAGES_BYTES_PER_EXECUTION,
         // TBD about deprecation
         performance_multiplier: Percent::new(100),
         // Deprecated
@@ -212,6 +217,8 @@ where
 
     let mut mega_journal = Vec::new();
     let initial_gas_allowance = ctx.gas_allowance.left();
+    let mut outgoing_messages_limiter = MAX_OUTGOING_MESSAGES_PER_EXECUTION;
+    let mut outgoing_messages_bytes_limiter = MAX_OUTGOING_MESSAGES_BYTES_PER_EXECUTION;
 
     ri.init_lazy_pages();
 
@@ -231,6 +238,8 @@ where
             message_type: ctx.queue_type,
             is_first_execution,
             stop_processing: false,
+            outgoing_messages_limiter,
+            outgoing_messages_bytes_limiter,
         };
 
         // Promise policy must be disabled for the canonical queue.
@@ -248,6 +257,12 @@ where
         // Update state hash if it was changed.
         if let Some(new_state_hash) = new_state_hash {
             ri.update_state_hash(&new_state_hash);
+        }
+
+        outgoing_messages_limiter = handler.outgoing_messages_limiter;
+        outgoing_messages_bytes_limiter = handler.outgoing_messages_bytes_limiter;
+        if outgoing_messages_limiter == 0 || outgoing_messages_bytes_limiter == 0 {
+            break;
         }
 
         // 'Stop processing' journal note received.

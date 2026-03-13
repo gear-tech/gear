@@ -63,3 +63,7 @@ pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
 /// since some not-base announce was created until it can be committed,
 /// any not-base announce older than this limit must be discarded.
 pub const COMMITMENT_DELAY_LIMIT: u32 = 3;
+
+pub const OUTGOING_MESSAGES_SOFT_LIMIT: u32 = 128;
+pub const OUTGOING_MESSAGES_BYTES_SOFT_LIMIT: u32 = 32 * 1024;
+pub const CALL_REPLY_SOFT_LIMIT: u32 = 4;

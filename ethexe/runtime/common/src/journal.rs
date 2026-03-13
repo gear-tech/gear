@@ -32,7 +32,10 @@ pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {
     pub controller: TransitionController<'a, S>,
     pub gas_allowance_counter: &'a GasAllowanceCounter,
     pub chunk_gas_limit: u64,
-    pub out_of_gas_for_block: &'a mut bool,
+    pub out_of_gas: &'a mut bool,
+    pub outgoing_messages_limiter: &'a mut u32,
+    pub outgoing_messages_bytes_limiter: &'a mut u32,
+    pub call_reply_limiter: &'a mut u32,
 }
 
 impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
@@ -58,6 +61,7 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                             .checked_sub(i128::try_from(dispatch.value).expect("value fits into i128"))
                             .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
                     });
+
                 });
         }
 
@@ -85,6 +89,17 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
         dispatch: StoredDispatch,
         delay: u32,
     ) {
+        // TODO: +_+_+ delay must be taken into account
+        *self.outgoing_messages_limiter = self.outgoing_messages_limiter.saturating_sub(1);
+        *self.outgoing_messages_bytes_limiter =
+            self.outgoing_messages_bytes_limiter.saturating_sub(
+                u32::try_from(dispatch.payload_bytes().len())
+                    .expect("payload size is too big for u32 in outgoing messages bytes limiter"),
+            );
+        if self.call_reply {
+            *self.call_reply_limiter = self.call_reply_limiter.saturating_sub(1);
+        }
+
         if dispatch.is_reply() {
             self.controller
                 .update_state(dispatch.source(), |state, _, transitions| {
@@ -414,7 +429,7 @@ impl<S: Storage + ?Sized> JournalHandler for NativeJournalHandler<'_, S> {
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
         // This means we are out of gas for block, not for chunk.
         if self.gas_allowance_counter.left() < self.chunk_gas_limit {
-            *self.out_of_gas_for_block = true;
+            *self.out_of_gas = true;
         }
     }
 
@@ -455,6 +470,8 @@ where
     pub storage: &'s S,
     pub program_state: &'s mut ProgramState,
     pub gas_allowance_counter: &'s mut GasAllowanceCounter,
+    pub outgoing_messages_limiter: u32,
+    pub outgoing_messages_bytes_limiter: u32,
     pub gas_multiplier: &'s GasMultiplier,
     pub message_type: MessageType,
     pub is_first_execution: bool,
@@ -519,11 +536,22 @@ where
                         self.stop_processing = true;
                         return Some(note);
                     }
-                    // TODO(romanm): handle the listed journal notes here:
+                    // TODO: +_+_+ handle the listed journal notes here:
                     // * WakeMessage
                     // * SendDispatch to self
                     // * SendValue to self
                     note => {
+                        if let JournalNote::SendDispatch { dispatch, .. } = &note {
+                            // TODO: +_+_+ delay must be taken into account
+                            self.outgoing_messages_limiter =
+                                self.outgoing_messages_limiter.saturating_sub(1);
+                            self.outgoing_messages_bytes_limiter =
+                                self.outgoing_messages_bytes_limiter.saturating_sub(
+                                    u32::try_from(dispatch.payload_bytes().len())
+                                        .expect("payload size is too big for u32"),
+                                );
+                        }
+
                         skipped_notes += 1;
                         return Some(note);
                     }
@@ -688,6 +716,8 @@ mod tests {
             message_type,
             is_first_execution,
             stop_processing: false,
+            outgoing_messages_limiter: 32,
+            outgoing_messages_bytes_limiter: 4 * 1024,
         }
     }
 
