@@ -96,7 +96,7 @@ impl From<SlotConnectionError> for ConnectionDenied {
 
 #[derive(Debug, Eq, PartialEq)]
 enum PeerState {
-    JustConnected,
+    JustConnected(Instant),
     Connected,
     JustDisconnected(Instant),
 }
@@ -135,8 +135,6 @@ struct PeerEntry {
     connections: HashSet<ConnectionId>,
     direction: PeerDirection,
     state: PeerState,
-    // TODO: move into PeerState::JustConnected
-    connected_at: Instant,
 }
 
 pub struct Behaviour {
@@ -250,8 +248,7 @@ impl Behaviour {
             Entry::Vacant(entry) => entry.insert_entry(PeerEntry {
                 connections: Default::default(),
                 direction,
-                state: PeerState::JustConnected,
-                connected_at: Instant::now(),
+                state: PeerState::JustConnected(Instant::now()),
             }),
         };
         let entry = entry.get_mut();
@@ -300,7 +297,7 @@ impl Behaviour {
                     // peer can be in JustConnected state if the peer is blocked beforehand via peer scoring
                     debug_assert_matches!(
                         peer_entry.state,
-                        PeerState::JustConnected | PeerState::Connected
+                        PeerState::JustConnected(_) | PeerState::Connected
                     );
                     peer_entry.state = PeerState::JustDisconnected(Instant::now());
                 }
@@ -313,8 +310,8 @@ impl Behaviour {
 
     fn update_on_periods(&mut self) {
         self.peers.retain(|_peer, entry| match entry.state {
-            PeerState::JustConnected => {
-                if entry.connected_at.elapsed() > self.config.grace_period {
+            PeerState::JustConnected(at) => {
+                if at.elapsed() > self.config.grace_period {
                     entry.state = PeerState::Connected;
                 }
 
