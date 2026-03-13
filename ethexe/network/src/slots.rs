@@ -127,8 +127,53 @@ impl From<SlotConnectionError> for ConnectionDenied {
 
 #[derive(Debug, Eq, PartialEq)]
 enum PeerState {
-    Connected,
+    Connected {
+        connections: HashSet<ConnectionId>,
+        direction: PeerDirection,
+    },
     JustDisconnected(Instant),
+}
+
+impl PeerState {
+    fn as_inbound_direction_mut(&mut self) -> Option<&mut InboundPeerDirection> {
+        match self {
+            PeerState::Connected {
+                direction: PeerDirection::Inbound(inbound),
+                ..
+            } => Some(inbound),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+impl PeerState {
+    fn as_direction(&self) -> Option<&PeerDirection> {
+        match self {
+            PeerState::Connected { direction, .. } => Some(&direction),
+            PeerState::JustDisconnected(_) => None,
+        }
+    }
+
+    fn as_inbound_direction(&self) -> Option<&InboundPeerDirection> {
+        match self {
+            PeerState::Connected {
+                direction: PeerDirection::Inbound(inbound),
+                ..
+            } => Some(inbound),
+            _ => None,
+        }
+    }
+
+    fn unwrap_connected_ref(&self) -> (&HashSet<ConnectionId>, &PeerDirection) {
+        match self {
+            PeerState::Connected {
+                connections,
+                direction,
+            } => (connections, direction),
+            state => unreachable!("unexpected variant: {state:?}"),
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, derive_more::IsVariant)]
@@ -157,13 +202,6 @@ impl PeerDirection {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-struct PeerEntry {
-    connections: HashSet<ConnectionId>,
-    direction: PeerDirection,
-    state: PeerState,
-}
-
 /// Per-peer slot manager used inside the main network behaviour.
 ///
 /// Responsibilities:
@@ -175,7 +213,7 @@ struct PeerEntry {
 pub struct Behaviour {
     config: Config,
     pending_outbound_peers: ConnectionMap<NoLimits>,
-    peers: HashMap<PeerId, PeerEntry>,
+    peers: HashMap<PeerId, PeerState>,
     pending_events: VecDeque<ToSwarm<Infallible, Infallible>>,
     addresses: PeerAddresses,
     driver: Interval,
@@ -204,24 +242,28 @@ impl Behaviour {
             .peers
             .get_mut(peer)
             .expect("we track all connected peers");
-        if let PeerDirection::Inbound(InboundPeerDirection::Overflowing { latest_action }) =
-            &mut entry.direction
+        if let Some(InboundPeerDirection::Overflowing { latest_action }) =
+            entry.as_inbound_direction_mut()
         {
             *latest_action = Instant::now();
         }
     }
 
-    fn inbound_peers(&self) -> impl Iterator<Item = (&PeerId, &PeerEntry)> {
-        self.peers
-            .iter()
-            .filter(|(_peer, entry)| entry.direction.is_inbound())
+    fn connected_peers(&self) -> impl Iterator<Item = (&PeerId, &PeerDirection)> {
+        self.peers.iter().filter_map(|(peer, entry)| match entry {
+            PeerState::Connected { direction, .. } => Some((peer, direction)),
+            PeerState::JustDisconnected(_) => None,
+        })
     }
 
-    fn outbound_peers(&self) -> impl Iterator<Item = &PeerId> {
-        self.peers
-            .iter()
-            .filter(|(_peer, entry)| entry.direction == PeerDirection::Outbound)
-            .map(|(peer, _)| peer)
+    fn inbound_peers(&self) -> impl Iterator<Item = (&PeerId, &PeerDirection)> {
+        self.connected_peers()
+            .filter(|(_peer, direction)| direction.is_inbound())
+    }
+
+    fn outbound_peers(&self) -> impl Iterator<Item = (&PeerId, &PeerDirection)> {
+        self.connected_peers()
+            .filter(|(_peer, direction)| direction.is_outbound())
     }
 
     fn add_pending_outbound_connection(
@@ -231,7 +273,7 @@ impl Behaviour {
     ) -> Result<(), ConnectionDenied> {
         // no need to track already connected peer, but peers in backoff must still be denied.
         if let Some(entry) = self.peers.get(&peer) {
-            if let PeerState::JustDisconnected(_) = entry.state {
+            if let PeerState::JustDisconnected(_) = entry {
                 return Err(SlotConnectionError::ActiveBackoffPeriod.into());
             }
 
@@ -260,16 +302,19 @@ impl Behaviour {
         &mut self,
         peer: PeerId,
         connection_id: ConnectionId,
-        direction: PeerDirection,
+        mut direction: PeerDirection,
     ) -> Result<(), ConnectionDenied> {
         // existing peers keep the direction of their first connection
         if let Some(entry) = self.peers.get_mut(&peer) {
-            if let PeerState::JustDisconnected(_) = entry.state {
-                return Err(SlotConnectionError::ActiveBackoffPeriod.into());
-            }
-
-            entry.connections.insert(connection_id);
-            return Ok(());
+            return match entry {
+                PeerState::Connected { connections, .. } => {
+                    connections.insert(connection_id);
+                    Ok(())
+                }
+                PeerState::JustDisconnected(_) => {
+                    Err(SlotConnectionError::ActiveBackoffPeriod.into())
+                }
+            };
         }
 
         let (limit, peers) = match direction {
@@ -292,13 +337,7 @@ impl Behaviour {
             return Err(SlotConnectionError::LimitExceeded { limit, direction }.into());
         }
 
-        let entry = self.peers.entry(peer).or_insert_with(|| PeerEntry {
-            connections: Default::default(),
-            direction,
-            state: PeerState::Connected,
-        });
-
-        if let PeerDirection::Inbound(direction) = &mut entry.direction
+        if let PeerDirection::Inbound(direction) = &mut direction
             && is_overflowing_inbound_connection
         {
             *direction = InboundPeerDirection::Overflowing {
@@ -306,7 +345,7 @@ impl Behaviour {
             };
         }
 
-        match &entry.direction {
+        match &direction {
             PeerDirection::Inbound(inbound) => {
                 self.metrics.inbound_peers.increment(1);
                 if inbound.is_overflowing() {
@@ -318,7 +357,14 @@ impl Behaviour {
             }
         }
 
-        entry.connections.insert(connection_id);
+        let old_peer = self.peers.insert(
+            peer,
+            PeerState::Connected {
+                connections: [connection_id].into(),
+                direction,
+            },
+        );
+        debug_assert_eq!(old_peer, None);
 
         Ok(())
     }
@@ -347,21 +393,30 @@ impl Behaviour {
         match self.peers.entry(peer) {
             Entry::Occupied(mut entry) => {
                 let entry = entry.get_mut();
-                entry.connections.remove(&connection_id);
-                if entry.connections.is_empty() {
-                    debug_assert_eq!(entry.state, PeerState::Connected);
-                    entry.state = PeerState::JustDisconnected(Instant::now());
-
-                    match &entry.direction {
-                        PeerDirection::Inbound(inbound) => {
-                            self.metrics.inbound_peers.decrement(1);
-                            if inbound.is_overflowing() {
-                                self.metrics.inbound_overflowing_peers.decrement(1);
+                match entry {
+                    PeerState::Connected {
+                        connections,
+                        direction,
+                    } => {
+                        connections.remove(&connection_id);
+                        if connections.is_empty() {
+                            match direction {
+                                PeerDirection::Inbound(inbound) => {
+                                    self.metrics.inbound_peers.decrement(1);
+                                    if inbound.is_overflowing() {
+                                        self.metrics.inbound_overflowing_peers.decrement(1);
+                                    }
+                                }
+                                PeerDirection::Outbound => {
+                                    self.metrics.outbound_peers.decrement(1);
+                                }
                             }
+
+                            *entry = PeerState::JustDisconnected(Instant::now());
                         }
-                        PeerDirection::Outbound => {
-                            self.metrics.outbound_peers.decrement(1);
-                        }
+                    }
+                    PeerState::JustDisconnected(_) => {
+                        debug_assert!(false, "unexpected {peer} state: {entry:?}")
                     }
                 }
 
@@ -372,8 +427,8 @@ impl Behaviour {
     }
 
     fn update_on_periods(&mut self) {
-        self.peers.retain(|_peer, entry| match entry.state {
-            PeerState::Connected => true,
+        self.peers.retain(|_peer, entry| match entry {
+            PeerState::Connected { .. } => true,
             PeerState::JustDisconnected(at) => at.elapsed() <= self.config.backoff_period,
         });
     }
@@ -381,12 +436,12 @@ impl Behaviour {
     fn evict_inbound_overflowing_peers(&mut self) {
         let peers = self
             .inbound_peers()
-            .filter(|(_peer, entry)| {
-                entry.direction.is_evictable_overflowing_inbound(
+            .filter(|(_peer, direction)| {
+                direction.is_evictable_overflowing_inbound(
                     self.config.inbound_overflowing_peer_action_timeout,
                 )
             })
-            .map(|(&peer, _entry)| peer)
+            .map(|(&peer, _direction)| peer)
             .collect::<Vec<_>>();
 
         for peer_id in peers {
@@ -686,17 +741,15 @@ mod tests {
             behaviour
                 .peers
                 .get(&normal_peer_id)
-                .map(|entry| &entry.direction),
-            Some(&PeerDirection::Inbound(InboundPeerDirection::Normal))
+                .and_then(|entry| entry.as_inbound_direction()),
+            Some(&InboundPeerDirection::Normal)
         );
         assert_matches!(
             behaviour
                 .peers
                 .get(&overflowing_peer_id)
-                .map(|entry| &entry.direction),
-            Some(PeerDirection::Inbound(
-                InboundPeerDirection::Overflowing { .. }
-            ))
+                .and_then(|entry| entry.as_inbound_direction()),
+            Some(InboundPeerDirection::Overflowing { .. })
         );
     }
 
@@ -746,10 +799,14 @@ mod tests {
             .add_outbound_connection(known_peer_id, ConnectionId::new_unchecked(2))
             .unwrap();
 
-        let entry = behaviour.peers.get(&known_peer_id).unwrap();
-        assert_eq!(entry.direction, PeerDirection::Outbound);
+        let (connections, direction) = behaviour
+            .peers
+            .get(&known_peer_id)
+            .unwrap()
+            .unwrap_connected_ref();
+        assert_eq!(*direction, PeerDirection::Outbound);
         assert_eq!(
-            entry.connections,
+            *connections,
             [
                 ConnectionId::new_unchecked(1),
                 ConnectionId::new_unchecked(2)
@@ -834,6 +891,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_pending_outbound_connection_ignores_backoff_peers_for_limit() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        behaviour.peers.insert(
+            PeerId::random(),
+            PeerState::JustDisconnected(Instant::now()),
+        );
+
+        let peer_id = PeerId::random();
+        let connection_id = ConnectionId::new_unchecked(1);
+        behaviour
+            .add_pending_outbound_connection(peer_id, connection_id)
+            .unwrap();
+
+        assert!(behaviour.pending_outbound_peers.contains_peer(&peer_id));
+    }
+
+    #[tokio::test]
     async fn on_swarm_event_dial_failure_removes_pending_outbound_peer() {
         let mut behaviour = Behaviour::new(Config::default());
 
@@ -865,13 +940,17 @@ mod tests {
             .add_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
             .unwrap();
 
-        let entry = behaviour.peers.get(&peer_id).unwrap();
+        let (connections, direction) = behaviour
+            .peers
+            .get(&peer_id)
+            .unwrap()
+            .unwrap_connected_ref();
         assert_eq!(
-            entry.direction,
+            *direction,
             PeerDirection::Inbound(InboundPeerDirection::Normal)
         );
         assert_eq!(
-            entry.connections,
+            *connections,
             [
                 ConnectionId::new_unchecked(1),
                 ConnectionId::new_unchecked(2)
@@ -893,10 +972,14 @@ mod tests {
             .add_inbound_connection(peer_id, ConnectionId::new_unchecked(2))
             .unwrap();
 
-        let entry = behaviour.peers.get(&peer_id).unwrap();
-        assert_eq!(entry.direction, PeerDirection::Outbound);
+        let (connections, direction) = behaviour
+            .peers
+            .get(&peer_id)
+            .unwrap()
+            .unwrap_connected_ref();
+        assert_eq!(*direction, PeerDirection::Outbound);
         assert_eq!(
-            entry.connections,
+            *connections,
             [
                 ConnectionId::new_unchecked(1),
                 ConnectionId::new_unchecked(2)
@@ -914,19 +997,23 @@ mod tests {
         let initial_action_at = Instant::now();
         behaviour.peers.insert(
             peer_id,
-            PeerEntry {
+            PeerState::Connected {
                 connections: [ConnectionId::new_unchecked(1)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
                     latest_action: initial_action_at,
                 }),
-                state: PeerState::Connected,
             },
         );
 
         time::advance(Duration::from_millis(1)).await;
         behaviour.report_peer_action(&peer_id);
 
-        let updated_action_at = match &behaviour.peers.get(&peer_id).unwrap().direction {
+        let (_, direction) = behaviour
+            .peers
+            .get(&peer_id)
+            .unwrap()
+            .unwrap_connected_ref();
+        let updated_action_at = match direction {
             PeerDirection::Inbound(InboundPeerDirection::Overflowing { latest_action }) => {
                 *latest_action
             }
@@ -942,20 +1029,18 @@ mod tests {
         let normal_inbound_peer_id = PeerId::random();
         behaviour.peers.insert(
             normal_inbound_peer_id,
-            PeerEntry {
+            PeerState::Connected {
                 connections: [ConnectionId::new_unchecked(1)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Normal),
-                state: PeerState::Connected,
             },
         );
 
         let outbound_peer_id = PeerId::random();
         behaviour.peers.insert(
             outbound_peer_id,
-            PeerEntry {
+            PeerState::Connected {
                 connections: [ConnectionId::new_unchecked(2)].into(),
                 direction: PeerDirection::Outbound,
-                state: PeerState::Connected,
             },
         );
 
@@ -966,14 +1051,14 @@ mod tests {
             behaviour
                 .peers
                 .get(&normal_inbound_peer_id)
-                .map(|entry| &entry.direction),
+                .and_then(|entry| entry.as_direction()),
             Some(&PeerDirection::Inbound(InboundPeerDirection::Normal))
         );
         assert_eq!(
             behaviour
                 .peers
                 .get(&outbound_peer_id)
-                .map(|entry| &entry.direction),
+                .and_then(|entry| entry.as_direction()),
             Some(&PeerDirection::Outbound)
         );
     }
@@ -999,11 +1084,7 @@ mod tests {
 
     #[tokio::test]
     async fn dial_peers_skips_connected_and_pending_peers() {
-        let config = Config {
-            outbound_min_peers: 3,
-            ..Default::default()
-        };
-        let mut alice = new_swarm_with_config(config).await;
+        let mut alice = new_swarm().await;
 
         let mut outbound_peer = new_swarm().await;
         alice.connect(&mut outbound_peer).await;
@@ -1059,6 +1140,36 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn dial_peers_ignores_backoff_peers_when_counting_outbound_minimum() {
+        let config = Config {
+            outbound_min_peers: 2,
+            ..Default::default()
+        };
+        let mut behaviour = Behaviour::new(config);
+
+        behaviour.peers.insert(
+            PeerId::random(),
+            PeerState::Connected {
+                connections: [ConnectionId::new_unchecked(1)].into(),
+                direction: PeerDirection::Outbound,
+            },
+        );
+        behaviour.peers.insert(
+            PeerId::random(),
+            PeerState::JustDisconnected(Instant::now()),
+        );
+
+        let replacement_peer = PeerId::random();
+        behaviour
+            .addresses
+            .add(replacement_peer, random_multiaddr());
+
+        behaviour.dial_peers();
+
+        assert_eq!(drain_dialled_peers(&mut behaviour), [replacement_peer]);
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn update_on_periods_removes_just_disconnected_only_after_backoff_period() {
         let config = Config {
             backoff_period: Duration::from_secs(5),
@@ -1069,32 +1180,24 @@ mod tests {
         let disconnected_peer_id = PeerId::random();
         behaviour.peers.insert(
             disconnected_peer_id,
-            PeerEntry {
-                connections: Default::default(),
-                direction: PeerDirection::Outbound,
-                state: PeerState::JustDisconnected(Instant::now()),
-            },
+            PeerState::JustDisconnected(Instant::now()),
         );
 
         let connected_peer_id = PeerId::random();
         behaviour.peers.insert(
             connected_peer_id,
-            PeerEntry {
+            PeerState::Connected {
                 connections: [ConnectionId::new_unchecked(2)].into(),
                 direction: PeerDirection::Outbound,
-                state: PeerState::Connected,
             },
         );
 
         // the backoff period is not ended
         behaviour.update_on_periods();
         assert!(behaviour.peers.contains_key(&disconnected_peer_id));
-        assert_eq!(
-            behaviour
-                .peers
-                .get(&connected_peer_id)
-                .map(|entry| &entry.state),
-            Some(&PeerState::Connected)
+        assert_matches!(
+            behaviour.peers.get(&connected_peer_id),
+            Some(PeerState::Connected { .. })
         );
 
         // the backoff period is exactly ended
@@ -1106,12 +1209,9 @@ mod tests {
         time::advance(Duration::from_millis(1)).await;
         behaviour.update_on_periods();
         assert!(!behaviour.peers.contains_key(&disconnected_peer_id));
-        assert_eq!(
-            behaviour
-                .peers
-                .get(&connected_peer_id)
-                .map(|entry| &entry.state),
-            Some(&PeerState::Connected)
+        assert_matches!(
+            behaviour.peers.get(&connected_peer_id),
+            Some(PeerState::Connected { .. })
         );
     }
 
@@ -1122,44 +1222,40 @@ mod tests {
         let stale_overflowing = PeerId::random();
         behaviour.peers.insert(
             stale_overflowing,
-            PeerEntry {
+            PeerState::Connected {
                 connections: [ConnectionId::new_unchecked(1)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
                     latest_action: Instant::now(),
                 }),
-                state: PeerState::Connected,
             },
         );
 
         let refreshed_overflowing = PeerId::random();
         behaviour.peers.insert(
             refreshed_overflowing,
-            PeerEntry {
+            PeerState::Connected {
                 connections: [ConnectionId::new_unchecked(2)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
                     latest_action: Instant::now(),
                 }),
-                state: PeerState::Connected,
             },
         );
 
         let normal_inbound = PeerId::random();
         behaviour.peers.insert(
             normal_inbound,
-            PeerEntry {
+            PeerState::Connected {
                 connections: [ConnectionId::new_unchecked(3)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Normal),
-                state: PeerState::Connected,
             },
         );
 
         let outbound = PeerId::random();
         behaviour.peers.insert(
             outbound,
-            PeerEntry {
+            PeerState::Connected {
                 connections: [ConnectionId::new_unchecked(4)].into(),
                 direction: PeerDirection::Outbound,
-                state: PeerState::Connected,
             },
         );
 
@@ -1179,12 +1275,11 @@ mod tests {
         let peer_id = PeerId::random();
         behaviour.peers.insert(
             peer_id,
-            PeerEntry {
+            PeerState::Connected {
                 connections: [ConnectionId::new_unchecked(1)].into(),
                 direction: PeerDirection::Inbound(InboundPeerDirection::Overflowing {
                     latest_action: Instant::now(),
                 }),
-                state: PeerState::Connected,
             },
         );
 
