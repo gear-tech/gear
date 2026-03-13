@@ -44,8 +44,7 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
-use ethexe_db::Database;
-use ethexe_db_init::InitConfig;
+use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
     Ethereum,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
@@ -1332,6 +1331,6 @@ impl WaitForReplyTo {
 pub fn new_empty_initialized_memory_db(config: InitConfig) -> anyhow::Result<Database> {
     let handle = tokio::runtime::Handle::current();
     tokio::task::block_in_place(|| {
-        handle.block_on(ethexe_db_init::create_initialized_empty_memory_db(config))
+        handle.block_on(ethexe_db::create_initialized_empty_memory_db(config))
     })
 }

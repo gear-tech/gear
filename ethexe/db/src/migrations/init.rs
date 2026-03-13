@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{InitConfig, LATEST_VERSION, MIGRATIONS, OLDEST_SUPPORTED_VERSION};
+use super::{InitConfig, LATEST_VERSION, MIGRATIONS, OLDEST_SUPPORTED_VERSION};
+use crate::{Database, RawDatabase};
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, ensure};
 use ethexe_common::{
@@ -24,7 +25,6 @@ use ethexe_common::{
     db::{ComputedAnnounceData, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
 };
-use ethexe_db::{Database, RawDatabase};
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
 

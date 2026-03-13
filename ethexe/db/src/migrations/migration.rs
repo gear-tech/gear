@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::InitConfig;
+use super::InitConfig;
+use crate::RawDatabase;
 use anyhow::Result;
-use ethexe_db::RawDatabase;
 
 pub trait Migration {
     fn migrate<'a>(
@@ -42,7 +42,7 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
+pub(super) mod test {
     use indoc::formatdoc;
     use parity_scale_codec::Encode;
     use scale_info::{MetaType, PortableRegistry, Registry};
