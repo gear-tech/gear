@@ -1,0 +1,16 @@
+services:
+  vara-eth-ethereum-node:
+    container_name: vara-eth-ethereum-node
+    image: gear-tech/vara-eth-ethereum-node:latest
+    build:
+      context: ./contracts
+      dockerfile: Dockerfile
+      args:
+        PRIVATE_KEY: ${PRIVATE_KEY}
+        ROUTER_AGGREGATED_PUBLIC_KEY_X: ${ROUTER_AGGREGATED_PUBLIC_KEY_X}
+        ROUTER_AGGREGATED_PUBLIC_KEY_Y: ${ROUTER_AGGREGATED_PUBLIC_KEY_Y}
+        ROUTER_VERIFIABLE_SECRET_SHARING_COMMITMENT: ${ROUTER_VERIFIABLE_SECRET_SHARING_COMMITMENT}
+        ROUTER_VALIDATORS_LIST: ${ROUTER_VALIDATORS_LIST}
+        SENDER_ADDRESS: ${SENDER_ADDRESS}
+    ports:
+      - 8545:8545
