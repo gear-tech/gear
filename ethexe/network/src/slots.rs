@@ -200,6 +200,34 @@ impl PeerDirection {
             Self::Outbound => false,
         }
     }
+
+    fn increment_metrics(&self, metrics: &Metrics) {
+        match self {
+            PeerDirection::Inbound(inbound) => {
+                metrics.inbound_peers.increment(1);
+                if inbound.is_overflowing() {
+                    metrics.inbound_overflowing_peers.increment(1);
+                }
+            }
+            PeerDirection::Outbound => {
+                metrics.outbound_peers.increment(1);
+            }
+        }
+    }
+
+    fn decrement_metrics(&self, metrics: &Metrics) {
+        match self {
+            PeerDirection::Inbound(inbound) => {
+                metrics.inbound_peers.decrement(1);
+                if inbound.is_overflowing() {
+                    metrics.inbound_overflowing_peers.decrement(1);
+                }
+            }
+            PeerDirection::Outbound => {
+                metrics.outbound_peers.decrement(1);
+            }
+        }
+    }
 }
 
 /// Per-peer slot manager used inside the main network behaviour.
@@ -345,17 +373,7 @@ impl Behaviour {
             };
         }
 
-        match &direction {
-            PeerDirection::Inbound(inbound) => {
-                self.metrics.inbound_peers.increment(1);
-                if inbound.is_overflowing() {
-                    self.metrics.inbound_overflowing_peers.increment(1);
-                }
-            }
-            PeerDirection::Outbound => {
-                self.metrics.outbound_peers.increment(1);
-            }
-        }
+        direction.increment_metrics(&self.metrics);
 
         let old_peer = self.peers.insert(
             peer,
@@ -400,18 +418,7 @@ impl Behaviour {
                     } => {
                         connections.remove(&connection_id);
                         if connections.is_empty() {
-                            match direction {
-                                PeerDirection::Inbound(inbound) => {
-                                    self.metrics.inbound_peers.decrement(1);
-                                    if inbound.is_overflowing() {
-                                        self.metrics.inbound_overflowing_peers.decrement(1);
-                                    }
-                                }
-                                PeerDirection::Outbound => {
-                                    self.metrics.outbound_peers.decrement(1);
-                                }
-                            }
-
+                            direction.decrement_metrics(&self.metrics);
                             *entry = PeerState::JustDisconnected(Instant::now());
                         }
                     }
