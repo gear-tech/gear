@@ -725,6 +725,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_inbound_connection_rejects_peer_in_backoff_period() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        let first_connection_id = ConnectionId::new_unchecked(1);
+        behaviour
+            .add_inbound_connection(peer_id, first_connection_id)
+            .unwrap();
+        behaviour.remove_connection(peer_id, first_connection_id);
+
+        let err = behaviour
+            .add_inbound_connection(peer_id, ConnectionId::new_unchecked(2))
+            .unwrap_err();
+        let err = err.downcast::<SlotConnectionError>().unwrap();
+        assert_matches!(err, SlotConnectionError::ActiveBackoffPeriod);
+    }
+
+    #[tokio::test]
     async fn add_pending_outbound_connection_does_not_track_known_peer() {
         let mut behaviour = Behaviour::new(Config::default());
 
