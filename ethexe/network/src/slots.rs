@@ -725,6 +725,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_pending_outbound_connection_does_not_track_known_peer() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        behaviour
+            .add_inbound_connection(peer_id, ConnectionId::new_unchecked(1))
+            .unwrap();
+
+        behaviour
+            .add_pending_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
+            .unwrap();
+
+        assert!(!behaviour.pending_outbound_peers.contains_peer(&peer_id));
+    }
+
+    #[tokio::test]
+    async fn on_swarm_event_dial_failure_removes_pending_outbound_peer() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        let connection_id = ConnectionId::new_unchecked(1);
+        behaviour
+            .add_pending_outbound_connection(peer_id, connection_id)
+            .unwrap();
+
+        let dial_error = DialError::Aborted;
+        behaviour.on_swarm_event(FromSwarm::DialFailure(DialFailure {
+            peer_id: Some(peer_id),
+            error: &dial_error,
+            connection_id,
+        }));
+
+        assert!(!behaviour.pending_outbound_peers.contains_peer(&peer_id));
+    }
+
+    #[tokio::test]
     async fn add_outbound_connection_keeps_initial_inbound_direction() {
         let mut behaviour = Behaviour::new(Config::default());
 
