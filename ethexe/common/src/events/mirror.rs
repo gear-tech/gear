@@ -104,6 +104,27 @@ pub struct ValueClaimingRequestedEvent {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct TransferLockedValueToInheritorFailedEvent {
+    pub inheritor: ActorId,
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct ReplyTransferFailedEvent {
+    pub destination: ActorId,
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct ValueClaimFailedEvent {
+    pub claimed_id: MessageId,
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub enum Event {
     OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequestedEvent),
     ExecutableBalanceTopUpRequested(ExecutableBalanceTopUpRequestedEvent),
@@ -116,6 +137,9 @@ pub enum Event {
     StateChanged(StateChangedEvent),
     ValueClaimed(ValueClaimedEvent),
     ValueClaimingRequested(ValueClaimingRequestedEvent),
+    TransferLockedValueToInheritorFailed(TransferLockedValueToInheritorFailedEvent),
+    ReplyTransferFailed(ReplyTransferFailedEvent),
+    ValueClaimFailed(ValueClaimFailedEvent),
 }
 
 impl Event {
@@ -135,7 +159,10 @@ impl Event {
             | Self::Message(_)
             | Self::MessageCallFailed(_)
             | Self::Reply(_)
-            | Self::ReplyCallFailed(_) => return None,
+            | Self::ReplyCallFailed(_)
+            | Self::TransferLockedValueToInheritorFailed(_)
+            | Self::ReplyTransferFailed(_)
+            | Self::ValueClaimFailed(_) => return None,
         })
     }
 }
