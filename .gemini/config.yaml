@@ -1,0 +1,14 @@
+have_fun: false
+code_review:
+  comment_severity_threshold: MEDIUM
+  max_review_comments: 6
+  pull_request_opened:
+    help: false
+    summary: true
+    code_review: true
+    include_drafts: false
+ignore_patterns:
+  - target/**
+  - .worktrees/**
+  - ethexe/contracts/out/**
+  - ethexe/ethereum/abi/*.json

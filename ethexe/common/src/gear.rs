@@ -430,10 +430,30 @@ impl ToDigest for ValueClaim {
     }
 }
 
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    Default,
+    PartialOrd,
+    Ord,
+    Hash,
+    derive_more::IsVariant,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MessageType {
     #[default]
     Canonical,
     Injected,
+}
+
+#[derive(Debug)]
+pub struct GenesisBlockInfo {
+    pub hash: H256,
+    pub number: u32,
+    pub timestamp: u64,
 }
