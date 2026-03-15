@@ -61,6 +61,12 @@ sol!(
     "abi/WrappedVara.json"
 );
 
+sol!(
+    #[sol(rpc)]
+    IDemoCaller,
+    "abi/DemoCaller.json"
+);
+
 /// Bindings for Symbiotic contracts.
 /// Only uses for local deployments and tests.
 pub mod symbiotic_abi {
