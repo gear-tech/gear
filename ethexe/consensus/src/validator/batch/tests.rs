@@ -18,7 +18,10 @@
 
 use super::types::{ValidationRejectReason, ValidationStatus};
 
-use crate::{mock::*, validator::mock::*};
+use crate::{
+    mock::*,
+    validator::{batch::types::BatchParts, mock::*},
+};
 
 use ethexe_common::{
     Address, Digest, HashOf, SimpleBlockData, ValidatorsVec,
@@ -209,13 +212,16 @@ async fn rejects_code_not_processed_yet() {
         id: code_id,
         valid: true,
     }];
+    let batch_parts = BatchParts {
+        chain_commitment: None,
+        code_commitments,
+        rewards_commitment: None,
+        validators_commitment: None,
+    };
     let batch = crate::validator::batch::utils::create_batch_commitment(
         &ctx.core.db,
         &block,
-        None,
-        code_commitments,
-        None,
-        None,
+        batch_parts,
         100,
     )
     .unwrap()

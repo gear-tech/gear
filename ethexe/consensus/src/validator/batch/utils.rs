@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::validator::batch::types::BatchParts;
+
 use super::types::CodeNotValidatedError;
 
 use anyhow::{Result, anyhow};
@@ -82,12 +84,16 @@ pub fn collect_not_committed_predecessors<DB: AnnounceStorageRO + BlockMetaStora
 pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
-    chain_commitment: Option<ChainCommitment>,
-    code_commitments: Vec<CodeCommitment>,
-    validators_commitment: Option<ValidatorsCommitment>,
-    rewards_commitment: Option<RewardsCommitment>,
+    batch_parts: BatchParts,
     commitment_delay_limit: u32,
 ) -> Result<Option<BatchCommitment>> {
+    let BatchParts {
+        chain_commitment,
+        validators_commitment,
+        code_commitments,
+        rewards_commitment,
+    } = batch_parts;
+
     let block_hash = block.hash;
     if chain_commitment.is_none()
         && code_commitments.is_empty()

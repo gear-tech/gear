@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::iter::chain;
+
 use alloy::sol_types::SolValue;
 use ethexe_common::{
     Announce, Digest, HashOf,
@@ -92,6 +94,13 @@ impl BatchGasCounter {
         }
     }
 
+    pub fn gas_left(&self) -> u64 {
+        self.gas_left
+    }
+    pub fn gas_weights(&self) -> &BatchGasWeights {
+        &self.gas_weights
+    }
+
     pub fn charge_for_validators_commitment(&mut self) -> bool {
         self.charge_inner(self.gas_weights.validators_commitment_gas)
     }
@@ -143,6 +152,10 @@ impl BatchSizeCounter {
         Self(MAX_BATCH_SIZE)
     }
 
+    pub fn size_left(&self) -> u64 {
+        self.0
+    }
+
     pub fn charge_for_validators_commitment(
         &mut self,
         commitment: &Option<ValidatorsCommitment>,
@@ -170,11 +183,18 @@ impl BatchSizeCounter {
         self.charge(&commitment)
     }
 
-    pub fn charge_for_state_transitions(&mut self, transitions: &[StateTransition]) -> bool {
-        let transitions: Vec<Gear::StateTransition> =
-            transitions.iter().cloned().map(Into::into).collect();
+    /// Charges for the size of additional transitions when size for [`ChainCommitment`] already charged.
+    ///
+    /// This functional just charge only for state transitions abi encoding, without any additional fields like length and data pointer.
+    pub fn charge_for_additional_transitions(&mut self, transitions: &[StateTransition]) -> bool {
+        for transition in transitions.iter().cloned() {
+            let tr: Gear::StateTransition = transition.into();
+            if !self.charge(&tr) {
+                return false;
+            }
+        }
 
-        self.charge(&transitions)
+        true
     }
 
     pub fn charge_for_code_commitments(&mut self, commitments: &[CodeCommitment]) -> bool {
@@ -194,6 +214,156 @@ impl BatchSizeCounter {
             }
             None => false,
         }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct BatchParts {
+    pub chain_commitment: Option<ChainCommitment>,
+    pub code_commitments: Vec<CodeCommitment>,
+    pub validators_commitment: Option<ValidatorsCommitment>,
+    pub rewards_commitment: Option<RewardsCommitment>,
+}
+
+#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]
+pub enum BatchIncludeError {
+    #[display("batch gas limit exceeded")]
+    GasLimitExceeded,
+    #[display("batch size limit exceeded")]
+    SizeLimitExceeded,
+}
+
+impl From<BatchIncludeError> for ValidationRejectReason {
+    fn from(value: BatchIncludeError) -> Self {
+        match value {
+            BatchIncludeError::GasLimitExceeded => Self::BatchGasLimitExceeded,
+            BatchIncludeError::SizeLimitExceeded => Self::BatchSizeLimitExceeded,
+        }
+    }
+}
+
+/// Helper that owns the mutable batch assembly state while the manager
+/// decides what candidate parts should be considered for inclusion.
+#[derive(Debug, Clone)]
+pub struct BatchFiller {
+    parts: BatchParts,
+    gas_counter: BatchGasCounter,
+    size_counter: BatchSizeCounter,
+}
+
+type FillerResult = Result<(), BatchIncludeError>;
+
+impl BatchFiller {
+    pub fn new(gas_weights: BatchGasWeights) -> Self {
+        Self {
+            parts: BatchParts::default(),
+            gas_counter: BatchGasCounter::new(gas_weights),
+            size_counter: BatchSizeCounter::new(),
+        }
+    }
+
+    pub fn parts(&self) -> &BatchParts {
+        &self.parts
+    }
+
+    pub fn into_parts(self) -> BatchParts {
+        self.parts
+    }
+
+    pub fn include_validators_commitment(
+        &mut self,
+        commitment: Option<ValidatorsCommitment>,
+    ) -> FillerResult {
+        if !self.gas_counter.charge_for_validators_commitment() {
+            return Err(BatchIncludeError::GasLimitExceeded);
+        }
+
+        if !self
+            .size_counter
+            .charge_for_validators_commitment(&commitment)
+        {
+            return Err(BatchIncludeError::SizeLimitExceeded);
+        }
+
+        self.parts.validators_commitment = commitment;
+        Ok(())
+    }
+
+    pub fn include_rewards_commitment(
+        &mut self,
+        commitment: Option<RewardsCommitment>,
+    ) -> FillerResult {
+        if !self.gas_counter.charge_for_rewards_commitment() {
+            return Err(BatchIncludeError::GasLimitExceeded);
+        }
+        if !self.size_counter.charge_for_rewards_commitment(&commitment) {
+            return Err(BatchIncludeError::SizeLimitExceeded);
+        }
+
+        self.parts.rewards_commitment = commitment;
+        Ok(())
+    }
+
+    pub fn include_code_commitments(&mut self, commitments: Vec<CodeCommitment>) -> FillerResult {
+        if !self
+            .gas_counter
+            .charge_for_code_commitments(commitments.len() as u64)
+        {
+            return Err(BatchIncludeError::GasLimitExceeded);
+        }
+        if !self.size_counter.charge_for_code_commitments(&commitments) {
+            return Err(BatchIncludeError::SizeLimitExceeded);
+        }
+
+        self.parts.code_commitments.extend(commitments);
+        Ok(())
+    }
+
+    pub fn include_chain_commitment(&mut self, commitment: ChainCommitment) -> FillerResult {
+        match self.parts.chain_commitment {
+            Some(ref mut chain_commitment) => {
+                if !self
+                    .gas_counter
+                    .charge_for_transitions(commitment.transitions.len() as u64)
+                {
+                    return Err(BatchIncludeError::GasLimitExceeded);
+                }
+                if !self
+                    .size_counter
+                    .charge_for_additional_transitions(&commitment.transitions)
+                {
+                    return Err(BatchIncludeError::SizeLimitExceeded);
+                }
+                chain_commitment.head_announce = commitment.head_announce;
+                chain_commitment.transitions.extend(commitment.transitions);
+            }
+            None if !commitment.transitions.is_empty() => {
+                // if !self
+                //     .gas_counter
+                //     .charge_for_transitions(commitment.transitions.len() as u64)
+                // {
+                //     return Err(BatchIncludeError::GasLimitExceeded);
+                // }
+
+                let commitment = Some(commitment);
+                if !self.size_counter.charge_for_chain_commitment(&commitment) {
+                    return Err(BatchIncludeError::SizeLimitExceeded);
+                }
+                self.parts.chain_commitment = commitment;
+            }
+            None => {}
+        }
+        Ok(())
+    }
+
+    pub fn include_chain_and_codes_commitments(
+        &mut self,
+        chain_commitment: ChainCommitment,
+        code_commitments: Vec<CodeCommitment>,
+    ) -> FillerResult {
+        // This is wrong implementation, should be fixed.
+        self.include_chain_commitment(chain_commitment)?;
+        self.include_code_commitments(code_commitments)
     }
 }
 
