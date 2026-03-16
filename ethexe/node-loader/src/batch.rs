@@ -7,14 +7,13 @@ use alloy::{
     rpc::types::{BlockTransactions, Filter, Header},
     sol_types::{SolCall, SolEvent},
 };
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
 use ethexe_ethereum::{
     Ethereum, TryGetReceipt,
     abi::{IMirror, IRouter::commitBatchCall},
     mirror::events::try_extract_event,
 };
-use ethexe_sdk::VaraEthApi;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::{
@@ -28,12 +27,9 @@ use std::{
     marker::PhantomData,
     sync::Arc,
 };
-use tokio::{
-    sync::{
-        RwLock,
-        broadcast::{Receiver, error::RecvError},
-    },
-    time::{Duration, Instant},
+use tokio::sync::{
+    RwLock,
+    broadcast::{Receiver, error::RecvError},
 };
 use tracing::instrument;
 
@@ -51,10 +47,13 @@ use crate::{
 pub mod context;
 pub mod generator;
 pub mod report;
+pub mod rpc_pool;
+
+use rpc_pool::EthexeRpcPool;
 
 pub struct BatchPool<Rng: CallGenRng> {
     apis: Vec<Ethereum>,
-    rpc_pools: Vec<Arc<EthexeRpcPool>>,
+    rpc_pools: Vec<Option<EthexeRpcPool>>,
     pool_size: usize,
     batch_size: usize,
     send_message_multicall: Address,
@@ -95,403 +94,6 @@ const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 const INJECTED_TX_RATIO_NUM: u8 = 7;
 const INJECTED_TX_RATIO_DEN: u8 = 10;
 const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
-const RPC_MAX_ATTEMPTS: usize = 3;
-const RPC_RECONNECT_DELAY_MIN_SECS: u64 = 60;
-const RPC_RECONNECT_DELAY_SPREAD_SECS: u64 = 60;
-
-struct EthexeRpcEndpoint {
-    url: String,
-    client: RwLock<Option<Arc<VaraEthApi>>>,
-    reconnect_not_before: RwLock<Option<Instant>>,
-}
-
-struct EthexeRpcPool {
-    endpoints: Vec<EthexeRpcEndpoint>,
-}
-
-impl EthexeRpcPool {
-    fn new(urls: Vec<String>) -> Result<Self> {
-        if urls.is_empty() {
-            return Err(anyhow!(
-                "at least one --ethexe-node endpoint must be provided"
-            ));
-        }
-
-        let endpoints = urls
-            .into_iter()
-            .enumerate()
-            .map(|(idx, url)| {
-                tracing::info!(endpoint_idx = idx, endpoint = %url, "Configured ethexe RPC endpoint");
-                EthexeRpcEndpoint {
-                    url,
-                    client: RwLock::new(None),
-                    reconnect_not_before: RwLock::new(None),
-                }
-            })
-            .collect();
-
-        Ok(Self { endpoints })
-    }
-
-    fn random_endpoint_index(&self, rng: &mut impl RngCore) -> usize {
-        (rng.next_u32() as usize) % self.endpoints.len()
-    }
-
-    async fn reconnect_client(
-        &self,
-        endpoint_idx: usize,
-        api: &Ethereum,
-    ) -> Result<Arc<VaraEthApi>> {
-        let endpoint = self
-            .endpoints
-            .get(endpoint_idx)
-            .ok_or_else(|| anyhow!("invalid endpoint index: {endpoint_idx}"))?;
-
-        tracing::warn!(
-            endpoint_idx,
-            endpoint = %endpoint.url,
-            "Connecting ethexe RPC client"
-        );
-
-        let client = Arc::new(VaraEthApi::new(&endpoint.url, api.clone()).await?);
-        let mut lock = endpoint.client.write().await;
-        *lock = Some(client.clone());
-        let mut reconnect_lock = endpoint.reconnect_not_before.write().await;
-        *reconnect_lock = None;
-
-        tracing::info!(
-            endpoint_idx,
-            endpoint = %endpoint.url,
-            "Connected ethexe RPC client"
-        );
-
-        Ok(client)
-    }
-
-    async fn get_or_connect_client(
-        &self,
-        endpoint_idx: usize,
-        api: &Ethereum,
-    ) -> Result<Arc<VaraEthApi>> {
-        let endpoint = self
-            .endpoints
-            .get(endpoint_idx)
-            .ok_or_else(|| anyhow!("invalid endpoint index: {endpoint_idx}"))?;
-
-        if let Some(client) = endpoint.client.read().await.clone() {
-            return Ok(client);
-        }
-
-        if let Some(not_before) = *endpoint.reconnect_not_before.read().await {
-            let now = Instant::now();
-            if now < not_before {
-                return Err(anyhow!(
-                    "endpoint {endpoint_idx} reconnect is cooling down for {:?}",
-                    not_before.duration_since(now)
-                ));
-            }
-        }
-
-        self.reconnect_client(endpoint_idx, api).await
-    }
-
-    fn reconnect_delay_for_endpoint(endpoint_idx: usize) -> Duration {
-        let spread = RPC_RECONNECT_DELAY_SPREAD_SECS.saturating_add(1);
-        let jitter = (endpoint_idx as u64) % spread;
-        Duration::from_secs(RPC_RECONNECT_DELAY_MIN_SECS.saturating_add(jitter))
-    }
-
-    async fn schedule_reconnect(&self, endpoint_idx: usize, reason: &str) {
-        if let Some(endpoint) = self.endpoints.get(endpoint_idx) {
-            {
-                let mut lock = endpoint.client.write().await;
-                *lock = None;
-            }
-
-            let delay = Self::reconnect_delay_for_endpoint(endpoint_idx);
-            let not_before = Instant::now() + delay;
-            let mut cooldown_lock = endpoint.reconnect_not_before.write().await;
-            *cooldown_lock = Some(not_before);
-
-            tracing::warn!(
-                endpoint_idx,
-                endpoint = %endpoint.url,
-                reconnect_after_secs = delay.as_secs(),
-                reason,
-                "Scheduled delayed reconnect for ethexe RPC endpoint"
-            );
-        }
-    }
-
-    fn endpoint_indices_from(&self, preferred_idx: usize) -> Vec<usize> {
-        let len = self.endpoints.len();
-        if len == 0 {
-            return Vec::new();
-        }
-
-        (0..len)
-            .map(|offset| (preferred_idx + offset) % len)
-            .collect()
-    }
-
-    async fn request_code_validation(
-        &self,
-        preferred_endpoint_idx: usize,
-        api: &Ethereum,
-        code: &[u8],
-    ) -> Result<CodeId> {
-        let mut last_err: Option<anyhow::Error> = None;
-
-        for attempt in 1..=RPC_MAX_ATTEMPTS {
-            let mut attempt_had_retryable = false;
-            for endpoint_idx in self.endpoint_indices_from(preferred_endpoint_idx) {
-                let client = match self.get_or_connect_client(endpoint_idx, api).await {
-                    Ok(client) => client,
-                    Err(err) => {
-                        if is_retryable_rpc_error(&err) {
-                            attempt_had_retryable = true;
-                            tracing::warn!(
-                                endpoint_idx,
-                                attempt,
-                                max_attempts = RPC_MAX_ATTEMPTS,
-                                error = %err,
-                                "failed to acquire ethexe RPC client; will try another endpoint"
-                            );
-                        }
-                        last_err = Some(err);
-                        continue;
-                    }
-                };
-
-                match client.router().request_code_validation(code).await {
-                    Ok((_, code_id)) => return Ok(code_id),
-                    Err(err) if attempt < RPC_MAX_ATTEMPTS && is_retryable_rpc_error(&err) => {
-                        attempt_had_retryable = true;
-                        tracing::warn!(
-                            endpoint_idx,
-                            attempt,
-                            max_attempts = RPC_MAX_ATTEMPTS,
-                            error = %err,
-                            "request_code_validation failed; scheduling delayed reconnect"
-                        );
-                        self.schedule_reconnect(
-                            endpoint_idx,
-                            "request_code_validation transport failure",
-                        )
-                        .await;
-                        last_err = Some(err);
-                    }
-                    Err(err) => {
-                        tracing::error!(
-                            endpoint_idx,
-                            attempt,
-                            max_attempts = RPC_MAX_ATTEMPTS,
-                            error = %err,
-                            "request_code_validation failed"
-                        );
-                        return Err(err);
-                    }
-                }
-            }
-
-            if !attempt_had_retryable {
-                break;
-            }
-
-            if attempt < RPC_MAX_ATTEMPTS {
-                tracing::warn!(
-                    attempt,
-                    max_attempts = RPC_MAX_ATTEMPTS,
-                    "request_code_validation retrying with available endpoints"
-                );
-            }
-        }
-
-        if let Some(err) = last_err {
-            return Err(err);
-        }
-
-        Err(anyhow!("request_code_validation exhausted retries"))
-    }
-
-    async fn wait_for_code_validation(
-        &self,
-        preferred_endpoint_idx: usize,
-        api: &Ethereum,
-        code_id: CodeId,
-    ) -> Result<()> {
-        let mut last_err: Option<anyhow::Error> = None;
-
-        for attempt in 1..=RPC_MAX_ATTEMPTS {
-            let mut attempt_had_retryable = false;
-            for endpoint_idx in self.endpoint_indices_from(preferred_endpoint_idx) {
-                let client = match self.get_or_connect_client(endpoint_idx, api).await {
-                    Ok(client) => client,
-                    Err(err) => {
-                        if is_retryable_rpc_error(&err) {
-                            attempt_had_retryable = true;
-                            tracing::warn!(
-                                endpoint_idx,
-                                attempt,
-                                max_attempts = RPC_MAX_ATTEMPTS,
-                                error = %err,
-                                "failed to acquire ethexe RPC client; will try another endpoint"
-                            );
-                        }
-                        last_err = Some(err);
-                        continue;
-                    }
-                };
-
-                match client.router().wait_for_code_validation(code_id).await {
-                    Ok(_) => return Ok(()),
-                    Err(err) if attempt < RPC_MAX_ATTEMPTS && is_retryable_rpc_error(&err) => {
-                        attempt_had_retryable = true;
-                        tracing::warn!(
-                            endpoint_idx,
-                            attempt,
-                            max_attempts = RPC_MAX_ATTEMPTS,
-                            error = %err,
-                            "wait_for_code_validation failed; scheduling delayed reconnect"
-                        );
-                        self.schedule_reconnect(
-                            endpoint_idx,
-                            "wait_for_code_validation transport failure",
-                        )
-                        .await;
-                        last_err = Some(err);
-                    }
-                    Err(err) => {
-                        tracing::error!(
-                            endpoint_idx,
-                            attempt,
-                            max_attempts = RPC_MAX_ATTEMPTS,
-                            error = %err,
-                            "wait_for_code_validation failed"
-                        );
-                        return Err(err);
-                    }
-                }
-            }
-
-            if !attempt_had_retryable {
-                break;
-            }
-
-            if attempt < RPC_MAX_ATTEMPTS {
-                tracing::warn!(
-                    attempt,
-                    max_attempts = RPC_MAX_ATTEMPTS,
-                    "wait_for_code_validation retrying with available endpoints"
-                );
-            }
-        }
-
-        if let Some(err) = last_err {
-            return Err(err);
-        }
-
-        Err(anyhow!("wait_for_code_validation exhausted retries"))
-    }
-
-    async fn send_message_injected(
-        &self,
-        preferred_endpoint_idx: usize,
-        api: &Ethereum,
-        actor: ActorId,
-        payload: &[u8],
-        value: u128,
-    ) -> Result<MessageId> {
-        let mut last_err: Option<anyhow::Error> = None;
-
-        for attempt in 1..=RPC_MAX_ATTEMPTS {
-            let mut attempt_had_retryable = false;
-            for endpoint_idx in self.endpoint_indices_from(preferred_endpoint_idx) {
-                let client = match self.get_or_connect_client(endpoint_idx, api).await {
-                    Ok(client) => client,
-                    Err(err) => {
-                        if is_retryable_rpc_error(&err) {
-                            attempt_had_retryable = true;
-                            tracing::warn!(
-                                endpoint_idx,
-                                attempt,
-                                max_attempts = RPC_MAX_ATTEMPTS,
-                                error = %err,
-                                "failed to acquire ethexe RPC client; will try another endpoint"
-                            );
-                        }
-                        last_err = Some(err);
-                        continue;
-                    }
-                };
-
-                match client
-                    .mirror(actor)
-                    .send_message_injected(payload, value)
-                    .await
-                {
-                    Ok(mid) => return Ok(mid),
-                    Err(err) if attempt < RPC_MAX_ATTEMPTS && is_retryable_rpc_error(&err) => {
-                        attempt_had_retryable = true;
-                        tracing::warn!(
-                            endpoint_idx,
-                            attempt,
-                            max_attempts = RPC_MAX_ATTEMPTS,
-                            error = %err,
-                            "send_message_injected failed; scheduling delayed reconnect"
-                        );
-                        self.schedule_reconnect(
-                            endpoint_idx,
-                            "send_message_injected transport failure",
-                        )
-                        .await;
-                        last_err = Some(err);
-                    }
-                    Err(err) => {
-                        tracing::error!(
-                            endpoint_idx,
-                            attempt,
-                            max_attempts = RPC_MAX_ATTEMPTS,
-                            error = %err,
-                            "send_message_injected failed"
-                        );
-                        return Err(err);
-                    }
-                }
-            }
-
-            if !attempt_had_retryable {
-                break;
-            }
-
-            if attempt < RPC_MAX_ATTEMPTS {
-                tracing::warn!(
-                    attempt,
-                    max_attempts = RPC_MAX_ATTEMPTS,
-                    "send_message_injected retrying with available endpoints"
-                );
-            }
-        }
-
-        if let Some(err) = last_err {
-            return Err(err);
-        }
-
-        Err(anyhow!("send_message_injected exhausted retries"))
-    }
-}
-
-fn is_retryable_rpc_error(err: &impl std::fmt::Display) -> bool {
-    let lower = err.to_string().to_ascii_lowercase();
-    lower.contains("connection")
-        || lower.contains("transport")
-        || lower.contains("timeout")
-        || lower.contains("closed")
-        || lower.contains("broken pipe")
-        || lower.contains("temporarily unavailable")
-        || lower.contains("eof")
-        || lower.contains("cooling down")
-}
 
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
@@ -538,13 +140,13 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
     ) -> Result<Self> {
         let rpc_pools = (0..pool_size)
             .map(|worker_idx| {
-                let pool = Arc::new(EthexeRpcPool::new(ethexe_rpc_urls.clone())?);
+                let pool = EthexeRpcPool::new(ethexe_rpc_urls.clone())?;
                 tracing::info!(
                     worker_idx,
-                    endpoints = pool.endpoints.len(),
+                    endpoints = pool.endpoint_count(),
                     "Initialized dedicated ethexe RPC pool for worker"
                 );
-                Ok(pool)
+                Ok(Some(pool))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -593,7 +195,9 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         for worker_idx in 0..self.pool_size {
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
             let api = self.apis[worker_idx].clone();
-            let rpc_pool = self.rpc_pools[worker_idx].clone();
+            let rpc_pool = self.rpc_pools[worker_idx]
+                .take()
+                .expect("rpc pool must be present for worker");
             let endpoint_idx = rpc_pool.random_endpoint_index(&mut rpc_rng);
             batches.push(run_batch_for_worker(
                 worker_idx,
@@ -607,12 +211,24 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             ));
         }
 
-        while let Some((worker_idx, report)) = batches.next().await {
-            self.process_run_report(report?);
+        while let Some((worker_idx, rpc_pool, report)) = batches.next().await {
+            self.rpc_pools[worker_idx] = Some(rpc_pool);
+            match report {
+                Ok(report) => self.process_run_report(report),
+                Err(err) => {
+                    tracing::error!(
+                        worker_idx,
+                        error = %err,
+                        "Batch failed, scheduling next batch for worker"
+                    );
+                }
+            }
 
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
             let api = self.apis[worker_idx].clone();
-            let rpc_pool = self.rpc_pools[worker_idx].clone();
+            let rpc_pool = self.rpc_pools[worker_idx]
+                .take()
+                .expect("rpc pool must be present for worker");
             let endpoint_idx = rpc_pool.random_endpoint_index(&mut rpc_rng);
             batches.push(run_batch_for_worker(
                 worker_idx,
@@ -636,19 +252,19 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
 async fn run_batch(
     api: Ethereum,
-    rpc_pool: Arc<EthexeRpcPool>,
+    mut rpc_pool: EthexeRpcPool,
     endpoint_idx: usize,
     batch: BatchWithSeed,
     send_message_multicall: Address,
     rx: Receiver<Header>,
     mid_map: MidMap,
-) -> Result<BatchRunReport> {
+) -> (EthexeRpcPool, Result<BatchRunReport>) {
     let (seed, batch) = batch.into();
     let mut rng = SmallRng::seed_from_u64(seed);
 
-    match run_batch_impl(
+    let result = match run_batch_impl(
         api,
-        rpc_pool,
+        &mut rpc_pool,
         endpoint_idx,
         batch,
         send_message_multicall,
@@ -663,45 +279,44 @@ async fn run_batch(
             tracing::warn!("Batch failed: {err:?}");
             Err(err)
         }
-    }
+    };
+    (rpc_pool, result)
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn run_batch_for_worker(
     worker_idx: usize,
     api: Ethereum,
-    rpc_pool: Arc<EthexeRpcPool>,
+    rpc_pool: EthexeRpcPool,
     endpoint_idx: usize,
     batch: BatchWithSeed,
     send_message_multicall: Address,
     rx: Receiver<Header>,
     mid_map: MidMap,
-) -> (usize, Result<BatchRunReport>) {
+) -> (usize, EthexeRpcPool, Result<BatchRunReport>) {
     tracing::debug!(
         worker_idx,
         endpoint_idx,
         "Running batch on pooled ethexe RPC endpoint"
     );
-    (
-        worker_idx,
-        run_batch(
-            api,
-            rpc_pool,
-            endpoint_idx,
-            batch,
-            send_message_multicall,
-            rx,
-            mid_map,
-        )
-        .await,
+    let (rpc_pool, result) = run_batch(
+        api,
+        rpc_pool,
+        endpoint_idx,
+        batch,
+        send_message_multicall,
+        rx,
+        mid_map,
     )
+    .await;
+    (worker_idx, rpc_pool, result)
 }
 
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 async fn run_batch_impl(
     api: Ethereum,
-    rpc_pool: Arc<EthexeRpcPool>,
+    rpc_pool: &mut EthexeRpcPool,
     endpoint_idx: usize,
     batch: Batch,
     send_message_multicall: Address,
