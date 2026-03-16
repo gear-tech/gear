@@ -570,7 +570,11 @@ async fn many_waits() {
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
-    assert_eq!(handler.transitions.current_messages().len(), 0, "No replies expected yet");
+    assert_eq!(
+        handler.transitions.current_messages().len(),
+        0,
+        "No replies expected yet"
+    );
 
     // Second handle messages: must reply with "Hello, world!" immediately.
     for pid in known_programs {
@@ -593,7 +597,11 @@ async fn many_waits() {
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
-    assert_eq!(handler.transitions.current_messages().len(), amount as usize, "All should reply immediately");
+    assert_eq!(
+        handler.transitions.current_messages().len(),
+        amount as usize,
+        "All should reply immediately"
+    );
     for (_pid, message) in handler.transitions.current_messages() {
         assert_eq!(message.payload, b"Hello, world!");
     }

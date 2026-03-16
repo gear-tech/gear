@@ -696,7 +696,7 @@ pub(crate) struct Limiter {
 
 #[derive(Debug)]
 pub(crate) enum LimitsStatus {
-    NotExceeded,
+    WithinLimits,
     OutgoingMessagesLimitExceeded,
     OutgoingMessagesBytesLimitExceeded,
     CallRepliesLimitExceeded,
@@ -711,7 +711,7 @@ impl Limiter {
         } else if self.call_replies == 0 {
             LimitsStatus::CallRepliesLimitExceeded
         } else {
-            LimitsStatus::NotExceeded
+            LimitsStatus::WithinLimits
         }
     }
 }

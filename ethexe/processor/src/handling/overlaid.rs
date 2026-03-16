@@ -92,7 +92,7 @@ impl OverlaidRunContext {
     }
 
     pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
-        let _ = run::run_for_queue_type(&mut self, MessageType::Canonical).await?;
+        run::run_for_queue_type(&mut self, MessageType::Canonical).await?;
         Ok(self.inner.transitions)
     }
 

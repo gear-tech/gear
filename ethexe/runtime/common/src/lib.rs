@@ -273,7 +273,7 @@ where
         }
 
         match limiter.status() {
-            LimitsStatus::NotExceeded => {}
+            LimitsStatus::WithinLimits => {}
             status => {
                 log::trace!("Limits exceeded: {status:?}, stopping execution of the queue");
                 break;
