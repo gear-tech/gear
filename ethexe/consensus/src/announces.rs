@@ -687,6 +687,9 @@ pub enum AnnounceStatus {
 /// To be accepted, announce must
 /// 1) announce parent must be included by this node.
 /// 2) be not included yet.
+///
+/// Guarantee:
+/// - caller must guaranty that announce block is known prepared block
 pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<AnnounceStatus> {
     let announce_hash = announce.to_hash();
     let parent_announce_hash = announce.parent;
@@ -700,8 +703,19 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
         });
     }
 
+    let block = db
+        .block_header(announce.block_hash)
+        .map(|header| SimpleBlockData {
+            hash: announce.block_hash,
+            header,
+        })
+        .ok_or_else(|| {
+            tracing::error!("Caller must guaranty that announce block is known prepared block");
+            anyhow!("Announce block header not found")
+        })?;
+
     // Verify for parent announce, because of the current is not processed.
-    let tx_checker = TxValidityChecker::new_for_announce(db, announce.block_hash, announce.parent)?;
+    let tx_checker = TxValidityChecker::new_for_announce(db, block, announce.parent)?;
 
     for tx in announce.injected_transactions.iter() {
         let validity_status = tx_checker.check_tx_validity(tx)?;
