@@ -82,10 +82,10 @@ where
         let tx_checker =
             TxValidityChecker::new_for_announce(self.db.clone(), block, parent_announce)?;
 
-        let mut touched_programs = crate::utils::block_touched_programs(&self.db, block_hash)?;
+        let mut touched_programs = crate::utils::block_touched_programs(&self.db, block.hash)?;
         if touched_programs.len() > MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize {
             tracing::error!(
-                block = ?block_hash,
+                block = ?block.hash,
                 "too many programs changed: {} > {}, may cause overflow in announce size",
                 touched_programs.len(),
                 MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE
@@ -358,7 +358,10 @@ mod tests {
         }
 
         let selected_txs = tx_pool
-            .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
+            .select_for_announce(
+                chain.blocks[10].to_simple(),
+                chain.block_top_announce_hash(9),
+            )
             .unwrap();
 
         assert_eq!(
