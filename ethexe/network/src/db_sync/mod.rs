@@ -19,13 +19,14 @@
 mod requests;
 mod responses;
 
-use crate::{db_sync::requests::OngoingRequests, utils::AlternateCollectionFmt};
 pub(crate) use crate::{
+    DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
     peer_score,
     utils::ParityScaleCodec,
 };
+use crate::{db_sync::requests::OngoingRequests, utils::AlternateCollectionFmt};
 use async_trait::async_trait;
 use ethexe_common::{
     Announce,
@@ -52,6 +53,7 @@ use libp2p::{
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    num::NonZeroU32,
     pin::Pin,
     sync::atomic::{AtomicU64, Ordering},
     task::{Context, Poll},
@@ -153,6 +155,7 @@ pub(crate) struct Config {
     pub max_rounds_per_request: u32,
     pub request_timeout: Duration,
     pub max_simultaneous_responses: u32,
+    pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl Default for Config {
@@ -161,6 +164,7 @@ impl Default for Config {
             max_rounds_per_request: 10,
             request_timeout: Duration::from_secs(100),
             max_simultaneous_responses: 10,
+            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 }
