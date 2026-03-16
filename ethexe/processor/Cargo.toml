@@ -44,3 +44,4 @@ wat.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 ethexe-db = { workspace = true, features = ["mock"] }
 gear-core-errors.workspace = true
+ethexe-runtime-common = { workspace = true, features = ["mock"] }

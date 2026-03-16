@@ -236,6 +236,16 @@ impl InBlockTransitions {
     pub fn block_height(&self) -> u32 {
         self.block_height
     }
+
+    #[cfg(feature = "mock")]
+    pub fn modifications_mut(&mut self) -> &mut BTreeMap<ActorId, NonFinalTransition> {
+        &mut self.modifications
+    }
+
+    #[cfg(feature = "mock")]
+    pub fn block_height_mut(&mut self) -> &mut u32 {
+        &mut self.block_height
+    }
 }
 
 #[derive(Debug, Default)]

@@ -96,7 +96,7 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
                 u32::try_from(dispatch.payload_bytes().len())
                     .expect("payload size is too big for u32 in outgoing messages bytes limiter"),
             );
-        if self.call_reply {
+        if dispatch.is_reply() && self.call_reply {
             *self.call_reply_limiter = self.call_reply_limiter.saturating_sub(1);
         }
 

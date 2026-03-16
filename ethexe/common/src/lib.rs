@@ -64,8 +64,10 @@ pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
 /// any not-base announce older than this limit must be discarded.
 pub const COMMITMENT_DELAY_LIMIT: u32 = 3;
 
+/// Maximum number of touched programs per announce.
 pub const MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE: u32 = 128;
 
+// Soft limits for one announce processing. Stops announce execution if any of them is exceeded.
 pub const OUTGOING_MESSAGES_SOFT_LIMIT: u32 = 128;
 pub const OUTGOING_MESSAGES_BYTES_SOFT_LIMIT: u32 = 32 * 1024;
 pub const CALL_REPLY_SOFT_LIMIT: u32 = 4;

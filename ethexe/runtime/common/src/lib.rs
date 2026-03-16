@@ -65,10 +65,15 @@ mod transitions;
 pub const VERSION: u32 = 1;
 pub const RUNTIME_ID: u32 = 1;
 
+/// Maximum number of outgoing messages per execution of one dispatch.
 pub const MAX_OUTGOING_MESSAGES_PER_EXECUTION: u32 = 4;
+/// Maximum total size of outgoing messages per execution of one dispatch.
 pub const MAX_OUTGOING_MESSAGES_BYTES_PER_EXECUTION: u32 = 4 * 1024;
+/// Maximum number of call replies per execution of one dispatch.
 pub const MAX_OUTGOING_MESSAGES_PER_RUN: u32 = 16;
+/// Maximum total size of outgoing messages per process_queue run.
 pub const MAX_OUTGOING_MESSAGES_BYTES_PER_RUN: u32 = 4 * 1024;
+/// Maximum number of call replies per process_queue run.
 pub const MAX_CALL_REPLIES_PER_RUN: u32 = 1;
 
 pub type ProgramJournals = Vec<(Vec<JournalNote>, MessageType, bool)>;

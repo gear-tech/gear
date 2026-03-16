@@ -19,7 +19,8 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, SimpleBlockData,
+    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
+    SimpleBlockData,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
@@ -501,9 +502,9 @@ async fn many_waits() {
 
     let mut handler = setup_handler(processor.db.clone(), block1);
 
-    let amount = OUTGOING_MESSAGES_SOFT_LIMIT as u64;
+    let amount = OUTGOING_MESSAGES_SOFT_LIMIT.min(PROGRAM_MODIFICATIONS_SOFT_LIMIT);
     for i in 0..amount {
-        let program_id = ActorId::from(i);
+        let program_id = ActorId::from(i as u64);
 
         handler
             .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -517,7 +518,7 @@ async fn many_waits() {
                 program_id,
                 MirrorRequestEvent::ExecutableBalanceTopUpRequested(
                     ExecutableBalanceTopUpRequestedEvent {
-                        value: 150_000_000_000,
+                        value: 300_000_000_000,
                     },
                 ),
             )
@@ -536,8 +537,8 @@ async fn many_waits() {
             )
             .expect("failed to send message");
     }
-
-    handler.transitions = processor.process_tasks(handler.transitions);
+    // Hack: nullify modifications to avoid modifications limit.
+    handler.transitions.modifications_mut().clear();
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
@@ -547,8 +548,31 @@ async fn many_waits() {
         amount as usize
     );
 
-    // Try to send messages to programs once more. Messages must be executed completely.
+    // First handle messages: all going to wait for 10 blocks: no replies yet.
     let known_programs = handler.transitions.known_programs();
+    for &pid in &known_programs {
+        handler
+            .handle_mirror_event(
+                pid,
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: H256::random().0.into(),
+                    source: H256::random().0.into(),
+                    payload: Default::default(),
+                    value: 0,
+                    call_reply: false,
+                }),
+            )
+            .expect("failed to send message");
+    }
+    // Hack: nullify modifications to avoid modifications limit.
+    handler.transitions.modifications_mut().clear();
+    handler.transitions = processor
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .await
+        .unwrap();
+    assert_eq!(handler.transitions.current_messages().len(), 0, "No replies expected yet");
+
+    // Second handle messages: must reply with "Hello, world!" immediately.
     for pid in known_programs {
         handler
             .handle_mirror_event(
@@ -563,35 +587,30 @@ async fn many_waits() {
             )
             .expect("failed to send message");
     }
+    // Hack: nullify modifications to avoid modifications limit.
+    handler.transitions.modifications_mut().clear();
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
-    assert_eq!(
-        handler.transitions.current_messages().len(),
-        amount as usize
-    );
+    assert_eq!(handler.transitions.current_messages().len(), amount as usize, "All should reply immediately");
+    for (_pid, message) in handler.transitions.current_messages() {
+        assert_eq!(message.payload, b"Hello, world!");
+    }
 
-    let FinalizedBlockTransitions {
-        states,
-        schedule,
-        program_creations,
-        ..
-    } = handler.transitions.finalize();
-    program_creations
-        .into_iter()
-        .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));
-
-    // Check all messages wake up and reply with "Hello, world!"
-    let transitions = InBlockTransitions::new(wake_block.header.height, states, schedule);
-    let transitions = processor.process_tasks(transitions);
+    // Check all messages wake up and reply with "Hello, world!" in wake block.
+    // Hack: change block height to wake up tasks.
+    let transitions = handler
+        .transitions
+        .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
+    let mut transitions = processor.process_tasks(transitions);
+    // Hack: nullify modifications to avoid modifications limit.
+    transitions.modifications_mut().clear();
     let transitions = processor
         .process_queues(transitions, wake_block, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
-
     assert_eq!(transitions.current_messages().len(), amount as usize);
-
     for (_pid, message) in transitions.current_messages() {
         assert_eq!(message.payload, b"Hello, world!");
     }

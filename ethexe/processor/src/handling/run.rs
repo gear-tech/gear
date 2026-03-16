@@ -133,7 +133,6 @@ use itertools::Itertools;
 use tokio::sync::mpsc;
 
 // Process chosen queue type in chunks
-// Returns whether execution is NOT run out of gas (execution can be continued)
 pub(super) async fn run_for_queue_type(
     ctx: &mut impl RunContext,
     queue_type: MessageType,
@@ -320,22 +319,18 @@ pub(super) trait RunContext {
         } = self.inner();
 
         if *out_of_gas {
-            return LimitsStatus::OutOfGas;
+            LimitsStatus::OutOfGas
+        } else if *outgoing_messages_limiter == 0 {
+            LimitsStatus::OutOfOutgoingMessages
+        } else if *outgoing_messages_bytes_limiter == 0 {
+            LimitsStatus::OutOfOutgoingMessagesBytes
+        } else if *call_reply_limiter == 0 {
+            LimitsStatus::OutOfCallReplies
+        } else if transitions.modifications_len() >= PROGRAM_MODIFICATIONS_SOFT_LIMIT as usize {
+            LimitsStatus::OutOfProgramModifications
+        } else {
+            LimitsStatus::WithinLimits
         }
-        if *outgoing_messages_limiter == 0 {
-            return LimitsStatus::OutOfOutgoingMessages;
-        }
-        if *outgoing_messages_bytes_limiter == 0 {
-            return LimitsStatus::OutOfOutgoingMessagesBytes;
-        }
-        if *call_reply_limiter == 0 {
-            return LimitsStatus::OutOfCallReplies;
-        }
-        if transitions.modifications_len() > PROGRAM_MODIFICATIONS_SOFT_LIMIT as usize {
-            return LimitsStatus::OutOfProgramModifications;
-        }
-
-        LimitsStatus::WithinLimits
     }
 }
 
