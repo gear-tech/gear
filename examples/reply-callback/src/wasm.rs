@@ -36,6 +36,6 @@ extern "C" fn handle() {
         payload[..4].copy_from_slice(&[0xb5, 0x2a, 0xb5, 0x55]); // DemoCaller.replyOn_methodName.selector
         payload[4..].copy_from_slice(&message_id);
 
-        msg::reply_bytes(&payload, 0).expect("Failed to send reply");
+        msg::reply_bytes(payload, 0).expect("Failed to send reply");
     }
 }
