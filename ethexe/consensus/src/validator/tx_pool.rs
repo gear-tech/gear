@@ -19,7 +19,7 @@
 use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::Result;
 use ethexe_common::{
-    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE,
+    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData,
     db::{
         AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
     },
@@ -74,13 +74,13 @@ where
     /// Returns the injected transactions that are valid and can be included to announce.
     pub fn select_for_announce(
         &mut self,
-        block_hash: H256,
+        block: SimpleBlockData,
         parent_announce: HashOf<Announce>,
     ) -> Result<Vec<SignedInjectedTransaction>> {
-        tracing::trace!(block = ?block_hash, "start collecting injected transactions");
+        tracing::trace!(block = ?block.hash, "start collecting injected transactions");
 
         let tx_checker =
-            TxValidityChecker::new_for_announce(self.db.clone(), block_hash, parent_announce)?;
+            TxValidityChecker::new_for_announce(self.db.clone(), block, parent_announce)?;
 
         let mut touched_programs = crate::utils::block_touched_programs(&self.db, block_hash)?;
         if touched_programs.len() > MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize {
@@ -265,7 +265,10 @@ mod tests {
         );
 
         let selected_txs = tx_pool
-            .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
+            .select_for_announce(
+                chain.blocks[10].to_simple(),
+                chain.block_top_announce_hash(9),
+            )
             .unwrap();
         assert_eq!(
             selected_txs,
