@@ -65,10 +65,11 @@ impl TestingNetworkInjectedEvent {
     fn new(event: &NetworkInjectedEvent) -> Self {
         match event {
             NetworkInjectedEvent::InboundTransaction {
+                peer: _,
                 transaction,
                 channel: _,
             } => Self::InboundTransaction {
-                transaction: transaction.clone(),
+                transaction: SignedInjectedTransaction::clone(transaction),
             },
             NetworkInjectedEvent::OutboundAcceptance {
                 transaction_hash,

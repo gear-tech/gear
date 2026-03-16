@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::utils::ConnectionMap;
+use crate::utils::{ConnectionLimit, ConnectionLimitError, ConnectionMap};
 use libp2p::{
     Multiaddr, PeerId,
     core::{ConnectedPoint, Endpoint, transport::PortUse},
@@ -66,18 +66,18 @@ impl Limits {
 }
 
 pub struct Behaviour {
-    established_incoming_per_peer: ConnectionMap,
-    established_outbound_per_peer: ConnectionMap,
+    established_incoming_per_peer: ConnectionMap<ConnectionLimit>,
+    established_outbound_per_peer: ConnectionMap<ConnectionLimit>,
 }
 
 impl Behaviour {
     pub fn new(limits: Limits) -> Self {
         Self {
-            established_incoming_per_peer: ConnectionMap::new(
-                limits.max_established_incoming_per_peer,
+            established_incoming_per_peer: ConnectionMap::with_connection_limit(
+                limits.max_established_incoming_per_peer.unwrap_or(u32::MAX),
             ),
-            established_outbound_per_peer: ConnectionMap::new(
-                limits.max_established_outbound_per_peer,
+            established_outbound_per_peer: ConnectionMap::with_connection_limit(
+                limits.max_established_outbound_per_peer.unwrap_or(u32::MAX),
             ),
         }
     }
@@ -96,7 +96,7 @@ impl NetworkBehaviour for Behaviour {
     ) -> Result<THandler<Self>, ConnectionDenied> {
         self.established_incoming_per_peer
             .add_connection(peer, connection_id)
-            .map_err(|limit| {
+            .map_err(|ConnectionLimitError { limit }| {
                 ConnectionDenied::new(LimitExceeded {
                     limit,
                     kind: LimitExceededKind::EstablishedIncomingPerPeer,
@@ -116,7 +116,7 @@ impl NetworkBehaviour for Behaviour {
     ) -> Result<THandler<Self>, ConnectionDenied> {
         self.established_outbound_per_peer
             .add_connection(peer, connection_id)
-            .map_err(|limit| {
+            .map_err(|ConnectionLimitError { limit }| {
                 ConnectionDenied::new(LimitExceeded {
                     limit,
                     kind: LimitExceededKind::EstablishedOutboundPerPeer,
