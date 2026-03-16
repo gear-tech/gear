@@ -523,12 +523,7 @@ where
     }
 
     fn iter_block_meta(&mut self, BlockMetaNode { block, meta }: &BlockMetaNode) {
-        let BlockMeta {
-            prepared: _,
-            codes_queue,
-            last_committed_batch: _,
-            last_committed_announce: _,
-        } = meta;
+        let BlockMeta { codes_queue, .. } = meta;
 
         if let Some(announces) = self.storage.block_announces(*block) {
             for announce_hash in announces.into_iter() {

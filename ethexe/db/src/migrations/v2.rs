@@ -27,9 +27,11 @@ pub const VERSION: u32 = 2;
 pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     // Changes from v1 to v2:
     // - Block announces are moved from `BlockMeta` to `BlockAnnounces` key.
+    // - `LatestEraValidators` key is merged into `BlockMeta`.
 
     let block_small_data_prefix = H256::from_low_u64_be(0);
     let block_announces_prefix = H256::from_low_u64_be(13);
+    let latest_era_prefix = H256::from_low_u64_be(16);
 
     for (key, value) in db.kv.iter_prefix(block_small_data_prefix.as_bytes()) {
         let v0::BlockSmallData {
@@ -46,7 +48,15 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         } = v0::BlockSmallData::decode(&mut value.as_slice())?;
 
         let block_hash = &key[32..];
+
         let announces_key = [block_announces_prefix.as_bytes(), block_hash].concat();
+        let latest_era_key = [latest_era_prefix.as_bytes(), block_hash].concat();
+
+        let latest_era_validators_committed = db
+            .kv
+            .get(&latest_era_key)
+            .context("`LatestEraValidators` is not found for block")
+            .and_then(|bytes| Ok(u64::decode(&mut bytes.as_slice())?))?;
 
         db.kv.put(&announces_key, announces.encode());
 
@@ -60,6 +70,7 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
                     codes_queue,
                     last_committed_batch,
                     last_committed_announce,
+                    latest_era_validators_committed,
                 },
             }
             .encode(),

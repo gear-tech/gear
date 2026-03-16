@@ -225,36 +225,26 @@ pub struct PreparedBlockData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockFullData {
     pub hash: H256,
-    pub synced: Option<SyncedBlockData>,
+    pub synced: SyncedBlockData,
     pub prepared: Option<PreparedBlockData>,
 }
 
 impl BlockFullData {
     #[track_caller]
-    pub fn as_synced(&self) -> &SyncedBlockData {
-        self.synced.as_ref().expect("block not synced")
+    pub fn assert_prepared(&self) -> &PreparedBlockData {
+        self.prepared.as_ref().expect("block is not prepared")
     }
 
     #[track_caller]
-    pub fn as_prepared(&self) -> &PreparedBlockData {
-        self.prepared.as_ref().expect("block not prepared")
-    }
-
-    #[track_caller]
-    pub fn as_synced_mut(&mut self) -> &mut SyncedBlockData {
-        self.synced.as_mut().expect("block not synced")
-    }
-
-    #[track_caller]
-    pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
-        self.prepared.as_mut().expect("block not prepared")
+    pub fn assert_prepared_mut(&mut self) -> &mut PreparedBlockData {
+        self.prepared.as_mut().expect("block is not prepared")
     }
 
     #[track_caller]
     pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
-            header: self.as_synced().header,
+            header: self.synced.header,
         }
     }
 }
@@ -336,7 +326,7 @@ impl BlockChain {
         self.blocks
             .get(block_index)
             .expect("block index overflow")
-            .as_prepared()
+            .assert_prepared()
             .announces
             .iter()
             .flatten()
@@ -385,7 +375,7 @@ impl BlockChain {
         self.announces.insert(new_announce_hash, announce_data);
 
         self.blocks[block_index]
-            .as_prepared_mut()
+            .assert_prepared_mut()
             .announces
             .as_mut()
             .expect("block announces not found")
@@ -418,19 +408,16 @@ impl BlockChain {
 
         for BlockFullData {
             hash,
-            synced,
+            synced: SyncedBlockData { header, events },
             prepared,
         } in blocks
         {
-            if let Some(SyncedBlockData { header, events }) = synced {
-                db.set_block_header(hash, header);
-                db.set_block_events(hash, &events);
-                db.set_block_synced(hash);
+            db.set_block_header(hash, header);
+            db.set_block_events(hash, &events);
+            db.set_block_synced(hash);
 
-                let block_era = config.timelines.era_from_ts(header.timestamp);
-                db.set_validators(block_era, validators.clone());
-                db.set_block_validators_committed_for_era(hash, block_era);
-            }
+            let block_era = config.timelines.era_from_ts(header.timestamp);
+            db.set_validators(block_era, validators.clone());
 
             if let Some(PreparedBlockData {
                 codes_queue,
@@ -449,6 +436,7 @@ impl BlockChain {
                         codes_queue: Some(codes_queue),
                         last_committed_batch: Some(last_committed_batch),
                         last_committed_announce: Some(last_committed_announce),
+                        latest_era_validators_committed: block_era,
                     }
                 });
             }
@@ -510,14 +498,14 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                 |((parent_hash, _, _), (block_hash, block_height, block_timestamp))| {
                     BlockFullData {
                         hash: block_hash,
-                        synced: Some(SyncedBlockData {
+                        synced: SyncedBlockData {
                             header: BlockHeader {
                                 height: block_height,
                                 timestamp: block_timestamp as u64,
                                 parent_hash,
                             },
                             events: Default::default(),
-                        }),
+                        },
                         prepared: Some(PreparedBlockData {
                             codes_queue: Default::default(),
                             announces: Some(Default::default()), // empty here, filled below with announces

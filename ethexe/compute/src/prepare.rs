@@ -297,9 +297,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
 
     let mut last_committed_announce_hash = None;
 
-    let mut latest_validators_committed_era = db
-        .block_validators_committed_for_era(parent)
-        .ok_or(ComputeError::CommittedEraNotFound(parent))?;
+    let mut latest_validators_committed_era = parent_meta.latest_era_validators_committed;
 
     for event in block.events {
         match event {
@@ -350,13 +348,12 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
                 .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
         };
 
-    db.set_block_validators_committed_for_era(block.hash, latest_validators_committed_era);
-
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
         meta.codes_queue = Some(codes_queue);
         meta.last_committed_announce = Some(last_committed_announce_hash);
         meta.prepared = true;
+        meta.latest_era_validators_committed = latest_validators_committed_era;
     });
 
     db.globals_mutate(|globals| {
@@ -502,7 +499,7 @@ mod tests {
 
         let chain = BlockChain::mock(1)
             .tap_mut(|chain| {
-                chain.blocks[1].as_prepared_mut().codes_queue =
+                chain.blocks[1].assert_prepared_mut().codes_queue =
                     [parent_block_code_id, parent_block_loaded_code_id].into();
                 chain.codes.insert(
                     parent_block_loaded_code_id,

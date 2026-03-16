@@ -79,9 +79,6 @@ enum Key {
 
     Globals = 14,
     Config = 15,
-
-    // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    LatestEraValidatorsCommitted(H256),
 }
 
 impl Key {
@@ -99,10 +96,9 @@ impl Key {
         bytes.extend(self.prefix());
 
         match self {
-            Self::BlockSmallData(hash)
-            | Self::BlockEvents(hash)
-            | Self::BlockAnnounces(hash)
-            | Self::LatestEraValidatorsCommitted(hash) => bytes.extend(hash.as_ref()),
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) | Self::BlockAnnounces(hash) => {
+                bytes.extend(hash.as_ref())
+            }
 
             Self::ValidatorSet(era_index) => {
                 bytes.extend(era_index.to_le_bytes());
@@ -537,15 +533,6 @@ impl OnChainStorageRO for RawDatabase {
                     .expect("Failed to decode data into `ValidatorsVec`")
             })
     }
-
-    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64> {
-        self.kv
-            .get(&Key::LatestEraValidatorsCommitted(block_hash).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `u64` (era_index)")
-            })
-    }
 }
 
 impl OnChainStorageRW for RawDatabase {
@@ -578,13 +565,6 @@ impl OnChainStorageRW for RawDatabase {
         self.kv.put(
             &Key::ValidatorSet(era_index).to_bytes(),
             validator_set.encode(),
-        );
-    }
-
-    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64) {
-        self.kv.put(
-            &Key::LatestEraValidatorsCommitted(block_hash).to_bytes(),
-            era_index.encode(),
         );
     }
 }
@@ -891,7 +871,6 @@ impl OnChainStorageRO for Database {
             fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
             fn block_synced(&self, block_hash: H256) -> bool;
             fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
-            fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64>;
         }
     }
 }
@@ -904,7 +883,6 @@ impl OnChainStorageRW for Database {
             fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
             fn set_block_synced(&self, block_hash: H256);
             fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
-            fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64);
         }
     }
 }

@@ -294,8 +294,9 @@ mod tests {
                         .as_computed_mut()
                         .outcome
                         .push(StateTransition::mock(()));
-                    chain.blocks[10].as_prepared_mut().last_committed_announce =
-                        chain.block_top_announce_hash(3);
+                    chain.blocks[10]
+                        .assert_prepared_mut()
+                        .last_committed_announce = chain.block_top_announce_hash(3);
                 })
                 .setup(&db);
             let block = chain.blocks[10].to_simple();
@@ -419,7 +420,7 @@ mod tests {
             let chain = BlockChain::mock(10)
                 .tap_mut(|c| {
                     c.block_top_announce_mut(10).announce.gas_allowance = Some(10);
-                    c.blocks[10].as_prepared_mut().announces =
+                    c.blocks[10].assert_prepared_mut().announces =
                         Some([c.block_top_announce(10).announce.to_hash()].into());
                 })
                 .setup(&db);

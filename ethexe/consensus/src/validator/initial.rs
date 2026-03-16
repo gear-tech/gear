@@ -346,7 +346,7 @@ mod tests {
         let last = 9;
 
         let mut chain = BlockChain::mock(last as u32);
-        chain.blocks[last].as_prepared_mut().announces = None;
+        chain.blocks[last].assert_prepared_mut().announces = None;
 
         // create 2 missing announces from blocks last - 2 and last - 1
         let announce2 = Announce::with_default_gas(
@@ -356,7 +356,9 @@ mod tests {
         let announce1 =
             Announce::with_default_gas(chain.blocks[last - 1].hash, announce2.to_hash());
 
-        chain.blocks[last].as_prepared_mut().last_committed_announce = announce1.to_hash();
+        chain.blocks[last]
+            .assert_prepared_mut()
+            .last_committed_announce = announce1.to_hash();
         let chain = chain.setup(&ctx.core.db);
         ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[last].to_simple();
@@ -371,7 +373,7 @@ mod tests {
 
         let tail = chain.block_top_announce_hash(last - 4);
         let expected_request = AnnouncesRequest {
-            head: chain.blocks[last].as_prepared().last_committed_announce,
+            head: chain.blocks[last].assert_prepared().last_committed_announce,
             until: tail.into(),
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
@@ -407,7 +409,7 @@ mod tests {
             .tap_mut(|chain| {
                 // remove announces from 5 latest blocks
                 (last - 4..=last).for_each(|idx| {
-                    chain.blocks[idx].as_prepared_mut().announces = None;
+                    chain.blocks[idx].assert_prepared_mut().announces = None;
                 });
 
                 // append one more announce to the block last - 5
@@ -416,7 +418,7 @@ mod tests {
                     chain.block_top_announce_hash(last - 6),
                 );
                 chain.blocks[last - 5]
-                    .as_prepared_mut()
+                    .assert_prepared_mut()
                     .announces
                     .as_mut()
                     .unwrap()
@@ -462,7 +464,7 @@ mod tests {
             .tap_mut(|chain| {
                 // remove announces from 10 latest blocks
                 (last - 9..=last).for_each(|idx| {
-                    chain.blocks[idx].as_prepared_mut().announces = None;
+                    chain.blocks[idx].assert_prepared_mut().announces = None;
                 });
             })
             .setup(&ctx.core.db);
@@ -550,8 +552,10 @@ mod tests {
         let (ctx, _, _) = mock_validator_context();
         let block = BlockChain::mock(1)
             .tap_mut(|chain| {
-                chain.blocks[1].as_prepared_mut().announces = None;
-                chain.blocks[1].as_prepared_mut().last_committed_announce = HashOf::random();
+                chain.blocks[1].assert_prepared_mut().announces = None;
+                chain.blocks[1]
+                    .assert_prepared_mut()
+                    .last_committed_announce = HashOf::random();
             })
             .setup(&ctx.core.db)
             .blocks[1]
@@ -604,17 +608,19 @@ mod tests {
         // remove announces from 5 latest blocks
         for idx in last - 4..=last {
             chain.blocks[idx]
-                .as_prepared_mut()
+                .assert_prepared_mut()
                 .announces
                 .iter()
                 .flatten()
                 .for_each(|ah| {
                     chain.announces.remove(ah);
                 });
-            chain.blocks[idx].as_prepared_mut().announces = None;
+            chain.blocks[idx].assert_prepared_mut().announces = None;
 
             // set unknown_announce as last committed announce
-            chain.blocks[idx].as_prepared_mut().last_committed_announce = unknown_announce_hash;
+            chain.blocks[idx]
+                .assert_prepared_mut()
+                .last_committed_announce = unknown_announce_hash;
         }
 
         let chain = chain.setup(&ctx.core.db);
@@ -631,7 +637,7 @@ mod tests {
         assert!(state.is_initial(), "got {:?}", state);
 
         let expected_request = AnnouncesRequest {
-            head: chain.blocks[last].as_prepared().last_committed_announce,
+            head: chain.blocks[last].assert_prepared().last_committed_announce,
             until: chain.block_top_announce_hash(last - 8).into(),
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);

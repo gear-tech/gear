@@ -109,7 +109,7 @@ fn create_new_code(nonce: u32) -> Vec<u8> {
 // Return a map with `CodeId` and corresponding code bytes
 fn insert_code_events(chain: &mut BlockChain, events_in_block: u32) {
     let mut nonce = 0;
-    for data in chain.blocks.iter_mut().map(|data| data.as_synced_mut()) {
+    for BlockFullData { synced: data, .. } in &mut chain.blocks {
         data.events = (0..events_in_block)
             .map(|_| {
                 nonce += 1;
@@ -309,7 +309,7 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
 
     let mut env = TestEnv::new(1, 3);
 
-    let mut block_events = env.chain.blocks[1].as_synced().events.clone();
+    let mut block_events = env.chain.blocks[1].synced.events.clone();
 
     // add invalid event which shouldn't stop block prepare
     block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(

@@ -790,7 +790,7 @@ mod tests {
         let mut chain = BlockChain::mock(last as u32);
         (fnp..=last).for_each(|i| {
             chain.blocks[i]
-                .as_prepared_mut()
+                .assert_prepared_mut()
                 .announces
                 .take()
                 .iter()
@@ -807,7 +807,7 @@ mod tests {
         );
         let announce_hash = announce.to_hash();
         chain.blocks[wta]
-            .as_prepared_mut()
+            .assert_prepared_mut()
             .announces
             .as_mut()
             .unwrap()
@@ -922,7 +922,7 @@ mod tests {
             let mut chain = make_chain(last, fnp, wta);
 
             (fnp..=last).for_each(|i| {
-                chain.blocks[i].as_prepared_mut().last_committed_announce =
+                chain.blocks[i].assert_prepared_mut().last_committed_announce =
                     chain.block_top_announce_hash(wta);
             });
 
@@ -962,7 +962,7 @@ mod tests {
             let committed_announce_hash = chain.block_top_announce(wta).announce.to_hash();
 
             for i in committed_at..=last {
-                chain.blocks[i].as_prepared_mut().last_committed_announce = committed_announce_hash;
+                chain.blocks[i].assert_prepared_mut().last_committed_announce = committed_announce_hash;
             }
 
             let chain = chain.setup(&db);
@@ -1002,7 +1002,7 @@ mod tests {
             let missing_announce_hash = missing_announce.to_hash();
 
             (committed_at..=last).for_each(|i| {
-                chain.blocks[i].as_prepared_mut().last_committed_announce = missing_announce_hash;
+                chain.blocks[i].assert_prepared_mut().last_committed_announce = missing_announce_hash;
             });
 
             let chain = chain.setup(&db);
@@ -1056,21 +1056,20 @@ mod tests {
 
         let chain = BlockChain::mock(10)
             .tap_mut(|chain| {
-                chain.blocks[10].as_synced_mut().events =
-                    (0..MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2 + 1)
-                        .map(|i| BlockEvent::Mirror {
-                            actor_id: ActorId::from(i as u64),
-                            event: MirrorEvent::MessageQueueingRequested(
-                                MessageQueueingRequestedEvent {
-                                    id: MessageId::zero(),
-                                    source: ActorId::zero(),
-                                    payload: vec![],
-                                    value: 0,
-                                    call_reply: false,
-                                },
-                            ),
-                        })
-                        .collect();
+                chain.blocks[10].synced.events = (0..MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2 + 1)
+                    .map(|i| BlockEvent::Mirror {
+                        actor_id: ActorId::from(i as u64),
+                        event: MirrorEvent::MessageQueueingRequested(
+                            MessageQueueingRequestedEvent {
+                                id: MessageId::zero(),
+                                source: ActorId::zero(),
+                                payload: vec![],
+                                value: 0,
+                                call_reply: false,
+                            },
+                        ),
+                    })
+                    .collect();
 
                 chain
                     .block_top_announce_mut(9)
