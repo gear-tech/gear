@@ -51,6 +51,9 @@ ETHEXE_CLI_IN_CONTAINER="/workspace/target/release/ethexe"
 
 CONTRACTS_DIR="ethexe/contracts"
 
+ENABLE_CHAOS_MODE="false"
+CHAOS_INTERVAL="60"
+
 ENABLE_NODE_LOADER="false"
 NODE_LOADER_WORKERS="3"
 NODE_LOADER_BIN="target/release/ethexe-node-loader"
@@ -173,19 +176,24 @@ Options:
                                           (default: /workspace/target/release/ethexe)
   --contracts-dir PATH                    Contracts dir for forge scripts (default: ethexe/contracts)
 
-  --enable-node-loader true|false         Start node-loader (default: false)
+  --chaos-mode                            Enable chaos mode: randomly stop/start
+                                          validators (default: off)
+  --chaos-interval SEC                    Seconds between chaos actions (default: 60)
+
+  --node-loader                           Start node-loader (default: off)
   --node-loader-workers N                 Node-loader workers (default: 3)
   --node-loader-batch-size N              Node-loader batch size (default: 5)
   --node-loader-bin PATH                  Node-loader binary path (default: target/release/ethexe-node-loader)
-    --node-loader-bin-in-container PATH     Node-loader binary path in container
-                                                                                    (default: /workspace/target/release/ethexe-node-loader)
-    --node-loader-container-name NAME       Node-loader container name (default: ethexe-node-loader)
-    --node-loader-image IMAGE               Node-loader image (default: rust:1-trixie)
+  --node-loader-bin-in-container PATH     Node-loader binary path in container
+                                          (default: /workspace/target/release/ethexe-node-loader)
+  --node-loader-container-name NAME       Node-loader container name (default: ethexe-node-loader)
+  --node-loader-image IMAGE               Node-loader image (default: rust:1-trixie)
 
 Example:
   ./ethexe/scripts/start-local-network.sh \
     --num-validators 5 \
-    --enable-node-loader true \
+    --node-loader \
+    --chaos-mode \
     --clean-node-data-on-start true
 EOF
 }
@@ -306,10 +314,18 @@ parse_args() {
                 CONTRACTS_DIR="$2"
                 shift 2
                 ;;
-            --enable-node-loader)
+            --chaos-mode)
+                ENABLE_CHAOS_MODE="true"
+                shift
+                ;;
+            --chaos-interval)
                 require_option_value "$1" "${2:-}"
-                ENABLE_NODE_LOADER="$2"
+                CHAOS_INTERVAL="$2"
                 shift 2
+                ;;
+            --node-loader)
+                ENABLE_NODE_LOADER="true"
+                shift
                 ;;
             --node-loader-workers)
                 require_option_value "$1" "${2:-}"
@@ -361,7 +377,7 @@ docker_container_running() {
 remove_container_if_exists() {
     local name="$1"
     if docker_container_exists "$name"; then
-        docker rm -f "$name" >/dev/null 2>&1 || true
+        docker rm -t 2 -f "$name" >/dev/null 2>&1 || true
     fi
 }
 
@@ -389,6 +405,11 @@ cleanup_node_data_on_start() {
 
 cleanup() {
     log_info "Cleaning up..."
+
+    if [[ -n "${CHAOS_PID:-}" ]] && kill -0 "$CHAOS_PID" 2>/dev/null; then
+        kill "$CHAOS_PID" 2>/dev/null || true
+        wait "$CHAOS_PID" 2>/dev/null || true
+    fi
 
     for container_name in "${NODE_CONTAINER_NAMES[@]:-}"; do
         remove_container_if_exists "$container_name"
@@ -715,6 +736,39 @@ start_node_loader() {
     log_info "Node-loader started in container: $NODE_LOADER_CONTAINER_NAME (log: docker logs -f $NODE_LOADER_CONTAINER_NAME)"
 }
 
+chaos_loop() {
+    if [[ "$ENABLE_CHAOS_MODE" != "true" ]]; then
+        return
+    fi
+
+    if [[ $NUM_VALIDATORS -lt 2 ]]; then
+        log_warn "Chaos mode requires at least 2 validators (bootnode is excluded)"
+        return
+    fi
+
+    log_info "Chaos mode enabled (interval=${CHAOS_INTERVAL}s). Bootnode (node 0) is excluded."
+
+    while true; do
+        sleep "$CHAOS_INTERVAL"
+
+        local target=$(( (RANDOM % (NUM_VALIDATORS - 1)) + 1 ))
+        local container_name="${NODE_CONTAINER_PREFIX}-${target}"
+
+        if docker_container_running "$container_name"; then
+            log_warn "[CHAOS] Stopping node $target ($container_name)..."
+            docker stop -t 2 "$container_name" >/dev/null 2>&1 || true
+
+            sleep "$CHAOS_INTERVAL"
+
+            log_info "[CHAOS] Restarting node $target ($container_name)..."
+            docker start "$container_name" >/dev/null 2>&1 || true
+        else
+            log_info "[CHAOS] Node $target ($container_name) already stopped, restarting..."
+            docker start "$container_name" >/dev/null 2>&1 || true
+        fi
+    done
+}
+
 print_summary() {
     echo ""
     echo "================================================================================"
@@ -743,6 +797,13 @@ print_summary() {
         echo "    Logs:          docker logs -f ${NODE_CONTAINER_NAMES[$i]}"
     done
     echo ""
+    if [[ "$ENABLE_CHAOS_MODE" == "true" ]]; then
+        echo "Chaos Mode:"
+        echo "  Enabled:   true"
+        echo "  Interval:  ${CHAOS_INTERVAL}s"
+        echo "  Excluded:  node 0 (bootnode)"
+        echo ""
+    fi
     if [[ "$ENABLE_NODE_LOADER" == "true" ]]; then
         echo "Node-Loader:"
         echo "  Mode:      container"
@@ -791,6 +852,9 @@ main() {
     print_summary
     
     log_info "Network is ready. Press Ctrl+C to stop/remove all containers."
+
+    chaos_loop &
+    CHAOS_PID=$!
     
     while true; do
         sleep 60
