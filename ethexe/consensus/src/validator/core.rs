@@ -50,9 +50,6 @@ pub struct ValidatorCore {
     pub db: Database,
     #[debug(skip)]
     pub committer: Box<dyn BatchCommitter>,
-    /// Maybe remove from here
-    // #[debug(skip)]
-    // pub middleware: MiddlewareWrapper,
     #[debug(skip)]
     pub injected_pool: InjectedTxPool,
     #[debug(skip)]

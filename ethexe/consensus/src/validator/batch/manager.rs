@@ -65,6 +65,11 @@ impl BatchCommitmentManager {
         }
     }
 
+    #[cfg(test)]
+    pub fn update_timelines(&mut self, timelines: ProtocolTimelines) {
+        self.timelines = timelines;
+    }
+
     /// Maybe rename this function
     pub async fn build(
         self,

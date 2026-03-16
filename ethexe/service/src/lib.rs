@@ -29,14 +29,15 @@ use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_db::{Database, RocksDatabase};
+use ethexe_db::{Database, RawDatabase, RocksDatabase};
+use ethexe_db_init::InitConfig;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
 };
 use ethexe_observer::{
-    ObserverEvent, ObserverService,
+    ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -219,7 +220,16 @@ impl Service {
                 .database_path_for(config.ethereum.router_address),
         )
         .with_context(|| "failed to open database")?;
-        let db = Database::from_one(&rocks_db);
+
+        let db = ethexe_db_init::initialize_db(
+            InitConfig {
+                ethereum_rpc: config.ethereum.rpc.clone(),
+                router_address: config.ethereum.router_address,
+                slot_duration_secs: config.ethereum.block_time.as_secs(),
+            },
+            RawDatabase::from_one(&rocks_db),
+        )
+        .await?;
 
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: config.ethereum.rpc.clone(),
@@ -238,10 +248,16 @@ impl Service {
             None
         };
 
-        let observer =
-            ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
-                .await
-                .context("failed to create observer service")?;
+        let observer = ObserverService::new(
+            db.clone(),
+            ObserverConfig {
+                rpc: &config.ethereum.rpc,
+                max_sync_depth: Some(config.node.eth_max_sync_depth),
+            },
+        )
+        .await
+        .context("failed to create observer service")?;
+
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)
@@ -279,17 +295,9 @@ impl Service {
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
 
-        let processor = Processor::with_config(
-            ProcessorConfig {
-                chunk_size: config.node.chunk_processing_threads,
-            },
-            db.clone(),
-        )
-        .with_context(|| "failed to create processor")?;
-
         log::info!(
             "🔧 Amount of chunk processing threads for programs processing: {}",
-            processor.config().chunk_size
+            config.node.chunk_processing_threads
         );
 
         let signer = Signer::fs(config.node.key_path.clone())?;
@@ -363,7 +371,7 @@ impl Service {
                 general_signer: signer.clone(),
                 network_signer,
                 external_data_provider: Box::new(RouterDataProvider(router_query)),
-                db: Box::new(db.clone()),
+                db: db.clone(),
             };
 
             let network = NetworkService::new(net_config.clone(), runtime_config)
@@ -379,6 +387,10 @@ impl Service {
             .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
+        let processor_config = ProcessorConfig {
+            chunk_size: config.node.chunk_processing_threads,
+        };
+        let processor = Processor::with_config(processor_config, db.clone())?;
         let compute = ComputeService::new(compute_config, db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;
@@ -543,14 +555,17 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes)?;
                     }
-                    ComputeEvent::AnnounceComputed(computed_data) => {
-                        consensus.receive_computed_announce(computed_data)?
+                    ComputeEvent::AnnounceComputed(announce_hash) => {
+                        consensus.receive_computed_announce(announce_hash)?
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
+                    }
+                    ComputeEvent::Promise(promise, announce_hash) => {
+                        consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },
                 Event::Network(event) => {
@@ -578,10 +593,11 @@ impl Service {
                         }
                         NetworkEvent::InjectedTransaction(event) => match event {
                             ethexe_network::NetworkInjectedEvent::InboundTransaction {
+                                peer: _,
                                 transaction,
                                 channel,
                             } => {
-                                let res = consensus.receive_injected_transaction(transaction);
+                                let res = consensus.receive_injected_transaction(*transaction);
                                 channel
                                     .send(res.into())
                                     .expect("channel must never be closed");
@@ -643,7 +659,22 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
+                    ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
+                        compute.compute_announce(announce, promise_policy)
+                    }
+                    ConsensusEvent::PublishPromise(signed_promise) => {
+                        if rpc.is_none() && network.is_none() {
+                            panic!("Promise without network or rpc");
+                        }
+
+                        if let Some(rpc) = &rpc {
+                            rpc.provide_promise(signed_promise.clone());
+                        }
+
+                        if let Some(network) = &mut network {
+                            network.publish_promise(signed_promise);
+                        }
+                    }
                     ConsensusEvent::PublishMessage(message) => {
                         let Some(network) = network.as_mut() else {
                             continue;
@@ -666,21 +697,6 @@ impl Service {
                     }
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
-                    }
-                    ConsensusEvent::Promises(promises) => {
-                        if rpc.is_none() && network.is_none() {
-                            panic!("Promise without network or rpc");
-                        }
-
-                        if let Some(rpc) = &rpc {
-                            rpc.provide_promises(promises.clone());
-                        }
-
-                        if let Some(network) = &mut network {
-                            for promise in promises {
-                                network.publish_promise(promise);
-                            }
-                        }
                     }
                 },
                 Event::Prometheus(event) => match event {

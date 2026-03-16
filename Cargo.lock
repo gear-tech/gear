@@ -5080,6 +5080,7 @@ dependencies = [
 name = "ethexe-compute"
 version = "1.10.0"
 dependencies = [
+ "demo-ping",
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
@@ -5153,6 +5154,22 @@ dependencies = [
  "scopeguard",
  "tempfile",
  "tracing",
+]
+
+[[package]]
+name = "ethexe-db-init"
+version = "1.10.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "gear-workspace-hack",
+ "gprimitives",
+ "gsigner",
+ "log",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -5248,6 +5265,7 @@ dependencies = [
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-db-init",
  "ethexe-ethereum",
  "future-timing",
  "futures",
@@ -5278,6 +5296,7 @@ dependencies = [
  "ethexe-runtime",
  "ethexe-runtime-common",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages",
  "gear-runtime-interface",
@@ -5289,6 +5308,7 @@ dependencies = [
  "parity-scale-codec",
  "rand 0.8.5",
  "rayon",
+ "scopeguard",
  "sp-allocator",
  "sp-wasm-interface",
  "thiserror 2.0.17",
@@ -5352,7 +5372,6 @@ dependencies = [
  "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
- "gear-core-processor",
  "gear-lazy-pages-interface",
  "gear-workspace-hack",
  "gprimitives",
@@ -5420,6 +5439,7 @@ dependencies = [
  "ethexe-compute",
  "ethexe-consensus",
  "ethexe-db",
+ "ethexe-db-init",
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
@@ -10968,13 +10988,12 @@ dependencies = [
 
 [[package]]
 name = "metrics-derive"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3dbdd96ed57d565ec744cba02862d707acf373c5772d152abae6ec5c4e24f6c"
+checksum = "161ab904c2c62e7bda0f7562bf22f96440ca35ff79e66c800cbac298f2f4f5ec"
 dependencies = [
  "proc-macro2",
  "quote",
- "regex",
  "syn 2.0.114",
 ]
 
