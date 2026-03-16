@@ -41,7 +41,7 @@ where
     where
         F: FnMut(I) -> O + Send + Clone + UnwindSafe + 'static,
     {
-        let n_cpus = std::thread::available_parallelism().map_or(1, NonZero::get);
+        let n_cpus = thread::available_parallelism().map_or(1, NonZero::get);
 
         let (task_tx, task_rx) = crossbeam::channel::unbounded::<Task<I, O>>();
 
@@ -49,7 +49,7 @@ where
             let task_rx = task_rx.clone();
             let handler = handler.clone();
 
-            std::thread::spawn(move || {
+            thread::spawn(move || {
                 loop {
                     let Ok((task, sender)) = task_rx.recv() else {
                         // All connected `ThreadPool` instances were dropped
@@ -127,7 +127,7 @@ mod tests {
             ]
         );
 
-        let n_cpus = std::thread::available_parallelism().map_or(1, NonZero::get);
+        let n_cpus = thread::available_parallelism().map_or(1, NonZero::get);
 
         // Ensure that panics don't break things
         for _ in 0..n_cpus * 2 {
