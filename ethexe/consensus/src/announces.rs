@@ -1061,7 +1061,7 @@ mod tests {
                 chain
                     .block_top_announce_mut(9)
                     .as_computed_mut()
-                    .program_states = (0..=MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 10)
+                    .program_states = (0..MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 1)
                     .map(|i| {
                         (
                             ActorId::from(i as u64),
@@ -1073,6 +1073,8 @@ mod tests {
                         )
                     })
                     .collect();
+
+                chain.globals.latest_computed_announce_hash = chain.block_top_announce_hash(9);
             })
             .setup(&db);
 
@@ -1081,7 +1083,7 @@ mod tests {
             parent: chain.block_top_announce_hash(9),
             gas_allowance: Some(43),
             injected_transactions: (MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2 + 1
-                ..=MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 10)
+                ..MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 1)
                 .map(|i| InjectedTransaction {
                     destination: ActorId::from(i as u64),
                     payload: Default::default(),
