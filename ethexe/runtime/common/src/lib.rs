@@ -223,8 +223,8 @@ where
     let initial_gas_allowance = ctx.gas_allowance.left();
 
     let mut limiter = Limiter {
-        outgoing_messages: MAX_OUTGOING_MESSAGES_PER_EXECUTION,
-        outgoing_messages_bytes: MAX_OUTGOING_MESSAGES_BYTES_PER_EXECUTION,
+        outgoing_messages: MAX_OUTGOING_MESSAGES_PER_RUN,
+        outgoing_messages_bytes: MAX_OUTGOING_MESSAGES_BYTES_PER_RUN,
         call_replies: MAX_CALL_REPLIES_PER_RUN,
     };
 
