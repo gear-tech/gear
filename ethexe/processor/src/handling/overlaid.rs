@@ -25,7 +25,7 @@ use crate::{
     host::InstanceCreator,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType};
+use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType, injected::Promise};
 use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
 use gear_core::{
@@ -35,6 +35,7 @@ use gear_core::{
 };
 use gprimitives::{ActorId, MessageId};
 use std::collections::HashSet;
+use tokio::sync::mpsc;
 
 /// Overlay execution context.
 ///
@@ -85,6 +86,7 @@ impl OverlaidRunContext {
                 gas_allowance,
                 chunk_size,
                 block_header,
+                None,
             ),
             base_program,
             nullified_queue_programs: [base_program].into_iter().collect(),
@@ -172,6 +174,11 @@ impl OverlaidRunContext {
 impl RunContext for OverlaidRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.inner.instance_creator
+    }
+
+    fn promise_out_tx(&self) -> &Option<mpsc::UnboundedSender<Promise>> {
+        // OverlaidRunContext should never produce promises
+        &None
     }
 
     fn block_header(&self) -> BlockHeader {

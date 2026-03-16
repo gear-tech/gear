@@ -49,9 +49,9 @@ use ethexe_common::{
     mock::*,
     network::ValidatorMessage,
 };
-use ethexe_compute::ComputeConfig;
+use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
-use ethexe_db::{Database, verifier::IntegrityVerifier};
+use ethexe_db::verifier::IntegrityVerifier;
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_prometheus::PrometheusConfig;
@@ -1234,7 +1234,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::memory();
+    node.db = env.new_initialized_db();
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING").await.unwrap();
@@ -1521,11 +1521,7 @@ async fn send_injected_tx() {
     env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
-    let reference_block = node0
-        .db
-        .latest_data()
-        .expect("latest data not found")
-        .prepared_block_hash;
+    let reference_block = node0.db.globals().latest_prepared_block_hash;
 
     // Prepare tx data
     let tx = InjectedTransaction {
@@ -1545,13 +1541,14 @@ async fn send_injected_tx() {
     };
 
     // Send request
-    log::info!("Sending tx pool request to node-1");
-    let _r = node1
+    log::info!("Sending transaction to node-1");
+    let acceptance = node1
         .rpc_http_client()
         .unwrap()
         .send_transaction(tx_for_node1.clone())
         .await
         .expect("rpc server is set");
+    assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
 
     // Tx executable validation takes time, so wait for event.
     node1
@@ -1592,24 +1589,15 @@ async fn fast_sync() {
             .verify_chain(latest_block, fast_synced_block)
             .expect("failed to verify Bob database");
 
-        let alice_latest_data = alice.db.latest_data().expect("latest data not found");
-        let bob_latest_data = bob.db.latest_data().expect("latest data not found");
+        let alice_globals = alice.db.globals();
+        let bob_globals = bob.db.globals();
         assert_eq!(
-            alice_latest_data.computed_announce_hash,
-            bob_latest_data.computed_announce_hash
-        );
-        assert_eq!(alice_latest_data.synced_block, bob_latest_data.synced_block);
-        assert_eq!(
-            alice_latest_data.prepared_block_hash,
-            bob_latest_data.prepared_block_hash
+            alice_globals.latest_computed_announce_hash,
+            bob_globals.latest_computed_announce_hash
         );
         assert_eq!(
-            alice_latest_data.genesis_block_hash,
-            bob_latest_data.genesis_block_hash
-        );
-        assert_eq!(
-            alice_latest_data.genesis_announce_hash,
-            bob_latest_data.genesis_announce_hash
+            alice_globals.latest_prepared_block_hash,
+            bob_globals.latest_prepared_block_hash
         );
 
         let mut block = latest_block;
@@ -2403,7 +2391,10 @@ async fn injected_tx_fungible_token() {
             .validator(env.validators[0]),
     );
     node.start_service().await;
-    let rpc_client = node.rpc_http_client().expect("RPC client provide by node");
+    let rpc_client = node
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provide by node");
 
     // 1. Create Fungible token config
     let token_config = demo_fungible_token::InitConfig {
@@ -2463,7 +2454,7 @@ async fn injected_tx_fungible_token() {
         destination: usdt_actor_id,
         payload: mint_action.encode().try_into().unwrap(),
         value: 0,
-        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        reference_block: node.db.globals().latest_prepared_block_hash,
         salt: vec![1].try_into().unwrap(),
     };
 
@@ -2475,11 +2466,10 @@ async fn injected_tx_fungible_token() {
             .unwrap(),
     };
 
-    let acceptance = rpc_client
-        .send_transaction(rpc_tx)
+    let mut subscription = rpc_client
+        .send_transaction_and_watch(rpc_tx)
         .await
         .expect("successfully send transaction to RPC");
-    assert!(matches!(acceptance, InjectedTransactionAcceptance::Accept));
 
     let expected_event = demo_fungible_token::FTEvent::Transfer {
         from: ActorId::new([0u8; 32]),
@@ -2490,10 +2480,7 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
-                && !promises.is_empty()
-            {
-                let promise = promises.first().unwrap().data();
+            if let TestingEvent::Compute(ComputeEvent::Promise(promise, _)) = event {
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
@@ -2508,6 +2495,22 @@ async fn injected_tx_fungible_token() {
         })
         .await;
     tracing::info!("✅ Tokens mint successfully");
+
+    let subscription_promise = subscription
+        .next()
+        .await
+        .expect("subscription produce value")
+        .expect("no errors for correct injected transaction");
+    assert_eq!(subscription_promise.data().tx_hash, mint_tx.to_hash());
+    assert_eq!(subscription_promise.data().reply.value, 0);
+    assert_eq!(
+        subscription_promise.data().reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(
+        subscription_promise.into_data().reply.payload,
+        expected_event.encode()
+    );
 
     let db = node.db.clone();
     node.events()
@@ -2550,7 +2553,7 @@ async fn injected_tx_fungible_token() {
         destination: usdt_actor_id,
         payload: transfer_action.encode().try_into().unwrap(),
         value: 0,
-        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        reference_block: node.db.globals().latest_prepared_block_hash,
         salt: vec![1].try_into().unwrap(),
     };
 
@@ -2681,7 +2684,7 @@ async fn injected_tx_fungible_token_over_network() {
         destination: usdt_actor_id,
         payload: mint_action.encode().try_into().unwrap(),
         value: 0,
-        reference_block: bob_node.db.latest_data().unwrap().prepared_block_hash,
+        reference_block: bob_node.db.globals().latest_prepared_block_hash,
         salt: vec![1].try_into().unwrap(),
     };
 
@@ -2833,7 +2836,7 @@ async fn announces_conflicts() {
         let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
         let announce_hash = announce.to_hash();
@@ -2931,7 +2934,7 @@ async fn announces_conflicts() {
 
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
         let announce6_hash = announce6.to_hash();
@@ -2955,7 +2958,7 @@ async fn announces_conflicts() {
         // Announce is not on top of announce6 (already accepted),
         // so must be rejected by validators 1..=5
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let parent = validator1_db
             .block_meta(block.header.parent_hash)

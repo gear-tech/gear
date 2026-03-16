@@ -19,13 +19,13 @@
 use crate::{
     AlloyProvider, Ethereum, TryGetReceipt,
     abi::{
+        IERC1967Proxy,
         IMiddleware::{
             self, IMiddlewareInstance, InitParams as MiddlewareInitParams,
             initializeCall as MiddlewareInitializeCall,
         },
         IMirror,
         IRouter::{self, IRouterInstance, initializeCall as RouterInitializeCall},
-        ITransparentUpgradeableProxy,
         IWrappedVara::{self, IWrappedVaraInstance, initializeCall as WrappedVaraInitializeCall},
         middleware_abi::Gear::SymbioticContracts,
         symbiotic_abi::*,
@@ -213,10 +213,9 @@ where
     P: Provider + Clone,
 {
     let wrapped_vara_impl = IWrappedVara::deploy(provider.clone()).await?;
-    let proxy = ITransparentUpgradeableProxy::deploy(
+    let proxy = IERC1967Proxy::deploy(
         provider.clone(),
         *wrapped_vara_impl.address(),
-        deployer,
         Bytes::copy_from_slice(
             &WrappedVaraInitializeCall {
                 initialOwner: deployer,
@@ -283,10 +282,9 @@ where
     };
 
     let router_impl = IRouter::deploy(provider.clone()).await?;
-    let proxy = ITransparentUpgradeableProxy::deploy(
+    let proxy = IERC1967Proxy::deploy(
         provider.clone(),
         *router_impl.address(),
-        deployer,
         Bytes::copy_from_slice(
             &RouterInitializeCall {
                 _owner: deployer,
@@ -410,10 +408,9 @@ where
         symbiotic,
     };
 
-    let proxy = ITransparentUpgradeableProxy::deploy(
+    let proxy = IERC1967Proxy::deploy(
         provider.clone(),
         *middleware_impl.address(),
-        deployer,
         Bytes::copy_from_slice(
             &MiddlewareInitializeCall {
                 _params: (middleware_init_params),
