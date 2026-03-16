@@ -39,8 +39,9 @@ use events::{
     ExecutableBalanceTopUpRequestedEventBuilder, MessageCallFailedEventBuilder,
     MessageEventBuilder, MessageQueueingRequestedEventBuilder,
     OwnedBalanceTopUpRequestedEventBuilder, ReplyCallFailedEventBuilder, ReplyEventBuilder,
-    ReplyQueueingRequestedEventBuilder, StateChangedEventBuilder, ValueClaimedEventBuilder,
-    ValueClaimingRequestedEventBuilder,
+    ReplyQueueingRequestedEventBuilder, ReplyTransferFailedEventBuilder, StateChangedEventBuilder,
+    TransferLockedValueToInheritorFailedEventBuilder, ValueClaimFailedEventBuilder,
+    ValueClaimedEventBuilder, ValueClaimingRequestedEventBuilder,
 };
 use futures::StreamExt;
 use gear_core::{ids::prelude::MessageIdExt, rpc::ReplyInfo};
@@ -227,8 +228,7 @@ impl Mirror {
             if let Ok((ValueClaimedEvent { claimed_id, value }, _)) = result
                 && claimed_id == message_id
             {
-                let actor_id =
-                    ethexe_common::Address::from(self.0.provider().default_signer_address()).into();
+                let actor_id = Address::from(self.0.provider().default_signer_address()).into();
                 return Ok(ClaimInfo {
                     message_id: claimed_id,
                     actor_id,
@@ -430,5 +430,19 @@ impl<'a> MirrorEvents<'a> {
 
     pub fn value_claimed(&self) -> ValueClaimedEventBuilder<'a> {
         ValueClaimedEventBuilder::new(self.query)
+    }
+
+    pub fn transfer_locked_value_to_inheritor_failed(
+        &self,
+    ) -> TransferLockedValueToInheritorFailedEventBuilder<'a> {
+        TransferLockedValueToInheritorFailedEventBuilder::new(self.query)
+    }
+
+    pub fn reply_transfer_failed(&self) -> ReplyTransferFailedEventBuilder<'a> {
+        ReplyTransferFailedEventBuilder::new(self.query)
+    }
+
+    pub fn value_claim_failed(&self) -> ValueClaimFailedEventBuilder<'a> {
+        ValueClaimFailedEventBuilder::new(self.query)
     }
 }
