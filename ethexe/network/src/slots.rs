@@ -150,7 +150,7 @@ impl PeerState {
 impl PeerState {
     fn as_direction(&self) -> Option<&PeerDirection> {
         match self {
-            PeerState::Connected { direction, .. } => Some(&direction),
+            PeerState::Connected { direction, .. } => Some(direction),
             PeerState::JustDisconnected(_) => None,
         }
     }
