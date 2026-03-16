@@ -20,7 +20,9 @@ mod manager;
 pub use manager::BatchCommitmentManager;
 
 mod types;
-pub use types::{BatchGasWeights, BatchLimits, ValidationStatus};
+pub use types::{BatchLimits, ValidationStatus};
+
+mod filler;
 
 mod utils;
 

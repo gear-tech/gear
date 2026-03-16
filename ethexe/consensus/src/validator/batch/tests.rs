@@ -134,6 +134,9 @@ async fn rejects_non_best_chain_head() {
 
     let wrong_head = HashOf::random();
     request.head = Some(wrong_head);
+    ctx.core
+        .db
+        .mutate_announce_meta(wrong_head, |meta| meta.computed = true);
 
     let status = ctx
         .core
@@ -148,6 +151,34 @@ async fn rejects_non_best_chain_head() {
             requested: wrong_head,
             best: best_head,
         }
+    );
+}
+
+#[tokio::test]
+#[ntest::timeout(3000)]
+async fn rejects_when_best_head_chain_is_invalid() {
+    gear_utils::init_default_logger();
+
+    let (ctx, _, _) = mock_validator_context();
+    let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+    let block = ctx.core.db.simple_block_data(batch.block_hash);
+    let request = BatchCommitmentValidationRequest::new(&batch);
+    let best_head = request.head.expect("chain commitment expected");
+
+    ctx.core.db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_announce = Some(HashOf::random());
+    });
+
+    let status = ctx
+        .core
+        .batch_manager
+        .validate(block, request)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        unwrap_rejected_reason(status),
+        ValidationRejectReason::BestHeadAnnounceChainInvalid(best_head)
     );
 }
 
@@ -278,8 +309,6 @@ async fn test_aggregate_validators_commitment() {
             chain.protocol_timelines.election = 5 * chain.slot_duration as u64;
         })
         .setup(&ctx.core.db);
-    // ctx.core.timelines = chain.protocol_timelines;
-    // TODO: remove this hack
     ctx.core.batch_manager.timelines = chain.protocol_timelines;
 
     let validators1: ValidatorsVec = vec![Address([1; 20]), Address([2; 20]), Address([3; 20])]

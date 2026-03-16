@@ -20,15 +20,12 @@ use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, V
 use crate::{
     announces,
     validator::{
-        batch::types::{
-            BatchFiller, BatchGasCounter, BatchGasWeights, BatchIncludeError, BatchParts,
-            BatchSizeCounter,
-        },
+        batch::{filler::BatchFiller, utils},
         core::{ElectionRequest, MiddlewareWrapper},
     },
 };
 
-use anyhow::{Context as _, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
     Announce, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
@@ -41,22 +38,10 @@ use ethexe_db::Database;
 use gprimitives::H256;
 use hashbrown::HashSet;
 
-// !!! CONCEPT
-// Gas counter, initialize the batch commitment only with validators and rewards commitments, then iterate
-// through uncommitted announces and try to include them in batch. If this not happen we do not include it.
-//
-// It should be done by using `BatchSizeCounter` struct (like GasCounter) in runtime.
-
-// TODO:
-/// !!! IMPORTANT: after batch gas counter implement the batch size counter, because on Ethereum exists
-/// a limit for a one transaction
-
 #[derive(derive_more::Debug, Clone)]
 pub struct BatchCommitmentManager {
     /// Limits for batch building and verifying
     limits: BatchLimits,
-    ///
-    gas_weights: BatchGasWeights,
     // TODO: hack for tests, remove this `pub(crate)`
     pub(crate) timelines: ProtocolTimelines,
     #[debug(skip)]
@@ -66,18 +51,14 @@ pub struct BatchCommitmentManager {
 }
 
 impl BatchCommitmentManager {
-    // Public API.
-
     pub fn new(
         limits: BatchLimits,
-        gas_weights: BatchGasWeights,
         timelines: ProtocolTimelines,
         db: Database,
         middleware: MiddlewareWrapper,
     ) -> Self {
         Self {
             limits,
-            gas_weights,
             timelines,
             db,
             middleware,
@@ -90,24 +71,24 @@ impl BatchCommitmentManager {
         block: SimpleBlockData,
         announce_hash: HashOf<Announce>,
     ) -> Result<Option<BatchCommitment>> {
-        let mut batch_filler = BatchFiller::new(self.gas_weights.clone());
+        let mut batch_filler = BatchFiller::new(self.limits.clone());
 
-        let validators_commitment = self.aggregate_validators_commitment(&block).await?;
-        if let Err(err) = batch_filler.include_validators_commitment(validators_commitment) {
+        if let Some(validators_commitment) = self.aggregate_validators_commitment(&block).await?
+            && let Err(err) = batch_filler.include_validators_commitment(validators_commitment)
+        {
             bail!("failed to include validators commitment into batch, err={err}")
         }
 
-        let rewards_commitment = self.aggregate_rewards_commitment(&block).await?;
-        if let Err(err) = batch_filler.include_rewards_commitment(rewards_commitment) {
+        if let Some(rewards_commitment) = self.aggregate_rewards_commitment(&block).await?
+            && let Err(err) = batch_filler.include_rewards_commitment(rewards_commitment)
+        {
             bail!("failed to include rewards commitment into batch, err={err}")
         }
 
         let not_committed_announces =
-            super::utils::collect_not_committed_predecessors(&self.db, announce_hash)?;
-        let deepness = not_committed_announces.len() as u32;
+            super::utils::collect_not_committed_predecessors(&self.db, block.hash, announce_hash)?;
 
-        let mut chain_commitment: Option<ChainCommitment> = None;
-        for announce_hash in not_committed_announces {
+        for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
             let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
             let chain_commitment = ChainCommitment {
                 head_announce: announce_hash,
@@ -122,9 +103,11 @@ impl BatchCommitmentManager {
 
             let commitments = self.aggregate_code_commitments(announce_block_hash)?;
 
-            if let Err(err) =
-                batch_filler.include_chain_and_codes_commitments(chain_commitment, commitments)
-            {
+            if let Err(err) = batch_filler.include_chain_and_codes_commitments(
+                chain_commitment,
+                deep as u32,
+                commitments,
+            ) {
                 tracing::trace!(
                     "failed to include transitions and codes in batch for announce({announce_hash}) because of error: {err}"
                 );
@@ -160,7 +143,7 @@ impl BatchCommitmentManager {
             rewards,
         } = &request;
 
-        let mut batch_filler = BatchFiller::new(self.gas_weights.clone());
+        let mut batch_filler = BatchFiller::new(self.limits.clone());
 
         if crate::utils::has_duplicates(codes.as_slice()) {
             return Ok(ValidationStatus::Rejected {
@@ -207,33 +190,6 @@ impl BatchCommitmentManager {
             // TODO #4791: support commitment head from another block in chain,
             // have to check head block is predecessor of current block
 
-            let candidates = self
-                .db
-                .block_meta(block.hash)
-                .announces
-                .into_iter()
-                .flatten();
-
-            let best_announce_hash =
-                announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
-
-            // TODO: remove const from here
-            // TODO: here a bug because now we do not check
-            // that validator correctly build announces and include announces as much as possible
-            match announces::is_predecessor_of_best_announce(&self.db, best_announce_hash, head, 10)
-            {
-                Ok(true) => {} // nothing to do
-                _ => {
-                    return Ok(ValidationStatus::Rejected {
-                        request,
-                        reason: ValidationRejectReason::HeadAnnounceIsNotBest {
-                            requested: head,
-                            best: best_announce_hash,
-                        },
-                    });
-                }
-            }
-
             // Head announce in validation request is best for `block`.
             // This guarantees that announce is successor of last committed announce at `block`,
             // but does not guarantee that announce is computed by this node.
@@ -244,28 +200,135 @@ impl BatchCommitmentManager {
                 });
             }
 
-            let (commitment, _) =
-                super::utils::try_aggregate_chain_commitment(&self.db, block.hash, head)
-                    .context("batch commitment request validation")?;
-            if let Err(err) = batch_filler.include_chain_commitment(commitment) {
+            let candidates = self
+                .db
+                .block_meta(block.hash)
+                .announces
+                .into_iter()
+                .flatten();
+
+            let best_announce_hash =
+                announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
+
+            let not_committed_announces = match utils::collect_not_committed_predecessors(
+                &self.db,
+                block.hash,
+                best_announce_hash,
+            ) {
+                Ok(announces) => announces,
+                Err(err) => {
+                    tracing::debug!(
+                        block = %block.hash,
+                        best_announce = %best_announce_hash,
+                        error = %err,
+                        "failed to collect not committed predecessors for best announce during batch validation"
+                    );
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::BestHeadAnnounceChainInvalid(
+                            best_announce_hash,
+                        ),
+                    });
+                }
+            };
+            tracing::trace!("not computed announces = {not_committed_announces:?}");
+
+            if !not_committed_announces.contains(&head) {
+                // TODO: fix the rejection reason
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadAnnounceIsNotBest {
+                        requested: head,
+                        best: best_announce_hash,
+                    },
+                });
+            }
+
+            let (chain_commitment, deepness) =
+                utils::try_aggregate_chain_commitment(&self.db, block.hash, head)?;
+
+            if let Err(err) = batch_filler.include_chain_commitment(chain_commitment, deepness) {
                 let reason = err.into();
                 return Ok(ValidationStatus::Rejected { request, reason });
             }
+
+            // if !not_committed_announces.contains(&head) {
+            //     // TODO: fix the rejection reason
+            //     return Ok(ValidationStatus::Rejected {
+            //         request,
+            //         reason: ValidationRejectReason::HeadAnnounceIsNotBest {
+            //             requested: head,
+            //             best: best_announce_hash,
+            //         },
+            //     });
+            // }
+
+            // for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
+            //     let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
+            //     let commitment = ChainCommitment {
+            //         head_announce: announce_hash,
+            //         transitions,
+            //     };
+
+            //     if let Err(err) = batch_filler.include_chain_commitment(commitment, deep) {
+            //         let reason = err.into();
+            //         return Ok(ValidationStatus::Rejected { request, reason });
+            //     }
+
+            // let announce_block_hash = self
+            //     .db
+            //     .announce(announce_hash)
+            //     .ok_or_else(|| anyhow!(""))?
+            //     .block_hash;
+
+            // let commitments = self.aggregate_code_commitments(announce_block_hash)?;
+
+            // if let Err(err) = batch_filler.include_chain_and_codes_commitments(
+            //     chain_commitment,
+            //     deep + 1,
+            //     commitments,
+            // ) {
+            //     let reason = err.into();
+            //     return Ok(ValidationStatus::Rejected { request, reason });
+            // }
+
+            //     if announce_hash == head {
+            //         break;
+            //     }
+            // }
         }
 
         if validators {
-            let commitment = self.aggregate_validators_commitment(&block).await?;
-            if let Err(err) = batch_filler.include_validators_commitment(commitment) {
-                let reason = err.into();
-                return Ok(ValidationStatus::Rejected { request, reason });
+            match self.aggregate_validators_commitment(&block).await? {
+                Some(commitment) => {
+                    if let Err(err) = batch_filler.include_validators_commitment(commitment) {
+                        let reason = err.into();
+                        return Ok(ValidationStatus::Rejected { request, reason });
+                    }
+                }
+                None => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::ValidatorsNotReady,
+                    });
+                }
             }
         }
 
         if rewards {
-            let commitment = self.aggregate_rewards_commitment(&block).await?;
-            if let Err(err) = batch_filler.include_rewards_commitment(commitment) {
-                let reason = err.into();
-                return Ok(ValidationStatus::Rejected { request, reason });
+            match self.aggregate_rewards_commitment(&block).await? {
+                Some(commitment) => {
+                    if let Err(err) = batch_filler.include_rewards_commitment(commitment) {
+                        let reason = err.into();
+                        return Ok(ValidationStatus::Rejected { request, reason });
+                    }
+                }
+                None => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::RewardsNotReady,
+                    });
+                }
             }
         }
 
@@ -287,48 +350,8 @@ impl BatchCommitmentManager {
                 },
             });
         }
-        // 42 lines of code to return the rejection status - to complex for me.
 
         Ok(ValidationStatus::Accepted(digest))
-    }
-
-    // Inner calls
-
-    pub fn aggregate_chain_commitment(
-        &self,
-        at_block_hash: H256,
-        announce_hash: HashOf<Announce>,
-    ) -> Result<Option<ChainCommitment>> {
-        let (commitment, deepness) =
-            super::utils::try_aggregate_chain_commitment(&self.db, at_block_hash, announce_hash)
-                .map_err(|e| {
-                    anyhow!("Aggregating chain commitment for block {at_block_hash}: {e}")
-                })?;
-
-        if commitment.transitions.is_empty() && deepness <= self.limits.chain_deepness_threshold {
-            // No transitions and chain is not deep enough, skip chain commitment
-            Ok(None)
-        } else {
-            Ok(Some(commitment))
-        }
-    }
-
-    pub fn announce_code_commitments(
-        &self,
-        announce_block_hash: H256,
-    ) -> Result<Vec<CodeCommitment>> {
-        let queue = self
-            .db
-            .block_meta(announce_block_hash)
-            .codes_queue
-            .ok_or_else(|| {
-                anyhow!("Computed block {announce_block_hash} codes queue is not in storage")
-            })?;
-
-        Ok(
-            super::utils::aggregate_code_commitments(&self.db, queue, false)
-                .expect("Error is not possible here, because fail_if_not_found is false"),
-        )
     }
 
     pub fn aggregate_code_commitments(&self, block_hash: H256) -> Result<Vec<CodeCommitment>> {

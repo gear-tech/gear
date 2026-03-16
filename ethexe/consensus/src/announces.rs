@@ -668,34 +668,6 @@ pub fn best_announce(
     Ok(best_announce_hash)
 }
 
-pub fn is_predecessor_of_best_announce<DB: DBAnnouncesExt>(
-    db: &DB,
-    best_announce_hash: HashOf<Announce>,
-    potential_predecessor: HashOf<Announce>,
-    mut depth_limit: usize,
-) -> Result<bool> {
-    // What to do in this case ?
-    if best_announce_hash == potential_predecessor {
-        return Ok(true);
-    }
-    let mut announce = db
-        .announce(best_announce_hash)
-        .ok_or_else(|| anyhow!("announce not found in database, hash={best_announce_hash}"))?;
-
-    while depth_limit > 0 {
-        if announce.parent == potential_predecessor {
-            return Ok(true);
-        }
-
-        announce = db
-            .announce(announce.parent)
-            .ok_or_else(|| anyhow!("announce not found in database, hash={best_announce_hash}"))?;
-        depth_limit -= 1;
-    }
-
-    Ok(false)
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum AnnounceRejectionReason {
     #[display("Announce {announce_hash} parent {parent_announce_hash} is unknown")]

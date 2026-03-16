@@ -20,61 +20,44 @@ use crate::validator::batch::types::BatchParts;
 
 use super::types::CodeNotValidatedError;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
-    gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, StateTransition,
-        ValidatorsCommitment,
-    },
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment, StateTransition},
 };
 use gprimitives::{CodeId, H256};
 
-/// How often to log warning during chain commitment aggregation
-const LOG_WARNING_FREQUENCY: u32 = 10_000;
-
 pub fn collect_not_committed_predecessors<DB: AnnounceStorageRO + BlockMetaStorageRO>(
     db: &DB,
-    head_announce_hash: HashOf<Announce>,
+    at_block: H256,
+    announce_hash: HashOf<Announce>,
 ) -> Result<Vec<HashOf<Announce>>> {
-    if !db.announce_meta(head_announce_hash).computed {
-        anyhow::bail!(
-            "Head announce {head_announce_hash:?} is not computed, cannot aggregate chain commitment"
-        );
+    if !db.announce_meta(announce_hash).computed {
+        bail!(
+            "announce {announce_hash:?} is not computed, cannot collect not committed predecessors"
+        )
     }
-    let announce_block_hash = db
-        .announce(head_announce_hash)
-        .ok_or_else(|| anyhow!(""))?
-        .block_hash;
 
-    let Some(last_committed_announce_hash) =
-        db.block_meta(announce_block_hash).last_committed_announce
-    else {
-        anyhow::bail!(
-            "Last committed announce not found in db for prepared block {announce_block_hash}"
-        );
+    let Some(last_committed_announce_hash) = db.block_meta(at_block).last_committed_announce else {
+        anyhow::bail!("Last committed announce not found in db for prepared block: {at_block}");
     };
 
     let mut announces = Vec::new();
-    let mut announce_hash = head_announce_hash;
+    let mut current_announce = announce_hash;
 
     // Maybe remove this loop to prevent infinite searching
-    loop {
-        if announce_hash == last_committed_announce_hash {
-            break;
-        }
-
+    while current_announce != last_committed_announce_hash {
         if !db.announce_meta(announce_hash).computed {
             // All announces till last committed must be computed.
             // Even fast-sync guarantees that.
-            anyhow::bail!("Not computed announce in chain {announce_hash:?}");
+            bail!("Not computed announce in chain {current_announce:?}")
         }
-        announces.push(announce_hash);
 
-        announce_hash = db
-            .announce(announce_hash)
-            .ok_or_else(|| anyhow!("Computed announce {announce_hash:?} body not found in db"))?
+        announces.push(current_announce);
+        current_announce = db
+            .announce(current_announce)
+            .ok_or_else(|| anyhow!("Computed announce {current_announce:?} body not found in db"))?
             .parent;
     }
 
@@ -150,67 +133,32 @@ pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     Ok(commitments)
 }
 
-/// Tries to aggregate chain commitment starting from `head_announce_hash` up to the last committed announce
-///
-/// # NOTE
-/// Must be guaranteed by caller that:
-/// 1) `head_announce_hash` is computed
-/// 2) `head_announce_hash` is successor of `at_block_hash` last committed announce
-
-// TODO: think to remove this
 pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
     db: &DB,
-    at_block_hash: H256,
+    at_block: H256,
     head_announce_hash: HashOf<Announce>,
 ) -> Result<(ChainCommitment, u32)> {
-    // TODO #4744: improve squashing - removing redundant state transitions
-
     if !db.announce_meta(head_announce_hash).computed {
         anyhow::bail!(
             "Head announce {head_announce_hash:?} is not computed, cannot aggregate chain commitment"
         );
     }
 
-    let Some(last_committed_announce_hash) = db.block_meta(at_block_hash).last_committed_announce
-    else {
-        anyhow::bail!("Last committed announce not found in db for prepared block {at_block_hash}");
-    };
+    let not_committed_announces =
+        collect_not_committed_predecessors(db, at_block, head_announce_hash)?;
+    let deepness = not_committed_announces.len() as u32;
 
-    let mut announce_hash = head_announce_hash;
-    let mut counter: u32 = 0;
     let mut transitions = vec![];
-    while announce_hash != last_committed_announce_hash {
-        counter += 1;
-        if counter.is_multiple_of(LOG_WARNING_FREQUENCY) {
-            tracing::warn!("Aggregating chain commitment: processed {counter} announces so far...");
-        }
-
-        if !db.announce_meta(announce_hash).computed {
-            // All announces till last committed must be computed.
-            // Even fast-sync guarantees that.
-            anyhow::bail!("Not computed announce in chain {announce_hash:?}");
-        }
-
-        let Some(mut announce_transitions) = db.announce_outcome(announce_hash) else {
-            anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
-        };
-
-        sort_transitions_by_value_to_receive(&mut announce_transitions);
-
-        transitions.push(announce_transitions);
-
-        announce_hash = db
-            .announce(announce_hash)
-            .ok_or_else(|| anyhow!("Computed announce {announce_hash:?} body not found in db"))?
-            .parent;
+    for announce_hash in not_committed_announces {
+        transitions.extend(announce_transitions(db, announce_hash)?);
     }
 
     Ok((
         ChainCommitment {
-            transitions: transitions.into_iter().rev().flatten().collect(),
             head_announce: head_announce_hash,
+            transitions,
         },
-        counter,
+        deepness,
     ))
 }
 
