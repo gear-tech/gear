@@ -89,7 +89,7 @@ impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
         dispatch: StoredDispatch,
         delay: u32,
     ) {
-        // TODO: +_+_+ delay must be taken into account
+        // TODO: #5227 delay must be taken into account
         *self.outgoing_messages_limiter = self.outgoing_messages_limiter.saturating_sub(1);
         *self.outgoing_messages_bytes_limiter =
             self.outgoing_messages_bytes_limiter.saturating_sub(
@@ -536,13 +536,13 @@ where
                         self.stop_processing = true;
                         return Some(note);
                     }
-                    // TODO: +_+_+ handle the listed journal notes here:
+                    // TODO: #5228 handle the listed journal notes here:
                     // * WakeMessage
                     // * SendDispatch to self
                     // * SendValue to self
                     note => {
                         if let JournalNote::SendDispatch { dispatch, .. } = &note {
-                            // TODO: +_+_+ delay must be taken into account
+                            // TODO: #5227 delay must be taken into account
                             self.limiter.outgoing_messages =
                                 self.limiter.outgoing_messages.saturating_sub(1);
                             self.limiter.outgoing_messages_bytes =

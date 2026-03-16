@@ -149,7 +149,7 @@ pub(super) async fn run_for_queue_type(
         for chunk in chunks {
             // IMPORTANT: check limits in the beginning of the loop,
             // because events and txs handling can already set the status to out of limits.
-            // TODO: +_+_+ even if we run out of modifications limit, we still can process the programs,
+            // TODO: #5226 even if we run out of modifications limit, we still can process the programs,
             // which are already touched.
             let LimitsStatus::WithinLimits = ctx.limits_status() else {
                 // If we are out of limits (gas, outgoing messages, call replies and etc.), stopping execution.
