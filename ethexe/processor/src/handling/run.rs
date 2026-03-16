@@ -526,7 +526,7 @@ mod chunk_execution_spawn {
     use super::*;
     use crate::{handling::thread_pool::ThreadPool, host::InstanceWrapper};
     use ethexe_runtime_common::ProcessQueueContext;
-    use std::{panic::AssertUnwindSafe, sync::LazyLock};
+    use std::sync::LazyLock;
 
     /// An alias introduced for better readability of the chunks execution steps.
     pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
@@ -556,9 +556,7 @@ mod chunk_execution_spawn {
             promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
         }
 
-        fn execute_chunk_item(
-            AssertUnwindSafe(executable): AssertUnwindSafe<Executable>,
-        ) -> Result<ChunkItemOutput> {
+        fn execute_chunk_item(executable: Executable) -> Result<ChunkItemOutput> {
             let Executable {
                 queue_type,
                 block_info,
@@ -590,9 +588,8 @@ mod chunk_execution_spawn {
             Ok((program_id, new_state_hash, jn, gas_spent))
         }
 
-        static THREAD_POOL: LazyLock<
-            ThreadPool<AssertUnwindSafe<Executable>, Result<ChunkItemOutput>>,
-        > = LazyLock::new(|| ThreadPool::new(execute_chunk_item));
+        static THREAD_POOL: LazyLock<ThreadPool<Executable, Result<ChunkItemOutput>>> =
+            LazyLock::new(|| ThreadPool::new(execute_chunk_item));
 
         let (db, _, gas_allowance_counter) = ctx.borrow_inner();
         let gas_allowance_for_chunk = gas_allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
@@ -613,7 +610,7 @@ mod chunk_execution_spawn {
 
                 let executor = ctx.instance_creator().instantiate()?;
 
-                Ok(AssertUnwindSafe(Executable {
+                Ok(Executable {
                     queue_type,
                     block_info,
                     promise_policy,
@@ -625,15 +622,11 @@ mod chunk_execution_spawn {
                     db: db.clone_boxed(),
                     gas_allowance_for_chunk,
                     promise_out_tx: ctx.promise_out_tx().clone(),
-                }))
+                })
             })
             .collect::<Result<Vec<_>>>()?;
 
-        THREAD_POOL
-            .spawn_many(executables)
-            .map(|res| res.unwrap_or_else(|err| std::panic::resume_unwind(err)))
-            .try_collect()
-            .await
+        THREAD_POOL.spawn_many(executables).try_collect().await
     }
 }
 
