@@ -114,7 +114,8 @@ use chunks_splitting::ActorStateHashWithQueueSize;
 use core_processor::common::JournalNote;
 use ethexe_common::{
     BlockHeader, CALL_REPLY_SOFT_LIMIT, OUTGOING_MESSAGES_BYTES_SOFT_LIMIT,
-    OUTGOING_MESSAGES_SOFT_LIMIT, PromisePolicy, StateHashWithQueueSize,
+    OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT, PromisePolicy,
+    StateHashWithQueueSize,
     db::CodesStorageRO,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
     injected::Promise,
@@ -147,6 +148,15 @@ pub(super) async fn run_for_queue_type(
         }
 
         for chunk in chunks {
+            // IMPORTANT: check limits in the beginning of the loop,
+            // because events and txs handling can already set the status to out of limits.
+            // TODO: +_+_+ even if we run out of modifications limit, we still can process the programs,
+            // which are already touched.
+            let LimitsStatus::WithinLimits = ctx.limits_status() else {
+                // If we are out of limits (gas, outgoing messages, call replies and etc.), stopping execution.
+                break 'main_loop;
+            };
+
             // Spawn on a separate thread an execution of each program (it's queue) in the chunk.
             let chunk_outputs =
                 chunk_execution_spawn::spawn_chunk_execution(ctx, chunk, queue_type).await?;
@@ -172,11 +182,6 @@ pub(super) async fn run_for_queue_type(
                 charge_result.is_enough(),
                 "Gas allowance counter MUST be enough after charging with max gas spent in chunk"
             );
-
-            let LimitsStatus::WithinLimits = ctx.limits_status() else {
-                // If we are out of limits (gas, outgoing messages, call replies), stopping execution.
-                break 'main_loop;
-            };
         }
     }
 
@@ -195,6 +200,7 @@ pub(super) enum LimitsStatus {
     OutOfOutgoingMessages,
     OutOfOutgoingMessagesBytes,
     OutOfCallReplies,
+    OutOfProgramModifications,
 }
 
 /// Context for running program queues in chunks.
@@ -305,6 +311,7 @@ pub(super) trait RunContext {
 
     fn limits_status(&self) -> LimitsStatus {
         let CommonRunContext {
+            transitions,
             outgoing_messages_limiter,
             outgoing_messages_bytes_limiter,
             call_reply_limiter,
@@ -323,6 +330,9 @@ pub(super) trait RunContext {
         }
         if *call_reply_limiter == 0 {
             return LimitsStatus::OutOfCallReplies;
+        }
+        if transitions.modifications_len() > PROGRAM_MODIFICATIONS_SOFT_LIMIT as usize {
+            return LimitsStatus::OutOfProgramModifications;
         }
 
         LimitsStatus::WithinLimits

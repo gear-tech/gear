@@ -736,11 +736,18 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
     }
 
     let mut touched_programs = crate::utils::block_touched_programs(db, announce.block_hash)?;
+
+    // Producer cannot avoid touching programs which are touched by block,
+    // so we take as limit the number of touched programs in block, but not less than protocol limit.
+    let limit = touched_programs
+        .len()
+        .max(MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize);
+
     for tx in announce.injected_transactions.iter() {
         touched_programs.insert(tx.data().destination);
     }
 
-    if touched_programs.len() > MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize {
+    if touched_programs.len() > limit {
         return Ok(AnnounceStatus::Rejected {
             announce,
             reason: AnnounceRejectionReason::TooManyTouchedPrograms(touched_programs.len() as u32),

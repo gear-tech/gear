@@ -440,8 +440,8 @@ pub fn block_touched_programs<DB: OnChainStorageRO + AnnounceStorageRO + Globals
 ) -> Result<HashSet<ActorId>> {
     // NOTE: Using latest computed announce is not completely correct way to determine touched programs,
     // but it is good enough approximation, and it is enough for announce creation,
-    // in worst case announce would be possible to committed and it would become expired later.
-    let all_programs = db
+    // in worst case announce wouldn't be committed and it would become expired later.
+    let mut known_programs = db
         .announce_program_states(db.globals().latest_computed_announce_hash)
         .ok_or_else(|| anyhow!("Not found program states for latest computed announce"))?
         .keys()
@@ -456,8 +456,11 @@ pub fn block_touched_programs<DB: OnChainStorageRO + AnnounceStorageRO + Globals
         .filter_map(|request| match request {
             BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(
                 ProgramCreatedEvent { actor_id, .. },
-            )) => Some(actor_id),
-            BlockRequestEvent::Mirror { actor_id, .. } if all_programs.contains(&actor_id) => {
+            )) => {
+                known_programs.insert(actor_id);
+                None
+            }
+            BlockRequestEvent::Mirror { actor_id, .. } if known_programs.contains(&actor_id) => {
                 Some(actor_id)
             }
             _ => None,

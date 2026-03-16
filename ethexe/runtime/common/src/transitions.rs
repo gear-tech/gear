@@ -91,6 +91,10 @@ impl InBlockTransitions {
             .collect()
     }
 
+    pub fn modifications_len(&self) -> usize {
+        self.modifications.len()
+    }
+
     pub fn take_actual_tasks(&mut self) -> BTreeSet<ScheduledTask> {
         self.schedule.remove(&self.block_height).unwrap_or_default()
     }

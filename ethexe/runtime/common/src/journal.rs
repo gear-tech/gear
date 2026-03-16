@@ -470,12 +470,12 @@ where
     pub storage: &'s S,
     pub program_state: &'s mut ProgramState,
     pub gas_allowance_counter: &'s mut GasAllowanceCounter,
-    pub outgoing_messages_limiter: u32,
-    pub outgoing_messages_bytes_limiter: u32,
     pub gas_multiplier: &'s GasMultiplier,
     pub message_type: MessageType,
     pub is_first_execution: bool,
     pub stop_processing: bool,
+    pub call_reply: bool,
+    pub limiter: &'s mut Limiter,
 }
 
 impl<S> RuntimeJournalHandler<'_, S>
@@ -543,13 +543,18 @@ where
                     note => {
                         if let JournalNote::SendDispatch { dispatch, .. } = &note {
                             // TODO: +_+_+ delay must be taken into account
-                            self.outgoing_messages_limiter =
-                                self.outgoing_messages_limiter.saturating_sub(1);
-                            self.outgoing_messages_bytes_limiter =
-                                self.outgoing_messages_bytes_limiter.saturating_sub(
+                            self.limiter.outgoing_messages =
+                                self.limiter.outgoing_messages.saturating_sub(1);
+                            self.limiter.outgoing_messages_bytes =
+                                self.limiter.outgoing_messages_bytes.saturating_sub(
                                     u32::try_from(dispatch.payload_bytes().len())
                                         .expect("payload size is too big for u32"),
                                 );
+
+                            if dispatch.is_reply() && self.call_reply {
+                                self.limiter.call_replies =
+                                    self.limiter.call_replies.saturating_sub(1);
+                            }
                         }
 
                         skipped_notes += 1;
@@ -683,6 +688,34 @@ where
     }
 }
 
+pub(crate) struct Limiter {
+    pub outgoing_messages: u32,
+    pub outgoing_messages_bytes: u32,
+    pub call_replies: u32,
+}
+
+#[derive(Debug)]
+pub(crate) enum LimitsStatus {
+    NotExceeded,
+    OutgoingMessagesLimitExceeded,
+    OutgoingMessagesBytesLimitExceeded,
+    CallRepliesLimitExceeded,
+}
+
+impl Limiter {
+    pub fn status(&self) -> LimitsStatus {
+        if self.outgoing_messages == 0 {
+            LimitsStatus::OutgoingMessagesLimitExceeded
+        } else if self.outgoing_messages_bytes == 0 {
+            LimitsStatus::OutgoingMessagesBytesLimitExceeded
+        } else if self.call_replies == 0 {
+            LimitsStatus::CallRepliesLimitExceeded
+        } else {
+            LimitsStatus::NotExceeded
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use gear_core::message::{DispatchKind, Message as CoreMessage, StoredMessage};
@@ -707,6 +740,11 @@ mod tests {
         let gas_allowance_counter =
             Box::leak(Box::new(GasAllowanceCounter::new(INITIAL_GAS_ALLOWANCE)));
         let gas_multiplier = Box::leak(Box::new(GasMultiplier::from_value_per_gas(100)));
+        let limiter = Box::leak(Box::new(Limiter {
+            outgoing_messages: 32,
+            outgoing_messages_bytes: 4 * 1024,
+            call_replies: 16,
+        }));
 
         RuntimeJournalHandler {
             storage,
@@ -716,8 +754,8 @@ mod tests {
             message_type,
             is_first_execution,
             stop_processing: false,
-            outgoing_messages_limiter: 32,
-            outgoing_messages_bytes_limiter: 4 * 1024,
+            call_reply: false,
+            limiter,
         }
     }
 
