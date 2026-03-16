@@ -308,11 +308,11 @@ mod tests {
             .tap_mut(|chain| {
                 chain.blocks[10].as_synced_mut().events = (0..97)
                     .map(|i| BlockEvent::Mirror {
-                        actor_id: ActorId::from(i as u64),
+                        actor_id: ActorId::from(i),
                         event: MirrorEvent::MessageQueueingRequested(
                             MessageQueueingRequestedEvent {
-                                id: MessageId::from(i * 1000 as u64),
-                                source: ActorId::from(i * 10000 as u64),
+                                id: MessageId::from(i * 1000),
+                                source: ActorId::from(i * 10000),
                                 payload: vec![],
                                 value: 0,
                                 call_reply: false,
@@ -327,7 +327,7 @@ mod tests {
                     .program_states = (0..140)
                     .map(|i| {
                         (
-                            ActorId::from(i as u64),
+                            ActorId::from(i),
                             StateHashWithQueueSize {
                                 hash: state_hash,
                                 canonical_queue_size: 0,

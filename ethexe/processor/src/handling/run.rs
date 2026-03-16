@@ -386,7 +386,7 @@ impl CommonRunContext {
 
         if let LimitsStatus::WithinLimits = self.limits_status() {
             self.disable_promises();
-            let _ = run_for_queue_type(&mut self, MessageType::Canonical).await?;
+            run_for_queue_type(&mut self, MessageType::Canonical).await?;
         }
 
         Ok(self.transitions)
