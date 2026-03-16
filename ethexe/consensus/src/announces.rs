@@ -688,7 +688,7 @@ pub enum AnnounceStatus {
 /// 1) announce parent must be included by this node.
 /// 2) be not included yet.
 ///
-/// NOTE:
+/// Guarantee:
 /// - caller must guaranty that announce block is known prepared block
 pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<AnnounceStatus> {
     let announce_hash = announce.to_hash();
