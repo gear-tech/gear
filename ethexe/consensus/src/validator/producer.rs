@@ -200,7 +200,7 @@ impl Producer {
             .ctx
             .core
             .injected_pool
-            .select_for_announce(self.block.hash, parent)?;
+            .select_for_announce(self.block, parent)?;
 
         let announce = Announce {
             block_hash: self.block.hash,

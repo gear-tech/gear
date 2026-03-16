@@ -19,8 +19,10 @@
 use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::Result;
 use ethexe_common::{
-    Announce, HashOf,
-    db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
+    Announce, HashOf, SimpleBlockData,
+    db::{
+        AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
+    },
     injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
@@ -43,7 +45,13 @@ pub(crate) struct InjectedTxPool<DB = Database> {
 
 impl<DB> InjectedTxPool<DB>
 where
-    DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Storage + Clone,
+    DB: InjectedStorageRW
+        + OnChainStorageRO
+        + AnnounceStorageRO
+        + CodesStorageRO
+        + GlobalsStorageRO
+        + Storage
+        + Clone,
 {
     pub fn new(db: DB) -> Self {
         Self {
@@ -66,13 +74,13 @@ where
     /// Returns the injected transactions that are valid and can be included to announce.
     pub fn select_for_announce(
         &mut self,
-        block_hash: H256,
+        block: SimpleBlockData,
         parent_announce: HashOf<Announce>,
     ) -> Result<Vec<SignedInjectedTransaction>> {
-        tracing::trace!(block = ?block_hash, "start collecting injected transactions");
+        tracing::trace!(block = ?block.hash, "start collecting injected transactions");
 
         let tx_checker =
-            TxValidityChecker::new_for_announce(self.db.clone(), block_hash, parent_announce)?;
+            TxValidityChecker::new_for_announce(self.db.clone(), block, parent_announce)?;
 
         let mut selected_txs = vec![];
         let mut remove_txs = vec![];
@@ -223,7 +231,10 @@ mod tests {
         );
 
         let selected_txs = tx_pool
-            .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
+            .select_for_announce(
+                chain.blocks[10].to_simple(),
+                chain.block_top_announce_hash(9),
+            )
             .unwrap();
         assert_eq!(
             selected_txs,
