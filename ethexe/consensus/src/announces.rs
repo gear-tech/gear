@@ -91,7 +91,7 @@
 use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
+    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData,
     db::{
         AnnounceStorageRW, BlockMetaStorageRW, GlobalsStorageRO, InjectedStorageRW,
         OnChainStorageRO,
@@ -670,6 +670,8 @@ pub enum AnnounceRejectionReason {
     AlreadyIncluded(HashOf<Announce>),
     #[display("Invalid transactions: {_0:?}")]
     TxValidity(TxValidity),
+    #[display("Announce touches too many programs: {_0}")]
+    TooManyTouchedPrograms(u32),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -726,21 +728,43 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
     }
 
     let (announce_hash, newly_included) = db.include_announce(announce.clone())?;
-    if newly_included {
-        Ok(AnnounceStatus::Accepted(announce_hash))
-    } else {
-        Ok(AnnounceStatus::Rejected {
+    if !newly_included {
+        return Ok(AnnounceStatus::Rejected {
             announce,
             reason: AnnounceRejectionReason::AlreadyIncluded(announce_hash),
-        })
+        });
     }
+
+    let mut touched_programs = crate::utils::block_touched_programs(db, announce.block_hash)?;
+    for tx in announce.injected_transactions.iter() {
+        touched_programs.insert(tx.data().destination);
+    }
+
+    if touched_programs.len() > MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize {
+        return Ok(AnnounceStatus::Rejected {
+            announce,
+            reason: AnnounceRejectionReason::TooManyTouchedPrograms(touched_programs.len() as u32),
+        });
+    }
+
+    Ok(AnnounceStatus::Accepted(announce_hash))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{db::*, mock::*};
+    use ethexe_common::{
+        StateHashWithQueueSize,
+        db::*,
+        events::{BlockEvent, MirrorEvent, mirror::MessageQueueingRequestedEvent},
+        injected::InjectedTransaction,
+        mock::*,
+    };
     use ethexe_db::Database;
+    use ethexe_runtime_common::state::{ActiveProgram, Program, ProgramState};
+    use gear_core::program::MemoryInfix;
+    use gprimitives::{ActorId, MessageId};
+    use gsigner::{PrivateKey, SignedMessage};
     use proptest::{
         prelude::{Just, Strategy},
         proptest,
@@ -997,5 +1021,85 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn reject_announce_with_too_many_touched_programs() {
+        gear_utils::init_default_logger();
+
+        let db = Database::memory();
+
+        let state = ProgramState {
+            program: Program::Active(ActiveProgram {
+                allocations_hash: HashOf::zero().into(),
+                pages_hash: HashOf::zero().into(),
+                memory_infix: MemoryInfix::new(0),
+                initialized: true,
+            }),
+            ..ProgramState::zero()
+        };
+        let state_hash = db.write_program_state(state);
+
+        let chain = BlockChain::mock(10)
+            .tap_mut(|chain| {
+                chain.blocks[10].as_synced_mut().events =
+                    (0..MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2 + 1)
+                        .map(|i| BlockEvent::Mirror {
+                            actor_id: ActorId::from(i as u64),
+                            event: MirrorEvent::MessageQueueingRequested(
+                                MessageQueueingRequestedEvent {
+                                    id: MessageId::zero(),
+                                    source: ActorId::zero(),
+                                    payload: vec![],
+                                    value: 0,
+                                    call_reply: false,
+                                },
+                            ),
+                        })
+                        .collect();
+
+                chain
+                    .block_top_announce_mut(9)
+                    .as_computed_mut()
+                    .program_states = (0..=MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 10)
+                    .map(|i| {
+                        (
+                            ActorId::from(i as u64),
+                            StateHashWithQueueSize {
+                                hash: state_hash,
+                                canonical_queue_size: 0,
+                                injected_queue_size: 0,
+                            },
+                        )
+                    })
+                    .collect();
+            })
+            .setup(&db);
+
+        let announce = Announce {
+            block_hash: chain.blocks[10].hash,
+            parent: chain.block_top_announce_hash(9),
+            gas_allowance: Some(43),
+            injected_transactions: (MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2 + 1
+                ..=MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 10)
+                .map(|i| InjectedTransaction {
+                    destination: ActorId::from(i as u64),
+                    payload: Default::default(),
+                    value: 0,
+                    reference_block: chain.blocks[10].hash,
+                    salt: H256::random().0.to_vec().try_into().unwrap(),
+                })
+                .map(|tx| SignedMessage::create(PrivateKey::random(), tx).unwrap())
+                .collect(),
+        };
+
+        let status = accept_announce(&db, announce.clone()).unwrap();
+        let AnnounceStatus::Rejected { reason, .. } = status else {
+            panic!("Announce should be rejected");
+        };
+        assert_eq!(
+            reason,
+            AnnounceRejectionReason::TooManyTouchedPrograms(MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 1)
+        );
     }
 }
