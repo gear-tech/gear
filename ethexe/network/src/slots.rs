@@ -66,6 +66,7 @@ struct Metrics {
 /// The backoff period controls how long a fully disconnected peer stays in
 /// `JustDisconnected`, preventing that peer from immediately entering dial
 /// storms through repeated redials and reconnect attempts.
+#[derive(Debug, Clone)]
 pub struct Config {
     inbound_max_peers: u32,
     inbound_overflowing_peers: u32,
@@ -452,6 +453,7 @@ impl Behaviour {
             .collect::<Vec<_>>();
 
         for peer_id in peers {
+            log::trace!("evict inbound overflowing peer: {peer_id}");
             self.pending_events.push_back(ToSwarm::CloseConnection {
                 peer_id,
                 connection: CloseConnection::All,
@@ -482,6 +484,7 @@ impl Behaviour {
         let peers = peers.into_iter().take(needed_outbound_peers);
 
         for (&peer, addresses) in peers {
+            log::trace!("dialing peer: {peer}");
             let addresses = addresses.into_iter().cloned().collect();
             let opts = DialOpts::peer_id(peer)
                 .addresses(addresses)
@@ -587,6 +590,11 @@ impl NetworkBehaviour for Behaviour {
 
         if let Poll::Ready(_instant) = self.driver.poll_tick(cx) {
             self.on_driver_tick();
+
+            // immediately return event produced by `on_driver_tick` instead of waking
+            if let Some(to_swarm) = self.pending_events.pop_front() {
+                return Poll::Ready(to_swarm);
+            }
         }
 
         Poll::Pending
@@ -603,6 +611,7 @@ mod tests {
         swarm::{DialError, ListenError, SwarmEvent},
     };
     use libp2p_swarm_test::SwarmExt;
+    use tokio::sync::mpsc;
 
     async fn new_swarm_with_config(config: Config) -> Swarm<Behaviour> {
         let behaviour = Behaviour::new(config);
@@ -1327,5 +1336,76 @@ mod tests {
         time::advance(Duration::from_millis(1)).await;
         behaviour.evict_inbound_overflowing_peers();
         assert_eq!(drain_evicted_peers(&mut behaviour), [overflowing_peer_id]);
+    }
+
+    #[tokio::test]
+    async fn dial_peers_wakes() {
+        init_logger();
+
+        let config = Config {
+            driver_interval: Duration::from_hours(24),
+            ..Default::default()
+        };
+        let mut swarm = new_swarm_with_config(config).await;
+
+        swarm.add_peer_address(PeerId::random(), random_multiaddr());
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            loop {
+                let event = swarm.next_swarm_event().await;
+                if let Err(_err) = tx.send(event) {
+                    break;
+                }
+            }
+        });
+
+        let event = rx.recv().await.unwrap();
+        assert_matches!(event, SwarmEvent::Dialing { .. });
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn evict_inbound_overflowing_peers_wakes() {
+        init_logger();
+
+        let config = Config {
+            driver_interval: Duration::from_hours(24),
+            ..Default::default()
+        };
+        let mut alice = new_swarm_with_config(config.clone()).await;
+
+        let mut bob = new_swarm().await;
+        let bob_peer_id = *bob.local_peer_id();
+        bob.connect(&mut alice).await;
+
+        let inbound = alice
+            .behaviour_mut()
+            .peers
+            .get_mut(&bob_peer_id)
+            .unwrap()
+            .as_inbound_direction_mut()
+            .unwrap();
+        if let InboundPeerDirection::Normal = inbound {
+            *inbound = InboundPeerDirection::Overflowing {
+                latest_action: Instant::now(),
+            };
+        } else {
+            unreachable!("unexpected inbound: {inbound:?}");
+        }
+
+        time::advance(config.inbound_overflowing_peer_action_timeout).await;
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            loop {
+                let event = alice.next_swarm_event().await;
+                if let Err(_err) = tx.send(event) {
+                    break;
+                }
+            }
+        });
+
+        let event = rx.recv().await.unwrap();
+        assert_matches!(event, SwarmEvent::ConnectionClosed { .. });
     }
 }
