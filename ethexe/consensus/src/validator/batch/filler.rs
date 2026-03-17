@@ -134,8 +134,44 @@ impl BatchFiller {
         deepness: u32,
         code_commitments: Vec<CodeCommitment>,
     ) -> FillerResult {
+        if !self.can_include_chain_and_codes_commitments(
+            &chain_commitment,
+            deepness,
+            &code_commitments,
+        ) {
+            return Err(BatchIncludeError::SizeLimitExceeded);
+        }
+
         self.include_chain_commitment(chain_commitment, deepness)?;
         self.include_code_commitments(code_commitments)
+    }
+
+    fn can_include_chain_and_codes_commitments(
+        &self,
+        chain_commitment: &ChainCommitment,
+        deepness: u32,
+        code_commitments: &[CodeCommitment],
+    ) -> bool {
+        let mut size_counter = self.size_counter.clone();
+
+        match self.parts.chain_commitment.is_some() {
+            true => {
+                if !size_counter.charge_for_additional_transitions(&chain_commitment.transitions) {
+                    return false;
+                }
+            }
+            false => {
+                if !self.should_include_chain_commitment(chain_commitment, deepness) {
+                    return size_counter.charge_for_code_commitments(code_commitments);
+                }
+
+                if !size_counter.charge_for_chain_commitment(&Some(chain_commitment.clone())) {
+                    return false;
+                }
+            }
+        }
+
+        size_counter.charge_for_code_commitments(code_commitments)
     }
 
     fn should_include_chain_commitment(&self, commitment: &ChainCommitment, deepness: u32) -> bool {

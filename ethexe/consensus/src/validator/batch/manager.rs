@@ -160,6 +160,40 @@ impl BatchCommitmentManager {
             });
         }
 
+        if validators {
+            match self.aggregate_validators_commitment(&block).await? {
+                Some(commitment) => {
+                    if let Err(err) = batch_filler.include_validators_commitment(commitment) {
+                        let reason = err.into();
+                        return Ok(ValidationStatus::Rejected { request, reason });
+                    }
+                }
+                None => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::ValidatorsNotReady,
+                    });
+                }
+            }
+        }
+
+        if rewards {
+            match self.aggregate_rewards_commitment(&block).await? {
+                Some(commitment) => {
+                    if let Err(err) = batch_filler.include_rewards_commitment(commitment) {
+                        let reason = err.into();
+                        return Ok(ValidationStatus::Rejected { request, reason });
+                    }
+                }
+                None => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::RewardsNotReady,
+                    });
+                }
+            }
+        }
+
         // Check requested codes wait for commitment
         // let waiting_codes = self
         //     .db
@@ -281,40 +315,6 @@ impl BatchCommitmentManager {
         if let Err(err) = batch_filler.include_chain_commitment(chain_commitment, deepness) {
             let reason = err.into();
             return Ok(ValidationStatus::Rejected { request, reason });
-        }
-
-        if validators {
-            match self.aggregate_validators_commitment(&block).await? {
-                Some(commitment) => {
-                    if let Err(err) = batch_filler.include_validators_commitment(commitment) {
-                        let reason = err.into();
-                        return Ok(ValidationStatus::Rejected { request, reason });
-                    }
-                }
-                None => {
-                    return Ok(ValidationStatus::Rejected {
-                        request,
-                        reason: ValidationRejectReason::ValidatorsNotReady,
-                    });
-                }
-            }
-        }
-
-        if rewards {
-            match self.aggregate_rewards_commitment(&block).await? {
-                Some(commitment) => {
-                    if let Err(err) = batch_filler.include_rewards_commitment(commitment) {
-                        let reason = err.into();
-                        return Ok(ValidationStatus::Rejected { request, reason });
-                    }
-                }
-                None => {
-                    return Ok(ValidationStatus::Rejected {
-                        request,
-                        reason: ValidationRejectReason::RewardsNotReady,
-                    });
-                }
-            }
         }
 
         let Some(batch) = super::utils::create_batch_commitment(

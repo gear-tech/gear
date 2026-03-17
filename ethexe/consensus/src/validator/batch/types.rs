@@ -59,11 +59,11 @@ impl BatchSizeCounter {
         &mut self,
         commitment: &Option<RewardsCommitment>,
     ) -> bool {
-        self.charge_optional::<RewardsCommitment, Gear::RewardsCommitment>(commitment.clone())
+        self.charge_optional::<_, Gear::RewardsCommitment>(commitment.clone())
     }
 
     pub fn charge_for_chain_commitment(&mut self, commitment: &Option<ChainCommitment>) -> bool {
-        self.charge_optional::<ChainCommitment, Gear::ChainCommitment>(commitment.clone())
+        self.charge_optional::<_, Gear::ChainCommitment>(commitment.clone())
     }
 
     /// Charges only for appended transitions after the chain commitment header
