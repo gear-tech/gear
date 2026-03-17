@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::VecDeque;
+
 use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, ValidationStatus};
 use crate::{
     announces,
@@ -30,12 +32,10 @@ use ethexe_common::{
     Announce, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
     db::{AnnounceStorageRO, BlockMetaStorageRO, OnChainStorageRO},
-    gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
-    },
+    gear::{BatchCommitment, ChainCommitment, RewardsCommitment, ValidatorsCommitment},
 };
 use ethexe_db::Database;
-use gprimitives::H256;
+use gprimitives::CodeId;
 use hashbrown::HashSet;
 
 #[derive(derive_more::Debug, Clone)]
@@ -100,18 +100,22 @@ impl BatchCommitmentManager {
                 transitions,
             };
 
-            let announce_block_hash = self
-                .db
-                .announce(announce_hash)
-                .ok_or_else(|| anyhow!(""))?
-                .block_hash;
+            // let announce_block_hash = self
+            //     .db
+            //     .announce(announce_hash)
+            //     .ok_or_else(|| anyhow!(""))?
+            //     .block_hash;
 
-            let commitments = self.aggregate_code_commitments(announce_block_hash)?;
+            // let commitments = self.aggregate_announce_code_commitments(announce_hash)?;
+            let codes_queue = self.announce_codes_queue(announce_hash)?;
+            let code_commitments =
+                super::utils::aggregate_code_commitments(&self.db, codes_queue, false)
+                    .expect("`failed_if_not_found=false` means no errors");
 
             if let Err(err) = batch_filler.include_chain_and_codes_commitments(
                 chain_commitment,
                 deep as u32,
-                commitments,
+                code_commitments,
             ) {
                 tracing::trace!(
                     "failed to include transitions and codes in batch for announce({announce_hash}) because of error: {err}"
@@ -158,26 +162,49 @@ impl BatchCommitmentManager {
         }
 
         // Check requested codes wait for commitment
-        let waiting_codes = self
-            .db
-            .block_meta(block.hash)
-            .codes_queue
-            .ok_or_else(|| {
-                anyhow!(
-                    "Cannot get from db block codes queue for block {}",
-                    block.hash
-                )
-            })?
-            .into_iter()
-            .collect::<HashSet<_>>();
-        if let Some(&code_id) = codes.iter().find(|&id| !waiting_codes.contains(id)) {
-            return Ok(ValidationStatus::Rejected {
-                request,
-                reason: ValidationRejectReason::CodeNotWaitingForCommitment(code_id),
-            });
-        }
-        let code_commitments =
-            match super::utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
+        // let waiting_codes = self
+        //     .db
+        //     .block_meta(block.hash)
+        //     .codes_queue
+        //     .ok_or_else(|| {
+        //         anyhow!(
+        //             "Cannot get from db block codes queue for block {}",
+        //             block.hash
+        //         )
+        //     })?
+        //     .into_iter()
+        //     .collect::<HashSet<_>>();
+        // let code_commitments =
+        //     match super::utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
+        //         Ok(commitments) => commitments,
+
+        //         Err(CodeNotValidatedError(code_id)) => {
+        //             return Ok(ValidationStatus::Rejected {
+        //                 request,
+        //                 reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
+        //             });
+        //         }
+        //     };
+
+        if let Some(head) = head {
+            tracing::trace!("head={head:?}");
+            let waiting_codes = self
+                .announce_codes_queue(head)?
+                .into_iter()
+                .collect::<HashSet<_>>();
+
+            if let Some(&code_id) = codes.iter().find(|&id| !waiting_codes.contains(id)) {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::CodeNotWaitingForCommitment(code_id),
+                });
+            }
+
+            let code_commitments = match super::utils::aggregate_code_commitments(
+                &self.db,
+                codes.iter().copied(),
+                true,
+            ) {
                 Ok(commitments) => commitments,
                 Err(CodeNotValidatedError(code_id)) => {
                     return Ok(ValidationStatus::Rejected {
@@ -186,9 +213,14 @@ impl BatchCommitmentManager {
                     });
                 }
             };
-        if let Err(err) = batch_filler.include_code_commitments(code_commitments) {
-            let reason = err.into();
-            return Ok(ValidationStatus::Rejected { request, reason });
+
+            // let announce_code_commitments =
+            //     self.aggregate_announce_code_commitments(announce_hash)?;
+
+            if let Err(err) = batch_filler.include_code_commitments(code_commitments) {
+                let reason = err.into();
+                return Ok(ValidationStatus::Rejected { request, reason });
+            }
         }
 
         if let Some(head) = head {
@@ -256,51 +288,6 @@ impl BatchCommitmentManager {
                 let reason = err.into();
                 return Ok(ValidationStatus::Rejected { request, reason });
             }
-
-            // if !not_committed_announces.contains(&head) {
-            //     // TODO: fix the rejection reason
-            //     return Ok(ValidationStatus::Rejected {
-            //         request,
-            //         reason: ValidationRejectReason::HeadAnnounceIsNotBest {
-            //             requested: head,
-            //             best: best_announce_hash,
-            //         },
-            //     });
-            // }
-
-            // for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
-            //     let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
-            //     let commitment = ChainCommitment {
-            //         head_announce: announce_hash,
-            //         transitions,
-            //     };
-
-            //     if let Err(err) = batch_filler.include_chain_commitment(commitment, deep) {
-            //         let reason = err.into();
-            //         return Ok(ValidationStatus::Rejected { request, reason });
-            //     }
-
-            // let announce_block_hash = self
-            //     .db
-            //     .announce(announce_hash)
-            //     .ok_or_else(|| anyhow!(""))?
-            //     .block_hash;
-
-            // let commitments = self.aggregate_code_commitments(announce_block_hash)?;
-
-            // if let Err(err) = batch_filler.include_chain_and_codes_commitments(
-            //     chain_commitment,
-            //     deep + 1,
-            //     commitments,
-            // ) {
-            //     let reason = err.into();
-            //     return Ok(ValidationStatus::Rejected { request, reason });
-            // }
-
-            //     if announce_hash == head {
-            //         break;
-            //     }
-            // }
         }
 
         if validators {
@@ -359,16 +346,27 @@ impl BatchCommitmentManager {
         Ok(ValidationStatus::Accepted(digest))
     }
 
-    pub fn aggregate_code_commitments(&self, block_hash: H256) -> Result<Vec<CodeCommitment>> {
-        let queue =
-            self.db.block_meta(block_hash).codes_queue.ok_or_else(|| {
-                anyhow!("Computed block {block_hash} codes queue is not in storage")
-            })?;
+    pub fn announce_codes_queue(
+        &self,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<VecDeque<CodeId>> {
+        let announce = self.db.announce(announce_hash).ok_or_else(|| {
+            anyhow!("not found announce in database, announce_hash={announce_hash}")
+        })?;
+        let announce_block_hash = announce.block_hash;
 
-        Ok(
-            super::utils::aggregate_code_commitments(&self.db, queue, false)
-                .expect("Error is not possible here, because fail_if_not_found is false"),
-        )
+        let queue = self
+            .db
+            .block_meta(announce_block_hash)
+            .codes_queue
+            .ok_or_else(|| {
+                anyhow!("Computed block {announce_block_hash} codes queue is not in storage")
+            })?;
+        Ok(queue)
+        // Ok(
+        //     super::utils::aggregate_code_commitments(&self.db, queue, false)
+        //         .expect("Error is not possible here, because fail_if_not_found is false"),
+        // )
     }
 
     pub async fn aggregate_validators_commitment(

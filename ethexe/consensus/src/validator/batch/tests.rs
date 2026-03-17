@@ -24,7 +24,7 @@ use crate::{
 };
 
 use ethexe_common::{
-    Address, Digest, HashOf, SimpleBlockData, ValidatorsVec,
+    Address, Announce, Digest, HashOf, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest, db::*, gear::CodeCommitment, mock::*,
 };
 use gear_core::ids::prelude::CodeIdExt;
@@ -132,7 +132,8 @@ async fn rejects_non_best_chain_head() {
     let mut request = BatchCommitmentValidationRequest::new(&batch);
     let best_head = request.head.expect("chain commitment expected");
 
-    let wrong_head = HashOf::random();
+    let wrong_announce = Announce::mock(block.hash);
+    let wrong_head = ctx.core.db.set_announce(wrong_announce);
     request.head = Some(wrong_head);
     ctx.core
         .db
@@ -258,10 +259,15 @@ async fn rejects_code_not_processed_yet() {
     .unwrap()
     .unwrap();
 
+    let announce = Announce::mock(block.hash);
+    let announce_hash = ctx.core.db.set_announce(announce);
+
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
+    request.head = Some(announce_hash);
     let status = ctx
         .core
         .batch_manager
-        .validate(block, BatchCommitmentValidationRequest::new(&batch))
+        .validate(block, request)
         .await
         .unwrap();
 
