@@ -512,6 +512,7 @@ deploy_contracts() {
     export ROUTER_VALIDATORS_LIST="$validators_list"
     export SENDER_ADDRESS="0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
     
+    export IS_POA="true"
     export SYMBIOTIC_VAULT_REGISTRY="0x0000000000000000000000000000000000000000"
     export SYMBIOTIC_OPERATOR_REGISTRY="0x0000000000000000000000000000000000000000"
     export SYMBIOTIC_NETWORK_REGISTRY="0x0000000000000000000000000000000000000000"
@@ -519,7 +520,7 @@ deploy_contracts() {
     export SYMBIOTIC_NETWORK_OPT_IN="0x0000000000000000000000000000000000000000"
     export SYMBIOTIC_STAKER_REWARDS_FACTORY="0x0000000000000000000000000000000000000000"
     export SYMBIOTIC_OPERATOR_REWARDS_FACTORY="0x0000000000000000000000000000000000000000"
-    
+
     (cd "$CONTRACTS_DIR" && forge clean && forge script script/Deployment.s.sol:DeploymentScript --rpc-url "ws://localhost:$ANVIL_PORT" --broadcast)
     
     BROADCAST_PATH="$CONTRACTS_DIR/broadcast/Deployment.s.sol/31337/run-latest.json"
@@ -531,7 +532,7 @@ deploy_contracts() {
     
     ROUTER_IMPLEMENTATION=$(jq -r '.transactions[] | select(.contractName == "Router" and .transactionType == "CREATE") | .contractAddress' "$BROADCAST_PATH")
 
-    ROUTER_PROXY_ADDRESS=$(jq -r ".transactions[] | select(.contractName == \"TransparentUpgradeableProxy\" and .transactionType == \"CREATE\") | select(.arguments[] | ascii_downcase | contains(\"${ROUTER_IMPLEMENTATION,,}\")) | .contractAddress" "$BROADCAST_PATH")
+    ROUTER_PROXY_ADDRESS=$(jq -r ".transactions[] | select(.contractName == \"ERC1967Proxy\" and .transactionType == \"CREATE\" and .arguments != null) | select(.arguments[0] | ascii_downcase | contains(\"${ROUTER_IMPLEMENTATION,,}\")) | .contractAddress" "$BROADCAST_PATH")
     
     if [[ -z "$ROUTER_PROXY_ADDRESS" ]]; then
         log_error "Failed to extract Router proxy address from deployment"
