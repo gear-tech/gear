@@ -56,7 +56,7 @@ impl BatchCommitmentValidationRequest {
 
         BatchCommitmentValidationRequest {
             digest: batch.to_digest(),
-            head: batch.chain_commitment.as_ref().map(|c| c.head_announce),
+            head: batch.chain_commitment.as_ref().map(|cc| cc.head_announce),
             codes,
             rewards: batch.rewards_commitment.is_some(),
             validators: batch.validators_commitment.is_some(),
