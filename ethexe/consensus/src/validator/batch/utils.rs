@@ -30,25 +30,15 @@ use gprimitives::{CodeId, H256};
 
 pub fn collect_not_committed_predecessors<DB: AnnounceStorageRO + BlockMetaStorageRO>(
     db: &DB,
-    at_block: H256,
+    last_committed_announce_hash: HashOf<Announce>,
     announce_hash: HashOf<Announce>,
 ) -> Result<Vec<HashOf<Announce>>> {
-    if !db.announce_meta(announce_hash).computed {
-        bail!(
-            "announce {announce_hash:?} is not computed, cannot collect not committed predecessors"
-        )
-    }
-
-    let Some(last_committed_announce_hash) = db.block_meta(at_block).last_committed_announce else {
-        anyhow::bail!("Last committed announce not found in db for prepared block: {at_block}");
-    };
-
     let mut announces = Vec::new();
     let mut current_announce = announce_hash;
 
     // Maybe remove this loop to prevent infinite searching
     while current_announce != last_committed_announce_hash {
-        if !db.announce_meta(announce_hash).computed {
+        if !db.announce_meta(current_announce).computed {
             // All announces till last committed must be computed.
             // Even fast-sync guarantees that.
             bail!("Not computed announce in chain {current_announce:?}")
@@ -144,8 +134,12 @@ pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO
         );
     }
 
+    let Some(last_committed_announce) = db.block_meta(at_block).last_committed_announce else {
+        anyhow::bail!("Last committed announce not found in db for prepared block: {at_block}");
+    };
+
     let not_committed_announces =
-        collect_not_committed_predecessors(db, at_block, head_announce_hash)?;
+        collect_not_committed_predecessors(db, last_committed_announce, head_announce_hash)?;
     let deepness = not_committed_announces.len() as u32;
 
     let mut transitions = vec![];

@@ -91,8 +91,19 @@ impl BatchCommitmentManager {
             bail!("failed to include rewards commitment into batch, err={err}")
         }
 
-        let not_committed_announces =
-            super::utils::collect_not_committed_predecessors(&self.db, block.hash, announce_hash)?;
+        let Some(last_committed_announce) = self.db.block_meta(block.hash).last_committed_announce
+        else {
+            anyhow::bail!(
+                "Last committed announce not found in db for prepared block: {}",
+                block.hash
+            );
+        };
+
+        let not_committed_announces = super::utils::collect_not_committed_predecessors(
+            &self.db,
+            last_committed_announce,
+            announce_hash,
+        )?;
 
         // Track the last announce that was actually included in the batch.
         let mut batch_announce = announce_hash;
@@ -136,13 +147,6 @@ impl BatchCommitmentManager {
         block: SimpleBlockData,
         request: BatchCommitmentValidationRequest,
     ) -> Result<ValidationStatus> {
-        // if request.is_empty() {
-        //     return Ok(ValidationStatus::Rejected {
-        //         request,
-        //         reason: ValidationRejectReason::EmptyBatch,
-        //     });
-        // }
-
         let &BatchCommitmentValidationRequest {
             digest,
             announce,
@@ -194,32 +198,6 @@ impl BatchCommitmentManager {
             }
         }
 
-        // Check requested codes wait for commitment
-        // let waiting_codes = self
-        //     .db
-        //     .block_meta(block.hash)
-        //     .codes_queue
-        //     .ok_or_else(|| {
-        //         anyhow!(
-        //             "Cannot get from db block codes queue for block {}",
-        //             block.hash
-        //         )
-        //     })?
-        //     .into_iter()
-        //     .collect::<HashSet<_>>();
-        // let code_commitments =
-        //     match super::utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
-        //         Ok(commitments) => commitments,
-
-        //         Err(CodeNotValidatedError(code_id)) => {
-        //             return Ok(ValidationStatus::Rejected {
-        //                 request,
-        //                 reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
-        //             });
-        //         }
-        //     };
-
-        // if let Some(head) = head {
         let waiting_codes = self
             .announce_codes_queue(announce)?
             .into_iter()
@@ -242,9 +220,6 @@ impl BatchCommitmentManager {
                     });
                 }
             };
-
-        // let announce_code_commitments =
-        //     self.aggregate_announce_code_commitments(announce_hash)?;
 
         if let Err(err) = batch_filler.include_code_commitments(code_commitments) {
             let reason = err.into();
@@ -275,9 +250,17 @@ impl BatchCommitmentManager {
         let best_announce_hash =
             announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
 
+        let Some(last_committed_announce) = self.db.block_meta(block.hash).last_committed_announce
+        else {
+            anyhow::bail!(
+                "Last committed announce not found in db for prepared block: {}",
+                block.hash
+            );
+        };
+
         let not_committed_announces = match utils::collect_not_committed_predecessors(
             &self.db,
-            block.hash,
+            last_committed_announce,
             best_announce_hash,
         ) {
             Ok(announces) => announces,
@@ -333,8 +316,6 @@ impl BatchCommitmentManager {
                 reason: ValidationRejectReason::EmptyBatch,
             });
         };
-
-        // TODO !!!: Check here also tat batch commitment is not empty
 
         let batch_digest = batch.to_digest();
         if batch_digest != digest {
