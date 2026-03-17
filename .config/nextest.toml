@@ -17,6 +17,7 @@ store-failure-output = true
 
 [profile.ci]
 fail-fast = false
+failure-output = "never"
 archive.include = [
   { path = "wasm32-gear", relative-to = "target", on-missing = "warn" },
 ]
