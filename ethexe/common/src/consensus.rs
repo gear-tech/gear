@@ -36,8 +36,8 @@ pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 pub struct BatchCommitmentValidationRequest {
     // Digest of batch commitment to validate
     pub digest: Digest,
-    /// Head announce hash of batch commitment
-    pub announce: HashOf<Announce>,
+    /// Optional head announce hash of the chain commitment
+    pub head: Option<HashOf<Announce>>,
     /// List of codes which are part of the batch
     pub codes: Vec<CodeId>,
     /// Whether rewards commitment is part of the batch
@@ -47,7 +47,7 @@ pub struct BatchCommitmentValidationRequest {
 }
 
 impl BatchCommitmentValidationRequest {
-    pub fn new(batch: &BatchCommitment, announce: HashOf<Announce>) -> Self {
+    pub fn new(batch: &BatchCommitment) -> Self {
         let codes = batch
             .code_commitments
             .iter()
@@ -56,7 +56,7 @@ impl BatchCommitmentValidationRequest {
 
         BatchCommitmentValidationRequest {
             digest: batch.to_digest(),
-            announce,
+            head: batch.chain_commitment.as_ref().map(|c| c.head_announce),
             codes,
             rewards: batch.rewards_commitment.is_some(),
             validators: batch.validators_commitment.is_some(),
@@ -68,14 +68,14 @@ impl ToDigest for BatchCommitmentValidationRequest {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
             digest,
-            announce,
+            head,
             codes,
             rewards,
             validators,
         } = self;
 
         hasher.update(digest);
-        hasher.update(announce.inner().0);
+        head.map(|h| hasher.update(h.inner().0));
         hasher.update(
             codes
                 .iter()

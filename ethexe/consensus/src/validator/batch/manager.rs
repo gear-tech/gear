@@ -75,8 +75,7 @@ impl BatchCommitmentManager {
         self,
         block: SimpleBlockData,
         announce_hash: HashOf<Announce>,
-        // TODO: this result should be fixed in more elegant way
-    ) -> Result<Option<(BatchCommitment, HashOf<Announce>)>> {
+    ) -> Result<Option<BatchCommitment>> {
         let mut batch_filler = BatchFiller::new(self.limits.clone());
 
         if let Some(validators_commitment) = self.aggregate_validators_commitment(&block).await?
@@ -105,8 +104,6 @@ impl BatchCommitmentManager {
             announce_hash,
         )?;
 
-        // Track the last announce that was actually included in the batch.
-        let mut batch_announce = announce_hash;
         for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
             let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
             let chain_commitment = ChainCommitment {
@@ -129,17 +126,14 @@ impl BatchCommitmentManager {
                 );
                 break;
             }
-            batch_announce = announce_hash;
         }
 
-        let maybe_batch_result = super::utils::create_batch_commitment(
+        super::utils::create_batch_commitment(
             &self.db,
             &block,
             batch_filler.into_parts(),
             self.limits.commitment_delay_limit,
-        );
-        // TODO: make this clear
-        maybe_batch_result.map(|maybe_batch| maybe_batch.map(|batch| (batch, batch_announce)))
+        )
     }
 
     // TODO !!!: Validation must rebuild the batch greedily from local state and
@@ -152,7 +146,7 @@ impl BatchCommitmentManager {
     ) -> Result<ValidationStatus> {
         let &BatchCommitmentValidationRequest {
             digest,
-            announce,
+            head,
             ref codes,
             validators,
             rewards,
@@ -201,8 +195,15 @@ impl BatchCommitmentManager {
             }
         }
 
+        // let waiting_codes = self
+        //     .announce_codes_queue(announce)?
+        //     .into_iter()
+        //     .collect::<HashSet<_>>();
         let waiting_codes = self
-            .announce_codes_queue(announce)?
+            .db
+            .block_meta(block.hash)
+            .codes_queue
+            .ok_or_else(|| anyhow!("..."))?
             .into_iter()
             .collect::<HashSet<_>>();
 
@@ -229,78 +230,80 @@ impl BatchCommitmentManager {
             return Ok(ValidationStatus::Rejected { request, reason });
         }
 
-        // Building the announce chain commitment
-        // TODO #4791: support commitment head from another block in chain,
-        // have to check head block is predecessor of current block
+        if let Some(announce) = head {
+            // TODO #4791: support commitment head from another block in chain,
+            // have to check head block is predecessor of current block
 
-        // Head announce in validation request is best for `block`.
-        // This guarantees that announce is successor of last committed announce at `block`,
-        // but does not guarantee that announce is computed by this node.
-        if !self.db.announce_meta(announce).computed {
-            return Ok(ValidationStatus::Rejected {
-                request,
-                reason: ValidationRejectReason::HeadAnnounceNotComputed(announce),
-            });
-        }
-
-        let candidates = self
-            .db
-            .block_meta(block.hash)
-            .announces
-            .into_iter()
-            .flatten();
-
-        let best_announce_hash =
-            announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
-
-        let Some(last_committed_announce) = self.db.block_meta(block.hash).last_committed_announce
-        else {
-            anyhow::bail!(
-                "Last committed announce not found in db for prepared block: {}",
-                block.hash
-            );
-        };
-
-        let not_committed_announces = match utils::collect_not_committed_predecessors(
-            &self.db,
-            last_committed_announce,
-            best_announce_hash,
-        ) {
-            Ok(announces) => announces,
-            Err(err) => {
-                tracing::debug!(
-                    block = %block.hash,
-                    best_announce = %best_announce_hash,
-                    error = %err,
-                    "failed to collect not committed predecessors for best announce during batch validation"
-                );
+            // Head announce in validation request is best for `block`.
+            // This guarantees that announce is successor of last committed announce at `block`,
+            // but does not guarantee that announce is computed by this node.
+            if !self.db.announce_meta(announce).computed {
                 return Ok(ValidationStatus::Rejected {
                     request,
-                    reason: ValidationRejectReason::BestHeadAnnounceChainInvalid(
-                        best_announce_hash,
-                    ),
+                    reason: ValidationRejectReason::HeadAnnounceNotComputed(announce),
                 });
             }
-        };
-        tracing::trace!("not computed announces = {not_committed_announces:?}");
 
-        if !not_committed_announces.contains(&announce) {
-            // TODO: fix the rejection reason
-            return Ok(ValidationStatus::Rejected {
-                request,
-                reason: ValidationRejectReason::HeadAnnounceIsNotBest {
-                    requested: announce,
-                    best: best_announce_hash,
-                },
-            });
-        }
+            let candidates = self
+                .db
+                .block_meta(block.hash)
+                .announces
+                .into_iter()
+                .flatten();
 
-        let (chain_commitment, deepness) =
-            utils::try_aggregate_chain_commitment(&self.db, block.hash, announce)?;
+            let best_announce_hash =
+                announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
 
-        if let Err(err) = batch_filler.include_chain_commitment(chain_commitment, deepness) {
-            let reason = err.into();
-            return Ok(ValidationStatus::Rejected { request, reason });
+            let Some(last_committed_announce) =
+                self.db.block_meta(block.hash).last_committed_announce
+            else {
+                anyhow::bail!(
+                    "Last committed announce not found in db for prepared block: {}",
+                    block.hash
+                );
+            };
+
+            let not_committed_announces = match utils::collect_not_committed_predecessors(
+                &self.db,
+                last_committed_announce,
+                best_announce_hash,
+            ) {
+                Ok(announces) => announces,
+                Err(err) => {
+                    tracing::debug!(
+                        block = %block.hash,
+                        best_announce = %best_announce_hash,
+                        error = %err,
+                        "failed to collect not committed predecessors for best announce during batch validation"
+                    );
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::BestHeadAnnounceChainInvalid(
+                            best_announce_hash,
+                        ),
+                    });
+                }
+            };
+            tracing::trace!("not computed announces = {not_committed_announces:?}");
+
+            if !not_committed_announces.contains(&announce) {
+                // TODO: fix the rejection reason
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadAnnounceIsNotBest {
+                        requested: announce,
+                        best: best_announce_hash,
+                    },
+                });
+            }
+
+            let (chain_commitment, deepness) =
+                utils::try_aggregate_chain_commitment(&self.db, block.hash, announce)?;
+
+            if let Err(err) = batch_filler.include_chain_commitment(chain_commitment, deepness) {
+                let reason = err.into();
+                return Ok(ValidationStatus::Rejected { request, reason });
+            }
         }
 
         let Some(batch) = super::utils::create_batch_commitment(

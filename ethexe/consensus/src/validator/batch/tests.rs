@@ -53,10 +53,10 @@ async fn rejects_empty_batch_request() {
     let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-    let mut announce_hash = batch.chain_commitment.clone().unwrap().head_announce;
     batch.code_commitments = Vec::new();
-    let request = BatchCommitmentValidationRequest::new(&batch, announce_hash);
+    let request = BatchCommitmentValidationRequest::new(&batch);
 
+    let mut announce_hash = batch.chain_commitment.clone().unwrap().head_announce;
     // Nullify the codes in database
     ctx.core
         .db
@@ -90,13 +90,12 @@ async fn rejects_duplicate_code_ids() {
     let duplicate = batch.code_commitments[0].clone();
     batch.code_commitments.push(duplicate);
 
-    let mock_announce = HashOf::zero();
     let status = ctx
         .core
         .batch_manager
         .validate(
             SimpleBlockData::mock(()),
-            BatchCommitmentValidationRequest::new(&batch, mock_announce),
+            BatchCommitmentValidationRequest::new(&batch),
         )
         .await
         .unwrap();
@@ -116,8 +115,7 @@ async fn rejects_not_waiting_code_ids() {
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-    let announce = batch.chain_commitment.clone().unwrap().head_announce;
-    let mut request = BatchCommitmentValidationRequest::new(&batch, announce);
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
 
     let missing_code = H256::random().into();
     request.codes.push(missing_code);
@@ -151,7 +149,8 @@ async fn rejects_non_best_chain_head() {
         .db
         .mutate_announce_meta(wrong_head, |meta| meta.computed = true);
 
-    let request = BatchCommitmentValidationRequest::new(&batch, wrong_head);
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
+    request.head = Some(wrong_head);
 
     let status = ctx
         .core
@@ -178,9 +177,8 @@ async fn rejects_when_best_head_chain_is_invalid() {
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-    let announce = batch.chain_commitment.clone().unwrap().head_announce;
-    let request = BatchCommitmentValidationRequest::new(&batch, announce);
-    let head = request.announce;
+    let request = BatchCommitmentValidationRequest::new(&batch);
+    let head = request.head.expect("expect head");
 
     ctx.core.db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_announce = Some(HashOf::random());
@@ -208,8 +206,7 @@ async fn rejects_digest_mismatch() {
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-    let announce = batch.chain_commitment.clone().unwrap().head_announce;
-    let mut request = BatchCommitmentValidationRequest::new(&batch, announce);
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
     let original_digest = request.digest;
     let mut wrong_digest = original_digest;
     while wrong_digest == original_digest {
@@ -277,10 +274,7 @@ async fn rejects_code_not_processed_yet() {
     .unwrap()
     .unwrap();
 
-    let announce = Announce::mock(block.hash);
-    let announce_hash = ctx.core.db.set_announce(announce);
-
-    let request = BatchCommitmentValidationRequest::new(&batch, announce_hash);
+    let request = BatchCommitmentValidationRequest::new(&batch);
     let status = ctx
         .core
         .batch_manager
@@ -303,8 +297,7 @@ async fn accepts_matching_request() {
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-    let announce = batch.chain_commitment.clone().unwrap().head_announce;
-    let request = BatchCommitmentValidationRequest::new(&batch, announce);
+    let request = BatchCommitmentValidationRequest::new(&batch);
     let expected_digest = request.digest;
 
     let status = ctx

@@ -132,17 +132,12 @@ impl Mock<()> for BatchCommitment {
         }
     }
 }
+
 impl Mock<()> for BatchCommitmentValidationRequest {
     fn mock(_args: ()) -> Self {
-        Self::mock(HashOf::random())
-    }
-}
-
-impl Mock<HashOf<Announce>> for BatchCommitmentValidationRequest {
-    fn mock(announce: HashOf<Announce>) -> Self {
         BatchCommitmentValidationRequest {
             digest: H256::random().0.into(),
-            announce,
+            head: Some(HashOf::random()),
             codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
             validators: false,
             rewards: false,

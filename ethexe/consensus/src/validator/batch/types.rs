@@ -47,6 +47,7 @@ pub struct BatchLimits {
 pub(crate) struct BatchSizeCounter(u64);
 
 impl BatchSizeCounter {
+    /// TODO: set MAX_BATCH_SIZE from cli, not a const
     pub fn new() -> Self {
         Self(MAX_BATCH_SIZE)
     }

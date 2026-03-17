@@ -24,8 +24,8 @@ use crate::{
 use anyhow::{Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
-    Address, Announce, HashOf, ToDigest, ValidatorsVec,
-    consensus::BatchCommitmentValidationRequest, gear::BatchCommitment, network::ValidatorMessage,
+    Address, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
+    gear::BatchCommitment, network::ValidatorMessage,
 };
 use futures::FutureExt;
 use gsigner::secp256k1::Secp256k1SignerExt;
@@ -84,7 +84,6 @@ impl Coordinator {
         mut ctx: ValidatorContext,
         validators: ValidatorsVec,
         batch: BatchCommitment,
-        announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
         ensure!(
             validators.len() as u64 >= ctx.core.signatures_threshold,
@@ -111,8 +110,7 @@ impl Coordinator {
             .core
             .timelines
             .era_from_ts(multisigned_batch.batch().timestamp);
-        let payload =
-            BatchCommitmentValidationRequest::new(multisigned_batch.batch(), announce_hash);
+        let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
         let message = ValidatorMessage { era_index, payload };
 
         let validation_request = ctx
@@ -179,9 +177,7 @@ mod tests {
             .unwrap();
         let batch = BatchCommitment::default();
 
-        // TODO !!!: FIX
-        let mock_announce = HashOf::zero();
-        let coordinator = Coordinator::create(ctx, validators, batch, mock_announce).unwrap();
+        let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
         assert!(coordinator.is_coordinator());
         coordinator.context().output[0]
             .clone()
@@ -197,9 +193,8 @@ mod tests {
             NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
 
-        let mock_announce = HashOf::zero();
         assert!(
-            Coordinator::create(ctx, validators.into(), batch, mock_announce).is_err(),
+            Coordinator::create(ctx, validators.into(), batch).is_err(),
             "Expected an error, but got Ok"
         );
     }
@@ -212,9 +207,8 @@ mod tests {
             NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
 
-        let mock_announce = HashOf::zero();
         assert!(
-            Coordinator::create(ctx, validators.into(), batch, mock_announce).is_err(),
+            Coordinator::create(ctx, validators.into(), batch).is_err(),
             "Expected an error due to zero threshold, but got Ok"
         );
     }
@@ -250,9 +244,7 @@ mod tests {
             .signer
             .validation_reply(keys[2], ctx.core.router_address, digest);
 
-        let mock_announce = HashOf::zero();
-        let mut coordinator =
-            Coordinator::create(ctx, validators.into(), batch, mock_announce).unwrap();
+        let mut coordinator = Coordinator::create(ctx, validators.into(), batch).unwrap();
         assert!(coordinator.is_coordinator());
         coordinator.context().output[0]
             .clone()
