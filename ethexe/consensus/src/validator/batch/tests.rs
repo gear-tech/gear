@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::VecDeque;
+
 use super::types::{ValidationRejectReason, ValidationStatus};
 
 use crate::{
@@ -48,18 +50,27 @@ async fn rejects_empty_batch_request() {
     gear_utils::init_default_logger();
 
     let (ctx, _, _) = mock_validator_context();
-    let empty_request = BatchCommitmentValidationRequest {
-        digest: Digest::zero(),
-        head: None,
-        codes: vec![],
-        validators: false,
-        rewards: false,
-    };
+    let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+    let block = ctx.core.db.simple_block_data(batch.block_hash);
+
+    let mut announce_hash = batch.chain_commitment.clone().unwrap().head_announce;
+    batch.code_commitments = Vec::new();
+    let request = BatchCommitmentValidationRequest::new(&batch, announce_hash);
+
+    // Nullify the codes in database
+    ctx.core
+        .db
+        .mutate_block_meta(block.hash, |meta| meta.codes_queue = Some(VecDeque::new()));
+    // Nullify the transitions in database
+    for _ in 0..2 {
+        announce_hash = ctx.core.db.announce(announce_hash).unwrap().parent;
+        ctx.core.db.set_announce_outcome(announce_hash, Vec::new());
+    }
 
     let status = ctx
         .core
         .batch_manager
-        .validate(SimpleBlockData::mock(()), empty_request)
+        .validate(block, request)
         .await
         .unwrap();
 
@@ -79,12 +90,13 @@ async fn rejects_duplicate_code_ids() {
     let duplicate = batch.code_commitments[0].clone();
     batch.code_commitments.push(duplicate);
 
+    let mock_announce = HashOf::zero();
     let status = ctx
         .core
         .batch_manager
         .validate(
             SimpleBlockData::mock(()),
-            BatchCommitmentValidationRequest::new(&batch),
+            BatchCommitmentValidationRequest::new(&batch, mock_announce),
         )
         .await
         .unwrap();
@@ -103,7 +115,9 @@ async fn rejects_not_waiting_code_ids() {
     let (ctx, _, _) = mock_validator_context();
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
-    let mut request = BatchCommitmentValidationRequest::new(&batch);
+
+    let announce = batch.chain_commitment.clone().unwrap().head_announce;
+    let mut request = BatchCommitmentValidationRequest::new(&batch, announce);
 
     let missing_code = H256::random().into();
     request.codes.push(missing_code);
@@ -129,15 +143,15 @@ async fn rejects_non_best_chain_head() {
     let (ctx, _, _) = mock_validator_context();
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
-    let mut request = BatchCommitmentValidationRequest::new(&batch);
-    let best_head = request.head.expect("chain commitment expected");
 
+    let best_head = batch.chain_commitment.clone().unwrap().head_announce;
     let wrong_announce = Announce::mock(block.hash);
     let wrong_head = ctx.core.db.set_announce(wrong_announce);
-    request.head = Some(wrong_head);
     ctx.core
         .db
         .mutate_announce_meta(wrong_head, |meta| meta.computed = true);
+
+    let request = BatchCommitmentValidationRequest::new(&batch, wrong_head);
 
     let status = ctx
         .core
@@ -163,8 +177,10 @@ async fn rejects_when_best_head_chain_is_invalid() {
     let (ctx, _, _) = mock_validator_context();
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
-    let request = BatchCommitmentValidationRequest::new(&batch);
-    let best_head = request.head.expect("chain commitment expected");
+
+    let announce = batch.chain_commitment.clone().unwrap().head_announce;
+    let request = BatchCommitmentValidationRequest::new(&batch, announce);
+    let head = request.announce;
 
     ctx.core.db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_announce = Some(HashOf::random());
@@ -179,7 +195,7 @@ async fn rejects_when_best_head_chain_is_invalid() {
 
     assert_eq!(
         unwrap_rejected_reason(status),
-        ValidationRejectReason::BestHeadAnnounceChainInvalid(best_head)
+        ValidationRejectReason::BestHeadAnnounceChainInvalid(head)
     );
 }
 
@@ -191,7 +207,9 @@ async fn rejects_digest_mismatch() {
     let (ctx, _, _) = mock_validator_context();
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
-    let mut request = BatchCommitmentValidationRequest::new(&batch);
+
+    let announce = batch.chain_commitment.clone().unwrap().head_announce;
+    let mut request = BatchCommitmentValidationRequest::new(&batch, announce);
     let original_digest = request.digest;
     let mut wrong_digest = original_digest;
     while wrong_digest == original_digest {
@@ -262,8 +280,7 @@ async fn rejects_code_not_processed_yet() {
     let announce = Announce::mock(block.hash);
     let announce_hash = ctx.core.db.set_announce(announce);
 
-    let mut request = BatchCommitmentValidationRequest::new(&batch);
-    request.head = Some(announce_hash);
+    let request = BatchCommitmentValidationRequest::new(&batch, announce_hash);
     let status = ctx
         .core
         .batch_manager
@@ -285,7 +302,9 @@ async fn accepts_matching_request() {
     let (ctx, _, _) = mock_validator_context();
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
-    let request = BatchCommitmentValidationRequest::new(&batch);
+
+    let announce = batch.chain_commitment.clone().unwrap().head_announce;
+    let request = BatchCommitmentValidationRequest::new(&batch, announce);
     let expected_digest = request.digest;
 
     let status = ctx

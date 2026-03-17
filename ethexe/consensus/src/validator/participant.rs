@@ -191,9 +191,16 @@ impl Participant {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{Digest, ToDigest, gear::CodeCommitment, mock::*};
+    use ethexe_common::{
+        Digest, HashOf, ToDigest,
+        db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRW},
+        gear::CodeCommitment,
+        mock::*,
+    };
 
     #[test]
     fn create() {
@@ -207,35 +214,58 @@ mod tests {
         assert_eq!(participant.context().pending_events.len(), 0);
     }
 
-    #[ignore = "to be fixed"]
     #[tokio::test]
     async fn create_with_pending_events() {
         gear_utils::init_default_logger();
 
         let (mut ctx, keys, _) = mock_validator_context();
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let producer = keys[0];
         let alice = keys[1];
         let block = BlockChain::mock(2).setup(&ctx.core.db).blocks[2].to_simple();
 
+        let announce = batch.chain_commitment.clone().unwrap().head_announce;
+
         // Validation request from alice - must be kept
         ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_verified_data(alice, ()),
+            ctx.core.signer.mock_verified_data(alice, announce),
         ));
 
         // Validation request from producer - must be removed and processed
         ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_verified_data(producer, ()),
+            ctx.core.signer.mock_verified_data(producer, announce),
         ));
+
+        // let verified_announce: VerifiedData<Announce> =
+        // let announce = verified_announce.data().clone();
+        // ctx.core.db.set_announce(announce);
 
         // Block from producer - must be kept
+        let announce = ctx.core.db.announce(announce).unwrap();
         ctx.pending(PendingEvent::Announce(
-            ctx.core.signer.mock_verified_data(producer, ()),
+            ctx.core
+                .signer
+                .signed_data(producer, announce.clone(), None)
+                .unwrap()
+                .into_verified(),
         ));
 
-        // Block from alice - must be kept
+        // let verified_announce: VerifiedData<Announce> =
+        //     ctx.core.signer.mock_verified_data(alice, ());
+        // let announce = verified_announce.data().clone();
+        // ctx.core.db.set_announce(announce);
+
         ctx.pending(PendingEvent::Announce(
-            ctx.core.signer.mock_verified_data(alice, ()),
+            ctx.core
+                .signer
+                .signed_data(alice, announce, None)
+                .unwrap()
+                .into_verified(),
         ));
+        // // Block from alice - must be kept
+        // ctx.pending(PendingEvent::Announce(
+        //     ctx.core.signer.mock_verified_data(alice, ()),
+        // ));
 
         let (state, event) = Participant::create(ctx, block, producer.to_address())
             .unwrap()
@@ -261,12 +291,13 @@ mod tests {
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
+        let announce = batch.chain_commitment.clone().unwrap().head_announce;
         let verified_request = ctx
             .core
             .signer
             .signed_data(
                 producer,
-                BatchCommitmentValidationRequest::new(&batch),
+                BatchCommitmentValidationRequest::new(&batch, announce),
                 None,
             )
             .unwrap()
@@ -324,7 +355,8 @@ mod tests {
         let extra_code = CodeCommitment::mock(());
         batch.code_commitments.push(extra_code);
 
-        let request = BatchCommitmentValidationRequest::new(&batch);
+        let announce = batch.chain_commitment.clone().unwrap().head_announce;
+        let request = BatchCommitmentValidationRequest::new(&batch, announce);
         let verified_request = ctx
             .core
             .signer
@@ -348,17 +380,32 @@ mod tests {
     #[tokio::test]
     async fn empty_batch_error() {
         let (ctx, pub_keys, _) = mock_validator_context();
+        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+
+        let mut announce_hash = batch.chain_commitment.clone().unwrap().head_announce;
+        batch.code_commitments = Vec::new();
+        let request = BatchCommitmentValidationRequest::new(&batch, announce_hash);
+
+        // Nullify the codes in database
+        ctx.core
+            .db
+            .mutate_block_meta(block.hash, |meta| meta.codes_queue = Some(VecDeque::new()));
+        // Nullify the transitions in database
+        for _ in 0..2 {
+            announce_hash = ctx.core.db.announce(announce_hash).unwrap().parent;
+            ctx.core.db.set_announce_outcome(announce_hash, Vec::new());
+        }
 
         // Create a request with empty blocks and codes
-        let request = BatchCommitmentValidationRequest {
-            digest: Digest::random(),
-            head: None,
-            codes: vec![],
-            rewards: false,
-            validators: false,
-        };
+        // let request = BatchCommitmentValidationRequest {
+        //     digest: Digest::random(),
+        //     announce: HashOf::random(),
+        //     codes: vec![],
+        //     rewards: false,
+        //     validators: false,
+        // };
 
         let verified_request = ctx
             .core
@@ -387,8 +434,9 @@ mod tests {
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
+        let mock_announce = HashOf::zero();
         // Create a request with duplicate codes
-        let mut request = BatchCommitmentValidationRequest::new(&batch);
+        let mut request = BatchCommitmentValidationRequest::new(&batch, mock_announce);
         if !request.codes.is_empty() {
             let duplicate_code = request.codes[0];
             request.codes.push(duplicate_code);
@@ -421,8 +469,9 @@ mod tests {
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
+        let announce = batch.chain_commitment.clone().unwrap().head_announce;
         // Create request with incorrect digest
-        let mut request = BatchCommitmentValidationRequest::new(&batch);
+        let mut request = BatchCommitmentValidationRequest::new(&batch, announce);
         request.digest = Digest::random();
 
         let verified_request = ctx

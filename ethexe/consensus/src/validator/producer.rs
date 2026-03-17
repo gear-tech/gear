@@ -47,6 +47,8 @@ pub struct Producer {
     state: State,
 }
 
+type AggregationFuture = BoxFuture<'static, Result<Option<(BatchCommitment, HashOf<Announce>)>>>;
+
 #[derive(Debug, derive_more::IsVariant)]
 enum State {
     Delay {
@@ -56,7 +58,7 @@ enum State {
     WaitingAnnounceComputed(HashOf<Announce>),
     AggregateBatchCommitment {
         #[debug(skip)]
-        future: BoxFuture<'static, Result<Option<BatchCommitment>>>,
+        future: AggregationFuture,
     },
 }
 
@@ -138,9 +140,10 @@ impl StateHandler for Producer {
                 }
             }
             State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
-                Poll::Ready(Ok(Some(batch))) => {
+                Poll::Ready(Ok(Some(batch_with_announce))) => {
+                    let (batch, announce_hash) = batch_with_announce;
                     tracing::debug!(batch.block_hash = %batch.block_hash, "Batch commitment aggregated, switch to Coordinator");
-                    return Coordinator::create(self.ctx, self.validators, batch)
+                    return Coordinator::create(self.ctx, self.validators, batch, announce_hash)
                         .map(|s| (Poll::Ready(()), s));
                 }
                 Poll::Ready(Ok(None)) => {
