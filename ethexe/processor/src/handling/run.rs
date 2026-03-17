@@ -122,6 +122,7 @@ use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{
     BlockInfo, InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
+use futures::prelude::*;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     gas::GasAllowanceCounter,
@@ -523,9 +524,9 @@ pub(super) mod chunks_splitting {
 
 mod chunk_execution_spawn {
     use super::*;
-    use crate::host::InstanceWrapper;
+    use crate::{handling::thread_pool::ThreadPool, host::InstanceWrapper};
     use ethexe_runtime_common::ProcessQueueContext;
-    use rayon::iter::{IntoParallelIterator, ParallelIterator};
+    use std::sync::LazyLock;
 
     /// An alias introduced for better readability of the chunks execution steps.
     pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
@@ -542,6 +543,9 @@ mod chunk_execution_spawn {
         queue_type: MessageType,
     ) -> Result<Vec<ChunkItemOutput>> {
         struct Executable {
+            queue_type: MessageType,
+            block_info: BlockInfo,
+            promise_policy: PromisePolicy,
             program_id: ActorId,
             state_hash: H256,
             instrumented_code: InstrumentedCode,
@@ -549,36 +553,49 @@ mod chunk_execution_spawn {
             executor: InstanceWrapper,
             db: Box<dyn CASDatabase>,
             gas_allowance_for_chunk: u64,
+            promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
         }
+
+        fn execute_chunk_item(executable: Executable) -> Result<ChunkItemOutput> {
+            let Executable {
+                queue_type,
+                block_info,
+                promise_policy,
+                program_id,
+                state_hash,
+                instrumented_code,
+                code_metadata,
+                mut executor,
+                db,
+                gas_allowance_for_chunk,
+                promise_out_tx,
+            } = executable;
+
+            let (jn, new_state_hash, gas_spent) = executor.run(
+                db,
+                ProcessQueueContext {
+                    program_id,
+                    state_root: state_hash,
+                    queue_type,
+                    instrumented_code,
+                    code_metadata,
+                    gas_allowance: GasAllowanceCounter::new(gas_allowance_for_chunk),
+                    block_info,
+                    promise_policy,
+                },
+                promise_out_tx,
+            )?;
+            Ok((program_id, new_state_hash, jn, gas_spent))
+        }
+
+        static THREAD_POOL: LazyLock<ThreadPool<Executable, Result<ChunkItemOutput>>> =
+            LazyLock::new(|| ThreadPool::new(execute_chunk_item));
 
         let (db, _, gas_allowance_counter) = ctx.borrow_inner();
         let gas_allowance_for_chunk = gas_allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
         let db = db.clone_boxed();
 
-        let executable_chunk = chunk
-            .into_iter()
-            .map(|(program_id, state_hash)| {
-                let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
-
-                let executor = ctx
-                    .instance_creator()
-                    .instantiate()
-                    .expect("Failed to instantiate executor");
-
-                Ok(Executable {
-                    program_id,
-                    state_hash,
-                    instrumented_code,
-                    code_metadata,
-                    executor,
-                    db: db.clone_boxed(),
-                    gas_allowance_for_chunk,
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-
         let promise_policy = ctx.promise_policy();
-        let promise_out_tx = ctx.promise_out_tx().clone();
 
         let block_header = ctx.block_header();
         let block_info = BlockInfo {
@@ -586,47 +603,30 @@ mod chunk_execution_spawn {
             timestamp: block_header.timestamp,
         };
 
-        let output = tokio::task::spawn_blocking(move || {
-            executable_chunk
-                .into_par_iter()
-                .map(
-                    |Executable {
-                         program_id,
-                         state_hash,
-                         instrumented_code,
-                         code_metadata,
-                         mut executor,
-                         db,
-                         gas_allowance_for_chunk,
-                     }| {
-                        let (jn, new_state_hash, gas_spent) = executor
-                            .run(
-                                db,
-                                ProcessQueueContext {
-                                    program_id,
-                                    state_root: state_hash,
-                                    queue_type,
-                                    instrumented_code,
-                                    code_metadata,
-                                    gas_allowance: GasAllowanceCounter::new(
-                                        gas_allowance_for_chunk,
-                                    ),
-                                    block_info,
-                                    promise_policy,
-                                },
-                                promise_out_tx.clone(),
-                            )
-                            .expect("Some error occurs while running program in instance");
+        let executables = chunk
+            .into_iter()
+            .map(|(program_id, state_hash)| {
+                let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
 
-                        (program_id, new_state_hash, jn, gas_spent)
-                    },
-                )
-                .collect()
-        })
-        .await
-        .expect("Failed to join worker thread");
+                let executor = ctx.instance_creator().instantiate()?;
 
-        Ok(output)
+                Ok(Executable {
+                    queue_type,
+                    block_info,
+                    promise_policy,
+                    program_id,
+                    state_hash,
+                    instrumented_code,
+                    code_metadata,
+                    executor,
+                    db: db.clone_boxed(),
+                    gas_allowance_for_chunk,
+                    promise_out_tx: ctx.promise_out_tx().clone(),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        THREAD_POOL.spawn_many(executables).try_collect().await
     }
 }
 
