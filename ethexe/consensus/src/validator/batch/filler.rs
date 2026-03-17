@@ -22,12 +22,19 @@ use ethexe_common::gear::{
     ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
 };
 
-/// Helper that owns the mutable batch assembly state while the manager
-/// decides what candidate parts should be considered for inclusion.
+/// Stateful helper used by [`BatchCommitmentManager`](super::manager::BatchCommitmentManager)
+/// to assemble a candidate batch commitment under protocol size and deepness limits.
+///
+/// The manager decides which commitments are eligible, while `BatchFiller`
+/// tracks the accumulated parts and rejects additions that would exceed the
+/// batch payload budget.
 #[derive(Debug, Clone)]
 pub struct BatchFiller {
+    /// Parts accumulated for the candidate batch being assembled.
     parts: BatchParts,
+    /// Protocol limits that decide whether candidate parts may be included.
     limits: BatchLimits,
+    /// Running payload budget for the ABI-encoded batch commitment.
     size_counter: BatchSizeCounter,
 }
 
@@ -104,6 +111,7 @@ impl BatchFiller {
     ) -> FillerResult {
         match self.parts.chain_commitment.as_mut() {
             Some(chain_commitment) => {
+                // Once the chain header is present, only appended transitions consume extra space.
                 if !self
                     .size_counter
                     .charge_for_additional_transitions(&commitment.transitions)
@@ -114,6 +122,7 @@ impl BatchFiller {
                 chain_commitment.transitions.extend(commitment.transitions);
             }
             None => {
+                // NOTE: Empty transition chains are skipped until they become old enough to force inclusion.
                 if !self.should_include_chain_commitment(&commitment, deepness) {
                     return Ok(());
                 }
@@ -152,6 +161,7 @@ impl BatchFiller {
         deepness: u32,
         code_commitments: &[CodeCommitment],
     ) -> bool {
+        // NOTE: try to charge for chain commitment and code commitments in cloned size counter.
         let mut size_counter = self.size_counter.clone();
 
         match self.parts.chain_commitment.is_some() {
@@ -175,6 +185,7 @@ impl BatchFiller {
     }
 
     fn should_include_chain_commitment(&self, commitment: &ChainCommitment, deepness: u32) -> bool {
+        // A deep enough chain must eventually be committed even if it carries no transitions.
         !commitment.transitions.is_empty() || deepness > self.limits.chain_deepness_threshold
     }
 }

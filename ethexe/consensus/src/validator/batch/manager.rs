@@ -142,6 +142,9 @@ impl BatchCommitmentManager {
         maybe_batch_result.map(|maybe_batch| maybe_batch.map(|batch| (batch, batch_announce)))
     }
 
+    // TODO !!!: Validation must rebuild the batch greedily from local state and
+    // ensure the requested announce is the final announce that would be included
+    // under the same size limits, otherwise a producer can submit a non-maximal batch.
     pub async fn validate(
         self,
         block: SimpleBlockData,

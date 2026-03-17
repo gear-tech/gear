@@ -30,7 +30,7 @@ use gprimitives::CodeId;
 // We assume that maximum Ethereum transaction's payload is 100 KB.
 const MAX_BATCH_SIZE: u64 = 100 * 1024;
 
-/// This struct represents the limits for batch.
+/// Batch building limits.
 #[derive(Debug, Clone)]
 pub struct BatchLimits {
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
@@ -39,7 +39,10 @@ pub struct BatchLimits {
     pub commitment_delay_limit: u32,
 }
 
-// TODO !!!: For batch size counter need to write a proptest for correctness batch size counting.
+/// Tracks the remaining ABI-encoded payload budget for a candidate batch.
+///
+/// Each `charge_*` method subtracts the encoded size of the provided value and
+/// returns `false` when adding it would exceed the maximum batch size.
 #[derive(Debug, Clone)]
 pub(crate) struct BatchSizeCounter(u64);
 
@@ -69,21 +72,14 @@ impl BatchSizeCounter {
     /// Charges only for appended transitions after the chain commitment header
     /// has already been accounted for.
     pub fn charge_for_additional_transitions(&mut self, transitions: &[StateTransition]) -> bool {
-        for transition in transitions.iter().cloned() {
-            let tr: Gear::StateTransition = transition.into();
-            if !self.charge(&tr) {
-                return false;
-            }
-        }
-
-        true
+        self.charge_many::<_, Gear::StateTransition>(transitions)
     }
 
     pub fn charge_for_code_commitments(&mut self, commitments: &[CodeCommitment]) -> bool {
         let commitments: Vec<Gear::CodeCommitment> =
             commitments.iter().cloned().map(Into::into).collect();
 
-        self.charge(&commitments)
+        self.charge_value(&commitments)
     }
 
     fn charge_optional<T, V>(&mut self, value: Option<T>) -> bool
@@ -92,13 +88,27 @@ impl BatchSizeCounter {
         T: Into<V>,
     {
         let encoded: Vec<V> = value.into_iter().map(Into::into).collect();
-        self.charge(&encoded)
+        self.charge_value(&encoded)
     }
 
-    fn charge<V: SolValue>(&mut self, value: &V) -> bool {
-        let encoded_size = value.abi_encoded_size();
+    fn charge_many<T, V>(&mut self, values: &[T]) -> bool
+    where
+        V: SolValue,
+        T: Into<V> + Clone,
+    {
+        let mut encoded_size = 0;
+        values.iter().cloned().for_each(|v| {
+            encoded_size += v.into().abi_encoded_size() as u64;
+        });
+        self.charge(encoded_size)
+    }
 
-        match self.0.checked_sub(encoded_size as u64) {
+    fn charge_value<V: SolValue>(&mut self, value: &V) -> bool {
+        self.charge(value.abi_encoded_size() as u64)
+    }
+
+    fn charge(&mut self, encoded_size: u64) -> bool {
+        match self.0.checked_sub(encoded_size) {
             Some(size_left) => {
                 self.0 = size_left;
                 true
