@@ -181,7 +181,7 @@ impl Participant {
                 .core
                 .batch_manager
                 .clone()
-                .validate(self.block, request)
+                .validate_batch_commitment(self.block, request)
                 .boxed(),
         };
 

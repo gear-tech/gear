@@ -87,7 +87,7 @@ impl StateHandler for Producer {
                         .core
                         .batch_manager
                         .clone()
-                        .build(self.block, announce_hash)
+                        .create_batch_commitment(self.block, announce_hash)
                         .boxed(),
                 };
 

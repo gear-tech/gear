@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::VecDeque;
-
 use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, ValidationStatus};
 use crate::{
     announces,
@@ -35,21 +33,22 @@ use ethexe_common::{
     gear::{BatchCommitment, ChainCommitment, RewardsCommitment, ValidatorsCommitment},
 };
 use ethexe_db::Database;
-use gprimitives::CodeId;
 use hashbrown::HashSet;
 
 #[derive(derive_more::Debug, Clone)]
 pub struct BatchCommitmentManager {
     /// Limits for batch building and verifying
     limits: BatchLimits,
-
+    /// The ethexe database instance.
     #[debug(skip)]
     db: Database,
+    /// The ethexe middleware for validators election.
     #[debug(skip)]
     middleware: MiddlewareWrapper,
 }
 
 impl BatchCommitmentManager {
+    /// Creates a new instance of batch commitment manager.
     pub fn new(limits: BatchLimits, db: Database, middleware: MiddlewareWrapper) -> Self {
         Self {
             limits,
@@ -58,8 +57,8 @@ impl BatchCommitmentManager {
         }
     }
 
-    /// Maybe rename this function
-    pub async fn build(
+    /// Creates a new [`BatchCommitment`] for producer.
+    pub async fn create_batch_commitment(
         self,
         block: SimpleBlockData,
         announce_hash: HashOf<Announce>,
@@ -78,43 +77,53 @@ impl BatchCommitmentManager {
             bail!("failed to include rewards commitment into batch, err={err}")
         }
 
-        let Some(last_committed_announce) = self.db.block_meta(block.hash).last_committed_announce
-        else {
-            anyhow::bail!(
-                "Last committed announce not found in db for prepared block: {}",
+        let queue = self.db.block_meta(block.hash).codes_queue.ok_or_else(|| {
+            anyhow!(
+                "Computed block {} codes queue is not in storage",
                 block.hash
-            );
-        };
+            )
+        })?;
+        let code_commitments = super::utils::aggregate_code_commitments(&self.db, queue, false)
+            .expect("not errors because, fail_if_not_found is set to false");
+        if let Err(err) = batch_filler.include_code_commitments(code_commitments) {
+            bail!("failed to include code commitments to batch because of error: {err}")
+        }
 
-        let not_committed_announces = super::utils::collect_not_committed_predecessors(
+        super::utils::try_include_chain_commitment(
             &self.db,
-            last_committed_announce,
+            block.hash,
             announce_hash,
+            &mut batch_filler,
         )?;
 
-        for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
-            let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
-            let chain_commitment = ChainCommitment {
-                head_announce: announce_hash,
-                transitions,
-            };
+        // let Some(last_committed_announce) = self.db.block_meta(block.hash).last_committed_announce
+        // else {
+        //     anyhow::bail!(
+        //         "Last committed announce not found in db for prepared block: {}",
+        //         block.hash
+        //     );
+        // };
 
-            let codes_queue = self.announce_codes_queue(announce_hash)?;
-            let code_commitments =
-                super::utils::aggregate_code_commitments(&self.db, codes_queue, false)
-                    .expect("`failed_if_not_found=false` means no errors");
+        // let not_committed_announces = super::utils::collect_not_committed_predecessors(
+        //     &self.db,
+        //     last_committed_announce,
+        //     announce_hash,
+        // )?;
 
-            if let Err(err) = batch_filler.include_chain_and_codes_commitments(
-                chain_commitment,
-                deep as u32,
-                code_commitments,
-            ) {
-                tracing::trace!(
-                    "failed to include transitions and codes in batch for announce({announce_hash}) because of error: {err}"
-                );
-                break;
-            }
-        }
+        // for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
+        //     let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
+        //     let commitment = ChainCommitment {
+        //         head_announce: announce_hash,
+        //         transitions,
+        //     };
+
+        //     if let Err(err) = batch_filler.include_chain_commitment(commitment, deep as u32) {
+        //         tracing::trace!(
+        //             "create batch: failed to include chain commitment for announce({announce_hash}) because of error={err}"
+        //         );
+        //         break;
+        //     }
+        // }
 
         super::utils::create_batch_commitment(
             &self.db,
@@ -124,10 +133,7 @@ impl BatchCommitmentManager {
         )
     }
 
-    // TODO !!!: Validation must rebuild the batch greedily from local state and
-    // ensure the requested announce is the final announce that would be included
-    // under the same size limits, otherwise a producer can submit a non-maximal batch.
-    pub async fn validate(
+    pub async fn validate_batch_commitment(
         self,
         block: SimpleBlockData,
         request: BatchCommitmentValidationRequest,
@@ -183,10 +189,6 @@ impl BatchCommitmentManager {
             }
         }
 
-        // let waiting_codes = self
-        //     .announce_codes_queue(announce)?
-        //     .into_iter()
-        //     .collect::<HashSet<_>>();
         let waiting_codes = self
             .db
             .block_meta(block.hash)
@@ -219,9 +221,6 @@ impl BatchCommitmentManager {
         }
 
         if let Some(announce) = head {
-            // TODO #4791: support commitment head from another block in chain,
-            // have to check head block is predecessor of current block
-
             // Head announce in validation request is best for `block`.
             // This guarantees that announce is successor of last committed announce at `block`,
             // but does not guarantee that announce is computed by this node.
@@ -272,25 +271,44 @@ impl BatchCommitmentManager {
                     });
                 }
             };
-            tracing::trace!("not computed announces = {not_committed_announces:?}");
 
             if !not_committed_announces.contains(&announce) {
-                // TODO: fix the rejection reason
                 return Ok(ValidationStatus::Rejected {
                     request,
-                    reason: ValidationRejectReason::HeadAnnounceIsNotBest {
+                    reason: ValidationRejectReason::HeadAnnounceIsNotFromBestChain {
                         requested: announce,
                         best: best_announce_hash,
                     },
                 });
             }
+            // Set firstly for current announce.
+            let mut final_announce = None;
+            for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
+                let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
+                let chain_commitment = ChainCommitment {
+                    head_announce: announce_hash,
+                    transitions,
+                };
 
-            let (chain_commitment, deepness) =
-                utils::try_aggregate_chain_commitment(&self.db, block.hash, announce)?;
+                if let Err(err) =
+                    batch_filler.include_chain_commitment(chain_commitment, deep as u32)
+                {
+                    tracing::trace!(
+                        "validate batch: failed to include chain commitment for announce({announce_hash}) because of error={err}"
+                    );
+                    break;
+                }
+                final_announce = Some(announce_hash);
+            }
 
-            if let Err(err) = batch_filler.include_chain_commitment(chain_commitment, deepness) {
-                let reason = err.into();
-                return Ok(ValidationStatus::Rejected { request, reason });
+            if final_announce != Some(announce) {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::BatchCommitmentNotOptimal {
+                        best_head: final_announce,
+                        requested_head: announce,
+                    },
+                });
             }
         }
 
@@ -323,29 +341,6 @@ impl BatchCommitmentManager {
         }
 
         Ok(ValidationStatus::Accepted(digest))
-    }
-
-    pub fn announce_codes_queue(
-        &self,
-        announce_hash: HashOf<Announce>,
-    ) -> Result<VecDeque<CodeId>> {
-        let announce = self.db.announce(announce_hash).ok_or_else(|| {
-            anyhow!("not found announce in database, announce_hash={announce_hash}")
-        })?;
-        let announce_block_hash = announce.block_hash;
-
-        let queue = self
-            .db
-            .block_meta(announce_block_hash)
-            .codes_queue
-            .ok_or_else(|| {
-                anyhow!("Computed block {announce_block_hash} codes queue is not in storage")
-            })?;
-        Ok(queue)
-        // Ok(
-        //     super::utils::aggregate_code_commitments(&self.db, queue, false)
-        //         .expect("Error is not possible here, because fail_if_not_found is false"),
-        // )
     }
 
     pub async fn aggregate_validators_commitment(

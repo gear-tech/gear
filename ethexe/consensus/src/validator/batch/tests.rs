@@ -27,7 +27,10 @@ use crate::{
 
 use ethexe_common::{
     Address, Announce, Digest, HashOf, SimpleBlockData, ValidatorsVec,
-    consensus::BatchCommitmentValidationRequest, db::*, gear::CodeCommitment, mock::*,
+    consensus::BatchCommitmentValidationRequest,
+    db::*,
+    gear::{ChainCommitment, CodeCommitment},
+    mock::*,
 };
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
@@ -70,7 +73,7 @@ async fn rejects_empty_batch_request() {
     let status = ctx
         .core
         .batch_manager
-        .validate(block, request)
+        .validate_batch_commitment(block, request)
         .await
         .unwrap();
 
@@ -93,7 +96,7 @@ async fn rejects_duplicate_code_ids() {
     let status = ctx
         .core
         .batch_manager
-        .validate(
+        .validate_batch_commitment(
             SimpleBlockData::mock(()),
             BatchCommitmentValidationRequest::new(&batch),
         )
@@ -123,7 +126,7 @@ async fn rejects_not_waiting_code_ids() {
     let status = ctx
         .core
         .batch_manager
-        .validate(block, request)
+        .validate_batch_commitment(block, request)
         .await
         .unwrap();
 
@@ -155,13 +158,13 @@ async fn rejects_non_best_chain_head() {
     let status = ctx
         .core
         .batch_manager
-        .validate(block, request)
+        .validate_batch_commitment(block, request)
         .await
         .unwrap();
 
     assert_eq!(
         unwrap_rejected_reason(status),
-        ValidationRejectReason::HeadAnnounceIsNotBest {
+        ValidationRejectReason::HeadAnnounceIsNotFromBestChain {
             requested: wrong_head,
             best: best_head,
         }
@@ -187,7 +190,7 @@ async fn rejects_when_best_head_chain_is_invalid() {
     let status = ctx
         .core
         .batch_manager
-        .validate(block, request)
+        .validate_batch_commitment(block, request)
         .await
         .unwrap();
 
@@ -217,7 +220,7 @@ async fn rejects_digest_mismatch() {
     let status = ctx
         .core
         .batch_manager
-        .validate(block, request)
+        .validate_batch_commitment(block, request)
         .await
         .unwrap();
 
@@ -278,7 +281,7 @@ async fn rejects_code_not_processed_yet() {
     let status = ctx
         .core
         .batch_manager
-        .validate(block, request)
+        .validate_batch_commitment(block, request)
         .await
         .unwrap();
 
@@ -286,6 +289,125 @@ async fn rejects_code_not_processed_yet() {
         unwrap_rejected_reason(status),
         ValidationRejectReason::CodeIsNotProcessedYet(code_id)
     );
+}
+
+#[tokio::test]
+async fn rejects_not_optimal_commitment() {
+    gear_utils::init_default_logger();
+    const BLOCKCHAIN_LEN: usize = 30;
+
+    let (ctx, _, _) = mock_validator_context();
+
+    // Preparing transitions for announces chain.
+    let mut blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32);
+    for i in 0..BLOCKCHAIN_LEN {
+        blockchain.block_top_announce_mut(i).tap_mut(|announce| {
+            let transitions = (0..5)
+                .map(|_| {
+                    let commitment = ChainCommitment::mock(announce.announce.to_hash());
+                    commitment.transitions
+                })
+                .flatten()
+                .collect::<Vec<_>>();
+            announce.as_computed_mut().outcome = transitions;
+        });
+    }
+    let blockchain = blockchain.setup(&ctx.core.db);
+    let announce = blockchain
+        .block_top_announce(BLOCKCHAIN_LEN - 1)
+        .clone()
+        .announce;
+    let block = blockchain.blocks[BLOCKCHAIN_LEN - 1].to_simple();
+
+    let batch_commitment = ctx
+        .core
+        .batch_manager
+        .clone()
+        .create_batch_commitment(block, announce.to_hash())
+        .await
+        .unwrap()
+        .unwrap();
+
+    let batch_announce = batch_commitment
+        .chain_commitment
+        .clone()
+        .unwrap()
+        .head_announce;
+    let maybe_announce_batch_index = (0..BLOCKCHAIN_LEN).find_map(|i| {
+        let announce_hash = blockchain.block_top_announce(i).announce.to_hash();
+        if announce_hash == batch_announce {
+            return Some(i);
+        } else {
+            None
+        }
+    });
+
+    let announce_batch_index =
+        maybe_announce_batch_index.expect("increase the blockchain len in test");
+
+    {
+        // Add extra announce for batch chain commitment
+        let mut batch = batch_commitment.clone();
+
+        let extra_announce = blockchain
+            .block_top_announce(announce_batch_index + 1)
+            .announce
+            .to_hash();
+
+        let mut commitment = batch.chain_commitment.clone().unwrap();
+        commitment.head_announce = extra_announce;
+        commitment
+            .transitions
+            .extend(ctx.core.db.announce_outcome(extra_announce).unwrap());
+        batch.chain_commitment = Some(commitment);
+
+        let request = BatchCommitmentValidationRequest::new(&batch);
+        let status = ctx
+            .core
+            .batch_manager
+            .clone()
+            .validate_batch_commitment(block, request)
+            .await
+            .unwrap();
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::BatchCommitmentNotOptimal {
+                requested_head: extra_announce,
+                best_head: Some(batch_announce)
+            }
+        )
+    }
+
+    {
+        // Set invalid announce chain head.
+        let mut batch = batch_commitment.clone();
+
+        let earlier_announce = blockchain
+            .block_top_announce(announce_batch_index - 1)
+            .announce
+            .to_hash();
+
+        let mut commitment = batch.chain_commitment.clone().unwrap();
+        commitment.head_announce = earlier_announce;
+        batch.chain_commitment = Some(commitment);
+
+        let request = BatchCommitmentValidationRequest::new(&batch);
+        let status = ctx
+            .core
+            .batch_manager
+            .clone()
+            .validate_batch_commitment(block, request)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::BatchCommitmentNotOptimal {
+                requested_head: earlier_announce,
+                best_head: Some(batch_announce)
+            }
+        )
+    }
 }
 
 #[tokio::test]
@@ -303,7 +425,7 @@ async fn accepts_matching_request() {
     let status = ctx
         .core
         .batch_manager
-        .validate(block, request)
+        .validate_batch_commitment(block, request)
         .await
         .unwrap();
 

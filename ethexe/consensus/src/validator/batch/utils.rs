@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::validator::batch::types::BatchParts;
+use crate::validator::batch::{filler::BatchFiller, types::BatchParts};
 
 use super::types::CodeNotValidatedError;
 
@@ -123,11 +123,12 @@ pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     Ok(commitments)
 }
 
-pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
+pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
     db: &DB,
     at_block: H256,
     head_announce_hash: HashOf<Announce>,
-) -> Result<(ChainCommitment, u32)> {
+    batch_filler: &mut BatchFiller,
+) -> Result<(HashOf<Announce>, u32)> {
     if !db.announce_meta(head_announce_hash).computed {
         anyhow::bail!(
             "Head announce {head_announce_hash:?} is not computed, cannot aggregate chain commitment"
@@ -135,25 +136,36 @@ pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO
     }
 
     let Some(last_committed_announce) = db.block_meta(at_block).last_committed_announce else {
-        anyhow::bail!("Last committed announce not found in db for prepared block: {at_block}");
+        anyhow::bail!("Last committed announce not found in db for prepared block: {at_block}",);
     };
 
-    let not_committed_announces =
-        collect_not_committed_predecessors(db, last_committed_announce, head_announce_hash)?;
-    let deepness = not_committed_announces.len() as u32;
+    let not_committed_announces = super::utils::collect_not_committed_predecessors(
+        &db,
+        last_committed_announce,
+        head_announce_hash,
+    )?;
+    // TODO !!!: These variable are dirty, make clearly
+    let final_announce = not_committed_announces
+        .last()
+        .cloned()
+        .unwrap_or(head_announce_hash);
+    let max_deep = not_committed_announces.len();
 
-    let mut transitions = vec![];
-    for announce_hash in not_committed_announces {
-        transitions.extend(announce_transitions(db, announce_hash)?);
-    }
-
-    Ok((
-        ChainCommitment {
-            head_announce: head_announce_hash,
+    for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
+        let transitions = super::utils::announce_transitions(&db, announce_hash)?;
+        let commitment = ChainCommitment {
+            head_announce: announce_hash,
             transitions,
-        },
-        deepness,
-    ))
+        };
+
+        if let Err(err) = batch_filler.include_chain_commitment(commitment, deep as u32) {
+            tracing::trace!(
+                "failed to include chain commitment for announce({announce_hash}) because of error={err}"
+            );
+            return Ok((announce_hash, deep as u32));
+        }
+    }
+    Ok((final_announce, max_deep as u32))
 }
 
 pub fn announce_transitions<DB: AnnounceStorageRO>(
@@ -252,9 +264,21 @@ pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition])
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::*;
-    use ethexe_common::{db::*, mock::*};
+    use crate::{
+        mock::*,
+        validator::batch::{BatchLimits, filler::BatchFiller},
+    };
+    use ethexe_common::{
+        COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT,
+        consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::*, mock::*,
+    };
     use ethexe_db::Database;
+
+    const BATCH_LIMITS: BatchLimits = BatchLimits {
+        chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+        commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+        batch_size_limit: DEFAULT_BLOCK_GAS_LIMIT,
+    };
 
     #[test]
     fn test_aggregate_chain_commitment() {
@@ -280,11 +304,19 @@ mod tests {
             let block = chain.blocks[10].to_simple();
             let head_announce_hash = chain.block_top_announce_hash(9);
 
-            let (commitment, counter) =
-                try_aggregate_chain_commitment(&db, block.hash, head_announce_hash).unwrap();
+            let mut batch_filler = BatchFiller::new(BATCH_LIMITS);
+            let (_, deepness) = try_include_chain_commitment(
+                &db,
+                block.hash,
+                head_announce_hash,
+                &mut batch_filler,
+            )
+            .unwrap();
+            let commitment = batch_filler.into_parts().chain_commitment.unwrap();
+
             assert_eq!(commitment.head_announce, head_announce_hash);
             assert_eq!(commitment.transitions.len(), 1);
-            assert_eq!(counter, 6);
+            assert_eq!(deepness, 6);
         }
 
         {
@@ -295,8 +327,10 @@ mod tests {
                 .setup(&db);
             let block = chain.blocks[3].to_simple();
             let head_announce_hash = chain.block_top_announce_hash(3);
+            let mut batch_filler = BatchFiller::new(BATCH_LIMITS);
 
-            try_aggregate_chain_commitment(&db, block.hash, head_announce_hash).unwrap_err();
+            try_include_chain_commitment(&db, block.hash, head_announce_hash, &mut batch_filler)
+                .unwrap_err();
         }
 
         {
@@ -308,7 +342,9 @@ mod tests {
             let block = chain.blocks[3].to_simple();
             let head_announce_hash = chain.block_top_announce_hash(3);
 
-            try_aggregate_chain_commitment(&db, block.hash, head_announce_hash).unwrap_err();
+            let mut batch_filler = BatchFiller::new(BATCH_LIMITS);
+            try_include_chain_commitment(&db, block.hash, head_announce_hash, &mut batch_filler)
+                .unwrap_err();
         }
 
         {
@@ -320,7 +356,9 @@ mod tests {
             let block = chain.blocks[3].to_simple();
             let head_announce_hash = chain.block_top_announce_hash(2);
 
-            try_aggregate_chain_commitment(&db, block.hash, head_announce_hash).unwrap_err();
+            let mut batch_filler = BatchFiller::new(BATCH_LIMITS);
+            try_include_chain_commitment(&db, block.hash, head_announce_hash, &mut batch_filler)
+                .unwrap_err();
         }
     }
 
