@@ -85,8 +85,14 @@ impl BatchCommitmentManager {
         })?;
         let code_commitments = super::utils::aggregate_code_commitments(&self.db, queue, false)
             .expect("not errors because, fail_if_not_found is set to false");
-        if let Err(err) = batch_filler.include_code_commitments(code_commitments) {
-            bail!("failed to include code commitments to batch because of error: {err}")
+
+        for commitment in code_commitments {
+            if let Err(err) = batch_filler.include_code_commitment(commitment) {
+                tracing::trace!(
+                    "failed to include all code commitments into batch, because of error={err}"
+                );
+                break;
+            }
         }
 
         super::utils::try_include_chain_commitment(
@@ -215,9 +221,12 @@ impl BatchCommitmentManager {
                 }
             };
 
-        if let Err(err) = batch_filler.include_code_commitments(code_commitments) {
-            let reason = err.into();
-            return Ok(ValidationStatus::Rejected { request, reason });
+        for commitment in code_commitments {
+            if let Err(err) = batch_filler.include_code_commitment(commitment) {
+                tracing::trace!("failed to include all code commitments because of error={err}");
+                let reason = err.into();
+                return Ok(ValidationStatus::Rejected { request, reason });
+            }
         }
 
         if let Some(announce) = head {

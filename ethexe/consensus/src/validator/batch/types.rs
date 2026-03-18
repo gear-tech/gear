@@ -74,11 +74,10 @@ impl BatchSizeCounter {
         self.charge_many::<_, Gear::StateTransition>(transitions)
     }
 
-    pub fn charge_for_code_commitments(&mut self, commitments: &[CodeCommitment]) -> bool {
-        let commitments: Vec<Gear::CodeCommitment> =
-            commitments.iter().cloned().map(Into::into).collect();
+    pub fn charge_for_code_commitment(&mut self, commitment: &CodeCommitment) -> bool {
+        let commitment: Gear::CodeCommitment = commitment.clone().into();
 
-        self.charge_value(&commitments)
+        self.charge_value(&commitment)
     }
 
     fn charge_optional<T, V>(&mut self, value: Option<T>) -> bool
@@ -168,7 +167,9 @@ pub enum ValidationRejectReason {
     BatchDigestMismatch { expected: Digest, found: Digest },
     #[display("batch size limit exceeded")]
     BatchSizeLimitExceeded,
-    #[display("batch commitment head is not optimal: head={best_head:?}, requested={requested_head}")]
+    #[display(
+        "batch commitment head is not optimal: head={best_head:?}, requested={requested_head}"
+    )]
     BatchCommitmentNotOptimal {
         requested_head: HashOf<Announce>,
         best_head: Option<HashOf<Announce>>,
