@@ -56,11 +56,12 @@ CHAOS_INTERVAL="60"
 
 ENABLE_NODE_LOADER="false"
 NODE_LOADER_WORKERS="3"
+NODE_LOADER_BATCH_SIZE="5"
+NODE_LOADER_SEED=""
 NODE_LOADER_BIN="target/release/ethexe-node-loader"
 NODE_LOADER_BIN_IN_CONTAINER="/workspace/target/release/ethexe-node-loader"
 NODE_LOADER_CONTAINER_NAME="ethexe-node-loader"
 NODE_LOADER_IMAGE="rust:1-trixie"
-NODE_LOADER_BATCH_SIZE="5"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
@@ -183,6 +184,7 @@ Options:
   --node-loader                           Start node-loader (default: off)
   --node-loader-workers N                 Node-loader workers (default: 3)
   --node-loader-batch-size N              Node-loader batch size (default: 5)
+  --node-loader-seed N                    Node-loader seed value (optional)
   --node-loader-bin PATH                  Node-loader binary path (default: target/release/ethexe-node-loader)
   --node-loader-bin-in-container PATH     Node-loader binary path in container
                                           (default: /workspace/target/release/ethexe-node-loader)
@@ -355,6 +357,11 @@ parse_args() {
 		--node-loader-image)
 			require_option_value "$1" "${2:-}"
 			NODE_LOADER_IMAGE="$2"
+			shift 2
+			;;
+		--node-loader-seed)
+			require_option_value "$1" "${2:-}"
+			NODE_LOADER_SEED="$2"
 			shift 2
 			;;
 		*)
@@ -725,6 +732,10 @@ start_node_loader() {
 	cmd+=" --router-address $ROUTER_ADDRESS"
 	cmd+=" --workers $NODE_LOADER_WORKERS"
 	cmd+=" --batch-size $NODE_LOADER_BATCH_SIZE"
+
+	if [[ -n "$NODE_LOADER_SEED" ]]; then
+		cmd+=" --loader-seed $NODE_LOADER_SEED"
+	fi
 
 	docker run -d \
 		--name "$NODE_LOADER_CONTAINER_NAME" \
