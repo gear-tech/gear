@@ -57,13 +57,15 @@ async fn rejects_empty_batch_request() {
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
     batch.code_commitments = Vec::new();
-    let request = BatchCommitmentValidationRequest::new(&batch);
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
+    request.head = None;
 
     let mut announce_hash = batch.chain_commitment.clone().unwrap().head_announce;
     // Nullify the codes in database
     ctx.core
         .db
         .mutate_block_meta(block.hash, |meta| meta.codes_queue = Some(VecDeque::new()));
+
     // Nullify the transitions in database
     for _ in 0..2 {
         announce_hash = ctx.core.db.announce(announce_hash).unwrap().parent;

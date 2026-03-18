@@ -63,6 +63,10 @@ impl BatchFiller {
         }
     }
 
+    pub fn parts(&self) -> &BatchParts {
+        &self.parts
+    }
+
     pub fn into_parts(self) -> BatchParts {
         self.parts
     }

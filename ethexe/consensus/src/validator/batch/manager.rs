@@ -102,35 +102,6 @@ impl BatchCommitmentManager {
             &mut batch_filler,
         )?;
 
-        // let Some(last_committed_announce) = self.db.block_meta(block.hash).last_committed_announce
-        // else {
-        //     anyhow::bail!(
-        //         "Last committed announce not found in db for prepared block: {}",
-        //         block.hash
-        //     );
-        // };
-
-        // let not_committed_announces = super::utils::collect_not_committed_predecessors(
-        //     &self.db,
-        //     last_committed_announce,
-        //     announce_hash,
-        // )?;
-
-        // for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
-        //     let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
-        //     let commitment = ChainCommitment {
-        //         head_announce: announce_hash,
-        //         transitions,
-        //     };
-
-        //     if let Err(err) = batch_filler.include_chain_commitment(commitment, deep as u32) {
-        //         tracing::trace!(
-        //             "create batch: failed to include chain commitment for announce({announce_hash}) because of error={err}"
-        //         );
-        //         break;
-        //     }
-        // }
-
         super::utils::create_batch_commitment(
             &self.db,
             &block,
@@ -291,7 +262,6 @@ impl BatchCommitmentManager {
                 });
             }
             // Set firstly for current announce.
-            let mut final_announce = None;
             for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
                 let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
                 let chain_commitment = ChainCommitment {
@@ -307,8 +277,13 @@ impl BatchCommitmentManager {
                     );
                     break;
                 }
-                final_announce = Some(announce_hash);
             }
+
+            let final_announce = batch_filler
+                .parts()
+                .chain_commitment
+                .as_ref()
+                .map(|c| c.head_announce);
 
             if final_announce != Some(announce) {
                 return Ok(ValidationStatus::Rejected {
