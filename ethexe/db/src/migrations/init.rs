@@ -19,7 +19,7 @@
 use super::{InitConfig, LATEST_VERSION, MIGRATIONS, OLDEST_SUPPORTED_VERSION};
 use crate::{Database, RawDatabase};
 use alloy::providers::{Provider as _, RootProvider};
-use anyhow::{Context as _, Result, ensure};
+use anyhow::{Context as _, Result, bail, ensure};
 use ethexe_common::{
     Announce, BlockHeader, HashOf, ProtocolTimelines, SimpleBlockData,
     db::{ComputedAnnounceData, PreparedBlockData},
@@ -52,6 +52,19 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
         );
 
         log::info!("Database has version {db_version}");
+
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if db_version < OLDEST_SUPPORTED_VERSION {
+            log::info!(
+                "The oldest supported database version is {}",
+                OLDEST_SUPPORTED_VERSION
+            );
+            bail!(
+                "Database version is too old: expected at least {}, found {}",
+                OLDEST_SUPPORTED_VERSION,
+                db_version
+            );
+        }
 
         for (i, &migration) in MIGRATIONS.iter().enumerate() {
             let from_version = i as u32 + OLDEST_SUPPORTED_VERSION;
