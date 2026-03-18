@@ -37,3 +37,4 @@ std = [
     "serde/std",
     "ethexe-common/std",
 ]
+mock = ["std"]
