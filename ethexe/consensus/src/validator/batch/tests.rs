@@ -305,11 +305,10 @@ async fn rejects_not_optimal_commitment() {
     for i in 0..BLOCKCHAIN_LEN {
         blockchain.block_top_announce_mut(i).tap_mut(|announce| {
             let transitions = (0..5)
-                .map(|_| {
+                .flat_map(|_| {
                     let commitment = ChainCommitment::mock(announce.announce.to_hash());
                     commitment.transitions
                 })
-                .flatten()
                 .collect::<Vec<_>>();
             announce.as_computed_mut().outcome = transitions;
         });
@@ -335,13 +334,9 @@ async fn rejects_not_optimal_commitment() {
         .clone()
         .unwrap()
         .head_announce;
-    let maybe_announce_batch_index = (0..BLOCKCHAIN_LEN).find_map(|i| {
-        let announce_hash = blockchain.block_top_announce(i).announce.to_hash();
-        if announce_hash == batch_announce {
-            return Some(i);
-        } else {
-            None
-        }
+    let maybe_announce_batch_index = (0..BLOCKCHAIN_LEN).find(|i| {
+        let announce_hash = blockchain.block_top_announce(*i).announce.to_hash();
+        announce_hash == batch_announce
     });
 
     let announce_batch_index =
