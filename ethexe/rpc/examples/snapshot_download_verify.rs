@@ -19,11 +19,11 @@
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::Parser;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
-    db::{LatestData, LatestDataStorageRO, LatestDataStorageRW},
+    Announce, HashOf, ProtocolTimelines, SimpleBlockData,
+    db::{DBConfig, DBGlobals, GlobalsStorageRO},
     gear::MAX_BLOCK_GAS_LIMIT,
 };
-use ethexe_db::{CASDatabase, Database, RocksDatabase};
+use ethexe_db::{CASDatabase, Database, RawDatabase, RocksDatabase, VERSION};
 use ethexe_rpc::{
     RpcConfig, RpcServer, RpcService, SnapshotClient, SnapshotRpcConfig, SnapshotStreamItem,
 };
@@ -235,13 +235,37 @@ impl SnapshotFixture {
     fn new(case: &SnapshotCase) -> Result<Self> {
         let temp_dir = tempfile::tempdir().context("failed to create temporary directory")?;
         let rocks_db = RocksDatabase::open(temp_dir.path().to_path_buf())
-            .context("failed to open rocks database")?;
-        let db = Database::from_one(&rocks_db);
+            .context("SnapshotFixture: failed to open rocks database")?;
+        let db_raw = RawDatabase::from_one(&rocks_db);
+
+        db_raw.kv.set_config(DBConfig {
+            version: VERSION,
+            chain_id: 0,
+            router_address: Default::default(),
+            timelines: ProtocolTimelines::default(),
+            genesis_block_hash: H256::from_low_u64_be(1),
+            genesis_announce_hash: HashOf::<Announce>::zero(),
+        });
+
+        let expected_block_hash = H256::from_low_u64_be(42);
+        db_raw.kv.set_globals(DBGlobals {
+            start_block_hash: H256::from_low_u64_be(1),
+            start_announce_hash: HashOf::<Announce>::zero(),
+            latest_synced_block: SimpleBlockData {
+                hash: expected_block_hash,
+                header: Default::default(),
+            },
+            latest_prepared_block_hash: expected_block_hash,
+            latest_computed_announce_hash: HashOf::<Announce>::zero(),
+        });
+
+        let db = Database::try_from_raw(db_raw)
+            .context("SnapshotFixture: failed to construct Database from RawDatabase")?;
 
         let mut sample = None;
         for index in 0..case.entry_count {
             let payload = pseudo_random_payload(index as u64 + 1, case.entry_size);
-            let hash = db.write_hash(&payload);
+            let hash = db.cas().write(&payload);
             if sample.is_none() {
                 sample = Some((hash, payload));
             }
@@ -249,20 +273,6 @@ impl SnapshotFixture {
 
         let (sample_hash, sample_payload) =
             sample.ok_or_else(|| anyhow!("snapshot case must contain at least one entry"))?;
-
-        let expected_block_hash = H256::from_low_u64_be(42);
-        db.set_latest_data(LatestData {
-            synced_block: SimpleBlockData {
-                hash: expected_block_hash,
-                header: Default::default(),
-            },
-            prepared_block_hash: expected_block_hash,
-            computed_announce_hash: HashOf::<Announce>::zero(),
-            genesis_block_hash: H256::from_low_u64_be(1),
-            genesis_announce_hash: HashOf::<Announce>::zero(),
-            start_block_hash: H256::from_low_u64_be(1),
-            start_announce_hash: HashOf::<Announce>::zero(),
-        });
 
         Ok(Self {
             _temp_dir: temp_dir,
@@ -484,12 +494,16 @@ fn verify_downloaded_snapshot(
 
     let reopened_db = RocksDatabase::open(extracted_dir.join("rocksdb"))
         .context("failed to reopen extracted rocksdb checkpoint")?;
-    let reopened_database = Database::from_one(&reopened_db);
-    let latest_data = reopened_database
-        .latest_data()
-        .ok_or_else(|| anyhow!("latest data missing in extracted checkpoint"))?;
+    let reopened_database = RawDatabase::from_one(&reopened_db);
+    let reopened_database = Database::try_from_raw(reopened_database)
+        .context("failed to construct Database from RawDatabase")?;
+    let block_hash = {
+        let globals_db = reopened_database.globals();
+
+        globals_db.latest_synced_block.hash
+    };
     ensure!(
-        latest_data.synced_block.hash == fixture.expected_block_hash,
+        block_hash == fixture.expected_block_hash,
         "unexpected synced block hash after extraction"
     );
     ensure!(
@@ -561,12 +575,16 @@ fn verify_external_snapshot(
 
     let reopened_db = RocksDatabase::open(extracted_dir.join("rocksdb"))
         .context("failed to reopen extracted rocksdb checkpoint")?;
-    let reopened_database = Database::from_one(&reopened_db);
-    let latest_data = reopened_database
-        .latest_data()
-        .ok_or_else(|| anyhow!("latest data missing in extracted checkpoint"))?;
+    let reopened_database = RawDatabase::from_one(&reopened_db);
+    let reopened_database = Database::try_from_raw(reopened_database)
+        .context("failed to construct Database from RawDatabase")?;
+    let block_hash = {
+        let globals_db = reopened_database.globals();
+
+        globals_db.latest_synced_block.hash
+    };
     ensure!(
-        latest_data.synced_block.hash == downloaded.block_hash,
+        block_hash == downloaded.block_hash,
         "manifest block hash does not match extracted checkpoint latest data"
     );
 

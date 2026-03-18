@@ -20,16 +20,15 @@ use crate::{
     InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
     RpcService, SnapshotClient, SnapshotRpcConfig, SnapshotStreamItem,
 };
-
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
-    db::{LatestData, LatestDataStorageRO, LatestDataStorageRW},
+    Announce, HashOf, ProtocolTimelines, SimpleBlockData,
+    db::{DBConfig, DBGlobals, GlobalsStorageRO},
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
     injected::{AddressedInjectedTransaction, Promise, SignedPromise},
     mock::Mock,
 };
-use ethexe_db::{CASDatabase, Database, RocksDatabase};
+use ethexe_db::{CASDatabase, Database, RawDatabase, RocksDatabase, VERSION};
 use futures::StreamExt;
 use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
@@ -291,9 +290,33 @@ impl SnapshotFixture {
 
     fn new_with_payload_mode(entry_count: usize, entry_size: usize, high_entropy: bool) -> Self {
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
-        let rocks_db = RocksDatabase::open(temp_dir.path().to_path_buf())
+        let db_rocks = RocksDatabase::open(temp_dir.path().to_path_buf())
             .expect("Failed to open rocks database");
-        let db = Database::from_one(&rocks_db);
+        let db_raw = RawDatabase::from_one(&db_rocks);
+
+        db_raw.kv.set_config(DBConfig {
+            version: VERSION,
+            chain_id: 0,
+            router_address: Default::default(),
+            timelines: ProtocolTimelines::default(),
+            genesis_block_hash: H256::from_low_u64_be(1),
+            genesis_announce_hash: HashOf::<Announce>::zero(),
+        });
+
+        let synced_block_hash = H256::from_low_u64_be(42);
+        db_raw.kv.set_globals(DBGlobals {
+            start_block_hash: H256::from_low_u64_be(1),
+            start_announce_hash: HashOf::<Announce>::zero(),
+            latest_synced_block: SimpleBlockData {
+                hash: synced_block_hash,
+                header: Default::default(),
+            },
+            latest_prepared_block_hash: synced_block_hash,
+            latest_computed_announce_hash: HashOf::<Announce>::zero(),
+        });
+
+        let db_reopened =
+            Database::try_from_raw(db_raw).expect("Constructs Database from RawDatabase");
 
         let mut sample = None;
         for index in 0..entry_count {
@@ -304,31 +327,19 @@ impl SnapshotFixture {
                 payload.fill((index % 255) as u8);
                 payload
             };
-            let hash = db.write_hash(&payload);
+
+            let hash = db_reopened.cas().write(&payload);
             if sample.is_none() {
                 sample = Some((hash, payload.clone()));
             }
         }
 
-        let synced_block_hash = H256::from_low_u64_be(42);
-        db.set_latest_data(LatestData {
-            synced_block: SimpleBlockData {
-                hash: synced_block_hash,
-                header: Default::default(),
-            },
-            prepared_block_hash: synced_block_hash,
-            computed_announce_hash: HashOf::<Announce>::zero(),
-            genesis_block_hash: H256::from_low_u64_be(1),
-            genesis_announce_hash: HashOf::<Announce>::zero(),
-            start_block_hash: H256::from_low_u64_be(1),
-            start_announce_hash: HashOf::<Announce>::zero(),
-        });
         let (sample_hash, sample_payload) = sample.expect("snapshot fixture should have data");
 
         Self {
             _temp_dir: temp_dir,
-            rocks_db,
-            db,
+            rocks_db: db_rocks,
+            db: db_reopened,
             synced_block_hash,
             sample_hash,
             sample_payload,
@@ -904,11 +915,15 @@ async fn snapshot_download_large_real_archive_2gib() {
 
     let reopened_db = RocksDatabase::open(extract_dir.join("rocksdb"))
         .expect("Extracted RocksDB checkpoint should reopen successfully");
-    let reopened_database = Database::from_one(&reopened_db);
-    let latest_data = reopened_database
-        .latest_data()
-        .expect("Extracted checkpoint should contain latest data");
-    assert_eq!(latest_data.synced_block.hash, fixture.synced_block_hash);
+    let reopened_database = RawDatabase::from_one(&reopened_db);
+    let reopened_database = Database::try_from_raw(reopened_database)
+        .expect("Database should be constructed from RawDatabase successfully");
+    let block_hash = {
+        let globals_db = reopened_database.globals();
+
+        globals_db.latest_synced_block.hash
+    };
+    assert_eq!(block_hash, fixture.synced_block_hash);
     assert_eq!(
         reopened_db.read(fixture.sample_hash),
         Some(fixture.sample_payload.clone())
