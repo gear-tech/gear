@@ -141,6 +141,6 @@ impl BatchFiller {
 
     fn should_include_chain_commitment(&self, commitment: &ChainCommitment, deepness: u32) -> bool {
         // A deep enough chain must eventually be committed even if it carries no transitions.
-        !commitment.transitions.is_empty() || deepness > self.limits.chain_deepness_threshold
+        !commitment.transitions.is_empty() || deepness + 1 > self.limits.chain_deepness_threshold
     }
 }

@@ -76,8 +76,6 @@ impl Clone for ValidatorCore {
             signer: self.signer.clone(),
             db: self.db.clone(),
             committer: self.committer.clone_boxed(),
-            // TODO: remove this
-            // middleware: self.middleware.clone(),
             batch_manager: self.batch_manager.clone(),
             injected_pool: self.injected_pool.clone(),
             chain_deepness_threshold: self.chain_deepness_threshold,
@@ -127,7 +125,6 @@ impl<T: BatchCommitter + 'static> From<T> for Box<dyn BatchCommitter> {
 /// If requests are equal result can be reused by [`MiddlewareWrapper`] to reduce the amount of rpc calls.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct ElectionRequest {
-    // TODO: remove this pub here
     pub at_block_hash: H256,
     pub at_timestamp: u64,
     pub max_validators: u32,

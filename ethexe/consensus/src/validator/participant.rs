@@ -372,15 +372,6 @@ mod tests {
             ctx.core.db.set_announce_outcome(announce_hash, Vec::new());
         }
 
-        // Create a request with empty blocks and codes
-        // let request = BatchCommitmentValidationRequest {
-        //     digest: Digest::random(),
-        //     announce: HashOf::random(),
-        //     codes: vec![],
-        //     rewards: false,
-        //     validators: false,
-        // };
-
         let verified_request = ctx
             .core
             .signer
