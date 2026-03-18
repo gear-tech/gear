@@ -116,6 +116,8 @@ pub struct ValidatorConfig {
     pub router_address: Address,
     /// Threshold for producer to submit commitment despite of no transitions
     pub chain_deepness_threshold: u32,
+    /// The maximum size of abi encoded batch commitment.
+    pub batch_size_limit: u64,
 }
 
 impl ValidatorService {
@@ -139,6 +141,7 @@ impl ValidatorService {
         let limits = BatchLimits {
             chain_deepness_threshold: config.chain_deepness_threshold,
             commitment_delay_limit: config.commitment_delay_limit,
+            batch_size_limit: config.batch_size_limit,
         };
 
         let middleware = MiddlewareWrapper::from_inner(election_provider);

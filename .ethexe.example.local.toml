@@ -79,6 +79,10 @@ validator-session = "0x02ba5734d8f7091719471e7f7ed6b9df170dc70cc661ca05e688601ad
 # (optional, max block gas limit: 9_000_000_000_000, default: 4_000_000_000_000).
 # block-gas-limit = 4_000_000_000_000
 
+# Batch size limit for the node.
+# (optional, max batch size limit 122_880, default 102_400 )
+# batch-size-limit = 102_400
+
 # Number of blocks that must pass before applying canonical (Ethereum) events.
 # NOTE: Customize this parameter only for development purposes. In production, your node
 #       may fail to reach consensus with other nodes if this value is changed.

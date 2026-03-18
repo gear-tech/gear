@@ -27,9 +27,6 @@ use ethexe_common::{
 use ethexe_ethereum::abi::Gear;
 use gprimitives::CodeId;
 
-// We assume that maximum Ethereum transaction's payload is 100 KB.
-const MAX_BATCH_SIZE: u64 = 100 * 1024;
-
 /// Batch building limits.
 #[derive(Debug, Clone)]
 pub struct BatchLimits {
@@ -37,6 +34,8 @@ pub struct BatchLimits {
     pub chain_deepness_threshold: u32,
     /// Time limit in blocks for announce to be committed after its creation.
     pub commitment_delay_limit: u32,
+    /// The maximum size of abi encoded [`ethexe_common::gear::BatchCommitment`].
+    pub batch_size_limit: u64,
 }
 
 /// Tracks the remaining ABI-encoded payload budget for a candidate batch.
@@ -47,9 +46,8 @@ pub struct BatchLimits {
 pub(crate) struct BatchSizeCounter(u64);
 
 impl BatchSizeCounter {
-    /// TODO: set MAX_BATCH_SIZE from cli, not a const
-    pub fn new() -> Self {
-        Self(MAX_BATCH_SIZE)
+    pub fn new(max_size: u64) -> Self {
+        Self(max_size)
     }
 
     pub fn charge_for_validators_commitment(

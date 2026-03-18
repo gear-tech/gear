@@ -58,8 +58,8 @@ impl BatchFiller {
     pub fn new(limits: BatchLimits) -> Self {
         Self {
             parts: BatchParts::default(),
+            size_counter: BatchSizeCounter::new(limits.batch_size_limit),
             limits,
-            size_counter: BatchSizeCounter::new(),
         }
     }
 
