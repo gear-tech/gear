@@ -25,14 +25,17 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationReply,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
+    db::{
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, GlobalsStorageRO, OnChainStorageRO,
+    },
     ecdsa::{ContractSignature, PublicKey},
+    events::{BlockRequestEvent, RouterRequestEvent, router::ProgramCreatedEvent},
     gear::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
         StateTransition, ValidatorsCommitment,
     },
 };
-use gprimitives::{CodeId, H256, U256};
+use gprimitives::{ActorId, CodeId, H256, U256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
@@ -429,6 +432,42 @@ pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition])
         rhs.value_to_receive_negative_sign
             .cmp(&lhs.value_to_receive_negative_sign)
     });
+}
+
+pub fn block_touched_programs<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO>(
+    db: &DB,
+    block_hash: H256,
+) -> Result<HashSet<ActorId>> {
+    // NOTE: Using latest computed announce is not completely correct way to determine touched programs,
+    // but it is good enough approximation, and it is enough for announce creation,
+    // in worst case announce wouldn't be committed and it would become expired later.
+    let mut known_programs = db
+        .announce_program_states(db.globals().latest_computed_announce_hash)
+        .ok_or_else(|| anyhow!("Not found program states for latest computed announce"))?
+        .keys()
+        .cloned()
+        .collect::<HashSet<_>>();
+
+    let touched_programs = db
+        .block_events(block_hash)
+        .ok_or_else(|| anyhow!("Events for block {block_hash} not found"))?
+        .into_iter()
+        .filter_map(|event| event.to_request())
+        .filter_map(|request| match request {
+            BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(
+                ProgramCreatedEvent { actor_id, .. },
+            )) => {
+                known_programs.insert(actor_id);
+                None
+            }
+            BlockRequestEvent::Mirror { actor_id, .. } if known_programs.contains(&actor_id) => {
+                Some(actor_id)
+            }
+            _ => None,
+        })
+        .collect();
+
+    Ok(touched_programs)
 }
 
 #[cfg(test)]

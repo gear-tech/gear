@@ -19,7 +19,7 @@
 use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::Result;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
+    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData,
     db::{
         AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
     },
@@ -46,10 +46,10 @@ pub(crate) struct InjectedTxPool<DB = Database> {
 impl<DB> InjectedTxPool<DB>
 where
     DB: InjectedStorageRW
+        + GlobalsStorageRO
         + OnChainStorageRO
         + AnnounceStorageRO
         + CodesStorageRO
-        + GlobalsStorageRO
         + Storage
         + Clone,
 {
@@ -82,6 +82,17 @@ where
         let tx_checker =
             TxValidityChecker::new_for_announce(self.db.clone(), block, parent_announce)?;
 
+        let mut touched_programs = crate::utils::block_touched_programs(&self.db, block.hash)?;
+        if touched_programs.len() > MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize {
+            tracing::error!(
+                block = ?block.hash,
+                "too many programs changed: {} > {}, may cause overflow in announce size",
+                touched_programs.len(),
+                MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE
+            );
+            return Ok(vec![]);
+        }
+
         let mut selected_txs = vec![];
         let mut remove_txs = vec![];
         let mut size_counter = 0usize;
@@ -94,7 +105,6 @@ where
 
             match tx_checker.check_tx_validity(&tx)? {
                 TxValidity::Valid => {
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
                     // NOTE: we calculate size with signature, because tx will be sent to network with it.
                     let tx_size = tx.encoded_size();
                     if size_counter + tx_size > MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE {
@@ -105,6 +115,20 @@ where
                         continue;
                     }
 
+                    let program_id = tx.data().destination;
+                    if !touched_programs.contains(&program_id)
+                        && touched_programs.len() >= MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize
+                    {
+                        tracing::trace!(
+                            ?tx_hash,
+                            "transaction is valid, but max touched programs limit is reached, so skipping it now"
+                        );
+                        continue;
+                    }
+
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
+
+                    touched_programs.insert(program_id);
                     selected_txs.push(tx);
                     size_counter += tx_size;
                 }
@@ -158,14 +182,22 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
-    use ethexe_runtime_common::state::{Program, ProgramState, Storage};
-    use gprimitives::ActorId;
+    use ethexe_common::{
+        StateHashWithQueueSize,
+        db::*,
+        events::{BlockEvent, MirrorEvent, mirror::MessageQueueingRequestedEvent},
+        mock::*,
+    };
+    use ethexe_runtime_common::state::{ActiveProgram, Program, ProgramState, Storage};
+    use gear_core::program::MemoryInfix;
+    use gprimitives::{ActorId, MessageId};
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use parity_scale_codec::MaxEncodedLen;
 
     #[test]
     fn test_select_for_announce() {
+        gear_utils::init_default_logger();
+
         let db = Database::memory();
 
         let state_hash = db.write_program_state(
@@ -193,6 +225,8 @@ mod tests {
                             injected_queue_size: 0,
                         },
                     );
+
+                c.globals.latest_computed_announce_hash = c.block_top_announce_hash(8);
             })
             .setup(&db);
 
@@ -253,6 +287,86 @@ mod tests {
         assert!(
             SignedInjectedTransaction::max_encoded_len()
                 <= MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE
+        );
+    }
+
+    #[test]
+    fn max_touched_programs() {
+        gear_utils::init_default_logger();
+
+        let db = Database::memory();
+
+        let state = ProgramState {
+            program: Program::Active(ActiveProgram {
+                allocations_hash: HashOf::zero().into(),
+                pages_hash: HashOf::zero().into(),
+                memory_infix: MemoryInfix::new(0),
+                initialized: true,
+            }),
+            ..ProgramState::zero()
+        };
+        let state_hash = db.write_program_state(state);
+
+        let chain = BlockChain::mock(10)
+            .tap_mut(|chain| {
+                chain.blocks[10].as_synced_mut().events = (0..97)
+                    .map(|i| BlockEvent::Mirror {
+                        actor_id: ActorId::from(i),
+                        event: MirrorEvent::MessageQueueingRequested(
+                            MessageQueueingRequestedEvent {
+                                id: MessageId::from(i * 1000),
+                                source: ActorId::from(i * 10000),
+                                payload: vec![],
+                                value: 0,
+                                call_reply: false,
+                            },
+                        ),
+                    })
+                    .collect();
+
+                chain
+                    .block_top_announce_mut(9)
+                    .as_computed_mut()
+                    .program_states = (0..140)
+                    .map(|i| {
+                        (
+                            ActorId::from(i),
+                            StateHashWithQueueSize {
+                                hash: state_hash,
+                                canonical_queue_size: 0,
+                                injected_queue_size: 0,
+                            },
+                        )
+                    })
+                    .collect();
+
+                chain.globals.latest_computed_announce_hash = chain.block_top_announce_hash(9);
+            })
+            .setup(&db);
+
+        let mut tx_pool = InjectedTxPool::new(db.clone());
+        let signer = Signer::memory();
+        let key = signer.generate().unwrap();
+        for i in 90..140 {
+            let tx = InjectedTransaction {
+                reference_block: chain.blocks[9].hash,
+                destination: ActorId::from(i as u64),
+                ..InjectedTransaction::mock(())
+            };
+            let signed_tx = signer.signed_message(key, tx, None).unwrap();
+            tx_pool.handle_tx(signed_tx);
+        }
+
+        let selected_txs = tx_pool
+            .select_for_announce(
+                chain.blocks[10].to_simple(),
+                chain.block_top_announce_hash(9),
+            )
+            .unwrap();
+
+        assert_eq!(
+            selected_txs.len(),
+            MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize - 90
         );
     }
 }
