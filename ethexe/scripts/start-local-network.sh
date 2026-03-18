@@ -54,6 +54,8 @@ CONTRACTS_DIR="ethexe/contracts"
 ENABLE_CHAOS_MODE="false"
 CHAOS_INTERVAL="60"
 
+ETHEXE_VERBOSE="false"
+
 ENABLE_NODE_LOADER="false"
 NODE_LOADER_WORKERS="3"
 NODE_LOADER_BATCH_SIZE="5"
@@ -190,6 +192,9 @@ Options:
                                           (default: /workspace/target/release/ethexe-node-loader)
   --node-loader-container-name NAME       Node-loader container name (default: ethexe-node-loader)
   --node-loader-image IMAGE               Node-loader image (default: rust:1-trixie)
+
+  --ethexe-verbose                        Pass --verbose flag to ethexe run command
+                                          (default: off)
 
 Example:
   ./ethexe/scripts/start-local-network.sh \
@@ -363,6 +368,10 @@ parse_args() {
 			require_option_value "$1" "${2:-}"
 			NODE_LOADER_SEED="$2"
 			shift 2
+			;;
+		--ethexe-verbose)
+			ETHEXE_VERBOSE="true"
+			shift
 			;;
 		*)
 			log_error "Unknown option: $1"
@@ -669,6 +678,10 @@ start_nodes() {
 		cmd+=" --prometheus-port $CONTAINER_PROMETHEUS_PORT"
 		cmd+=" --canonical-quarantine 0"
 		cmd+=" --net-listen-addr /ip4/0.0.0.0/udp/$CONTAINER_NETWORK_PORT/quic-v1"
+
+		if [[ "$ETHEXE_VERBOSE" == "true" ]]; then
+			cmd+=" --verbose"
+		fi
 
 		if [[ $i -gt 0 ]]; then
 			for ((j = 0; j < i; j++)); do
