@@ -191,8 +191,6 @@ impl Participant {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::VecDeque;
-
     use super::*;
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::{
@@ -359,17 +357,19 @@ mod tests {
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         let mut announce_hash = batch.chain_commitment.clone().unwrap().head_announce;
-        batch.code_commitments = Vec::new();
+        batch.code_commitments = Default::default();
         let request = BatchCommitmentValidationRequest::new(&batch);
 
         // Nullify the codes in database
-        ctx.core
-            .db
-            .mutate_block_meta(block.hash, |meta| meta.codes_queue = Some(VecDeque::new()));
+        ctx.core.db.mutate_block_meta(block.hash, |meta| {
+            meta.codes_queue = Some(Default::default())
+        });
         // Nullify the transitions in database
         for _ in 0..2 {
             announce_hash = ctx.core.db.announce(announce_hash).unwrap().parent;
-            ctx.core.db.set_announce_outcome(announce_hash, Vec::new());
+            ctx.core
+                .db
+                .set_announce_outcome(announce_hash, Default::default());
         }
 
         let verified_request = ctx

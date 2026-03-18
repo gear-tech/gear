@@ -38,10 +38,19 @@ pub struct BatchLimits {
     pub batch_size_limit: u64,
 }
 
-/// Tracks the remaining ABI-encoded payload budget for a candidate batch.
+/// Tracks an approximate remaining ABI payload budget for a candidate batch.
 ///
-/// Each `charge_*` method subtracts the encoded size of the provided value and
-/// returns `false` when adding it would exceed the maximum batch size.
+/// This counter is intentionally conservative but not exact: it charges the
+/// variable-size payloads of batch parts and relies on `batch_size_limit`
+/// having reserved slack for ABI layout overhead such as the top-level tuple
+/// head, dynamic offsets, and length words.
+///
+/// In other words, this is not a byte-perfect `Gear::BatchCommitment`
+/// encoder. The configured limit must include enough headroom to cover the
+/// difference between this approximation and the final ABI encoding.
+///
+/// Each `charge_*` method subtracts the estimated encoded size of the provided
+/// value and returns `false` when adding it would exceed the maximum batch size.
 #[derive(Debug, Clone)]
 pub(crate) struct BatchSizeCounter(u64);
 
