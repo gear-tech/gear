@@ -96,17 +96,16 @@ type Result<T> = std::result::Result<T, ComputeError>;
 
 pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     /// Process block events and return the result.
-    fn process_announce(
+    fn process_programs(
         &mut self,
         executable: ExecutableData,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
-    fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked)
-    -> Result<ProcessedCodeInfo>;
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo>;
 }
 
 impl ProcessorExt for Processor {
-    async fn process_announce(
+    async fn process_programs(
         &mut self,
         executable: ExecutableData,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
@@ -116,10 +115,7 @@ impl ProcessorExt for Processor {
             .map_err(Into::into)
     }
 
-    fn process_upload_code(
-        &mut self,
-        code_and_id: CodeAndIdUnchecked,
-    ) -> Result<ProcessedCodeInfo> {
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
         self.process_code(code_and_id).map_err(Into::into)
     }
 }
