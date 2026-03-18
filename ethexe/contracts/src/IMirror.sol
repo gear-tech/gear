@@ -149,6 +149,9 @@ interface IMirror {
 
     error InvalidFallbackCall();
 
+    /// @dev Reverts when the Router is paused and pause-protected Mirror call is attempted.
+    error EnforcedPause();
+
     /* Functions section */
 
     /* Operational functions */

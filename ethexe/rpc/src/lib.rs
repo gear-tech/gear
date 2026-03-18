@@ -167,7 +167,8 @@ impl RpcServer {
                 chunk_size: self.config.chunk_size,
             },
             self.db.clone(),
-        )?;
+        )?
+        .overlaid();
 
         let snapshot = if let Some(snapshot_config) = self.config.snapshot.clone() {
             self.snapshot_db

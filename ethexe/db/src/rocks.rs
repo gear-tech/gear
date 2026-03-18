@@ -90,7 +90,7 @@ impl KVDatabase for RocksDatabase {
             .expect("Failed to read data, database is not in valid state")
     }
 
-    fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
+    unsafe fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
         let data = self
             .inner
             .get(key)
@@ -125,6 +125,13 @@ impl KVDatabase for RocksDatabase {
             prefix_iter: self.inner.prefix_iterator(prefix),
             done: false,
         })
+    }
+
+    fn is_empty(&self) -> bool {
+        self.inner
+            .iterator(rocksdb::IteratorMode::Start)
+            .next()
+            .is_none()
     }
 }
 
