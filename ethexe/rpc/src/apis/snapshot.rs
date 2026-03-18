@@ -19,7 +19,7 @@
 use crate::{SnapshotRpcConfig, errors};
 use anyhow::{Context as _, Result, anyhow};
 use dashmap::DashSet;
-use ethexe_common::db::LatestDataStorageRO;
+use ethexe_common::db::GlobalsStorageRO;
 use ethexe_db::{Database, RocksDatabase};
 use gprimitives::H256;
 use jsonrpsee::{
@@ -201,12 +201,11 @@ impl SnapshotService {
 
         let prepared = (|| {
             let work_dir_for_result = work_dir.clone();
-            let block_hash = self
-                .db
-                .latest_data()
-                .ok_or_else(|| anyhow!("latest data wasn't found in database"))?
-                .synced_block
-                .hash;
+            let block_hash = {
+                let globals_db = self.db.globals();
+
+                globals_db.latest_synced_block.hash
+            };
 
             self.rocks_db
                 .create_checkpoint(&checkpoint_dir)
