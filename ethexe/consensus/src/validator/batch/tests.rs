@@ -320,16 +320,13 @@ async fn accepts_matching_request() {
 async fn test_aggregate_validators_commitment() {
     gear_utils::init_default_logger();
 
-    let (mut ctx, _, eth) = mock_validator_context();
+    let (ctx, _, eth) = mock_validator_context();
     let chain = BlockChain::mock(20)
         .tap_mut(|chain| {
             chain.config.timelines.era = 10 * chain.config.timelines.slot;
             chain.config.timelines.election = 5 * chain.config.timelines.slot;
         })
         .setup(&ctx.core.db);
-    ctx.core
-        .batch_manager
-        .update_timelines(chain.config.timelines);
 
     let validators1: ValidatorsVec = [Address([1; 20]), Address([2; 20]), Address([3; 20])]
         .into_iter()

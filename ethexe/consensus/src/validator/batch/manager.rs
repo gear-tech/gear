@@ -29,9 +29,9 @@ use crate::{
 
 use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
-    Announce, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest,
+    Announce, HashOf, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, OnChainStorageRO},
     gear::{BatchCommitment, ChainCommitment, RewardsCommitment, ValidatorsCommitment},
 };
 use ethexe_db::Database;
@@ -42,8 +42,7 @@ use hashbrown::HashSet;
 pub struct BatchCommitmentManager {
     /// Limits for batch building and verifying
     limits: BatchLimits,
-    // TODO: hack for tests, remove this `pub(crate)`
-    pub(crate) timelines: ProtocolTimelines,
+
     #[debug(skip)]
     db: Database,
     #[debug(skip)]
@@ -51,23 +50,12 @@ pub struct BatchCommitmentManager {
 }
 
 impl BatchCommitmentManager {
-    pub fn new(
-        limits: BatchLimits,
-        timelines: ProtocolTimelines,
-        db: Database,
-        middleware: MiddlewareWrapper,
-    ) -> Self {
+    pub fn new(limits: BatchLimits, db: Database, middleware: MiddlewareWrapper) -> Self {
         Self {
             limits,
-            timelines,
             db,
             middleware,
         }
-    }
-
-    #[cfg(test)]
-    pub fn update_timelines(&mut self, timelines: ProtocolTimelines) {
-        self.timelines = timelines;
     }
 
     /// Maybe rename this function
@@ -364,15 +352,17 @@ impl BatchCommitmentManager {
         &self,
         block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
-        let block_era = self.timelines.era_from_ts(block.header.timestamp);
-        let election_ts = self.timelines.era_election_start_ts(block_era);
+        let timelines = self.db.config().timelines;
+
+        let block_era = timelines.era_from_ts(block.header.timestamp);
+        let election_ts = timelines.era_election_start_ts(block_era);
 
         if block.header.timestamp < election_ts {
             tracing::trace!(
                 block = %block.hash,
                 timestamp = %block.header.timestamp,
                 election_ts = %election_ts,
-                genesis_ts = %self.timelines.genesis_ts,
+                genesis_ts = %timelines.genesis_ts,
                 "Election period for next era has not started yet. Skipping validators commitment");
 
             return Ok(None);

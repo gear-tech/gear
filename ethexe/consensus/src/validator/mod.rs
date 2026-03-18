@@ -142,7 +142,7 @@ impl ValidatorService {
         };
 
         let middleware = MiddlewareWrapper::from_inner(election_provider);
-        let batch_manager = BatchCommitmentManager::new(limits, timelines, db.clone(), middleware);
+        let batch_manager = BatchCommitmentManager::new(limits, db.clone(), middleware);
 
         let ctx = ValidatorContext {
             core: ValidatorCore {

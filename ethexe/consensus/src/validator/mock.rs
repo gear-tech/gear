@@ -155,7 +155,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
     };
     let middleware = MiddlewareWrapper::from_inner(ethereum.clone());
-    let batch_manager = BatchCommitmentManager::new(limits, timelines, db.clone(), middleware);
+    let batch_manager = BatchCommitmentManager::new(limits, db.clone(), middleware);
 
     let ctx = ValidatorContext {
         core: ValidatorCore {
