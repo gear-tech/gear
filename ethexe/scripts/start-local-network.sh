@@ -694,9 +694,11 @@ start_nodes() {
 		docker run -d \
 			--name "$container_name" \
 			--network "$DOCKER_NETWORK_NAME" \
+			--user "$(id -u):$(id -g)" \
 			-p "$network_port:$CONTAINER_NETWORK_PORT/udp" \
 			-p "$rpc_port:$CONTAINER_RPC_PORT" \
 			-p "$prometheus_port:$CONTAINER_PROMETHEUS_PORT" \
+			-e HOME=/workspace \
 			-e RUST_LOG_STYLE=never \
 			-e RUST_BACKTRACE=1 \
 			-v "$WORKSPACE_ROOT:/workspace" \
