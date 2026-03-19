@@ -1437,7 +1437,7 @@ async fn call_gr_wait_is_forbidden() {
         )
         "#;
 
-    let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
+    let transitions = simple_init_test(wat_to_wasm(wat).1).await;
     let reply_code = transitions.current_messages()[0]
         .1
         .reply_details
