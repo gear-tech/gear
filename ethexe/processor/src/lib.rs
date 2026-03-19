@@ -274,11 +274,13 @@ impl Processor {
     }
 }
 
+#[derive(Clone, Default)]
 pub struct ProcessedCodeInfo {
     pub code_id: CodeId,
     pub valid: Option<ValidCodeInfo>,
 }
 
+#[derive(Clone)]
 pub struct ValidCodeInfo {
     pub code: Vec<u8>,
     pub instrumented_code: InstrumentedCode,

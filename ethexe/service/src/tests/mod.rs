@@ -149,6 +149,27 @@ async fn basics() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(30_000)]
+async fn invalid_code() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let wasm_binary = [1; 10]; // Invalid WASM binary
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(!res.valid);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn write_memory_to_last_byte() {
     init_logger();
