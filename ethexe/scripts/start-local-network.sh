@@ -727,23 +727,13 @@ start_node_loader() {
 		exit 1
 	fi
 
-	local ethexe_nodes=""
-	for ((i = 0; i < NUM_VALIDATORS; i++)); do
-		if [[ -n "$ethexe_nodes" ]]; then
-			ethexe_nodes+=","
-		fi
-		ethexe_nodes+="ws://${NODE_CONTAINER_PREFIX}-${i}:$CONTAINER_RPC_PORT"
-	done
 
 	local anvil_url="ws://$ANVIL_CONTAINER_NAME:8545"
-
-	log_info "Node-loader will use ethexe nodes: $ethexe_nodes"
 
 	remove_container_if_exists "$NODE_LOADER_CONTAINER_NAME"
 
 	local cmd="$NODE_LOADER_BIN_IN_CONTAINER load"
 	cmd+=" --node $anvil_url"
-	cmd+=" --ethexe-node $ethexe_nodes"
 	cmd+=" --router-address $ROUTER_ADDRESS"
 	cmd+=" --workers $NODE_LOADER_WORKERS"
 	cmd+=" --batch-size $NODE_LOADER_BATCH_SIZE"
@@ -752,6 +742,11 @@ start_node_loader() {
 		cmd+=" --loader-seed $NODE_LOADER_SEED"
 	fi
 
+	for ((i = 0; i < NUM_VALIDATORS; i++)); do
+		ethexe_nodes+=" --ethexe-node ws://${NODE_CONTAINER_PREFIX}-${i}:$CONTAINER_RPC_PORT "
+	done
+
+	echo "Node-loader command: $cmd"
 	docker run -d \
 		--name "$NODE_LOADER_CONTAINER_NAME" \
 		--network "$DOCKER_NETWORK_NAME" \

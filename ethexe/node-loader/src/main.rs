@@ -74,6 +74,15 @@ async fn load_node(params: LoadParams) -> Result<()> {
         ));
     }
 
+    for url in params.ethexe_nodes.iter() {
+        match ::url::Url::parse(url) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(anyhow::anyhow!("invalid Ethexe node URL '{}': {}", url, e));
+            }
+        }
+    }
+
     let router_addr = Address::from_str(&params.router_address)?;
 
     // Use sender private key if provided, otherwise use first prefunded account as deployer
