@@ -26,7 +26,7 @@ use gsys::GasMultiplier;
 
 /// Maximum duration for gr_wait_up_to in blocks,
 /// when not enough gas was provided for the requested duration.
-const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
+pub const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
 
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {

@@ -151,18 +151,30 @@ impl ProcessorContext {
     }
 }
 
+/// Message execution result info
 #[derive(Debug)]
 pub struct ExtInfo {
+    /// Gas amount left after execution.
     pub gas_amount: GasAmount,
+    /// Gas reserver with updated reservations after execution.
     pub gas_reserver: GasReserver,
+    /// System reservation context with current and previous reservations.
     pub system_reservation_context: SystemReservationContext,
+    /// Whether allocations were changed during execution and final state of allocations if they were changed.
     pub allocations: Option<IntervalsTree<WasmPage>>,
+    /// Data of accessed pages during execution.
     pub pages_data: BTreeMap<GearPage, PageBuf>,
+    /// List of generated dispatches with their delay and optional reservation id.
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
+    /// List of wakened messages with their id and delay until awakening.
     pub awakening: Vec<(MessageId, u32)>,
+    /// List of reply deposits with message id and amount.
     pub reply_deposits: Vec<(MessageId, u64)>,
+    /// Programs to create data.
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ActorId)>>,
+    /// Executed message context store after execution.
     pub context_store: ContextStore,
+    /// Whether reply was sent during execution.
     pub reply_sent: bool,
 }
 

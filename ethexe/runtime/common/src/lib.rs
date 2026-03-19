@@ -51,7 +51,7 @@ use parity_scale_codec::{Decode, Encode};
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
-pub use journal::NativeJournalHandler as JournalHandler;
+pub use journal::{NativeJournalHandler as JournalHandler, WAIT_UP_TO_SAFE_DURATION};
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 

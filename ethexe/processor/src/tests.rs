@@ -20,7 +20,7 @@ use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
-    SimpleBlockData,
+    ScheduledTask, SimpleBlockData,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
@@ -29,7 +29,7 @@ use ethexe_common::{
     },
     mock::*,
 };
-use ethexe_runtime_common::{RUNTIME_ID, state::MessageQueue};
+use ethexe_runtime_common::{RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue};
 use gear_core::{
     ids::prelude::CodeIdExt,
     message::{ErrorReplyReason, ReplyCode, SuccessReplyReason},
@@ -132,6 +132,47 @@ mod utils {
             reference_block: H256::random(),
             salt: H256::random().0.to_vec().try_into().unwrap(),
         }
+    }
+
+    pub async fn simple_init_test(code: impl AsRef<[u8]>) -> InBlockTransitions {
+        let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_ref()]);
+        let block1 = chain.blocks[1].to_simple();
+
+        let mut handler = setup_handler(processor.db.clone(), block1);
+        let actor_id = ActorId::from(0x10000);
+        handler
+            .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+                actor_id,
+                code_id,
+            }))
+            .expect("failed to create new program");
+        handler
+            .handle_mirror_event(
+                actor_id,
+                MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                    ExecutableBalanceTopUpRequestedEvent {
+                        value: 350_000_000_000,
+                    },
+                ),
+            )
+            .expect("failed to top up balance");
+        handler
+            .handle_mirror_event(
+                actor_id,
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: MessageId::from(1),
+                    source: ActorId::from(10),
+                    payload: vec![],
+                    value: 0,
+                    call_reply: false,
+                }),
+            )
+            .expect("failed to queue message");
+
+        processor
+            .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+            .await
+            .unwrap()
     }
 }
 
@@ -1381,4 +1422,199 @@ async fn insufficient_executable_balance_still_charged() {
     // Check that executable balance decreased
     let exec_balance_after = handler.program_state(actor_id).executable_balance;
     assert!(exec_balance_after < INSUFFICIENT_EXECUTABLE_BALANCE);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn call_gr_wait_is_forbidden() {
+    init_logger();
+
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (import "env" "gr_wait" (func $wait))
+            (export "init" (func $init))
+            (func $init call $wait)
+        )
+        "#
+    );
+
+    let (_, code) = wat_to_wasm(wat.as_str());
+
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
+    let block1 = chain.blocks[1].to_simple();
+
+    let mut handler = setup_handler(processor.db.clone(), block1);
+    let actor_id = ActorId::from(0x10000);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: ActorId::from(10),
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue message");
+
+    let transitions = processor
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .await
+        .unwrap();
+
+    let reply_code = transitions.current_messages()[0]
+        .1
+        .reply_details
+        .expect("must be reply")
+        .to_reply_code();
+    assert_eq!(
+        reply_code,
+        ReplyCode::Error(ErrorReplyReason::Execution(
+            SimpleExecutionError::BackendError
+        )),
+        "Forbidden syscall should return backend error"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn call_wake_with_delay_is_unsupported() {
+    init_logger();
+
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_wake" (func $wake (param i32 i32 i32)))
+            (export "init" (func $init))
+            (func $init
+                (call $wake (i32.const 0) (i32.const 20) (i32.const 0))
+                (if (i32.eqz (i32.load (i32.const 0x0)))
+                    (then nop)
+                    (else unreachable)
+                )
+            )
+        )
+        "#
+    );
+
+    let (_, code) = wat_to_wasm(wat.as_str());
+
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
+    let block1 = chain.blocks[1].to_simple();
+
+    let mut handler = setup_handler(processor.db.clone(), block1);
+    let actor_id = ActorId::from(0x10000);
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 350_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: ActorId::from(10),
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to queue message");
+
+    let transitions = processor
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .await
+        .unwrap();
+
+    let reply_code = transitions.current_messages()[0]
+        .1
+        .reply_details
+        .expect("must be reply")
+        .to_reply_code();
+    assert_eq!(
+        reply_code,
+        ReplyCode::Error(ErrorReplyReason::Execution(
+            SimpleExecutionError::UnreachableInstruction
+        )),
+        "Calling gr_wake with non-zero delay should lead to unreachable instruction"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn call_wait_up_to_with_huge_delay() {
+    init_logger();
+
+    let get_wat = |duration: u32| {
+        format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "gr_wait_up_to" (func $wait_up_to (param i32)))
+                (export "init" (func $init))
+                (func $init
+                    (call $wait_up_to (i32.const {duration}))
+                )
+            )
+            "#
+        )
+    };
+
+    // Huge duration
+    let wat = get_wat(0xFFFFFFFF);
+    let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
+    let block_height = transitions.block_height();
+    let FinalizedBlockTransitions { schedule, .. } = transitions.finalize();
+    let (block, tasks) = schedule.into_iter().next().unwrap();
+    assert_eq!(
+        block,
+        block_height + WAIT_UP_TO_SAFE_DURATION,
+        "Delay should be capped to WAIT_UP_TO_SAFE_DURATION"
+    );
+    let task = tasks.into_iter().next().unwrap();
+    assert!(matches!(task, ScheduledTask::WakeMessage(_, _)));
+
+    // Normal duration
+    let duration = WAIT_UP_TO_SAFE_DURATION + 20;
+    let wat = get_wat(duration);
+    let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
+    let block_height = transitions.block_height();
+    let FinalizedBlockTransitions { schedule, .. } = transitions.finalize();
+    let (block, tasks) = schedule.into_iter().next().unwrap();
+    assert_eq!(
+        block,
+        block_height + duration,
+        "Delay should not be capped if it's less than WAIT_UP_TO_SAFE_DURATION"
+    );
+    let task = tasks.into_iter().next().unwrap();
+    assert!(matches!(task, ScheduledTask::WakeMessage(_, _)));
 }
