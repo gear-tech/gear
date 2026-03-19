@@ -25,6 +25,7 @@ alloy = { workspace = true, features = [
     "rpc-types-eth",
     "rpc-client",
     "signers",
+    "signer-mnemonic",
     "kzg",
 ] }
 futures.workspace = true
@@ -36,6 +37,7 @@ serde.workspace = true
 nonempty.workspace = true
 rand.workspace = true
 gear-workspace-hack.workspace = true
+revm.workspace = true
 
 [dev-dependencies]
 alloy = { workspace = true, features = [

@@ -51,6 +51,7 @@ use router::{Router, RouterQuery};
 use std::time::Duration;
 
 pub mod abi;
+pub mod benchmarking;
 pub mod deploy;
 pub mod middleware;
 pub mod mirror;
