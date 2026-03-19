@@ -5403,6 +5403,7 @@ dependencies = [
  "derive_more 2.1.1",
  "ethexe-common",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-common",

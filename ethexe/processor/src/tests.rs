@@ -1428,16 +1428,14 @@ async fn insufficient_executable_balance_still_charged() {
 async fn call_gr_wait_is_forbidden() {
     init_logger();
 
-    let wat = format!(
-        r#"
+    let wat = r#"
         (module
             (import "env" "memory" (memory 0))
             (import "env" "gr_wait" (func $wait))
             (export "init" (func $init))
             (func $init call $wait)
         )
-        "#
-    );
+        "#;
 
     let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
     let reply_code = transitions.current_messages()[0]
@@ -1466,7 +1464,7 @@ async fn call_wake_with_delay_is_unsupported() {
                 (import "env" "gr_wake" (func $wake (param i32 i32 i32)))
                 (export "init" (func $init))
                 (func $init
-                    (call $wake (i32.const 0) (i32.const {delay}) (i32.const 0))
+                    (call $wake (i32.const 0x0) (i32.const {delay}) (i32.const 0x0))
                     (if (i32.eqz (i32.load (i32.const 0x0)))
                         (then nop)
                         (else unreachable)
@@ -1505,14 +1503,14 @@ async fn call_wake_with_delay_is_unsupported() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn call_wait_up_to_with_huge_delay() {
+async fn call_wait_up_to_with_huge_duration() {
     init_logger();
 
     let get_wat = |duration: u32| {
         format!(
             r#"
             (module
-                (import "env" "memory" (memory 1))
+                (import "env" "memory" (memory 0))
                 (import "env" "gr_wait_up_to" (func $wait_up_to (param i32)))
                 (export "init" (func $init))
                 (func $init
@@ -1532,7 +1530,7 @@ async fn call_wait_up_to_with_huge_delay() {
     assert_eq!(
         block,
         block_height + WAIT_UP_TO_SAFE_DURATION,
-        "Delay should be capped to WAIT_UP_TO_SAFE_DURATION"
+        "Duration should be capped to WAIT_UP_TO_SAFE_DURATION"
     );
     let task = tasks.into_iter().next().unwrap();
     assert!(matches!(task, ScheduledTask::WakeMessage(_, _)));
@@ -1547,7 +1545,7 @@ async fn call_wait_up_to_with_huge_delay() {
     assert_eq!(
         block,
         block_height + duration,
-        "Delay should not be capped if it's less than WAIT_UP_TO_SAFE_DURATION"
+        "Duration should not be capped if msg has enough gas to cover it"
     );
     let task = tasks.into_iter().next().unwrap();
     assert!(matches!(task, ScheduledTask::WakeMessage(_, _)));

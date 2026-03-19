@@ -21,19 +21,21 @@
 use crate::RuntimeInterface;
 use alloc::collections::btree_set::BTreeSet;
 use core_processor::{
-    BackendExternalities, CountersOwner, Ext as CoreExt, ExtInfo, Externalities, FallibleExtError,
-    ProcessorContext, ProcessorExternalities, configs::SyscallName,
+    Ext as CoreExt, ExtInfo, FallibleExtError, ProcessorContext, ProcessorExternalities,
+    configs::SyscallName,
 };
 use gear_core::{
     buffer::PayloadSlice,
     costs::{CostToken, LazyPagesCosts},
+    env::Externalities,
     env_vars::EnvVars,
-    gas::{ChargeError, CounterType, GasAmount, GasLeft},
+    gas::{ChargeError, CounterType, CountersOwner, GasAmount, GasLeft},
     memory::{Memory, MemoryError, MemoryInterval},
     message::{HandlePacket, InitPacket, MessageContext, ReplyPacket},
     pages::WasmPage,
     program::MemoryInfix,
 };
+use gear_core_backend::BackendExternalities;
 use gear_core_errors::{ExtError, ReplyCode};
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError};
 use gprimitives::{ActorId, MessageId, ReservationId};

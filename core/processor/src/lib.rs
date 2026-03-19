@@ -40,8 +40,6 @@ pub use ext::{
     AllocExtError, Ext, ExtInfo, FallibleExtError, ProcessorContext, ProcessorExternalities,
     UnrecoverableExtError,
 };
-pub use gear_core::{env::Externalities, gas::CountersOwner};
-pub use gear_core_backend::BackendExternalities;
 pub use handler::handle_journal;
 pub use precharge::*;
 pub use processing::{
