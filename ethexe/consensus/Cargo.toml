@@ -10,7 +10,13 @@ repository.workspace = true
 [dependencies]
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
-gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
+gsigner = { workspace = true, features = [
+    "std",
+    "secp256k1",
+    "codec",
+    "keyring",
+    "serde",
+] }
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 ethexe-runtime-common.workspace = true
@@ -29,6 +35,8 @@ rand_chacha = "0.3"
 roast-secp256k1-evm.workspace = true
 hashbrown.workspace = true
 lru.workspace = true
+metrics.workspace = true
+metrics-derive.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
