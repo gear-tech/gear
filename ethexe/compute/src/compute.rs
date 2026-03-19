@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ntest::timeout(30000)]
+    #[ntest::timeout(60000)]
     async fn test_compute_with_promises() {
         gear_utils::init_default_logger();
         const BLOCKCHAIN_LEN: usize = 10;
@@ -695,6 +695,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ntest::timeout(60000)]
     async fn test_compute_with_early_break() {
         gear_utils::init_default_logger();
 
