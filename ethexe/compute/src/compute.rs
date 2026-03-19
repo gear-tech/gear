@@ -162,7 +162,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         let executable =
             utils::prepare_executable_for_announce(db, announce, config.canonical_quarantine())?;
         let processing_result = processor
-            .process_announce(executable, promise_out_tx)
+            .process_programs(executable, promise_out_tx)
             .await?;
 
         let FinalizedBlockTransitions {
@@ -403,10 +403,7 @@ pub(crate) mod utils {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        ComputeService,
-        tests::{MockProcessor, PROCESSOR_RESULT},
-    };
+    use crate::{ComputeService, tests::MockProcessor};
     use ethexe_common::{
         DEFAULT_BLOCK_GAS_LIMIT,
         db::{GlobalsStorageRO, OnChainStorageRW},
@@ -523,19 +520,6 @@ mod tests {
     async fn test_compute() {
         gear_utils::init_default_logger();
 
-        let db = Database::memory();
-        let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
-        let config = ComputeConfig::without_quarantine();
-        let mut service = ComputeSubService::new(config, db.clone(), MockProcessor);
-
-        let announce = Announce {
-            block_hash,
-            parent: db.config().genesis_announce_hash,
-            gas_allowance: Some(100),
-            injected_transactions: vec![],
-        };
-        let announce_hash = announce.to_hash();
-
         // Create non-empty processor result with transitions
         let non_empty_result = FinalizedBlockTransitions {
             transitions: vec![StateTransition {
@@ -547,8 +531,26 @@ mod tests {
             ..Default::default()
         };
 
-        // Set the PROCESSOR_RESULT to return non-empty result
-        PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
+        let db = Database::memory();
+        let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeSubService::new(
+            config,
+            db.clone(),
+            MockProcessor {
+                process_programs_result: Some(non_empty_result),
+                ..Default::default()
+            },
+        );
+
+        let announce = Announce {
+            block_hash,
+            parent: db.config().genesis_announce_hash,
+            gas_allowance: Some(100),
+            injected_transactions: vec![],
+        };
+        let announce_hash = announce.to_hash();
+
         service.receive_announce_to_compute(announce, PromisePolicy::Disabled);
 
         assert_eq!(
