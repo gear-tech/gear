@@ -139,33 +139,30 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
         anyhow::bail!("Last committed announce not found in db for prepared block: {at_block}",);
     };
 
-    let not_committed_announces = super::utils::collect_not_committed_predecessors(
+    let pending = super::utils::collect_not_committed_predecessors(
         &db,
         last_committed_announce,
         head_announce_hash,
     )?;
-    // TODO !!!: These variable are dirty, make clearly
-    let final_announce = not_committed_announces
-        .last()
-        .cloned()
-        .unwrap_or(head_announce_hash);
-    let max_deep = not_committed_announces.len();
 
-    for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
+    let final_announce = pending.last().copied().unwrap_or(head_announce_hash);
+    let max_depth = pending.len() as u32;
+
+    for (depth, announce_hash) in pending.into_iter().enumerate() {
         let transitions = super::utils::announce_transitions(&db, announce_hash)?;
         let commitment = ChainCommitment {
             head_announce: announce_hash,
             transitions,
         };
 
-        if let Err(err) = batch_filler.include_chain_commitment(commitment, deep as u32) {
+        if let Err(err) = batch_filler.include_chain_commitment(commitment, depth as u32) {
             tracing::trace!(
                 "failed to include chain commitment for announce({announce_hash}) because of error={err}"
             );
-            return Ok((announce_hash, deep as u32));
+            return Ok((announce_hash, depth as u32));
         }
     }
-    Ok((final_announce, max_deep as u32))
+    Ok((final_announce, max_depth))
 }
 
 pub fn announce_transitions<DB: AnnounceStorageRO>(

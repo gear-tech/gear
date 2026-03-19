@@ -170,7 +170,7 @@ impl BatchCommitmentManager {
             .db
             .block_meta(block.hash)
             .codes_queue
-            .ok_or_else(|| anyhow!("..."))?
+            .ok_or_else(|| anyhow!("codes queue not found for block={}", block.hash))?
             .into_iter()
             .collect::<HashSet<_>>();
 
