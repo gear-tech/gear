@@ -1,3 +1,23 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2026 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Externalities implementation for ethexe runtime.
+
 use crate::RuntimeInterface;
 use alloc::collections::btree_set::BTreeSet;
 use core_processor::{
@@ -14,7 +34,7 @@ use gear_core::{
     pages::WasmPage,
     program::MemoryInfix,
 };
-use gear_core_errors::ExtError;
+use gear_core_errors::{ExtError, ReplyCode};
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError};
 use gprimitives::{ActorId, MessageId, ReservationId};
 
@@ -94,7 +114,7 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
             fn reply_to(&self) -> Result<MessageId, Self::FallibleError>;
             fn reply_push_input(&mut self, offset: u32, len: u32) -> Result<(), Self::FallibleError>;
             fn source(&self) -> Result<ActorId, Self::UnrecoverableError>;
-            fn reply_code(&self) -> Result<gear_core_errors::ReplyCode, Self::FallibleError>;
+            fn reply_code(&self) -> Result<ReplyCode, Self::FallibleError>;
             fn message_id(&self) -> Result<MessageId, Self::UnrecoverableError>;
             fn program_id(&self) -> Result<ActorId, Self::UnrecoverableError>;
             fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError>;
@@ -125,7 +145,7 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
         _: HandlePacket,
         _: u32,
     ) -> Result<MessageId, Self::FallibleError> {
-        unreachable!("reservation_send_commit syscall must be forbidden in ethexe runtime")
+        unreachable!("reservation_send_commit syscall is forbidden in ethexe runtime")
     }
 
     fn reservation_reply_commit(
@@ -133,23 +153,24 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
         _: ReservationId,
         _: ReplyPacket,
     ) -> Result<MessageId, Self::FallibleError> {
-        unreachable!("reservation_reply_commit syscall must be forbidden in ethexe runtime")
+        unreachable!("reservation_reply_commit syscall is forbidden in ethexe runtime")
     }
 
     fn signal_from(&self) -> Result<MessageId, Self::FallibleError> {
-        unreachable!("signal_from syscall must be forbidden in ethexe runtime")
+        unreachable!("signal_from syscall is forbidden in ethexe runtime")
     }
 
     fn signal_code(&self) -> Result<gear_core_errors::SignalCode, Self::FallibleError> {
-        unreachable!("signal_code syscall must be forbidden in ethexe runtime")
+        unreachable!("signal_code syscall is forbidden in ethexe runtime")
     }
 
     fn wait(&mut self) -> Result<(), Self::UnrecoverableError> {
-        unreachable!("wait syscall must be forbidden in ethexe runtime")
+        unreachable!("wait syscall is forbidden in ethexe runtime")
     }
 
     fn random(&self) -> Result<(&[u8], u32), Self::UnrecoverableError> {
-        unreachable!("random syscall must be forbidden in ethexe runtime +_+_+")
+        // TODO: #5238 implement random data generation in ethexe runtime
+        unreachable!("random syscall is forbidden in ethexe runtime")
     }
 
     fn create_program(
@@ -157,22 +178,23 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
         _: InitPacket,
         _: u32,
     ) -> Result<(MessageId, ActorId), Self::FallibleError> {
-        unreachable!("create_program syscall must be forbidden in ethexe runtime +_+_+")
+        // TODO: #5239 implement program creation in ethexe runtime
+        unreachable!("create_program syscall is forbidden in ethexe runtime")
     }
 
     fn reply_deposit(&mut self, _: MessageId, _: u64) -> Result<(), Self::FallibleError> {
-        unreachable!("reply_deposit syscall must be forbidden in ethexe runtime")
+        unreachable!("reply_deposit syscall is forbidden in ethexe runtime")
     }
     fn reserve_gas(&mut self, _: u64, _: u32) -> Result<ReservationId, Self::FallibleError> {
-        unreachable!("reserve_gas syscall must be forbidden in ethexe runtime")
+        unreachable!("reserve_gas syscall is forbidden in ethexe runtime")
     }
 
     fn unreserve_gas(&mut self, _: ReservationId) -> Result<u64, Self::FallibleError> {
-        unreachable!("unreserve_gas syscall must be forbidden in ethexe runtime")
+        unreachable!("unreserve_gas syscall is forbidden in ethexe runtime")
     }
 
     fn system_reserve_gas(&mut self, _: u64) -> Result<(), Self::FallibleError> {
-        unreachable!("system_reserve_gas syscall must be forbidden in ethexe runtime")
+        unreachable!("system_reserve_gas syscall is forbidden in ethexe runtime")
     }
 }
 
