@@ -743,7 +743,7 @@ start_node_loader() {
 	fi
 
 	for ((i = 0; i < NUM_VALIDATORS; i++)); do
-		ethexe_nodes+=" --ethexe-node ws://${NODE_CONTAINER_PREFIX}-${i}:$CONTAINER_RPC_PORT "
+		cmd+=" --ethexe-node ws://${NODE_CONTAINER_PREFIX}-${i}:$CONTAINER_RPC_PORT "
 	done
 
 	echo "Node-loader command: $cmd"
