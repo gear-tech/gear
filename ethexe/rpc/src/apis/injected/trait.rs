@@ -20,7 +20,7 @@ use ethexe_common::{
     HashOf,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedPromise,
+        SignedInjectedTransaction, SignedPromise,
     },
 };
 use jsonrpsee::{
@@ -54,4 +54,10 @@ pub trait Injected {
         &self,
         tx_hash: HashOf<InjectedTransaction>,
     ) -> RpcResult<Option<SignedPromise>>;
+
+    #[method(name = "getTransaction")]
+    async fn get_transaction(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> RpcResult<SignedInjectedTransaction>;
 }
