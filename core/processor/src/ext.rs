@@ -1225,7 +1225,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         if let Some(reimbursement) = reimburse {
             let current_gas_amount = self.gas_amount();
 
-            // Basically amount of the reseravtion and the cost for the hold duration.
+            // Basically amount of the reservation and the cost for the hold duration.
             let reimbursement_amount = self.cost_for_reservation(amount, reimbursement.duration());
             self.context
                 .gas_counter
@@ -2324,7 +2324,7 @@ mod tests {
                 .build(),
         );
 
-        // Check all the reseravations are in "existing" state.
+        // Check all the reservations are in "existing" state.
         assert!(
             ext.context
                 .gas_reserver
