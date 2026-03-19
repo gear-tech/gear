@@ -1439,47 +1439,7 @@ async fn call_gr_wait_is_forbidden() {
         "#
     );
 
-    let (_, code) = wat_to_wasm(wat.as_str());
-
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
-    let block1 = chain.blocks[1].to_simple();
-
-    let mut handler = setup_handler(processor.db.clone(), block1);
-    let actor_id = ActorId::from(0x10000);
-    handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
-            actor_id,
-            code_id,
-        }))
-        .expect("failed to create new program");
-    handler
-        .handle_mirror_event(
-            actor_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
-                ExecutableBalanceTopUpRequestedEvent {
-                    value: 350_000_000_000,
-                },
-            ),
-        )
-        .expect("failed to top up balance");
-    handler
-        .handle_mirror_event(
-            actor_id,
-            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
-                id: MessageId::from(1),
-                source: ActorId::from(10),
-                payload: vec![],
-                value: 0,
-                call_reply: false,
-            }),
-        )
-        .expect("failed to queue message");
-
-    let transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
-        .await
-        .unwrap();
-
+    let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
     let reply_code = transitions.current_messages()[0]
         .1
         .reply_details
@@ -1498,64 +1458,28 @@ async fn call_gr_wait_is_forbidden() {
 async fn call_wake_with_delay_is_unsupported() {
     init_logger();
 
-    let wat = format!(
-        r#"
-        (module
-            (import "env" "memory" (memory 1))
-            (import "env" "gr_wake" (func $wake (param i32 i32 i32)))
-            (export "init" (func $init))
-            (func $init
-                (call $wake (i32.const 0) (i32.const 20) (i32.const 0))
-                (if (i32.eqz (i32.load (i32.const 0x0)))
-                    (then nop)
-                    (else unreachable)
+    let get_wat = |delay: u32| {
+        format!(
+            r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (import "env" "gr_wake" (func $wake (param i32 i32 i32)))
+                (export "init" (func $init))
+                (func $init
+                    (call $wake (i32.const 0) (i32.const {delay}) (i32.const 0))
+                    (if (i32.eqz (i32.load (i32.const 0x0)))
+                        (then nop)
+                        (else unreachable)
+                    )
                 )
             )
+            "#
         )
-        "#
-    );
+    };
 
-    let (_, code) = wat_to_wasm(wat.as_str());
-
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
-    let block1 = chain.blocks[1].to_simple();
-
-    let mut handler = setup_handler(processor.db.clone(), block1);
-    let actor_id = ActorId::from(0x10000);
-    handler
-        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
-            actor_id,
-            code_id,
-        }))
-        .expect("failed to create new program");
-    handler
-        .handle_mirror_event(
-            actor_id,
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
-                ExecutableBalanceTopUpRequestedEvent {
-                    value: 350_000_000_000,
-                },
-            ),
-        )
-        .expect("failed to top up balance");
-    handler
-        .handle_mirror_event(
-            actor_id,
-            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
-                id: MessageId::from(1),
-                source: ActorId::from(10),
-                payload: vec![],
-                value: 0,
-                call_reply: false,
-            }),
-        )
-        .expect("failed to queue message");
-
-    let transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
-        .await
-        .unwrap();
-
+    // with delay != 0
+    let wat = get_wat(10);
+    let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
     let reply_code = transitions.current_messages()[0]
         .1
         .reply_details
@@ -1568,6 +1492,16 @@ async fn call_wake_with_delay_is_unsupported() {
         )),
         "Calling gr_wake with non-zero delay should lead to unreachable instruction"
     );
+
+    // with delay == 0
+    let wat = get_wat(0);
+    let transitions = simple_init_test(wat_to_wasm(&wat).1).await;
+    let reply_code = transitions.current_messages()[0]
+        .1
+        .reply_details
+        .expect("must be reply")
+        .to_reply_code();
+    assert_eq!(reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
 }
 
 #[tokio::test(flavor = "multi_thread")]
