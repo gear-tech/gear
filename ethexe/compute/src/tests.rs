@@ -27,72 +27,66 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_db::Database;
+use ethexe_processor::ValidCodeInfo;
 use futures::StreamExt;
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
-use std::{cell::RefCell, collections::BTreeMap};
 use tokio::sync::mpsc;
 
-thread_local! {
-    pub(crate) static PROCESSOR_RESULT: RefCell<FinalizedBlockTransitions> = const { RefCell::new(
-        FinalizedBlockTransitions {
-            transitions: Vec::new(),
-            states: BTreeMap::new(),
-            schedule: BTreeMap::new(),
-            program_creations: Vec::new(),
-        }
-    ) };
+// MockProcessor that implements ProcessorExt and always returns Ok with empty results
+#[derive(Clone, Default)]
+pub(crate) struct MockProcessor {
+    pub process_programs_result: Option<FinalizedBlockTransitions>,
+    pub process_codes_result: Option<ProcessedCodeInfo>,
 }
 
-// MockProcessor that implements ProcessorExt and always returns Ok with empty results
-#[derive(Clone)]
-pub(crate) struct MockProcessor;
+impl MockProcessor {
+    pub fn with_default_valid_code() -> Self {
+        Self {
+            process_programs_result: None,
+            process_codes_result: Some(ProcessedCodeInfo {
+                code_id: CodeId::zero(),
+                valid: Some(ValidCodeInfo {
+                    code: vec![],
+                    instrumented_code: InstrumentedCode::new(
+                        vec![],
+                        InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
+                    ),
+                    code_metadata: CodeMetadata::new(
+                        0,
+                        Default::default(),
+                        0.into(),
+                        None,
+                        gear_core::code::InstrumentationStatus::Instrumented {
+                            version: 0,
+                            code_len: 0,
+                        },
+                    ),
+                }),
+            }),
+        }
+    }
+}
 
 impl ProcessorExt for MockProcessor {
-    async fn process_announce(
+    async fn process_programs(
         &mut self,
         _executable: ExecutableData,
         _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
-        let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
-        PROCESSOR_RESULT.with_borrow_mut(|r| {
-            *r = FinalizedBlockTransitions {
-                transitions: vec![],
-                states: BTreeMap::new(),
-                schedule: BTreeMap::new(),
-                program_creations: vec![],
-            }
-        });
-
-        Ok(result)
+        Ok(self.process_programs_result.take().unwrap_or_default())
     }
 
-    fn process_upload_code(
-        &mut self,
-        code_and_id: CodeAndIdUnchecked,
-    ) -> Result<ProcessedCodeInfo> {
-        Ok(ProcessedCodeInfo {
-            code_id: code_and_id.code_id,
-            valid: Some(ethexe_processor::ValidCodeInfo {
-                code: code_and_id.code,
-                instrumented_code: InstrumentedCode::new(
-                    vec![],
-                    InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
-                ),
-                code_metadata: CodeMetadata::new(
-                    0,
-                    Default::default(),
-                    0.into(),
-                    None,
-                    gear_core::code::InstrumentationStatus::Instrumented {
-                        version: 0,
-                        code_len: 0,
-                    },
-                ),
-            }),
-        })
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+        Ok(self
+            .process_codes_result
+            .take()
+            .unwrap_or(ProcessedCodeInfo {
+                code_id: code_and_id.code_id,
+                valid: None,
+            }))
     }
 }
 
