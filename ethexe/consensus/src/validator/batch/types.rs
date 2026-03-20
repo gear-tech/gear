@@ -176,13 +176,6 @@ pub enum ValidationRejectReason {
     BatchDigestMismatch { expected: Digest, found: Digest },
     #[display("batch size limit exceeded")]
     BatchSizeLimitExceeded,
-    #[display(
-        "batch commitment head is not optimal: head={best_head:?}, requested={requested_head}"
-    )]
-    BatchCommitmentNotOptimal {
-        requested_head: HashOf<Announce>,
-        best_head: Option<HashOf<Announce>>,
-    },
 }
 
 #[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]

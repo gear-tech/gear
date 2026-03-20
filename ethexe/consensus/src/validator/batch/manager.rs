@@ -20,19 +20,21 @@ use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, V
 use crate::{
     announces,
     validator::{
-        batch::{filler::BatchFiller, utils},
+        batch::{filler::BatchFiller, types::BatchParts, utils},
         core::{ElectionRequest, MiddlewareWrapper},
     },
 };
 
+use alloy::sol_types::SolValue;
 use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ToDigest,
-    consensus::BatchCommitmentValidationRequest,
+    consensus::{BatchCommitmentValidationRequest, MAX_BATCH_SIZE_LIMIT},
     db::{AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, OnChainStorageRO},
     gear::{BatchCommitment, ChainCommitment, RewardsCommitment, ValidatorsCommitment},
 };
 use ethexe_db::Database;
+use ethexe_ethereum::abi::Gear;
 use hashbrown::HashSet;
 
 #[derive(derive_more::Debug, Clone)]
@@ -55,6 +57,13 @@ impl BatchCommitmentManager {
             db,
             middleware,
         }
+    }
+
+    /// This function sets new limits.
+    /// Used in tests for simulating a malicious producer behavior.
+    #[cfg(test)]
+    pub fn update_limits<R>(&mut self, mut f: impl FnMut(&mut BatchLimits) -> R) -> R {
+        f(&mut self.limits)
     }
 
     /// Creates a new [`BatchCommitment`] for producer.
@@ -95,6 +104,7 @@ impl BatchCommitmentManager {
             }
         }
 
+        // TODO: prioritize transitions over code commitments
         super::utils::try_include_chain_commitment(
             &self.db,
             block.hash,
@@ -122,8 +132,7 @@ impl BatchCommitmentManager {
             validators,
             rewards,
         } = &request;
-
-        let mut batch_filler = BatchFiller::new(self.limits.clone());
+        let mut batch_parts = BatchParts::default();
 
         if crate::utils::has_duplicates(codes.as_slice()) {
             return Ok(ValidationStatus::Rejected {
@@ -134,12 +143,7 @@ impl BatchCommitmentManager {
 
         if validators {
             match self.aggregate_validators_commitment(&block).await? {
-                Some(commitment) => {
-                    if let Err(err) = batch_filler.include_validators_commitment(commitment) {
-                        let reason = err.into();
-                        return Ok(ValidationStatus::Rejected { request, reason });
-                    }
-                }
+                Some(commitment) => batch_parts.validators_commitment = Some(commitment),
                 None => {
                     return Ok(ValidationStatus::Rejected {
                         request,
@@ -151,12 +155,7 @@ impl BatchCommitmentManager {
 
         if rewards {
             match self.aggregate_rewards_commitment(&block).await? {
-                Some(commitment) => {
-                    if let Err(err) = batch_filler.include_rewards_commitment(commitment) {
-                        let reason = err.into();
-                        return Ok(ValidationStatus::Rejected { request, reason });
-                    }
-                }
+                Some(commitment) => batch_parts.rewards_commitment = Some(commitment),
                 None => {
                     return Ok(ValidationStatus::Rejected {
                         request,
@@ -181,24 +180,15 @@ impl BatchCommitmentManager {
             });
         }
 
-        let code_commitments =
-            match super::utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
-                Ok(commitments) => commitments,
-                Err(CodeNotValidatedError(code_id)) => {
-                    return Ok(ValidationStatus::Rejected {
-                        request,
-                        reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
-                    });
-                }
-            };
-
-        for commitment in code_commitments {
-            if let Err(err) = batch_filler.include_code_commitment(commitment) {
-                tracing::trace!("failed to include all code commitments because of error={err}");
-                let reason = err.into();
-                return Ok(ValidationStatus::Rejected { request, reason });
+        match super::utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
+            Ok(commitments) => batch_parts.code_commitments = commitments,
+            Err(CodeNotValidatedError(code_id)) => {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
+                });
             }
-        }
+        };
 
         if let Some(announce) = head {
             // Head announce in validation request is best for `block`.
@@ -262,44 +252,25 @@ impl BatchCommitmentManager {
                 });
             }
             // Set firstly for current announce.
-            for (deep, announce_hash) in not_committed_announces.into_iter().enumerate() {
+            let mut chain_commitment = ChainCommitment {
+                transitions: Vec::new(),
+                head_announce: announce,
+            };
+            for announce_hash in not_committed_announces.into_iter() {
                 let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
-                let chain_commitment = ChainCommitment {
-                    head_announce: announce_hash,
-                    transitions,
-                };
-
-                if let Err(err) =
-                    batch_filler.include_chain_commitment(chain_commitment, deep as u32)
-                {
-                    tracing::trace!(
-                        "validate batch: failed to include chain commitment for announce({announce_hash}) because of error={err}"
-                    );
+                chain_commitment.transitions.extend(transitions);
+                // TODO: make it clearly
+                if announce_hash == announce {
                     break;
                 }
             }
-
-            let final_announce = batch_filler
-                .parts()
-                .chain_commitment
-                .as_ref()
-                .map(|c| c.head_announce);
-
-            if final_announce != Some(announce) {
-                return Ok(ValidationStatus::Rejected {
-                    request,
-                    reason: ValidationRejectReason::BatchCommitmentNotOptimal {
-                        best_head: final_announce,
-                        requested_head: announce,
-                    },
-                });
-            }
+            batch_parts.chain_commitment = Some(chain_commitment);
         }
 
         let Some(batch) = super::utils::create_batch_commitment(
             &self.db,
             &block,
-            batch_filler.into_parts(),
+            batch_parts,
             self.limits.commitment_delay_limit,
         )?
         else {
@@ -321,6 +292,14 @@ impl BatchCommitmentManager {
                     expected: digest,
                     found: batch_digest,
                 },
+            });
+        }
+
+        let batch_encoded_size = Gear::BatchCommitment::from(batch).abi_encoded_size();
+        if batch_encoded_size as u64 > MAX_BATCH_SIZE_LIMIT {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::BatchSizeLimitExceeded,
             });
         }
 

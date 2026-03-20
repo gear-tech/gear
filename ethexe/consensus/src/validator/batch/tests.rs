@@ -34,6 +34,7 @@ use ethexe_common::{
 };
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{CodeId, H256};
+use gsigner::ToDigest;
 
 fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
     match status {
@@ -294,11 +295,11 @@ async fn rejects_code_not_processed_yet() {
 }
 
 #[tokio::test]
-async fn rejects_not_optimal_commitment() {
+async fn rejects_batch_commitment_size_limit_exceeded() {
     gear_utils::init_default_logger();
     const BLOCKCHAIN_LEN: usize = 30;
 
-    let (ctx, _, _) = mock_validator_context();
+    let (mut ctx, _, _) = mock_validator_context();
 
     // Preparing transitions for announces chain.
     let mut blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32);
@@ -320,7 +321,7 @@ async fn rejects_not_optimal_commitment() {
         .announce;
     let block = blockchain.blocks[BLOCKCHAIN_LEN - 1].to_simple();
 
-    let batch_commitment = ctx
+    let batch = ctx
         .core
         .batch_manager
         .clone()
@@ -329,35 +330,9 @@ async fn rejects_not_optimal_commitment() {
         .unwrap()
         .unwrap();
 
-    let batch_announce = batch_commitment
-        .chain_commitment
-        .clone()
-        .unwrap()
-        .head_announce;
-    let maybe_announce_batch_index = (0..BLOCKCHAIN_LEN).find(|i| {
-        let announce_hash = blockchain.block_top_announce(*i).announce.to_hash();
-        announce_hash == batch_announce
-    });
-
-    let announce_batch_index =
-        maybe_announce_batch_index.expect("increase the blockchain len in test");
-
     {
-        // Add extra announce for batch chain commitment
-        let mut batch = batch_commitment.clone();
-
-        let extra_announce = blockchain
-            .block_top_announce(announce_batch_index + 1)
-            .announce
-            .to_hash();
-
-        let mut commitment = batch.chain_commitment.clone().unwrap();
-        commitment.head_announce = extra_announce;
-        commitment
-            .transitions
-            .extend(ctx.core.db.announce_outcome(extra_announce).unwrap());
-        batch.chain_commitment = Some(commitment);
-
+        // Batch is correct, expecting successful ValidationStatus
+        let expected_digest = batch.to_digest();
         let request = BatchCommitmentValidationRequest::new(&batch);
         let status = ctx
             .core
@@ -366,27 +341,31 @@ async fn rejects_not_optimal_commitment() {
             .validate_batch_commitment(block, request)
             .await
             .unwrap();
-        assert_eq!(
-            unwrap_rejected_reason(status),
-            ValidationRejectReason::BatchCommitmentNotOptimal {
-                requested_head: extra_announce,
-                best_head: Some(batch_announce)
-            }
-        )
+
+        assert_eq!(status, ValidationStatus::Accepted(expected_digest));
     }
 
     {
-        // Set invalid announce chain head.
-        let mut batch = batch_commitment.clone();
+        // Rebuilding batch with higher size_limits.
+        let previous_limits = ctx.core.batch_manager.update_limits(|limits| {
+            let old_limits = limits.clone();
+            limits.batch_size_limit = old_limits.batch_size_limit + 10_000_000;
+            old_limits
+        });
 
-        let earlier_announce = blockchain
-            .block_top_announce(announce_batch_index - 1)
-            .announce
-            .to_hash();
+        let batch = ctx
+            .core
+            .batch_manager
+            .clone()
+            .create_batch_commitment(block, announce.to_hash())
+            .await
+            .unwrap()
+            .unwrap();
 
-        let mut commitment = batch.chain_commitment.clone().unwrap();
-        commitment.head_announce = earlier_announce;
-        batch.chain_commitment = Some(commitment);
+        // Set previous limits for validation.
+        ctx.core
+            .batch_manager
+            .update_limits(|limits| limits.batch_size_limit = previous_limits.batch_size_limit);
 
         let request = BatchCommitmentValidationRequest::new(&batch);
         let status = ctx
@@ -396,13 +375,9 @@ async fn rejects_not_optimal_commitment() {
             .validate_batch_commitment(block, request)
             .await
             .unwrap();
-
         assert_eq!(
             unwrap_rejected_reason(status),
-            ValidationRejectReason::BatchCommitmentNotOptimal {
-                requested_head: earlier_announce,
-                best_head: Some(batch_announce)
-            }
+            ValidationRejectReason::BatchSizeLimitExceeded
         )
     }
 }
