@@ -17,204 +17,204 @@ publish = false
 # they have features like `runtime-benchmarks` and `try-runtime`
 # so we cannot, for example, run `cargo build -p gear-cli` without `--all-features`
 
-[dependencies.frame-executive]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.frame-executive]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.frame-support]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.frame-support]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 features = ["experimental"]
 
-[dependencies.frame-try-runtime]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.frame-try-runtime]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-authority-discovery]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-authority-discovery]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-authorship]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-authorship]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-babe]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-babe]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-bags-list]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-bags-list]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-balances]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-balances]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-bounties]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-bounties]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-child-bounties]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-child-bounties]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-conviction-voting]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-conviction-voting]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-election-provider-multi-phase]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-election-provider-multi-phase]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-grandpa]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-grandpa]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-identity]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-identity]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-im-online]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-im-online]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-multisig]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-multisig]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-nomination-pools]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-nomination-pools]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-offences]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-offences]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-preimage]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-preimage]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-proxy]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-proxy]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-ranked-collective]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-ranked-collective]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-referenda]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-referenda]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-scheduler]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-scheduler]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-session]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-session]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["historical", "std"]
 
-[dependencies.pallet-sudo]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-sudo]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-timestamp]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-timestamp]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-transaction-payment]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-transaction-payment]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-treasury]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-treasury]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-utility]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-utility]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-vesting]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-vesting]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.pallet-whitelist]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.pallet-whitelist]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["std"]
 
-[dependencies.sc-client-db]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.sc-client-db]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 default-features = false
 features = ["rocksdb", "test-helpers"]
 
-[dependencies.sc-service]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.sc-service]
 git = "https://github.com/gear-tech/polkadot-sdk.git"
 branch = "gear-polkadot-stable2409-wasm32v1-none"
 features = ["test-helpers"]
 
 ### BEGIN HAKARI SECTION
-[dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
@@ -326,7 +326,6 @@ jsonrpsee = { version = "0.24", default-features = false, features = ["client", 
 jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
 jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
-keccak = { version = "0.1", default-features = false, features = ["asm"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
 libp2p-identity = { version = "0.2", default-features = false, features = ["ed25519", "peerid", "rand", "secp256k1", "serde"] }
@@ -399,11 +398,10 @@ serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_v
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
-sha3 = { version = "0.10", features = ["asm"] }
+sha3 = { version = "0.10" }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
-socket2 = { version = "0.4", default-features = false, features = ["all"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
@@ -486,8 +484,9 @@ wasmtime-jit-debug = { version = "8", default-features = false, features = ["gdb
 wasmtime-runtime = { version = "8", default-features = false, features = ["async", "pooling-allocator"] }
 winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
+zstd-sys = { version = "2", default-features = false, features = ["legacy", "std", "zdict_builder"] }
 
-[build-dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
@@ -609,7 +608,6 @@ jsonrpsee = { version = "0.24", default-features = false, features = ["client", 
 jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
 jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
-keccak = { version = "0.1", default-features = false, features = ["asm"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
 libp2p-identity = { version = "0.2", default-features = false, features = ["ed25519", "peerid", "rand", "secp256k1", "serde"] }
@@ -684,11 +682,10 @@ serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_v
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
-sha3 = { version = "0.10", features = ["asm"] }
+sha3 = { version = "0.10" }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
-socket2 = { version = "0.4", default-features = false, features = ["all"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
@@ -774,6 +771,7 @@ wasmtime-jit-debug = { version = "8", default-features = false, features = ["gdb
 wasmtime-runtime = { version = "8", default-features = false, features = ["async", "pooling-allocator"] }
 winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
+zstd-sys = { version = "2", default-features = false, features = ["legacy", "std", "zdict_builder"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 crossbeam-epoch = { version = "0.9" }
@@ -781,7 +779,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -806,7 +804,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -832,7 +830,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -856,7 +854,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -881,7 +879,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
@@ -903,7 +901,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
+itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
