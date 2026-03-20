@@ -52,7 +52,9 @@ use ethexe_common::{
 use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::verifier::IntegrityVerifier;
-use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
+use ethexe_ethereum::{
+    TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
+};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, InjectedClient, RpcConfig};
@@ -3386,4 +3388,100 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     } else {
         unreachable!();
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn reply_callback() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_reply_callback::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, demo_reply_callback::WASM_BINARY);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.payload, b"");
+    assert_eq!(res.value, 0);
+
+    let program_id = res.program_id;
+
+    let provider = env.ethereum.provider();
+    let demo_caller = IDemoCaller::deploy(provider.clone(), program_id.into())
+        .await
+        .expect("deploying DemoCaller failed");
+
+    assert!(!demo_caller.replyOnMethodNameCalled().call().await.unwrap());
+
+    demo_caller
+        .methodName(false)
+        .send()
+        .await
+        .unwrap()
+        .try_get_receipt()
+        .await
+        .unwrap();
+
+    env.new_observer_events()
+        .filter_map_block_synced()
+        .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
+        .await;
+
+    assert!(demo_caller.replyOnMethodNameCalled().call().await.unwrap());
+
+    assert!(!demo_caller.onErrorReplyCalled().call().await.unwrap());
+
+    demo_caller
+        .methodName(true)
+        .send()
+        .await
+        .unwrap()
+        .try_get_receipt()
+        .await
+        .unwrap();
+
+    env.new_observer_events()
+        .filter_map_block_synced()
+        .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
+        .await;
+
+    assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
 }
