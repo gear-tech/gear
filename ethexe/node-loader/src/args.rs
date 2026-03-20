@@ -52,7 +52,7 @@ pub struct LoadParams {
     pub loader_seed: Option<u64>,
     #[arg(long)]
     pub code_seed_type: Option<SeedVariant>,
-    /// Desirable amount of workers in task pool (max 48).
+    /// Desirable amount of workers in task pool, bounded by available prebuilt Anvil accounts.
     #[arg(long, short, default_value = "1")]
     pub workers: usize,
     #[arg(long, short, default_value = "1")]

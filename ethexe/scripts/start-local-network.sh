@@ -490,7 +490,7 @@ start_anvil() {
 		--host 0.0.0.0 \
 		--port 8545 \
 		--block-time "$ANVIL_BLOCK_TIME" \
-		--accounts 72 \
+		--accounts 256 \
 		--mnemonic "test test test test test test test test test test test junk" \
 		>/dev/null
 
