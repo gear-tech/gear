@@ -25,7 +25,7 @@ extern crate alloc;
 use crate::journal::{Limiter, LimitsStatus};
 use alloc::vec::Vec;
 use core_processor::{
-    ContextCharged, Ext, ProcessExecutionContext,
+    ContextCharged, ProcessExecutionContext,
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
 };
@@ -34,6 +34,7 @@ use ethexe_common::{
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
     injected::Promise,
 };
+use ext::Ext;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
     gas::GasAllowanceCounter,
@@ -50,12 +51,13 @@ use parity_scale_codec::{Decode, Encode};
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
-pub use journal::NativeJournalHandler as JournalHandler;
+pub use journal::{NativeJournalHandler as JournalHandler, WAIT_UP_TO_SAFE_DURATION};
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
 pub mod state;
 
+mod ext;
 mod journal;
 mod schedule;
 mod transitions;
@@ -150,7 +152,7 @@ impl<S: Storage + ?Sized> TransitionController<'_, S> {
 
 pub fn process_queue<RI>(mut ctx: ProcessQueueContext, ri: &RI) -> (ProgramJournals, u64)
 where
-    RI: RuntimeInterface,
+    RI: RuntimeInterface + 'static,
     RI::LazyPages: Send,
 {
     let mut program_state = ri.program_state(ctx.state_root).unwrap();
@@ -197,6 +199,7 @@ where
             SyscallName::SendWGas,
             SyscallName::SystemReserveGas,
             SyscallName::UnreserveGas,
+            SyscallName::Wait,
             // TBD about deprecation
             SyscallName::SignalCode,
             SyscallName::SignalFrom,
@@ -339,7 +342,7 @@ fn process_dispatch<RI>(
     ri: &RI,
 ) -> Vec<JournalNote>
 where
-    RI: RuntimeInterface,
+    RI: RuntimeInterface + 'static,
     RI::LazyPages: Send,
 {
     let Dispatch {
@@ -456,7 +459,7 @@ where
 
     let random_data = ri.random_data();
 
-    core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
+    core_processor::process::<Ext<RI>>(block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))
 }
 
