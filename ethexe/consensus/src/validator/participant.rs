@@ -20,7 +20,8 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::core::ValidationStatus};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::batch::ValidationStatus};
+
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -178,8 +179,9 @@ impl Participant {
             future: self
                 .ctx
                 .core
+                .batch_manager
                 .clone()
-                .validate_batch_commitment_request(self.block, request)
+                .validate_batch_commitment(self.block, request)
                 .boxed(),
         };
 
@@ -191,7 +193,12 @@ impl Participant {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{Digest, ToDigest, gear::CodeCommitment, mock::*};
+    use ethexe_common::{
+        Digest, ToDigest,
+        db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRW},
+        gear::CodeCommitment,
+        mock::*,
+    };
 
     #[test]
     fn create() {
@@ -207,6 +214,8 @@ mod tests {
 
     #[tokio::test]
     async fn create_with_pending_events() {
+        gear_utils::init_default_logger();
+
         let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
@@ -343,17 +352,25 @@ mod tests {
     #[tokio::test]
     async fn empty_batch_error() {
         let (ctx, pub_keys, _) = mock_validator_context();
+        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-        // Create a request with empty blocks and codes
-        let request = BatchCommitmentValidationRequest {
-            digest: Digest::random(),
-            head: None,
-            codes: vec![],
-            rewards: false,
-            validators: false,
-        };
+        let mut announce_hash = batch.chain_commitment.clone().unwrap().head_announce;
+        batch.code_commitments = Default::default();
+        let request = BatchCommitmentValidationRequest::new(&batch);
+
+        // Nullify the codes in database
+        ctx.core.db.mutate_block_meta(block.hash, |meta| {
+            meta.codes_queue = Some(Default::default())
+        });
+        // Nullify the transitions in database
+        for _ in 0..2 {
+            announce_hash = ctx.core.db.announce(announce_hash).unwrap().parent;
+            ctx.core
+                .db
+                .set_announce_outcome(announce_hash, Default::default());
+        }
 
         let verified_request = ctx
             .core
