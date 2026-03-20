@@ -137,9 +137,19 @@ impl ConnectService {
         producer: Address,
     ) -> Result<()> {
         if let Some(announce) = self.pending_announces.pop(&(producer, block.hash)) {
+            tracing::trace!(
+                block = %block.hash,
+                producer = %producer,
+                "Announce for current block has been already received, process it immediately"
+            );
             self.process_announce_from_producer(announce, producer)?;
             self.state = State::WaitingForBlock;
         } else {
+            tracing::trace!(
+                block = %block.hash,
+                producer = %producer,
+                "Announce for current block has not been received yet, wait for it"
+            );
             self.state = State::WaitingForAnnounce { block, producer };
         }
 
@@ -276,10 +286,19 @@ impl ConsensusService for ConnectService {
             && sender == *producer
             && announce.block_hash == block.hash
         {
+            tracing::trace!(
+                producer = %producer,
+                ?announce,
+                "Received announce from producer, process it immediately"
+            );
             self.process_announce_from_producer(announce, *producer)?;
             self.state = State::WaitingForBlock;
         } else {
-            tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
+            tracing::warn!(
+                sender = %sender,
+                ?announce,
+                "Receive unexpected announce, save to pending announces"
+            );
             self.pending_announces
                 .push((sender, announce.block_hash), announce);
         }

@@ -267,6 +267,12 @@ impl ValidatorCore {
             era_index: block_era + 1,
         };
 
+        tracing::info!(
+            block = %block.hash,
+            ?commitment,
+            "Aggregated validators commitment for next era"
+        );
+
         Ok(Some(commitment))
     }
 
