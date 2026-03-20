@@ -5399,9 +5399,11 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "auto_impl",
+ "delegate",
  "derive_more 2.1.1",
  "ethexe-common",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-common",

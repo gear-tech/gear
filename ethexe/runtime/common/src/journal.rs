@@ -24,6 +24,10 @@ use gear_core_errors::SignalCode;
 use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 use gsys::GasMultiplier;
 
+/// Maximum duration for gr_wait_up_to in blocks,
+/// when not enough gas was provided for the requested duration.
+pub const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
+
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {
     pub program_id: ActorId,
@@ -284,11 +288,20 @@ impl<S: Storage + ?Sized> JournalHandler for NativeJournalHandler<'_, S> {
         &mut self,
         dispatch: StoredDispatch,
         duration: Option<u32>,
-        _waited_type: MessageWaitedType,
+        waited_type: MessageWaitedType,
     ) {
-        let Some(duration) = duration else {
-            todo!("Wait dispatch without specified duration");
+        let Some(mut duration) = duration else {
+            unreachable!("Wait dispatch without specified duration is forbidden in ethexe runtime");
         };
+
+        match waited_type {
+            MessageWaitedType::Wait => unreachable!("gr_wait is forbidden in ethexe runtime"),
+            MessageWaitedType::WaitUpTo => {
+                // If not gas was not enough for duration, we use safe duration as max
+                duration = duration.min(WAIT_UP_TO_SAFE_DURATION);
+            }
+            MessageWaitedType::WaitFor | MessageWaitedType::WaitUpToFull => {}
+        }
 
         let in_blocks =
             NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
@@ -335,7 +348,7 @@ impl<S: Storage + ?Sized> JournalHandler for NativeJournalHandler<'_, S> {
         delay: u32,
     ) {
         if delay != 0 {
-            todo!("Delayed wake message");
+            unreachable!("delayed wake is forbidden in ethexe runtime");
         }
 
         log::trace!("Dispatch {message_id} tries to wake {awakening_id}");
