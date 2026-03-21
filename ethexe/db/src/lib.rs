@@ -24,14 +24,19 @@ use gprimitives::H256;
 mod database;
 pub mod iterator;
 mod mem;
+mod migrations;
 mod overlay;
 mod rocks;
 pub mod verifier;
 pub mod visitor;
 
-pub use database::{Database, RawDatabase, VERSION};
+pub use database::{Database, RawDatabase};
 pub use mem::MemDb;
+pub use migrations::{InitConfig, LATEST_VERSION as VERSION, initialize_db};
 pub use rocks::RocksDatabase;
+
+#[cfg(feature = "mock")]
+pub use migrations::create_initialized_empty_memory_db;
 
 pub fn hash(data: &[u8]) -> H256 {
     utils::hash(data).into()
