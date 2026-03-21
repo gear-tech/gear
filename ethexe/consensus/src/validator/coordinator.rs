@@ -24,7 +24,7 @@ use crate::{
 use anyhow::{Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
-    Address, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
+    Address, SimpleBlockData, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
     gear::BatchCommitment, network::ValidatorMessage,
 };
 use futures::FutureExt;
@@ -84,6 +84,7 @@ impl Coordinator {
         mut ctx: ValidatorContext,
         validators: ValidatorsVec,
         batch: BatchCommitment,
+        block: SimpleBlockData,
     ) -> Result<ValidatorState> {
         ensure!(
             validators.len() as u64 >= ctx.core.signatures_threshold,
@@ -101,6 +102,11 @@ impl Coordinator {
             ctx.core.router_address,
             ctx.core.pub_key,
         )?;
+
+        ctx.core
+            .metrics
+            .last_signed_commitment_block_number
+            .set(block.header.height);
 
         if multisigned_batch.signatures().len() as u64 >= ctx.core.signatures_threshold {
             return Self::submission(ctx, multisigned_batch);
@@ -160,7 +166,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{ToDigest, ValidatorsVec};
+    use ethexe_common::{ToDigest, ValidatorsVec, mock::*};
     use gprimitives::H256;
     use nonempty::NonEmpty;
 
@@ -175,9 +181,13 @@ mod tests {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-        let batch = BatchCommitment::default();
+        let block = SimpleBlockData::mock(());
+        let batch = BatchCommitment {
+            block_hash: block.hash,
+            ..Default::default()
+        };
 
-        let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
+        let coordinator = Coordinator::create(ctx, validators, batch, block).unwrap();
         assert!(coordinator.is_coordinator());
         coordinator.context().output[0]
             .clone()
@@ -192,9 +202,9 @@ mod tests {
         let validators =
             NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
-
+        let block = SimpleBlockData::mock(());
         assert!(
-            Coordinator::create(ctx, validators.into(), batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch, block).is_err(),
             "Expected an error, but got Ok"
         );
     }
@@ -206,9 +216,10 @@ mod tests {
         let validators =
             NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
+        let block = SimpleBlockData::mock(());
 
         assert!(
-            Coordinator::create(ctx, validators.into(), batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch, block).is_err(),
             "Expected an error due to zero threshold, but got Ok"
         );
     }
@@ -220,7 +231,11 @@ mod tests {
         let validators =
             NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
 
-        let batch = BatchCommitment::default();
+        let block = SimpleBlockData::mock(());
+        let batch = BatchCommitment {
+            block_hash: block.hash,
+            ..Default::default()
+        };
         let digest = batch.to_digest();
 
         let reply1 = ctx
@@ -244,7 +259,7 @@ mod tests {
             .signer
             .validation_reply(keys[2], ctx.core.router_address, digest);
 
-        let mut coordinator = Coordinator::create(ctx, validators.into(), batch).unwrap();
+        let mut coordinator = Coordinator::create(ctx, validators.into(), batch, block).unwrap();
         assert!(coordinator.is_coordinator());
         coordinator.context().output[0]
             .clone()
