@@ -91,10 +91,12 @@ pub struct NodeParams {
     #[serde(rename = "block-gas-limit")]
     pub block_gas_limit: Option<u64>,
 
+    /// Batch size limit for the node.
     #[arg(long)]
     #[serde(rename = "batch-size-limit")]
     pub batch_size_limit: Option<u64>,
 
+    /// Quarantine for canonical (Ethereum) messages.
     #[arg(long)]
     #[serde(rename = "canonical-quarantine")]
     pub canonical_quarantine: Option<u8>,
