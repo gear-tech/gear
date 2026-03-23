@@ -18,8 +18,7 @@
 
 //! Validator core utils and parameters.
 
-use crate::validator::{batch::BatchCommitmentManager, tx_pool::InjectedTxPool};
-
+use crate::validator::{ValidatorMetrics, batch::BatchCommitmentManager, tx_pool::InjectedTxPool};
 use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_common::{
@@ -54,6 +53,8 @@ pub struct ValidatorCore {
     pub injected_pool: InjectedTxPool,
     #[debug(skip)]
     pub batch_manager: BatchCommitmentManager,
+    #[debug(skip)]
+    pub metrics: ValidatorMetrics,
 
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
     pub chain_deepness_threshold: u32,
@@ -78,6 +79,7 @@ impl Clone for ValidatorCore {
             committer: self.committer.clone_boxed(),
             batch_manager: self.batch_manager.clone(),
             injected_pool: self.injected_pool.clone(),
+            metrics: self.metrics.clone(),
             chain_deepness_threshold: self.chain_deepness_threshold,
             block_gas_limit: self.block_gas_limit,
             commitment_delay_limit: self.commitment_delay_limit,

@@ -167,6 +167,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             committer: Box::new(ethereum.clone()),
             batch_manager,
             injected_pool: InjectedTxPool::new(db.clone()),
+            metrics: ValidatorMetrics::default(),
             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             producer_delay: Duration::from_millis(1),

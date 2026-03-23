@@ -5136,6 +5136,8 @@ dependencies = [
  "gsigner",
  "hashbrown 0.14.5",
  "lru 0.16.3",
+ "metrics",
+ "metrics-derive",
  "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
