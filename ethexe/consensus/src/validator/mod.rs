@@ -147,6 +147,7 @@ impl ValidatorService {
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
                 injected_pool: InjectedTxPool::new(db),
+                metrics: ValidatorMetrics::default(),
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
@@ -578,4 +579,11 @@ impl ValidatorContext {
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {
         self.pending_events.push_front(event.into());
     }
+}
+
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_consensus")]
+struct ValidatorMetrics {
+    /// The last block number validator signed batch commitment for.
+    pub last_signed_commitment_block_number: metrics::Gauge,
 }

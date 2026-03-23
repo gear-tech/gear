@@ -45,11 +45,7 @@ impl Mock<H256> for SimpleBlockData {
     fn mock(parent_hash: H256) -> Self {
         SimpleBlockData {
             hash: H256::random(),
-            header: BlockHeader {
-                height: 43,
-                timestamp: 120,
-                parent_hash,
-            },
+            header: BlockHeader::mock(parent_hash),
         }
     }
 }
@@ -57,6 +53,22 @@ impl Mock<H256> for SimpleBlockData {
 impl Mock<()> for SimpleBlockData {
     fn mock(_args: ()) -> Self {
         SimpleBlockData::mock(H256::random())
+    }
+}
+
+impl Mock<H256> for BlockHeader {
+    fn mock(parent_hash: H256) -> Self {
+        Self {
+            height: 43,
+            timestamp: 120,
+            parent_hash,
+        }
+    }
+}
+
+impl Mock<()> for BlockHeader {
+    fn mock(_args: ()) -> Self {
+        Self::mock(H256::random())
     }
 }
 

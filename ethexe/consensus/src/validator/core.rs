@@ -21,7 +21,7 @@
 use crate::{
     announces,
     utils::{self, CodeNotValidatedError},
-    validator::tx_pool::InjectedTxPool,
+    validator::{ValidatorMetrics, tx_pool::InjectedTxPool},
 };
 use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
@@ -61,6 +61,8 @@ pub struct ValidatorCore {
     pub middleware: MiddlewareWrapper,
     #[debug(skip)]
     pub injected_pool: InjectedTxPool,
+    #[debug(skip)]
+    pub metrics: ValidatorMetrics,
 
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
     pub chain_deepness_threshold: u32,
@@ -85,6 +87,7 @@ impl Clone for ValidatorCore {
             committer: self.committer.clone_boxed(),
             middleware: self.middleware.clone(),
             injected_pool: self.injected_pool.clone(),
+            metrics: self.metrics.clone(),
             chain_deepness_threshold: self.chain_deepness_threshold,
             block_gas_limit: self.block_gas_limit,
             commitment_delay_limit: self.commitment_delay_limit,
