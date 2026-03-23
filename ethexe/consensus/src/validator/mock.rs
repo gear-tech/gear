@@ -21,11 +21,8 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
-    db::*,
-    ecdsa::ContractSignature,
-    gear::BatchCommitment,
-    mock::*,
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::*, ecdsa::ContractSignature,
+    gear::BatchCommitment, mock::*,
 };
 use hashbrown::HashMap;
 use std::sync::Arc;
