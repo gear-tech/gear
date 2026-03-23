@@ -4,6 +4,7 @@ log/
 weight-dumps/
 gsdk/vara_runtime_prod.scale
 *.meta.txt
+.vscode
 
 # cargo
 target/
