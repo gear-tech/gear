@@ -358,6 +358,20 @@ impl RawDatabase {
             cas: cas.clone_boxed(),
         }
     }
+
+    /// Constructs a raw overlaid database,
+    /// which stores all changed made into it
+    /// inside memory without changing the
+    /// underlying database.
+    ///
+    /// Primary used to check test migrations
+    /// without possibly breaking the database.
+    pub fn overlaid(self) -> Self {
+        Self {
+            cas: Box::new(CASOverlay::new(self.cas)),
+            kv: Box::new(KVOverlay::new(self.kv)),
+        }
+    }
 }
 
 impl AnnounceStorageRO for RawDatabase {

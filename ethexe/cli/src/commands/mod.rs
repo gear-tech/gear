@@ -52,7 +52,7 @@ impl Command {
             Self::Key(key_cmd) => Self::Key(key_cmd.with_params(file_params)),
             Self::Run(run_cmd) => Self::Run(Box::new(run_cmd.with_params(file_params))),
             Self::Tx(tx_cmd) => Self::Tx(tx_cmd.with_params(file_params)),
-            Self::Check(check_cmd) => Self::Check(check_cmd),
+            Self::Check(check_cmd) => Self::Check(check_cmd.with_params(file_params)),
         }
     }
 
