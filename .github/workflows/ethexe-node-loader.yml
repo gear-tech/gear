@@ -1,0 +1,216 @@
+name: Ethexe node-loader
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: "PR number to checkout (leave empty to use the default branch)"
+        required: false
+        type: string
+      duration-minutes:
+        description: "How long to run the node-loader test (minutes)"
+        required: true
+        default: "30"
+        type: string
+      num-validators:
+        description: "Number of validator nodes"
+        required: false
+        default: "3"
+        type: string
+      node-loader-workers:
+        description: "Node-loader worker count"
+        required: false
+        default: "3"
+        type: string
+      node-loader-batch-size:
+        description: "Node-loader batch size"
+        required: false
+        default: "5"
+        type: string
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      timeout: ${{ steps.calc.outputs.timeout }}
+    steps:
+      - id: calc
+        run: echo "timeout=$(( ${{ inputs.duration-minutes }} + 30 ))" >> "$GITHUB_OUTPUT"
+
+  ethexe-node-loader:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(needs.prepare.outputs.timeout) }}
+    steps:
+      - name: "Checkout: default branch"
+        if: ${{ inputs.pr-number == '' }}
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: "Checkout: PR #${{ inputs.pr-number }}"
+        if: ${{ inputs.pr-number != '' }}
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: refs/pull/${{ inputs.pr-number }}/merge
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+
+      - name: "Install: Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: "Build: ethexe CLI"
+        run: cargo build --release --locked -p ethexe-cli
+
+      - name: "Build: ethexe-node-loader"
+        run: cargo build --release --locked -p ethexe-node-loader
+
+      - name: "node-loader: Start local network + node-loader"
+        id: node-loader
+        run: |
+          ARGS=(
+            --num-validators "${{ inputs.num-validators }}"
+            --node-loader
+            --node-loader-workers "${{ inputs.node-loader-workers }}"
+            --node-loader-batch-size "${{ inputs.node-loader-batch-size }}"
+            --cleanup-data true
+          )
+
+          # Run the local network script in the background
+          ./ethexe/scripts/start-local-network.sh "${ARGS[@]}" &
+          NETWORK_PID=$!
+          echo "network_pid=$NETWORK_PID" >> "$GITHUB_OUTPUT"
+
+          # Give the network time to start, deploy contracts, etc.
+          echo "Waiting for local network to be ready..."
+          READY=false
+          for i in $(seq 1 120); do
+            # Check if the script is still running
+            if ! kill -0 "$NETWORK_PID" 2>/dev/null; then
+              echo "::error::Local network script exited prematurely"
+              exit 1
+            fi
+            # Check if anvil is responding
+            if docker exec ethexe-anvil sh -lc "cast block-number --rpc-url http://127.0.0.1:8545" >/dev/null 2>&1; then
+              # Check that at least one ethexe node container is running
+              if docker ps --format '{{.Names}}' | grep -q "ethexe-node-0"; then
+                READY=true
+                break
+              fi
+            fi
+            sleep 2
+          done
+
+          if [[ "$READY" != "true" ]]; then
+            echo "::error::Local network failed to become ready within timeout"
+            # Dump anvil logs for debugging
+            docker logs ethexe-anvil 2>&1 | tail -50 || true
+            kill "$NETWORK_PID" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Local network is ready. Running node-loader for ${{ inputs.duration-minutes }} minutes..."
+
+          DURATION_SECONDS=$(( ${{ inputs.duration-minutes }} * 60 ))
+
+          # Let the node-loader run for the requested duration
+          sleep "$DURATION_SECONDS" &
+          SLEEP_PID=$!
+
+          # Monitor for failures while waiting
+          while kill -0 "$SLEEP_PID" 2>/dev/null; do
+            # Check node-loader container health
+            if docker ps --format '{{.Names}}' | grep -q "ethexe-node-loader"; then
+              # Container running — check if it exited with error
+              STATUS=$(docker inspect --format='{{.State.Status}}' ethexe-node-loader 2>/dev/null || echo "running")
+              if [[ "$STATUS" == "exited" ]]; then
+                EXIT_CODE=$(docker inspect --format='{{.State.ExitCode}}' ethexe-node-loader 2>/dev/null || echo "0")
+                if [[ "$EXIT_CODE" != "0" ]]; then
+                  echo "::error::Node-loader exited with code $EXIT_CODE"
+                  docker logs ethexe-node-loader 2>&1 | tail -200
+                  kill "$SLEEP_PID" 2>/dev/null || true
+                  kill "$NETWORK_PID" 2>/dev/null || true
+                  exit 1
+                fi
+              fi
+            fi
+
+            # Check that network script is still alive
+            if ! kill -0 "$NETWORK_PID" 2>/dev/null; then
+              echo "::error::Network script died unexpectedly"
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          echo "node-loader duration complete. Collecting results..."
+
+      - name: "Collect: Node logs"
+        if: always()
+        run: |
+          mkdir -p logs
+          for name in $(docker ps -a --format '{{.Names}}' | grep -E 'ethexe-(node|anvil|node-loader)' | sort); do
+            echo "Collecting logs for $name..."
+            docker logs "$name" > "logs/${name}.log" 2>&1 || true
+          done
+
+      - name: "Upload: Logs"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ethexe-node-loader-logs
+          path: logs/
+          retention-days: 14
+
+      - name: "Cleanup"
+        if: always()
+        run: |
+          # Stop all ethexe containers
+          docker ps -a --format '{{.Names}}' | grep -E '^ethexe-' | xargs -r docker rm -f || true
+          docker network rm ethexe-local-net 2>/dev/null || true
+          # Kill the network script if still running
+          if [[ -n "${NETWORK_PID:-}" ]] && kill -0 "$NETWORK_PID" 2>/dev/null; then
+            kill "$NETWORK_PID" 2>/dev/null || true
+          fi
+
+      - name: "Check: Validate logs for errors"
+        if: always()
+        run: |
+          FAILED=false
+          for log in logs/ethexe-node-*.log; do
+            [ -f "$log" ] || continue
+            if grep -qiE 'panic|fatal|CRITICAL' "$log"; then
+              echo "::error::Critical error found in $(basename "$log")"
+              grep -iE 'panic|fatal|CRITICAL' "$log" | head -20
+              FAILED=true
+            fi
+          done
+
+          if [[ -f "logs/ethexe-node-loader.log" ]]; then
+            if grep -qiE 'panic|fatal' "logs/ethexe-node-loader.log"; then
+              echo "::error::Critical error found in node-loader logs"
+              grep -iE 'panic|fatal' "logs/ethexe-node-loader.log" | head -20
+              FAILED=true
+            fi
+          fi
+
+          if [[ "$FAILED" == "true" ]]; then
+            echo "::error::node-loader run detected critical errors. See uploaded logs for details."
+            exit 1
+          fi
+
+          echo "No critical errors detected in logs."
