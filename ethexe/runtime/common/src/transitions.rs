@@ -23,12 +23,10 @@ use alloc::{
 use anyhow::{Result, anyhow};
 use core::num::NonZero;
 use ethexe_common::{
-    HashOf, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
+    ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
-    injected::Promise,
 };
-use gear_core::rpc::ReplyInfo;
-use gprimitives::{ActorId, CodeId, H256, MessageId};
+use gprimitives::{ActorId, CodeId, H256};
 
 /// In-memory store for the state transitions
 /// that are going to be applied in the current block.
@@ -46,11 +44,6 @@ pub struct InBlockTransitions {
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
     program_creations: BTreeMap<ActorId, CodeId>,
-
-    /// The set of injected messages to track replies for.
-    injected_messages: BTreeSet<MessageId>,
-    /// Replies for injected messages, in the order of processing.
-    injected_replies: Vec<(MessageId, ReplyInfo)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -58,22 +51,15 @@ pub struct FinalizedBlockTransitions {
     pub transitions: Vec<StateTransition>,
     pub states: ProgramStates,
     pub schedule: Schedule,
-    pub promises: Vec<Promise>,
     pub program_creations: Vec<(ActorId, CodeId)>,
 }
 
 impl InBlockTransitions {
-    pub fn new(
-        block_height: u32,
-        states: ProgramStates,
-        schedule: Schedule,
-        injected_messages: impl IntoIterator<Item = MessageId>,
-    ) -> Self {
+    pub fn new(block_height: u32, states: ProgramStates, schedule: Schedule) -> Self {
         Self {
             block_height,
             states,
             schedule,
-            injected_messages: injected_messages.into_iter().collect(),
             ..Default::default()
         }
     }
@@ -103,6 +89,10 @@ impl InBlockTransitions {
             .iter()
             .flat_map(|(id, trans)| trans.messages.iter().map(|message| (*id, message.clone())))
             .collect()
+    }
+
+    pub fn modifications_len(&self) -> usize {
+        self.modifications.len()
     }
 
     pub fn take_actual_tasks(&mut self) -> BTreeSet<ScheduledTask> {
@@ -146,13 +136,6 @@ impl InBlockTransitions {
 
     pub fn registered_programs(&self) -> &BTreeMap<ActorId, CodeId> {
         &self.program_creations
-    }
-
-    /// Handles new reply for injected transaction.
-    pub fn maybe_store_injected_reply(&mut self, message_id: MessageId, reply: ReplyInfo) {
-        if self.injected_messages.contains(&message_id) {
-            self.injected_replies.push((message_id, reply));
-        }
     }
 
     pub fn modify_state(
@@ -216,19 +199,9 @@ impl InBlockTransitions {
             states,
             schedule,
             modifications,
-            injected_replies,
             program_creations,
             ..
         } = self;
-
-        let promises = injected_replies
-            .into_iter()
-            .map(|(message_id, reply)| {
-                // SAFETY: message_id for injected transaction is created from its hash bytes.
-                let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
-                Promise { tx_hash, reply }
-            })
-            .collect();
 
         let mut transitions = Vec::with_capacity(modifications.len());
 
@@ -256,13 +229,22 @@ impl InBlockTransitions {
             transitions,
             states,
             schedule,
-            promises,
             program_creations: program_creations.into_iter().collect(),
         }
     }
 
     pub fn block_height(&self) -> u32 {
         self.block_height
+    }
+
+    #[cfg(feature = "mock")]
+    pub fn modifications_mut(&mut self) -> &mut BTreeMap<ActorId, NonFinalTransition> {
+        &mut self.modifications
+    }
+
+    #[cfg(feature = "mock")]
+    pub fn block_height_mut(&mut self) -> &mut u32 {
+        &mut self.block_height
     }
 }
 

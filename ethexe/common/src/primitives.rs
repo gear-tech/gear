@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest,
-    events::BlockEvent,
-    injected::{Promise, SignedInjectedTransaction},
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent,
+    injected::SignedInjectedTransaction,
 };
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -130,23 +129,14 @@ impl ToDigest for Announce {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComputedAnnounce {
-    pub announce_hash: HashOf<Announce>,
-    pub promises: Vec<Promise>,
-}
-
-impl ComputedAnnounce {
-    pub fn from_announce_hash(announce_hash: HashOf<Announce>) -> Self {
-        Self {
-            announce_hash,
-            promises: Default::default(),
-        }
-    }
-
-    pub fn merge_promises(&mut self, other: ComputedAnnounce) {
-        self.promises.extend(other.promises);
-    }
+/// [`PromisePolicy`] tells processor whether should it emits promises or not.
+#[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Encode, Decode, derive_more::IsVariant)]
+pub enum PromisePolicy {
+    /// Emits promises in execution process.
+    Enabled,
+    // Do not emit promises in execution process.
+    #[default]
+    Disabled,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
@@ -230,14 +220,16 @@ impl CodeAndId {
 /// for example `max_validators` in election.
 #[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ProtocolTimelines {
-    // The genesis timestamp of the GearExe network.
+    // The genesis timestamp of the GearExe network in seconds.
     pub genesis_ts: u64,
     // The duration of an era in seconds.
     pub era: u64,
-    // The election duration in seconds before the end of an era when the next set of validators elected.
+    /// The election duration in seconds before the end of an era when the next set of validators elected.
     ///  (start of era)[ - - - - - - - - - - -  + - - - - ] (end of era)
     ///                                         ^ election
     pub election: u64,
+    /// The slot duration in seconds.
+    pub slot: u64,
 }
 
 impl ProtocolTimelines {
@@ -289,6 +281,7 @@ mod tests {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era
@@ -308,6 +301,7 @@ mod tests {
             genesis_ts: 100,
             era: 234,
             election: 200,
+            slot: 10,
         }
         .era_from_ts(50);
     }
@@ -318,6 +312,7 @@ mod tests {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era

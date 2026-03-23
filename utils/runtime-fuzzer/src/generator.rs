@@ -133,8 +133,10 @@ impl GearCallsGenerator<'_> {
     //
     // Increasing these constants requires resetting minimal
     // size of fuzzer input buffer in corresponding scripts.
-    pub(crate) const MAX_UPLOAD_PROGRAM_CALLS: usize = 10;
-    pub(crate) const MAX_SEND_MESSAGE_CALLS: usize = 15;
+    //
+    // Reduced from 10/15/1/1 to fix timeout issues (was causing 150-300+s test runs).
+    pub(crate) const MAX_UPLOAD_PROGRAM_CALLS: usize = 5;
+    pub(crate) const MAX_SEND_MESSAGE_CALLS: usize = 8;
     pub(crate) const MAX_SEND_REPLY_CALLS: usize = 1;
     pub(crate) const MAX_CLAIM_VALUE_CALLS: usize = 1;
 
