@@ -42,7 +42,7 @@ pub enum Command {
     /// Check ethexe database for integrity and/or computation correctness.
     /// By default start all checks.
     /// By default, progress bar is enabled, use `--verbose` to enable debug logging and disable progress bar.
-    Check(CheckCommand),
+    Check(Box<CheckCommand>),
 }
 
 impl Command {
