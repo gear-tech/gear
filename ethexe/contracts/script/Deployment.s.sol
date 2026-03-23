@@ -32,9 +32,13 @@ contract DeploymentScript is Script {
 
         vm.startBroadcast(privateKey);
 
-        wrappedVara = WrappedVara(
-            Upgrades.deployUUPSProxy("WrappedVara.sol", abi.encodeCall(WrappedVara.initialize, (deployerAddress)))
-        );
+        if (vm.envExists("EXISTING_WRAPPED_VARA")) {
+            wrappedVara = WrappedVara(vm.envAddress("EXISTING_WRAPPED_VARA"));
+        } else {
+            wrappedVara = WrappedVara(
+                Upgrades.deployUUPSProxy("WrappedVara.sol", abi.encodeCall(WrappedVara.initialize, (deployerAddress)))
+            );
+        }
 
         bool isPoa = vm.envExists("IS_POA") && vm.envBool("IS_POA");
 
