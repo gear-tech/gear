@@ -102,7 +102,7 @@ mod tests {
                 meta_type::<v0::ProtocolTimelines>(),
                 meta_type::<ethexe_common::db::DBConfig>(),
             ],
-            "3177a0fb8ad47482d0ab5d4898b2fa6702730fe3e77fffcd24ab0901d6a5413d",
+            "68246d1aef14df71d8ba42d0a3b81f87c51c58c6ab24fe0348f1882e9c7d5a5a",
         );
     }
 }
