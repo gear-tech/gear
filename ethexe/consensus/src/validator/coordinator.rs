@@ -86,6 +86,7 @@ impl Coordinator {
         batch: BatchCommitment,
         block: SimpleBlockData,
     ) -> Result<ValidatorState> {
+        debug_assert_eq!(batch.block_hash, block.hash, "Block hash mismatch");
         ensure!(
             validators.len() as u64 >= ctx.core.signatures_threshold,
             "Number of validators is less than threshold"
