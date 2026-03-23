@@ -93,6 +93,12 @@ impl StateHandler for Participant {
                         digest,
                         None,
                     )?;
+                    self.ctx
+                        .core
+                        .metrics
+                        .last_signed_commitment_block_number
+                        .set(self.block.header.height);
+
                     let reply = BatchCommitmentValidationReply { digest, signature };
 
                     let era_index = self
