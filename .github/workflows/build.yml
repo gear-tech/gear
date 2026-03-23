@@ -323,7 +323,7 @@ jobs:
             gwasm=trace"
 
       - name: "Test: ethexe-service"
-        run: N=$(getconf _NPROCESSORS_ONLN) ; echo ' N = '$N ; TEST_THREADS=$(( 1 + $N / $TOKIO_WORKER_THREADS )) ; echo ' TEST_THREADS = '$TEST_THREADS ; cargo test ${{ matrix.profiles.flags }} -p ethexe-service -- --nocapture --test-threads $TEST_THREADS &> log-ethexe-service-tests.txt || { exit_code=$?; if [ x$exit_code != x0 ]; then cat ./log-ethexe-service-tests.txt; fi; exit $exit_code; }
+        run: N=$(getconf _NPROCESSORS_ONLN) ; echo ' N = '$N ; TEST_THREADS=$(( 1 + $N / $TOKIO_WORKER_THREADS )) ; echo ' TEST_THREADS = '$TEST_THREADS ; cargo test ${{ matrix.profiles.flags }} -p ethexe-service -- --nocapture --test-threads $TEST_THREADS &> log-ethexe-service-tests.txt || { exit_code=$?; if [ x$exit_code != x0 ]; then cat ./log-ethexe-service-tests.txt; fi; exit $exit_code; } ; grep ERROR ./log-ethexe-service-tests.txt ; grep --before-context 1 --after-context 2 panicked ./log-ethexe-service-tests.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEAR_NODE_WRAPPER_LOG: info
