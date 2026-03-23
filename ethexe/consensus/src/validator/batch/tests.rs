@@ -22,12 +22,15 @@ use super::types::{ValidationRejectReason, ValidationStatus};
 
 use crate::{
     mock::*,
-    validator::{batch::types::BatchParts, mock::*},
+    validator::{
+        batch::{BatchLimits, types::BatchParts},
+        mock::*,
+    },
 };
 
 use ethexe_common::{
     Address, Announce, Digest, HashOf, SimpleBlockData, ValidatorsVec,
-    consensus::BatchCommitmentValidationRequest,
+    consensus::{BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT},
     db::*,
     gear::{ChainCommitment, CodeCommitment},
     mock::*,
@@ -347,11 +350,11 @@ async fn rejects_batch_commitment_size_limit_exceeded() {
 
     {
         // Rebuilding batch with higher size_limits.
-        let previous_limits = ctx.core.batch_manager.update_limits(|limits| {
-            let old_limits = limits.clone();
-            limits.batch_size_limit = old_limits.batch_size_limit + 10_000_000;
-            old_limits
-        });
+        let new_limits = BatchLimits {
+            batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT + 10_000_000,
+            ..Default::default()
+        };
+        let previous_limits = ctx.core.batch_manager.replace_limits(new_limits);
 
         let batch = ctx
             .core
@@ -363,9 +366,7 @@ async fn rejects_batch_commitment_size_limit_exceeded() {
             .unwrap();
 
         // Set previous limits for validation.
-        ctx.core
-            .batch_manager
-            .update_limits(|limits| limits.batch_size_limit = previous_limits.batch_size_limit);
+        ctx.core.batch_manager.replace_limits(previous_limits);
 
         let request = BatchCommitmentValidationRequest::new(&batch);
         let status = ctx

@@ -59,11 +59,10 @@ impl BatchCommitmentManager {
         }
     }
 
-    /// This function sets new limits.
-    /// Used in tests for simulating a malicious producer behavior.
+    /// Replaces current limits with `new_limits` and returns the previous limits.
     #[cfg(test)]
-    pub fn update_limits<R>(&mut self, mut f: impl FnMut(&mut BatchLimits) -> R) -> R {
-        f(&mut self.limits)
+    pub fn replace_limits(&mut self, new_limits: BatchLimits) -> BatchLimits {
+        std::mem::replace(&mut self.limits, new_limits)
     }
 
     /// Creates a new [`BatchCommitment`] for producer.

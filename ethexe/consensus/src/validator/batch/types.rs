@@ -18,8 +18,11 @@
 
 use alloy::sol_types::SolValue;
 use ethexe_common::{
-    Announce, Digest, HashOf,
-    consensus::BatchCommitmentValidationRequest,
+    Announce, COMMITMENT_DELAY_LIMIT, Digest, HashOf,
+    consensus::{
+        BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT,
+        DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    },
     gear::{
         ChainCommitment, CodeCommitment, RewardsCommitment, StateTransition, ValidatorsCommitment,
     },
@@ -36,6 +39,16 @@ pub struct BatchLimits {
     pub commitment_delay_limit: u32,
     /// The maximum size of abi encoded [`ethexe_common::gear::BatchCommitment`].
     pub batch_size_limit: u64,
+}
+
+impl Default for BatchLimits {
+    fn default() -> Self {
+        BatchLimits {
+            chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+            batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
+        }
+    }
 }
 
 /// Tracks an approximate remaining ABI payload budget for a candidate batch.
