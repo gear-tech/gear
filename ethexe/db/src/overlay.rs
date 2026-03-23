@@ -102,13 +102,16 @@ impl KVDatabase for KVOverlay {
 
     unsafe fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
         if !self.is_erased(key) {
-            unsafe { self.mem.take(key).or_else(|| self.db.take(key)) }
+            unsafe {
+                self.mem.take(key).or_else(|| {
+                    self.db.get(key).inspect(|_| {
+                        self.erase(key.to_vec());
+                    })
+                })
+            }
         } else {
             None
         }
-        .inspect(|_| {
-            self.erase(key.to_vec());
-        })
     }
 
     fn contains(&self, key: &[u8]) -> bool {
