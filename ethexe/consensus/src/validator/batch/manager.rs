@@ -258,7 +258,6 @@ impl BatchCommitmentManager {
             for announce_hash in not_committed_announces.into_iter() {
                 let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
                 chain_commitment.transitions.extend(transitions);
-                // TODO: make it clearly
                 if announce_hash == announce {
                     break;
                 }
