@@ -151,18 +151,30 @@ impl ProcessorContext {
     }
 }
 
+/// Message execution result info
 #[derive(Debug)]
 pub struct ExtInfo {
+    /// Gas amount left after execution.
     pub gas_amount: GasAmount,
+    /// Gas reserver with updated reservations after execution.
     pub gas_reserver: GasReserver,
+    /// System reservation context with current and previous reservations.
     pub system_reservation_context: SystemReservationContext,
+    /// Whether allocations were changed during execution and final state of allocations if they were changed.
     pub allocations: Option<IntervalsTree<WasmPage>>,
+    /// Data of accessed pages during execution.
     pub pages_data: BTreeMap<GearPage, PageBuf>,
+    /// List of generated dispatches with their delay and optional reservation id.
     pub generated_dispatches: Vec<(Dispatch, u32, Option<ReservationId>)>,
+    /// List of wakened messages with their id and delay until awakening.
     pub awakening: Vec<(MessageId, u32)>,
+    /// List of reply deposits with message id and amount.
     pub reply_deposits: Vec<(MessageId, u64)>,
+    /// Programs to create data.
     pub program_candidates_data: BTreeMap<CodeId, Vec<(MessageId, ActorId)>>,
+    /// Executed message context store after execution.
     pub context_store: ContextStore,
+    /// Whether reply was sent during execution.
     pub reply_sent: bool,
 }
 
@@ -1225,7 +1237,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         if let Some(reimbursement) = reimburse {
             let current_gas_amount = self.gas_amount();
 
-            // Basically amount of the reseravtion and the cost for the hold duration.
+            // Basically amount of the reservation and the cost for the hold duration.
             let reimbursement_amount = self.cost_for_reservation(amount, reimbursement.duration());
             self.context
                 .gas_counter
@@ -2324,7 +2336,7 @@ mod tests {
                 .build(),
         );
 
-        // Check all the reseravations are in "existing" state.
+        // Check all the reservations are in "existing" state.
         assert!(
             ext.context
                 .gas_reserver

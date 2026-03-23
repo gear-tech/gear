@@ -23,10 +23,9 @@ pub(crate) use crate::{
     DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
-    peer_score,
     utils::ParityScaleCodec,
 };
-use crate::{db_sync::requests::OngoingRequests, utils::AlternateCollectionFmt};
+use crate::{db_sync::requests::OngoingRequests, peer_score, utils::AlternateCollectionFmt};
 use async_trait::async_trait;
 use ethexe_common::{
     Announce,
