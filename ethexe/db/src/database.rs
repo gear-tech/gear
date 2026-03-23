@@ -88,7 +88,7 @@ impl Key {
         // SAFETY: Because `Key` is marked as `#[repr(u64)]` it's actual layout
         // is `#[repr(C)]` and it's first field is a `u64` discriminant. We can read
         // it safely.
-        let discriminant = unsafe { <*const _>::from(self).cast::<u64>().read() };
+        let discriminant = unsafe { (self as *const Key).cast::<u64>().read() };
         H256::from_low_u64_be(discriminant).into()
     }
 

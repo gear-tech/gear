@@ -5166,6 +5166,7 @@ dependencies = [
  "gear-workspace-hack",
  "gprimitives",
  "gsigner",
+ "hex",
  "indoc",
  "log",
  "parity-scale-codec",
