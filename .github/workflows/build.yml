@@ -309,7 +309,7 @@ jobs:
           path: gear-cli-and-runtime-release
 
       - name: "Test: Workspace"
-        run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
+        run: cargo nextest run --workspace --all-targets --all-features --exclude ethexe-service -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GEAR_NODE_WRAPPER_LOG: info
@@ -321,6 +321,21 @@ jobs:
             runtime=trace,\
             syscalls=trace,\
             gwasm=trace"
+
+      - name: "Test: ethexe-service"
+        run: N=$(getconf _NPROCESSORS_ONLN) ; TEST_THREADS=$(( 1 + $N * 3 / $TOKIO_WORKER_THREADS )) ; cargo test ${{ matrix.profiles.flags }} -p ethexe-service -- --nocapture --test-threads $TEST_THREADS &> log-ethexe-service-tests.txt || { exit_code=$?; if [ x$exit_code != x0 ]; then cat ./log-ethexe-service-tests.txt; fi; exit $exit_code; }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEAR_NODE_WRAPPER_LOG: info
+          RUST_LOG: "gear=trace,\
+            pallet=trace,\
+            gsdk=trace,\
+            gcli=trace,\
+            ethexe=trace,\
+            runtime=trace,\
+            syscalls=trace,\
+            gwasm=trace"
+          TOKIO_WORKER_THREADS: 5
 
       - name: "ACTIONS: Upload junit.xml"
         if: "!cancelled()"
