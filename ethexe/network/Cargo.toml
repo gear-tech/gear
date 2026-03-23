@@ -34,6 +34,7 @@ ip_network.workspace = true
 prometheus-client = "0.23.1" # specific version that lip2p uses
 metrics.workspace = true
 metrics-derive.workspace = true
+assert_matches.workspace = true
 gear-workspace-hack.workspace = true
 
 [dependencies.libp2p]
@@ -44,6 +45,5 @@ features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "reques
 libp2p-swarm-test = { version = "0.6.0", default-features = false, features = ["tokio"] }
 tokio = { workspace = true, features = ["full", "test-util"] }
 tracing-subscriber.workspace = true
-assert_matches.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 ethexe-db = { workspace = true, features = ["mock"] }

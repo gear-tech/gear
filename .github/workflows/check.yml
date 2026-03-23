@@ -110,6 +110,12 @@ jobs:
           git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
         working-directory: ethexe/contracts
 
+      - name: "Check: Mirror.sol events are updated"
+        run: |
+          set +H && sed -i '/\/\/ forgefmt: disable-start/,/\/\/ forgefmt: disable-end/{//!d}' src/Mirror.sol && GENERATED_CONDITION=$(grep -Po "    event\s+\K[^(]+" src/IMirror.sol | xargs -I{} echo "            topic1 != {}.selector &&" | sed '$ s/ &&$//') && awk -v cond="$GENERATED_CONDITION" '/\/\/ forgefmt: disable-start/{print; print "        if (!("; print cond; print "        )) {"; print "            return false;"; print "        }"; next}1' src/Mirror.sol > src/Mirror.tmp && mv src/Mirror.tmp src/Mirror.sol
+          git diff --exit-code src/Mirror.sol || (echo "Mirror.sol has been modified. Please commit the changes." && exit 1)
+        working-directory: ethexe/contracts
+
   clippy:
     strategy:
       fail-fast: false

@@ -192,6 +192,7 @@ impl Processor {
         let mut transitions =
             InBlockTransitions::new(block.header.height, program_states, schedule);
 
+        transitions = self.process_tasks(transitions);
         transitions =
             self.handle_injected_and_events(transitions, injected_transactions, events)?;
 
@@ -200,9 +201,6 @@ impl Processor {
                 .process_queues(transitions, block, gas_allowance, promise_out_tx)
                 .await?;
         }
-
-        // TODO: #5135 tasks must be processed before queues
-        transitions = self.process_tasks(transitions);
 
         Ok(transitions.finalize())
     }
@@ -276,11 +274,13 @@ impl Processor {
     }
 }
 
+#[derive(Clone, Default)]
 pub struct ProcessedCodeInfo {
     pub code_id: CodeId,
     pub valid: Option<ValidCodeInfo>,
 }
 
+#[derive(Clone)]
 pub struct ValidCodeInfo {
     pub code: Vec<u8>,
     pub instrumented_code: InstrumentedCode,

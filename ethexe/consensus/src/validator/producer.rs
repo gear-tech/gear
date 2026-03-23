@@ -200,7 +200,7 @@ impl Producer {
             .ctx
             .core
             .injected_pool
-            .select_for_announce(self.block.hash, parent)?;
+            .select_for_announce(self.block, parent)?;
 
         let announce = Announce {
             block_hash: self.block.hash,
@@ -374,6 +374,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn threshold_two() {
+        gear_utils::init_default_logger();
+
         let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();

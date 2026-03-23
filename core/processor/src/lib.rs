@@ -37,7 +37,7 @@ mod processing;
 
 pub use context::{ProcessExecutionContext, SystemReservationContext};
 pub use ext::{
-    AllocExtError, Ext, FallibleExtError, ProcessorContext, ProcessorExternalities,
+    AllocExtError, Ext, ExtInfo, FallibleExtError, ProcessorContext, ProcessorExternalities,
     UnrecoverableExtError,
 };
 pub use handler::handle_journal;

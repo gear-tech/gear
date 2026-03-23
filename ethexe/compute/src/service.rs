@@ -64,7 +64,11 @@ impl ComputeService {
 #[cfg(test)]
 impl ComputeService<MockProcessor> {
     pub fn new_mock_processor(db: Database) -> Self {
-        Self::new(ComputeConfig::without_quarantine(), db, MockProcessor)
+        Self::new(
+            ComputeConfig::without_quarantine(),
+            db,
+            MockProcessor::default(),
+        )
     }
 }
 
@@ -201,12 +205,18 @@ mod tests {
     async fn process_code() {
         gear_utils::init_default_logger();
 
-        let db = DB::memory();
-        let mut service = ComputeService::new_mock_processor(db.clone());
-
-        // Create test code
         let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header
         let code_id = CodeId::generate(&code);
+
+        let db = DB::memory();
+        let mut service = ComputeService::new(
+            ComputeConfig::without_quarantine(),
+            db.clone(),
+            MockProcessor::with_default_valid_code()
+                .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_id),
+        );
+
+        // Create test code
 
         let code_and_id = CodeAndIdUnchecked { code, code_id };
 
