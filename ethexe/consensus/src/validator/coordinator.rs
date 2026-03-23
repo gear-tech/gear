@@ -202,8 +202,10 @@ mod tests {
         ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
-        let batch = BatchCommitment::default();
+        let mut batch = BatchCommitment::default();
         let block = SimpleBlockData::mock(());
+        batch.block_hash = block.hash;
+
         assert!(
             Coordinator::create(ctx, validators.into(), batch, block).is_err(),
             "Expected an error, but got Ok"
@@ -216,8 +218,9 @@ mod tests {
         ctx.core.signatures_threshold = 0;
         let validators =
             NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
-        let batch = BatchCommitment::default();
+        let mut batch = BatchCommitment::default();
         let block = SimpleBlockData::mock(());
+        batch.block_hash = block.hash;
 
         assert!(
             Coordinator::create(ctx, validators.into(), batch, block).is_err(),
