@@ -101,6 +101,7 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 mod tests {
     use super::*;
     use crate::migrations::test::assert_migration_types_hash;
+    use ethexe_common::db::DBConfig;
     use scale_info::meta_type;
 
     #[test]
