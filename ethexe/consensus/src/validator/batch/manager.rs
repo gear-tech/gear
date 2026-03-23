@@ -85,6 +85,14 @@ impl BatchCommitmentManager {
             bail!("failed to include rewards commitment into batch, err={err}")
         }
 
+        // NOTE: we prioritize state transitions over code commitments. So include them firstly.
+        super::utils::try_include_chain_commitment(
+            &self.db,
+            block.hash,
+            announce_hash,
+            &mut batch_filler,
+        )?;
+
         let queue = self.db.block_meta(block.hash).codes_queue.ok_or_else(|| {
             anyhow!(
                 "Computed block {} codes queue is not in storage",
@@ -102,14 +110,6 @@ impl BatchCommitmentManager {
                 break;
             }
         }
-
-        // TODO: prioritize transitions over code commitments
-        super::utils::try_include_chain_commitment(
-            &self.db,
-            block.hash,
-            announce_hash,
-            &mut batch_filler,
-        )?;
 
         super::utils::create_batch_commitment(
             &self.db,
@@ -294,8 +294,8 @@ impl BatchCommitmentManager {
             });
         }
 
-        let batch_encoded_size = Gear::BatchCommitment::from(batch).abi_encoded_size();
-        if batch_encoded_size as u64 > MAX_BATCH_SIZE_LIMIT {
+        let batch_encoded_size = Gear::BatchCommitment::from(batch).abi_encoded_size() as u64;
+        if batch_encoded_size > MAX_BATCH_SIZE_LIMIT {
             return Ok(ValidationStatus::Rejected {
                 request,
                 reason: ValidationRejectReason::BatchSizeLimitExceeded,

@@ -167,7 +167,6 @@ pub enum ValidationRejectReason {
     CodeNotWaitingForCommitment(CodeId),
     #[display("code id {_0} is not processed yet")]
     CodeIsNotProcessedYet(CodeId),
-    // TODO: rename this variant, because now support commitments not only for best announces.
     #[display("requested head announce {requested} is not the best announce {best}")]
     HeadAnnounceIsNotFromBestChain {
         requested: HashOf<Announce>,
@@ -187,7 +186,7 @@ pub enum ValidationRejectReason {
     RewardsNotReady,
     #[display("batch commitment digest mismatch: expected {expected}, found {found}")]
     BatchDigestMismatch { expected: Digest, found: Digest },
-    #[display("batch size limit exceeded")]
+    #[display("batch size exceeded the maximum size limit")]
     BatchSizeLimitExceeded,
 }
 
