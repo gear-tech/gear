@@ -336,6 +336,7 @@ impl Service {
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
                         chain_deepness_threshold: config.node.chain_deepness_threshold,
+                        batch_size_limit: config.node.batch_size_limit,
                     },
                 )?)
             } else {

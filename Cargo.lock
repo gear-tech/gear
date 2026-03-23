@@ -5119,6 +5119,7 @@ dependencies = [
 name = "ethexe-consensus"
 version = "1.10.0"
 dependencies = [
+ "alloy",
  "anyhow",
  "async-trait",
  "derive_more 2.1.1",
