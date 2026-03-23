@@ -1137,7 +1137,7 @@ impl<'a, 'b> SyscallsInvocator<'a, 'b> {
                             let old_idx = *call_indexes_handle;
                             *call_indexes_handle = idx + imports_num;
 
-                            // Log only not changed indexes, because loop can receive repeted
+                            // Log only not changed indexes, because loop can receive repeated
                             // call indexes.
                             if !logged.contains(&*call_indexes_handle) {
                                 logged.insert(*call_indexes_handle);

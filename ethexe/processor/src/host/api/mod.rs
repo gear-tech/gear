@@ -26,6 +26,7 @@ pub mod allocator;
 pub mod database;
 pub mod lazy_pages;
 pub mod logging;
+pub mod promise;
 pub mod sandbox;
 
 pub struct MemoryWrap(Memory);
@@ -42,6 +43,7 @@ impl MemoryWrap {
         D::decode(&mut slice).unwrap()
     }
 
+    #[allow(unused)]
     pub fn decode<'a, T: 'a, D: Decode>(
         &self,
         store: impl Into<StoreContext<'a, T>>,

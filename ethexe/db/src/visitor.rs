@@ -60,7 +60,7 @@ crate::iterator::for_each_node!(define_visitor);
 macro_rules! define_visit_node {
     ($( $variant:ident($node:ident { $( $field:ident: $ty:ty, )* }) )*) => {
         paste::paste! {
-            fn visit_node(visitor: &mut impl DatabaseVisitor, node: Node) {
+            pub fn visit_node(visitor: &mut impl DatabaseVisitor, node: Node) {
                 match node {
                     $(
                         Node::$variant(node) => {

@@ -16,36 +16,54 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Result, anyhow};
-use clap::{Parser, ValueEnum, builder::PossibleValue};
+use crate::app::App;
+use anyhow::{Context, Result};
+use clap::Parser;
+
 use colored::Colorize;
+use gsdk::Api;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt, fs, path::PathBuf};
+use std::{fs, path::PathBuf, str::FromStr};
 use url::Url;
 
-const CONFIG_PATH: &str = ".config/vara/config.toml";
+const CONFIG_PATH: &str = "gear-gcli/config.toml";
 
-/// Gear command line configuration
+/// Access `gcli` persistent configuration.
 #[derive(Clone, Debug, Parser)]
 pub struct Config {
-    /// Config actions
     #[clap(subcommand)]
-    pub action: Action,
+    action: Action,
 }
 
 impl Config {
     /// NOTE: currently just a simple wrapper for [`ConfigSettings::write`]
     /// since we just have one config option.
-    pub fn exec(&self) -> Result<()> {
-        match &self.action {
-            Action::Set(s) => {
-                s.write(None)?;
-                println!("{s}");
+    pub fn exec(self, app: &mut App) -> Result<()> {
+        let mut config = app.config()?;
+
+        match self.action {
+            Action::Set(option) => {
+                config.set(option);
+                config
+                    .write()
+                    .context("failed to write new configuration")?;
+
+                println!("Successfully updated the configuration");
+                println!();
+                config.pretty_print();
             }
-            // prints the whole config atm.
-            Action::Get { url: _ } => {
-                let settings = ConfigSettings::read(None)?;
-                println!("{settings}");
+            Action::Get => {
+                app.config()?.pretty_print();
+            }
+            Action::Reset => {
+                config = ConfigSettings::default();
+                config
+                    .write()
+                    .context("failed to write new configuration")?;
+
+                println!("Successfully reset the configuration");
+                println!();
+                config.pretty_print();
             }
         }
 
@@ -53,67 +71,90 @@ impl Config {
     }
 }
 
-/// Gear command client config settings
-#[derive(Clone, Debug, Parser, Serialize, Deserialize, PartialEq, Eq, Default)]
+/// `gcli` persistent configuration.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ConfigSettings {
-    /// URL for Vara's JSON RPC or moniker
-    #[clap(short, long, name = "URL_OR_MONIKER")]
-    pub url: Network,
+    /// Gear node RPC endpoint.
+    ///
+    /// Can be `mainnet`, `testnest`, `localhost` or a custom URL.
+    #[serde(alias = "url")]
+    pub endpoint: Endpoint,
+}
+
+#[derive(Debug, Clone, Parser)]
+enum ConfigOption {
+    /// Sets the default RPC endpoint.
+    Endpoint {
+        /// New default RPC endpoint.
+        endpoint: Endpoint,
+    },
 }
 
 impl ConfigSettings {
-    fn config() -> Result<PathBuf> {
-        dirs::home_dir()
-            .map(|h| h.join(CONFIG_PATH))
-            .ok_or_else(|| anyhow!("Could not find config.toml from ${{HOME}}/{CONFIG_PATH}"))
+    fn config_path() -> Result<PathBuf> {
+        Ok(std::env::var_os("GCLI_CONFIG_DIR")
+            .map_or_else(
+                || dirs::config_dir().context("failed to get config directory"),
+                |dir| Ok(PathBuf::from(dir)),
+            )?
+            .join(CONFIG_PATH))
     }
 
-    /// Read the config from disk
-    pub fn read(path: Option<PathBuf>) -> Result<ConfigSettings> {
-        let conf = path.unwrap_or(Self::config()?);
-        toml::from_str(&fs::read_to_string(conf)?).map_err(Into::into)
+    /// Reads the configuration from disk.
+    pub fn read() -> Result<ConfigSettings> {
+        let path = Self::config_path()?;
+
+        if path.exists() {
+            let contents = fs::read_to_string(path)?;
+
+            Ok(toml::from_str(&contents)?)
+        } else {
+            Ok(Self::default())
+        }
     }
 
-    /// Write the whole settings to disk
-    ///
-    /// NOTE: this method should be updated as well once
-    /// there are more options in the settings.
-    pub fn write(&self, path: Option<PathBuf>) -> Result<()> {
-        let conf = path.unwrap_or(Self::config()?);
+    /// Sets the configuration option.
+    fn set(&mut self, option: ConfigOption) {
+        match option {
+            ConfigOption::Endpoint { endpoint } => self.endpoint = endpoint,
+        }
+    }
 
-        if let Some(parent) = conf.parent()
-            && !parent.exists()
-        {
+    /// Writes the configuration to disk.
+    pub fn write(&self) -> Result<()> {
+        let path = Self::config_path()?;
+
+        if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
 
-        fs::write(conf, toml::to_string_pretty(self)?).map_err(Into::into)
-    }
-}
+        let contents = toml::to_string_pretty(self)?;
 
-impl fmt::Display for ConfigSettings {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", "RPC URL".bold(), self.url.clone().as_ref())
+        Ok(fs::write(path, contents)?)
+    }
+
+    /// Pretty-prints the configuration.
+    pub fn pretty_print(&self) {
+        println!("{} {}", "RPC URL:".bold(), self.endpoint.as_str())
     }
 }
 
 /// Config action
-#[derive(Clone, Debug, Parser, PartialEq, Eq)]
-pub enum Action {
-    /// Set a config setting
-    Set(ConfigSettings),
-    /// Get current config settings
-    Get {
-        /// Get the rpc url from the current config settings.
-        #[clap(short, long)]
-        url: bool,
-    },
+#[derive(Clone, Debug, Parser)]
+enum Action {
+    /// Set a persistent option.
+    #[clap(subcommand)]
+    Set(ConfigOption),
+    /// Print current configuration.
+    Get,
+    /// Reset the persistent configuration.
+    Reset,
 }
 
 /// Vara networks
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum Network {
+pub enum Endpoint {
     /// Vara main network
     #[default]
     Mainnet,
@@ -125,49 +166,26 @@ pub enum Network {
     Custom(Url),
 }
 
-impl AsRef<str> for Network {
-    fn as_ref(&self) -> &str {
+impl Endpoint {
+    pub fn as_str(&self) -> &str {
         match self {
-            Self::Mainnet => "wss://rpc.vara.network:443",
-            Self::Testnet => "wss://testnet.vara.network:443",
-            Self::Localhost => "ws://localhost:9944",
+            Self::Mainnet => Api::VARA_ENDPOINT,
+            Self::Testnet => Api::VARA_TESTNET_ENDPOINT,
+            Self::Localhost => Api::DEV_ENDPOINT,
             Self::Custom(url) => url.as_str(),
         }
     }
 }
 
-impl fmt::Display for Network {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
+impl FromStr for Endpoint {
+    type Err = url::ParseError;
 
-impl ValueEnum for Network {
-    fn value_variants<'a>() -> &'a [Self] {
-        &[Network::Mainnet, Network::Testnet, Network::Localhost]
-    }
-
-    fn to_possible_value(&self) -> Option<PossibleValue> {
-        match self {
-            Self::Mainnet => Some(PossibleValue::new("mainnet")),
-            Self::Testnet => Some(PossibleValue::new("testnet")),
-            Self::Localhost => Some(PossibleValue::new("localhost")),
-            Self::Custom(_) => None,
-        }
-    }
-
-    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
-        let input = if ignore_case {
-            Cow::Owned(input.to_lowercase())
-        } else {
-            Cow::Borrowed(input)
-        };
-
-        Ok(match input.as_ref() {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s {
             "mainnet" => Self::Mainnet,
             "testnet" => Self::Testnet,
             "localhost" => Self::Localhost,
-            input => Self::Custom(Url::parse(input).map_err(|_| input.to_string())?),
+            input => Self::Custom(Url::parse(input)?),
         })
     }
 }

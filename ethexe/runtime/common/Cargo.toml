@@ -17,6 +17,7 @@ gear-core.workspace = true
 gprimitives.workspace = true
 gsys.workspace = true
 gear-core-errors.workspace = true
+gear-core-backend.workspace = true
 
 anyhow.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
@@ -24,6 +25,8 @@ log.workspace = true
 derive_more.workspace = true
 auto_impl.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
+gear-workspace-hack.workspace = true
+delegate.workspace = true
 
 [features]
 default = ["std"]
@@ -36,3 +39,4 @@ std = [
     "serde/std",
     "ethexe-common/std",
 ]
+mock = ["std"]

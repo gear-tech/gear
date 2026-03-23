@@ -23,31 +23,45 @@ use alloc::{
 use anyhow::{Result, anyhow};
 use core::num::NonZero;
 use ethexe_common::{
-    BlockHeader, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
+    ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
 };
-use gprimitives::{ActorId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 
+/// In-memory store for the state transitions
+/// that are going to be applied in the current block.
+///
+/// The type is instantiated with states taken from the parent
+/// block, as parent block stores latest states to be possibly
+/// updated in the current block.
+///
+/// The type actually stores latest state transitions, which are going to be
+/// applied in the current block.
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
-    header: BlockHeader,
+    block_height: u32,
     states: ProgramStates,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
+    program_creations: BTreeMap<ActorId, CodeId>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FinalizedBlockTransitions {
+    pub transitions: Vec<StateTransition>,
+    pub states: ProgramStates,
+    pub schedule: Schedule,
+    pub program_creations: Vec<(ActorId, CodeId)>,
 }
 
 impl InBlockTransitions {
-    pub fn new(header: BlockHeader, states: ProgramStates, schedule: Schedule) -> Self {
+    pub fn new(block_height: u32, states: ProgramStates, schedule: Schedule) -> Self {
         Self {
-            header,
+            block_height,
             states,
             schedule,
             ..Default::default()
         }
-    }
-
-    pub fn header(&self) -> &BlockHeader {
-        &self.header
     }
 
     pub fn is_program(&self, actor_id: &ActorId) -> bool {
@@ -55,7 +69,7 @@ impl InBlockTransitions {
     }
 
     pub fn state_of(&self, actor_id: &ActorId) -> Option<StateHashWithQueueSize> {
-        self.states.get(actor_id).cloned()
+        self.states.get(actor_id).copied()
     }
 
     pub fn states_amount(&self) -> usize {
@@ -67,7 +81,7 @@ impl InBlockTransitions {
     }
 
     pub fn known_programs(&self) -> Vec<ActorId> {
-        self.states.keys().cloned().collect()
+        self.states.keys().copied().collect()
     }
 
     pub fn current_messages(&self) -> Vec<(ActorId, Message)> {
@@ -77,14 +91,16 @@ impl InBlockTransitions {
             .collect()
     }
 
+    pub fn modifications_len(&self) -> usize {
+        self.modifications.len()
+    }
+
     pub fn take_actual_tasks(&mut self) -> BTreeSet<ScheduledTask> {
-        self.schedule
-            .remove(&self.header.height)
-            .unwrap_or_default()
+        self.schedule.remove(&self.block_height).unwrap_or_default()
     }
 
     pub fn schedule_task(&mut self, in_blocks: NonZero<u32>, task: ScheduledTask) -> u32 {
-        let scheduled_block = self.header.height + u32::from(in_blocks);
+        let scheduled_block = self.block_height + u32::from(in_blocks);
 
         self.schedule
             .entry(scheduled_block)
@@ -112,9 +128,14 @@ impl InBlockTransitions {
         Ok(())
     }
 
-    pub fn register_new(&mut self, actor_id: ActorId) {
+    pub fn register_new(&mut self, actor_id: ActorId, code_id: CodeId) {
         self.states.insert(actor_id, StateHashWithQueueSize::zero());
         self.modifications.insert(actor_id, Default::default());
+        self.program_creations.insert(actor_id, code_id);
+    }
+
+    pub fn registered_programs(&self) -> &BTreeMap<ActorId, CodeId> {
+        &self.program_creations
     }
 
     pub fn modify_state(
@@ -139,6 +160,19 @@ impl InBlockTransitions {
         self.modify(actor_id, |_state, transition| f(transition))
     }
 
+    pub fn claim_value(&mut self, actor_id: ActorId, claim: ValueClaim) {
+        self.modify(actor_id, |_state, transition| {
+            transition.value_to_receive = transition
+                .value_to_receive
+                .checked_add(
+                    i128::try_from(claim.value).expect("claimed_value doesn't fit in i128"),
+                )
+                .expect("Overflow in transition.value_to_receive += claimed_value");
+
+            transition.claims.push(claim);
+        });
+    }
+
     pub fn modify<T>(
         &mut self,
         actor_id: ActorId,
@@ -160,15 +194,16 @@ impl InBlockTransitions {
         f(initial_state, transition)
     }
 
-    pub fn finalize(self) -> (Vec<StateTransition>, ProgramStates, Schedule) {
+    pub fn finalize(self) -> FinalizedBlockTransitions {
         let Self {
             states,
             schedule,
             modifications,
+            program_creations,
             ..
         } = self;
 
-        let mut res = Vec::with_capacity(modifications.len());
+        let mut transitions = Vec::with_capacity(modifications.len());
 
         for (actor_id, modification) in modifications {
             let new_state = states
@@ -177,19 +212,39 @@ impl InBlockTransitions {
                 .expect("failed to find state record for modified state");
 
             if !modification.is_noop(new_state.hash) {
-                res.push(StateTransition {
+                transitions.push(StateTransition {
                     actor_id,
                     new_state_hash: new_state.hash,
                     exited: modification.inheritor.is_some(),
                     inheritor: modification.inheritor.unwrap_or_default(),
-                    value_to_receive: modification.value_to_receive,
+                    value_to_receive: modification.value_to_receive.unsigned_abs(),
+                    value_to_receive_negative_sign: modification.value_to_receive < 0,
                     value_claims: modification.claims,
                     messages: modification.messages,
                 });
             }
         }
 
-        (res, states, schedule)
+        FinalizedBlockTransitions {
+            transitions,
+            states,
+            schedule,
+            program_creations: program_creations.into_iter().collect(),
+        }
+    }
+
+    pub fn block_height(&self) -> u32 {
+        self.block_height
+    }
+
+    #[cfg(feature = "mock")]
+    pub fn modifications_mut(&mut self) -> &mut BTreeMap<ActorId, NonFinalTransition> {
+        &mut self.modifications
+    }
+
+    #[cfg(feature = "mock")]
+    pub fn block_height_mut(&mut self) -> &mut u32 {
+        &mut self.block_height
     }
 }
 
@@ -197,7 +252,7 @@ impl InBlockTransitions {
 pub struct NonFinalTransition {
     initial_state: H256,
     pub inheritor: Option<ActorId>,
-    pub value_to_receive: u128,
+    pub value_to_receive: i128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
 }

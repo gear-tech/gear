@@ -25,6 +25,7 @@ use bp_header_chain::{
     AuthoritySet,
     justification::{self, GrandpaJustification},
 };
+use builtins_common::eth_bridge;
 use common::Origin;
 use frame_support::{Blake2_256, StorageHasher, ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::{BlockNumberFor, HeaderFor};
@@ -253,11 +254,6 @@ impl<T: Config> Pallet<T> {
         ClearTimer::<T>::kill();
         weight = weight.saturating_add(db_weight.writes(1));
 
-        // Removing grandpa set hash from storage.
-        AuthoritySetHash::<T>::kill();
-        Self::deposit_event(Event::<T>::AuthoritySetReset);
-        weight = weight.saturating_add(db_weight.writes(2));
-
         // Resetting queue.
         let reset_weight = Self::reset_queue();
         weight = weight.saturating_add(reset_weight);
@@ -408,17 +404,12 @@ impl EthMessageExt for EthMessage {
 
     /// Returns hash of the message using `Keccak256` hasher.
     fn hash(&self) -> H256 {
-        let mut nonce = [0; 32];
-        self.nonce().to_big_endian(&mut nonce);
-
-        let bytes = [
-            nonce.as_ref(),
-            self.source().as_bytes(),
-            self.destination().as_bytes(),
+        eth_bridge::bridge_call_hash(
+            self.nonce(),
+            self.source(),
+            self.destination(),
             self.payload(),
-        ]
-        .concat();
-
-        Keccak256::hash(&bytes)
+            Keccak256::hash,
+        )
     }
 }

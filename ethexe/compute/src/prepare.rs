@@ -20,13 +20,20 @@ use crate::{ComputeError, ComputeEvent, Result, service::SubService};
 use ethexe_common::{
     BlockData,
     db::{
-        BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, LatestDataStorageRW,
-        OnChainStorageRO,
+        BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, GlobalsStorageRW, OnChainStorageRO,
+        OnChainStorageRW,
     },
-    events::{BlockEvent, RouterEvent},
+    events::{
+        BlockEvent, RouterEvent,
+        router::{
+            AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
+            CodeValidationRequestedEvent, ValidatorsCommittedForEraEvent,
+        },
+    },
 };
 use ethexe_db::Database;
 use gprimitives::{CodeId, H256};
+use metrics::Gauge;
 use std::{
     collections::{HashSet, VecDeque},
     task::{Context, Poll},
@@ -48,6 +55,7 @@ impl From<Event> for ComputeEvent {
 }
 
 enum State {
+    Start,
     WaitingForBlock,
     WaitingForCodes {
         codes: HashSet<CodeId>,
@@ -55,40 +63,43 @@ enum State {
     },
 }
 
+/// Metrics for the [`PrepareSubService`].
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute_prepare")]
+struct Metrics {
+    /// Number of codes waiting for loading to advance block processing
+    pub waiting_codes_count: Gauge,
+    /// Number of blocks in the queue for processing
+    pub blocks_queue_len: Gauge,
+}
+
 pub struct PrepareSubService {
     db: Database,
     state: State,
     input: VecDeque<H256>,
+    metrics: Metrics,
 }
 
 impl PrepareSubService {
     pub fn new(db: Database) -> Self {
         Self {
             db,
-            state: State::WaitingForBlock,
+            state: State::Start,
             input: VecDeque::new(),
+            metrics: Metrics::default(),
         }
     }
 
     pub fn receive_block_to_prepare(&mut self, block: H256) {
         self.input.push_back(block);
+        self.metrics.blocks_queue_len.set(self.input.len() as f64);
     }
 
     pub fn receive_processed_code(&mut self, code_id: CodeId) {
-        if let State::WaitingForCodes { codes, .. } = &mut self.state {
-            codes.remove(&code_id);
-        }
-    }
-
-    pub fn blocks_queue_len(&self) -> usize {
-        self.input.len()
-    }
-
-    pub fn waiting_codes_count(&self) -> usize {
-        if let State::WaitingForCodes { codes, .. } = &self.state {
-            codes.len()
-        } else {
-            0
+        if let State::WaitingForCodes { codes, .. } = &mut self.state
+            && codes.remove(&code_id)
+        {
+            self.metrics.waiting_codes_count.set(codes.len() as f64);
         }
     }
 }
@@ -97,12 +108,13 @@ impl SubService for PrepareSubService {
     type Output = Event;
 
     fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
-        if let State::WaitingForBlock = &self.state {
+        if matches!(&self.state, State::WaitingForBlock | State::Start) {
             // Use pop_back to prepare the most recent blocks first,
             // this is the most efficient way of preparing blocks in case of multiple pending blocks.
             let Some(block_hash) = self.input.pop_back() else {
                 return Poll::Pending;
             };
+            self.metrics.blocks_queue_len.set(self.input.len() as f64);
 
             if !self.db.block_synced(block_hash) {
                 return Poll::Ready(Err(ComputeError::BlockNotSynced(block_hash)));
@@ -121,7 +133,15 @@ impl SubService for PrepareSubService {
             let MissingData {
                 codes,
                 validated_codes,
-            } = missing_data(&self.db, &not_prepared_blocks_chain)?;
+            } = missing_data(
+                &self.db,
+                &not_prepared_blocks_chain,
+                matches!(&self.state, State::Start),
+            )?;
+
+            self.metrics
+                .waiting_codes_count
+                .set(validated_codes.len() as f64);
 
             self.state = State::WaitingForCodes {
                 codes: validated_codes,
@@ -161,6 +181,7 @@ impl SubService for PrepareSubService {
 
 /// Collects a chain of blocks that are not yet prepared, starting from `block_hash`
 /// and going backwards through parent hashes until a prepared block is found.
+/// Returns the collected blocks in a `VecDeque`, ordered from oldest to newest.
 fn collect_not_prepared_blocks_chain(
     db: &Database,
     mut block_hash: H256,
@@ -197,21 +218,53 @@ struct MissingData {
     validated_codes: HashSet<CodeId>,
 }
 
-fn missing_data(db: &Database, chain: &VecDeque<BlockData>) -> Result<MissingData> {
+/// Collect codes that does not have validation status in the database from the given chain of blocks.
+/// If `is_start` is true, also consider codes requested in the parent block of the first block in the chain.
+/// Note: consider code as "missing" even if its original bytes are present in the database,
+/// but its validation status is not known. Blob-loader wouldn't load such codes, but would emit event
+/// that code is loaded and then processing would start.
+fn missing_data(db: &Database, chain: &VecDeque<BlockData>, is_start: bool) -> Result<MissingData> {
     let mut missing_codes = HashSet::new();
     let mut missing_validated_codes = HashSet::new();
+
+    if is_start {
+        // If this is the first call for collecting missing data, then we must take into account codes,
+        // that were requested in the parent block, but does not loaded in previous node execution.
+
+        // Note: fast_sync does not recover codes queue for start block, because codes queue is propagated information.
+        // This is not a big problem, because if this node starts with fast_sync then it means,
+        // that there are another nodes in the network, which soon or later will commit codes validation status,
+        // and this node will be able to load missing codes from them.
+
+        let Some(parent_block_hash) = chain.front().map(|b| b.header.parent_hash) else {
+            // no blocks
+            return Ok(MissingData {
+                codes: missing_codes,
+                validated_codes: missing_validated_codes,
+            });
+        };
+
+        missing_codes.extend(
+            db.block_meta(parent_block_hash)
+                .codes_queue
+                .ok_or(ComputeError::BlockNotPrepared(parent_block_hash))?
+                .into_iter()
+                .filter(|code_id| db.code_valid(*code_id).is_none()),
+        );
+    }
 
     for block in chain {
         for event in &block.events {
             match event {
-                BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. })
-                    if db.code_valid(*code_id).is_none() =>
-                {
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent { code_id, .. },
+                )) if db.code_valid(*code_id).is_none() => {
                     missing_codes.insert(*code_id);
                 }
-                BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. })
-                    if db.code_valid(*code_id).is_none() =>
-                {
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                    code_id,
+                    ..
+                })) if db.code_valid(*code_id).is_none() => {
                     missing_validated_codes.insert(*code_id);
                     missing_codes.insert(*code_id);
                 }
@@ -226,7 +279,7 @@ fn missing_data(db: &Database, chain: &VecDeque<BlockData>) -> Result<MissingDat
     })
 }
 
-fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
+fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageRW>(
     db: &DB,
     block: BlockData,
 ) -> Result<()> {
@@ -244,19 +297,42 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
 
     let mut last_committed_announce_hash = None;
 
+    let mut latest_validators_committed_era = db
+        .block_validators_committed_for_era(parent)
+        .ok_or(ComputeError::CommittedEraNotFound(parent))?;
+
     for event in block.events {
         match event {
-            BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
+            BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent { digest })) => {
                 last_committed_batch = digest;
             }
-            BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
+            BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                CodeValidationRequestedEvent { code_id, .. },
+            )) => {
                 requested_codes.insert(code_id);
             }
-            BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
+            BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                code_id,
+                ..
+            })) => {
                 validated_codes.insert(code_id);
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
                 last_committed_announce_hash = Some(head);
+            }
+
+            BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(
+                ValidatorsCommittedForEraEvent { era_index },
+            )) => {
+                // TODO !!! kuzmindev: here must be `if era_index != latest_validators_committed_era + 1`
+                if era_index < latest_validators_committed_era {
+                    return Err(ComputeError::ValidatorsCommittedForEarlierEra {
+                        previous_commitment_era_index: latest_validators_committed_era,
+                        commitment_era_index: era_index,
+                    });
+                }
+
+                latest_validators_committed_era = era_index;
             }
             _ => {}
         }
@@ -265,13 +341,16 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
     codes_queue.retain(|code_id| !validated_codes.contains(code_id));
     codes_queue.extend(requested_codes);
 
-    let last_committed_announce_hash = if let Some(hash) = last_committed_announce_hash {
-        hash
-    } else {
-        parent_meta
-            .last_committed_announce
-            .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
-    };
+    let last_committed_announce_hash =
+        if let Some(AnnouncesCommittedEvent(hash)) = last_committed_announce_hash {
+            hash
+        } else {
+            parent_meta
+                .last_committed_announce
+                .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
+        };
+
+    db.set_block_validators_committed_for_era(block.hash, latest_validators_committed_era);
 
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
@@ -280,10 +359,9 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
         meta.prepared = true;
     });
 
-    db.mutate_latest_data(|data| {
-        data.prepared_block_hash = block.hash;
-    })
-    .ok_or(ComputeError::LatestDataNotFound)?;
+    db.globals_mutate(|globals| {
+        globals.latest_prepared_block_hash = block.hash;
+    });
 
     Ok(())
 }
@@ -293,6 +371,7 @@ mod tests {
     use super::*;
     use ethexe_common::{Announce, Digest, HashOf, events::BlockEvent, mock::*};
     use ethexe_db::Database;
+    use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::H256;
 
     #[test]
@@ -313,19 +392,23 @@ mod tests {
             hash: block.hash,
             header: block.header,
             events: vec![
-                BlockEvent::Router(RouterEvent::BatchCommitted {
+                BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
                     digest: batch_committed,
-                }),
-                BlockEvent::Router(RouterEvent::AnnouncesCommitted(block1_announce_hash)),
-                BlockEvent::Router(RouterEvent::CodeGotValidated {
+                })),
+                BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
+                    block1_announce_hash,
+                ))),
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id: code1_id,
                     valid: true,
-                }),
-                BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                    code_id: code2_id,
-                    timestamp: 1000,
-                    tx_hash: H256::random(),
-                }),
+                })),
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent {
+                        code_id: code2_id,
+                        timestamp: 1000,
+                        tx_hash: H256::random(),
+                    },
+                )),
             ],
         }
         .setup(&db);
@@ -374,15 +457,17 @@ mod tests {
             hash: block.hash,
             header: block.header,
             events: vec![
-                BlockEvent::Router(RouterEvent::CodeGotValidated {
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id: code1_id,
                     valid: true,
-                }),
-                BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                    code_id: code2_id,
-                    timestamp: 1000,
-                    tx_hash: H256::random(),
-                }),
+                })),
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent {
+                        code_id: code2_id,
+                        timestamp: 1000,
+                        tx_hash: H256::random(),
+                    },
+                )),
             ],
         }
         .setup(&db);
@@ -397,6 +482,85 @@ mod tests {
         assert_eq!(
             service.next().await.unwrap(),
             Event::BlockPrepared(block.hash),
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn test_sub_service_start_with_codes() {
+        gear_utils::init_default_logger();
+
+        let db = Database::memory();
+        let mut service = PrepareSubService::new(db.clone());
+
+        let validated_code_id = CodeId::from([1u8; 32]);
+        let requested_code_id = CodeId::from([2u8; 32]);
+        let parent_block_code_id = CodeId::from([3u8; 32]);
+
+        let code = b"1234";
+        let parent_block_loaded_code_id = CodeId::generate(code);
+
+        let chain = BlockChain::mock(1)
+            .tap_mut(|chain| {
+                chain.blocks[1].as_prepared_mut().codes_queue =
+                    [parent_block_code_id, parent_block_loaded_code_id].into();
+                chain.codes.insert(
+                    parent_block_loaded_code_id,
+                    CodeData {
+                        original_bytes: code.to_vec(),
+                        blob_info: Default::default(),
+                        instrumented: None,
+                    },
+                );
+            })
+            .setup(&db);
+
+        let block2 = chain.blocks[1].to_simple().next_block();
+        let block3 = block2.next_block();
+
+        BlockData {
+            hash: block2.hash,
+            header: block2.header,
+            events: vec![BlockEvent::Router(RouterEvent::CodeGotValidated(
+                CodeGotValidatedEvent {
+                    code_id: validated_code_id,
+                    valid: true,
+                },
+            ))],
+        }
+        .setup(&db);
+
+        BlockData {
+            hash: block3.hash,
+            header: block3.header,
+            events: vec![BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                CodeValidationRequestedEvent {
+                    code_id: requested_code_id,
+                    timestamp: 1000,
+                    tx_hash: H256::random(),
+                },
+            ))],
+        }
+        .setup(&db);
+
+        service.receive_block_to_prepare(block3.hash);
+        assert_eq!(
+            service.next().await.unwrap(),
+            Event::RequestCodes(
+                [
+                    parent_block_code_id,
+                    parent_block_loaded_code_id,
+                    validated_code_id,
+                    requested_code_id
+                ]
+                .into()
+            )
+        );
+
+        service.receive_processed_code(validated_code_id);
+        assert_eq!(
+            service.next().await.unwrap(),
+            Event::BlockPrepared(block3.hash),
         );
     }
 }

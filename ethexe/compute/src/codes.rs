@@ -17,15 +17,29 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{ComputeError, ProcessorExt, Result, service::SubService};
-use ethexe_common::{CodeAndIdUnchecked, db::CodesStorageRO};
+use ethexe_common::{
+    CodeAndIdUnchecked,
+    db::{CodesStorageRO, CodesStorageRW},
+};
 use ethexe_db::Database;
+use ethexe_processor::{ProcessedCodeInfo, ValidCodeInfo};
 use gprimitives::CodeId;
+use metrics::Gauge;
 use std::task::{Context, Poll};
 use tokio::task::JoinSet;
+
+/// Metrics for the [`CodesSubService`].
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute_codes")]
+struct Metrics {
+    /// The number of currently processing codes.
+    processing_codes: Gauge,
+}
 
 pub struct CodesSubService<P: ProcessorExt> {
     db: Database,
     processor: P,
+    metrics: Metrics,
 
     processions: JoinSet<Result<CodeId>>,
 }
@@ -35,6 +49,7 @@ impl<P: ProcessorExt> CodesSubService<P> {
         Self {
             db,
             processor,
+            metrics: Metrics::default(),
             processions: JoinSet::new(),
         }
     }
@@ -56,21 +71,41 @@ impl<P: ProcessorExt> CodesSubService<P> {
                     "Instrumented code {code_id:?} must exist in database"
                 );
             }
-
             self.processions.spawn(async move { Ok(code_id) });
         } else {
+            let db = self.db.clone();
             let mut processor = self.processor.clone();
 
             self.processions.spawn_blocking(move || {
                 processor
-                    .process_upload_code(code_and_id)
-                    .map(|_valid| code_id)
+                    .process_code(code_and_id)
+                    .map(|ProcessedCodeInfo { code_id, valid }| {
+                        if let Some(ValidCodeInfo {
+                            code,
+                            instrumented_code,
+                            code_metadata,
+                        }) = valid
+                        {
+                            db.set_original_code(&code);
+                            db.set_instrumented_code(
+                                ethexe_runtime_common::VERSION,
+                                code_id,
+                                instrumented_code,
+                            );
+                            db.set_code_metadata(code_id, code_metadata);
+                            db.set_code_valid(code_id, true);
+                        } else {
+                            db.set_code_valid(code_id, false);
+                        }
+
+                        code_id
+                    })
             });
         }
-    }
 
-    pub fn process_codes_count(&self) -> usize {
-        self.processions.len()
+        self.metrics
+            .processing_codes
+            .set(self.processions.len() as f64);
     }
 }
 
@@ -79,7 +114,12 @@ impl<P: ProcessorExt> SubService for CodesSubService<P> {
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         futures::ready!(self.processions.poll_join_next(cx))
-            .map(|res| res.map_err(ComputeError::CodeProcessJoin)?)
+            .map(|res| {
+                self.metrics
+                    .processing_codes
+                    .set(self.processions.len() as f64);
+                res.map_err(ComputeError::CodeProcessJoin)?
+            })
             .map_or(Poll::Pending, Poll::Ready)
     }
 }
@@ -88,16 +128,17 @@ impl<P: ProcessorExt> SubService for CodesSubService<P> {
 mod tests {
     use super::*;
     use crate::tests::*;
-    use ethexe_common::{CodeAndId, db::*};
+    use ethexe_common::{CodeAndId, mock::Tap};
     use gear_core::code::{InstantiatedSectionSizes, InstrumentedCode};
 
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn process_code() {
         let db = Database::memory();
-        let mut service = CodesSubService::new(db.clone(), MockProcessor);
-
         let code_and_id = CodeAndId::new(vec![1, 2, 3, 4]);
+        let processor = MockProcessor::with_default_valid_code()
+            .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_and_id.code_id());
+        let mut service = CodesSubService::new(db.clone(), processor);
 
         service.receive_code_to_process(code_and_id.clone().into_unchecked());
         assert_eq!(service.next().await.unwrap(), code_and_id.code_id());
@@ -107,7 +148,8 @@ mod tests {
     #[ntest::timeout(3000)]
     async fn process_already_validated_code() {
         let db = Database::memory();
-        let mut service = CodesSubService::new(db.clone(), MockProcessor);
+        let mut service =
+            CodesSubService::new(db.clone(), MockProcessor::with_default_valid_code());
 
         let code_and_id = CodeAndId::new(vec![1, 2, 3, 4]);
         let code_id = code_and_id.code_id();
@@ -129,5 +171,18 @@ mod tests {
         db.set_code_valid(code_id, false);
         service.receive_code_to_process(code_and_id.into_unchecked());
         assert_eq!(service.next().await.unwrap(), code_id);
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn process_invalid_code() {
+        let db = Database::memory();
+        let mut service = CodesSubService::new(db.clone(), MockProcessor::default());
+
+        let code_and_id = CodeAndId::new(vec![1, 2, 3, 4]);
+        let code_id = code_and_id.code_id();
+        service.receive_code_to_process(code_and_id.into_unchecked());
+        assert_eq!(service.next().await.unwrap(), code_id);
+        assert_eq!(db.code_valid(code_id), Some(false));
     }
 }

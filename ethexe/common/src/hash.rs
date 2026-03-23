@@ -27,6 +27,7 @@ use core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 fn option_string<T: ToString>(value: &Option<T>) -> String {
     value
@@ -42,9 +43,11 @@ fn shortname<T: Any>() -> &'static str {
         .expect("name is empty")
 }
 
-#[derive(Encode, Decode, derive_more::Into, derive_more::Display)]
+#[derive(Encode, Decode, TypeInfo, derive_more::Into, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "std", serde(transparent))]
 #[display("{hash}")]
+#[scale_info(skip_type_params(T))]
 pub struct HashOf<T: 'static> {
     hash: H256,
     #[into(ignore)]
@@ -93,6 +96,12 @@ impl<T> Hash for HashOf<T> {
     }
 }
 
+impl<T> AsRef<[u8]> for HashOf<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.hash.as_ref()
+    }
+}
+
 impl<T> HashOf<T> {
     /// # Safety
     /// Use it only for low-level storage implementations or tests.
@@ -103,7 +112,8 @@ impl<T> HashOf<T> {
         }
     }
 
-    pub fn hash(self) -> H256 {
+    /// Note: previous named `hash()`, but renamed to `inner()` to avoid confusion with `Hash` trait.
+    pub fn inner(self) -> H256 {
         self.hash
     }
 
@@ -114,7 +124,7 @@ impl<T> HashOf<T> {
         }
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "mock")]
     pub fn random() -> Self {
         Self {
             hash: H256::random(),
@@ -142,7 +152,7 @@ pub struct MaybeHashOf<T: 'static>(Option<HashOf<T>>);
 
 impl<T> Debug for MaybeHashOf<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let option_string = option_string(&Self::to_inner(*self).map(HashOf::hash));
+        let option_string = option_string(&Self::to_inner(*self).map(HashOf::inner));
         write!(f, "MaybeHashOf<{}>({})", shortname::<T>(), option_string)
     }
 }

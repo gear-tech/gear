@@ -20,14 +20,16 @@ pub(crate) use libp2p::gossipsub::*;
 
 use crate::{
     db_sync::{Multiaddr, PeerId},
+    metrics::Libp2pMetrics,
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{Address, network::SignedValidatorMessage, tx_pool::SignedOffchainTransaction};
+use ethexe_common::{Address, injected::SignedPromise, network::SignedValidatorMessage};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
     identity::Keypair,
+    metrics::Recorder,
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
@@ -37,27 +39,29 @@ use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::VecDeque,
     hash::{DefaultHasher, Hash, Hasher},
+    sync::Arc,
     task::{Context, Poll, ready},
 };
 
 #[derive(Debug, derive_more::From)]
 pub enum Message {
+    // TODO: rename to `Validators`
     Commitments(SignedValidatorMessage),
-    Offchain(SignedOffchainTransaction),
+    Promise(SignedPromise),
 }
 
 impl Message {
     fn topic_hash(&self, behaviour: &Behaviour) -> TopicHash {
         match self {
             Message::Commitments(_) => behaviour.commitments_topic.hash(),
-            Message::Offchain(_) => behaviour.offchain_topic.hash(),
+            Message::Promise(_) => behaviour.promises_topic.hash(),
         }
     }
 
     fn encode(&self) -> Vec<u8> {
         match self {
             Message::Commitments(message) => message.encode(),
-            Message::Offchain(transaction) => transaction.encode(),
+            Message::Promise(message) => message.encode(),
         }
     }
 }
@@ -93,8 +97,6 @@ impl MessageValidator {
 #[derive(derive_more::Debug)]
 pub(crate) enum Event {
     Message {
-        // will be used in the future
-        #[allow(dead_code)]
         source: PeerId,
         validator: MessageValidator,
     },
@@ -111,7 +113,8 @@ pub(crate) struct Behaviour {
     // TODO: consider to limit queue
     message_queue: VecDeque<Message>,
     commitments_topic: IdentTopic,
-    offchain_topic: IdentTopic,
+    promises_topic: IdentTopic,
+    metrics: Arc<Libp2pMetrics>,
 }
 
 impl Behaviour {
@@ -119,9 +122,10 @@ impl Behaviour {
         keypair: Keypair,
         peer_score: peer_score::Handle,
         router_address: Address,
+        metrics: Arc<Libp2pMetrics>,
     ) -> anyhow::Result<Self> {
         let commitments_topic = Self::topic_with_router("commitments", router_address);
-        let offchain_topic = Self::topic_with_router("offchain", router_address);
+        let promises_topic = Self::topic_with_router("promises", router_address);
 
         let inner = ConfigBuilder::default()
             // dedup messages
@@ -140,14 +144,15 @@ impl Behaviour {
             .with_peer_score(PeerScoreParams::default(), PeerScoreThresholds::default())
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
         inner.subscribe(&commitments_topic)?;
-        inner.subscribe(&offchain_topic)?;
+        inner.subscribe(&promises_topic)?;
 
         Ok(Self {
             inner,
             peer_score,
             message_queue: VecDeque::new(),
             commitments_topic,
-            offchain_topic,
+            promises_topic,
+            metrics,
         })
     }
 
@@ -160,6 +165,8 @@ impl Behaviour {
     }
 
     fn handle_inner_event(&mut self, event: gossipsub::Event) -> Poll<Event> {
+        self.metrics.record(&event);
+
         match event {
             gossipsub::Event::Message {
                 propagation_source,
@@ -177,8 +184,8 @@ impl Behaviour {
 
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
-                } else if topic == self.offchain_topic.hash() {
-                    SignedOffchainTransaction::decode(&mut &data[..]).map(Message::Offchain)
+                } else if topic == self.promises_topic.hash() {
+                    SignedPromise::decode(&mut &data[..]).map(Message::Promise)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };
@@ -216,7 +223,6 @@ impl Behaviour {
             } => Poll::Pending,
             gossipsub::Event::GossipsubNotSupported { peer_id } => {
                 log::trace!("peer doesn't support gossipsub: {peer_id}");
-                self.peer_score.unsupported_protocol(peer_id);
                 Poll::Pending
             }
             gossipsub::Event::SlowPeer {
@@ -314,7 +320,7 @@ impl NetworkBehaviour for Behaviour {
                 Ok(_msg_id) => {
                     let _ = self.message_queue.pop_front().expect("checked above");
                 }
-                Err(PublishError::InsufficientPeers) => break,
+                Err(PublishError::NoPeersSubscribedToTopic) => break,
                 Err(error) => {
                     let message = self.message_queue.pop_front().expect("checked above");
                     return Poll::Ready(ToSwarm::GenerateEvent(Event::PublishFailure {

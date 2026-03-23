@@ -27,6 +27,6 @@ use tracing_subscriber::EnvFilter;
 pub fn init_logger() {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
-        .without_time()
+        .with_timer(tracing_subscriber::fmt::time::uptime())
         .try_init();
 }

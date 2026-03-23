@@ -23,27 +23,22 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, Digest, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationReply,
-    db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
-        CodesStorageRO, OnChainStorageRO,
-    },
+    db::{AnnounceStorageRO, GlobalsStorageRO, OnChainStorageRO},
     ecdsa::{ContractSignature, PublicKey},
-    gear::{
-        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
-        ValidatorsCommitment,
-    },
+    events::{BlockRequestEvent, RouterRequestEvent, router::ProgramCreatedEvent},
+    gear::{AggregatedPublicKey, BatchCommitment},
 };
-use ethexe_signer::Signer;
-use gprimitives::{CodeId, H256, U256};
+use gprimitives::{ActorId, H256, U256};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
     Identifier,
-    keys::{self, IdentifierList},
+    keys::{self, IdentifierList, VerifiableSecretSharingCommitment},
 };
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashSet};
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -73,7 +68,8 @@ impl MultisignedBatchCommitment {
         pub_key: PublicKey,
     ) -> Result<Self> {
         let batch_digest = batch.to_digest();
-        let signature = signer.sign_for_contract(router_address, pub_key, batch_digest)?;
+        let signature =
+            signer.sign_for_contract_digest(router_address, pub_key, batch_digest, None)?;
         let signatures: BTreeMap<_, _> = [(pub_key.to_address(), signature)].into_iter().collect();
 
         Ok(Self {
@@ -126,93 +122,14 @@ impl MultisignedBatchCommitment {
     ///
     /// # Returns
     /// A tuple containing the batch commitment and the map of signatures
-    pub fn into_parts(self) -> (BatchCommitment, BTreeMap<Address, ContractSignature>) {
-        (self.batch, self.signatures)
+    pub fn into_parts(self) -> (BatchCommitment, Vec<ContractSignature>) {
+        (self.batch, self.signatures.into_values().collect())
     }
 }
-
-pub fn aggregate_code_commitments<DB: CodesStorageRO>(
-    db: &DB,
-    codes: impl IntoIterator<Item = CodeId>,
-    fail_if_not_found: bool,
-) -> Result<Vec<CodeCommitment>> {
-    let mut commitments = Vec::new();
-
-    for id in codes {
-        match db.code_valid(id) {
-            Some(valid) => commitments.push(CodeCommitment { id, valid }),
-            None if fail_if_not_found => {
-                return Err(anyhow::anyhow!("Code status not found in db: {id}"));
-            }
-            None => {}
-        }
-    }
-
-    Ok(commitments)
-}
-
-pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
-    db: &DB,
-    head_announce: HashOf<Announce>,
-    fail_if_not_computed: bool,
-    max_deepness: Option<u32>,
-) -> Result<Option<(ChainCommitment, u32)>> {
-    // TODO #4744: improve squashing - removing redundant state transitions
-
-    let block_hash = db
-        .announce(head_announce)
-        .ok_or_else(|| anyhow!("Cannot get announce from db for head {head_announce}"))?
-        .block_hash;
-
-    let last_committed_head = db
-        .block_meta(block_hash)
-        .last_committed_announce
-        .ok_or_else(|| {
-            anyhow!("Cannot get from db last committed head for block {head_announce}")
-        })?;
-
-    let mut announce_hash = head_announce;
-    let mut counter: u32 = 0;
-    let mut transitions = vec![];
-    while announce_hash != last_committed_head {
-        if max_deepness.map(|d| counter >= d).unwrap_or(false) {
-            return Err(anyhow!(
-                "Chain commitment is too deep: {block_hash} at depth {counter}"
-            ));
-        }
-
-        counter += 1;
-
-        if !db.announce_meta(announce_hash).computed {
-            // This can happen when validator syncs from p2p network and skips some old blocks.
-            if fail_if_not_computed {
-                return Err(anyhow!("Block {block_hash} is not computed"));
-            } else {
-                return Ok(None);
-            }
-        }
-
-        transitions.push(db.announce_outcome(announce_hash).ok_or_else(|| {
-            anyhow!("Cannot get from db outcome for computed block {block_hash}")
-        })?);
-
-        announce_hash = db
-            .announce(announce_hash)
-            .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block_hash}"))?
-            .parent;
-    }
-
-    Ok(Some((
-        ChainCommitment {
-            transitions: transitions.into_iter().rev().flatten().collect(),
-            head_announce,
-        },
-        counter,
-    )))
-}
-
-// TODO(kuzmindev): this is a temporal solution. In future need to impelement DKG algorithm.
-pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
+// TODO: #5019 this is a temporal solution. In future need to implement DKG algorithm.
+pub fn generate_roast_keys(
+    validators: &ValidatorsVec,
+) -> Result<(AggregatedPublicKey, VerifiableSecretSharingCommitment)> {
     let validators_identifiers = validators
         .iter()
         .map(|validator| {
@@ -227,19 +144,21 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
     let rng = rand_chacha::ChaCha8Rng::from_seed([1u8; 32]);
 
     let (mut secret_shares, public_key_package) =
-        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng).unwrap();
+        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng)?;
 
     let verifiable_secret_sharing_commitment = secret_shares
         .pop_first()
         .map(|(_key, value)| value.commitment().clone())
-        .expect("Expect at least one identifier");
+        .ok_or_else(|| anyhow!("Expect at least one identifier"))?;
 
     let public_key_compressed: [u8; 33] = public_key_package
         .verifying_key()
         .serialize()?
         .try_into()
-        .unwrap();
-    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+        .map_err(|_| anyhow!("Failed to convert public key to compressed format"))?;
+    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed)
+        .expect("valid aggregated public key")
+        .to_uncompressed();
     let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
     let aggregated_public_key = AggregatedPublicKey {
@@ -247,86 +166,12 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
         y: U256::from_big_endian(public_key_y_bytes),
     };
 
-    Ok(ValidatorsCommitment {
-        aggregated_public_key,
-        verifiable_secret_sharing_commitment,
-        validators,
-        era_index: era,
-    })
-}
-
-pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
-    db: &DB,
-    block: &SimpleBlockData,
-    chain_commitment: Option<ChainCommitment>,
-    code_commitments: Vec<CodeCommitment>,
-    validators_commitment: Option<ValidatorsCommitment>,
-    rewards_commitment: Option<RewardsCommitment>,
-) -> Result<Option<BatchCommitment>> {
-    if chain_commitment.is_none()
-        && code_commitments.is_empty()
-        && validators_commitment.is_none()
-        && rewards_commitment.is_none()
-    {
-        tracing::debug!(
-            "No commitments for block {} - skip batch commitment",
-            block.hash
-        );
-        return Ok(None);
-    }
-
-    let last_committed = db
-        .block_meta(block.hash)
-        .last_committed_batch
-        .ok_or_else(|| {
-            anyhow!(
-                "Cannot get from db last committed block for block {}",
-                block.hash
-            )
-        })?;
-
-    Ok(Some(BatchCommitment {
-        block_hash: block.hash,
-        timestamp: block.header.timestamp,
-        previous_batch: last_committed,
-        chain_commitment,
-        code_commitments,
-        validators_commitment,
-        rewards_commitment,
-    }))
+    Ok((aggregated_public_key, verifiable_secret_sharing_commitment))
 }
 
 pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
     data.iter().any(|item| !seen.insert(item))
-}
-
-/// Finds the block with the earliest timestamp that is still within the specified election period.
-pub fn election_block_in_era<DB: OnChainStorageRO>(
-    db: &DB,
-    mut block: SimpleBlockData,
-    election_ts: u64,
-) -> Result<SimpleBlockData> {
-    if block.header.timestamp < election_ts {
-        anyhow::bail!("election not reached yet");
-    }
-
-    loop {
-        let parent_header = db.block_header(block.header.parent_hash).ok_or(anyhow!(
-            "block header not found for({})",
-            block.header.parent_hash
-        ))?;
-        if parent_header.timestamp < election_ts {
-            break;
-        }
-
-        block = SimpleBlockData {
-            hash: block.header.parent_hash,
-            header: parent_header,
-        };
-    }
-
-    Ok(block)
 }
 
 // TODO #4553: temporary implementation, should be improved
@@ -357,74 +202,46 @@ pub fn block_producer_for(
         .unwrap_or_else(|| unreachable!("index must be valid"))
 }
 
-// NOTE: this is temporary main line announce, will be smarter in future
-/// Returns announce hash which is supposed to be the announce
-/// from main announces chain for this node.
-/// Used to identify parent announce when creating announce for new block,
-/// or accepting announce from producer.
-pub fn parent_main_line_announce<DB: BlockMetaStorageRO>(
-    db: &DB,
-    parent_hash: H256,
-) -> Result<HashOf<Announce>> {
-    db.block_meta(parent_hash)
-        .announces
-        .into_iter()
-        .flatten()
-        .next()
-        .ok_or_else(|| anyhow!("No announces found for {parent_hash} in block meta storage"))
-}
-
-// TODO #4813: support announce branching and mortality
-/// Creates announces chain till the specified block, from the nearest ancestor without announces,
-/// by appending base announces.
-pub fn propagate_announces_for_skipped_blocks<
-    DB: BlockMetaStorageRO + BlockMetaStorageRW + AnnounceStorageRW + OnChainStorageRO,
->(
+pub fn block_touched_programs<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO>(
     db: &DB,
     block_hash: H256,
-) -> Result<()> {
-    let mut current_block_hash = block_hash;
-    let mut blocks = VecDeque::new();
-    // tries to found a block with at least one announce
-    let mut announce_hash = loop {
-        let announce_hash = db
-            .block_meta(current_block_hash)
-            .announces
-            .into_iter()
-            .flatten()
-            .next();
+) -> Result<HashSet<ActorId>> {
+    // NOTE: Using latest computed announce is not completely correct way to determine touched programs,
+    // but it is good enough approximation, and it is enough for announce creation,
+    // in worst case announce wouldn't be committed and it would become expired later.
+    let mut known_programs = db
+        .announce_program_states(db.globals().latest_computed_announce_hash)
+        .ok_or_else(|| anyhow!("Not found program states for latest computed announce"))?
+        .keys()
+        .cloned()
+        .collect::<HashSet<_>>();
 
-        if let Some(announce_hash) = announce_hash {
-            break announce_hash;
-        }
+    let touched_programs = db
+        .block_events(block_hash)
+        .ok_or_else(|| anyhow!("Events for block {block_hash} not found"))?
+        .into_iter()
+        .filter_map(|event| event.to_request())
+        .filter_map(|request| match request {
+            BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(
+                ProgramCreatedEvent { actor_id, .. },
+            )) => {
+                known_programs.insert(actor_id);
+                None
+            }
+            BlockRequestEvent::Mirror { actor_id, .. } if known_programs.contains(&actor_id) => {
+                Some(actor_id)
+            }
+            _ => None,
+        })
+        .collect();
 
-        blocks.push_front(current_block_hash);
-        current_block_hash = db
-            .block_header(current_block_hash)
-            .ok_or_else(|| anyhow!("Block header not found for {current_block_hash}"))?
-            .parent_hash;
-    };
-
-    // the newest block with announce is found, create announces chain till the target block
-    for block_hash in blocks {
-        // TODO #4814: hack - use here with default gas announce to avoid unknown announces in tests,
-        // this will be fixed by unknown announces handling later
-        let announce = Announce::with_default_gas(block_hash, announce_hash);
-        announce_hash = db.set_announce(announce);
-        db.mutate_block_meta(block_hash, |meta| {
-            meta.announces.get_or_insert_default().insert(announce_hash);
-        });
-    }
-
-    Ok(())
+    Ok(touched_programs)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::{db::*, mock::*};
-    use ethexe_db::Database;
+    use ethexe_common::mock::*;
 
     const ADDRESS: Address = Address([42; 20]);
 
@@ -467,59 +284,12 @@ mod tests {
     }
 
     #[test]
-    fn accept_batch_commitment_validation_reply() {
-        let batch = BatchCommitment::mock(());
+    fn test_has_duplicates() {
+        let data = vec![1, 2, 3, 4, 5];
+        assert!(!has_duplicates(&data));
 
-        let (signer, _, public_keys) = init_signer_with_keys(2);
-        let pub_key = public_keys[0];
-
-        let mut multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
-
-        let other_pub_key = public_keys[1];
-        let reply = BatchCommitmentValidationReply {
-            digest: multisigned_batch.batch_digest,
-            signature: signer
-                .sign_for_contract(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
-                .unwrap(),
-        };
-
-        multisigned_batch
-            .accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()))
-            .expect("Failed to accept batch commitment validation reply");
-
-        assert_eq!(multisigned_batch.signatures.len(), 2);
-
-        // Attempt to add the same reply again
-        multisigned_batch
-            .accept_batch_commitment_validation_reply(reply, |_| Ok(()))
-            .expect("Failed to accept batch commitment validation reply");
-
-        // Ensure the number of signatures has not increased
-        assert_eq!(multisigned_batch.signatures.len(), 2);
-    }
-
-    #[test]
-    fn reject_validation_reply_with_incorrect_digest() {
-        let batch = BatchCommitment::mock(());
-
-        let (signer, _, public_keys) = init_signer_with_keys(1);
-        let pub_key = public_keys[0];
-
-        let mut multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
-
-        let incorrect_digest = [1, 2, 3].to_digest();
-        let reply = BatchCommitmentValidationReply {
-            digest: incorrect_digest,
-            signature: signer
-                .sign_for_contract(ADDRESS, pub_key, incorrect_digest)
-                .unwrap(),
-        };
-
-        let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| Ok(()));
-        assert!(result.is_err());
-        assert_eq!(multisigned_batch.signatures.len(), 1);
+        let data = vec![1, 2, 3, 4, 5, 3];
+        assert!(has_duplicates(&data));
     }
 
     #[test]
@@ -536,7 +306,12 @@ mod tests {
         let reply = BatchCommitmentValidationReply {
             digest: multisigned_batch.batch_digest,
             signature: signer
-                .sign_for_contract(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
+                .sign_for_contract_digest(
+                    ADDRESS,
+                    other_pub_key,
+                    multisigned_batch.batch_digest,
+                    None,
+                )
                 .unwrap(),
         };
 
@@ -555,87 +330,63 @@ mod tests {
     }
 
     #[test]
-    fn test_aggregate_chain_commitment() {
-        let db = Database::memory();
-        let BatchCommitment { block_hash, .. } = prepare_chain_for_batch_commitment(&db);
-        let announce = db.top_announce_hash(block_hash);
+    fn reject_validation_reply_with_incorrect_digest() {
+        let batch = BatchCommitment::mock(());
 
-        let (commitment, counter) = aggregate_chain_commitment(&db, announce, false, None)
-            .unwrap()
-            .unwrap();
-        assert_eq!(commitment.head_announce, announce);
-        assert_eq!(commitment.transitions.len(), 4);
-        assert_eq!(counter, 3);
+        let (signer, _, public_keys) = init_signer_with_keys(1);
+        let pub_key = public_keys[0];
 
-        let (commitment, counter) = aggregate_chain_commitment(&db, announce, true, None)
-            .unwrap()
-            .unwrap();
-        assert_eq!(commitment.head_announce, announce);
-        assert_eq!(commitment.transitions.len(), 4);
-        assert_eq!(counter, 3);
+        let mut multisigned_batch =
+            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
-        aggregate_chain_commitment(&db, announce, false, Some(2)).unwrap_err();
-        aggregate_chain_commitment(&db, announce, true, Some(2)).unwrap_err();
+        let incorrect_digest = [1, 2, 3].to_digest();
+        let reply = BatchCommitmentValidationReply {
+            digest: incorrect_digest,
+            signature: signer
+                .sign_for_contract_digest(ADDRESS, pub_key, incorrect_digest, None)
+                .unwrap(),
+        };
 
-        db.mutate_announce_meta(announce, |meta| meta.computed = false);
-        assert!(
-            aggregate_chain_commitment(&db, announce, false, None)
-                .unwrap()
-                .is_none()
-        );
-        aggregate_chain_commitment(&db, announce, true, None).unwrap_err();
+        let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| Ok(()));
+        assert!(result.is_err());
+        assert_eq!(multisigned_batch.signatures.len(), 1);
     }
 
     #[test]
-    fn test_aggregate_code_commitments() {
-        let db = Database::memory();
-        let codes = vec![CodeId::from([1; 32]), CodeId::from([2; 32])];
+    fn accept_batch_commitment_validation_reply() {
+        let batch = BatchCommitment::mock(());
 
-        // Test with valid codes
-        db.set_code_valid(codes[0], true);
-        db.set_code_valid(codes[1], false);
+        let (signer, _, public_keys) = init_signer_with_keys(2);
+        let pub_key = public_keys[0];
 
-        let commitments = aggregate_code_commitments(&db, codes.clone(), false).unwrap();
-        assert_eq!(
-            commitments,
-            vec![
-                CodeCommitment {
-                    id: codes[0],
-                    valid: true,
-                },
-                CodeCommitment {
-                    id: codes[1],
-                    valid: false,
-                }
-            ]
-        );
+        let mut multisigned_batch =
+            MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
-        let commitments =
-            aggregate_code_commitments(&db, vec![codes[0], CodeId::from([3; 32]), codes[1]], false)
-                .unwrap();
-        assert_eq!(
-            commitments,
-            vec![
-                CodeCommitment {
-                    id: codes[0],
-                    valid: true,
-                },
-                CodeCommitment {
-                    id: codes[1],
-                    valid: false,
-                }
-            ]
-        );
+        let other_pub_key = public_keys[1];
+        let reply = BatchCommitmentValidationReply {
+            digest: multisigned_batch.batch_digest,
+            signature: signer
+                .sign_for_contract_digest(
+                    ADDRESS,
+                    other_pub_key,
+                    multisigned_batch.batch_digest,
+                    None,
+                )
+                .unwrap(),
+        };
 
-        aggregate_code_commitments(&db, vec![CodeId::from([3; 32])], true).unwrap_err();
-    }
+        multisigned_batch
+            .accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()))
+            .expect("Failed to accept batch commitment validation reply");
 
-    #[test]
-    fn test_has_duplicates() {
-        let data = vec![1, 2, 3, 4, 5];
-        assert!(!has_duplicates(&data));
+        assert_eq!(multisigned_batch.signatures.len(), 2);
 
-        let data = vec![1, 2, 3, 4, 5, 3];
-        assert!(has_duplicates(&data));
+        // Attempt to add the same reply again
+        multisigned_batch
+            .accept_batch_commitment_validation_reply(reply, |_| Ok(()))
+            .expect("Failed to accept batch commitment validation reply");
+
+        // Ensure the number of signatures has not increased
+        assert_eq!(multisigned_batch.signatures.len(), 2);
     }
 }

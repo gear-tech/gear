@@ -38,7 +38,7 @@ impl From<ChainCommitment> for Gear::ChainCommitment {
     fn from(value: ChainCommitment) -> Self {
         Self {
             transitions: value.transitions.into_iter().map(Into::into).collect(),
-            head: value.head_announce.hash().0.into(),
+            head: value.head_announce.inner().0.into(),
         }
     }
 }
@@ -113,6 +113,7 @@ impl From<BatchCommitment> for Gear::BatchCommitment {
             blockHash: value.block_hash.0.into(),
             blockTimestamp: u64_to_uint48_lossy(value.timestamp),
             previousCommittedBatchHash: value.previous_batch.0.into(),
+            expiry: value.expiry,
             chainCommitment: value.chain_commitment.into_iter().map(Into::into).collect(),
             codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
             rewardsCommitment: value
@@ -182,6 +183,7 @@ impl From<StateTransition> for Gear::StateTransition {
             exited: value.exited,
             inheritor: actor_id_to_address_lossy(value.inheritor),
             valueToReceive: value.value_to_receive,
+            valueToReceiveNegativeSign: value.value_to_receive_negative_sign,
             valueClaims: value.value_claims.into_iter().map(Into::into).collect(),
             messages: value.messages.into_iter().map(Into::into).collect(),
         }
@@ -194,6 +196,25 @@ impl From<ValueClaim> for Gear::ValueClaim {
             messageId: message_id_to_bytes32(value.message_id),
             destination: actor_id_to_address_lossy(value.destination),
             value: value.value,
+        }
+    }
+}
+
+impl From<Gear::GenesisBlockInfo> for GenesisBlockInfo {
+    fn from(value: Gear::GenesisBlockInfo) -> Self {
+        Self {
+            hash: bytes32_to_h256(value.hash),
+            number: value.number,
+            timestamp: value.timestamp.to::<u64>(),
+        }
+    }
+}
+
+impl From<Gear::ComputationSettings> for ComputationSettings {
+    fn from(value: Gear::ComputationSettings) -> Self {
+        Self {
+            threshold: value.threshold,
+            wvara_per_second: value.wvaraPerSecond,
         }
     }
 }

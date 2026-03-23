@@ -82,7 +82,10 @@ impl ExtManager {
 
     pub(crate) fn remove_gas_reservation_map(&mut self, program_id: ActorId) {
         ProgramsStorageManager::modify_program(program_id, |program| {
-            if let Some(GTestProgram::Default(Program::Active(active_program))) = program {
+            if let Some(GTestProgram::Default {
+                primary: Program::Active(active_program),
+            }) = program
+            {
                 for (reservation_id, slot) in mem::take(&mut active_program.gas_reservation_map) {
                     let slot = self.remove_gas_reservation_slot(reservation_id, slot);
 

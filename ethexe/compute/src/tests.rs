@@ -18,51 +18,75 @@
 
 use super::*;
 use ethexe_common::{
-    CodeBlobInfo,
+    CodeBlobInfo, PromisePolicy,
     db::*,
-    events::{BlockEvent, RouterEvent},
+    events::{
+        BlockEvent, RouterEvent,
+        router::{CodeGotValidatedEvent, CodeValidationRequestedEvent},
+    },
     mock::*,
 };
 use ethexe_db::Database;
-use ethexe_processor::Processor;
+use ethexe_processor::ValidCodeInfo;
 use futures::StreamExt;
-use gear_core::ids::prelude::CodeIdExt;
-use std::{cell::RefCell, collections::BTreeMap};
-
-thread_local! {
-    pub(crate) static PROCESSOR_RESULT: RefCell<BlockProcessingResult> = const { RefCell::new(
-        BlockProcessingResult {
-            transitions: Vec::new(),
-            states: BTreeMap::new(),
-            schedule: BTreeMap::new(),
-        }
-    ) };
-}
+use gear_core::{
+    code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
+    ids::prelude::CodeIdExt,
+};
+use tokio::sync::mpsc;
 
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
-#[derive(Clone)]
-pub(crate) struct MockProcessor;
+#[derive(Clone, Default)]
+pub(crate) struct MockProcessor {
+    pub process_programs_result: Option<FinalizedBlockTransitions>,
+    pub process_codes_result: Option<ProcessedCodeInfo>,
+}
+
+impl MockProcessor {
+    pub fn with_default_valid_code() -> Self {
+        Self {
+            process_programs_result: None,
+            process_codes_result: Some(ProcessedCodeInfo {
+                code_id: CodeId::zero(),
+                valid: Some(ValidCodeInfo {
+                    code: vec![],
+                    instrumented_code: InstrumentedCode::new(
+                        vec![],
+                        InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
+                    ),
+                    code_metadata: CodeMetadata::new(
+                        0,
+                        Default::default(),
+                        0.into(),
+                        None,
+                        gear_core::code::InstrumentationStatus::Instrumented {
+                            version: 0,
+                            code_len: 0,
+                        },
+                    ),
+                }),
+            }),
+        }
+    }
+}
 
 impl ProcessorExt for MockProcessor {
-    async fn process_announce(
+    async fn process_programs(
         &mut self,
-        _announce: Announce,
-        _events: Vec<BlockRequestEvent>,
-    ) -> Result<BlockProcessingResult> {
-        let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
-        PROCESSOR_RESULT.with_borrow_mut(|r| {
-            *r = BlockProcessingResult {
-                transitions: vec![],
-                states: BTreeMap::new(),
-                schedule: BTreeMap::new(),
-            }
-        });
-
-        Ok(result)
+        _executable: ExecutableData,
+        _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+    ) -> Result<FinalizedBlockTransitions> {
+        Ok(self.process_programs_result.take().unwrap_or_default())
     }
 
-    fn process_upload_code(&mut self, _code_and_id: CodeAndIdUnchecked) -> Result<bool> {
-        Ok(true)
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+        Ok(self
+            .process_codes_result
+            .take()
+            .unwrap_or(ProcessedCodeInfo {
+                code_id: code_and_id.code_id,
+                valid: None,
+            }))
     }
 }
 
@@ -100,10 +124,10 @@ fn insert_code_events(chain: &mut BlockChain, events_in_block: u32) {
                     },
                 );
 
-                BlockEvent::Router(RouterEvent::CodeGotValidated {
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id,
                     valid: true,
-                })
+                }))
             })
             .collect();
     }
@@ -138,7 +162,7 @@ impl TestEnv {
         mark_as_not_prepared(&mut chain);
         chain = chain.setup(&db);
 
-        let compute = ComputeService::new(db.clone(), Processor::new(db.clone()).unwrap());
+        let compute = ComputeService::new_with_defaults(db.clone());
 
         TestEnv { db, compute, chain }
     }
@@ -189,7 +213,8 @@ impl TestEnv {
 
     async fn compute_and_assert_announce(&mut self, announce: Announce) {
         let announce_hash = announce.to_hash();
-        self.compute.compute_announce(announce.clone());
+        self.compute
+            .compute_announce(announce.clone(), PromisePolicy::Disabled);
 
         let event = self
             .compute
@@ -198,8 +223,8 @@ impl TestEnv {
             .unwrap()
             .expect("expect block will be processing");
 
-        let processed_announce = event.unwrap_announce_computed();
-        assert_eq!(processed_announce, announce_hash);
+        let computed_announce = event.unwrap_announce_computed();
+        assert_eq!(computed_announce, announce_hash);
 
         self.db.mutate_block_meta(announce.block_hash, |meta| {
             meta.announces.get_or_insert_default().insert(announce_hash);
@@ -215,7 +240,7 @@ fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> 
         block_hash,
         parent: parent_announce_hash,
         gas_allowance,
-        off_chain_transactions: vec![],
+        injected_transactions: vec![],
     }
 }
 
@@ -287,11 +312,13 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
     let mut block_events = env.chain.blocks[1].as_synced().events.clone();
 
     // add invalid event which shouldn't stop block prepare
-    block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested {
-        code_id: CodeId::zero(),
-        timestamp: 0u64,
-        tx_hash: H256::random(),
-    }));
+    block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
+        CodeValidationRequestedEvent {
+            code_id: CodeId::zero(),
+            timestamp: 0u64,
+            tx_hash: H256::random(),
+        },
+    )));
     env.db
         .set_block_events(env.chain.blocks[1].hash, &block_events);
     env.prepare_and_assert_block(env.chain.blocks[1].hash).await;

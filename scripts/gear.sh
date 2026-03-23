@@ -125,6 +125,10 @@ case "$COMMAND" in
         header "Building gear node"
         node_build "$@"; ;;
 
+      ethexe)
+        header "Building ethexe node"
+        ethexe_build "$@"; ;;
+
       gear-replay)
         header "Building gear-replay CLI"
         gear_replay_build "$@"; ;;
@@ -289,10 +293,6 @@ case "$COMMAND" in
       pallet)
         header "Running pallet-gear tests"
         pallet_test "$@"; ;;
-
-      client)
-        header "Running gclient tests"
-        client_tests "$@"; ;;
 
       fuzz)
         header "Running fuzzer for runtime panic checks"

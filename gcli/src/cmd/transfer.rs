@@ -17,38 +17,29 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `transfer`
-use crate::{App, result::Result};
+use crate::app::App;
+use anyhow::Result;
 use clap::Parser;
-use gclient::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
+use gear_core::ids::ActorId;
 
 /// Transfer value.
-///
-/// # Note
-///
-/// Gear node is currently using the default properties of substrate for
-/// [the staging testnet][0], and the decimals of 1 UNIT is 12 by default.
-///
-/// [0]: https://github.com/gear-tech/gear/blob/c01d0390cdf1031cb4eba940d0199d787ea480e0/node/src/chain_spec.rs#L218
 #[derive(Clone, Debug, Parser)]
 pub struct Transfer {
-    /// Transfer to (ss58address).
-    destination: String,
-    /// Balance to transfer.
+    /// Destination address, is SS58 or hex format.
+    destination: ActorId,
+
+    /// Value to transfer.
     value: u128,
 }
 
 impl Transfer {
-    /// Execute command transfer.
-    pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let signer = app.signer().await?;
-        let address = signer.account_id();
+    pub async fn exec(self, app: &App) -> Result<()> {
+        let api = app.signed_api().await?;
 
-        println!("From: {}", address.to_ss58check());
-        println!("To: {}", self.destination);
-        println!("Value: {}", self.value);
+        api.transfer_keep_alive(self.destination, self.value)
+            .await?;
 
-        let addr: [u8; 32] = AccountId32::from_ss58check(&self.destination)?.into();
-        signer.transfer_keep_alive(addr.into(), self.value).await?;
+        println!("Successfully transferred the value");
 
         Ok(())
     }

@@ -18,16 +18,16 @@
 
 //! Ethereum state observer for ethexe.
 
-use crate::utils::load_block_data;
+use crate::utils::EthereumBlockLoader;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
-    transports::{RpcError, TransportErrorKind},
+    transports::TransportResult,
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, ProtocolTimelines, SimpleBlockData, db::BlockMetaStorageRO,
+    Address, BlockHeader, ProtocolTimelines, SimpleBlockData, db::ConfigStorageRO,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -36,19 +36,22 @@ use gprimitives::H256;
 use std::{
     collections::VecDeque,
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll, ready},
     time::Duration,
 };
 use sync::ChainSync;
 
 mod sync;
-mod utils;
+pub mod utils;
 
 #[cfg(test)]
 mod tests;
 
-type HeadersSubscriptionFuture =
-    BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
+type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription<Header>>>;
+
+/// The wrapper on top of [`ChainSync::sync`] future.
+/// It is needed to measure time taken for syncing a block.
+type SyncFuture = future_timing::Timed<BoxFuture<'static, Result<H256>>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -57,31 +60,63 @@ pub struct EthereumConfig {
     pub router_address: Address,
     pub block_time: Duration,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
     BlockSynced(H256),
 }
 
+pub struct ObserverConfig<'a> {
+    /// Ethereum RPC endpoint.
+    pub rpc: &'a str,
+    #[allow(rustdoc::private_intra_doc_links)]
+    /// Maximum depth of blocks to sync, considered as u32::MAX if None,
+    /// see also [`RuntimeConfig::max_sync_depth`].
+    pub max_sync_depth: Option<u32>,
+}
+
+/// Metrics for the observer service.
+/// The main purpose is to monitor the performance and health of the observer.
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_observer")]
+pub(crate) struct ObserverMetrics {
+    /// The last Ethereum's block number.
+    pub last_block_number: metrics::Gauge,
+    /// The statistics about time for blocks arrival latency.
+    pub blocks_latency: metrics::Histogram,
+    /// The statistics about time for blocks syncing.
+    pub block_syncing_latency: metrics::Histogram,
+}
+
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
+    /// Protocol timelines.
+    timelines: ProtocolTimelines,
+    /// Address of the Router contract.
     router_address: Address,
+    /// Address of the Middleware contract.
+    middleware_address: Address,
+    /// Maximum depth of blocks to sync.
     max_sync_depth: u32,
+    /// If block sync depth is greater than this value, blocks are synced in batches of this size.
+    /// Must be greater than 1.
     batched_sync_depth: u32,
-    genesis_block_hash: H256,
+    /// Number of blocks after which election timestamp is considered finalized.
+    finalization_period_blocks: u64,
 }
 
 // TODO #4552: make tests for observer service
 pub struct ObserverService {
     provider: RootProvider,
     config: RuntimeConfig,
-    chain_sync: ChainSync<Database>,
+    chain_sync: ChainSync,
 
-    last_block_number: u32,
+    metrics: ObserverMetrics,
     headers_stream: SubscriptionStream<Header>,
 
     block_sync_queue: VecDeque<Header>,
-    sync_future: Option<BoxFuture<'static, Result<H256>>>,
+    sync_future: Option<SyncFuture>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -89,15 +124,20 @@ impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // If subscription stream finished working, a new subscription is requested to be created.
+        // The subscription creation request is a future itself, and it is polled here. If it's ready,
+        // a new stream from it is created and used further to poll the next header.
         if let Some(future) = self.subscription_future.as_mut() {
-            match future.poll_unpin(cx) {
-                Poll::Ready(Ok(subscription)) => self.headers_stream = subscription.into_stream(),
-                Poll::Ready(Err(e)) => {
+            match ready!(future.as_mut().poll(cx)) {
+                Ok(subscription) => {
+                    self.headers_stream = subscription.into_stream();
+                    self.subscription_future = None;
+                }
+                Err(e) => {
                     return Poll::Ready(Some(Err(anyhow!(
                         "failed to create new headers stream: {e}"
                     ))));
                 }
-                Poll::Pending => return Poll::Pending,
             }
         }
 
@@ -108,12 +148,16 @@ impl Stream for ObserverService {
                 // TODO #4568: test creating a new subscription in case when Receiver becomes invalid
                 let provider = self.provider().clone();
                 let _fut = provider.get_block_by_number(alloy::eips::BlockNumberOrTag::Earliest);
-                self.subscription_future =
-                    Some(Box::pin(async move { provider.subscribe_blocks().await }));
+                self.subscription_future = Some(provider.subscribe_blocks().into_future());
 
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
             };
+
+            self.metrics
+                .blocks_latency
+                .record(current_timestamp().saturating_sub(header.timestamp) as f64);
+            self.metrics.last_block_number.set(header.number as f64);
 
             let data = SimpleBlockData {
                 hash: H256(header.hash.0),
@@ -133,12 +177,18 @@ impl Stream for ObserverService {
         if self.sync_future.is_none()
             && let Some(header) = self.block_sync_queue.pop_back()
         {
-            self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
+            self.sync_future = Some(future_timing::timed(
+                self.chain_sync.clone().sync(header).boxed(),
+            ));
         }
 
         if let Some(fut) = self.sync_future.as_mut()
-            && let Poll::Ready(result) = fut.poll_unpin(cx)
+            && let Poll::Ready(timing_result) = fut.poll_unpin(cx)
         {
+            let (timing, result) = timing_result.into_parts();
+            self.metrics
+                .block_syncing_latency
+                .record((timing.busy() + timing.idle()).as_secs_f64());
             self.sync_future = None;
 
             let maybe_event = result.map(ObserverEvent::BlockSynced);
@@ -156,22 +206,20 @@ impl FusedStream for ObserverService {
 }
 
 impl ObserverService {
-    pub async fn new(eth_cfg: &EthereumConfig, max_sync_depth: u32, db: Database) -> Result<Self> {
-        let EthereumConfig {
+    pub async fn new(db: Database, config: ObserverConfig<'_>) -> Result<Self> {
+        let ObserverConfig {
             rpc,
-            router_address,
-            ..
-        } = eth_cfg;
+            max_sync_depth,
+        } = config;
 
-        let router_query = RouterQuery::new(rpc, *router_address).await?;
+        let router_address = db.config().router_address;
+        let router_query = RouterQuery::new(rpc, router_address).await?;
+        let middleware_address = router_query.middleware_address().await?;
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
             .await
             .context("failed to create ethereum provider")?;
-
-        let genesis_block_hash =
-            Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
 
         let headers_stream = provider
             .subscribe_blocks()
@@ -180,104 +228,47 @@ impl ObserverService {
             .into_stream();
 
         let config = RuntimeConfig {
-            router_address: *router_address,
-            max_sync_depth,
-            // TODO #4562: make this configurable. Important: must be greater than 1.
+            timelines: db.config().timelines,
+            router_address,
+            middleware_address,
+            max_sync_depth: max_sync_depth.unwrap_or(u32::MAX),
+            // TODO #4562: make this configurable.
             batched_sync_depth: 2,
-            genesis_block_hash,
+            // TODO #4562: make this configurable, since different networks may have different finalization periods.
+            finalization_period_blocks: 64,
         };
 
-        let chain_sync = ChainSync {
-            db,
-            provider: provider.clone(),
-            config: config.clone(),
-        };
+        let chain_sync = ChainSync::new(db, config.clone(), provider.clone());
 
         Ok(Self {
             provider,
             config,
-
             chain_sync,
             sync_future: None,
             block_sync_queue: VecDeque::new(),
-
-            last_block_number: 0,
+            metrics: ObserverMetrics::default(),
             subscription_future: None,
             headers_stream,
         })
-    }
-
-    // TODO #4563: this is a temporary solution.
-    // Choose a better place for this, out of ObserverService.
-    /// If genesis block is not yet fully setup in the database, we need to do it
-    async fn pre_process_genesis_for_db(
-        db: &Database,
-        provider: &RootProvider,
-        router_query: &RouterQuery,
-    ) -> Result<H256> {
-        let genesis_block_hash = router_query.genesis_block_hash().await?;
-
-        if db.block_meta(genesis_block_hash).prepared {
-            return Ok(genesis_block_hash);
-        }
-
-        let genesis_block = provider
-            .get_block_by_hash(genesis_block_hash.0.into())
-            .await?
-            .ok_or_else(|| {
-                anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
-            })?;
-
-        let genesis_header = BlockHeader {
-            height: genesis_block.header.number as u32,
-            timestamp: genesis_block.header.timestamp,
-            parent_hash: H256(genesis_block.header.parent_hash.0),
-        };
-
-        let router_timelines = router_query.timelines().await?;
-        let timelines = ProtocolTimelines {
-            genesis_ts: genesis_header.timestamp,
-            era: router_timelines.era,
-            election: router_timelines.election,
-        };
-
-        let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
-
-        ethexe_common::setup_genesis_in_db(
-            db,
-            SimpleBlockData {
-                hash: genesis_block_hash,
-                header: genesis_header,
-            },
-            genesis_validators,
-            timelines,
-        );
-
-        Ok(genesis_block_hash)
     }
 
     pub fn provider(&self) -> &RootProvider {
         &self.provider
     }
 
-    pub fn last_block_number(&self) -> u32 {
-        self.last_block_number
-    }
-
-    pub fn genesis_block_hash(&self) -> H256 {
-        self.config.genesis_block_hash
-    }
-
-    pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
-        load_block_data(
-            self.provider.clone(),
-            block,
-            self.config.router_address,
-            None,
-        )
+    pub fn block_loader(&self) -> EthereumBlockLoader {
+        EthereumBlockLoader::new(self.provider.clone(), self.config.router_address)
     }
 
     pub fn router_query(&self) -> RouterQuery {
-        RouterQuery::from_provider(self.config.router_address.0.into(), self.provider.clone())
+        RouterQuery::from_provider(self.config.router_address, self.provider.clone())
     }
+}
+
+/// Function returns the current system timestamp in seconds.
+fn current_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }

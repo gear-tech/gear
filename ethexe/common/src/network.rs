@@ -17,12 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, ToDigest,
+    Address, Announce, HashOf, ToDigest,
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
     ecdsa::{SignedData, VerifiedData},
 };
-use gprimitives::H256;
-use k256::sha2::Digest;
+use alloc::vec::Vec;
+use core::{hash::Hash, num::NonZeroU32};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
@@ -32,21 +32,21 @@ pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
 pub struct ValidatorMessage<T> {
-    pub block: H256,
+    pub era_index: u64,
     pub payload: T,
 }
 
 impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
     fn update_hasher(&self, hasher: &mut Keccak256) {
-        let Self { block, payload } = self;
-        hasher.update(block.0);
+        let Self { era_index, payload } = self;
+        era_index.to_be_bytes().update_hasher(hasher);
         payload.update_hasher(hasher);
     }
 }
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum SignedValidatorMessage {
-    ProducerBlock(SignedData<ValidatorAnnounce>),
+    Announce(SignedData<ValidatorAnnounce>),
     RequestBatchValidation(SignedData<ValidatorRequest>),
     ApproveBatch(SignedData<ValidatorReply>),
 }
@@ -54,7 +54,7 @@ pub enum SignedValidatorMessage {
 impl SignedValidatorMessage {
     pub fn into_verified(self) -> VerifiedValidatorMessage {
         match self {
-            SignedValidatorMessage::ProducerBlock(announce) => announce.into_verified().into(),
+            SignedValidatorMessage::Announce(announce) => announce.into_verified().into(),
             SignedValidatorMessage::RequestBatchValidation(request) => {
                 request.into_verified().into()
             }
@@ -63,27 +63,78 @@ impl SignedValidatorMessage {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Unwrap, derive_more::From)]
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum VerifiedValidatorMessage {
-    ProducerBlock(VerifiedData<ValidatorAnnounce>),
+    Announce(VerifiedData<ValidatorAnnounce>),
     RequestBatchValidation(VerifiedData<ValidatorRequest>),
     ApproveBatch(VerifiedData<ValidatorReply>),
 }
 
 impl VerifiedValidatorMessage {
-    pub fn block(&self) -> H256 {
+    pub fn era_index(&self) -> u64 {
         match self {
-            VerifiedValidatorMessage::ProducerBlock(announce) => announce.data().block,
-            VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().block,
-            VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().block,
+            VerifiedValidatorMessage::Announce(announce) => announce.data().era_index,
+            VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().era_index,
+            VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().era_index,
         }
     }
 
     pub fn address(&self) -> Address {
         match self {
-            VerifiedValidatorMessage::ProducerBlock(announce) => announce.address(),
+            VerifiedValidatorMessage::Announce(announce) => announce.address(),
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
         }
+    }
+}
+
+/// Until condition for announces request (see [`AnnouncesRequest`]).
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode, derive_more::From)]
+pub enum AnnouncesRequestUntil {
+    /// Request until a specific tail announce hash
+    Tail(HashOf<Announce>),
+    /// Request until a specific chain length
+    ChainLen(NonZeroU32),
+}
+
+/// Request announces body (see [`Announce`]) chain from `head_announce_hash`,
+/// to announce defined by `until` condition.
+/// If `until` is `Tail`, then tail must not be included in the response.
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode)]
+pub struct AnnouncesRequest {
+    /// Hash of the requested chain head announce
+    pub head: HashOf<Announce>,
+    /// Request until this condition is met
+    pub until: AnnouncesRequestUntil,
+}
+
+/// Checked announces response ensuring that it matches the corresponding request.
+#[derive(derive_more::Debug, Clone, Eq, PartialEq, derive_more::From)]
+pub struct AnnouncesResponse {
+    /// Corresponding request for this response
+    request: AnnouncesRequest,
+    /// List of announces
+    announces: Vec<Announce>,
+}
+
+impl AnnouncesResponse {
+    /// # Safety
+    ///
+    /// Response must be only created by network service
+    pub unsafe fn from_parts(request: AnnouncesRequest, announces: Vec<Announce>) -> Self {
+        Self { request, announces }
+    }
+
+    pub fn request(&self) -> &AnnouncesRequest {
+        &self.request
+    }
+
+    pub fn announces(&self) -> &[Announce] {
+        &self.announces
+    }
+
+    pub fn into_parts(self) -> (AnnouncesRequest, Vec<Announce>) {
+        (self.request, self.announces)
     }
 }

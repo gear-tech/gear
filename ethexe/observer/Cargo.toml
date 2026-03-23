@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }
-ethexe-signer.workspace = true
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 ethexe-ethereum = { workspace = true }
 ethexe-db.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
@@ -32,8 +32,17 @@ tokio = { workspace = true, features = ["rt-multi-thread", "fs", "sync"] }
 futures.workspace = true
 log.workspace = true
 tracing.workspace = true
+derive_more.workspace = true
+future-timing.workspace = true
+gear-workspace-hack.workspace = true
+
+# metrics
+metrics.workspace = true
+metrics-derive.workspace = true
 
 [dev-dependencies]
 gear-utils.workspace = true
 wasmparser.workspace = true
 wat.workspace = true
+ethexe-db = { workspace = true, features = ["mock"] }
+ethexe-db-init = { workspace = true, features = ["mock"] }

@@ -21,12 +21,16 @@
 use alloc::vec::Vec;
 use gear_core_errors::ReplyCode;
 use parity_scale_codec::{Decode, Encode};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 /// Pre-calculated gas consumption estimate for a message.
 ///
 /// Intended to be used as a result in `calculateGasFor*` RPC calls.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct GasInfo {
     /// The minimum amount of gas required for successful execution.
@@ -46,7 +50,9 @@ pub struct GasInfo {
 /// Pre-calculated reply information.
 ///
 /// Intended to be used as a result in `calculateReplyFor*` RPC calls.
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo, Hash,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyInfo {
     /// Payload of the reply.
@@ -55,7 +61,57 @@ pub struct ReplyInfo {
     /// Value attached to the reply.
     pub value: u128,
     /// Reply code of the reply.
+    #[cfg_attr(feature = "std", serde(with = "serialize_reply_code"))]
     pub code: ReplyCode,
+}
+
+/// Serializer and deserializer for ReplyCode as 0x-prefixed hex string.
+#[cfg(feature = "std")]
+pub(crate) mod serialize_reply_code {
+    use super::ReplyCode;
+    use core::fmt::Write;
+    use serde::de;
+
+    pub fn serialize<S>(code: &ReplyCode, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut s = alloc::string::String::with_capacity(10);
+        s.push_str("0x");
+        for byte in code.to_bytes() {
+            write!(&mut s, "{:02x}", byte).unwrap();
+        }
+        serializer.serialize_str(&s)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<ReplyCode, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visitor;
+
+        impl<'b> de::Visitor<'b> for Visitor {
+            type Value = ReplyCode;
+
+            fn expecting(&self, formatter: &mut alloc::fmt::Formatter) -> alloc::fmt::Result {
+                formatter.write_str("a 0x-prefixed hex string representing a 4-byte ReplyCode")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let v = v.strip_prefix("0x").ok_or_else(|| {
+                    E::custom("invalid format: expected a 0x-prefixed hex string")
+                })?;
+                let mut bytes = [0u8; 4];
+                hex::decode_to_slice(v, &mut bytes)
+                    .map_err(|e| E::custom(alloc::format!("invalid hex string: {e}")))?;
+                Ok(ReplyCode::from_bytes(bytes))
+            }
+        }
+        deserializer.deserialize_str(Visitor)
+    }
 }
 
 /// `u128` value wrapper intended for usage in RPC calls due to serialization specifications.
@@ -67,7 +123,9 @@ pub struct ReplyInfo {
     PartialEq,
     Eq,
     Encode,
+    EncodeAsType,
     Decode,
+    DecodeAsType,
     TypeInfo,
     derive_more::From,
     derive_more::Into,

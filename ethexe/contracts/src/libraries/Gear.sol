@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import {FROST} from "frost-secp256k1-evm/FROST.sol";
-import {IRouter} from "../IRouter.sol";
-import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
+import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {FROST} from "frost-secp256k1-evm/FROST.sol";
+import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
+import {IRouter} from "src/IRouter.sol";
 
 library Gear {
     using ECDSA for bytes32;
@@ -18,11 +19,26 @@ library Gear {
     // 2.5 * 10^9 of gear gas.
     uint64 public constant COMPUTATION_THRESHOLD = 2_500_000_000;
 
-    // 2/3; 66.(6)% of validators signatures to verify.
-    uint16 public constant SIGNING_THRESHOLD_PERCENTAGE = 6666;
+    // 2/3; validators signatures to verify.
+    uint128 public constant VALIDATORS_THRESHOLD_NUMERATOR = 2;
+    uint128 public constant VALIDATORS_THRESHOLD_DENOMINATOR = 3;
 
     // 10 WVara tokens per compute second.
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
+
+    error ValidationBeforeGenesis();
+
+    error TimestampOlderThanPreviousEra();
+
+    error TimestampInFuture();
+
+    error InvalidFrostSignatureCount();
+
+    error InvalidFrostSignatureLength();
+
+    error ErasTimestampMustNotBeEqual();
+
+    error ValidatorsNotFoundForTimestamp();
 
     struct AggregatedPublicKey {
         uint256 x;
@@ -35,6 +51,13 @@ library Gear {
         AggregatedPublicKey aggregatedPublicKey;
         address verifiableSecretSharingCommitmentPointer;
         mapping(address => bool) map;
+        address[] list;
+        uint256 useFromTimestamp;
+    }
+
+    struct ValidatorsView {
+        AggregatedPublicKey aggregatedPublicKey;
+        address verifiableSecretSharingCommitmentPointer;
         address[] list;
         uint256 useFromTimestamp;
     }
@@ -71,6 +94,11 @@ library Gear {
         uint48 blockTimestamp;
         /// @dev Hash of previously committed batch hash.
         bytes32 previousCommittedBatchHash;
+        /// @dev Expiry in blocks since `blockHash`.
+        /// if 1 - then valid only in child block
+        /// if 2 - then valid in child and grandchild blocks
+        /// ... etc.
+        uint8 expiry;
         /// @dev Chain commitment (contains one or zero commitments)
         ChainCommitment[] chainCommitment;
         /// @dev Code commitments
@@ -154,7 +182,11 @@ library Gear {
         bytes32 newStateHash;
         bool exited;
         address inheritor;
+        /// @dev We represent `valueToReceive` as `uint128` and `bool` because each non-zero byte costs 16 gas,
+        ///      and each zero byte costs 4 gas (see https://evm.codes/about#gascosts).
+        ///      Also see `ethexe/common/src/gear.rs`.
         uint128 valueToReceive;
+        bool valueToReceiveNegativeSign;
         ValueClaim[] valueClaims;
         Message[] messages;
     }
@@ -166,9 +198,17 @@ library Gear {
     }
 
     struct ValidationSettings {
-        uint16 signingThresholdPercentage;
+        uint128 thresholdNumerator;
+        uint128 thresholdDenominator;
         Validators validators0;
         Validators validators1;
+    }
+
+    struct ValidationSettingsView {
+        uint128 thresholdNumerator;
+        uint128 thresholdDenominator;
+        ValidatorsView validators0;
+        ValidatorsView validators1;
     }
 
     struct ValueClaim {
@@ -197,30 +237,26 @@ library Gear {
         ECDSA
     }
 
-    function batchCommitmentHash(
-        bytes32 _block,
-        uint48 _timestamp,
-        bytes32 _prevCommittedBlock,
-        bytes32 _chainCommitmentHash,
-        bytes32 _codeCommitmentsHash,
-        bytes32 _rewardsCommitmentHash,
-        bytes32 _validatorsCommitmentHash
-    ) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                _block,
-                _timestamp,
-                _prevCommittedBlock,
-                _chainCommitmentHash,
-                _codeCommitmentsHash,
-                _rewardsCommitmentHash,
-                _validatorsCommitmentHash
-            )
-        );
+    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head) internal pure returns (bytes32) {
+        return Hashes.efficientKeccak256AsBytes32(_transitionsHash, _head);
     }
 
-    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_transitionsHash, _head));
+    function codeCommitmentHash(bytes32 codeId, bool valid) internal pure returns (bytes32) {
+        bytes32 _codeCommitmentHash;
+        assembly ("memory-safe") {
+            mstore(0x00, codeId)
+            mstore8(0x20, valid)
+            _codeCommitmentHash := keccak256(0x00, 0x21)
+        }
+        return _codeCommitmentHash;
+    }
+
+    function rewardsCommitmentHash(bytes32 _operatorRewardsHash, bytes32 _stakerRewardsHash, uint48 _timestamp)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_operatorRewardsHash, _stakerRewardsHash, _timestamp));
     }
 
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
@@ -234,29 +270,28 @@ library Gear {
         );
     }
 
-    function blockIsPredecessor(bytes32 hash) internal view returns (bool) {
-        for (uint256 i = block.number - 1; i > 0;) {
-            bytes32 ret = blockhash(i);
-            if (ret == hash) {
-                return true;
-            } else if (ret == 0) {
-                break;
-            }
-
-            unchecked {
-                i--;
-            }
-        }
-
-        return false;
-    }
-
-    function codeCommitmentHash(CodeCommitment memory codeCommitment) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
-    }
-
-    function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
-        return ComputationSettings({threshold: COMPUTATION_THRESHOLD, wvaraPerSecond: WVARA_PER_SECOND});
+    function batchCommitmentHash(
+        bytes32 _block,
+        uint48 _timestamp,
+        bytes32 _prevCommittedBlock,
+        uint8 _expiry,
+        bytes32 _chainCommitmentHash,
+        bytes32 _codeCommitmentsHash,
+        bytes32 _rewardsCommitmentHash,
+        bytes32 _validatorsCommitmentHash
+    ) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                _block,
+                _timestamp,
+                _prevCommittedBlock,
+                _expiry,
+                _chainCommitmentHash,
+                _codeCommitmentsHash,
+                _rewardsCommitmentHash,
+                _validatorsCommitmentHash
+            )
+        );
     }
 
     function messageHash(Message memory message) internal pure returns (bytes32) {
@@ -273,8 +308,8 @@ library Gear {
         );
     }
 
-    function newGenesis() internal view returns (GenesisBlockInfo memory) {
-        return GenesisBlockInfo({hash: bytes32(0), number: uint32(block.number), timestamp: uint48(block.timestamp)});
+    function valueClaimHash(bytes32 _messageId, address _destination, uint128 _value) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_messageId, _destination, _value));
     }
 
     function stateTransitionHash(
@@ -283,14 +318,49 @@ library Gear {
         bool exited,
         address inheritor,
         uint128 valueToReceive,
+        bool valueToReceiveNegativeSign,
         bytes32 valueClaimsHash,
         bytes32 messagesHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                actor, newStateHash, exited, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash
+                actor,
+                newStateHash,
+                exited,
+                inheritor,
+                valueToReceive,
+                valueToReceiveNegativeSign,
+                valueClaimsHash,
+                messagesHashesHash
             )
         );
+    }
+
+    function blockIsPredecessor(bytes32 hash, uint8 expiry) internal view returns (bool) {
+        uint256 start = block.number - 1;
+        uint256 end = expiry >= block.number ? 0 : block.number - expiry;
+        for (uint256 i = start; i >= end;) {
+            bytes32 ret = blockhash(i);
+            if (ret == hash) {
+                return true;
+            } else if (ret == 0) {
+                break;
+            }
+
+            unchecked {
+                i--;
+            }
+        }
+
+        return false;
+    }
+
+    function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
+        return ComputationSettings({threshold: COMPUTATION_THRESHOLD, wvaraPerSecond: WVARA_PER_SECOND});
+    }
+
+    function newGenesis() internal view returns (GenesisBlockInfo memory) {
+        return GenesisBlockInfo({hash: bytes32(0), number: uint32(block.number), timestamp: uint48(block.timestamp)});
     }
 
     /// @dev Validates signatures of the given data hash.
@@ -318,13 +388,13 @@ library Gear {
     ) internal returns (bool) {
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
         if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
-            require(ts >= router.genesisBlock.timestamp, "cannot validate before genesis");
-            require(ts + router.timelines.era >= eraStarted, "timestamp is older than previous era");
+            require(ts >= router.genesisBlock.timestamp, ValidationBeforeGenesis());
+            require(ts + router.timelines.era >= eraStarted, TimestampOlderThanPreviousEra());
 
             // Validation must be done using validators from previous era,
             // because `ts` is in the past and we are in the validation delay period.
         } else {
-            require(ts <= block.timestamp, "timestamp cannot be in the future");
+            require(ts <= block.timestamp, TimestampInFuture());
 
             if (ts < eraStarted) {
                 ts = eraStarted;
@@ -337,10 +407,10 @@ library Gear {
         bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);
 
         if (_signatureType == SignatureType.FROST) {
-            require(_signatures.length == 1, "FROST signature must be single");
+            require(_signatures.length == 1, InvalidFrostSignatureCount());
 
             bytes memory _signature = _signatures[0];
-            require(_signature.length == 96, "FROST signature length must be 96 bytes");
+            require(_signature.length == 96, InvalidFrostSignatureLength());
 
             uint256 _signatureCommitmentX;
             uint256 _signatureCommitmentY;
@@ -365,8 +435,11 @@ library Gear {
                 _messageHash
             );
         } else if (_signatureType == SignatureType.ECDSA) {
-            uint256 threshold =
-                validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
+            uint256 threshold = validatorsThreshold(
+                validators.list.length,
+                router.validationSettings.thresholdNumerator,
+                router.validationSettings.thresholdDenominator
+            );
 
             uint256 validSignatures = 0;
 
@@ -428,14 +501,14 @@ library Gear {
         uint256 ts1 = router.validationSettings.validators1.useFromTimestamp;
 
         // Impossible case, because of implementation.
-        require(ts0 != ts1, "eras timestamp must not be equal");
+        require(ts0 != ts1, ErasTimestampMustNotBeEqual());
 
         bool ts1Greater = ts0 < ts1;
         bool tsGe0 = ts0 <= ts;
         bool tsGe1 = ts1 <= ts;
 
         // Both eras are in the future - not supported by this function.
-        require(tsGe0 || tsGe1, "could not identify validators for the given timestamp");
+        require(tsGe0 || tsGe1, ValidatorsNotFoundForTimestamp());
 
         // Two impossible cases, because of math rules:
         // 1)  ts1Greater && !tsGe0 &&  tsGe1
@@ -444,13 +517,20 @@ library Gear {
         return ts1Greater && (tsGe0 == tsGe1);
     }
 
-    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage) internal pure returns (uint256) {
-        // Dividing by 10000 to adjust for percentage
-        return (validatorsAmount * uint256(thresholdPercentage) + 9999) / 10000;
-    }
-
-    function valueClaimBytes(ValueClaim memory claim) internal pure returns (bytes memory) {
-        return abi.encodePacked(claim.messageId, claim.destination, claim.value);
+    function validatorsThreshold(uint256 validatorsAmount, uint128 thresholdNumerator, uint128 thresholdDenominator)
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 a;
+        unchecked {
+            a = validatorsAmount * thresholdNumerator;
+        }
+        uint256 d = a / thresholdDenominator;
+        uint256 r = a % thresholdDenominator;
+        unchecked {
+            return (r > 0) ? d + 1 : d;
+        }
     }
 
     function eraIndexAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
@@ -459,5 +539,29 @@ library Gear {
 
     function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
         return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
+    }
+
+    function toView(Gear.Validators storage validators) internal view returns (Gear.ValidatorsView memory) {
+        return Gear.ValidatorsView({
+            aggregatedPublicKey: validators.aggregatedPublicKey,
+            verifiableSecretSharingCommitmentPointer: validators.verifiableSecretSharingCommitmentPointer,
+            list: validators.list,
+            useFromTimestamp: validators.useFromTimestamp
+        });
+    }
+
+    function toView(Gear.ValidationSettings storage settings)
+        internal
+        view
+        returns (Gear.ValidationSettingsView memory)
+    {
+        Gear.ValidatorsView memory validators0 = toView(settings.validators0);
+        Gear.ValidatorsView memory validators1 = toView(settings.validators1);
+        return Gear.ValidationSettingsView({
+            thresholdNumerator: settings.thresholdNumerator,
+            thresholdDenominator: settings.thresholdDenominator,
+            validators0: validators0,
+            validators1: validators1
+        });
     }
 }

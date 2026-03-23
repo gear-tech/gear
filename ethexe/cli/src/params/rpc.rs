@@ -18,7 +18,8 @@
 
 use super::MergeParams;
 use clap::Parser;
-use ethexe_rpc::RpcConfig;
+use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
+use ethexe_service::config::NodeConfig;
 use serde::Deserialize;
 use std::{
     net::{Ipv4Addr, SocketAddr},
@@ -26,7 +27,7 @@ use std::{
 };
 
 /// Parameters for the RPC service to start.
-#[derive(Clone, Debug, Deserialize, Parser)]
+#[derive(Clone, Debug, Default, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct RpcParams {
     /// Port to expose RPC service.
@@ -48,6 +49,9 @@ pub struct RpcParams {
     #[arg(long)]
     #[serde(default, rename = "no-rpc")]
     pub no_rpc: bool,
+
+    #[arg(long)]
+    pub gas_limit_multiplier: Option<u64>,
 }
 
 impl RpcParams {
@@ -55,7 +59,7 @@ impl RpcParams {
     pub const DEFAULT_RPC_PORT: u16 = 9944;
 
     /// Convert self into a proper `RpcConfig` object, if RPC service is enabled.
-    pub fn into_config(self, dev: bool) -> Option<RpcConfig> {
+    pub fn into_config(self, node_config: &NodeConfig) -> Option<RpcConfig> {
         if self.no_rpc {
             return None;
         }
@@ -83,10 +87,17 @@ impl RpcParams {
             })
             .into();
 
+        let gas_limit_multiplier = self
+            .gas_limit_multiplier
+            .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER);
+
         Some(RpcConfig {
             listen_addr,
             cors,
-            dev,
+            gas_allowance: gas_limit_multiplier
+                .checked_mul(node_config.block_gas_limit)
+                .expect("RPC gas allowance overflow"),
+            chunk_size: node_config.chunk_processing_threads,
         })
     }
 }
@@ -98,6 +109,7 @@ impl MergeParams for RpcParams {
             rpc_external: self.rpc_external || with.rpc_external,
             rpc_cors: self.rpc_cors.or(with.rpc_cors),
             no_rpc: self.no_rpc || with.no_rpc,
+            gas_limit_multiplier: self.gas_limit_multiplier.or(with.gas_limit_multiplier),
         }
     }
 }

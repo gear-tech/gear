@@ -16,11 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(test)]
+use crate::tests::MockProcessor;
 use crate::{
-    ComputeEvent, ProcessorExt, Result, codes::CodesSubService, compute::ComputeSubService,
+    ComputeEvent, ProcessorExt, Result,
+    codes::CodesSubService,
+    compute::{ComputeConfig, ComputeSubService},
     prepare::PrepareSubService,
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked};
+use ethexe_common::{Announce, CodeAndIdUnchecked, PromisePolicy};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
@@ -30,13 +34,6 @@ use std::{
     task::{Context, Poll},
 };
 
-#[derive(Debug, Clone)]
-pub struct ComputeMetrics {
-    pub blocks_queue_len: usize,
-    pub process_codes_count: usize,
-    pub waiting_codes_count: usize,
-}
-
 pub struct ComputeService<P: ProcessorExt = Processor> {
     codes_sub_service: CodesSubService<P>,
     prepare_sub_service: PrepareSubService,
@@ -44,14 +41,39 @@ pub struct ComputeService<P: ProcessorExt = Processor> {
 }
 
 impl<P: ProcessorExt> ComputeService<P> {
-    // TODO #4550: consider to create Processor inside ComputeService
-    pub fn new(db: Database, processor: P) -> Self {
+    /// Creates new compute service.
+    pub fn new(config: ComputeConfig, db: Database, processor: P) -> Self {
         Self {
             prepare_sub_service: PrepareSubService::new(db.clone()),
-            compute_sub_service: ComputeSubService::new(db.clone(), processor.clone()),
+            compute_sub_service: ComputeSubService::new(config, db.clone(), processor.clone()),
             codes_sub_service: CodesSubService::new(db, processor),
         }
     }
+}
+
+#[cfg(test)]
+impl ComputeService {
+    /// Creates the processor with default [`ComputeConfig::without_quarantine`] and [`Processor`] with default config.
+    pub fn new_with_defaults(db: Database) -> Self {
+        let config = ComputeConfig::without_quarantine();
+        let processor = Processor::new(db.clone()).unwrap();
+        Self::new(config, db, processor)
+    }
+}
+
+#[cfg(test)]
+impl ComputeService<MockProcessor> {
+    pub fn new_mock_processor(db: Database) -> Self {
+        Self::new(
+            ComputeConfig::without_quarantine(),
+            db,
+            MockProcessor::default(),
+        )
+    }
+}
+
+impl<P: ProcessorExt> ComputeService<P> {
+    // TODO #4550: consider to create Processor inside ComputeService
 
     pub fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) {
         self.codes_sub_service.receive_code_to_process(code_and_id);
@@ -61,18 +83,9 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.prepare_sub_service.receive_block_to_prepare(block);
     }
 
-    pub fn compute_announce(&mut self, announce: Announce) {
+    pub fn compute_announce(&mut self, announce: Announce, promise_policy: PromisePolicy) {
         self.compute_sub_service
-            .receive_announce_to_compute(announce);
-    }
-
-    /// Get all metrics from the compute service
-    pub fn get_metrics(&self) -> ComputeMetrics {
-        ComputeMetrics {
-            blocks_queue_len: self.prepare_sub_service.blocks_queue_len(),
-            process_codes_count: self.codes_sub_service.process_codes_count(),
-            waiting_codes_count: self.prepare_sub_service.waiting_codes_count(),
-        }
+            .receive_announce_to_compute(announce, promise_policy);
     }
 }
 
@@ -96,8 +109,8 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             return Poll::Ready(Some(result.map(ComputeEvent::from)));
         };
 
-        if let Poll::Ready(result) = self.compute_sub_service.poll_next(cx) {
-            return Poll::Ready(Some(result.map(ComputeEvent::AnnounceComputed)));
+        if let Poll::Ready(event) = self.compute_sub_service.poll_next(cx) {
+            return Poll::Ready(Some(event));
         };
 
         Poll::Pending
@@ -112,6 +125,7 @@ impl<P: ProcessorExt> FusedStream for ComputeService<P> {
 
 pub(crate) trait SubService: Unpin + Send + 'static {
     type Output;
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>>;
 
     #[cfg(test)]
@@ -122,8 +136,8 @@ pub(crate) trait SubService: Unpin + Send + 'static {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
-    use crate::tests::MockProcessor;
     use ethexe_common::{CodeAndIdUnchecked, db::*, mock::*};
     use ethexe_db::Database as DB;
     use futures::StreamExt;
@@ -136,10 +150,9 @@ mod tests {
         gear_utils::init_default_logger();
 
         let db = DB::memory();
-        let processor = MockProcessor;
-        let mut service = ComputeService::new(db.clone(), processor);
-        let chain = BlockChain::mock(1).setup(&db);
+        let mut service = ComputeService::new_mock_processor(db.clone());
 
+        let chain = BlockChain::mock(1).setup(&db);
         let block = chain.blocks[1].to_simple().next_block().setup(&db);
 
         // Request block preparation
@@ -159,8 +172,8 @@ mod tests {
         gear_utils::init_default_logger();
 
         let db = DB::memory();
-        let processor = MockProcessor;
-        let mut service = ComputeService::new(db.clone(), processor);
+        let mut service = ComputeService::new_mock_processor(db.clone());
+
         let chain = BlockChain::mock(1).setup(&db);
 
         let block = chain.blocks[1].to_simple().next_block().setup(&db);
@@ -172,17 +185,12 @@ mod tests {
         // Request computation
         let announce = Announce {
             block_hash: block.hash,
-            parent: chain.blocks[1]
-                .as_prepared()
-                .announces
-                .first()
-                .copied()
-                .unwrap(),
+            parent: chain.block_top_announce_hash(1),
             gas_allowance: Some(42),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         };
         let announce_hash = announce.to_hash();
-        service.compute_announce(announce);
+        service.compute_announce(announce, PromisePolicy::Disabled);
 
         // Poll service to process the block
         let event = service.next().await.unwrap().unwrap();
@@ -197,13 +205,18 @@ mod tests {
     async fn process_code() {
         gear_utils::init_default_logger();
 
-        let db = DB::memory();
-        let processor = MockProcessor;
-        let mut service = ComputeService::new(db.clone(), processor);
-
-        // Create test code
         let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header
         let code_id = CodeId::generate(&code);
+
+        let db = DB::memory();
+        let mut service = ComputeService::new(
+            ComputeConfig::without_quarantine(),
+            db.clone(),
+            MockProcessor::with_default_valid_code()
+                .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_id),
+        );
+
+        // Create test code
 
         let code_and_id = CodeAndIdUnchecked { code, code_id };
 

@@ -20,15 +20,17 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{BatchCommitmentValidationReply, ConsensusEvent};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::batch::ValidationStatus};
+
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Digest, SimpleBlockData,
+    Address, SimpleBlockData,
     consensus::{BatchCommitmentValidationRequest, VerifiedValidationRequest},
     network::ValidatorMessage,
 };
 use futures::{FutureExt, future::BoxFuture};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use std::task::Poll;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
@@ -49,7 +51,7 @@ enum State {
     WaitingForValidationRequest,
     ProcessingValidationRequest {
         #[debug(skip)]
-        future: BoxFuture<'static, Result<Digest>>,
+        future: BoxFuture<'static, Result<ValidationStatus>>,
     },
 }
 
@@ -85,32 +87,44 @@ impl StateHandler for Participant {
             && let Poll::Ready(res) = future.poll_unpin(cx)
         {
             match res {
-                Ok(digest) => {
-                    let reply = self
+                Ok(ValidationStatus::Accepted(digest)) => {
+                    let signature = self.ctx.core.signer.sign_for_contract_digest(
+                        self.ctx.core.router_address,
+                        self.ctx.core.pub_key,
+                        digest,
+                        None,
+                    )?;
+                    self.ctx
+                        .core
+                        .metrics
+                        .last_signed_commitment_block_number
+                        .set(self.block.header.height);
+
+                    let reply = BatchCommitmentValidationReply { digest, signature };
+
+                    let era_index = self
                         .ctx
                         .core
-                        .signer
-                        .sign_for_contract(
-                            self.ctx.core.router_address,
-                            self.ctx.core.pub_key,
-                            digest,
-                        )
-                        .map(|signature| BatchCommitmentValidationReply { digest, signature })?;
-
+                        .timelines
+                        .era_from_ts(self.block.header.timestamp);
                     let reply = ValidatorMessage {
-                        block: self.block.hash,
+                        era_index,
                         payload: reply,
                     };
 
-                    let reply = self
-                        .ctx
-                        .core
-                        .signer
-                        .signed_data(self.ctx.core.pub_key, reply)?;
+                    let reply =
+                        self.ctx
+                            .core
+                            .signer
+                            .signed_data(self.ctx.core.pub_key, reply, None)?;
 
-                    self.output(ConsensusEvent::PublishMessage(reply.into()));
+                    self.ctx
+                        .output(ConsensusEvent::PublishMessage(reply.into()));
                 }
-                Err(err) => self.warning(format!("reject validation request: {err}")),
+                Ok(ValidationStatus::Rejected { request, reason }) => {
+                    self.warning(format!("reject validation request {request:?} : {reason}"));
+                }
+                Err(err) => return Err(err),
             }
 
             // NOTE: In both cases it returns to the initial state,
@@ -171,8 +185,9 @@ impl Participant {
             future: self
                 .ctx
                 .core
+                .batch_manager
                 .clone()
-                .validate_batch_commitment_request(self.block.clone(), request)
+                .validate_batch_commitment(self.block, request)
                 .boxed(),
         };
 
@@ -184,7 +199,12 @@ impl Participant {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{Digest, ToDigest, gear::CodeCommitment, mock::*};
+    use ethexe_common::{
+        Digest, ToDigest,
+        db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRW},
+        gear::CodeCommitment,
+        mock::*,
+    };
 
     #[test]
     fn create() {
@@ -200,10 +220,12 @@ mod tests {
 
     #[tokio::test]
     async fn create_with_pending_events() {
+        gear_utils::init_default_logger();
+
         let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
-        let block = SimpleBlockData::mock(());
+        let block = BlockChain::mock(2).setup(&ctx.core.db).blocks[2].to_simple();
 
         // Validation request from alice - must be kept
         ctx.pending(PendingEvent::ValidationRequest(
@@ -252,7 +274,11 @@ mod tests {
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, BatchCommitmentValidationRequest::new(&batch))
+            .signed_data(
+                producer,
+                BatchCommitmentValidationRequest::new(&batch),
+                None,
+            )
             .unwrap()
             .into_verified();
 
@@ -289,14 +315,12 @@ mod tests {
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
-        let (state, event) = state
+        state
             .process_validation_request(verified_request)
             .unwrap()
             .wait_for_event()
             .await
-            .unwrap();
-        assert!(state.is_initial());
-        assert!(matches!(event, ConsensusEvent::Warning(_)));
+            .expect_err("database is empty - must fail");
     }
 
     #[tokio::test]
@@ -314,7 +338,7 @@ mod tests {
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, request)
+            .signed_data(producer, request, None)
             .unwrap()
             .into_verified();
 
@@ -334,22 +358,30 @@ mod tests {
     #[tokio::test]
     async fn empty_batch_error() {
         let (ctx, pub_keys, _) = mock_validator_context();
+        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-        // Create a request with empty blocks and codes
-        let request = BatchCommitmentValidationRequest {
-            digest: Digest::random(),
-            head: None,
-            codes: vec![],
-            rewards: false,
-            validators: false,
-        };
+        let mut announce_hash = batch.chain_commitment.clone().unwrap().head_announce;
+        batch.code_commitments = Default::default();
+        let request = BatchCommitmentValidationRequest::new(&batch);
+
+        // Nullify the codes in database
+        ctx.core.db.mutate_block_meta(block.hash, |meta| {
+            meta.codes_queue = Some(Default::default())
+        });
+        // Nullify the transitions in database
+        for _ in 0..2 {
+            announce_hash = ctx.core.db.announce(announce_hash).unwrap().parent;
+            ctx.core
+                .db
+                .set_announce_outcome(announce_hash, Default::default());
+        }
 
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, request)
+            .signed_data(producer, request, None)
             .unwrap()
             .into_verified();
 
@@ -383,7 +415,7 @@ mod tests {
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, request)
+            .signed_data(producer, request, None)
             .unwrap()
             .into_verified();
 
@@ -414,7 +446,7 @@ mod tests {
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, request)
+            .signed_data(producer, request, None)
             .unwrap()
             .into_verified();
 

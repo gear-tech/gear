@@ -1,0 +1,690 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Validator-specific networking logic that verifies signed messages
+//! against on-chain state.
+
+use crate::{
+    db_sync::PeerId, gossipsub::MessageAcceptance, peer_score,
+    validator::list::ValidatorListSnapshot,
+};
+use ethexe_common::{
+    Address, HashOf,
+    injected::{InjectedTransaction, SignedPromise},
+    network::VerifiedValidatorMessage,
+};
+use lru::LruCache;
+use std::{cmp::Ordering, collections::VecDeque, mem, num::NonZeroUsize, sync::Arc};
+
+const MAX_CACHED_PEERS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
+const MAX_CACHED_MESSAGES_PER_PEER: NonZeroUsize = NonZeroUsize::new(20).unwrap();
+
+// used only in assertion
+#[allow(dead_code)]
+const TOTAL_CACHED_MESSAGES: usize = 1024;
+const _: () =
+    assert!(MAX_CACHED_PEERS.get() * MAX_CACHED_MESSAGES_PER_PEER.get() <= TOTAL_CACHED_MESSAGES);
+
+type CachedMessages = LruCache<PeerId, LruCache<VerifiedValidatorMessage, ()>>;
+
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_validator_topic")]
+struct Metrics {
+    /// Number of cached messages to be validated in the next era
+    cached_messages: metrics::Gauge,
+    /// Number of ignored messages from validators
+    ignored_messages: metrics::Counter,
+    /// Number of rejected messages from validators
+    rejected_messages: metrics::Counter,
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+enum VerifyMessageIgnoreReason {
+    #[display("old era: expected {expected_era}, got {received_era}")]
+    OldEra {
+        expected_era: u64,
+        received_era: u64,
+    },
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+enum VerifyMessageCacheReason {
+    #[display("new era: expected {expected_era}, got {received_era}")]
+    NewEra {
+        expected_era: u64,
+        received_era: u64,
+    },
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+enum VerifyMessageRejectReason {
+    #[display("too old era: expected {expected_era}, got {received_era}")]
+    TooOldEra {
+        expected_era: u64,
+        received_era: u64,
+    },
+    #[display("too new era: expected {expected_era}, got {received_era}")]
+    TooNewEra {
+        expected_era: u64,
+        received_era: u64,
+    },
+    #[display("address {address} is not validator")]
+    AddressIsNotValidator { address: Address },
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display, derive_more::From, derive_more::Unwrap)]
+enum VerifyMessageError {
+    Ignore(VerifyMessageIgnoreReason),
+    Cache(VerifyMessageCacheReason),
+    Reject(VerifyMessageRejectReason),
+}
+
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+enum VerifyPromiseError {
+    #[display("unknown validator: address={address}, tx_hash={tx_hash}")]
+    UnknownValidator {
+        address: Address,
+        tx_hash: HashOf<InjectedTransaction>,
+    },
+}
+
+/// Tracks validator-signed messages and admits each one once the on-chain
+/// context confirms it is timely and originates from a legitimate validator.
+///
+/// Legitimacy is checked via the `era_index` attached to
+/// [`ValidatorMessage`](ethexe_common::network::ValidatorMessage) and the
+/// validator-signed payload it carries. The hinted era must match the current
+/// chain head; eras N-1, N+2, N+3, and so on are dropped when the node is at era N.
+/// Messages from era N+1 are rechecked after the next validator set arrives.
+pub struct ValidatorTopic {
+    cached_messages: CachedMessages,
+    verified_messages: VecDeque<VerifiedValidatorMessage>,
+    peer_score: peer_score::Handle,
+    snapshot: Arc<ValidatorListSnapshot>,
+    metrics: Metrics,
+}
+
+impl ValidatorTopic {
+    pub fn new(peer_score: peer_score::Handle, snapshot: Arc<ValidatorListSnapshot>) -> Self {
+        Self {
+            cached_messages: LruCache::new(MAX_CACHED_PEERS),
+            verified_messages: VecDeque::new(),
+            peer_score,
+            snapshot,
+            metrics: Metrics::default(),
+        }
+    }
+
+    fn inner_verify_validator_message(
+        &self,
+        message: &VerifiedValidatorMessage,
+    ) -> Result<(), VerifyMessageError> {
+        let chain_head_era = self.snapshot.current_era_index;
+
+        let message_era = message.era_index();
+        let address = message.address();
+
+        let res: Result<(), VerifyMessageError> = match message_era.cmp(&chain_head_era) {
+            Ordering::Less => {
+                if message_era + 1 != chain_head_era {
+                    Err(VerifyMessageRejectReason::TooOldEra {
+                        expected_era: chain_head_era,
+                        received_era: message_era,
+                    }
+                    .into())
+                } else {
+                    // node may be not synced yet
+                    Err(VerifyMessageIgnoreReason::OldEra {
+                        expected_era: chain_head_era,
+                        received_era: message_era,
+                    }
+                    .into())
+                }
+            }
+            Ordering::Equal => {
+                // both nodes are in sync
+
+                Ok(())
+            }
+            Ordering::Greater => {
+                if message_era != chain_head_era + 1 {
+                    Err(VerifyMessageRejectReason::TooNewEra {
+                        expected_era: chain_head_era,
+                        received_era: message_era,
+                    }
+                    .into())
+                } else {
+                    // node may be synced ahead
+                    Err(VerifyMessageCacheReason::NewEra {
+                        expected_era: chain_head_era,
+                        received_era: message_era,
+                    }
+                    .into())
+                }
+            }
+        };
+
+        // check if the address is a validator
+        match res {
+            Ok(()) => {
+                // last check the "ok" message is in the current validator set
+                if !self.snapshot.is_current(address) {
+                    return Err(VerifyMessageRejectReason::AddressIsNotValidator { address }.into());
+                }
+            }
+            Err(VerifyMessageError::Cache(_)) => {
+                // if we are going to cache the message, then it should be in the next validator set
+                if !self.snapshot.is_next(address) {
+                    return Err(VerifyMessageRejectReason::AddressIsNotValidator { address }.into());
+                }
+            }
+            Err(VerifyMessageError::Ignore(_)) => {
+                // ignore reason would require keeping previous era validators to
+                // honestly penalize the peer, so we only ignore the message.
+                // `ValidatorList` (and `NetworkService` in general) would have
+                // more complex initialization to fetch previous validators
+            }
+            Err(VerifyMessageError::Reject(_)) => {
+                // peer would be penalized anyway, so no need to check
+            }
+        }
+
+        res
+    }
+
+    /// Swap to a fresher validator snapshot and re-run cached messages when the
+    /// era advances.
+    ///
+    /// Cached messages are only revisited if the new snapshot represents a
+    /// strictly newer era than the one previously held; this prevents
+    /// unnecessary revalidation while height moves inside the same era.
+    pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
+        let current_era = self.snapshot.current_era_index;
+        let maybe_new_era = snapshot.current_era_index;
+
+        self.snapshot = snapshot;
+
+        // don't release messages if era hasn't changed yet
+        if current_era >= maybe_new_era {
+            return;
+        }
+
+        let cached_messages =
+            mem::replace(&mut self.cached_messages, LruCache::new(MAX_CACHED_PEERS));
+        self.metrics.cached_messages.set(0);
+        for (_source, messages) in cached_messages {
+            for (message, ()) in messages {
+                debug_assert!(self.snapshot.is_current(message.address()));
+                self.verified_messages.push_back(message);
+            }
+        }
+    }
+
+    /// Perform signature validation, chain context checks, and peer scoring.
+    ///
+    /// Returns the appropriate gossipsub acceptance outcome while optionally
+    /// caching messages that can become valid once the node enters the hinted next era
+    /// (`NewEra`). All other mismatches are penalized via peer scoring and
+    /// rejected immediately or ignored.
+    // TODO: `source` is only used for caching, message replaying is possible
+    pub(crate) fn verify_validator_message(
+        &mut self,
+        source: PeerId,
+        message: VerifiedValidatorMessage,
+    ) -> (MessageAcceptance, Option<VerifiedValidatorMessage>) {
+        match self.inner_verify_validator_message(&message) {
+            Ok(()) => (MessageAcceptance::Accept, Some(message)),
+            Err(VerifyMessageError::Ignore(reason)) => {
+                log::trace!("ignore message from {source} peer: {reason:?}, message: {message:?}");
+                self.metrics.ignored_messages.increment(1);
+                (MessageAcceptance::Ignore, None)
+            }
+            Err(VerifyMessageError::Cache(reason)) => {
+                log::trace!(
+                    "cache message pending verification from {source} peer: {reason}, message: {message:?}"
+                );
+
+                let existed = self
+                    .cached_messages
+                    .get_or_insert_mut(source, || LruCache::new(MAX_CACHED_MESSAGES_PER_PEER))
+                    .put(message, ());
+
+                self.metrics.cached_messages.set(
+                    self.cached_messages
+                        .iter()
+                        .map(|(_, messages)| messages.len())
+                        .sum::<usize>() as f64,
+                );
+
+                // gossipsub should ignore a duplicated message
+                debug_assert!(existed.is_none());
+
+                (MessageAcceptance::Ignore, None)
+            }
+            Err(VerifyMessageError::Reject(reason)) => {
+                log::trace!(
+                    "failed to verify message initially from {source} peer: {reason}, message: {message:?}"
+                );
+                self.metrics.rejected_messages.increment(1);
+                self.peer_score.invalid_data(source);
+                (MessageAcceptance::Reject, None)
+            }
+        }
+    }
+
+    fn inner_verify_promise(
+        &self,
+        _source: PeerId,
+        promise: SignedPromise,
+    ) -> Result<SignedPromise, VerifyPromiseError> {
+        let address = promise.address();
+        let tx_hash = promise.data().tx_hash;
+
+        if !self.snapshot.contains(address) {
+            return Err(VerifyPromiseError::UnknownValidator { address, tx_hash });
+        }
+
+        Ok(promise)
+    }
+
+    // FIXME: messages from previous era validators are ignored
+    pub fn verify_promise(
+        &self,
+        source: PeerId,
+        promise: SignedPromise,
+    ) -> (MessageAcceptance, Option<SignedPromise>) {
+        match self.inner_verify_promise(source, promise) {
+            Ok(promise) => (MessageAcceptance::Accept, Some(promise)),
+            Err(err) => {
+                log::trace!("failed to verify promise: {err}");
+                (MessageAcceptance::Ignore, None)
+            }
+        }
+    }
+
+    /// Retrieve the next verified message that is ready for further processing.
+    pub(crate) fn next_message(&mut self) -> Option<VerifiedValidatorMessage> {
+        self.verified_messages.pop_front()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use assert_matches::assert_matches;
+    use ethexe_common::{
+        Announce,
+        gear_core::{message::ReplyCode, rpc::ReplyInfo},
+        injected::Promise,
+        mock::Mock,
+        network::{SignedValidatorMessage, ValidatorMessage},
+    };
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+    use nonempty::{NonEmpty, nonempty};
+
+    const CHAIN_HEAD_ERA: u64 = 10;
+
+    fn new_snapshot(
+        current_era_index: u64,
+        current_validators: NonEmpty<Address>,
+    ) -> Arc<ValidatorListSnapshot> {
+        Arc::new(ValidatorListSnapshot {
+            current_era_index,
+            current_validators: current_validators.into(),
+            next_validators: None,
+        })
+    }
+
+    fn new_topic(validators: NonEmpty<Address>) -> ValidatorTopic {
+        ValidatorTopic::new(
+            peer_score::Handle::new_test(),
+            new_snapshot(CHAIN_HEAD_ERA, validators),
+        )
+    }
+
+    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
+        let signer = Signer::memory();
+        let pub_key = signer.generate().unwrap();
+
+        signer
+            .signed_data(
+                pub_key,
+                ValidatorMessage {
+                    era_index,
+                    payload: Announce::mock(()),
+                },
+                None,
+            )
+            .map(SignedValidatorMessage::from)
+            .unwrap()
+            .into_verified()
+    }
+
+    fn signed_promise() -> SignedPromise {
+        let signer = Signer::memory();
+        let pub_key = signer.generate().unwrap();
+        let promise = Promise {
+            tx_hash: Default::default(),
+            reply: ReplyInfo {
+                payload: vec![],
+                value: 0,
+                code: ReplyCode::Unsupported,
+            },
+        };
+
+        signer.signed_message(pub_key, promise, None).unwrap()
+    }
+
+    #[test]
+    fn too_old_era() {
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA - 2);
+        let mut alice = new_topic(nonempty![bob_message.address()]);
+
+        let err = alice
+            .inner_verify_validator_message(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
+        assert_eq!(
+            err,
+            VerifyMessageRejectReason::TooOldEra {
+                expected_era: CHAIN_HEAD_ERA,
+                received_era: CHAIN_HEAD_ERA - 2
+            }
+        );
+
+        let bob_source = PeerId::random();
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(verified_msg, None);
+        assert_eq!(alice.cached_messages.len(), 0);
+        assert_eq!(alice.next_message(), None);
+    }
+
+    #[test]
+    fn old_era() {
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA - 1);
+        let mut alice = new_topic(nonempty![bob_message.address()]);
+
+        let err = alice
+            .inner_verify_validator_message(&bob_message)
+            .unwrap_err()
+            .unwrap_ignore();
+        assert_eq!(
+            err,
+            VerifyMessageIgnoreReason::OldEra {
+                expected_era: CHAIN_HEAD_ERA,
+                received_era: CHAIN_HEAD_ERA - 1
+            }
+        );
+
+        let bob_source = PeerId::random();
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(verified_msg, None);
+        assert_eq!(alice.cached_messages.len(), 0);
+        assert_eq!(alice.next_message(), None);
+    }
+
+    #[test]
+    fn too_new_era() {
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA + 2);
+        let mut alice = new_topic(nonempty![bob_message.address()]);
+
+        let err = alice
+            .inner_verify_validator_message(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
+        assert_eq!(
+            err,
+            VerifyMessageRejectReason::TooNewEra {
+                expected_era: CHAIN_HEAD_ERA,
+                received_era: CHAIN_HEAD_ERA + 2
+            }
+        );
+
+        let bob_source = PeerId::random();
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(verified_msg, None);
+        assert_eq!(alice.cached_messages.len(), 0);
+    }
+
+    #[test]
+    fn new_era() {
+        const BOB_BLOCK_ERA: u64 = CHAIN_HEAD_ERA + 1;
+
+        let bob_message = new_validator_message(BOB_BLOCK_ERA);
+        let snapshot = ValidatorListSnapshot {
+            current_era_index: CHAIN_HEAD_ERA,
+            current_validators: Default::default(),
+            next_validators: Some(nonempty![bob_message.address()].into()),
+        };
+        let mut alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
+
+        let err = alice
+            .inner_verify_validator_message(&bob_message)
+            .unwrap_err()
+            .unwrap_cache();
+        assert_eq!(
+            err,
+            VerifyMessageCacheReason::NewEra {
+                expected_era: CHAIN_HEAD_ERA,
+                received_era: CHAIN_HEAD_ERA + 1
+            }
+        );
+
+        let bob_source = PeerId::random();
+        let (acceptance, verified_msg) =
+            alice.verify_validator_message(bob_source, bob_message.clone());
+        assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(verified_msg, None);
+        assert_eq!(alice.cached_messages.len(), 1);
+
+        let snapshot = new_snapshot(BOB_BLOCK_ERA, nonempty![bob_message.address()]);
+        alice.on_new_snapshot(snapshot);
+
+        assert_eq!(alice.next_message(), Some(bob_message));
+    }
+
+    #[test]
+    fn current_era_address_is_not_validator() {
+        let mut alice = new_topic(nonempty![Address::default()]);
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA);
+
+        let err = alice
+            .inner_verify_validator_message(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
+        assert_eq!(
+            err,
+            VerifyMessageRejectReason::AddressIsNotValidator {
+                address: bob_message.address()
+            }
+        );
+
+        let bob_source = PeerId::random();
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(verified_msg, None);
+        assert_eq!(alice.cached_messages.len(), 0);
+        assert_eq!(alice.next_message(), None);
+    }
+
+    #[test]
+    fn next_era_address_is_not_validator() {
+        let mut alice = new_topic(nonempty![Address::default()]);
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA + 1);
+
+        let err = alice
+            .inner_verify_validator_message(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
+        assert_eq!(
+            err,
+            VerifyMessageRejectReason::AddressIsNotValidator {
+                address: bob_message.address()
+            }
+        );
+
+        let bob_source = PeerId::random();
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(verified_msg, None);
+        assert_eq!(alice.cached_messages.len(), 0);
+        assert_eq!(alice.next_message(), None);
+    }
+
+    #[test]
+    fn new_era_address_is_not_validator() {
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA);
+        let charlie_message = new_validator_message(CHAIN_HEAD_ERA + 1);
+
+        let mut alice = new_topic(nonempty![Default::default()]);
+
+        for message in [bob_message, charlie_message] {
+            let err = alice
+                .inner_verify_validator_message(&message)
+                .unwrap_err()
+                .unwrap_reject();
+            assert_eq!(
+                err,
+                VerifyMessageRejectReason::AddressIsNotValidator {
+                    address: message.address()
+                }
+            );
+
+            let bob_source = PeerId::random();
+            let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, message);
+            assert_matches!(acceptance, MessageAcceptance::Reject);
+            assert_eq!(verified_msg, None);
+            assert_eq!(alice.cached_messages.len(), 0);
+            assert_eq!(alice.next_message(), None);
+        }
+    }
+
+    #[test]
+    fn success() {
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA);
+        let mut alice = new_topic(nonempty![bob_message.address()]);
+
+        alice.inner_verify_validator_message(&bob_message).unwrap();
+
+        let bob_source = PeerId::random();
+        let (acceptance, verified_msg) =
+            alice.verify_validator_message(bob_source, bob_message.clone());
+        assert_matches!(acceptance, MessageAcceptance::Accept);
+        assert_eq!(verified_msg, Some(bob_message));
+    }
+
+    #[test]
+    fn next_validators_arrive_later() {
+        const NEXT_ERA: u64 = CHAIN_HEAD_ERA + 1;
+
+        // current set validators
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA);
+        let charlie_message = new_validator_message(CHAIN_HEAD_ERA);
+        // new validator in next set
+        let dave_message = new_validator_message(NEXT_ERA);
+
+        let bob_source = PeerId::random();
+        let charlie_source = PeerId::random();
+        let dave_source = PeerId::random();
+
+        let mut alice = new_topic(nonempty![bob_message.address(), charlie_message.address()]);
+
+        let (bob_acceptance, bob_verified_msg) =
+            alice.verify_validator_message(bob_source, bob_message.clone());
+        assert_matches!(bob_acceptance, MessageAcceptance::Accept);
+        assert_eq!(bob_verified_msg, Some(bob_message.clone()));
+
+        let (charlie_acceptance, charlie_verified_msg) =
+            alice.verify_validator_message(charlie_source, charlie_message.clone());
+        assert_matches!(charlie_acceptance, MessageAcceptance::Accept);
+        assert_eq!(charlie_verified_msg, Some(charlie_message.clone()));
+
+        // we have no next validators yet, so the message should be rejected
+        let (dave_acceptance, dave_verified_msg) =
+            alice.verify_validator_message(dave_source, dave_message.clone());
+        assert_matches!(dave_acceptance, MessageAcceptance::Reject);
+        assert!(dave_verified_msg.is_none());
+        assert_eq!(alice.cached_messages.len(), 0);
+
+        // Dave now is in the next validator set
+        let snapshot = ValidatorListSnapshot {
+            current_era_index: CHAIN_HEAD_ERA,
+            current_validators: Default::default(),
+            next_validators: Some(nonempty![dave_message.address()].into()),
+        };
+        alice.on_new_snapshot(Arc::new(snapshot));
+
+        // Dave's message is cached
+        let (dave_acceptance, dave_verified_msg) =
+            alice.verify_validator_message(dave_source, dave_message.clone());
+        assert_matches!(dave_acceptance, MessageAcceptance::Ignore);
+        assert!(dave_verified_msg.is_none());
+        assert_eq!(alice.cached_messages.len(), 1);
+
+        // Dave's message now is in the current validator set
+        let snapshot = ValidatorListSnapshot {
+            current_era_index: NEXT_ERA,
+            current_validators: nonempty![dave_message.address()].into(),
+            next_validators: None,
+        };
+        alice.on_new_snapshot(Arc::new(snapshot));
+
+        let dave_verified_msg = alice.next_message().unwrap();
+        assert_eq!(dave_verified_msg, dave_message);
+    }
+
+    #[test]
+    fn verify_promise_unknown_validator() {
+        let topic = new_topic(nonempty![Address::default()]);
+        let promise = signed_promise();
+        let peer_id = PeerId::random();
+
+        let err = topic
+            .inner_verify_promise(peer_id, promise.clone())
+            .unwrap_err();
+        assert_eq!(
+            err,
+            VerifyPromiseError::UnknownValidator {
+                address: promise.address(),
+                tx_hash: promise.data().tx_hash,
+            }
+        );
+
+        let (acceptance, promise) = topic.verify_promise(peer_id, promise);
+        assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(promise, None);
+    }
+
+    #[tokio::test]
+    async fn verify_promise_ok() {
+        let promise = signed_promise();
+        let topic = new_topic(nonempty![promise.address()]);
+        let peer_id = PeerId::random();
+
+        topic
+            .inner_verify_promise(peer_id, promise.clone())
+            .unwrap();
+
+        let (acceptance, returned_promise) = topic.verify_promise(peer_id, promise.clone());
+        assert_matches!(acceptance, MessageAcceptance::Accept);
+        assert_eq!(returned_promise, Some(promise));
+    }
+}

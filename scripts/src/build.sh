@@ -20,7 +20,8 @@ build_usage() {
     examples       build gear examples
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
-    node           build node
+    node           build vara node
+    ethexe         build ethexe node
 
 EOF
 }
@@ -35,6 +36,10 @@ fuzzer_build() {
 
 node_build() {
   cargo build -p gear-cli "$@"
+}
+
+ethexe_build() {
+  cargo build -p ethexe-cli "$@"
 }
 
 wasm_proc_build() {

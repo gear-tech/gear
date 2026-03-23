@@ -60,9 +60,6 @@ impl<T: Config> OnRuntimeUpgrade for ResetMigration<T> {
         let res = QueuesInfo::<T>::clear(u32::MAX, None);
         weight = weight.saturating_add(db_weight.writes(res.unique.into()));
 
-        // SessionsTimer::<T>::kill();
-        // weight = weight.saturating_add(db_weight.writes(1));
-
         // ClearTimer::<T>::kill();
         // weight = weight.saturating_add(db_weight.writes(1));
 

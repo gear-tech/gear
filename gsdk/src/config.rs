@@ -37,7 +37,6 @@ pub struct GearConfig;
 
 impl Config for GearConfig {
     type AssetId = ();
-    type Hash = sp_core::H256;
     type Hasher = BlakeTwo256;
     type AccountId = sp_runtime::AccountId32;
     type Address = sp_runtime::MultiAddress<Self::AccountId, ()>;

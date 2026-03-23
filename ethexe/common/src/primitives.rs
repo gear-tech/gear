@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent};
+use crate::{
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent,
+    injected::SignedInjectedTransaction,
+};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -24,11 +27,12 @@ use alloc::{
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
-#[derive(Debug, Clone, Copy, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
     pub height: u32,
@@ -65,21 +69,27 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(
+    Debug, derive_more::Display, Copy, Clone, PartialEq, Eq, Encode, Decode, TypeInfo, Default,
+)]
+#[display("Block(hash: {hash}, height: {}, parent: {}, ts: {})", header.height, header.parent_hash, header.timestamp)]
 pub struct SimpleBlockData {
     pub hash: H256,
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Display)]
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, derive_more::Display)]
 #[display(
-    "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {off_chain_transactions:?})"
+    "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})"
 )]
 pub struct Announce {
     pub block_hash: H256,
     pub parent: HashOf<Self>,
     pub gas_allowance: Option<u64>,
-    pub off_chain_transactions: Vec<H256>,
+    // TODO kuzmindev: remove InjectedTransaction from Announce and store only its hashes.
+    // Need to implement `PublicAnnounce` struct which will contain full bodies of injected transactions.
+    pub injected_transactions: Vec<SignedInjectedTransaction>,
 }
 
 impl Announce {
@@ -93,7 +103,7 @@ impl Announce {
             block_hash,
             parent,
             gas_allowance: None,
-            off_chain_transactions: Vec::new(),
+            injected_transactions: Vec::new(),
         }
     }
 
@@ -102,12 +112,12 @@ impl Announce {
             block_hash,
             parent,
             gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
-            off_chain_transactions: Vec::new(),
+            injected_transactions: Vec::new(),
         }
     }
 
     pub fn is_base(&self) -> bool {
-        self.gas_allowance.is_none() && self.off_chain_transactions.is_empty()
+        self.gas_allowance.is_none() && self.injected_transactions.is_empty()
     }
 }
 
@@ -115,11 +125,21 @@ impl ToDigest for Announce {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.block_hash);
         hasher.update(self.gas_allowance.encode());
-        hasher.update(self.off_chain_transactions.encode());
+        hasher.update(self.injected_transactions.encode());
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]
+/// [`PromisePolicy`] tells processor whether should it emits promises or not.
+#[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Encode, Decode, derive_more::IsVariant)]
+pub enum PromisePolicy {
+    /// Emits promises in execution process.
+    Enabled,
+    // Do not emit promises in execution process.
+    #[default]
+    Disabled,
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,
@@ -137,7 +157,7 @@ impl StateHashWithQueueSize {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct CodeBlobInfo {
     pub timestamp: u64,
     pub tx_hash: H256,
@@ -198,49 +218,41 @@ impl CodeAndId {
 ///
 /// TODO(kuzmindev): `ProtocolTimelines` can store more protocol parameters,
 /// for example `max_validators` in election.
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ProtocolTimelines {
-    // The genesis timestamp of the GearExe network.
+    // The genesis timestamp of the GearExe network in seconds.
     pub genesis_ts: u64,
     // The duration of an era in seconds.
     pub era: u64,
-    // The election duration in seconds before the end of an era when the next set of validators elected.
+    /// The election duration in seconds before the end of an era when the next set of validators elected.
     ///  (start of era)[ - - - - - - - - - - -  + - - - - ] (end of era)
     ///                                         ^ election
     pub election: u64,
+    /// The slot duration in seconds.
+    pub slot: u64,
 }
 
 impl ProtocolTimelines {
     /// Returns the era index for the given timestamp. Eras starts from 0.
-    /// If geven `ts` less than `genesis_ts` function returns `0`;
+    /// If given `ts` less than `genesis_ts` function returns `0`;
     #[inline(always)]
     pub fn era_from_ts(&self, ts: u64) -> u64 {
-        if ts < self.genesis_ts {
-            return 0;
-        }
-        (ts - self.genesis_ts) / self.era
+        ts.checked_sub(self.genesis_ts)
+            .expect("timestamp must be >= genesis_ts")
+            / self.era
     }
 
     /// Returns the timestamp since which the given era started.
     #[inline(always)]
-    pub fn era_start(&self, era_index: u64) -> u64 {
+    pub fn era_start_ts(&self, era_index: u64) -> u64 {
         self.genesis_ts + era_index * self.era
     }
 
+    /// Returns the timestamp when election starts in the given era.
+    /// NOTE: election starts for the next era validators.
     #[inline(always)]
-    pub fn era_start_ts(&self, ts: u64) -> u64 {
-        self.era_start(self.era_from_ts(ts))
-    }
-
-    /// Returns the timestamp of beginning the next era, or the timestamp when current era finished.
-    #[inline(always)]
-    pub fn era_end(&self, era_index: u64) -> u64 {
-        self.genesis_ts + (era_index + 1) * self.era
-    }
-
-    #[inline(always)]
-    pub fn era_end_ts(&self, ts: u64) -> u64 {
-        self.era_end(self.era_from_ts(ts))
+    pub fn era_election_start_ts(&self, era_index: u64) -> u64 {
+        self.era_start_ts(era_index + 1) - self.election
     }
 }
 
@@ -269,6 +281,7 @@ mod tests {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era
@@ -281,39 +294,34 @@ mod tests {
         assert_eq!(timelines.era_from_ts(333), 1);
     }
 
+    #[should_panic(expected = "timestamp must be >= genesis_ts")]
+    #[test]
+    fn panic_on_era_from_ts_before_genesis() {
+        ProtocolTimelines {
+            genesis_ts: 100,
+            era: 234,
+            election: 200,
+            slot: 10,
+        }
+        .era_from_ts(50);
+    }
+
     #[test]
     fn test_era_start_calculation() {
         let timelines = ProtocolTimelines {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era
-        assert_eq!(timelines.era_start(0), 10);
-        assert_eq!(timelines.era_start(0), 10);
-        assert_eq!(timelines.era_start(0), 10);
+        assert_eq!(timelines.era_start_ts(0), 10);
+        assert_eq!(timelines.era_start_ts(0), 10);
+        assert_eq!(timelines.era_start_ts(0), 10);
 
         // For 1 era
-        assert_eq!(timelines.era_start(1), 244);
-        assert_eq!(timelines.era_start(1), 244);
-    }
-
-    #[test]
-    fn test_era_end_calculation() {
-        let timelines = ProtocolTimelines {
-            genesis_ts: 10,
-            era: 234,
-            election: 200,
-        };
-
-        // For 0 era
-        assert_eq!(timelines.era_end(0), 244);
-        assert_eq!(timelines.era_end(0), 244);
-        assert_eq!(timelines.era_end(0), 244);
-
-        // For 1 era
-        assert_eq!(timelines.era_end(1), 478);
-        assert_eq!(timelines.era_end(1), 478);
+        assert_eq!(timelines.era_start_ts(1), 244);
+        assert_eq!(timelines.era_start_ts(1), 244);
     }
 }

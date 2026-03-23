@@ -20,9 +20,18 @@ use super::ProcessingHandler;
 use crate::{ProcessorError, Result};
 use ethexe_common::{
     ScheduledTask,
-    db::{CodesStorageRO, CodesStorageRW},
-    events::{MirrorRequestEvent, RouterRequestEvent},
-    gear::{Origin, ValueClaim},
+    db::CodesStorageRO,
+    events::{
+        MirrorRequestEvent, RouterRequestEvent,
+        mirror::{
+            ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent,
+            OwnedBalanceTopUpRequestedEvent, ReplyQueueingRequestedEvent,
+            ValueClaimingRequestedEvent,
+        },
+        router::ProgramCreatedEvent,
+    },
+    gear::{MessageType, ValueClaim},
+    injected::InjectedTransaction,
 };
 use ethexe_runtime_common::state::{
     Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
@@ -30,25 +39,51 @@ use ethexe_runtime_common::state::{
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
+    pub(crate) fn handle_injected_transaction(
+        &mut self,
+        source: ActorId,
+        tx: InjectedTransaction,
+    ) -> Result<()> {
+        self.update_state(tx.destination, |state, storage, _| -> Result<()> {
+            if state.requires_init_message() {
+                return Err(ProcessorError::InjectedToUninitializedProgram(Box::new(tx)));
+            }
+
+            let dispatch = Dispatch::new(
+                storage,
+                tx.to_message_id(),
+                source,
+                tx.payload.to_vec(),
+                tx.value,
+                false,
+                MessageType::Injected,
+                false,
+            )?;
+
+            state
+                .injected_queue
+                .modify_queue(storage, |queue| queue.queue(dispatch));
+
+            Ok(())
+        })
+    }
+
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
-            RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
-                if self.db.original_code(code_id).is_none() {
-                    return Err(ProcessorError::MissingCode(code_id));
+            RouterRequestEvent::ProgramCreated(ProgramCreatedEvent { actor_id, code_id }) => {
+                if !self.db.code_valid(code_id).unwrap_or(false) {
+                    return Err(ProcessorError::MissingCode { actor_id, code_id });
                 }
 
-                if self.db.program_code_id(actor_id).is_some() {
-                    return Err(ProcessorError::DuplicatedProgram(actor_id));
-                }
-
-                self.db.set_program_code_id(actor_id, code_id);
-
-                self.transitions.register_new(actor_id);
+                log::trace!("Registering new program: {actor_id} with code {code_id}");
+                self.transitions.register_new(actor_id, code_id);
             }
             RouterRequestEvent::ValidatorsCommittedForEra { .. }
-            | RouterRequestEvent::CodeValidationRequested { .. }
-            | RouterRequestEvent::ComputationSettingsChanged { .. }
-            | RouterRequestEvent::StorageSlotChanged => {
+            | RouterRequestEvent::CodeValidationRequested { .. } => {
+                log::trace!("Event is handled by other modules: {event:?}");
+            }
+            RouterRequestEvent::ComputationSettingsChanged { .. }
+            | RouterRequestEvent::StorageSlotChanged { .. } => {
                 log::debug!("Handler not yet implemented: {event:?}");
             }
         };
@@ -68,23 +103,33 @@ impl ProcessingHandler {
         }
 
         match event {
-            MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
+            MirrorRequestEvent::OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequestedEvent {
+                value,
+            }) => {
                 self.update_state(actor_id, |state, _, _| {
-                    state.balance += value;
+                    state.balance = state
+                        .balance
+                        .checked_add(value)
+                        .expect("Overflow in state.balance += value");
                 });
             }
-            MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent { value },
+            ) => {
                 self.update_state(actor_id, |state, _, _| {
-                    state.executable_balance += value;
+                    state.executable_balance = state
+                        .executable_balance
+                        .checked_add(value)
+                        .expect("Overflow in state.executable_balance += value");
                 });
             }
-            MirrorRequestEvent::MessageQueueingRequested {
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
                 id,
                 source,
                 payload,
                 value,
                 call_reply,
-            } => {
+            }) => {
                 self.update_state(actor_id, |state, storage, _| -> Result<()> {
                     let is_init = state.requires_init_message();
 
@@ -95,7 +140,7 @@ impl ProcessingHandler {
                         payload,
                         value,
                         is_init,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         call_reply,
                     )?;
 
@@ -106,12 +151,12 @@ impl ProcessingHandler {
                     Ok(())
                 })?;
             }
-            MirrorRequestEvent::ReplyQueueingRequested {
+            MirrorRequestEvent::ReplyQueueingRequested(ReplyQueueingRequestedEvent {
                 replied_to,
                 source,
                 payload,
                 value,
-            } => {
+            }) => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
                     let Some(Expiring {
                         value:
@@ -127,13 +172,14 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.claims.push(ValueClaim {
+                    transitions.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: replied_to,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,
@@ -146,7 +192,7 @@ impl ProcessingHandler {
                         source,
                         payload,
                         value,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     )?;
 
@@ -157,7 +203,10 @@ impl ProcessingHandler {
                     Ok(())
                 })?;
             }
-            MirrorRequestEvent::ValueClaimingRequested { claimed_id, source } => {
+            MirrorRequestEvent::ValueClaimingRequested(ValueClaimingRequestedEvent {
+                claimed_id,
+                source,
+            }) => {
                 self.update_state(actor_id, |state, storage, transitions| -> Result<()> {
                     let Some(Expiring {
                         value:
@@ -173,13 +222,14 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.claims.push(ValueClaim {
+                    transitions.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: claimed_id,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,
@@ -192,7 +242,7 @@ impl ProcessingHandler {
                         PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     );
 

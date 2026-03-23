@@ -23,28 +23,32 @@
 //! The main components are:
 //! - [`ConsensusService`]: A trait defining the core interface for consensus services
 //! - [`ConsensusEvent`]: An enum representing various consensus events which have to be processed by outer services
-//! - [`SimpleConnectService`]: A basic implementation of "connect-node"
-//! - [`ValidatorService`]: Service for handling block validation
+//! - [`ConnectService`]: An implementation of consensus to run "connect-node"
+//! - [`ValidatorService`]: An implementation of consensus to run "validator-node"
 //!
 //! The crate is organized into several modules:
 //! - `connect`: Connection management functionality
 //! - `validator`: Block validation services and implementations
 //! - `utils`: Utility functions and shared data structures
+//! - `announces`: Logic for handling announce branching and related operations
 
 use anyhow::Result;
-use ethexe_common::{Announce, HashOf, SimpleBlockData};
+use ethexe_common::{
+    Announce, Digest, HashOf, PromisePolicy, SimpleBlockData,
+    consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
+    injected::{Promise, SignedInjectedTransaction, SignedPromise},
+    network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
+};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
-pub use connect::SimpleConnectService;
-use ethexe_common::{
-    consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    network::SignedValidatorMessage,
-};
+pub use connect::ConnectService;
 pub use utils::{block_producer_for, block_producer_index};
-pub use validator::{ValidatorConfig, ValidatorService};
+pub use validator::{BatchCommitter, ValidatorConfig, ValidatorService};
 
+mod announces;
 mod connect;
+mod tx_validation;
 mod utils;
 mod validator;
 
@@ -67,30 +71,63 @@ pub trait ConsensusService:
     fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
 
     /// Process a computed block received
-    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()>;
+    fn receive_computed_announce(&mut self, computed_announce: HashOf<Announce>) -> Result<()>;
 
-    /// Process a received producer block
-    fn receive_announce(&mut self, block: VerifiedAnnounce) -> Result<()>;
+    /// Process a received producer announce
+    fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()>;
+
+    /// Receives the raw promise for signing.
+    fn receive_promise_for_signing(
+        &mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<()>;
 
     /// Process a received validation request
     fn receive_validation_request(&mut self, request: VerifiedValidationRequest) -> Result<()>;
 
     /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
+
+    /// Process a received announces data response
+    fn receive_announces_response(&mut self, response: AnnouncesResponse) -> Result<()>;
+
+    /// Process a received injected transaction from network
+    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[display("Commitment submitted, block_hash: {block_hash}, batch {batch_digest}, tx: {tx}")]
+pub struct CommitmentSubmitted {
+    /// Block hash for which the commitment was submitted
+    block_hash: H256,
+    /// Digest of the committed batch
+    batch_digest: Digest,
+    /// Hash of the submission transaction
+    tx: H256,
 }
 
 #[derive(
     Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
 )]
 pub enum ConsensusEvent {
+    /// Announce from producer was accepted
+    AnnounceAccepted(HashOf<Announce>),
+    /// Announce from producer was rejected
+    AnnounceRejected(HashOf<Announce>),
     /// Outer service have to compute announce
-    #[from]
-    ComputeAnnounce(Announce),
+    ComputeAnnounce(Announce, PromisePolicy),
     /// Outer service have to publish signed message
     #[from]
     PublishMessage(SignedValidatorMessage),
-    /// Informational event: commitment was successfully submitted, tx hash is provided
-    CommitmentSubmitted(H256),
+    #[from]
+    PublishPromise(SignedPromise),
+    /// Outer service have to request announces
+    #[from]
+    RequestAnnounces(AnnouncesRequest),
+    /// Informational event: commitment was successfully submitted
+    #[from]
+    CommitmentSubmitted(CommitmentSubmitted),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }

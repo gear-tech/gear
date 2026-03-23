@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::sol;
-
 mod events;
 mod gear;
 
+use alloy::sol;
 pub use middleware_abi::*;
 pub use mirror_abi::*;
 
@@ -30,7 +29,7 @@ mod mirror_abi {
     alloy::sol!(
         #[sol(rpc)]
         IMirror,
-        "Mirror.json"
+        "abi/Mirror.json"
     );
 }
 
@@ -38,7 +37,7 @@ pub mod middleware_abi {
     alloy::sol!(
         #[sol(rpc)]
         IMiddleware,
-        "Middleware.json"
+        "abi/Middleware.json"
     );
 }
 
@@ -46,20 +45,20 @@ sol!(
     #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IRouter,
-    "Router.json"
+    "abi/Router.json"
 );
 
 sol!(
     #[sol(rpc)]
-    ITransparentUpgradeableProxy,
-    "TransparentUpgradeableProxy.json"
+    IERC1967Proxy,
+    "abi/ERC1967Proxy.json"
 );
 
 sol!(
     #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IWrappedVara,
-    "WrappedVara.json"
+    "abi/WrappedVara.json"
 );
 
 /// Bindings for Symbiotic contracts.
@@ -140,7 +139,7 @@ pub mod symbiotic_abi {
     }
 }
 
-pub(crate) mod utils {
+pub mod utils {
     use alloy::primitives::{FixedBytes, Uint};
     use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 
@@ -184,6 +183,11 @@ pub(crate) mod utils {
 
     pub fn u64_to_uint48_lossy(value: u64) -> Uint48 {
         Uint48::try_from(value).unwrap_or(Uint48::MAX)
+    }
+
+    pub fn uint48_to_u64(value: Uint48) -> u64 {
+        let [limb] = value.into_limbs();
+        limb
     }
 
     pub fn uint256_to_u128_lossy(value: Uint256) -> u128 {

@@ -38,6 +38,7 @@ jobs:
       profiles: ${{ steps.profiles.outputs.value }}
       targets: ${{ steps.targets.outputs.targets }}
       unix-targets: ${{ steps.targets.outputs.unix-targets }}
+      ethexe-targets: ${{ steps.targets.outputs.ethexe-targets }}
     steps:
       - id: profiles
         run: |
@@ -56,6 +57,13 @@ jobs:
               "runs-on": ["kuberunner", "github-runner-02"]
             }
           ]')
+          ethexe_targets=$(jq -c -n '[
+            {
+              name: "linux-x86_64",
+              target: "x86_64-unknown-linux-gnu",
+              "runs-on": "ubuntu-latest"
+            }
+          ]')
           unix_targets="[]"
 
           if ${{ inputs.macos }}; then
@@ -72,6 +80,7 @@ jobs:
               }
             ]'
             targets=$(echo "$targets" | jq -c ". += $macos")
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c ". += $macos")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $macos")
           fi
 
@@ -84,6 +93,7 @@ jobs:
               }
             ]'
             targets=$(echo "$targets" | jq -c ". += $linux_aarch64")
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c ". += $linux_aarch64")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $linux_aarch64")
           fi
 
@@ -95,22 +105,32 @@ jobs:
                 "runs-on": ["kuberunner", "github-runner-02"]
               }
             ]')
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c '. += [
+              {
+                name: "windows-x86_64",
+                target: "x86_64-pc-windows-msvc",
+                "runs-on": "ubuntu-24.04-arm"
+              }
+            ]')
           fi
 
           echo "Targets: ${targets}"
           echo "targets=${targets}" >> $GITHUB_OUTPUT
 
+          echo "ethexe targets: ${ethexe_targets}"
+          echo "ethexe-targets=${ethexe_targets}" >> $GITHUB_OUTPUT
+
           echo "*NIX targets: ${unix_targets}"
           echo "unix-targets=${unix_targets}" >> $GITHUB_OUTPUT
 
-  node:
+  gear-cli:
     needs: dynamic-matrix
     strategy:
       fail-fast: false
       matrix:
         targets: ${{ fromJSON(needs.dynamic-matrix.outputs.targets) }}
     runs-on: ${{ matrix.targets.runs-on }}
-    name: node (${{ matrix.targets.name }})
+    name: gear-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -125,17 +145,14 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: ${{ matrix.targets.target }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
-      - name: "Build: Node"
+      - name: "Build: Gear node"
         run: ./scripts/gear.sh build node --release --locked
 
       - name: "Build: Prepare artifact"
@@ -147,11 +164,51 @@ jobs:
       - name: "ACTIONS: Upload node and VARA runtime"
         uses: actions/upload-artifact@v4
         with:
-          name: node-and-runtime-release-${{ matrix.targets.target }}
+          name: gear-cli-and-runtime-release-${{ matrix.targets.target }}
           path: artifact
 
+  ethexe-cli:
+    needs: dynamic-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        targets: ${{ fromJSON(needs.dynamic-matrix.outputs.ethexe-targets) }}
+    runs-on: ${{ matrix.targets.runs-on }}
+    name: ethexe-cli (${{ matrix.targets.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: ${{ matrix.targets.target }}
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+
+      - name: "Build: ethexe node"
+        run: ./scripts/gear.sh build ethexe --release --locked
+
+      - name: "ACTIONS: Upload ethexe node"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ethexe-cli-release-${{ matrix.targets.target }}
+          path: target/${{ matrix.targets.target }}/release/ethexe*
+
   docs:
-    needs: node
+    needs: gear-cli
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -171,13 +228,10 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup caching
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
@@ -195,7 +249,7 @@ jobs:
       #     SKIP_WASM_BUILD: 1
 
   workspace:
-    needs: [dynamic-matrix, node]
+    needs: [dynamic-matrix, gear-cli]
     runs-on: [kuberunner, github-runner-02]
     strategy:
       matrix:
@@ -214,11 +268,14 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
@@ -226,7 +283,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.4.2
+          version: v1.5.1
 
       - name: "Show: Versioning"
         run: |
@@ -248,13 +305,29 @@ jobs:
       - name: "ACTIONS: Download node and runtime"
         uses: actions/download-artifact@v4
         with:
-          name: node-and-runtime-release-x86_64-unknown-linux-gnu
-          path: node-and-runtime-release
+          name: gear-cli-and-runtime-release-x86_64-unknown-linux-gnu
+          path: gear-cli-and-runtime-release
 
       - name: "Test: Workspace"
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEAR_NODE_WRAPPER_LOG: info
+          RUST_LOG: "gear=trace,\
+            pallet=trace,\
+            gsdk=trace,\
+            gcli=trace,\
+            ethexe=trace,\
+            runtime=trace,\
+            syscalls=trace,\
+            gwasm=trace"
+
+      - name: "ACTIONS: Upload junit.xml"
+        if: "!cancelled()"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "workspace-${{ matrix.profiles.name }}-junit"
+          path: target/nextest/ci/junit.xml
 
   crates-io:
     runs-on: [kuberunner, github-runner-02]
@@ -274,8 +347,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           cache-all-crates: true
@@ -299,11 +370,14 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
@@ -313,30 +387,30 @@ jobs:
       - name: "Test: Benchmarks in WASM"
         # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
         run: >-
-          ./target/release/gear benchmark pallet
-          --chain=dev --steps=5 --repeat=0 --heap-pages=4096
+          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
+          --chain=dev --steps=5 --repeat=0 --heap-pages=16384
           --pallet="*" --extrinsic="*"
 
       - name: "Test: Extra `read_big_state` benchmark"
         run: >-
-          ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="read_big_state" --extra
 
       - name: "Test: Extra `signal_stack_limit_exceeded_works` benchmark"
         run: >-
-          ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --extra
 
       - name: "Test: Extra `check_all` benchmark"
         run: >-
-          ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="check_all" --extra
 
   try-runtime:
-    needs: [dynamic-matrix, node]
+    needs: [dynamic-matrix, gear-cli]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -357,13 +431,10 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
@@ -377,7 +448,7 @@ jobs:
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
       - name: "Test: Download Vara Mainnet snapshot"
-        run: curl -o vara_ci.snap -L https://snapshots.vara-network.io/vara-mainnet.snap
+        run: curl -o vara_ci.snap -L https://snapshots.vara.network/vara-mainnet.snap
 
       - name: "Test: on-runtime-upgrade"
         run: >-
@@ -426,8 +497,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
@@ -459,11 +528,13 @@ jobs:
 
   production:
     runs-on: [kuberunner, github-runner-02]
-    needs: workspace
-    if: ${{ inputs.production }}
+    needs: [dynamic-matrix, workspace]
+    if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -477,8 +548,23 @@ jobs:
           name: examples-release-wasm32-gear
           path: examples-artifact
 
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # production binaries should not have additional features enabled for deps, too
+          args: disable
+
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # also don't compile manually written deps in the hack
+          args: remove-deps --yes
+
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
+
+      - name: "Build: Production ethexe"
+        run: cargo build -p ethexe-cli --profile production
 
       - name: Prepare artifacts
         run: |
@@ -495,12 +581,80 @@ jobs:
           # executables
           cp target/production/gear artifact/
           cp target/production/wasm-proc artifact/
+          cp target/production/ethexe artifact/
 
       - name: Upload artifacts
         if: ${{ github.event_name == 'push' }}
         uses: actions/upload-artifact@v4
         with:
           path: artifact
+
+  docker-build:
+    name: Build Docker images for gear-cli, ethexe-cli (linux-x86_64)
+    runs-on: ubuntu-latest
+    needs: [dynamic-matrix, gear-cli, ethexe-cli]
+    if: ${{ contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v6
+
+      - name: "ACTIONS: Download gear-cli artifact"
+        uses: actions/download-artifact@v8
+        with:
+          name: gear-cli-and-runtime-release-x86_64-unknown-linux-gnu
+          path: gear-cli
+
+      - name: "ACTIONS: Download ethexe-cli artifact"
+        uses: actions/download-artifact@v8
+        with:
+          name: ethexe-cli-release-x86_64-unknown-linux-gnu
+          path: ethexe-cli
+
+      - name: "Docker: Set up Buildx"
+        uses: docker/setup-buildx-action@v4
+
+      - name: "Docker: Login to GHCR"
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Build: Generate Dockerfile for gear-cli"
+        run: |
+          cat <<'EOF' > Dockerfile.gear-cli
+          FROM debian:12-slim
+          RUN apt-get update && apt-get upgrade -y && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+          COPY gear-cli/gear /usr/local/bin/gear
+          RUN chmod +x /usr/local/bin/gear
+          ENTRYPOINT ["/usr/local/bin/gear"]
+          EOF
+
+      - name: "Build: Generate Dockerfile for ethexe-cli"
+        run: |
+          cat <<'EOF' > Dockerfile.ethexe-cli
+          FROM debian:13-slim
+          RUN apt-get update && apt-get upgrade -y && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+          COPY ethexe-cli/ethexe /usr/local/bin/ethexe
+          RUN chmod +x /usr/local/bin/ethexe
+          ENTRYPOINT ["/usr/local/bin/ethexe"]
+          EOF
+
+      - name: "Docker: Build & push gear-cli image"
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.gear-cli
+          push: true
+          tags: ghcr.io/gear-tech/vara:${{ github.sha }}
+
+      - name: "Docker: Build & push ethexe-cli image"
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.ethexe-cli
+          push: true
+          tags: ghcr.io/gear-tech/vara.eth:${{ github.sha }}
 
   unix:
     needs: [dynamic-matrix, workspace]

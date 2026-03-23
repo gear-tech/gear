@@ -18,12 +18,15 @@
 
 mod block;
 mod code;
-mod dev;
+mod injected;
 mod program;
-mod tx_pool;
 
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
-pub use dev::{DevApi, DevServer};
-pub use program::{ProgramApi, ProgramServer};
-pub use tx_pool::{TransactionPoolApi, TransactionPoolServer};
+pub use injected::{InjectedApi, InjectedServer};
+pub use program::{FullProgramState, ProgramApi, ProgramServer};
+
+#[cfg(feature = "client")]
+pub use crate::apis::{
+    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient,
+};

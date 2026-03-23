@@ -1,11 +1,11 @@
 [workspace.package]
-version = "1.9.2"
+version = "1.10.0"
 authors = ["Gear Technologies"]
 edition = "2024"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.89"
+rust-version = "1.91"
 
 [workspace]
 resolver = "3"
@@ -19,9 +19,10 @@ members = [
     "common/codegen",
     "common/numerated",
     "core",
-    "core-backend",
-    "core-processor",
-    "core-errors",
+    "core/backend",
+    "gsigner",
+    "core/processor",
+    "core/errors",
     "lazy-pages",
     "lazy-pages/common",
     "lazy-pages/interface",
@@ -89,12 +90,10 @@ members = [
     "galloc",
     "gbuiltins/*",
     "gcli",
-    "gclient",
     "gcore",
     "gprimitives",
     "gsdk",
     "gsdk/codegen",
-    "gsdk/api-gen",
     "gstd",
     "gstd/codegen",
     "gsys",
@@ -112,27 +111,31 @@ members = [
     "ethexe/*",
     "ethexe/runtime/common",
     "ethexe/service/utils",
+    "ethexe/db/init",
 ]
 
 [workspace.dependencies]
-alloy = "1.0"
-alloy-primitives = { version = "1.1", default-features = false }
-alloy-sol-types = { version = "1.1", default-features = false }
+gear-workspace-hack = "0.1.0"
+
+alloy = "1.7" # TODO: #5160 use release version of alloy when BlobGasFiller is fixed
+alloy-chains = "0.2"
+alloy-primitives = { version = "1.5", default-features = false }
+alloy-sol-types = { version = "1.5", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"
 async-trait = "0.1.81"
 base64 = "0.21.7"
-bytemuck = "1.23.2" 
+bytemuck = "1.23.2"
 byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
 cargo_metadata = "0.20.0"
 clap = "4.5.8"
-color-eyre = "0.6.3"
 colored = "2.1.0"
 const-str = "0.5"
+crossbeam = "0.8.4"
 defer = "0.2.1"
 derive_more = { version = "2.0.1", default-features = false, features = [
     "full",
@@ -144,12 +147,13 @@ enum-iterator = "1.5.0"
 environmental = "1.1.3"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.3"
-futures-util = "0.3.30"
+future-timing = "0.1.0" # measure the futures execution
 hashbrown = "0.14.5"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 impl-trait-for-tuples = "0.2.2"
 impl-serde = "0.4.0"
+indoc = "2.0.7"
 jsonrpsee = { version = "^0.24" }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }
@@ -159,25 +163,28 @@ parking_lot = "0.12.3"
 path-clean = "1.0.1"
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = { version = "1", default-features = false }
-prometheus = { version = "0.13.0", default-features = false }
+prometheus = { version = "0.14.0", default-features = false }
 proptest = "1.5.0"
 quick-xml = "0.28"
 quote = { version = "1.0.36", default-features = false }
 rand = { version = "0.8", default-features = false }
+rayon = { version = "1.11.0" }
 regex = "^1.9"
 region = "3.0.2"
 reqwest = { version = "0.12.8", default-features = false }
 roast-secp256k1-evm = { version = "0.1.0", git = "https://github.com/gear-tech/roast", branch = "gear-v0.1.0" }
 scale-info = { version = "2.11", default-features = false }
+scale-decode = "0.16.0"
+scale-encode = "0.10.0"
 serde = { version = "^1", default-features = false }
 serde_json = { version = "1.0.135", default-features = false, features = [
     "alloc",
 ] }
 serde-json-wasm = { version = "1.0.1", default-features = false }
 sha-1 = "0.10.1"
+snapbox = "0.6.24"
 static_init = "1.0.3"
-subxt = "0.37.0"
-subxt-codegen = "0.37.0"
+subxt = "0.44.0"
 syn = "2.0.71"
 thiserror = { version = "2.0.12", default-features = false }
 tokio = { version = "1.38.0" }
@@ -194,7 +201,10 @@ wasmer-vm = "6.1.0"
 wasmer-compiler = "6.1.0"
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
-wasmparser = { version = "0.230", default-features = false, features = ["validate", "features"] }
+wasmparser = { version = "0.230", default-features = false, features = [
+    "validate",
+    "features",
+] }
 which = "4.4.2"
 winapi = "0.3.9"
 paste = "1.0"
@@ -206,6 +216,7 @@ ark-ec = { version = "0.4.2", default-features = false }
 ark-ff = { version = "0.4.2", default-features = false }
 ark-scale = { version = "0.0.12", default-features = false }
 sha2 = { version = "0.10.8", default-features = false }
+sha3 = { version = "0.10.8", default-features = false }
 arrayvec = { version = "0.7.4", default-features = false }
 indexmap = { version = "2.2.6", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
@@ -215,6 +226,13 @@ nonempty = { version = "0.12.0", default-features = false }
 cc = "1.2.37"
 tap = "1.0.1"
 ntest = "0.9.3"
+dashmap = "5.5.3"
+delegate = "0.13.5"
+
+# metrics
+metrics = "0.24.0"
+metrics-derive = "0.1"
+metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
 
 # Published deps
 #
@@ -224,8 +242,9 @@ dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
 # Internal deps
 numerated = { path = "common/numerated" }
 authorship = { package = "gear-authorship", path = "node/authorship" }
+builtins-common = { path = "utils/builtins-common", default-features = false }
 common = { package = "gear-common", path = "common", default-features = false }
-core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
+core-processor = { package = "gear-core-processor", path = "core/processor", default-features = false }
 galloc = { path = "galloc" }
 gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
 gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
@@ -233,24 +252,23 @@ gbuiltin-staking = { path = "gbuiltins/staking" }
 gbuiltin-proxy = { path = "gbuiltins/proxy" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
-gclient = { path = "gclient" }
 gear-node-wrapper = { path = "utils/node-wrapper" }
 gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
 gstd-codegen = { path = "gstd/codegen" }
-gring = { path = "utils/gring" }
+gsigner = { path = "gsigner", default-features = false }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gprimitives = { path = "gprimitives", default-features = false }
 gear-authorship = { path = "node/authorship" }
-gear-core-backend = { path = "core-backend", default-features = false }
+gear-core-backend = { path = "core/backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
 gear-core = { path = "core", default-features = false }
-gear-core-errors = { path = "core-errors" }
-gear-core-processor = { path = "core-processor", default-features = false }
+gear-core-errors = { path = "core/errors" }
+gear-core-processor = { path = "core/processor", default-features = false }
 gear-lazy-pages = { path = "lazy-pages" }
 gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
 gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
@@ -293,6 +311,7 @@ pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
 pallet-gear-builtin = { path = "pallets/gear-builtin", default-features = false }
 pallet-gear-builtin-rpc = { path = "pallets/gear-builtin/rpc" }
 pallet-gear-builtin-rpc-runtime-api = { path = "pallets/gear-builtin/rpc/runtime-api", default-features = false }
+pallet-grandpa-signer = { path = "pallets/grandpa-signer", default-features = false }
 runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
 service = { package = "gear-service", path = "node/service", default-features = false }
 testing = { package = "gear-node-testing", path = "node/testing" }
@@ -304,7 +323,7 @@ ethexe-db = { path = "ethexe/db", default-features = false }
 ethexe-network = { path = "ethexe/network", default-features = false }
 ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
-ethexe-signer = { path = "ethexe/signer", default-features = false }
+ethexe-sdk = { path = "ethexe/sdk", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
 ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-consensus = { path = "ethexe/consensus", default-features = false }
@@ -313,15 +332,15 @@ ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = fal
 ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common", default-features = false }
-ethexe-tx-pool = { path = "ethexe/tx-pool", default-features = false }
 ethexe-compute = { path = "ethexe/compute", default-features = false }
 ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
+ethexe-db-init = { path = "ethexe/db/init", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { version = "0.38" }
 
 # Substrate deps
-bp-header-chain ={ version = "0.18.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+bp-header-chain = { version = "0.18.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 binary-merkle-tree = { version = "15.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 frame-benchmarking = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 frame-benchmarking-cli = { version = "43.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
@@ -411,6 +430,7 @@ sp-core = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk
 sp-consensus = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 sp-consensus-babe = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 sp-consensus-slots = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-application-crypto = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 sp-externalities = { version = "0.29.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 sp-consensus-grandpa = { version = "21.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 sp-genesis-builder = { version = "0.15.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
@@ -474,6 +494,7 @@ demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
 demo-messenger = { path = "examples/messenger" }
 demo-mul-by-const = { path = "examples/mul-by-const" }
 demo-out-of-memory = { path = "examples/out-of-memory" }
+demo-panic-payload = { path = "examples/panic-payload" }
 demo-piggy-bank = { path = "examples/piggy-bank", features = ["debug"] }
 demo-ping = { path = "examples/ping" }
 demo-program-factory = { path = "examples/program-factory" }
@@ -499,53 +520,60 @@ demo-wait-timeout = { path = "examples/wait-timeout" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
 demo-wat = { path = "examples/wat" }
 
+# TODO: fix demos' feature resolving bug with workspace build
+demo-value-sender-ethexe = { path = "examples/value-sender-ethexe" }
+demo-delayed-sender-ethexe = { path = "examples/delayed-sender-ethexe" }
+demo-syscalls-ethexe = { path = "examples/syscalls-ethexe" }
+
 # Dependencies that only used in one package
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
 
 atomic_enum = "0.3.0"
-cfg-if = "1.0.0"                                             # gear-lazy-pages
-cargo-http-registry = "0.1.6"                                # crates-io
-core_affinity = "0.8.3"                                      # lazy-pages-fuzzer
-env_logger = "0.11.8"                                        # lazy-pages-fuzzer
-errno = "0.3"                                                # gear-lazy-pages
-nix = "0.26.4"                                               # gear-lazy-pages
-ipc-channel = "0.19.0"                                       # lazy-pages-fuzzer
-itertools = { version = "0.13", default-features = false }   # utils/wasm-builder
-keyring = "1.2.1"                                            # gcli
-libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
-mimalloc = { version = "0.1.46", default-features = false }  # node/cli
-nacl = "0.5.3"                                               # gcli
-libfuzzer-sys = "0.4"                                        # utils/runtime-fuzzer/fuzz
-pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
-rand_chacha = { version = "0.9.0", default-features = false }# lazy-pages-fuzzer
-rand_pcg = "0.3.1"                                           # pallets/gear
-rustc_version = "0.4.1"                                      # utils/wasm-builder, sandbox, sandbox/host
-schnorrkel = "0.11.4"                                        # gcli
+cfg-if = "1.0.0" # gear-lazy-pages
+cargo-http-registry = "0.1.6" # crates-io
+core_affinity = "0.8.3" # lazy-pages-fuzzer
+env_logger = "0.11.8" # lazy-pages-fuzzer
+errno = "0.3" # gear-lazy-pages
+nix = "0.26.4" # gear-lazy-pages
+ipc-channel = "0.19.0" # lazy-pages-fuzzer
+itertools = { version = "0.13", default-features = false } # utils/wasm-builder
+libp2p = "=0.51.4" # gcli (same version as sc-consensus)
+mimalloc = { version = "0.1.46", default-features = false } # node/cli
+nacl = "0.5.3" # gcli
+libfuzzer-sys = "0.4" # utils/runtime-fuzzer/fuzz
+pathdiff = { version = "0.2.1", default-features = false } # utils/wasm-builder
+rand_chacha = { version = "0.9.0", default-features = false } # lazy-pages-fuzzer
+rand_pcg = "0.3.1" # pallets/gear
+rustc_version = "0.4.1" # utils/wasm-builder, sandbox, sandbox/host
+schnorrkel = "0.11.4" # gcli
 scopeguard = { version = "1.2.0", default-features = false } # pallets/gear
-hyper = "1.4.1"                                              # ethexe/rpc
-tabled = "0.10.0"                                            # utils/regression-analysis
-thousands = "0.2.0"                                          # utils/regression-analysis
-toml = "0.8.14"                                              # utils/wasm-builder
-tower = "0.4.13"                                             # ethexe/rpc
-tower-http = "0.5.2"                                         # ethexe/rpc
-tracing-appender = "0.2"                                     # utils/node-loader
-trybuild = "1"                                               # gstd/codegen
-wasmprinter = "0.230"                                        # utils/wasm-gen
-fail = "0.5"                                                 # gear-common
-scale-value = "^0.16"                                        # gsdk
-heck = "0.5.0"                                               # gsdk-api-gen
-etc = "0.1.19"                                               # gcli
-toml_edit = "0.22.12"                                        # crates-io
-scale-decode = "0.13.0"                                      # gsdk
-directories = "5.0.1"                                        # utils/key-finder
-num-traits = { version = "0.2", default-features = false }   # gear-core
-glob = "0.3.1"                                               # cargo-gbuild
-smallvec = "1.13.2"                                          # utils/node-wrapper
-bytes = "1.8.0"                                              # utils/gear-wasmer-cache
-loom = "0.7.2"                                               # utils/gear-wasmer-cache
+hyper = "1.4.1" # ethexe/rpc
+tabled = "0.10.0" # utils/regression-analysis
+thousands = "0.2.0" # utils/regression-analysis
+toml = "0.8.14" # utils/wasm-builder
+tower = "0.4.13" # ethexe/rpc
+tower-http = "0.5.2" # ethexe/rpc
+tracing-appender = "0.2" # utils/node-loader
+trybuild = "1" # gstd/codegen
+wasmprinter = "0.230" # utils/wasm-gen
+fail = "0.5" # gear-common
+heck = "0.5.0" # gsdk-api-gen
+etc = "0.1.19" # gcli
+toml_edit = "0.22.12" # crates-io
+directories = "5.0.1" # utils/key-finder
+num-traits = { version = "0.2", default-features = false } # gear-core
+glob = "0.3.1" # cargo-gbuild
+smallvec = "1.13.2" # utils/node-wrapper
+fs4 = "0.11.1" # utils/gear-wasmer-cache
+bytes = "1.8.0" # utils/gear-wasmer-cache
+loom = "0.7.2" # utils/gear-wasmer-cache
 wasm-smith = { version = "0.230", features = ["wasmparser"] } # utils/wasm-gen
-wasm-encoder = { version = "0.230", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
+wasm-encoder = { version = "0.230", default-features = false, features = [
+    "wasmparser",
+] } # utils/wasm-instrument
+async-broadcast = "0.7.2" # ethexe/service
+ip_network = "0.4.1" # ethexe/network
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
@@ -556,6 +584,7 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 
 [workspace.metadata.cargo-shear]
 ignored = [
+    "gear-workspace-hack",
     "frame-benchmarking",
     "frame-system-benchmarking",
     "frame-system-rpc-runtime-api",
@@ -565,6 +594,8 @@ ignored = [
     "parity-scale-codec",
     "pallet-authorship",
     "pallet-timestamp",
+    "sp-application-crypto",
+    "ethexe-sdk",
 ]
 
 [profile.dev.package.corosensei]
@@ -601,6 +632,9 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
+alloy = { version = "1.7", git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler" }
+gear-workspace-hack = { path = "utils/gear-workspace-hack" }
+
 # these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }

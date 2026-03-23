@@ -21,7 +21,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{
         AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, CodesStorageRO,
-        LatestDataStorageRO, OnChainStorageRO,
+        OnChainStorageRO,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -43,23 +43,12 @@ use std::{
 };
 
 pub trait DatabaseIteratorStorage:
-    OnChainStorageRO
-    + BlockMetaStorageRO
-    + AnnounceStorageRO
-    + CodesStorageRO
-    + LatestDataStorageRO
-    + Storage
+    OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO + Storage
 {
 }
 
-impl<
-    T: OnChainStorageRO
-        + BlockMetaStorageRO
-        + AnnounceStorageRO
-        + CodesStorageRO
-        + LatestDataStorageRO
-        + Storage,
-> DatabaseIteratorStorage for T
+impl<T: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO + Storage>
+    DatabaseIteratorStorage for T
 {
 }
 
@@ -447,6 +436,16 @@ where
         this
     }
 
+    pub fn with_skip_nodes(storage: S, node: impl Into<Node>, skip_nodes: HashSet<u64>) -> Self {
+        let mut this = Self {
+            storage,
+            stack: Default::default(),
+            visited_nodes: skip_nodes,
+        };
+        this.push_node(node);
+        this
+    }
+
     fn push_node(&mut self, node: impl Into<Node>) {
         self.stack.push_back(node.into());
     }
@@ -559,14 +558,22 @@ where
         }: &AnnounceNode,
     ) {
         let announce_hash = *announce_hash;
-        try_push_node!(with_hash: self.announce_schedule(announce_hash));
-        try_push_node!(with_hash: self.announce_outcome(announce_hash));
-        try_push_node!(with_hash: self.announce_program_states(announce_hash));
+
+        let announce_meta = self.storage.announce_meta(announce_hash);
+        let computed = announce_meta.computed;
 
         self.push_node(AnnounceMetaNode {
             announce_hash,
-            announce_meta: self.storage.announce_meta(announce_hash),
+            announce_meta,
         });
+
+        // Announce is not obligated to be computed
+        if computed {
+            // If computed, all of the following must be present
+            try_push_node!(with_hash: self.announce_schedule(announce_hash));
+            try_push_node!(with_hash: self.announce_outcome(announce_hash));
+            try_push_node!(with_hash: self.announce_program_states(announce_hash));
+        }
 
         // TODO #4830: offchain transactions
     }
@@ -740,6 +747,7 @@ where
             exited: _,
             inheritor: _,
             value_to_receive: _,
+            value_to_receive_negative_sign: _,
             value_claims: _,
             messages: _,
         } = state_transition;
@@ -860,11 +868,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop_front() {
-            let node_hash = {
-                let mut hasher = DefaultHasher::new();
-                node.hash(&mut hasher);
-                hasher.finish()
-            };
+            let node_hash = node_hash(&node);
 
             if !self.visited_nodes.insert(node_hash) {
                 // avoid recursion and duplicates
@@ -878,6 +882,12 @@ where
 
         None
     }
+}
+
+pub fn node_hash(node: &Node) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    node.hash(&mut hasher);
+    hasher.finish()
 }
 
 #[cfg(test)]
@@ -1057,6 +1067,7 @@ pub(crate) mod tests {
                     exited: false,
                     inheritor: Default::default(),
                     value_to_receive: 0,
+                    value_to_receive_negative_sign: false,
                     value_claims: vec![],
                     messages: vec![],
                 }],
@@ -1080,6 +1091,7 @@ pub(crate) mod tests {
             exited: false,
             inheritor: ActorId::zero(),
             value_to_receive: 0,
+            value_to_receive_negative_sign: false,
             value_claims: Vec::new(),
             messages: Vec::new(),
         };
@@ -1110,6 +1122,7 @@ pub(crate) mod tests {
             exited: false,
             inheritor: ActorId::zero(),
             value_to_receive: 0,
+            value_to_receive_negative_sign: false,
             value_claims: Vec::new(),
             messages: Vec::new(),
         };

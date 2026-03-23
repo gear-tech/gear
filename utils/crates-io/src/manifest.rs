@@ -139,7 +139,7 @@ impl Workspace {
             .to_string())
     }
 
-    /// Rename worskapce manifest.
+    /// Rename workspace manifest.
     fn rename(&mut self) -> Result<()> {
         let Some(deps) = self.mutable_manifest["workspace"]["dependencies"].as_table_like_mut()
         else {

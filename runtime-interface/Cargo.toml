@@ -10,6 +10,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+builtins-common = { workspace = true, optional = true }
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages = { workspace = true, optional = true }
@@ -20,12 +21,7 @@ sp-runtime-interface = { workspace = true, default-features = false }
 sp-std.workspace = true
 parity-scale-codec.workspace = true
 log = { workspace = true, optional = true }
-
-ark-bls12-381 = { workspace = true, features = ["curve"] }
-ark-ec = { workspace = true, optional = true }
-ark-ff = { workspace = true, optional = true }
-ark-scale = { workspace = true, optional = true }
-sha2 = { workspace = true, optional = true }
+gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]
@@ -40,9 +36,5 @@ std = [
 	"parity-scale-codec/std",
 	"log",
 
-	"ark-bls12-381/std",
-	"ark-ec/std",
-	"ark-ff/std",
-	"ark-scale/std",
-	"sha2/std"
+	"builtins-common/bls12-381-std",
 ]

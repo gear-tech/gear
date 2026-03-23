@@ -18,38 +18,23 @@
 
 //! gear api utils
 use crate::{
-    Api,
+    Api, AsGear, Event, Result, TxInBlock,
     config::GearConfig,
-    ext::sp_core::hashing,
-    metadata::{DispatchError, StorageInfo},
-    result::Result,
+    gear::{DispatchError, system},
 };
 use parity_scale_codec::Encode;
-use sp_core::H256;
+use sp_core::hashing;
 use subxt::{
     Metadata, OnlineClient,
-    dynamic::Value,
-    error::{DispatchError as SubxtDispatchError, Error},
-    storage::{Address, DynamicAddress, Storage, StorageKey},
+    blocks::ExtrinsicEvents,
+    error::DispatchError as SubxtDispatchError,
+    storage::{Address, Storage},
+    utils::H256,
 };
 
 impl Api {
-    /// compare gas limit
-    pub fn cmp_gas_limit(&self, gas: u64) -> Result<u64> {
-        if let Ok(limit) = self.gas_limit() {
-            Ok(if gas > limit {
-                log::warn!("gas limit too high, use {limit} from the chain config");
-                limit
-            } else {
-                gas
-            })
-        } else {
-            Ok(gas)
-        }
-    }
-
     /// Decode `DispatchError` to `subxt::error::Error`.
-    pub fn decode_error(&self, dispatch_error: DispatchError) -> Error {
+    pub fn decode_error(&self, dispatch_error: DispatchError) -> subxt::Error {
         match SubxtDispatchError::decode_from(dispatch_error.encode(), self.metadata()) {
             Ok(err) => err.into(),
             Err(err) => err,
@@ -57,7 +42,7 @@ impl Api {
     }
 
     /// Get storage from optional block hash.
-    pub async fn get_storage(
+    pub async fn storage_at(
         &self,
         block_hash: Option<H256>,
     ) -> Result<Storage<GearConfig, OnlineClient<GearConfig>>> {
@@ -71,17 +56,35 @@ impl Api {
         Ok(storage)
     }
 
-    /// Get the storage address from storage info.
-    pub fn storage<T: StorageInfo, Keys: StorageKey>(
-        storage: T,
-        keys: Keys,
-    ) -> DynamicAddress<Keys> {
-        subxt::dynamic::storage(T::PALLET, storage.storage_name(), keys)
-    }
+    /// Capture the dispatch info of any extrinsic and display the weight spent
+    pub async fn capture_dispatch_info(
+        &self,
+        tx: &TxInBlock,
+    ) -> Result<ExtrinsicEvents<GearConfig>> {
+        let events = tx.fetch_events().await?;
 
-    /// Get the storage root address from storage info.
-    pub fn storage_root<T: StorageInfo>(storage: T) -> DynamicAddress<Vec<Value>> {
-        subxt::dynamic::storage(T::PALLET, storage.storage_name(), Default::default())
+        for ev in events.iter() {
+            if let Event::System(system_event) = ev?.as_gear()? {
+                let extrinsic_result = match system_event {
+                    system::Event::ExtrinsicFailed {
+                        dispatch_error,
+                        dispatch_info,
+                    } => Some((dispatch_info, Err(self.decode_error(dispatch_error)))),
+                    system::Event::ExtrinsicSuccess { dispatch_info } => {
+                        Some((dispatch_info, Ok(())))
+                    }
+                    _ => None,
+                };
+
+                if let Some((dispatch_info, result)) = extrinsic_result {
+                    log::info!("	Weight cost: {:?}", dispatch_info.weight);
+                    result?;
+                    break;
+                }
+            }
+        }
+
+        Ok(events)
     }
 }
 
@@ -97,9 +100,15 @@ pub(crate) fn write_storage_address_root_bytes(addr: &impl Address, out: &mut Ve
 pub(crate) fn storage_address_bytes(
     addr: &impl Address,
     metadata: &Metadata,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>, Box<subxt::Error>> {
     let mut bytes = Vec::new();
     write_storage_address_root_bytes(addr, &mut bytes);
-    addr.append_entry_bytes(metadata, &mut bytes)?;
+    addr.append_entry_bytes(metadata, &mut bytes)
+        .map_err(|e| Box::new(e.into()))?;
     Ok(bytes)
+}
+
+/// Convert hex string to byte array.
+pub(crate) fn hex_to_vec(string: impl AsRef<str>) -> Result<Vec<u8>> {
+    hex::decode(string.as_ref().trim_start_matches("0x")).map_err(Into::into)
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
 import {Gear} from "./libraries/Gear.sol";
 
@@ -95,19 +95,78 @@ interface IMirror {
      */
     event ValueClaimed(bytes32 claimedId, uint128 value);
 
+    /**
+     * @dev Emitted when the program fails to transfer locked value to inheritor after exit.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about failed transfer of locked value to inheritor after exit.
+     */
+    event TransferLockedValueToInheritorFailed(address inheritor, uint128 value);
+
+    /**
+     * @dev Emitted when the program fails to transfer value to destination after failed call
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about failed transfer of value to destination after failed call.
+     */
+    event ReplyTransferFailed(address destination, uint128 value);
+
+    /**
+     * @dev Emitted when a user fails in claiming value request and doesn't receive balance.
+     *
+     * NOTE:    It's event for USERS:
+     *  it informs about failed value claim.
+     */
+    event ValueClaimFailed(bytes32 claimedId, uint128 value);
+
+    /* Errors section */
+
+    error InitMessageNotCreated();
+
+    error InitMessageNotCreatedAndCallerNotInitializer();
+
+    error ProgramExited();
+
+    error ProgramNotExited();
+
+    error CallerNotRouter();
+
+    error WVaraTransferFailed();
+
+    error EtherTransferToRouterFailed();
+
+    error TransferLockedValueToInheritorExternalFailed();
+
+    error InitializerAlreadySet();
+
+    error IsSmallAlreadySet();
+
+    error AbiInterfaceAlreadySet();
+
+    error InvalidActorId();
+
+    error InheritorMustBeZero();
+
+    error InvalidFallbackCall();
+
+    /// @dev Reverts when the Router is paused and pause-protected Mirror call is attempted.
+    error EnforcedPause();
+
     /* Functions section */
 
     /* Operational functions */
 
     function router() external view returns (address);
 
-    function inheritor() external view returns (address);
-
-    function initializer() external view returns (address);
-
     function stateHash() external view returns (bytes32);
 
     function nonce() external view returns (uint256);
+
+    function exited() external view returns (bool);
+
+    function inheritor() external view returns (address);
+
+    function initializer() external view returns (address);
 
     /* Primary Gear logic */
 
@@ -125,5 +184,5 @@ interface IMirror {
 
     function initialize(address initializer, address abiInterface, bool isSmall) external;
 
-    function performStateTransition(Gear.StateTransition calldata transition) external returns (bytes32);
+    function performStateTransition(Gear.StateTransition calldata transition) external payable returns (bytes32);
 }

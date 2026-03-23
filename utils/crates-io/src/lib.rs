@@ -74,6 +74,7 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gstd-codegen",
     "gcore",
     "gear-core",
+    "builtins-common",
     "gear-utils",
     "gear-common",
     "gear-wasmer-cache",
@@ -93,7 +94,7 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
 /// on the previous one, please be cautious about changing
 /// the order.
 pub const PACKAGES: &[&str] = &[
-    "gring",
+    "gsigner",
     "gear-wasm-optimizer",
     "gear-wasm-builder",
     "gear-node-wrapper",
@@ -101,7 +102,6 @@ pub const PACKAGES: &[&str] = &[
     "cargo-gbuild",
     "gstd",
     "gsdk",
-    "gclient",
     "gcli",
     "wasm-proc",
 ];

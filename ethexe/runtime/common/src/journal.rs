@@ -6,35 +6,43 @@ use crate::{
     },
 };
 use alloc::{collections::BTreeMap, vec::Vec};
-use core::{mem, num::NonZero};
+use core::{mem, num::NonZero, panic};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
     ScheduledTask,
-    gear::{Message, Origin},
+    gear::{INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD, Message, MessageType},
 };
 use gear_core::{
     env::MessageWaitedType,
     gas::GasAllowanceCounter,
     memory::PageBuf,
     message::{Dispatch as CoreDispatch, StoredDispatch},
-    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
+    pages::{GearPage, WasmPage, num_traits::Zero as _, numerated::tree::IntervalsTree},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
 use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
+use gsys::GasMultiplier;
+
+/// Maximum duration for gr_wait_up_to in blocks,
+/// when not enough gas was provided for the requested duration.
+pub const WAIT_UP_TO_SAFE_DURATION: u32 = 64;
 
 // Handles unprocessed journal notes during chunk processing.
-pub struct NativeJournalHandler<'a, S: Storage> {
+pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {
     pub program_id: ActorId,
-    pub dispatch_origin: Origin,
+    pub message_type: MessageType,
     pub call_reply: bool,
     pub controller: TransitionController<'a, S>,
     pub gas_allowance_counter: &'a GasAllowanceCounter,
     pub chunk_gas_limit: u64,
-    pub out_of_gas_for_block: &'a mut bool,
+    pub out_of_gas: &'a mut bool,
+    pub outgoing_messages_limiter: &'a mut u32,
+    pub outgoing_messages_bytes_limiter: &'a mut u32,
+    pub call_reply_limiter: &'a mut u32,
 }
 
-impl<S: Storage> NativeJournalHandler<'_, S> {
+impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
     fn send_dispatch_to_program(
         &mut self,
         _message_id: MessageId,
@@ -42,6 +50,25 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
         dispatch: Dispatch,
         delay: u32,
     ) {
+        if !dispatch.value.is_zero() {
+            let source = dispatch.source;
+            // Decrease sender's balance and value_to_receive
+            self.controller
+                .update_state(source, |state, _, transitions| {
+                    state.balance = state.balance.checked_sub(dispatch.value).expect(
+                        "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                    );
+
+                    transitions.modify_transition(source, |transition| {
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_sub(i128::try_from(dispatch.value).expect("value fits into i128"))
+                            .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
+                    });
+
+                });
+        }
+
         self.controller
             .update_state(destination, |state, storage: &S, transitions| {
                 if let Ok(non_zero_delay) = delay.try_into() {
@@ -54,9 +81,8 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         stash.add_to_program(dispatch, expiry);
                     });
                 } else {
-                    state
-                        .canonical_queue
-                        .modify_queue(storage, |queue| queue.queue(dispatch));
+                    let queue = state.queue_from_msg_type(dispatch.message_type);
+                    queue.modify_queue(storage, |queue| queue.queue(dispatch));
                 }
             })
     }
@@ -67,24 +93,57 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
         dispatch: StoredDispatch,
         delay: u32,
     ) {
+        // TODO: #5227 delay must be taken into account
+        *self.outgoing_messages_limiter = self.outgoing_messages_limiter.saturating_sub(1);
+        *self.outgoing_messages_bytes_limiter =
+            self.outgoing_messages_bytes_limiter.saturating_sub(
+                u32::try_from(dispatch.payload_bytes().len())
+                    .expect("payload size is too big for u32 in outgoing messages bytes limiter"),
+            );
+        if dispatch.is_reply() && self.call_reply {
+            *self.call_reply_limiter = self.call_reply_limiter.saturating_sub(1);
+        }
+
         if dispatch.is_reply() {
             self.controller
-                .transitions
-                .modify_transition(dispatch.source(), |transition| {
-                    let stored = dispatch.into_parts().1;
+                .update_state(dispatch.source(), |state, _, transitions| {
+                    if dispatch.value() != 0 {
+                        state.balance = state.balance.checked_sub(dispatch.value()).expect(
+                            "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                        );
+                    }
 
-                    transition
-                        .messages
-                        .push(Message::from_stored(stored, self.call_reply))
+                    transitions.modify_transition(dispatch.source(), |transition| {
+                        let stored = dispatch.into_parts().1;
+
+                        transition
+                            .messages
+                            .push(Message::from_stored(stored, self.call_reply))
+                    });
                 });
 
             return;
         }
 
-        let dispatch_origin = self.dispatch_origin;
+        let message_type = self.message_type;
 
         self.controller
             .update_state(dispatch.source(), |state, storage, transitions| {
+                let value = dispatch.value();
+
+                if !value.is_zero() {
+                    state.balance = state.balance.checked_sub(value).expect(
+                        "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                    );
+
+                    transitions.modify_transition(dispatch.source(), |transition| {
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_sub(i128::try_from(value).expect("value fits into i128"))
+                            .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
+                    });
+                }
+
                 if let Ok(non_zero_delay) = delay.try_into() {
                     let expiry = transitions.schedule_task(
                         non_zero_delay,
@@ -96,7 +155,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
 
                     let user_id = dispatch.destination();
                     let dispatch =
-                        Dispatch::from_core_stored(storage, dispatch, dispatch_origin, false);
+                        Dispatch::from_core_stored(storage, dispatch, message_type, false);
 
                     storage.modify(&mut state.stash_hash, |stash| {
                         stash.add_to_user(dispatch, expiry, user_id);
@@ -115,7 +174,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         .write_payload_raw(dispatch.payload_bytes().to_vec())
                         .expect("failed to write payload");
 
-                    let message = MailboxMessage::new(payload, dispatch.value(), dispatch_origin);
+                    let message = MailboxMessage::new(payload, dispatch.value(), message_type);
 
                     storage.modify(&mut state.mailbox_hash, |mailbox| {
                         mailbox.add_and_store_user_mailbox(
@@ -139,7 +198,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
     }
 }
 
-impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
+impl<S: Storage + ?Sized> JournalHandler for NativeJournalHandler<'_, S> {
     fn message_dispatched(
         &mut self,
         _message_id: MessageId,
@@ -169,7 +228,9 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         if self.controller.transitions.is_program(&inheritor) {
             self.controller.update_state(inheritor, |state, _, _| {
-                state.balance += balance;
+                state.balance = state.balance.checked_add(balance).expect(
+                    "Overflow in state.balance += balance during exit dispatch value transfer",
+                );
             })
         }
     }
@@ -179,7 +240,9 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_msg_type(self.message_type);
+
+                queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to consume message from empty queue");
@@ -199,6 +262,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
+        // Reservations are deprecated and gas_limited message dispatches are not supported anymore.
         if reservation.is_some() || dispatch.gas_limit().map(|v| v != 0).unwrap_or(false) {
             unreachable!("deprecated: {dispatch:?}");
         }
@@ -210,7 +274,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
             let dispatch = Dispatch::from_core_stored(
                 self.controller.storage,
                 dispatch,
-                self.dispatch_origin,
+                self.message_type,
                 false,
             );
 
@@ -224,17 +288,26 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         &mut self,
         dispatch: StoredDispatch,
         duration: Option<u32>,
-        _waited_type: MessageWaitedType,
+        waited_type: MessageWaitedType,
     ) {
-        let Some(duration) = duration else {
-            todo!("Wait dispatch without specified duration");
+        let Some(mut duration) = duration else {
+            unreachable!("Wait dispatch without specified duration is forbidden in ethexe runtime");
         };
+
+        match waited_type {
+            MessageWaitedType::Wait => unreachable!("gr_wait is forbidden in ethexe runtime"),
+            MessageWaitedType::WaitUpTo => {
+                // If not gas was not enough for duration, we use safe duration as max
+                duration = duration.min(WAIT_UP_TO_SAFE_DURATION);
+            }
+            MessageWaitedType::WaitFor | MessageWaitedType::WaitUpToFull => {}
+        }
 
         let in_blocks =
             NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
 
         let program_id = self.program_id;
-        let dispatch_origin = self.dispatch_origin;
+        let message_type = self.message_type;
         let call_reply = self.call_reply;
 
         self.controller
@@ -245,9 +318,11 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                 );
 
                 let dispatch =
-                    Dispatch::from_core_stored(storage, dispatch, dispatch_origin, call_reply);
+                    Dispatch::from_core_stored(storage, dispatch, message_type, call_reply);
 
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_msg_type(message_type);
+
+                queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to wait message from empty queue");
@@ -273,7 +348,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         delay: u32,
     ) {
         if delay != 0 {
-            todo!("Delayed wake message");
+            unreachable!("delayed wake is forbidden in ethexe runtime");
         }
 
         log::trace!("Dispatch {message_id} tries to wake {awakening_id}");
@@ -290,9 +365,8 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                     return;
                 };
 
-                state
-                    .canonical_queue
-                    .modify_queue(storage, |queue| queue.queue(dispatch));
+                let queue = state.queue_from_msg_type(dispatch.message_type);
+                queue.modify_queue(storage, |queue| queue.queue(dispatch));
 
                 transitions
                     .remove_task(
@@ -320,16 +394,40 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
     }
 
     fn send_value(&mut self, from: ActorId, to: ActorId, value: u128, _locked: bool) {
-        // TODO (breathx): implement rest of cases.
-        if self.controller.transitions.state_of(&from).is_some() {
+        if value.is_zero() {
+            // Nothing to do
             return;
         }
 
-        self.controller.update_state(to, |state, _, transitions| {
-            state.balance += value;
+        let src_is_prog = self.controller.transitions.is_program(&from);
+        let dst_is_prog = self.controller.transitions.is_program(&to);
 
-            transitions.modify_transition(to, |transition| transition.value_to_receive += value);
-        });
+        match (src_is_prog, dst_is_prog) {
+            // User to Program or Program to Program value transfer
+            (_, true) => {
+                self.controller.update_state(to, |state, _, transitions| {
+                    state.balance = state
+                        .balance
+                        .checked_add(value)
+                        .expect("Overflow in state.balance += value during value transfer");
+
+                    transitions.modify_transition(to, |transition| {
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_add(i128::try_from(value).expect("value fits into i128"))
+                            .expect("Overflow in transition.value_to_receive += value");
+                    });
+                });
+            }
+            (true, false) => {
+                // Program to User value transfer
+                unreachable!("Program to User value transfer is not supported");
+            }
+            (false, false) => {
+                // User to User value transfer is not supported
+                unreachable!("User to User value transfer is not supported");
+            }
+        }
     }
 
     fn store_new_programs(
@@ -344,7 +442,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
         // This means we are out of gas for block, not for chunk.
         if self.gas_allowance_counter.left() < self.chunk_gas_limit {
-            *self.out_of_gas_for_block = true;
+            *self.out_of_gas = true;
         }
     }
 
@@ -385,7 +483,12 @@ where
     pub storage: &'s S,
     pub program_state: &'s mut ProgramState,
     pub gas_allowance_counter: &'s mut GasAllowanceCounter,
+    pub gas_multiplier: &'s GasMultiplier,
+    pub message_type: MessageType,
+    pub is_first_execution: bool,
     pub stop_processing: bool,
+    pub call_reply: bool,
+    pub limiter: &'s mut Limiter,
 }
 
 impl<S> RuntimeJournalHandler<'_, S>
@@ -393,19 +496,19 @@ where
     S: Storage,
 {
     // Returns unhandled journal notes and new program state hash
-    pub fn handle_journal(
-        &mut self,
-        journal: impl IntoIterator<Item = JournalNote>,
-    ) -> (Vec<JournalNote>, Option<H256>) {
+    pub fn handle_journal<I>(&mut self, journal: I) -> (Vec<JournalNote>, Option<H256>)
+    where
+        I: IntoIterator<Item = JournalNote>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let journal = journal.into_iter();
         let mut page_updates = BTreeMap::new();
         let mut allocations_update = BTreeMap::new();
-        let mut notes_cnt = 0;
+        let notes_count = journal.len();
+        let mut skipped_notes = 0;
 
         let filtered: Vec<_> = journal
-            .into_iter()
             .filter_map(|note| {
-                notes_cnt += 1;
-
                 match note {
                     JournalNote::MessageDispatched {
                         message_id,
@@ -429,9 +532,14 @@ where
                     JournalNote::GasBurned {
                         message_id: _,
                         amount,
+                        is_panic,
                     } => {
-                        // TODO(romanm): reduce exec balance
                         self.gas_allowance_counter.charge(amount);
+
+                        // Special case for panicked `Injected` messages with gas spent less than the threshold.
+                        if !is_panic || self.should_charge_exec_balance_on_panic(amount) {
+                            self.charge_exec_balance(amount);
+                        }
                     }
                     note @ JournalNote::StopProcessing {
                         dispatch: _,
@@ -441,11 +549,30 @@ where
                         self.stop_processing = true;
                         return Some(note);
                     }
-                    // TODO(romanm): handle the listed journal notes here:
+                    // TODO: #5228 handle the listed journal notes here:
                     // * WakeMessage
                     // * SendDispatch to self
                     // * SendValue to self
-                    note => return Some(note),
+                    note => {
+                        if let JournalNote::SendDispatch { dispatch, .. } = &note {
+                            // TODO: #5227 delay must be taken into account
+                            self.limiter.outgoing_messages =
+                                self.limiter.outgoing_messages.saturating_sub(1);
+                            self.limiter.outgoing_messages_bytes =
+                                self.limiter.outgoing_messages_bytes.saturating_sub(
+                                    u32::try_from(dispatch.payload_bytes().len())
+                                        .expect("payload size is too big for u32"),
+                                );
+
+                            if dispatch.is_reply() && self.call_reply {
+                                self.limiter.call_replies =
+                                    self.limiter.call_replies.saturating_sub(1);
+                            }
+                        }
+
+                        skipped_notes += 1;
+                        return Some(note);
+                    }
                 }
 
                 None
@@ -461,7 +588,7 @@ where
         }
 
         // Some notes were processed, thus state changed
-        let maybe_state_hash = (notes_cnt != filtered.len())
+        let maybe_state_hash = (notes_count != skipped_notes)
             .then(|| self.storage.write_program_state(*self.program_state));
 
         (filtered, maybe_state_hash)
@@ -553,5 +680,204 @@ where
                 pages.remove_and_store_regions(self.storage, &removed_pages);
             })
         }
+    }
+
+    fn charge_exec_balance(&mut self, gas_burned: u64) {
+        let spent_value = self.gas_multiplier.gas_to_value(gas_burned);
+        self.program_state.executable_balance = self
+            .program_state
+            .executable_balance
+            .checked_sub(spent_value)
+            .expect(
+                "Insufficient executable balance: underflow in executable_balance -= gas_burned",
+            );
+    }
+
+    // Special case for panicked `Injected` messages with gas spent less than `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`.
+    fn should_charge_exec_balance_on_panic(&self, gas_burned: u64) -> bool {
+        gas_burned > INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD
+            || self.message_type != MessageType::Injected
+            || !self.is_first_execution
+    }
+}
+
+pub(crate) struct Limiter {
+    pub outgoing_messages: u32,
+    pub outgoing_messages_bytes: u32,
+    pub call_replies: u32,
+}
+
+#[derive(Debug)]
+pub(crate) enum LimitsStatus {
+    WithinLimits,
+    OutgoingMessagesLimitExceeded,
+    OutgoingMessagesBytesLimitExceeded,
+    CallRepliesLimitExceeded,
+}
+
+impl Limiter {
+    pub fn status(&self) -> LimitsStatus {
+        if self.outgoing_messages == 0 {
+            LimitsStatus::OutgoingMessagesLimitExceeded
+        } else if self.outgoing_messages_bytes == 0 {
+            LimitsStatus::OutgoingMessagesBytesLimitExceeded
+        } else if self.call_replies == 0 {
+            LimitsStatus::CallRepliesLimitExceeded
+        } else {
+            LimitsStatus::WithinLimits
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gear_core::message::{DispatchKind, Message as CoreMessage, StoredMessage};
+
+    use super::*;
+
+    use crate::state::MemStorage;
+
+    fn init_setup(
+        exec_balance: u128,
+        message_type: MessageType,
+        is_first_execution: bool,
+    ) -> RuntimeJournalHandler<'static, MemStorage> {
+        const INITIAL_GAS_ALLOWANCE: u64 = 1_000_000_000_000;
+
+        let storage = Box::leak(Box::new(MemStorage::default()));
+        let program_state = {
+            let mut ps = ProgramState::zero();
+            ps.executable_balance = exec_balance;
+            Box::leak(Box::new(ps))
+        };
+        let gas_allowance_counter =
+            Box::leak(Box::new(GasAllowanceCounter::new(INITIAL_GAS_ALLOWANCE)));
+        let gas_multiplier = Box::leak(Box::new(GasMultiplier::from_value_per_gas(100)));
+        let limiter = Box::leak(Box::new(Limiter {
+            outgoing_messages: 32,
+            outgoing_messages_bytes: 4 * 1024,
+            call_replies: 16,
+        }));
+
+        RuntimeJournalHandler {
+            storage,
+            program_state,
+            gas_allowance_counter,
+            gas_multiplier,
+            message_type,
+            is_first_execution,
+            stop_processing: false,
+            call_reply: false,
+            limiter,
+        }
+    }
+
+    #[test]
+    fn charge_exec_balance() {
+        const INITIAL_EXEC_BALANCE: u128 = 500_000_000_000;
+
+        // Special case: Injected message first execution with panic and gas burned less than threshold
+        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Injected, true);
+        handler.handle_journal(vec![JournalNote::GasBurned {
+            message_id: MessageId::new([0u8; 32]),
+            amount: INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
+            is_panic: true,
+        }]);
+        assert_eq!(
+            handler.program_state.executable_balance,
+            INITIAL_EXEC_BALANCE
+        );
+
+        // Normal cases:
+        for message_type in [MessageType::Injected, MessageType::Canonical] {
+            for is_panic in [false, true] {
+                for amount in [
+                    INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
+                    INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD + 1,
+                ] {
+                    for is_first_execution in [true, false] {
+                        // Skip special case already tested above
+                        if message_type == MessageType::Injected
+                            && is_panic
+                            && is_first_execution
+                            && amount == INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD
+                        {
+                            continue;
+                        }
+
+                        let mut handler =
+                            init_setup(INITIAL_EXEC_BALANCE, message_type, is_first_execution);
+                        handler.handle_journal(vec![JournalNote::GasBurned {
+                            message_id: MessageId::new([0u8; 32]),
+                            amount,
+                            is_panic,
+                        }]);
+                        let expected_exec_balance =
+                            INITIAL_EXEC_BALANCE - handler.gas_multiplier.gas_to_value(amount);
+                        assert_eq!(
+                            handler.program_state.executable_balance,
+                            expected_exec_balance
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn notes_update_state_hash() {
+        let mut handler = init_setup(500_000_000_000, MessageType::Canonical, true);
+
+        // Note unhandled (not processed in RuntimeJournalHandler)
+        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::SendDispatch {
+            message_id: MessageId::new([1u8; 32]),
+            dispatch: CoreDispatch::new(
+                DispatchKind::Handle,
+                CoreMessage::new(
+                    MessageId::new([2u8; 32]),
+                    ActorId::new([1u8; 32]),
+                    ActorId::new([2u8; 32]),
+                    Default::default(),
+                    None,
+                    0,
+                    None,
+                ),
+            ),
+            delay: 0,
+            reservation: None,
+        }]);
+
+        assert_eq!(unhandled.len(), 1);
+        assert!(state_hash.is_none());
+
+        // Note will be processed in here (in RuntimeJournalHandler) and also forwarded to `NativeJournalHandler`
+        // and produce state hash update.
+        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::StopProcessing {
+            dispatch: StoredDispatch::new(
+                DispatchKind::Handle,
+                StoredMessage::new(
+                    MessageId::new([2u8; 32]),
+                    ActorId::new([3u8; 32]),
+                    ActorId::new([4u8; 32]),
+                    Default::default(),
+                    0,
+                    None,
+                ),
+                None,
+            ),
+            gas_burned: 1000,
+        }]);
+
+        assert_eq!(unhandled.len(), 1);
+        assert!(state_hash.is_some());
+
+        // Note only processed in here (in RuntimeJournalHandler) and produce state hash update.
+        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::UpdatePage {
+            program_id: ActorId::new([1u8; 32]),
+            page_number: 16.into(),
+            data: PageBuf::new_zeroed(),
+        }]);
+        assert!(unhandled.is_empty());
+        assert!(state_hash.is_some());
     }
 }

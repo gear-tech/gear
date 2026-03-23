@@ -16,14 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{StateHandler, ValidatorContext, ValidatorState, submitter::Submitter};
-use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment};
+use super::{StateHandler, ValidatorContext, ValidatorState};
+use crate::{
+    BatchCommitmentValidationReply, CommitmentSubmitted, ConsensusEvent,
+    utils::MultisignedBatchCommitment, validator::initial::Initial,
+};
 use anyhow::{Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
-    Address, ValidatorsVec, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
-    network::ValidatorMessage,
+    Address, SimpleBlockData, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
+    gear::BatchCommitment, network::ValidatorMessage,
 };
+use futures::FutureExt;
+use gsigner::secp256k1::Secp256k1SignerExt;
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -67,7 +72,7 @@ impl StateHandler for Coordinator {
         }
 
         if self.multisigned_batch.signatures().len() as u64 >= self.ctx.core.signatures_threshold {
-            Submitter::create(self.ctx, self.multisigned_batch)
+            Self::submission(self.ctx, self.multisigned_batch)
         } else {
             Ok(self.into())
         }
@@ -79,7 +84,9 @@ impl Coordinator {
         mut ctx: ValidatorContext,
         validators: ValidatorsVec,
         batch: BatchCommitment,
+        block: SimpleBlockData,
     ) -> Result<ValidatorState> {
+        debug_assert_eq!(batch.block_hash, block.hash, "Block hash mismatch");
         ensure!(
             validators.len() as u64 >= ctx.core.signatures_threshold,
             "Number of validators is less than threshold"
@@ -97,17 +104,26 @@ impl Coordinator {
             ctx.core.pub_key,
         )?;
 
+        ctx.core
+            .metrics
+            .last_signed_commitment_block_number
+            .set(block.header.height);
+
         if multisigned_batch.signatures().len() as u64 >= ctx.core.signatures_threshold {
-            return Submitter::create(ctx, multisigned_batch);
+            return Self::submission(ctx, multisigned_batch);
         }
 
+        let era_index = ctx
+            .core
+            .timelines
+            .era_from_ts(multisigned_batch.batch().timestamp);
         let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
-        let message = ValidatorMessage {
-            block: multisigned_batch.batch().block_hash,
-            payload,
-        };
+        let message = ValidatorMessage { era_index, payload };
 
-        let validation_request = ctx.core.signer.signed_data(ctx.core.pub_key, message)?;
+        let validation_request = ctx
+            .core
+            .signer
+            .signed_data(ctx.core.pub_key, message, None)?;
 
         ctx.output(ConsensusEvent::PublishMessage(validation_request.into()));
 
@@ -118,13 +134,40 @@ impl Coordinator {
         }
         .into())
     }
+
+    pub fn submission(
+        ctx: ValidatorContext,
+        multisigned_batch: MultisignedBatchCommitment,
+    ) -> Result<ValidatorState> {
+        let (batch, signatures) = multisigned_batch.into_parts();
+        let cloned_committer = ctx.core.committer.clone_boxed();
+        ctx.tasks.push(
+            async move {
+                let block_hash = batch.block_hash;
+                let batch_digest = batch.to_digest();
+                let event = match cloned_committer.commit(batch, signatures).await {
+                    Ok(tx) => CommitmentSubmitted {
+                        block_hash,
+                        batch_digest,
+                        tx,
+                    }.into(),
+                    Err(err) => ConsensusEvent::Warning(format!(
+                        "Failed to submit commitment for block {block_hash}, digest {batch_digest}: {err}"
+                    ))
+                };
+                Ok(event)
+            }
+            .boxed(),
+        );
+        Initial::create(ctx)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::ToDigest;
+    use ethexe_common::{ToDigest, ValidatorsVec, mock::*};
     use gprimitives::H256;
     use nonempty::NonEmpty;
 
@@ -132,15 +175,20 @@ mod tests {
     fn coordinator_create_success() {
         let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
-        let validators = keys
+        let validators: ValidatorsVec = keys
             .iter()
             .take(3)
             .map(|k| k.to_address())
-            .collect::<Result<_, _>>()
+            .collect::<Vec<_>>()
+            .try_into()
             .unwrap();
-        let batch = BatchCommitment::default();
+        let block = SimpleBlockData::mock(());
+        let batch = BatchCommitment {
+            block_hash: block.hash,
+            ..Default::default()
+        };
 
-        let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
+        let coordinator = Coordinator::create(ctx, validators, batch, block).unwrap();
         assert!(coordinator.is_coordinator());
         coordinator.context().output[0]
             .clone()
@@ -154,10 +202,12 @@ mod tests {
         ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
-        let batch = BatchCommitment::default();
+        let mut batch = BatchCommitment::default();
+        let block = SimpleBlockData::mock(());
+        batch.block_hash = block.hash;
 
         assert!(
-            Coordinator::create(ctx, validators.into(), batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch, block).is_err(),
             "Expected an error, but got Ok"
         );
     }
@@ -168,10 +218,12 @@ mod tests {
         ctx.core.signatures_threshold = 0;
         let validators =
             NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
-        let batch = BatchCommitment::default();
+        let mut batch = BatchCommitment::default();
+        let block = SimpleBlockData::mock(());
+        batch.block_hash = block.hash;
 
         assert!(
-            Coordinator::create(ctx, validators.into(), batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch, block).is_err(),
             "Expected an error due to zero threshold, but got Ok"
         );
     }
@@ -183,7 +235,11 @@ mod tests {
         let validators =
             NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
 
-        let batch = BatchCommitment::default();
+        let block = SimpleBlockData::mock(());
+        let batch = BatchCommitment {
+            block_hash: block.hash,
+            ..Default::default()
+        };
         let digest = batch.to_digest();
 
         let reply1 = ctx
@@ -207,7 +263,7 @@ mod tests {
             .signer
             .validation_reply(keys[2], ctx.core.router_address, digest);
 
-        let mut coordinator = Coordinator::create(ctx, validators.into(), batch).unwrap();
+        let mut coordinator = Coordinator::create(ctx, validators.into(), batch, block).unwrap();
         assert!(coordinator.is_coordinator());
         coordinator.context().output[0]
             .clone()
@@ -236,7 +292,8 @@ mod tests {
         ));
 
         coordinator = coordinator.process_validation_reply(reply4).unwrap();
-        assert!(coordinator.is_submitter());
+        assert!(coordinator.is_initial());
         assert_eq!(coordinator.context().output.len(), 3);
+        assert!(coordinator.context().tasks.len() == 1);
     }
 }
