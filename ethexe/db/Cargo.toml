@@ -46,6 +46,7 @@ ethexe-common = { workspace = true, features = ["mock"] }
 indoc.workspace = true
 scale-info = { workspace = true, features = ["docs"] }
 sha3.workspace = true
+hex.workspace = true
 
 [features]
 default = ["mock"]
