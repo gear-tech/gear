@@ -472,7 +472,6 @@ impl AnnounceStorageRW for RawDatabase {
             announces.encode(),
         );
     }
-
 }
 
 impl OnChainStorageRO for RawDatabase {
