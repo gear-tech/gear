@@ -70,12 +70,10 @@ pub(crate) struct ValidatorList {
 impl ValidatorList {
     pub(crate) fn new(
         db: Box<dyn ValidatorDatabase>,
+        timelines: ProtocolTimelines,
         latest_block_header: BlockHeader,
         latest_validators: ValidatorsVec,
     ) -> anyhow::Result<(Self, Arc<ValidatorListSnapshot>)> {
-        let timelines = db
-            .protocol_timelines()
-            .context("protocol timelines not found in db")?;
         let snapshot = ValidatorListSnapshot {
             current_era_index: timelines.era_from_ts(latest_block_header.timestamp),
             current_validators: latest_validators,
@@ -123,6 +121,7 @@ mod tests {
         genesis_ts: 0,
         era: 10,
         election: 5,
+        slot: 1,
     };
 
     fn validators_vec(addresses: &[u64]) -> ValidatorsVec {
@@ -151,7 +150,6 @@ mod tests {
         let next_era_hash = H256::from_low_u64_be(3);
 
         let db = Database::memory();
-        db.set_protocol_timelines(TIMELINES);
         db.set_block_header(genesis_hash, genesis_block_header);
         db.set_block_header(same_era_hash, header(1, 5));
         db.set_block_header(next_committed_validators_hash, header(2, 9));
@@ -163,6 +161,7 @@ mod tests {
 
         let (mut list, init_snapshot) = ValidatorList::new(
             Box::new(db.clone()),
+            TIMELINES,
             genesis_block_header,
             current_validators.clone(),
         )

@@ -197,12 +197,21 @@ impl<'a> Mirror<'a> {
             .ok_or_else(|| anyhow!("no key found for sender address"))?;
 
         let destination = self.mirror_client.actor_id();
-        let payload = payload.as_ref().to_vec().into();
+        let payload = payload
+            .as_ref()
+            .to_vec()
+            .try_into()
+            .context("payload is too large")?;
+
         let SimpleBlockData {
             hash: reference_block,
             ..
         } = self.api.ethereum_client.get_latest_block().await?;
-        let salt = H256::random().0.to_vec().into();
+        let salt = H256::random()
+            .0
+            .to_vec()
+            .try_into()
+            .context("salt is too large")?;
 
         let injected_transaction = InjectedTransaction {
             destination,

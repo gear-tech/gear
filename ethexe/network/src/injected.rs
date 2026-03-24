@@ -60,6 +60,28 @@ const MAX_TRANSACTIONS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
 /// Maximum number of validators we cache per transaction
 const MAX_VALIDATORS_PER_TRANSACTION: NonZeroUsize = NonZeroUsize::new(20).unwrap();
 
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_injected")]
+struct Metrics {
+    /// Number of injected transactions sent to a validator
+    sent_transactions: metrics::Counter,
+    /// Number of injected transactions received from a user
+    received_transactions: metrics::Counter,
+}
+
+impl Metrics {
+    fn record(&self, event: &Event) {
+        match event {
+            Event::InboundTransaction { .. } => {
+                self.received_transactions.increment(1);
+            }
+            Event::OutboundAcceptance { .. } => {
+                self.sent_transactions.increment(1);
+            }
+        }
+    }
+}
+
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Encode, Decode)]
 pub(crate) struct InnerRequest(SignedInjectedTransaction);
@@ -72,7 +94,8 @@ pub(crate) struct InnerResponse(InjectedTransactionAcceptance);
 pub enum Event {
     /// Peer sent a new transaction to us
     InboundTransaction {
-        transaction: SignedInjectedTransaction,
+        peer: PeerId,
+        transaction: Box<SignedInjectedTransaction>,
         channel: oneshot::Sender<InjectedTransactionAcceptance>,
     },
     /// We got a response from a validator we sent transaction to
@@ -87,14 +110,16 @@ impl Event {
     fn unwrap_new_injected_transaction(
         self,
     ) -> (
+        PeerId,
         SignedInjectedTransaction,
         oneshot::Sender<InjectedTransactionAcceptance>,
     ) {
         match self {
             Event::InboundTransaction {
+                peer,
                 transaction,
                 channel,
-            } => (transaction, channel),
+            } => (peer, *transaction, channel),
             _ => panic!("Expected InboundTransaction event"),
         }
     }
@@ -130,6 +155,7 @@ pub(crate) struct Behaviour {
     pending_requests: HashMap<OutboundRequestId, HashOf<InjectedTransaction>>,
     pending_responses: FuturesUnordered<PendingResponseFuture>,
     transaction_cache: LruCache<HashOf<InjectedTransaction>, LruCache<Address, ()>>,
+    metrics: Metrics,
 }
 
 impl Behaviour {
@@ -143,6 +169,7 @@ impl Behaviour {
             pending_requests: HashMap::new(),
             pending_responses: FuturesUnordered::new(),
             transaction_cache: LruCache::new(MAX_TRANSACTIONS),
+            metrics: Metrics::default(),
         }
     }
 
@@ -188,7 +215,7 @@ impl Behaviour {
     ) -> Poll<Event> {
         match event {
             request_response::Event::Message {
-                peer: _,
+                peer,
                 connection_id: _,
                 message:
                     Message::Request {
@@ -207,7 +234,8 @@ impl Behaviour {
                 self.pending_responses.push(fut.boxed());
 
                 return Poll::Ready(Event::InboundTransaction {
-                    transaction,
+                    peer,
+                    transaction: Box::new(transaction),
                     channel: tx,
                 });
             }
@@ -357,9 +385,13 @@ impl NetworkBehaviour for Behaviour {
 
         let to_swarm = ready!(self.inner.poll(cx));
         match to_swarm {
-            ToSwarm::GenerateEvent(event) => {
-                self.handle_inner_event(event).map(ToSwarm::GenerateEvent)
-            }
+            ToSwarm::GenerateEvent(event) => self
+                .handle_inner_event(event)
+                .map(|event| {
+                    self.metrics.record(&event);
+                    event
+                })
+                .map(ToSwarm::GenerateEvent),
             to_swarm => Poll::Ready(to_swarm.map_out::<Event>(|_event| {
                 unreachable!("`ToSwarm::GenerateEvent` is handled above")
             })),
@@ -433,6 +465,7 @@ mod tests {
         init_logger();
 
         let (mut alice, _) = new_swarm().await;
+        let alice_peer_id = *alice.local_peer_id();
         let (mut bob, bob_identity) = new_swarm().await;
 
         let transaction = addressed_injected_tx(bob_identity.address());
@@ -450,10 +483,11 @@ mod tests {
             assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
         });
 
-        let (new_tx, channel) = bob
+        let (peer, new_tx, channel) = bob
             .next_behaviour_event()
             .await
             .unwrap_new_injected_transaction();
+        assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction.tx);
         channel.send(InjectedTransactionAcceptance::Accept).unwrap();
         tokio::spawn(bob.loop_on_next());
@@ -466,6 +500,7 @@ mod tests {
         const REJECT_REASON: &str = "test reason";
 
         let (mut alice, _) = new_swarm().await;
+        let alice_peer_id = *alice.local_peer_id();
         let (mut bob, bob_identity) = new_swarm().await;
 
         let transaction = addressed_injected_tx(bob_identity.address());
@@ -488,10 +523,11 @@ mod tests {
             );
         });
 
-        let (new_tx, channel) = bob
+        let (peer, new_tx, channel) = bob
             .next_behaviour_event()
             .await
             .unwrap_new_injected_transaction();
+        assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction.tx);
         channel
             .send(InjectedTransactionAcceptance::Reject {
@@ -506,6 +542,7 @@ mod tests {
     #[tokio::test]
     async fn outbound_failure_rejected() {
         let (mut alice, _) = new_swarm().await;
+        let alice_peer_id = *alice.local_peer_id();
         let (mut bob, bob_identity) = new_swarm().await;
 
         let transaction = addressed_injected_tx(bob_identity.address());
@@ -528,10 +565,11 @@ mod tests {
             );
         });
 
-        let (new_tx, _channel) = bob
+        let (peer, new_tx, _channel) = bob
             .next_behaviour_event()
             .await
             .unwrap_new_injected_transaction();
+        assert_eq!(peer, alice_peer_id);
         assert_eq!(new_tx, transaction.tx);
         drop(bob);
 

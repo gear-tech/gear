@@ -110,9 +110,8 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae5378448a6925ad28c99c8286b3ffe3a70d72c7f5938e2f6db118bec6d1c788"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-consensus",
  "alloy-contract",
@@ -136,9 +135,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-chains"
-version = "0.2.28"
+version = "0.2.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3842d8c52fcd3378039f4703dba392dca8b546b1c8ed6183048f8dab95b2be78"
+checksum = "90f374d3c6d729268bbe2d0e0ff992bb97898b2df756691a62ee1d5f0506bc39"
 dependencies = [
  "alloy-primitives",
  "num_enum 0.7.5",
@@ -148,9 +147,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c202eb051877416e0f7d4d2de8f8da7533e62b986e3bf076d65a045ab4aa01a"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -175,9 +173,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus-any"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32208c8d0994a507bfbc86215dbc2ce11f4a8882d3a07e7c90806931df484591"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -189,9 +186,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-contract"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e03adbaa1e9ecf1a762a40aaa6a33dbd41f9716ac4ff6559481d58f75ffa2c9"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -291,9 +287,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f47793dba2a4b83e41978846b87fcc2cfc4102811ecfc01083efbe0896330da"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-eip2124",
  "alloy-eip2930",
@@ -315,9 +310,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-genesis"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c51d96aa7df15808ec320f5656fe32b16c056947291111a720b1bd3f4a028604"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -355,9 +349,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-rpc"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "722c1f2836110666c6575e6579ba6ee371ece55e326fdd7b0c55ecce63baf5b6"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -370,9 +363,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-network"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f950c82571fb6b51c1919ce04019a991f455a6672c5be5a77ef1a6a9c1c3d8a"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -396,9 +388,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-network-primitives"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "243492319e17d370579edda2c6b7c7ad892dafb3034455eddd5085f734e0e880"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -409,9 +400,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-node-bindings"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "765a081b35862e9eb73d70a8e0de6bcd7c641d908829be934832f28b7b95de43"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-genesis",
  "alloy-hardforks",
@@ -431,9 +421,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-primitives"
-version = "1.5.2"
+version = "1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6a0fb18dd5fb43ec5f0f6a20be1ce0287c79825827de5744afaa6c957737c33"
+checksum = "de3b431b4e72cd8bd0ec7a50b4be18e73dab74de0dba180eef171055e5d5926e"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -454,14 +444,12 @@ dependencies = [
  "rustc-hash 2.1.1",
  "serde",
  "sha3",
- "tiny-keccak",
 ]
 
 [[package]]
 name = "alloy-provider"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "745f104e9f5de2273bb359a44a7a3dc92ea4b9a971c71a61f9faec8c2bb2f677"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -502,9 +490,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-pubsub"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eaf84a70fe6e7a69a9c4b9b4b307b179872428cbd09341a9339da320cab4904f"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -546,9 +533,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-client"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8847b3ce87453e9b515c4d28e5e3cceda318615c9c22055689f19cf6d9c62acd"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -571,9 +557,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af507862734f4ea14cb03e7b370a54233ea43e5649a32c4f014d4e033818d427"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-anvil",
@@ -586,9 +571,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-anvil"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e014cd9c5bf994d128c4c70ae6192cd6ef1779b551a3bb44556591af7b38c0e8"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-eth",
@@ -598,9 +582,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-any"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "191f108697ae996c2087d97643da55643ac6f023ffb3a5f98d60cdba2b5e9bdc"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-consensus-any",
  "alloy-rpc-types-eth",
@@ -609,9 +592,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-beacon"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76d8e5efa1b535bd0ec9e4e0200411581ed7431483a6bd4f7d6362755147b312"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -625,9 +607,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-engine"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e61588ad6f33197ee9050d5cb4ade225ad23552fcec6e1e046d9b548e874893"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -642,9 +623,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-eth"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e173019c811410520870594235af583db0dfd2e999a61c987014efb24da6c72e"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -663,9 +643,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-serde"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "241294d3f741c86c92d4ad6b1f0a9318355b43b05fd0296e57f02fb967c6c3a9"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -674,9 +653,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57111a7fe28eac9b62cfbd269ad5782d1617a9afad799780b0990cece4536115"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-primitives",
  "async-trait",
@@ -689,18 +667,20 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer-local"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "846756c9911d75ed88852d62e4df834f4019ab5e4b1e17f447c5f56f8d112848"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
  "alloy-primitives",
  "alloy-signer",
  "async-trait",
+ "coins-bip32",
+ "coins-bip39",
  "k256",
  "rand 0.8.5",
  "thiserror 2.0.17",
+ "zeroize",
 ]
 
 [[package]]
@@ -778,9 +758,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2896b5cc00d2e3bc694e83d04faa89c93fca588d564dfcca836ae89f52d848bc"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-json-rpc",
  "auto_impl",
@@ -801,12 +780,12 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-http"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e878794ebe88ced001a335d1cbf46fc1fe5d2409a463771d274848f42e55ff43"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
+ "itertools 0.14.0",
  "reqwest",
  "serde_json",
  "tower 0.5.2",
@@ -816,9 +795,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-ws"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abed4d76075955748f314720fc2a2f3e2e82546ec7306bf2b1b4198165d8edc9"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "alloy-pubsub",
  "alloy-transport",
@@ -828,6 +806,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.26.2",
  "tracing",
+ "url",
  "ws_stream_wasm",
 ]
 
@@ -849,9 +828,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-tx-macros"
-version = "1.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3e006e2d711485a504cf2124e104c2bde8938263c365d862ebbc300be9b27b4"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2",
@@ -1502,9 +1480,9 @@ checksum = "155a5a185e42c6b77ac7b88a15143d930a9e9727a5b7b77eed417404ab15c247"
 
 [[package]]
 name = "assert_cmd"
-version = "2.1.1"
+version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcbb6924530aa9e0432442af08bbcafdad182db80d2e560da42a6d442535bf85"
+checksum = "9c5bcfa8749ac45dd12cb11055aeeb6b27a3895560d60d71e3c23bf979e60514"
 dependencies = [
  "anstyle",
  "bstr",
@@ -1895,6 +1873,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d809780667f4410e7c41b07f52439b94d2bdf8528eeedc287fa38d3b7f95d82"
 
 [[package]]
+name = "bech32"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
+
+[[package]]
 name = "bimap"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2236,6 +2220,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
 dependencies = [
+ "sha2 0.10.9",
  "tinyvec",
 ]
 
@@ -2811,6 +2796,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "coins-bip32"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2073678591747aed4000dd468b97b14d7007f7936851d3f2f01846899f5ebf08"
+dependencies = [
+ "bs58 0.5.1",
+ "coins-core",
+ "digest 0.10.7",
+ "hmac 0.12.1",
+ "k256",
+ "serde",
+ "sha2 0.10.9",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "coins-bip39"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74b169b26623ff17e9db37a539fe4f15342080df39f129ef7631df7683d6d9d4"
+dependencies = [
+ "bitvec",
+ "coins-bip32",
+ "hmac 0.12.1",
+ "once_cell",
+ "pbkdf2",
+ "rand 0.8.5",
+ "sha2 0.10.9",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "coins-core"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62b962ad8545e43a28e14e87377812ba9ae748dd4fd963f4c10e9fcc6d13475b"
+dependencies = [
+ "base64 0.21.7",
+ "bech32",
+ "bs58 0.5.1",
+ "const-hex",
+ "digest 0.10.7",
+ "generic-array 0.14.7",
+ "ripemd",
+ "serde",
+ "sha2 0.10.9",
+ "sha3",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3216,6 +3252,19 @@ name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
+
+[[package]]
+name = "crossbeam"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1137cd7e7fc0fb5d3c5a8678be38ec56e819125d8d7907411fe24ccb943faca8"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-deque",
+ "crossbeam-epoch",
+ "crossbeam-queue",
+ "crossbeam-utils",
+]
 
 [[package]]
 name = "crossbeam-channel"
@@ -4134,6 +4183,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-syscalls-ethexe"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gear-workspace-hack",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-value-sender"
 version = "0.1.0"
 dependencies = [
@@ -5016,11 +5075,13 @@ dependencies = [
  "gprimitives",
  "gsigner",
  "hex",
+ "indoc",
  "itertools 0.13.0",
  "k256",
  "nonempty 0.12.0",
  "parity-scale-codec",
  "roast-secp256k1-evm",
+ "scale-info",
  "serde",
  "serde_json",
  "sha3",
@@ -5032,6 +5093,7 @@ dependencies = [
 name = "ethexe-compute"
 version = "1.10.0"
 dependencies = [
+ "demo-ping",
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
@@ -5057,6 +5119,7 @@ dependencies = [
 name = "ethexe-consensus"
 version = "1.10.0"
 dependencies = [
+ "alloy",
  "anyhow",
  "async-trait",
  "derive_more 2.1.1",
@@ -5073,6 +5136,8 @@ dependencies = [
  "gsigner",
  "hashbrown 0.14.5",
  "lru 0.16.3",
+ "metrics",
+ "metrics-derive",
  "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
@@ -5104,6 +5169,22 @@ dependencies = [
  "scopeguard",
  "tempfile",
  "tracing",
+]
+
+[[package]]
+name = "ethexe-db-init"
+version = "1.10.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-ethereum",
+ "gear-workspace-hack",
+ "gprimitives",
+ "gsigner",
+ "log",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -5153,11 +5234,40 @@ dependencies = [
  "libp2p-swarm-test",
  "log",
  "lru 0.16.3",
+ "metrics",
+ "metrics-derive",
  "nonempty 0.12.0",
  "parity-scale-codec",
+ "prometheus-client 0.23.1",
  "rand 0.8.5",
  "thiserror 2.0.17",
  "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "ethexe-node-loader"
+version = "1.10.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "clap 4.5.54",
+ "demo-syscalls-ethexe",
+ "ethexe-common",
+ "ethexe-ethereum",
+ "ethexe-sdk",
+ "futures",
+ "gear-call-gen",
+ "gear-core",
+ "gear-utils",
+ "gear-wasm-gen",
+ "gear-workspace-hack",
+ "gprimitives",
+ "gsigner",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
  "tracing-subscriber",
 ]
 
@@ -5170,6 +5280,7 @@ dependencies = [
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-db-init",
  "ethexe-ethereum",
  "future-timing",
  "futures",
@@ -5191,6 +5302,7 @@ name = "ethexe-processor"
 version = "1.10.0"
 dependencies = [
  "anyhow",
+ "crossbeam",
  "demo-async",
  "demo-panic-payload",
  "demo-ping",
@@ -5199,7 +5311,9 @@ dependencies = [
  "ethexe-db",
  "ethexe-runtime",
  "ethexe-runtime-common",
+ "futures",
  "gear-core",
+ "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages",
  "gear-runtime-interface",
@@ -5210,7 +5324,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
- "rayon",
+ "scopeguard",
  "sp-allocator",
  "sp-wasm-interface",
  "thiserror 2.0.17",
@@ -5264,6 +5378,7 @@ dependencies = [
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5273,7 +5388,6 @@ dependencies = [
  "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
- "gear-core-processor",
  "gear-lazy-pages-interface",
  "gear-workspace-hack",
  "gprimitives",
@@ -5288,9 +5402,11 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "auto_impl",
+ "delegate",
  "derive_more 2.1.1",
  "ethexe-common",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-common",
@@ -5341,6 +5457,7 @@ dependencies = [
  "ethexe-compute",
  "ethexe-consensus",
  "ethexe-db",
+ "ethexe-db-init",
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
@@ -7187,6 +7304,7 @@ dependencies = [
  "alloy-provider",
  "alloy-rpc-client",
  "alloy-rpc-types",
+ "alloy-signer-local",
  "alloy-sol-macro",
  "alloy-sol-macro-expander",
  "alloy-sol-macro-input",
@@ -7205,6 +7323,7 @@ dependencies = [
  "base64 0.22.1",
  "binary-merkle-tree",
  "bitflags 2.10.0",
+ "bitvec",
  "blake2 0.10.6",
  "blake2b_simd",
  "blake3",
@@ -7296,12 +7415,13 @@ dependencies = [
  "indexmap 2.13.0",
  "ipnet",
  "itertools 0.10.5",
- "itertools 0.13.0",
+ "itertools 0.11.0",
  "js-sys",
  "jsonrpsee",
  "jsonrpsee-client-transport",
  "jsonrpsee-core",
  "k256",
+ "keccak",
  "libc",
  "libp2p 0.52.4",
  "libp2p-identity",
@@ -7424,6 +7544,7 @@ dependencies = [
  "signature",
  "slice-group-by",
  "smallvec",
+ "socket2 0.4.10",
  "soketto",
  "sp-allocator",
  "sp-api",
@@ -7843,6 +7964,7 @@ dependencies = [
  "predicates 3.1.3",
  "proptest",
  "rand 0.8.5",
+ "scale-info",
  "schnorrkel",
  "secrecy",
  "serde",
@@ -9294,9 +9416,9 @@ dependencies = [
 
 [[package]]
 name = "keccak-asm"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "505d1856a39b200489082f90d897c3f07c455563880bc5952e38eabf731c83b6"
+checksum = "b646a74e746cd25045aa0fd42f4f7f78aa6d119380182c7e63a5593c4ab8df6f"
 dependencies = [
  "digest 0.10.7",
  "sha3-asm",
@@ -10884,13 +11006,12 @@ dependencies = [
 
 [[package]]
 name = "metrics-derive"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3dbdd96ed57d565ec744cba02862d707acf373c5772d152abae6ec5c4e24f6c"
+checksum = "161ab904c2c62e7bda0f7562bf22f96440ca35ff79e66c800cbac298f2f4f5ec"
 dependencies = [
  "proc-macro2",
  "quote",
- "regex",
  "syn 2.0.114",
 ]
 
@@ -13093,6 +13214,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
 dependencies = [
  "digest 0.10.7",
+ "hmac 0.12.1",
  "password-hash",
 ]
 
@@ -14527,6 +14649,15 @@ dependencies = [
  "libc",
  "untrusted 0.9.0",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "ripemd"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
+dependencies = [
+ "digest 0.10.7",
 ]
 
 [[package]]
@@ -16731,9 +16862,9 @@ dependencies = [
 
 [[package]]
 name = "sha3-asm"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c28efc5e327c837aa837c59eae585fc250715ef939ac32881bcc11677cd02d46"
+checksum = "b31139435f327c93c6038ed350ae4588e2c70a13d50599509fee6349967ba35a"
 dependencies = [
  "cc",
  "cfg-if",

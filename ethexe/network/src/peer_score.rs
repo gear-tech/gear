@@ -36,6 +36,13 @@ use tokio::{
     time::{Instant, Interval},
 };
 
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_peer_score")]
+struct Metrics {
+    /// Number of blocked peers
+    blocked_peers: metrics::Gauge,
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum ScoreDecreaseReason {
     ExcessiveData,
@@ -170,6 +177,7 @@ pub(crate) struct Behaviour {
     rx: mpsc::UnboundedReceiver<(PeerId, ScoreDecreaseReason)>,
     peers: HashMap<PeerId, ScoreEntry>,
     driver: Interval,
+    metrics: Metrics,
 }
 
 impl Behaviour {
@@ -184,6 +192,7 @@ impl Behaviour {
             handle,
             rx,
             peers: HashMap::new(),
+            metrics: Metrics::default(),
         }
     }
 
@@ -216,7 +225,11 @@ impl Behaviour {
             }
 
             true
-        })
+        });
+
+        self.metrics
+            .blocked_peers
+            .set(self.block_list.blocked_peers().len() as f64);
     }
 
     fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) -> Option<Event> {
@@ -348,6 +361,7 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
+    use assert_matches::assert_matches;
     use futures::future;
     use libp2p::{Swarm, swarm::SwarmEvent};
     use libp2p_swarm_test::SwarmExt;
@@ -414,16 +428,13 @@ mod tests {
         );
 
         let event = alice.next_swarm_event().await;
-        assert!(
-            matches!(
-                event,
-                SwarmEvent::ConnectionClosed {
-                    peer_id,
-                    num_established: 0,
-                    ..
-                } if peer_id == chad_peer_id
-            ),
-            "{event:?}"
+        assert_matches!(
+            event,
+            SwarmEvent::ConnectionClosed {
+                peer_id,
+                num_established: 0,
+                ..
+            } if peer_id == chad_peer_id
         );
 
         time::sleep(alice_config.driver_time).await;

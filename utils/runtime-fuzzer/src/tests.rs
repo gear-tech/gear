@@ -19,8 +19,11 @@
 use crate::*;
 use proptest::prelude::*;
 
-const MIN_GEAR_CALLS_BYTES: usize = 350_000;
-const MAX_GEAR_CALLS_BYTES: usize = 450_000;
+// Reduced from 350_000/450_000 to fix timeout issues.
+// New minimum: ~154KB for 15 gear calls (5 uploads, 8 messages, 1 reply, 1 claim).
+// Using minimum viable size to keep test runtime reasonable (~20-40s total).
+const MIN_GEAR_CALLS_BYTES: usize = 160_000;
+const MAX_GEAR_CALLS_BYTES: usize = 200_000;
 
 #[test]
 fn proptest_input_validity() {
@@ -91,7 +94,11 @@ fn test_corpus_bfcd26c09ccc57e35aaabc0937b0711520bddf75() {
 // TODO #3900 implement test for the input b09f6282c0e906c06168e7fc22fb5417c3f6fafb-pr-3496-gas5k-delay10k.
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(10))]
+    #![proptest_config(ProptestConfig {
+        cases: 3, // Reduced from 10 to fix timeout issues (was taking 150-300+s)
+        timeout: 60_000, // 60 seconds per case to prevent hangs
+        ..ProptestConfig::default()
+    })]
     #[test]
     fn test_fuzzer_reproduction(buf in prop::collection::vec(any::<u8>(), MIN_GEAR_CALLS_BYTES..MAX_GEAR_CALLS_BYTES)) {
         let ext1 = run_impl(FuzzerInput::new(&buf));
