@@ -76,9 +76,6 @@ impl MockProcessor {
         self.process_code_calls.lock().await.len()
     }
 
-    pub async fn clear_process_code_calls(&self) {
-        self.process_code_calls.lock().await.clear();
-    }
 }
 
 impl ProcessorExt for MockProcessor {
