@@ -75,7 +75,6 @@ impl MockProcessor {
     pub async fn process_code_call_count(&self) -> usize {
         self.process_code_calls.lock().await.len()
     }
-
 }
 
 impl ProcessorExt for MockProcessor {
