@@ -33,21 +33,8 @@ use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
-use std::{cell::RefCell, collections::BTreeMap};
-use tokio::time::{Duration, timeout};
-use tokio::sync::mpsc;
-
-thread_local! {
-    pub(crate) static PROCESSOR_RESULT: RefCell<FinalizedBlockTransitions> = const { RefCell::new(
-        FinalizedBlockTransitions {
-            transitions: Vec::new(),
-            states: BTreeMap::new(),
-            schedule: BTreeMap::new(),
-            promises: Vec::new(),
-            program_creations: Vec::new(),
-        }
-    ) };
-}
+use std::time::Duration;
+use tokio::{sync::mpsc, time::timeout};
 
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
 #[derive(Clone, Default)]
