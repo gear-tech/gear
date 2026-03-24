@@ -384,7 +384,7 @@ async fn code_validation_request_for_already_processed_code_does_not_request_loa
         .await
         .unwrap()
         .expect("expect compute service to produce an event");
-    
+
     // Verify block was prepared without requesting code loading
     let prepared_block = event.unwrap_block_prepared();
     assert_eq!(prepared_block, block_hash);
@@ -448,7 +448,7 @@ async fn code_validation_request_for_non_validated_code_requests_loading() -> Re
         .await
         .unwrap()
         .expect("expect compute service to produce an event");
-    
+
     // Verify that RequestCodes is emitted for non-validated code
     let codes_to_load = event.unwrap_request_load_codes();
     assert!(
