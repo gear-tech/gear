@@ -33,7 +33,7 @@ use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{
         BlockEvent, MirrorEvent, RouterEvent,
@@ -964,6 +964,7 @@ impl Node {
                             producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
                             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+                            batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
                         },
                     )
                     .unwrap(),

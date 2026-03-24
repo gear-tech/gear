@@ -22,7 +22,7 @@ use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD, MAX_BATCH_SIZE_LIMIT},
     gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
 };
 use ethexe_processor::DEFAULT_CHUNK_SIZE;
@@ -91,6 +91,12 @@ pub struct NodeParams {
     #[serde(rename = "block-gas-limit")]
     pub block_gas_limit: Option<u64>,
 
+    /// Batch size limit for the node.
+    #[arg(long)]
+    #[serde(rename = "batch-size-limit")]
+    pub batch_size_limit: Option<u64>,
+
+    /// Quarantine for canonical (Ethereum) messages.
     #[arg(long)]
     #[serde(rename = "canonical-quarantine")]
     pub canonical_quarantine: Option<u8>,
@@ -137,6 +143,10 @@ impl NodeParams {
                 .block_gas_limit
                 .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
                 .min(MAX_BLOCK_GAS_LIMIT),
+            batch_size_limit: self
+                .batch_size_limit
+                .unwrap_or(DEFAULT_BATCH_SIZE_LIMIT)
+                .min(MAX_BATCH_SIZE_LIMIT),
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             dev: self.dev,
             pre_funded_accounts: self
@@ -216,6 +226,7 @@ impl MergeParams for NodeParams {
                 .or(with.chunk_processing_threads),
 
             block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
+            batch_size_limit: self.batch_size_limit.or(with.batch_size_limit),
             canonical_quarantine: self.canonical_quarantine.or(with.canonical_quarantine),
 
             fast_sync: self.fast_sync || with.fast_sync,
