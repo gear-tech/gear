@@ -76,7 +76,7 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
                     from_version + 1
                 );
 
-                Box::into_pin(migration.migrate(&config, &db)).await?;
+                migration.migrate(&config, &db).await?;
             }
         }
 

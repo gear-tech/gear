@@ -19,13 +19,14 @@
 use super::InitConfig;
 use crate::RawDatabase;
 use anyhow::Result;
+use std::pin::Pin;
 
 pub trait Migration {
     fn migrate<'a>(
         &'a self,
         config: &'a InitConfig,
         db: &'a RawDatabase,
-    ) -> Box<dyn Future<Output = Result<()>> + 'a>;
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a>>;
 }
 
 impl<F> Migration for F
@@ -36,8 +37,8 @@ where
         &'a self,
         config: &'a InitConfig,
         db: &'a RawDatabase,
-    ) -> Box<dyn Future<Output = Result<()>> + 'a> {
-        Box::new((self)(config, db))
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + 'a>> {
+        Box::pin((self)(config, db))
     }
 }
 
