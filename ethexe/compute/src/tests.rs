@@ -41,6 +41,7 @@ use tokio::{sync::mpsc, time::timeout};
 pub(crate) struct MockProcessor {
     pub process_programs_result: Option<FinalizedBlockTransitions>,
     pub process_codes_result: Option<ProcessedCodeInfo>,
+    pub process_code_calls: std::sync::Arc<tokio::sync::Mutex<Vec<CodeAndIdUnchecked>>>,
 }
 
 impl MockProcessor {
@@ -67,7 +68,16 @@ impl MockProcessor {
                     ),
                 }),
             }),
+            process_code_calls: std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new())),
         }
+    }
+
+    pub async fn process_code_call_count(&self) -> usize {
+        self.process_code_calls.lock().await.len()
+    }
+
+    pub async fn clear_process_code_calls(&self) {
+        self.process_code_calls.lock().await.clear();
     }
 }
 
@@ -81,6 +91,8 @@ impl ProcessorExt for MockProcessor {
     }
 
     fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+        let mut calls = futures::executor::block_on(self.process_code_calls.lock());
+        calls.push(code_and_id.clone());
         Ok(self
             .process_codes_result
             .take()
@@ -379,30 +391,42 @@ async fn code_validation_request_for_already_processed_code_does_not_request_loa
 async fn process_code_for_already_processed_valid_code_emits_code_processed() -> Result<()> {
     gear_utils::init_default_logger();
 
-    let mut env = TestEnv::new(1, 0);
+    let db = Database::memory();
+    let processor = MockProcessor::default();
+    let mut compute = ComputeService::new(
+        ComputeConfig::without_quarantine(),
+        db.clone(),
+        processor.clone(),
+    );
 
     let code = create_new_code(2);
     let code_id = CodeId::generate(&code);
 
-    env.db.set_original_code(&code);
-    env.db.set_instrumented_code(
+    db.set_original_code(&code);
+    db.set_instrumented_code(
         ethexe_runtime_common::VERSION,
         code_id,
         InstrumentedCode::new(vec![0], InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
     );
-    env.db.set_code_valid(code_id, true);
+    db.set_code_valid(code_id, true);
 
-    env.compute
-        .process_code(CodeAndIdUnchecked { code_id, code });
+    compute.process_code(CodeAndIdUnchecked { code_id, code });
 
-    let event = env
-        .compute
+    let event = compute
         .next()
         .await
         .unwrap()
         .expect("expect already processed code to produce CodeProcessed event");
     let processed_code_id = event.unwrap_code_processed();
     assert_eq!(processed_code_id, code_id);
+
+    // Verify that the processor was NOT called for already-validated code
+    // The CodesSubService should short-circuit and emit CodeProcessed without calling the processor
+    assert_eq!(
+        processor.process_code_call_count().await,
+        0,
+        "Processor should not be called for already-validated code"
+    );
 
     Ok(())
 }
