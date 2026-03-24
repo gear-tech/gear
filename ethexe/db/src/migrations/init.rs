@@ -69,6 +69,12 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
         for (i, &migration) in MIGRATIONS.iter().enumerate() {
             let from_version = i as u32 + OLDEST_SUPPORTED_VERSION;
 
+            log::info!(
+                "Migrating the database from version {} to version {}",
+                from_version,
+                from_version + 1
+            );
+
             if from_version >= db_version {
                 Box::into_pin(migration.migrate(&config, &db)).await?;
             }

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{InitConfig, v0, v1};
+use super::{InitConfig, v0};
 use crate::RawDatabase;
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, anyhow};
@@ -27,11 +27,6 @@ use parity_scale_codec::{Decode, Encode};
 pub const VERSION: u32 = 1;
 
 pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<()> {
-    log::info!(
-        "Migrating the database from version {} to version {}",
-        v0::VERSION,
-        v1::VERSION
-    );
     // Changes from version 0 to version 1:
     // 1) LatestData is removed, and some fields are moved to DBGlobals
     //    DB keys have the same prefix, but appends 8 zero bytes in the end.
