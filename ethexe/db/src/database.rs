@@ -473,14 +473,6 @@ impl AnnounceStorageRW for RawDatabase {
         );
     }
 
-    fn take_block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>> {
-        // SAFETY: `take` removes and returns a value for the given key.
-        // The key is correctly constructed and the data is decoded safely.
-        unsafe { self.kv.take(&Key::BlockAnnounces(block_hash).to_bytes()) }.map(|data| {
-            BTreeSet::<HashOf<Announce>>::decode(&mut data.as_slice())
-                .expect("Failed to decode data into `BTreeSet<HashOf<Announce>>`")
-        })
-    }
 }
 
 impl OnChainStorageRO for RawDatabase {
@@ -931,7 +923,6 @@ impl AnnounceStorageRW for Database {
             block_hash: H256,
             f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
         );
-        fn take_block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
     });
 }
 

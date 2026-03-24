@@ -173,8 +173,6 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
         block_hash: H256,
         f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
     );
-
-    fn take_block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
 }
 
 pub struct PreparedBlockData {
