@@ -240,7 +240,7 @@ mod tests {
 
         // Verify that the processor was called for non-validated code
         assert_eq!(
-            processor.process_code_call_count().await,
+            processor.process_code_call_count(),
             1,
             "Processor should be called for non-validated code"
         );
