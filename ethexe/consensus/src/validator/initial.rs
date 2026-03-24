@@ -549,7 +549,6 @@ mod tests {
 
         let (ctx, _, _) = mock_validator_context();
         let block = BlockChain::mock(1)
-            .setup(&ctx.core.db)
             .tap_mut(|chain| {
                 chain.blocks[1].as_prepared_mut().announces = None;
                 chain.blocks[1].as_prepared_mut().last_committed_announce = HashOf::random();
