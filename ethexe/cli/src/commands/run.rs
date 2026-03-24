@@ -20,12 +20,11 @@ use crate::{
     Params,
     params::{MergeParams, NodeParams},
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result};
 use clap::Args;
 use ethexe_service::Service;
 use std::time::Duration;
 use tokio::runtime::Builder;
-use tracing_subscriber::EnvFilter;
 
 /// Run the node.
 #[derive(Debug, Args)]
@@ -53,17 +52,7 @@ impl RunCommand {
     /// Run the ethexe service (node).
     pub fn run(mut self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
-
-        tracing_subscriber::fmt()
-            .with_env_filter(
-                EnvFilter::builder()
-                    .with_default_directive(default.parse()?)
-                    .from_env_lossy()
-                    .add_directive("wasmtime_cranlift=off".parse()?)
-                    .add_directive("cranelift=off".parse()?),
-            )
-            .try_init()
-            .map_err(|e| anyhow!("failed to initialize logger: {e}"))?;
+        crate::enable_logging(default)?;
 
         let mut anvil_instance = None;
 

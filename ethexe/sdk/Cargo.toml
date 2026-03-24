@@ -20,6 +20,7 @@ ethexe-ethereum.workspace = true
 ethexe-rpc = { workspace = true, features = ["client"] }
 ethexe-runtime-common.workspace = true
 futures.workspace = true
+gsigner.workspace = true
 gprimitives.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
 gear-workspace-hack.workspace = true

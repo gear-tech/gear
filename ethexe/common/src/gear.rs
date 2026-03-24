@@ -25,6 +25,7 @@ use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyRea
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
+use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 // TODO: support query from router.
@@ -69,16 +70,12 @@ pub struct ChainCommitment {
     pub head_announce: HashOf<Announce>,
 }
 
-impl ToDigest for Option<ChainCommitment> {
+impl ToDigest for ChainCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Some(ChainCommitment {
+        let ChainCommitment {
             transitions,
             head_announce,
-        }) = self
-        else {
-            return;
-        };
+        } = self;
 
         hasher.update(transitions.to_digest());
         hasher.update(head_announce.inner().0);
@@ -157,17 +154,13 @@ pub struct RewardsCommitment {
     pub timestamp: u64,
 }
 
-impl ToDigest for Option<RewardsCommitment> {
+impl ToDigest for RewardsCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Some(RewardsCommitment {
+        let RewardsCommitment {
             operators,
             stakers,
             timestamp,
-        }) = self
-        else {
-            return;
-        };
+        } = self;
 
         hasher.update(operators.to_digest());
         hasher.update(stakers.to_digest());
@@ -243,18 +236,14 @@ pub struct ValidatorsCommitment {
     pub era_index: u64,
 }
 
-impl ToDigest for Option<ValidatorsCommitment> {
+impl ToDigest for ValidatorsCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Some(ValidatorsCommitment {
+        let ValidatorsCommitment {
             aggregated_public_key,
             verifiable_secret_sharing_commitment: _, // TODO: add to digest
             validators,
             era_index,
-        }) = self
-        else {
-            return;
-        };
+        } = self;
 
         hasher.update(<[u8; 32]>::from(aggregated_public_key.x));
         hasher.update(<[u8; 32]>::from(aggregated_public_key.y));
@@ -308,7 +297,7 @@ pub struct ComputationSettings {
     pub wvara_per_second: u128,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Message {
     pub id: MessageId,
@@ -369,7 +358,7 @@ pub struct ProtocolData {
     pub validated_codes_count: U256,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StateTransition {
     pub actor_id: ActorId,
@@ -419,7 +408,7 @@ impl ToDigest for StateTransition {
     }
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaim {
     pub message_id: MessageId,
@@ -427,27 +416,44 @@ pub struct ValueClaim {
     pub value: u128,
 }
 
-/// Note: `ValueClaim` is not `ToDigest`
-impl ToDigest for [ValueClaim] {
+impl ToDigest for ValueClaim {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        self.iter().for_each(
-            |ValueClaim {
-                 message_id,
-                 destination,
-                 value,
-             }| {
-                hasher.update(message_id);
-                hasher.update(destination.to_address_lossy());
-                hasher.update(value.to_be_bytes());
-            },
-        )
+        let ValueClaim {
+            message_id,
+            destination,
+            value,
+        } = self;
+
+        hasher.update(message_id);
+        hasher.update(destination.to_address_lossy());
+        hasher.update(value.to_be_bytes());
     }
 }
 
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    Default,
+    PartialOrd,
+    Ord,
+    Hash,
+    derive_more::IsVariant,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MessageType {
     #[default]
     Canonical,
     Injected,
+}
+
+#[derive(Debug)]
+pub struct GenesisBlockInfo {
+    pub hash: H256,
+    pub number: u32,
+    pub timestamp: u64,
 }

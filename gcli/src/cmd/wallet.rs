@@ -17,13 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::app::App;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
-use gring::{SecretKey, cmd::Command};
-use gsdk::{
-    AccountKeyring,
-    ext::sp_core::{Pair, sr25519},
+use gsdk::AccountKeyring;
+use gsigner::{
+    cli::{GSignerCommands, display_result, execute_command},
+    keyring::KeystoreEntry,
+    sr25519::PrivateKey,
 };
 
 const DEFAULT_DEV: AccountKeyring = AccountKeyring::Alice;
@@ -40,9 +41,9 @@ pub enum Wallet {
         #[clap(short, long)]
         uri: Option<String>,
     },
-    /// Flatted gring command
+    /// gsigner commands embedded into gcli.
     #[clap(flatten)]
-    Gring(Command),
+    Signer(GSignerCommands),
 }
 
 impl Wallet {
@@ -50,7 +51,11 @@ impl Wallet {
     pub fn exec(self, app: &mut App) -> Result<()> {
         match self {
             Wallet::Dev { name, uri } => Self::dev(&name, uri.clone(), app),
-            Wallet::Gring(command) => command.clone().run(),
+            Wallet::Signer(command) => {
+                let result = execute_command(command.clone())?;
+                display_result(&result);
+                Ok(())
+            }
         }
     }
 
@@ -61,21 +66,16 @@ impl Wallet {
         if !keyring
             .list()
             .iter()
-            .any(|keystore| keystore.meta.name == name)
+            .any(|keystore| keystore.name() == name)
         {
-            let sk = SecretKey::from_bytes(
-                &uri.map_or_else(
-                    || Ok(DEFAULT_DEV.pair()),
-                    |uri| sr25519::Pair::from_string(&uri, None),
-                )?
-                .to_raw_vec(),
-            )
-            .map_err(|_| anyhow!("Failed to create keypair from the input uri."))?;
-
-            keyring.add(name, sk.into(), None)?;
+            let private_key = uri
+                .as_deref()
+                .and_then(|suri| PrivateKey::from_suri(suri, None).ok())
+                .unwrap_or_else(|| PrivateKey::from_keypair(DEFAULT_DEV.pair().into()));
+            keyring.add(name, private_key, None)?;
         }
 
-        keyring.set_primary(name.into())?;
+        keyring.set_primary(name)?;
         println!("Successfully switched to dev account {} !", name.cyan());
         Ok(())
     }

@@ -45,7 +45,7 @@ struct SolidityBuildArtifact {
 
 const CLONES_CONTRACT_START: &[u8] = br#"
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 

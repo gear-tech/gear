@@ -19,7 +19,7 @@
 //! Common db types and traits.
 
 use crate::{
-    Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
+    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
     Schedule, SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
@@ -35,9 +35,10 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Ethexe metadata associated with an on-chain block.
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
     /// Block has been prepared, meaning:
     /// all metadata is ready, all predecessors till start block are prepared too.
@@ -109,7 +110,6 @@ pub trait OnChainStorageRO {
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
     fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64>;
-    fn protocol_timelines(&self) -> Option<ProtocolTimelines>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -117,7 +117,6 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-    fn set_protocol_timelines(&self, timelines: ProtocolTimelines);
     fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
     fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64);
     fn set_block_synced(&self, block_hash: H256);
@@ -137,7 +136,7 @@ pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct AnnounceMeta {
     pub computed: bool,
 }
@@ -178,43 +177,6 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
     fn take_block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct LatestData {
-    /// Latest synced block
-    pub synced_block: SimpleBlockData,
-    /// Latest prepared block hash
-    pub prepared_block_hash: H256,
-    /// Latest computed announce hash
-    pub computed_announce_hash: HashOf<Announce>,
-    /// Genesis block hash
-    pub genesis_block_hash: H256,
-    /// Genesis announce hash
-    pub genesis_announce_hash: HashOf<Announce>,
-    /// Start block hash: genesis or defined by fast-sync
-    pub start_block_hash: H256,
-    /// Start announce hash: genesis or defined by fast-sync
-    pub start_announce_hash: HashOf<Announce>,
-}
-
-#[auto_impl::auto_impl(&, Box)]
-pub trait LatestDataStorageRO {
-    fn latest_data(&self) -> Option<LatestData>;
-}
-
-#[auto_impl::auto_impl(&)]
-pub trait LatestDataStorageRW: LatestDataStorageRO {
-    fn set_latest_data(&self, data: LatestData);
-    fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData)) -> Option<()> {
-        if let Some(mut latest_data) = self.latest_data() {
-            f(&mut latest_data);
-            self.set_latest_data(latest_data);
-            Some(())
-        } else {
-            None
-        }
-    }
-}
-
 pub struct PreparedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
@@ -230,4 +192,128 @@ pub struct ComputedAnnounceData {
     pub program_states: ProgramStates,
     pub outcome: Vec<StateTransition>,
     pub schedule: Schedule,
+}
+
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
+pub struct DBConfig {
+    pub version: u32,
+    pub chain_id: u64,
+    pub router_address: Address,
+    pub timelines: ProtocolTimelines,
+    pub genesis_block_hash: H256,
+    pub genesis_announce_hash: HashOf<Announce>,
+}
+
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
+pub struct DBGlobals {
+    pub start_block_hash: H256,
+    pub start_announce_hash: HashOf<Announce>,
+    pub latest_synced_block: SimpleBlockData,
+    pub latest_prepared_block_hash: H256,
+    pub latest_computed_announce_hash: HashOf<Announce>,
+}
+
+#[cfg(feature = "std")]
+mod std_interfaces {
+    use super::{DBConfig, DBGlobals};
+    use std::sync::RwLockReadGuard;
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait GlobalsStorageRO {
+        fn globals(&self) -> RwLockReadGuard<'_, DBGlobals>;
+    }
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait GlobalsStorageRW: GlobalsStorageRO {
+        fn globals_mutate<R>(&self, f: impl FnMut(&mut DBGlobals) -> R) -> R;
+    }
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait ConfigStorageRO {
+        fn config(&self) -> RwLockReadGuard<'_, DBConfig>;
+    }
+}
+
+#[cfg(feature = "std")]
+pub use std_interfaces::{ConfigStorageRO, GlobalsStorageRO, GlobalsStorageRW};
+
+#[cfg(feature = "mock")]
+mod mock_interfaces {
+    use super::{DBConfig, DBGlobals};
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait SetGlobals {
+        fn set_globals(&self, globals: DBGlobals);
+    }
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait SetConfig {
+        fn set_config(&self, config: DBConfig);
+    }
+}
+
+#[cfg(feature = "mock")]
+pub use mock_interfaces::{SetConfig, SetGlobals};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use indoc::formatdoc;
+    use scale_info::{PortableRegistry, Registry, meta_type};
+    use sha3::{Digest, Sha3_256};
+
+    #[test]
+    fn ensure_types_unchanged() {
+        const EXPECTED_TYPE_INFO_HASH: &str =
+            "36d0e8436bb8fa8ea920012e1b4b079f9b6a83414e016771afc977568d30f29b";
+
+        let types = [
+            meta_type::<BlockMeta>(),
+            meta_type::<InstrumentedCode>(),
+            meta_type::<CodeMetadata>(),
+            meta_type::<BlockHeader>(),
+            meta_type::<BlockEvent>(),
+            meta_type::<CodeBlobInfo>(),
+            meta_type::<ValidatorsVec>(),
+            meta_type::<ProtocolTimelines>(),
+            meta_type::<HashOf<InjectedTransaction>>(),
+            meta_type::<SignedInjectedTransaction>(),
+            meta_type::<Announce>(),
+            meta_type::<ProgramStates>(),
+            meta_type::<StateTransition>(),
+            meta_type::<Schedule>(),
+            meta_type::<AnnounceMeta>(),
+            meta_type::<DBConfig>(),
+            meta_type::<DBGlobals>(),
+        ];
+
+        let mut registry = Registry::new();
+        registry.register_types(types);
+
+        let portable_registry = PortableRegistry::from(registry);
+        let encoded_registry = portable_registry.encode();
+        let type_info_hash = hex::encode(Sha3_256::digest(encoded_registry));
+
+        if type_info_hash != EXPECTED_TYPE_INFO_HASH {
+            panic!(
+                "{}",
+                formatdoc!(
+                    "
+                    Some of database types has been changed.
+
+                    It can break existing databases, so be very careful and think at least
+                    twice before committing such changes. Ensure that SCALE representations
+                    of all changed database types are still the same.
+
+                    If you know what exactly has been changed and sure about it,
+                    please update `EXPECTED_TYPE_INFO_HASH` constant in this test
+                    to the new value to fix the assertion.
+
+                    Expected hash: {EXPECTED_TYPE_INFO_HASH}
+                    Found hash:    {type_info_hash}
+                    "
+                )
+            );
+        }
+    }
 }

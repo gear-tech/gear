@@ -23,7 +23,6 @@
 extern crate alloc;
 
 pub mod consensus;
-mod crypto;
 pub mod db;
 pub mod events;
 pub mod gear;
@@ -32,11 +31,22 @@ pub mod injected;
 pub mod network;
 mod primitives;
 mod utils;
+mod validators;
 
 #[cfg(feature = "mock")]
 pub mod mock;
 
-pub use crypto::*;
+pub use gsigner::{
+    Address, ContractSignature, Digest, FromActorIdError, PrivateKey, PublicKey, Signature,
+    SignedData, SignedMessage, ToDigest, VerifiedData,
+};
+pub use validators::{EmptyValidatorsError, ValidatorsVec};
+pub mod ecdsa {
+    pub use gsigner::secp256k1::{
+        ContractSignature, PrivateKey, PublicKey, Signature, SignedData, SignedMessage,
+        VerifiedData,
+    };
+}
 pub use gear_core;
 pub use gprimitives;
 pub use hash::*;
@@ -53,3 +63,12 @@ pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
 /// since some not-base announce was created until it can be committed,
 /// any not-base announce older than this limit must be discarded.
 pub const COMMITMENT_DELAY_LIMIT: u32 = 3;
+
+/// Maximum number of touched programs per announce.
+pub const MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE: u32 = 128;
+
+// Soft limits for one announce processing. Stops announce execution if any of them is exceeded.
+pub const OUTGOING_MESSAGES_SOFT_LIMIT: u32 = 128;
+pub const OUTGOING_MESSAGES_BYTES_SOFT_LIMIT: u32 = 32 * 1024;
+pub const CALL_REPLY_SOFT_LIMIT: u32 = 4;
+pub const PROGRAM_MODIFICATIONS_SOFT_LIMIT: u32 = MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2;

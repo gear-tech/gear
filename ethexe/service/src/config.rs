@@ -19,11 +19,11 @@
 //! Application config in one place.
 
 use anyhow::Result;
-use ethexe_common::{Address, ecdsa::PublicKey};
 use ethexe_network::NetworkConfig;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
+use gsigner::secp256k1::{Address, PublicKey};
 use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug)]
@@ -61,6 +61,7 @@ pub struct NodeConfig {
     pub blocking_threads: Option<usize>,
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
+    pub batch_size_limit: u64,
     pub canonical_quarantine: u8,
     pub dev: bool,
     pub pre_funded_accounts: u32,

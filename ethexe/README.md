@@ -13,7 +13,7 @@
         injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
     };
     use ethexe_rpc::InjectedClient as _;
-    use ethexe_signer::Signer;
+    use gsigner::secp256k1::Signer;
     use gprimitives::H256;
     use jsonrpsee::ws_client::WsClientBuilder;
     use std::str::FromStr as _;

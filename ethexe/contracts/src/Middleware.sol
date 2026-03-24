@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
-
-import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
-import {Gear} from "./libraries/Gear.sol";
+pragma solidity ^0.8.33;
 
 import {IMiddleware} from "./IMiddleware.sol";
-import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
-import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
-import {IRegistry} from "symbiotic-core/src/interfaces/common/IRegistry.sol";
-import {IEntity} from "symbiotic-core/src/interfaces/common/IEntity.sol";
-import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
-import {INetworkRegistry} from "symbiotic-core/src/interfaces/INetworkRegistry.sol";
-import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService.sol";
-import {INetworkMiddlewareService} from "symbiotic-core/src/interfaces/service/INetworkMiddlewareService.sol";
-import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
-import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratableEntity.sol";
-import {
-    IDefaultOperatorRewards
-} from "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
-import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
-
+import {Gear} from "./libraries/Gear.sol";
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
+import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
+import {INetworkRegistry} from "symbiotic-core/src/interfaces/INetworkRegistry.sol";
+import {IEntity} from "symbiotic-core/src/interfaces/common/IEntity.sol";
+import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratableEntity.sol";
+import {IRegistry} from "symbiotic-core/src/interfaces/common/IRegistry.sol";
+import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
+import {INetworkMiddlewareService} from "symbiotic-core/src/interfaces/service/INetworkMiddlewareService.sol";
+import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService.sol";
+import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
+import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
+import {
+    IDefaultOperatorRewards
+} from "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
+import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
 
 // TODO (asap): document all functions and variables
 // TODO (asap): add validators commission
@@ -35,7 +35,7 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 // TODO: implement forced operators removal
 // TODO: implement forced vaults removal
 // TODO: use hints for symbiotic calls
-contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable, UUPSUpgradeable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
 
@@ -121,6 +121,12 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
             newStorage.vaults.set(key, value);
         }
     }
+
+    /**
+     * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract.
+     *      Called by {upgradeToAndCall}.
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // # Views
     function eraDuration() public view returns (uint48) {
@@ -307,7 +313,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     function makeElectionAt(uint48 ts, uint256 maxValidators) external view returns (address[] memory) {
-        require(maxValidators > 0, "Max validators must be greater than zero");
+        require(maxValidators > 0, MaxValidatorsMustBeGreaterThanZero());
 
         (address[] memory activeOperators, uint256[] memory stakes) = getActiveOperatorsStakeAt(ts);
 
@@ -457,41 +463,35 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     function _validateStorage(Storage storage $) private view {
-        require($.eraDuration > 0, "Era duration cannot be zero");
+        require($.eraDuration > 0, EraDurationMustBeGreaterThanZero());
 
         // Middleware must support cases when election for next era is made before the start of the next era,
         // so the min vaults epoch duration must be bigger than `eraDuration + electionDelay`.
         // The election delay is less than or equal to the era duration, so limit `2 * eraDuration` is enough.
-        require($.minVaultEpochDuration >= 2 * $.eraDuration, "Min vaults epoch duration must be bigger than 2 eras");
+        require($.minVaultEpochDuration >= 2 * $.eraDuration, MinVaultEpochDurationLessThanTwoEras());
 
         // Operator grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
-        require(
-            $.operatorGracePeriod >= $.minVaultEpochDuration,
-            "Operator grace period must be bigger than min vaults epoch duration"
-        );
+        require($.operatorGracePeriod >= $.minVaultEpochDuration, OperatorGracePeriodLessThanMinVaultEpochDuration());
 
         // Vault grace period cannot be smaller than minimum vaults epoch duration.
         // Otherwise, it would be impossible to do slash in the next era sometimes.
-        require(
-            $.vaultGracePeriod >= $.minVaultEpochDuration,
-            "Vault grace period must be bigger than min vaults epoch duration"
-        );
+        require($.vaultGracePeriod >= $.minVaultEpochDuration, VaultGracePeriodLessThanMinVaultEpochDuration());
 
         // Give some time for the resolvers to veto slashes.
-        require($.minVetoDuration > 0, "Veto duration cannot be zero");
+        require($.minVetoDuration > 0, MinVetoDurationMustBeGreaterThanZero());
 
         // Symbiotic guarantees that any veto slasher has veto duration less than vault epoch duration.
         // But we also want to guarantee that there is some time to execute the slash.
-        require($.minSlashExecutionDelay > 0, "Min slash execution delay cannot be zero");
+        require($.minSlashExecutionDelay > 0, MinSlashExecutionDelayMustBeGreaterThanZero());
         require(
             $.minVetoDuration + $.minSlashExecutionDelay <= $.minVaultEpochDuration,
-            "Veto duration and slash execution delay must be less than or equal to min vaults epoch duration"
+            MinVetoAndSlashDelayTooLongForVaultEpoch()
         );
 
         // In order to be able to change resolver, we need to limit max delay in epochs.
         // `3` - is minimal number of epochs, which is symbiotic veto slasher impl restrictions.
-        require($.maxResolverSetEpochsDelay >= 3, "Resolver set epochs delay must be at least 3");
+        require($.maxResolverSetEpochsDelay >= 3, ResolverSetDelayMustBeAtLeastThree());
     }
 
     // TODO: check vault has enough stake
@@ -614,7 +614,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     }
 
     function _setStorageSlot(string memory namespace) private onlyOwner {
-        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
+        bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
     }
 

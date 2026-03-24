@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
-import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
-import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
-import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
-import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {ICallbacks} from "./ICallbacks.sol";
 import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 import {Gear} from "./libraries/Gear.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
+import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
 
 contract Mirror is IMirror {
     /// @dev Special address to which Sails contract sends messages so that Mirror can decode events:
@@ -53,7 +53,7 @@ contract Mirror is IMirror {
     }
 
     function _onlyAfterInitMessage() internal view {
-        require(nonce > 0, "initializer hasn't created init message yet");
+        require(nonce > 0, InitMessageNotCreated());
     }
 
     /// @dev Functions marked with this modifier can only be called if the init message has been created before or the caller is the initializer.
@@ -63,10 +63,7 @@ contract Mirror is IMirror {
     }
 
     function _onlyAfterInitMessageOrInitializer() internal view {
-        require(
-            nonce > 0 || msg.sender == initializer,
-            "initializer hasn't created init message yet; and caller is not the initializer"
-        );
+        require(nonce > 0 || msg.sender == initializer, InitMessageNotCreatedAndCallerNotInitializer());
     }
 
     /// @dev Functions marked with this modifier can only be called if program is active.
@@ -76,7 +73,7 @@ contract Mirror is IMirror {
     }
 
     function _onlyIfActive() internal view {
-        require(!exited, "program is exited");
+        require(!exited, ProgramExited());
     }
 
     /// @dev Functions marked with this modifier can only be called if program is exited.
@@ -86,7 +83,7 @@ contract Mirror is IMirror {
     }
 
     function _onlyIfExited() internal view {
-        require(exited, "program is not exited");
+        require(exited, ProgramNotExited());
     }
 
     /// @dev Functions marked with this modifier can only be called by the router.
@@ -96,7 +93,16 @@ contract Mirror is IMirror {
     }
 
     function _onlyRouter() internal view {
-        require(msg.sender == router, "caller is not the router");
+        require(msg.sender == router, CallerNotRouter());
+    }
+
+    modifier whenNotPaused() {
+        _whenNotPaused();
+        _;
+    }
+
+    function _whenNotPaused() internal view {
+        require(!IRouter(router).paused(), EnforcedPause());
     }
 
     /// @dev Non-zero Vara value must be transferred from source to router in functions marked with this modifier.
@@ -108,7 +114,7 @@ contract Mirror is IMirror {
     function _retrievingVara(uint128 value) internal {
         if (value != 0) {
             bool success = _wvara(router).transferFrom(msg.sender, router, value);
-            require(success, "failed to transfer non-zero amount of WVara from source to router");
+            require(success, WVaraTransferFailed());
         }
     }
 
@@ -116,17 +122,23 @@ contract Mirror is IMirror {
     function _retrievingEther(uint128 value) internal {
         if (value != 0) {
             (bool success,) = router.call{value: value}("");
-            require(success, "failed to transfer non-zero amount of Ether from source to router");
+            require(success, EtherTransferToRouterFailed());
         }
     }
 
-    /* Primary Gear logic */
+    // # External calls. Primary Gear logic.
 
-    function sendMessage(bytes calldata _payload, bool _callReply) external payable returns (bytes32) {
+    function sendMessage(bytes calldata _payload, bool _callReply) external payable whenNotPaused returns (bytes32) {
         return _sendMessage(_payload, _callReply);
     }
 
-    function sendReply(bytes32 _repliedTo, bytes calldata _payload) external payable onlyIfActive onlyAfterInitMessage {
+    function sendReply(bytes32 _repliedTo, bytes calldata _payload)
+        external
+        payable
+        whenNotPaused
+        onlyIfActive
+        onlyAfterInitMessage
+    {
         uint128 _value = uint128(msg.value);
 
         _retrievingEther(_value);
@@ -135,32 +147,30 @@ contract Mirror is IMirror {
     }
 
     // TODO (breathx): consider and support claimValue after exit.
-    function claimValue(bytes32 _claimedId) external onlyIfActive onlyAfterInitMessage {
+    function claimValue(bytes32 _claimedId) external whenNotPaused onlyIfActive onlyAfterInitMessage {
         emit ValueClaimingRequested(_claimedId, msg.sender);
     }
 
-    function executableBalanceTopUp(uint128 _value) external onlyIfActive retrievingVara(_value) {
+    function executableBalanceTopUp(uint128 _value) external whenNotPaused onlyIfActive retrievingVara(_value) {
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
-    function transferLockedValueToInheritor() public onlyIfExited {
-        uint256 balance = address(this).balance;
-        // casting to 'uint128' is safe because ETH supply is less than `type(uint128).max`
-        // forge-lint: disable-next-line(unsafe-typecast)
-        _transferEther(inheritor, uint128(balance));
+    function transferLockedValueToInheritor() external whenNotPaused {
+        (, bool success) = _transferLockedValueToInheritor();
+        require(success, TransferLockedValueToInheritorExternalFailed());
     }
 
     /* Router-driven state and funds management */
 
     function initialize(address _initializer, address _abiInterface, bool _isSmall) public onlyRouter {
-        require(initializer == address(0), "initializer could only be set once");
+        require(initializer == address(0), InitializerAlreadySet());
 
-        require(!isSmall, "isSmall could only be set once");
+        require(!isSmall, IsSmallAlreadySet());
 
         StorageSlot.AddressSlot storage implementationSlot =
             StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT);
 
-        require(implementationSlot.value == address(0), "abi interface could only be set once");
+        require(implementationSlot.value == address(0), AbiInterfaceAlreadySet());
 
         initializer = _initializer;
         isSmall = _isSmall;
@@ -174,12 +184,11 @@ contract Mirror is IMirror {
         returns (bytes32)
     {
         /// @dev Verify that the transition belongs to this contract.
-        require(_transition.actorId == address(this), "actorId must be this contract");
+        require(_transition.actorId == address(this), InvalidActorId());
 
         /// @dev Transfer value to router if valueToReceive is non-zero and has negative sign.
-        if (_transition.valueToReceive != 0 && _transition.valueToReceiveNegativeSign) {
-            (bool success,) = router.call{value: _transition.valueToReceive}("");
-            require(success, "failed to transfer value to router during state transition");
+        if (_transition.valueToReceiveNegativeSign) {
+            _retrievingEther(_transition.valueToReceive);
         }
 
         /// @dev Send all outgoing messages.
@@ -192,7 +201,7 @@ contract Mirror is IMirror {
         if (_transition.exited) {
             _setInheritor(_transition.inheritor);
         } else {
-            require(_transition.inheritor == address(0), "inheritor must be zero if not exited");
+            require(_transition.inheritor == address(0), InheritorMustBeZero());
         }
 
         /// @dev Update the state hash if changed.
@@ -213,6 +222,16 @@ contract Mirror is IMirror {
         );
     }
 
+    // # Private calls
+
+    function _transferLockedValueToInheritor() private onlyIfExited returns (uint128, bool) {
+        uint256 balance = address(this).balance;
+        // casting to 'uint128' is safe because ETH supply is less than `type(uint128).max`
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint128 balance128 = uint128(balance);
+        return (balance128, _transferEther(inheritor, balance128));
+    }
+
     function _sendMessage(bytes calldata _payload, bool _callReply)
         private
         onlyIfActive
@@ -223,7 +242,14 @@ contract Mirror is IMirror {
 
         _retrievingEther(_value);
 
-        bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
+        uint256 _nonce = nonce;
+        bytes32 id;
+        assembly ("memory-safe") {
+            mstore(0x00, shl(96, address()))
+            mstore(0x14, _nonce)
+            id := keccak256(0x00, 0x34)
+        }
+        nonce++;
 
         emit MessageQueueingRequested(id, msg.sender, _payload, _value, _callReply);
 
@@ -234,22 +260,21 @@ contract Mirror is IMirror {
     // TODO (breathx): make decoder gas configurable.
     // TODO (breathx): handle if goes to mailbox or not.
     function _sendMessages(Gear.Message[] calldata _messages) private returns (bytes32) {
-        uint256 len = _messages.length;
-
-        // we know every Gear.messageHash(...) is 32 bytes, so allocate once
-        uint256 messagesHashesLen = len * 32;
-        uint256 messagesHashesMemPtr = Memory.allocate(messagesHashesLen);
-
+        uint256 messagesLen = _messages.length;
+        uint256 messagesHashesSize = messagesLen * 32;
+        uint256 messagesHashesMemPtr = Memory.allocate(messagesHashesSize);
         uint256 offset = 0;
 
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i = 0; i < messagesLen; i++) {
             Gear.Message calldata message = _messages[i];
 
             // get the hash for this message
-            bytes32 h = Gear.messageHash(message);
+            bytes32 messageHash = Gear.messageHash(message);
             // store it at messagesHashes[offset : offset+32]
-            Memory.writeWord(messagesHashesMemPtr, offset, uint256(h));
-            offset += 32;
+            Memory.writeWordAsBytes32(messagesHashesMemPtr, offset, messageHash);
+            unchecked {
+                offset += 32;
+            }
 
             // send the message
             if (message.replyDetails.to == 0) {
@@ -259,7 +284,7 @@ contract Mirror is IMirror {
             }
         }
 
-        return bytes32(Hashes.efficientKeccak256(messagesHashesMemPtr, 0, messagesHashesLen));
+        return Hashes.efficientKeccak256AsBytes32(messagesHashesMemPtr, 0, messagesHashesSize);
     }
 
     /// @dev Value never sent since goes to mailbox.
@@ -327,14 +352,32 @@ contract Mirror is IMirror {
          * @dev SECURITY:
          *      Very important check because custom events can match our hashes!
          *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
+         *
+         *      Command to re-generate selectors check:
+         *      ```bash
+         *      grep -Po "    event\s+\K[^(]+" ethexe/contracts/src/IMirror.sol | xargs -I{} echo "            topic1 != {}.selector &&" | sed '$ s/ &&$//'
+         *      ```
          */
-        if (!(topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
-                    && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
-                    && topic1 != OwnedBalanceTopUpRequested.selector
-                    && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
-                    && topic1 != Reply.selector && topic1 != ValueClaimed.selector)) {
+        // forgefmt: disable-start
+        if (!(
+            topic1 != StateChanged.selector &&
+            topic1 != MessageQueueingRequested.selector &&
+            topic1 != ReplyQueueingRequested.selector &&
+            topic1 != ValueClaimingRequested.selector &&
+            topic1 != OwnedBalanceTopUpRequested.selector &&
+            topic1 != ExecutableBalanceTopUpRequested.selector &&
+            topic1 != Message.selector &&
+            topic1 != MessageCallFailed.selector &&
+            topic1 != Reply.selector &&
+            topic1 != ReplyCallFailed.selector &&
+            topic1 != ValueClaimed.selector &&
+            topic1 != TransferLockedValueToInheritorFailed.selector &&
+            topic1 != ReplyTransferFailed.selector &&
+            topic1 != ValueClaimFailed.selector
+        )) {
             return false;
         }
+        // forgefmt: disable-end
 
         uint256 size;
         unchecked {
@@ -398,13 +441,19 @@ contract Mirror is IMirror {
             (bool success,) = _message.destination.call{gas: 500_000, value: _message.value}(payload);
 
             if (!success) {
-                _transferEther(_message.destination, _message.value);
+                bool transferSuccess = _transferEther(_message.destination, _message.value);
+                if (!transferSuccess) {
+                    emit ReplyTransferFailed(_message.destination, _message.value);
+                }
 
                 /// @dev In case of failed call, we emit appropriate event to inform external users.
                 emit ReplyCallFailed(_message.value, _message.replyDetails.to, _message.replyDetails.code);
             }
         } else {
-            _transferEther(_message.destination, _message.value);
+            bool transferSuccess = _transferEther(_message.destination, _message.value);
+            if (!transferSuccess) {
+                emit ReplyTransferFailed(_message.destination, _message.value);
+            }
 
             emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
         }
@@ -412,19 +461,28 @@ contract Mirror is IMirror {
 
     // TODO (breathx): claimValues will fail if the program is exited: keep the funds on router.
     function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32) {
-        bytes memory valueClaimsBytes;
+        uint256 claimsLen = _claims.length;
+        uint256 claimsHashesSize = claimsLen * 32;
+        uint256 claimsHashesMemPtr = Memory.allocate(claimsHashesSize);
+        uint256 offset = 0;
 
-        for (uint256 i = 0; i < _claims.length; i++) {
+        for (uint256 i = 0; i < claimsLen; i++) {
             Gear.ValueClaim calldata claim = _claims[i];
+            bytes32 claimHash = Gear.valueClaimHash(claim.messageId, claim.destination, claim.value);
+            Memory.writeWordAsBytes32(claimsHashesMemPtr, offset, claimHash);
+            unchecked {
+                offset += 32;
+            }
 
-            valueClaimsBytes = bytes.concat(valueClaimsBytes, Gear.valueClaimBytes(claim));
-
-            _transferEther(claim.destination, claim.value);
-
-            emit ValueClaimed(claim.messageId, claim.value);
+            bool success = _transferEther(claim.destination, claim.value);
+            if (success) {
+                emit ValueClaimed(claim.messageId, claim.value);
+            } else {
+                emit ValueClaimFailed(claim.messageId, claim.value);
+            }
         }
 
-        return keccak256(valueClaimsBytes);
+        return Hashes.efficientKeccak256AsBytes32(claimsHashesMemPtr, 0, claimsHashesSize);
     }
 
     // TODO (breathx): allow zero inheritor in router.
@@ -434,7 +492,11 @@ contract Mirror is IMirror {
         inheritor = _inheritor;
 
         /// @dev Transfer all available balance to the inheritor.
-        transferLockedValueToInheritor();
+        (uint128 value, bool success) = _transferLockedValueToInheritor();
+        if (!success) {
+            /// @dev In case of failed transfer, we emit appropriate event to inform external users.
+            emit TransferLockedValueToInheritorFailed(_inheritor, value);
+        }
     }
 
     function _updateStateHash(bytes32 _stateHash) private {
@@ -452,42 +514,41 @@ contract Mirror is IMirror {
         return IWrappedVara(wvaraAddr);
     }
 
-    function _transferEther(address destination, uint128 value) private {
+    function _transferEther(address destination, uint128 value) private returns (bool) {
         if (value != 0) {
-            (bool success,) = destination.call{value: value}("");
-            require(success, "failed to transfer Ether");
+            (bool success,) = destination.call{gas: 5_000, value: value}("");
+            return success;
         }
+        return true;
     }
 
-    fallback() external payable {
+    fallback() external payable whenNotPaused {
         if (msg.value > 0 && msg.data.length == 0) {
             uint128 value = uint128(msg.value);
 
             emit OwnedBalanceTopUpRequested(value);
+        } else if (!isSmall && msg.data.length >= 0x24) {
+            // We only allow arbitrary calls to full mirror contracts, which are
+            // more likely to come from their ERC1967 implementor.
 
-            return;
-        }
+            // The minimum call data length is 0x24 (36 bytes) because:
+            // - 0x04 (4 bytes) for the function selector   [0x00..0x04)
+            // - 0x20 (32 bytes) for the bool `callReply`   [0x04..0x24)
 
-        // We only allow arbitrary calls to full mirror contracts, which are
-        // more likely to come from their ERC1967 implementor.
-        require(!isSmall);
+            uint256 callReply;
 
-        // The minimum call data length is 0x24 (36 bytes) because:
-        // - 0x04 (4 bytes) for the function selector   [0x00..0x04)
-        // - 0x20 (32 bytes) for the bool `callReply`   [0x04..0x24)
-        require(msg.data.length >= 0x24);
+            assembly ("memory-safe") {
+                callReply := calldataload(0x04)
+            }
 
-        uint256 callReply;
+            bytes32 messageId = _sendMessage(msg.data, callReply != 0);
 
-        assembly ("memory-safe") {
-            callReply := calldataload(0x04)
-        }
-
-        bytes32 messageId = _sendMessage(msg.data, callReply != 0);
-
-        assembly ("memory-safe") {
-            mstore(0x00, messageId)
-            return(0x00, 0x20)
+            assembly ("memory-safe") {
+                mstore(0x00, messageId)
+                return(0x00, 0x20)
+            }
+        } else {
+            revert InvalidFallbackCall();
         }
     }
 }

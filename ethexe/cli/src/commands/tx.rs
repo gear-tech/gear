@@ -30,17 +30,13 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
-    gear_core::ids::prelude::CodeIdExt,
-    injected::{AddressedInjectedTransaction, InjectedTransaction},
+    gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
+    injected::{AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE},
 };
-use ethexe_ethereum::{
-    Ethereum,
-    mirror::{ClaimInfo, ReplyInfo},
-    router::CodeValidationResult,
-};
+use ethexe_ethereum::{Ethereum, mirror::ClaimInfo, router::CodeValidationResult};
 use ethexe_rpc::{InjectedClient, ProgramClient};
-use ethexe_signer::Signer;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::Serialize;
 use serde_json::json;
@@ -79,7 +75,7 @@ struct CreateResultData {
 
     actor_id: H160,
     salt: H256,
-    initializer: Address,
+    initializer: ActorId,
     abi_interface: Option<Address>,
 }
 
@@ -89,8 +85,8 @@ struct MirrorState {
     state_hash: H256,
     nonce: U256,
     exited: bool,
-    inheritor: Address,
-    initializer: Address,
+    inheritor: ActorId,
+    initializer: ActorId,
     balance: u128,
     formatted_balance: String,
     executable_balance: u128,
@@ -266,7 +262,7 @@ impl TxCommand {
             .with_context(|| "must never be empty after merging")?;
         let _verbose = self.verbose;
 
-        let signer = Signer::fs(key_store);
+        let signer = Signer::fs(key_store)?;
 
         let rpc = self
             .ethereum_rpc
@@ -506,7 +502,7 @@ impl TxCommand {
                         total_fee_wei: fee.total_fee_wei,
                         actor_id,
                         salt,
-                        initializer,
+                        initializer: initializer.into(),
                         abi_interface: None,
                     })
                 })()
@@ -598,7 +594,7 @@ impl TxCommand {
                         total_fee_wei: fee.total_fee_wei,
                         actor_id,
                         salt,
-                        initializer,
+                        initializer: initializer.into(),
                         abi_interface: Some(abi_interface),
                     })
                 })()
@@ -635,7 +631,7 @@ impl TxCommand {
                     eprintln!("  Mirror: {mirror}");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror);
+                    let mirror = ethereum.mirror(mirror.into());
                     let mirror_query = mirror.query();
 
                     // TODO: consider crate like gsdk but for Vara.eth to avoid direct RPC calls
@@ -729,8 +725,8 @@ impl TxCommand {
                     eprintln!("  Value:  {formatted_value} ({raw_value} wei)");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror);
-                    let actor_id: ActorId = mirror.address().into();
+                    let mirror = ethereum.mirror(mirror.into());
+                    let actor_id: ActorId = mirror.actor_id();
                     let actor_id = actor_id.to_address_lossy();
 
                     let receipt = mirror
@@ -827,8 +823,8 @@ impl TxCommand {
                     eprintln!("  Value:  {formatted_value} ({raw_value})");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror);
-                    let actor_id: ActorId = mirror.address().into();
+                    let mirror = ethereum.mirror(mirror.into());
+                    let actor_id: ActorId = mirror.actor_id();
                     let actor_id = actor_id.to_address_lossy();
 
                     // TODO: consider to get receipt from approve tx as well
@@ -836,7 +832,7 @@ impl TxCommand {
                         ethereum
                             .router()
                             .wvara()
-                            .approve(mirror.address(), raw_value)
+                            .approve(mirror.actor_id(), raw_value)
                             .await?;
                     }
 
@@ -950,8 +946,8 @@ impl TxCommand {
                     eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror);
-                    let raw_actor_id: ActorId = mirror.address().into();
+                    let mirror = ethereum.mirror(mirror.into());
+                    let raw_actor_id: ActorId = mirror.actor_id();
                     let actor_id = raw_actor_id.to_address_lossy();
 
                     if let Some(rpc_url) = &rpc_url
@@ -964,8 +960,7 @@ impl TxCommand {
                             .with_context(|| "failed to create ws client for Vara.eth RPC")?;
 
                         let public_key = signer
-                            .storage()
-                            .get_key_by_addr(sender)
+                            .get_key_by_address(sender)
                             .with_context(|| format!("failed to get key for sender {sender}"))?
                             .ok_or_else(|| anyhow!("no key found for {sender}"))?;
 
@@ -983,10 +978,16 @@ impl TxCommand {
 
                         let injected_transaction = InjectedTransaction {
                             destination: raw_actor_id,
-                            payload: payload.0.clone().into(),
+                            payload: payload.0.clone().try_into().with_context(|| {
+                                format!(
+                                    "Payload size exceeds the maximum allowed size of {} bytes",
+                                    MAX_INJECTED_TX_PAYLOAD_SIZE
+                                )
+                            })?,
                             value: raw_value,
                             reference_block: reference_block_hash,
-                            salt: salt.0.to_vec().into(),
+                            salt: LimitedVec::try_from(salt.as_bytes())
+                                .expect("`H256` is small enough for a salt"),
                         };
                         let message_id = injected_transaction.to_message_id();
                         let tx_hash = injected_transaction.to_hash().into();
@@ -994,7 +995,7 @@ impl TxCommand {
                         let transaction = AddressedInjectedTransaction {
                             recipient: Address::default(),
                             tx: signer
-                                .signed_message(public_key, injected_transaction)
+                                .signed_message(public_key, injected_transaction, None)
                                 .with_context(|| "failed to create signed injected transaction")?,
                         };
 
@@ -1033,7 +1034,7 @@ impl TxCommand {
                                 .ok_or_else(|| anyhow!("no promise received from subscription"))?
                                 .with_context(|| "failed to receive transaction promise")?
                                 .into_data();
-                            let ethexe_common::gear_core::rpc::ReplyInfo {
+                            let ReplyInfo {
                                 payload,
                                 value,
                                 code,
@@ -1056,11 +1057,9 @@ impl TxCommand {
                             eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
 
                             Some(ReplyInfo {
-                                message_id,
-                                actor_id: raw_actor_id,
                                 payload,
-                                code,
                                 value: raw_value,
+                                code,
                             })
                         } else {
                             eprintln!(
@@ -1125,14 +1124,11 @@ impl TxCommand {
 
                             let reply_info = mirror.wait_for_reply(message_id).await?;
                             let ReplyInfo {
-                                message_id,
-                                actor_id,
                                 payload,
-                                code,
                                 value,
+                                code,
                             } = &reply_info;
 
-                            let actor_id = actor_id.to_address_lossy();
                             let payload_len = payload.len();
                             // TODO: consider truncating long payloads in non-verbose mode and hexdump in verbose mode
                             let payload_hex = format!("0x{}", hex::encode(payload));
@@ -1223,8 +1219,8 @@ impl TxCommand {
                     eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror);
-                    let raw_actor_id: ActorId = mirror.address().into();
+                    let mirror = ethereum.mirror(mirror.into());
+                    let raw_actor_id: ActorId = mirror.actor_id();
                     let actor_id = raw_actor_id.to_address_lossy();
 
                     let (receipt, _) = mirror
@@ -1339,8 +1335,8 @@ impl TxCommand {
                     eprintln!("  Claimed id: {claimed_id}");
                     eprintln!();
 
-                    let mirror = ethereum.mirror(mirror);
-                    let raw_actor_id: ActorId = mirror.address().into();
+                    let mirror = ethereum.mirror(mirror.into());
+                    let raw_actor_id: ActorId = mirror.actor_id();
                     let actor_id = raw_actor_id.to_address_lossy();
 
                     let receipt = mirror
@@ -1444,8 +1440,8 @@ impl TxCommand {
                         "Given mirror address is not recognized by router"
                     );
 
-                    let mirror = ethereum.mirror(mirror);
-                    let raw_actor_id: ActorId = mirror.address().into();
+                    let mirror = ethereum.mirror(mirror.into());
+                    let raw_actor_id: ActorId = mirror.actor_id();
                     let actor_id = raw_actor_id.to_address_lossy();
                     let value =
                         mirror.query().balance().await.with_context(|| {
@@ -1733,7 +1729,7 @@ pub enum TxSubcommand {
         #[arg(short, long, requires = "injected")]
         rpc_url: Option<String>,
         /// Flag to send injected transaction. If false, normal transaction is sent.
-        #[arg(short, long, default_value = "false", requires = "rpc-url")]
+        #[arg(short, long, default_value = "false", requires = "rpc_url")]
         injected: bool,
         /// Flag to watch for reply from mirror. If false, command will do not wait for reply.
         #[arg(short, long, default_value = "false")]

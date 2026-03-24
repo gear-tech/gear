@@ -19,8 +19,8 @@
 use crate::{
     RouterDataProvider, Service,
     tests::utils::{
-        InfiniteStreamExt, TestingEvent, TestingNetworkEvent, events,
-        events::{ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
+        InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
+        events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
 use alloy::{
@@ -33,7 +33,7 @@ use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{
         BlockEvent, MirrorEvent, RouterEvent,
@@ -45,6 +45,7 @@ use ethexe_common::{
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::Database;
+use ethexe_db_init::InitConfig;
 use ethexe_ethereum::{
     Ethereum,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
@@ -53,17 +54,15 @@ use ethexe_ethereum::{
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
-    EthereumConfig, ObserverService,
+    EthereumConfig, ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
-use ethexe_processor::{
-    DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
-};
-use ethexe_rpc::{RpcConfig, RpcServer};
-use ethexe_signer::Signer;
+use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
+use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use jsonrpsee::{
     http_client::HttpClient,
     ws_client::{WsClient, WsClientBuilder},
@@ -81,7 +80,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
-use tokio::{task, task::JoinHandle};
+use tokio::task::{self, JoinHandle};
 use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.
@@ -197,7 +196,7 @@ impl TestEnv {
                 .iter()
                 .map(|k| {
                     let private_key = k.parse().unwrap();
-                    signer.storage_mut().add_key(private_key).unwrap()
+                    signer.import(private_key).unwrap()
                 })
                 .collect(),
         };
@@ -233,7 +232,11 @@ impl TestEnv {
         let router_query = router.query();
         let router_address = router.address();
 
-        let db = Database::memory();
+        let db = new_empty_initialized_memory_db(InitConfig {
+            ethereum_rpc: ws_rpc_url.clone(),
+            router_address,
+            slot_duration_secs: block_time.as_secs(),
+        })?;
 
         let eth_cfg = EthereumConfig {
             rpc: ws_rpc_url.clone(),
@@ -241,9 +244,15 @@ impl TestEnv {
             router_address,
             block_time: config.block_time,
         };
-        let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
-            .await
-            .unwrap();
+        let mut observer = ObserverService::new(
+            db.clone(),
+            ObserverConfig {
+                rpc: &ws_rpc_url,
+                max_sync_depth: None,
+            },
+        )
+        .await
+        .unwrap();
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)
@@ -290,7 +299,7 @@ impl TestEnv {
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
-            let network_key = signer.generate_key().unwrap();
+            let network_key = signer.generate().unwrap();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(network_key, router_address);
@@ -304,7 +313,7 @@ impl TestEnv {
                 general_signer: signer.clone(),
                 network_signer: signer.clone(),
                 external_data_provider: Box::new(RouterDataProvider(router_query.clone())),
-                db: Box::new(db.clone()),
+                db: db.clone(),
             };
 
             let mut service = NetworkService::new(config, runtime_config).unwrap();
@@ -356,7 +365,10 @@ impl TestEnv {
             fast_sync,
         } = config;
 
-        let db = db.unwrap_or_else(Database::memory);
+        let db = match db {
+            Some(db) => db,
+            None => self.new_initialized_db(),
+        };
 
         let (network_address, network_bootstrap_address) = self
             .bootstrap_network
@@ -394,6 +406,15 @@ impl TestEnv {
             commitment_delay_limit: self.commitment_delay_limit,
             running_service_handle: None,
         }
+    }
+
+    pub fn new_initialized_db(&self) -> Database {
+        new_empty_initialized_memory_db(InitConfig {
+            ethereum_rpc: self.eth_cfg.rpc.clone(),
+            router_address: self.eth_cfg.router_address,
+            slot_duration_secs: self.eth_cfg.block_time.as_secs(),
+        })
+        .unwrap()
     }
 
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
@@ -436,13 +457,12 @@ impl TestEnv {
             .await?;
 
         if initial_executable_balance != 0 {
-            let program_address = program_id.to_address_lossy().0.into();
             router
                 .wvara()
-                .approve(program_address, initial_executable_balance)
+                .approve(program_id, initial_executable_balance)
                 .await?;
 
-            let mirror = self.ethereum.mirror(program_address);
+            let mirror = self.ethereum.mirror(program_id);
 
             mirror
                 .executable_balance_top_up(initial_executable_balance)
@@ -474,13 +494,12 @@ impl TestEnv {
             .await?;
 
         if initial_executable_balance != 0 {
-            let program_address = program_id.to_address_lossy().0.into();
             router
                 .wvara()
-                .approve(program_address, initial_executable_balance)
+                .approve(program_id, initial_executable_balance)
                 .await?;
 
-            let mirror = self.ethereum.mirror(program_address);
+            let mirror = self.ethereum.mirror(program_id);
 
             mirror
                 .executable_balance_top_up(initial_executable_balance)
@@ -513,8 +532,7 @@ impl TestEnv {
         );
 
         let receiver = self.new_observer_events();
-        let program_address = Address::try_from(program_id)?;
-        let program = self.ethereum.mirror(program_address);
+        let program = self.ethereum.mirror(program_id);
 
         let (_, message_id) = program.send_message(payload, value).await?;
 
@@ -528,21 +546,16 @@ impl TestEnv {
     pub async fn approve_wvara(&self, program_id: ActorId) {
         log::info!("📗 Approving WVara for {program_id}");
 
-        let program_address = Address::try_from(program_id).unwrap();
         let wvara = self.ethereum.router().wvara();
-        wvara.approve_all(program_address.0.into()).await.unwrap();
+        wvara.approve_all(program_id).await.unwrap();
     }
 
     #[allow(dead_code)]
     pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
         log::info!("📗 Transferring {value} WVara to {program_id}");
 
-        let program_address = Address::try_from(program_id).unwrap();
         let wvara = self.ethereum.router().wvara();
-        wvara
-            .transfer(program_address.0.into(), value)
-            .await
-            .unwrap();
+        wvara.transfer(program_id, value).await.unwrap();
     }
 
     /// Creates a new observer events receiver without previously emitted events
@@ -665,11 +678,12 @@ impl TestEnv {
                 .zip(validator_identifiers.iter())
                 .map(|(public_key, id)| {
                     let signing_share = *secret_shares[id].signing_share();
+                    let seed: [u8; 32] = <[u8; 32]>::try_from(signing_share.serialize()).unwrap();
                     let private_key =
-                        PrivateKey::from(<[u8; 32]>::try_from(signing_share.serialize()).unwrap());
+                        PrivateKey::from_seed(seed).expect("signing share must be valid seed");
                     ValidatorConfig {
                         public_key,
-                        session_public_key: signer.storage_mut().add_key(private_key).unwrap(),
+                        session_public_key: signer.import(private_key).unwrap(),
                     }
                 })
                 .collect(),
@@ -797,15 +811,11 @@ impl NodeConfig {
     }
 
     pub fn service_rpc(mut self, rpc_port: u16) -> Self {
-        let runner_config = RunnerConfig::overlay(
-            DEFAULT_CHUNK_PROCESSING_THREADS.get(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-            DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
-        );
         let service_rpc_config = RpcConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
-            runner_config,
+            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * DEFAULT_BLOCK_GAS_LIMIT,
+            chunk_size: DEFAULT_CHUNK_SIZE.get(),
         };
         self.rpc = Some(service_rpc_config);
 
@@ -854,12 +864,7 @@ impl Wallets {
         Self {
             wallets: accounts
                 .into_iter()
-                .map(|s| {
-                    signer
-                        .storage_mut()
-                        .add_key(s.as_ref().parse().unwrap())
-                        .unwrap()
-                })
+                .map(|s| signer.import(s.as_ref().parse().unwrap()).unwrap())
                 .collect(),
             next_wallet: 0,
         }
@@ -907,9 +912,15 @@ impl Node {
         let processor = Processor::new(self.db.clone()).unwrap();
         let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
-        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
-            .await
-            .unwrap();
+        let observer = ObserverService::new(
+            self.db.clone(),
+            ObserverConfig {
+                rpc: &self.eth_cfg.rpc,
+                max_sync_depth: None,
+            },
+        )
+        .await
+        .unwrap();
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)
@@ -953,6 +964,7 @@ impl Node {
                             producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
                             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+                            batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
                         },
                     )
                     .unwrap(),
@@ -1096,7 +1108,7 @@ impl Node {
 
         let addr = self.network_address.as_ref()?;
 
-        let network_key = self.signer.generate_key().unwrap();
+        let network_key = self.signer.generate().unwrap();
         let multiaddr: Multiaddr = addr.parse().unwrap();
 
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
@@ -1114,7 +1126,7 @@ impl Node {
             general_signer: self.signer.clone(),
             network_signer: self.signer.clone(),
             external_data_provider: Box::new(RouterDataProvider(self.router_query.clone())),
-            db: Box::new(self.db.clone()),
+            db: self.db.clone(),
         };
 
         let network = NetworkService::new(config, runtime_config).unwrap();
@@ -1134,14 +1146,9 @@ impl Node {
             self.name
         );
 
-        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
-            .await
-            .unwrap();
-        let latest_block = observer
-            .block_loader()
-            .load_simple(BlockId::Latest)
-            .await
-            .unwrap();
+        let provider = RootProvider::connect(&self.eth_cfg.rpc).await.unwrap();
+        let block_loader = EthereumBlockLoader::new(provider, self.eth_cfg.router_address);
+        let latest_block = block_loader.load_simple(BlockId::Latest).await.unwrap();
         let latest_validators = self
             .router_query
             .validators_at(latest_block.hash)
@@ -1155,6 +1162,7 @@ impl Node {
                     .expect("validator config not set")
                     .public_key,
                 message,
+                None,
             )
             .unwrap();
 
@@ -1319,4 +1327,11 @@ impl WaitForReplyTo {
 
         Ok(info)
     }
+}
+
+pub fn new_empty_initialized_memory_db(config: InitConfig) -> anyhow::Result<Database> {
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::block_in_place(|| {
+        handle.block_on(ethexe_db_init::create_initialized_empty_memory_db(config))
+    })
 }

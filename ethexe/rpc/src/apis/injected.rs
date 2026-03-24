@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{RpcEvent, errors};
+use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf,
@@ -65,6 +65,8 @@ pub struct InjectedApi {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
     promise_waiters: PromiseWaiters,
+    /// The metrics related to [`InjectedApi`]
+    metrics: InjectedApiMetrics,
 }
 
 #[async_trait]
@@ -88,6 +90,7 @@ impl InjectedServer for InjectedApi {
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
+        self.metrics.send_and_watch_injected_tx_calls.increment(1);
 
         // Check, that transaction wasn't already send.
         if self.promise_waiters.get(&tx_hash).is_some() {
@@ -117,6 +120,7 @@ impl InjectedApi {
         Self {
             rpc_sender,
             promise_waiters: PromiseWaiters::default(),
+            metrics: InjectedApiMetrics::default(),
         }
     }
 
@@ -126,8 +130,14 @@ impl InjectedApi {
             return;
         };
 
-        if let Err(promise) = promise_sender.send(promise) {
-            tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
+        self.metrics.injected_tx_active_subscriptions.decrement(1);
+
+        match promise_sender.send(promise.clone()) {
+            Ok(()) => {
+                self.metrics.injected_tx_promises_given.increment(1);
+                tracing::trace!(promise = ?promise, "sent promise to subscriber");
+            }
+            Err(promise) => tracing::trace!(promise = ?promise, "rpc promise receiver dropped"),
         }
     }
 
@@ -143,6 +153,9 @@ impl InjectedApi {
         transaction: AddressedInjectedTransaction,
     ) -> Result<InjectedTransactionAcceptance, ErrorObjectOwned> {
         let tx_hash = transaction.tx.data().to_hash();
+        tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
+        self.metrics.send_injected_tx_calls.increment(1);
+
         let (response_sender, response_receiver) = oneshot::channel();
 
         if transaction.tx.data().value != 0 {
@@ -191,6 +204,8 @@ impl InjectedApi {
     ) {
         // This clone is cheap, as it only increases the ref count.
         let promise_waiters = self.promise_waiters.clone();
+        self.metrics.injected_tx_active_subscriptions.increment(1);
+        let metrics = self.metrics.clone();
 
         tokio::spawn(async move {
             // Waiting for promise or client disconnection.
@@ -206,6 +221,7 @@ impl InjectedApi {
                 },
                 _ = sink.closed() => {
                     promise_waiters.remove(&tx_hash);
+                    metrics.injected_tx_active_subscriptions.decrement(1);
                     return;
                 },
             };
@@ -226,7 +242,7 @@ impl InjectedApi {
                     tx_hash = ?tx_hash,
                     error = %err,
                     "failed to send subscription message"
-                )
+                );
             }
         });
     }

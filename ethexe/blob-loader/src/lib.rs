@@ -373,32 +373,29 @@ mod tests {
     use alloy::{node_bindings::Anvil, providers::ext::AnvilApi};
     use ethexe_common::gear_core::ids::prelude::CodeIdExt;
     use ethexe_ethereum::deploy::EthereumDeployer;
-    use ethexe_signer::Signer;
+    use gsigner::secp256k1::{PrivateKey, Signer};
 
     #[ignore = "until blob will be available on beacon node"]
     #[tokio::test]
     async fn test_read_code_from_tx_hash() {
         let signer = Signer::memory();
-        let alice = signer
-            .storage_mut()
-            .add_key(
-                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-                    .parse()
-                    .unwrap(),
-            )
-            .unwrap();
+        let private_key: PrivateKey =
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+                .parse()
+                .unwrap();
+        let public_key = signer.import(private_key).unwrap();
+        let alice_address = signer.address(public_key);
 
         let beacon_block_time = Duration::from_secs(1);
         let anvil = Anvil::new().block_time(beacon_block_time.as_secs()).spawn();
 
-        let ethereum =
-            EthereumDeployer::new(&anvil.ws_endpoint(), signer.clone(), alice.to_address())
-                .await
-                .unwrap()
-                .with_validators(vec![alice.to_address()].try_into().unwrap())
-                .deploy()
-                .await
-                .unwrap();
+        let ethereum = EthereumDeployer::new(&anvil.ws_endpoint(), signer.clone(), alice_address)
+            .await
+            .unwrap()
+            .with_validators(vec![alice_address].try_into().unwrap())
+            .deploy()
+            .await
+            .unwrap();
 
         let consensus_cfg = ConsensusLayerConfig {
             ethereum_rpc: anvil.endpoint(),

@@ -20,13 +20,25 @@ derive_more.workspace = true
 dirs.workspace = true
 tracing-subscriber.workspace = true
 gear-core.workspace = true
-gring = { workspace = true, features = ["cli"] }
+gsigner = { workspace = true, features = [
+    "std",
+    "cli",
+    "keyring",
+    "secp256k1",
+    "sr25519",
+    "ed25519",
+    "codec",
+    "serde",
+] }
 hex.workspace = true
 scale-info.workspace = true
 serde.workspace = true
 clap = { workspace = true, features = ["std", "derive"] }
 tokio = { workspace = true, features = ["full"] }
-reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { workspace = true, default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
 etc.workspace = true
 runtime-primitives.workspace = true
 url = { workspace = true, features = ["serde"] }

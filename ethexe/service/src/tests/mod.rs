@@ -36,7 +36,7 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -49,22 +49,21 @@ use ethexe_common::{
     mock::*,
     network::ValidatorMessage,
 };
-use ethexe_compute::ComputeConfig;
+use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
-use ethexe_db::{Database, verifier::IntegrityVerifier};
+use ethexe_db::verifier::IntegrityVerifier;
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
-use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{InjectedClient, RpcConfig};
+use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, InjectedClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
-use ethexe_signer::Signer;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -103,6 +102,7 @@ async fn basics() {
         pre_funded_accounts: 10,
         fast_sync: false,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+        batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
     };
 
     let eth_cfg = EthereumConfig {
@@ -125,29 +125,113 @@ async fn basics() {
     let service = Service::new(&config).await.unwrap();
 
     // Enable all optional services
-    let network_key = service.signer.generate_key().unwrap();
+    let network_key = service.signer.generate().unwrap();
     config.network = Some(ethexe_network::NetworkConfig::new_local(
         network_key,
         config.ethereum.router_address,
     ));
 
-    let runner_config = RunnerConfig::overlay(
-        config.node.chunk_processing_threads,
-        config.node.block_gas_limit,
-        DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
-    );
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
-        runner_config,
+        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER
+            .checked_mul(config.node.block_gas_limit)
+            .unwrap(),
+        chunk_size: config.node.chunk_processing_threads,
     });
 
-    config.prometheus = Some(PrometheusConfig::new(
-        "DevNode".into(),
-        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
-    ));
+    config.prometheus = Some(PrometheusConfig {
+        name: "DevNode".into(),
+        addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
+    });
 
     Service::new(&config).await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(30_000)]
+async fn invalid_code() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let wasm_binary = [1; 10]; // Invalid WASM binary
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(!res.valid);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn write_memory_to_last_byte() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let wat = r#"
+(module
+    (import "env" "memory" (memory 32768))
+    (export "init" (func $init))
+    (func $init
+        (i32.store8
+            (i32.const 2147483647)
+            (i32.const 0xff)
+        )
+    )
+)"#;
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse module");
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, wasm_binary);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, &[])
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(res.payload.is_empty());
+    assert_eq!(res.value, 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -308,7 +392,7 @@ async fn uninitialized_program() {
             .send_message(init_res.program_id, &init_payload)
             .await
             .unwrap();
-        let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
+        let mirror = env.ethereum.mirror(init_res.program_id);
 
         let msgs_for_reply: Vec<_> = receiver
             .clone()
@@ -539,7 +623,7 @@ async fn mailbox() {
         ]),
     )]);
 
-    let mirror = env.ethereum.mirror(async_pid.try_into().unwrap());
+    let mirror = env.ethereum.mirror(async_pid);
     let state_hash = mirror.query().state_hash().await.unwrap();
 
     let state = node.db.program_state(state_hash).unwrap();
@@ -1172,7 +1256,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = Database::memory();
+    node.db = env.new_initialized_db();
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING").await.unwrap();
@@ -1459,37 +1543,34 @@ async fn send_injected_tx() {
     env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
-    let reference_block = node0
-        .db
-        .latest_data()
-        .expect("latest data not found")
-        .prepared_block_hash;
+    let reference_block = node0.db.globals().latest_prepared_block_hash;
 
     // Prepare tx data
     let tx = InjectedTransaction {
         destination: ActorId::from(H160::random()),
-        payload: H256::random().0.to_vec().into(),
+        payload: H256::random().0.to_vec().try_into().unwrap(),
         value: 0,
         reference_block,
-        salt: H256::random().0.to_vec().into(),
+        salt: vec![1].try_into().unwrap(),
     };
 
     let tx_for_node1 = AddressedInjectedTransaction {
         recipient: validator1_pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(validator0_pubkey, tx.clone())
+            .signed_message(validator0_pubkey, tx.clone(), None)
             .unwrap(),
     };
 
     // Send request
-    log::info!("Sending tx pool request to node-1");
-    let _r = node1
+    log::info!("Sending transaction to node-1");
+    let acceptance = node1
         .rpc_http_client()
         .unwrap()
         .send_transaction(tx_for_node1.clone())
         .await
         .expect("rpc server is set");
+    assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
 
     // Tx executable validation takes time, so wait for event.
     node1
@@ -1530,24 +1611,15 @@ async fn fast_sync() {
             .verify_chain(latest_block, fast_synced_block)
             .expect("failed to verify Bob database");
 
-        let alice_latest_data = alice.db.latest_data().expect("latest data not found");
-        let bob_latest_data = bob.db.latest_data().expect("latest data not found");
+        let alice_globals = alice.db.globals();
+        let bob_globals = bob.db.globals();
         assert_eq!(
-            alice_latest_data.computed_announce_hash,
-            bob_latest_data.computed_announce_hash
-        );
-        assert_eq!(alice_latest_data.synced_block, bob_latest_data.synced_block);
-        assert_eq!(
-            alice_latest_data.prepared_block_hash,
-            bob_latest_data.prepared_block_hash
+            alice_globals.latest_computed_announce_hash,
+            bob_globals.latest_computed_announce_hash
         );
         assert_eq!(
-            alice_latest_data.genesis_block_hash,
-            bob_latest_data.genesis_block_hash
-        );
-        assert_eq!(
-            alice_latest_data.genesis_announce_hash,
-            bob_latest_data.genesis_announce_hash
+            alice_globals.latest_prepared_block_hash,
+            bob_globals.latest_prepared_block_hash
         );
 
         let mut block = latest_block;
@@ -2341,7 +2413,10 @@ async fn injected_tx_fungible_token() {
             .validator(env.validators[0]),
     );
     node.start_service().await;
-    let rpc_client = node.rpc_http_client().expect("RPC client provide by node");
+    let rpc_client = node
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provide by node");
 
     // 1. Create Fungible token config
     let token_config = demo_fungible_token::InitConfig {
@@ -2399,22 +2474,24 @@ async fn injected_tx_fungible_token() {
 
     let mint_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: mint_action.encode().into(),
+        payload: mint_action.encode().try_into().unwrap(),
         value: 0,
-        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8].into(),
+        reference_block: node.db.globals().latest_prepared_block_hash,
+        salt: vec![1].try_into().unwrap(),
     };
 
     let rpc_tx = AddressedInjectedTransaction {
         recipient: pubkey.to_address(),
-        tx: env.signer.signed_message(pubkey, mint_tx.clone()).unwrap(),
+        tx: env
+            .signer
+            .signed_message(pubkey, mint_tx.clone(), None)
+            .unwrap(),
     };
 
-    let acceptance = rpc_client
-        .send_transaction(rpc_tx)
+    let mut subscription = rpc_client
+        .send_transaction_and_watch(rpc_tx)
         .await
         .expect("successfully send transaction to RPC");
-    assert!(matches!(acceptance, InjectedTransactionAcceptance::Accept));
 
     let expected_event = demo_fungible_token::FTEvent::Transfer {
         from: ActorId::new([0u8; 32]),
@@ -2425,10 +2502,7 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
-                && !promises.is_empty()
-            {
-                let promise = promises.first().unwrap().data();
+            if let TestingEvent::Compute(ComputeEvent::Promise(promise, _)) = event {
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
@@ -2443,6 +2517,22 @@ async fn injected_tx_fungible_token() {
         })
         .await;
     tracing::info!("✅ Tokens mint successfully");
+
+    let subscription_promise = subscription
+        .next()
+        .await
+        .expect("subscription produce value")
+        .expect("no errors for correct injected transaction");
+    assert_eq!(subscription_promise.data().tx_hash, mint_tx.to_hash());
+    assert_eq!(subscription_promise.data().reply.value, 0);
+    assert_eq!(
+        subscription_promise.data().reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(
+        subscription_promise.into_data().reply.payload,
+        expected_event.encode()
+    );
 
     let db = node.db.clone();
     node.events()
@@ -2483,17 +2573,17 @@ async fn injected_tx_fungible_token() {
     };
     let transfer_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: transfer_action.encode().into(),
+        payload: transfer_action.encode().try_into().unwrap(),
         value: 0,
-        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8, 2u8, 3u8].into(),
+        reference_block: node.db.globals().latest_prepared_block_hash,
+        salt: vec![1].try_into().unwrap(),
     };
 
     let rpc_tx = AddressedInjectedTransaction {
         recipient: pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(pubkey, transfer_tx.clone())
+            .signed_message(pubkey, transfer_tx.clone(), None)
             .unwrap(),
     };
     let ws_client = node
@@ -2545,7 +2635,7 @@ async fn injected_tx_fungible_token_over_network() {
 
     let mut env = TestEnv::new(env_config).await.unwrap();
 
-    let user_pubkey = env.signer.generate_key().unwrap();
+    let user_pubkey = env.signer.generate().unwrap();
 
     let mut alice_node = env.new_node(NodeConfig::named("Alice").service_rpc(8091));
     alice_node.start_service().await;
@@ -2614,17 +2704,17 @@ async fn injected_tx_fungible_token_over_network() {
 
     let mint_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: mint_action.encode().into(),
+        payload: mint_action.encode().try_into().unwrap(),
         value: 0,
-        reference_block: bob_node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8].into(),
+        reference_block: bob_node.db.globals().latest_prepared_block_hash,
+        salt: vec![1].try_into().unwrap(),
     };
 
     let rpc_tx = AddressedInjectedTransaction {
         recipient: bob_pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(user_pubkey, mint_tx.clone())
+            .signed_message(user_pubkey, mint_tx.clone(), None)
             .unwrap(),
     };
 
@@ -2768,7 +2858,7 @@ async fn announces_conflicts() {
         let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
         let announce_hash = announce.to_hash();
@@ -2866,7 +2956,7 @@ async fn announces_conflicts() {
 
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
         let announce6_hash = announce6.to_hash();
@@ -2890,7 +2980,7 @@ async fn announces_conflicts() {
         // Announce is not on top of announce6 (already accepted),
         // so must be rejected by validators 1..=5
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let parent = validator1_db
             .block_announces(block.header.parent_hash)
@@ -3187,7 +3277,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let receiver = env.new_observer_events();
         let pending = env
             .ethereum
-            .mirror(ping_id.try_into().unwrap())
+            .mirror(ping_id)
             .send_message_pending(b"PING", 0)
             .await
             .unwrap();
@@ -3232,7 +3322,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let receiver = env.new_observer_events();
         let pending = env
             .ethereum
-            .mirror(ping_id.try_into().unwrap())
+            .mirror(ping_id)
             .send_message_pending(b"PING", 0)
             .await
             .unwrap();

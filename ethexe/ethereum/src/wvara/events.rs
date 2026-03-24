@@ -20,17 +20,19 @@ use crate::{IWrappedVara, decode_log, wvara::WVaraQuery};
 use alloy::{
     contract::Event,
     primitives::{Address as AlloyAddress, B256},
-    providers::RootProvider,
-    rpc::types::eth::Log,
+    providers::{Provider, RootProvider},
+    rpc::types::{Filter, Log, Topic},
     sol_types::{Error, SolEvent},
 };
 use anyhow::Result;
-use ethexe_common::events::{
-    WVaraEvent,
-    wvara::{ApprovalEvent, TransferEvent},
+use ethexe_common::{
+    Address,
+    events::{
+        WVaraEvent,
+        wvara::{ApprovalEvent, TransferEvent},
+    },
 };
 use futures::{Stream, StreamExt};
-use gprimitives::ActorId;
 use signatures::*;
 
 pub mod signatures {
@@ -59,10 +61,37 @@ pub fn try_extract_event(log: &Log) -> Result<Option<WVaraEvent>> {
     Ok(Some(event))
 }
 
+pub struct AllEventsBuilder<'a> {
+    query: &'a WVaraQuery,
+}
+
+impl<'a> AllEventsBuilder<'a> {
+    pub(crate) fn new(query: &'a WVaraQuery) -> Self {
+        Self { query }
+    }
+
+    pub async fn subscribe(self) -> Result<impl Stream<Item = Result<WVaraEvent>> + Unpin + use<>> {
+        let filter = Filter::new()
+            .address(*self.query.0.address())
+            .event_signature(Topic::from_iter([
+                signatures::TRANSFER,
+                signatures::APPROVAL,
+            ]));
+        Ok(self
+            .query
+            .0
+            .provider()
+            .subscribe_logs(&filter)
+            .await?
+            .into_stream()
+            .map(|log| try_extract_event(&log).transpose().expect("infallible")))
+    }
+}
+
 pub struct TransferEventBuilder<'a> {
     event: Event<&'a RootProvider, IWrappedVara::Transfer>,
-    from: Option<ActorId>,
-    to: Option<ActorId>,
+    from: Option<Address>,
+    to: Option<Address>,
 }
 
 impl<'a> TransferEventBuilder<'a> {
@@ -74,12 +103,12 @@ impl<'a> TransferEventBuilder<'a> {
         }
     }
 
-    pub fn from(mut self, from: ActorId) -> Self {
+    pub fn from(mut self, from: Address) -> Self {
         self.from = Some(from);
         self
     }
 
-    pub fn to(mut self, to: ActorId) -> Self {
+    pub fn to(mut self, to: Address) -> Self {
         self.to = Some(to);
         self
     }
@@ -106,8 +135,8 @@ impl<'a> TransferEventBuilder<'a> {
 
 pub struct ApprovalEventBuilder<'a> {
     event: Event<&'a RootProvider, IWrappedVara::Approval>,
-    owner: Option<ActorId>,
-    spender: Option<ActorId>,
+    owner: Option<Address>,
+    spender: Option<Address>,
 }
 
 impl<'a> ApprovalEventBuilder<'a> {
@@ -119,12 +148,12 @@ impl<'a> ApprovalEventBuilder<'a> {
         }
     }
 
-    pub fn owner(mut self, owner: ActorId) -> Self {
+    pub fn owner(mut self, owner: Address) -> Self {
         self.owner = Some(owner);
         self
     }
 
-    pub fn spender(mut self, spender: ActorId) -> Self {
+    pub fn spender(mut self, spender: Address) -> Self {
         self.spender = Some(spender);
         self
     }

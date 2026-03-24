@@ -25,8 +25,8 @@ use crate::{
 use alloy::{
     contract::Event,
     primitives::B256,
-    providers::RootProvider,
-    rpc::types::eth::Log,
+    providers::{Provider, RootProvider},
+    rpc::types::{Filter, Log, Topic},
     sol_types::{Error, SolEvent},
 };
 use anyhow::{Result, anyhow};
@@ -124,6 +124,41 @@ pub fn try_extract_request_event(log: &Log) -> Result<Option<RouterRequestEvent>
         .expect("filtered above");
 
     Ok(Some(request_event))
+}
+
+pub struct AllEventsBuilder<'a> {
+    query: &'a RouterQuery,
+}
+
+impl<'a> AllEventsBuilder<'a> {
+    pub(crate) fn new(query: &'a RouterQuery) -> Self {
+        Self { query }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<RouterEvent>> + Unpin + use<>> {
+        let filter = Filter::new()
+            .address(*self.query.instance.address())
+            .event_signature(Topic::from_iter([
+                signatures::BATCH_COMMITTED,
+                signatures::ANNOUNCES_COMMITTED,
+                signatures::CODE_GOT_VALIDATED,
+                signatures::CODE_VALIDATION_REQUESTED,
+                signatures::COMPUTATION_SETTINGS_CHANGED,
+                signatures::PROGRAM_CREATED,
+                signatures::STORAGE_SLOT_CHANGED,
+                signatures::VALIDATORS_COMMITTED_FOR_ERA,
+            ]));
+        Ok(self
+            .query
+            .instance
+            .provider()
+            .subscribe_logs(&filter)
+            .await?
+            .into_stream()
+            .map(|log| try_extract_event(&log).transpose().expect("infallible")))
+    }
 }
 
 pub struct BatchCommittedEventBuilder<'a> {

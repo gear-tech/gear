@@ -21,20 +21,22 @@ use ethexe_common::{
     Address, Digest, ToDigest,
     db::*,
     ecdsa::{PrivateKey, PublicKey, SignedData, VerifiedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment},
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment, StateTransition},
     mock::*,
 };
 use ethexe_db::Database;
-use ethexe_signer::Signer;
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use std::vec;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
     let signer = Signer::memory();
 
-    let private_keys: Vec<_> = (0..amount).map(|i| PrivateKey::from([i + 1; 32])).collect();
+    let private_keys: Vec<_> = (0..amount)
+        .map(|i| PrivateKey::from_seed([i + 1; 32]).expect("valid seed"))
+        .collect();
     let public_keys = private_keys
         .iter()
-        .map(|&key| signer.storage_mut().add_key(key).unwrap())
+        .map(|key| signer.import(key.clone()).unwrap())
         .collect();
     (signer, private_keys, public_keys)
 }
@@ -50,30 +52,31 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
 pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
     let mut chain = BlockChain::mock(3);
 
-    let chain_commitment1 = ChainCommitment::mock(chain.block_top_announce(1).announce.to_hash());
-    let chain_commitment2 = ChainCommitment::mock(chain.block_top_announce(2).announce.to_hash());
-    chain.block_top_announce_mut(1).tap_mut(|a| {
-        a.announce.gas_allowance = Some(19);
-        a.as_computed_mut().outcome = chain_commitment1.transitions.clone()
-    });
-    let announce1_hash = chain.block_top_announce(1).announce.to_hash();
-    chain.block_top_announce_mut(2).tap_mut(|a| {
-        a.announce.gas_allowance = Some(20);
-        a.announce.parent = announce1_hash;
-        a.as_computed_mut().outcome = chain_commitment2.transitions.clone()
-    });
-    let announce2_hash = chain.block_top_announce(2).announce.to_hash();
-    chain.block_top_announce_mut(3).announce.parent = announce2_hash;
-    let announce3_hash = chain.block_top_announce(3).announce.to_hash();
+    let transitions1 = vec![StateTransition::mock(()), StateTransition::mock(())];
+    let transitions2 = vec![StateTransition::mock(()), StateTransition::mock(())];
 
-    chain.blocks[1].prepared.as_mut().unwrap().announces = Some([announce1_hash].into());
-    chain.blocks[2].prepared.as_mut().unwrap().announces = Some([announce2_hash].into());
-    chain.blocks[3].prepared.as_mut().unwrap().announces = Some([announce3_hash].into());
+    let announce1_hash = chain.block_top_announce_mutate(1, |data| {
+        data.announce.gas_allowance = Some(19);
+        data.as_computed_mut().outcome = transitions1.clone();
+    });
+
+    let announce2_hash = chain.block_top_announce_mutate(2, |data| {
+        data.announce.gas_allowance = Some(20);
+        data.announce.parent = announce1_hash;
+        data.as_computed_mut().outcome = transitions2.clone();
+    });
+
+    let announce3_hash = chain.block_top_announce_mutate(3, |data| {
+        data.announce.gas_allowance = Some(21);
+        data.announce.parent = announce2_hash;
+    });
 
     let code_commitment1 = CodeCommitment::mock(());
     let code_commitment2 = CodeCommitment::mock(());
     chain.blocks[3].prepared.as_mut().unwrap().codes_queue =
         [code_commitment1.id, code_commitment2.id].into();
+
+    chain.globals.latest_computed_announce_hash = announce3_hash;
 
     let block3 = chain.setup(db).blocks[3].to_simple();
 
@@ -88,7 +91,7 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
         previous_batch: Digest::zero(),
         expiry: 1,
         chain_commitment: Some(ChainCommitment {
-            transitions: [chain_commitment1.transitions, chain_commitment2.transitions].concat(),
+            transitions: [transitions1, transitions2].concat(),
             head_announce: db.top_announce_hash(block3.hash),
         }),
         code_commitments: vec![code_commitment1, code_commitment2],
@@ -126,7 +129,7 @@ impl SignerMockExt for Signer {
         pub_key: PublicKey,
         args: T,
     ) -> SignedData<M> {
-        self.signed_data(pub_key, M::mock(args)).unwrap()
+        self.signed_data(pub_key, M::mock(args), None).unwrap()
     }
 
     fn validation_reply(
@@ -138,7 +141,7 @@ impl SignerMockExt for Signer {
         BatchCommitmentValidationReply {
             digest,
             signature: self
-                .sign_for_contract(contract_address, public_key, digest)
+                .sign_for_contract_digest(contract_address, public_key, digest, None)
                 .unwrap(),
         }
     }

@@ -16,10 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{
+    ProcessorError, Result,
+    handling::run::{
+        self, CommonRunContext, RunContext,
+        chunks_splitting::{ActorStateHashWithQueueSize, ExecutionChunks},
+    },
+    host::InstanceCreator,
+};
 use core_processor::common::JournalNote;
+use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType};
 use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
-use gear_core::message::ReplyDetails;
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    message::ReplyDetails,
+};
 use gprimitives::{ActorId, MessageId};
 use std::collections::HashSet;
 
@@ -29,24 +41,24 @@ use std::collections::HashSet;
 ///
 /// The nullification is an optimization for RPC overlay mode execution of the target dispatch.
 /// It allows not to empty unnecessary queues processing of not concerned programs.
-pub(crate) struct OverlaidState {
+pub(crate) struct OverlaidRunContext {
+    inner: CommonRunContext,
     base_program: ActorId,
-    db: Database,
     nullified_queue_programs: HashSet<ActorId>,
 }
 
-impl OverlaidState {
-    /// Creates a new `OverlaidContext`.
-    ///
-    /// Overlaid context is created with the base program's queue nullified retaining only the last
-    /// message which by implicit contract is the target message for which the overlaid executor was created.
+impl OverlaidRunContext {
     pub(crate) fn new(
-        base_program: ActorId,
         db: Database,
-        transitions: &mut InBlockTransitions,
+        base_program: ActorId,
+        mut transitions: InBlockTransitions,
+        gas_allowance: u64,
+        chunk_size: usize,
+        instance_creator: InstanceCreator,
+        block_header: BlockHeader,
     ) -> Self {
         let mut transition_controller = TransitionController {
-            transitions,
+            transitions: &mut transitions,
             storage: &db,
         };
         transition_controller.update_state(base_program, |state, _, _| {
@@ -64,18 +76,24 @@ impl OverlaidState {
             });
         });
 
-        let mut nullified_queue_programs = HashSet::new();
-        nullified_queue_programs.insert(base_program);
-
         Self {
+            inner: CommonRunContext::new(
+                db,
+                instance_creator,
+                transitions,
+                gas_allowance,
+                chunk_size,
+                block_header,
+                None,
+            ),
             base_program,
-            db,
-            nullified_queue_programs,
+            nullified_queue_programs: [base_program].into_iter().collect(),
         }
     }
 
-    pub(crate) fn base_program(&self) -> ActorId {
-        self.base_program
+    pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
+        run::run_for_queue_type(&mut self, MessageType::Canonical).await?;
+        Ok(self.inner.transitions)
     }
 
     /// Nullifies queues of dispatches receivers in case there is no reply to the base message.
@@ -86,11 +104,7 @@ impl OverlaidState {
     /// Reply to the base message is checked by looking for a reply message to the message with `MessageId::zero()`.
     /// By contract, a message with `MessageId::zero()` is the one sent in overlay execution
     /// to calculate the reply for the program's `handle` function.
-    pub(crate) fn nullify_or_break_early(
-        &mut self,
-        journal: &[JournalNote],
-        in_block_transitions: &mut InBlockTransitions,
-    ) -> bool {
+    pub(crate) fn nullify_or_break_early(&mut self, journal: &[JournalNote]) -> bool {
         let mut ret = false;
 
         // Possibly flag for early break.
@@ -104,7 +118,7 @@ impl OverlaidState {
         }
 
         if !ret {
-            self.nullify_receivers_queues(journal, in_block_transitions);
+            self.nullify_receivers_queues(journal);
         }
 
         ret
@@ -115,17 +129,13 @@ impl OverlaidState {
     /// The receiver program is obtained from `JournalNote::SendDispatch` of the journal,
     /// which belongs to the sender. More precisely, it's a journal created after executing
     /// one if dispatches of the sender's queue.
-    fn nullify_receivers_queues(
-        &mut self,
-        journal: &[JournalNote],
-        in_block_transitions: &mut InBlockTransitions,
-    ) {
+    fn nullify_receivers_queues(&mut self, journal: &[JournalNote]) {
         for note in journal {
             let JournalNote::SendDispatch { dispatch, .. } = note else {
                 continue;
             };
 
-            let _ = self.nullify_queue(dispatch.destination(), in_block_transitions);
+            let _ = self.nullify_queue(dispatch.destination());
         }
     }
 
@@ -135,22 +145,18 @@ impl OverlaidState {
     ///
     /// Returns `true` if the procedure successfully nullified the queue.
     /// If program's queue was already nullified or `program_id` is user, returns `false`.
-    pub(crate) fn nullify_queue(
-        &mut self,
-        program_id: ActorId,
-        transitions: &mut InBlockTransitions,
-    ) -> bool {
+    pub(crate) fn nullify_queue(&mut self, program_id: ActorId) -> bool {
         if self.nullified_queue_programs.contains(&program_id) {
             return false;
         }
 
         log::debug!("Nullifying queue for program {program_id}");
         let mut transition_controller = TransitionController {
-            transitions,
-            storage: &self.db,
+            transitions: &mut self.inner.transitions,
+            storage: &self.inner.db,
         };
         transition_controller.update_state(program_id, |state, _, _| {
-            state.canonical_queue.modify_queue(&self.db, |queue| {
+            state.canonical_queue.modify_queue(&self.inner.db, |queue| {
                 log::debug!("Queue state before nullification - {:#?}", queue);
                 queue.clear();
                 log::debug!("Queue state after nullification - {:#?}", queue);
@@ -160,5 +166,67 @@ impl OverlaidState {
         self.nullified_queue_programs.insert(program_id);
 
         true
+    }
+}
+
+impl RunContext for OverlaidRunContext {
+    fn inner(&self) -> &CommonRunContext {
+        &self.inner
+    }
+
+    fn inner_mut(&mut self) -> &mut CommonRunContext {
+        &mut self.inner
+    }
+
+    fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
+        let code_id = self
+            .inner
+            .db
+            .program_code_id(program_id)
+            .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))?;
+
+        run::instrumented_code_and_metadata(&self.inner.db, code_id)
+    }
+
+    fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
+        run::states(&self.inner.transitions, processing_queue_type)
+    }
+
+    fn handle_chunk_data(
+        &self,
+        execution_chunks: &mut ExecutionChunks,
+        actor_state: ActorStateHashWithQueueSize,
+        queue_type: MessageType,
+    ) {
+        let ActorStateHashWithQueueSize {
+            actor_id,
+            hash,
+            canonical_queue_size,
+            injected_queue_size,
+        } = actor_state;
+
+        let queue_size = match queue_type {
+            MessageType::Canonical => canonical_queue_size,
+            MessageType::Injected => injected_queue_size,
+        };
+
+        if self.base_program == actor_id {
+            // Insert base program into heaviest chunk, which is going to be executed first.
+            // This is done to get faster reply from the target dispatch for which overlaid
+            // executor was created.
+            execution_chunks.insert_into_heaviest(actor_id, hash);
+        } else {
+            let chunk_idx = execution_chunks.chunk_idx(queue_size);
+            execution_chunks.insert_into(chunk_idx, actor_id, hash);
+        }
+    }
+
+    fn check_task_no_run(&mut self, program_id: ActorId) -> bool {
+        // If the queue wasn't nullified, the following call will nullify it and skip job spawning.
+        self.nullify_queue(program_id)
+    }
+
+    fn break_early(&mut self, journal: &[JournalNote]) -> bool {
+        self.nullify_or_break_early(journal)
     }
 }

@@ -19,53 +19,59 @@
 use crate::{Announce, Digest, HashOf};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 // TODO: consider to sort events in same way as in IRouter.sol
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BatchCommittedEvent {
     pub digest: Digest,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AnnouncesCommittedEvent(pub HashOf<Announce>);
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeGotValidatedEvent {
     pub code_id: CodeId,
     pub valid: bool,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct CodeValidationRequestedEvent {
     pub code_id: CodeId,
     pub timestamp: u64,
     pub tx_hash: H256,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ComputationSettingsChangedEvent {
     pub threshold: u64,
     pub wvara_per_second: u128,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProgramCreatedEvent {
     pub actor_id: ActorId,
     pub code_id: CodeId,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StorageSlotChangedEvent {
     pub slot: H256,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValidatorsCommittedForEraEvent {
     pub era_index: u64,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Event {
     BatchCommitted(BatchCommittedEvent),
     AnnouncesCommitted(AnnouncesCommittedEvent),
@@ -81,30 +87,14 @@ pub enum Event {
 impl Event {
     pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
-            Self::CodeValidationRequested(CodeValidationRequestedEvent {
-                code_id,
-                timestamp,
-                tx_hash,
-            }) => RequestEvent::CodeValidationRequested {
-                code_id,
-                timestamp,
-                tx_hash,
-            },
-            Self::ComputationSettingsChanged(ComputationSettingsChangedEvent {
-                threshold,
-                wvara_per_second,
-            }) => RequestEvent::ComputationSettingsChanged {
-                threshold,
-                wvara_per_second,
-            },
-            Self::ProgramCreated(ProgramCreatedEvent { actor_id, code_id }) => {
-                RequestEvent::ProgramCreated { actor_id, code_id }
+            Self::CodeValidationRequested(event) => RequestEvent::CodeValidationRequested(event),
+            Self::ComputationSettingsChanged(event) => {
+                RequestEvent::ComputationSettingsChanged(event)
             }
-            Self::StorageSlotChanged(StorageSlotChangedEvent { slot }) => {
-                RequestEvent::StorageSlotChanged { slot }
-            }
-            Self::ValidatorsCommittedForEra(ValidatorsCommittedForEraEvent { era_index }) => {
-                RequestEvent::ValidatorsCommittedForEra { era_index }
+            Self::ProgramCreated(event) => RequestEvent::ProgramCreated(event),
+            Self::StorageSlotChanged(event) => RequestEvent::StorageSlotChanged(event),
+            Self::ValidatorsCommittedForEra(event) => {
+                RequestEvent::ValidatorsCommittedForEra(event)
             }
             Self::CodeGotValidated { .. }
             | Self::AnnouncesCommitted(_)
@@ -113,29 +103,12 @@ impl Event {
     }
 }
 
-// TODO: consider to refactor in the same way (https://github.com/gear-tech/gear/pull/5107#discussion_r2727448994)
-
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
-    CodeValidationRequested {
-        code_id: CodeId,
-        timestamp: u64,
-        // TODO (breathx): replace with `code: Vec<u8>`
-        tx_hash: H256,
-    },
-    ComputationSettingsChanged {
-        threshold: u64,
-        wvara_per_second: u128,
-    },
-    ProgramCreated {
-        actor_id: ActorId,
-        code_id: CodeId,
-    },
-    StorageSlotChanged {
-        slot: H256,
-    },
-    ValidatorsCommittedForEra {
-        era_index: u64,
-    },
+    CodeValidationRequested(CodeValidationRequestedEvent),
+    ComputationSettingsChanged(ComputationSettingsChangedEvent),
+    ProgramCreated(ProgramCreatedEvent),
+    StorageSlotChanged(StorageSlotChangedEvent),
+    ValidatorsCommittedForEra(ValidatorsCommittedForEraEvent),
 }
