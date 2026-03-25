@@ -89,12 +89,6 @@ impl CheckCommand {
             self.integrity_check = true;
         }
 
-        let ethereum_config = self
-            .params
-            .ethereum
-            .context("missing Ethereum-related configuration")?
-            .into_config()?;
-
         let rocks_db = RocksDatabase::open(
             self.db
                 .or_else(|| self.params.node.as_ref().map(|node| node.db_dir()))
@@ -102,7 +96,14 @@ impl CheckCommand {
         )
         .context("failed to open rocks database")?;
         let raw_db = RawDatabase::from_one(&rocks_db);
+
         let db = if self.migrate {
+            let ethereum_config = self
+                .params
+                .ethereum
+                .context("missing Ethereum-related configuration")?
+                .into_config()?;
+
             ethexe_db::initialize_db(
                 InitConfig {
                     ethereum_rpc: ethereum_config.rpc.clone(),
