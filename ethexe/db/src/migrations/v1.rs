@@ -19,7 +19,7 @@
 use super::{InitConfig, v0};
 use crate::RawDatabase;
 use alloy::providers::{Provider as _, RootProvider};
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result};
 use ethexe_common::ProtocolTimelines;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
