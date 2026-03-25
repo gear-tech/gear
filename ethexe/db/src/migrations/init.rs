@@ -77,6 +77,12 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
                 );
 
                 migration.migrate(&config, &db).await?;
+
+                log::info!(
+                    "Migration from version {} to version {} completed",
+                    from_version,
+                    from_version + 1
+                );
             }
         }
 

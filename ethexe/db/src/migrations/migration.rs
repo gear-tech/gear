@@ -80,7 +80,7 @@ pub(super) mod test {
 
                       If nothing has been really changed and you're
                       totally sure about it, update the expected hash
-                      in the text and skip the next step. 
+                      in the text and skip the next step.
 
                     - If something has been really changed, you must
                       prevent the migration from using changed types,

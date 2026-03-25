@@ -95,7 +95,20 @@ pub struct Announce {
 impl Announce {
     pub fn to_hash(&self) -> HashOf<Self> {
         // # Safety because of implementation
-        unsafe { HashOf::new(H256(utils::hash(&self.encode()))) }
+        let Announce {
+            block_hash,
+            parent,
+            gas_allowance,
+            injected_transactions,
+        } = self;
+
+        let transitions_hashes = injected_transactions
+            .iter()
+            .map(|tx| utils::hash(&tx.encode()))
+            .collect::<Vec<_>>();
+
+        let announce_copy = (&block_hash, &parent, &gas_allowance, transitions_hashes);
+        unsafe { HashOf::new(H256(utils::hash(&announce_copy.encode()))) }
     }
 
     pub fn base(block_hash: H256, parent: HashOf<Self>) -> Self {
@@ -273,7 +286,13 @@ pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
 #[cfg(test)]
 mod tests {
-    use super::ProtocolTimelines;
+    use std::vec;
+
+    use gsigner::PrivateKey;
+
+    use crate::injected::InjectedTransaction;
+
+    use super::*;
 
     #[test]
     fn test_era_from_ts_calculation() {
@@ -323,5 +342,49 @@ mod tests {
         // For 1 era
         assert_eq!(timelines.era_start_ts(1), 244);
         assert_eq!(timelines.era_start_ts(1), 244);
+    }
+
+    #[test]
+    fn test_announce_hash() {
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: unsafe { HashOf::new(H256::random()) },
+            gas_allowance: Some(1_000_000),
+            injected_transactions: vec![],
+        };
+
+        let hash1 = announce.to_hash();
+        let hash2 = gear_core::utils::hash(&announce.encode());
+        assert_eq!(
+            hash1.inner().0,
+            hash2,
+            "Announce without injected transactions should have the same hash as its SCALE encoding"
+        );
+
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: unsafe { HashOf::new(H256::random()) },
+            gas_allowance: Some(1_000_000),
+            injected_transactions: vec![
+                SignedInjectedTransaction::create(
+                    PrivateKey::random(),
+                    InjectedTransaction {
+                        destination: ActorId::from([1; 32]),
+                        payload: vec![1, 2, 3].try_into().unwrap(),
+                        value: 100,
+                        reference_block: H256::random(),
+                        salt: vec![4, 5, 6].try_into().unwrap(),
+                    },
+                )
+                .unwrap(),
+            ],
+        };
+        let hash1 = announce.to_hash();
+        let hash2 = gear_core::utils::hash(&announce.encode());
+        assert_ne!(
+            hash1.inner().0,
+            hash2,
+            "Announce with injected transactions should have a different hash than its SCALE encoding, unfortunately ..."
+        );
     }
 }
