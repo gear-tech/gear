@@ -36,7 +36,7 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -104,6 +104,7 @@ async fn basics() {
         pre_funded_accounts: 10,
         fast_sync: false,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+        batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
     };
 
     let eth_cfg = EthereumConfig {
@@ -147,6 +148,27 @@ async fn basics() {
     });
 
     Service::new(&config).await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(30_000)]
+async fn invalid_code() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let wasm_binary = [1; 10]; // Invalid WASM binary
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(!res.valid);
 }
 
 #[tokio::test(flavor = "multi_thread")]

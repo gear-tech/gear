@@ -37,9 +37,6 @@ use std::{
 use thiserror::Error;
 use tokio::task::JoinSet;
 
-/// Maximum length of the chain for announces responses to prevent abuse
-const MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
-
 struct OngoingResponse {
     response_id: ResponseId,
     peer_id: PeerId,
@@ -52,6 +49,7 @@ pub(crate) struct OngoingResponses {
     db: Box<dyn DbSyncDatabase>,
     db_readers: JoinSet<OngoingResponse>,
     max_simultaneous_responses: u32,
+    max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl OngoingResponses {
@@ -61,6 +59,7 @@ impl OngoingResponses {
             db,
             db_readers: JoinSet::new(),
             max_simultaneous_responses: config.max_simultaneous_responses,
+            max_chain_len_for_announces_response: config.max_chain_len_for_announces_response,
         }
     }
 
@@ -70,7 +69,11 @@ impl OngoingResponses {
         ResponseId(id)
     }
 
-    fn response_from_db(request: InnerRequest, db: Box<dyn DbSyncDatabase>) -> InnerResponse {
+    fn response_from_db(
+        request: InnerRequest,
+        db: Box<dyn DbSyncDatabase>,
+        max_chain_len_for_announces_response: NonZeroU32,
+    ) -> InnerResponse {
         match request {
             InnerRequest::Hashes(request) => InnerHashesResponse(
                 request
@@ -95,7 +98,11 @@ impl OngoingResponses {
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
             InnerRequest::Announces(request) => {
-                match Self::process_announce_request(&db, request) {
+                match Self::process_announce_request(
+                    &db,
+                    request,
+                    max_chain_len_for_announces_response,
+                ) {
                     Ok(response) => response.into(),
                     Err(e) => {
                         log::trace!("cannot complete announces request {request:?}: {e}");
@@ -109,15 +116,19 @@ impl OngoingResponses {
     fn process_announce_request<DB: AnnounceStorageRO + GlobalsStorageRO + ConfigStorageRO>(
         db: &DB,
         request: AnnouncesRequest,
+        max_chain_len_for_announces_response: NonZeroU32,
     ) -> Result<InnerAnnouncesResponse, ProcessAnnounceError> {
         let AnnouncesRequest { head, until } = request;
 
         // Check the requested chain length first to prevent abuse
         if let AnnouncesRequestUntil::ChainLen(len) = until
-            && len > MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE
+            && len > max_chain_len_for_announces_response
         {
             // TODO #4874: use peer score to punish the peer for such requests
-            return Err(ProcessAnnounceError::ChainLenExceedsMax { requested: len });
+            return Err(ProcessAnnounceError::ChainLenExceedsMax {
+                requested: len,
+                max_allowed: max_chain_len_for_announces_response,
+            });
         }
 
         let genesis_announce_hash = db.config().genesis_announce_hash;
@@ -125,7 +136,7 @@ impl OngoingResponses {
 
         let mut announces = VecDeque::new();
         let mut announce_hash = head;
-        for _ in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
+        for _ in 0..max_chain_len_for_announces_response.get() {
             match until {
                 AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
                     return Ok(InnerAnnouncesResponse(announces.into()));
@@ -161,7 +172,9 @@ impl OngoingResponses {
         }
 
         // TODO #4874: use peer score to punish the peer for such requests
-        Err(ProcessAnnounceError::ReachedMaxChainLength)
+        Err(ProcessAnnounceError::ReachedMaxChainLength {
+            max_allowed: max_chain_len_for_announces_response,
+        })
     }
 
     pub(crate) fn handle_response(
@@ -177,8 +190,10 @@ impl OngoingResponses {
         let response_id = self.next_response_id();
 
         let db = self.db.clone_boxed();
+        let max_chain_len_for_announces_response = self.max_chain_len_for_announces_response;
         self.db_readers.spawn_blocking(move || {
-            let response = Self::response_from_db(request, db);
+            let response =
+                Self::response_from_db(request, db, max_chain_len_for_announces_response);
             OngoingResponse {
                 response_id,
                 peer_id,
@@ -212,24 +227,25 @@ impl OngoingResponses {
 
 #[derive(Debug, Error, PartialEq, Eq)]
 enum ProcessAnnounceError {
-    #[error(
-        "requested chain length {requested} exceeds maximum allowed {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
-    )]
-    ChainLenExceedsMax { requested: NonZeroU32 },
+    #[error("requested chain length {requested} exceeds maximum allowed {max_allowed}")]
+    ChainLenExceedsMax {
+        requested: NonZeroU32,
+        max_allowed: NonZeroU32,
+    },
     #[error("announce {hash} not found in database")]
     AnnounceMissing { hash: HashOf<Announce> },
     #[error("reached genesis announce {genesis}")]
     ReachedGenesis { genesis: HashOf<Announce> },
     #[error("reached start announce {start}")]
     ReachedStart { start: HashOf<Announce> },
-    #[error("reached maximum chain length {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}")]
-    ReachedMaxChainLength,
+    #[error("reached maximum chain length {max_allowed}")]
+    ReachedMaxChainLength { max_allowed: NonZeroU32 },
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db_sync::requests::ResponseHandler;
+    use crate::{DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, db_sync::requests::ResponseHandler};
     use ethexe_common::{
         Announce, HashOf, ProtocolTimelines,
         db::{AnnounceStorageRW, DBConfig, GlobalsStorageRW, SetConfig},
@@ -260,16 +276,26 @@ mod tests {
         let db = Database::memory();
         set_db_data(&db, HashOf::zero(), HashOf::zero());
 
-        let len = MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.checked_add(1).unwrap();
+        let len = DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE
+            .checked_add(1)
+            .unwrap();
         let request = AnnouncesRequest {
             head: HashOf::zero(),
             until: AnnouncesRequestUntil::ChainLen(len),
         };
 
-        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(
+            &db,
+            request,
+            DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        )
+        .unwrap_err();
         assert_eq!(
             err,
-            ProcessAnnounceError::ChainLenExceedsMax { requested: len }
+            ProcessAnnounceError::ChainLenExceedsMax {
+                requested: len,
+                max_allowed: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+            }
         );
     }
 
@@ -284,7 +310,12 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(HashOf::zero()),
         };
 
-        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(
+            &db,
+            request,
+            DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        )
+        .unwrap_err();
         assert_eq!(err, ProcessAnnounceError::AnnounceMissing { hash: head });
     }
 
@@ -306,7 +337,12 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(HashOf::random()),
         };
 
-        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(
+            &db,
+            request,
+            DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        )
+        .unwrap_err();
         assert_eq!(err, ProcessAnnounceError::ReachedGenesis { genesis });
     }
 
@@ -327,7 +363,12 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(HashOf::random()),
         };
 
-        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(
+            &db,
+            request,
+            DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        )
+        .unwrap_err();
         assert_eq!(err, ProcessAnnounceError::ReachedStart { start });
     }
 
@@ -339,7 +380,7 @@ mod tests {
         let mut head_hash = parent;
         let mut chain_hashes = Vec::new();
 
-        for i in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
+        for i in 0..DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
             let announce = make_announce(10_000 + i as u64, parent);
             let hash = db.set_announce(announce);
             chain_hashes.push(hash);
@@ -362,8 +403,18 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(tail),
         };
 
-        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
-        assert_eq!(err, ProcessAnnounceError::ReachedMaxChainLength);
+        let err = OngoingResponses::process_announce_request(
+            &db,
+            request,
+            DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err,
+            ProcessAnnounceError::ReachedMaxChainLength {
+                max_allowed: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+            }
+        );
     }
 
     #[test]
@@ -386,7 +437,12 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(tail_hash),
         };
 
-        let response = OngoingResponses::process_announce_request(&db, request).unwrap();
+        let response = OngoingResponses::process_announce_request(
+            &db,
+            request,
+            DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        )
+        .unwrap();
         assert_eq!(response.0, vec![middle, head]);
         ResponseHandler::handle_announces(response, request).unwrap_done();
     }
@@ -412,7 +468,12 @@ mod tests {
             until: AnnouncesRequestUntil::ChainLen(length),
         };
 
-        let response = OngoingResponses::process_announce_request(&db, request).unwrap();
+        let response = OngoingResponses::process_announce_request(
+            &db,
+            request,
+            DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        )
+        .unwrap();
         assert_eq!(response.0, vec![middle, head]);
         ResponseHandler::handle_announces(response, request).unwrap_done();
     }

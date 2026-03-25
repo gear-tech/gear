@@ -45,11 +45,7 @@ impl Mock<H256> for SimpleBlockData {
     fn mock(parent_hash: H256) -> Self {
         SimpleBlockData {
             hash: H256::random(),
-            header: BlockHeader {
-                height: 43,
-                timestamp: 120,
-                parent_hash,
-            },
+            header: BlockHeader::mock(parent_hash),
         }
     }
 }
@@ -57,6 +53,22 @@ impl Mock<H256> for SimpleBlockData {
 impl Mock<()> for SimpleBlockData {
     fn mock(_args: ()) -> Self {
         SimpleBlockData::mock(H256::random())
+    }
+}
+
+impl Mock<H256> for BlockHeader {
+    fn mock(parent_hash: H256) -> Self {
+        Self {
+            height: 43,
+            timestamp: 120,
+            parent_hash,
+        }
+    }
+}
+
+impl Mock<()> for BlockHeader {
+    fn mock(_args: ()) -> Self {
+        Self::mock(H256::random())
     }
 }
 
@@ -345,6 +357,41 @@ impl BlockChain {
         self.announces
             .get_mut(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
+    }
+
+    #[track_caller]
+    pub fn block_top_announce_mutate(
+        &mut self,
+        block_index: usize,
+        f: impl FnOnce(&mut AnnounceData),
+    ) -> HashOf<Announce> {
+        let announce_hash = self.block_top_announce_hash(block_index);
+        let mut announce_data = self
+            .announces
+            .remove(&announce_hash)
+            .expect("Announce not found");
+        f(&mut announce_data);
+
+        self.blocks[block_index]
+            .prepared
+            .as_mut()
+            .expect("block not prepared")
+            .announces
+            .as_mut()
+            .expect("block announces not found")
+            .remove(&announce_hash);
+
+        let new_announce_hash = announce_data.announce.to_hash();
+        self.announces.insert(new_announce_hash, announce_data);
+
+        self.blocks[block_index]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .expect("block announces not found")
+            .insert(new_announce_hash);
+
+        new_announce_hash
     }
 
     #[track_caller]

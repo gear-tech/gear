@@ -336,6 +336,7 @@ impl Service {
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
                         chain_deepness_threshold: config.node.chain_deepness_threshold,
+                        batch_size_limit: config.node.batch_size_limit,
                     },
                 )?)
             } else {
@@ -593,10 +594,11 @@ impl Service {
                         }
                         NetworkEvent::InjectedTransaction(event) => match event {
                             ethexe_network::NetworkInjectedEvent::InboundTransaction {
+                                peer: _,
                                 transaction,
                                 channel,
                             } => {
-                                let res = consensus.receive_injected_transaction(transaction);
+                                let res = consensus.receive_injected_transaction(*transaction);
                                 channel
                                     .send(res.into())
                                     .expect("channel must never be closed");

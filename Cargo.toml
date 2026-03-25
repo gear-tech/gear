@@ -135,6 +135,7 @@ cargo_metadata = "0.20.0"
 clap = "4.5.8"
 colored = "2.1.0"
 const-str = "0.5"
+crossbeam = "0.8.4"
 defer = "0.2.1"
 derive_more = { version = "2.0.1", default-features = false, features = [
     "full",

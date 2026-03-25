@@ -23,6 +23,7 @@ mod injected;
 mod kad;
 mod metrics;
 pub mod peer_score;
+mod slots;
 mod utils;
 mod validator;
 
@@ -35,6 +36,7 @@ pub use injected::Event as NetworkInjectedEvent;
 use crate::{
     db_sync::DbSyncDatabase,
     metrics::Libp2pMetrics,
+    utils::MultiaddrExt,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
 use anyhow::{Context, anyhow};
@@ -57,16 +59,15 @@ use libp2p::{
     metrics::Recorder,
     multiaddr::Protocol,
     ping,
-    swarm::{
-        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
-        behaviour::toggle::Toggle,
-        dial_opts::{DialOpts, PeerCondition},
-    },
+    swarm::{Config as SwarmConfig, NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle},
     yamux,
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
+use std::{
+    collections::HashSet, fmt::Write, num::NonZeroU32, pin::Pin, sync::Arc, task::Poll,
+    time::Duration,
+};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
@@ -76,7 +77,12 @@ pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO
 
 const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
-const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
+const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 500;
+const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
+const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
+const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
+
+pub const DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
 
 #[derive(derive_more::Debug)]
 pub enum NetworkEvent {
@@ -115,6 +121,7 @@ pub struct NetworkConfig {
     pub listen_addresses: HashSet<Multiaddr>,
     pub transport_type: TransportType,
     pub allow_non_global_addresses: bool,
+    pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl NetworkConfig {
@@ -127,6 +134,7 @@ impl NetworkConfig {
             transport_type: TransportType::Default,
             router_address,
             allow_non_global_addresses: false,
+            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 
@@ -139,6 +147,7 @@ impl NetworkConfig {
             transport_type: TransportType::Test,
             router_address,
             allow_non_global_addresses: true,
+            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 }
@@ -162,6 +171,7 @@ pub struct NetworkService {
     validator_list: ValidatorList,
     validator_topic: ValidatorTopic,
     metrics: Arc<Libp2pMetrics>,
+    allow_non_global_addresses: bool,
 }
 
 impl Stream for NetworkService {
@@ -206,6 +216,7 @@ impl NetworkService {
             transport_type,
             router_address,
             allow_non_global_addresses,
+            max_chain_len_for_announces_response,
         } = config;
 
         let NetworkRuntimeConfig {
@@ -244,6 +255,7 @@ impl NetworkService {
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
             allow_non_global_addresses,
+            max_chain_len_for_announces_response,
             metrics: metrics.clone(),
         };
         let behaviour = Behaviour::new(behaviour_config)?;
@@ -278,6 +290,7 @@ impl NetworkService {
                 })
                 .context("bootstrap nodes are not allowed without peer ID")?;
 
+            swarm.add_peer_address(peer_id, multiaddr.clone());
             swarm.behaviour_mut().kad.add_address(peer_id, multiaddr);
             bootstrap_peers.insert(peer_id);
         }
@@ -294,6 +307,7 @@ impl NetworkService {
             validator_list,
             validator_topic,
             metrics,
+            allow_non_global_addresses,
         })
     }
 
@@ -379,10 +393,13 @@ impl NetworkService {
         match event {
             BehaviourEvent::CustomConnectionLimits(event) => match event {},
             BehaviourEvent::ConnectionLimits(event) => match event {},
+            BehaviourEvent::Slots(event) => match event {},
             BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
             BehaviourEvent::Ping(event) => self.handle_ping_event(event),
             BehaviourEvent::Identify(event) => self.handle_identify_event(event),
-            BehaviourEvent::Mdns4(event) => self.handle_mdns_event(event),
+            BehaviourEvent::Mdns4(_event) => {
+                // we use the `NewExternalAddrOfPeer` event produced by mDNS behaviour
+            }
             BehaviourEvent::Kad(event) => self.handle_kad_event(event),
             BehaviourEvent::Gossipsub(event) => return self.handle_gossipsub_event(event),
             BehaviourEvent::DbSync(_event) => {}
@@ -414,8 +431,9 @@ impl NetworkService {
             result,
         } = event;
 
-        if let Err(e) = result {
-            log::debug!("ping to {peer} failed: {e}. Disconnecting...");
+        if let Err(err) = result {
+            // NOTE: the unsupported protocol is an error too
+            log::debug!("disconnect peer {peer} on failed ping: {err}");
             let _res = self.swarm.disconnect_peer_id(peer);
         }
     }
@@ -430,7 +448,9 @@ impl NetworkService {
                 // add listen addresses of new peers to KadDHT
                 // according to `identify` and `kad` protocols docs
                 for listen_addr in info.listen_addrs {
-                    behaviour.kad.add_address(peer_id, listen_addr);
+                    if self.allow_non_global_addresses || listen_addr.is_global() {
+                        behaviour.kad.add_address(peer_id, listen_addr);
+                    }
                 }
 
                 // NOTE: it means we have to trust bootstrap peers about our external address
@@ -450,35 +470,8 @@ impl NetworkService {
         }
     }
 
-    fn handle_mdns_event(&mut self, event: mdns::Event) {
-        match event {
-            mdns::Event::Discovered(peers) => {
-                for (peer_id, multiaddr) in peers {
-                    if let Err(e) = self.swarm.dial(
-                        DialOpts::peer_id(peer_id)
-                            .condition(PeerCondition::Disconnected)
-                            .addresses(vec![multiaddr])
-                            .extend_addresses_through_behaviour()
-                            .build(),
-                    ) {
-                        log::error!("dialing failed for mDNS address: {e:?}");
-                    }
-                }
-            }
-            mdns::Event::Expired(_peers) => {}
-        }
-    }
-
     fn handle_kad_event(&mut self, event: kad::Event) {
         match event {
-            kad::Event::RoutingUpdated { peer } => {
-                let behaviour = self.swarm.behaviour_mut();
-                if let Some(mdns4) = behaviour.mdns4.as_ref()
-                    && mdns4.discovered_nodes().any(|&p| p == peer)
-                {
-                    let _res = behaviour.kad.remove_peer(peer);
-                }
-            }
             kad::Event::InboundPutRecord {
                 source: _,
                 validator,
@@ -496,7 +489,8 @@ impl NetworkService {
                     }
                 });
             }
-            kad::Event::GetRecordStarted { query_id: _ }
+            kad::Event::RoutingUpdated { peer: _ }
+            | kad::Event::GetRecordStarted { query_id: _ }
             | kad::Event::GetRecordProgressed { query_id: _ }
             | kad::Event::GetRecordEarlyFinished { query_id: _ }
             | kad::Event::GetRecordFinished { query_id: _ }
@@ -541,6 +535,15 @@ impl NetworkService {
     }
 
     fn handle_injected_event(&mut self, event: injected::Event) -> Option<NetworkEvent> {
+        if let injected::Event::InboundTransaction {
+            peer,
+            transaction: _,
+            channel: _,
+        } = &event
+        {
+            self.swarm.behaviour_mut().slots.report_peer_action(peer);
+        }
+
         Some(NetworkEvent::InjectedTransaction(event))
     }
 
@@ -640,6 +643,7 @@ struct BehaviourConfig {
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
     allow_non_global_addresses: bool,
+    max_chain_len_for_announces_response: NonZeroU32,
     metrics: Arc<Libp2pMetrics>,
 }
 
@@ -647,8 +651,10 @@ struct BehaviourConfig {
 pub(crate) struct Behaviour {
     // custom options to limit connections
     pub custom_connection_limits: custom_connection_limits::Behaviour,
-    // limit connections
+    // hard caps
     pub connection_limits: connection_limits::Behaviour,
+    // peer amount manager
+    pub slots: slots::Behaviour,
     // peer scoring system
     pub peer_score: peer_score::Behaviour,
     // fast peer liveliness check
@@ -658,7 +664,6 @@ pub(crate) struct Behaviour {
     // local discovery for IPv4 only
     pub mdns4: Toggle<mdns::tokio::Behaviour>,
     // global traversal discovery
-    // TODO: consider to cache records in fs
     pub kad: kad::Behaviour,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
@@ -682,6 +687,7 @@ impl Behaviour {
             general_signer,
             validator_list_snapshot,
             allow_non_global_addresses,
+            max_chain_len_for_announces_response,
             metrics,
         } = config;
 
@@ -703,8 +709,13 @@ impl Behaviour {
             custom_connection_limits::Behaviour::new(custom_connection_limits);
 
         let connection_limits = connection_limits::ConnectionLimits::default()
-            .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS));
+            .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS))
+            .with_max_established_outgoing(Some(MAX_ESTABLISHED_OUTGOING_CONNECTIONS))
+            .with_max_pending_incoming(Some(MAX_PENDING_INCOMING_CONNECTIONS))
+            .with_max_pending_outgoing(Some(MAX_PENDING_OUTGOING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
+
+        let slots = slots::Behaviour::new(slots::Config::default());
 
         let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
         let peer_score_handle = peer_score.handle();
@@ -733,7 +744,10 @@ impl Behaviour {
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
 
         let db_sync = db_sync::Behaviour::new(
-            db_sync::Config::default(),
+            db_sync::Config {
+                max_chain_len_for_announces_response,
+                ..Default::default()
+            },
             peer_score_handle.clone(),
             external_data_provider,
             db,
@@ -754,6 +768,7 @@ impl Behaviour {
         Ok(Self {
             custom_connection_limits,
             connection_limits,
+            slots,
             peer_score,
             ping,
             identify,
