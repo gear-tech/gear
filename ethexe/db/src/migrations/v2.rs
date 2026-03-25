@@ -17,9 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::InitConfig;
-use crate::{RawDatabase, database::BlockSmallData};
+use crate::{RawDatabase, database::BlockSmallData, migrations::v1};
 use anyhow::{Context as _, Result, anyhow, ensure};
-use ethexe_common::{Announce, db::AnnounceStorageRW};
+use ethexe_common::{
+    Announce,
+    db::{AnnounceStorageRW, DBConfig},
+};
 use gprimitives::H256;
 use parity_scale_codec::Decode;
 
@@ -30,6 +33,15 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     // Copy announces data to KV
 
     log::info!("Migration investigation pass started: not modifying any data in database");
+
+    let config = db.kv.config().context("Cannot find db config")?;
+
+    ensure!(
+        config.version == v1::VERSION,
+        "Expected database version {}, but found {}",
+        v1::VERSION,
+        config.version
+    );
 
     const BLOCK_SMALL_DATA_PREFIX: u64 = 0x00;
     let mut announces_to_copy = Vec::new();
@@ -79,6 +91,11 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     for announce in announces_to_copy {
         db.set_announce(announce);
     }
+
+    db.kv.set_config(DBConfig {
+        version: VERSION,
+        ..config
+    });
 
     Ok(())
 }
