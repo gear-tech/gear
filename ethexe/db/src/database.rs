@@ -19,10 +19,10 @@
 //! Database for ethexe.
 
 use crate::{
-    CASDatabase, KVDatabase,
+    CASDatabase, KVDatabase, VERSION,
     overlay::{CASOverlay, KVOverlay},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use delegate::delegate;
 use ethexe_common::{
     Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
@@ -53,8 +53,6 @@ use std::{
     mem::size_of,
     sync::{Arc, RwLock, RwLockReadGuard},
 };
-
-pub const VERSION: u32 = 1;
 
 #[repr(u64)]
 enum Key {
@@ -92,7 +90,7 @@ impl Key {
         // SAFETY: Because `Key` is marked as `#[repr(u64)]` it's actual layout
         // is `#[repr(C)]` and it's first field is a `u64` discriminant. We can read
         // it safely.
-        let discriminant = unsafe { <*const _>::from(self).cast::<u64>().read() };
+        let discriminant = unsafe { (self as *const Key).cast::<u64>().read() };
         H256::from_low_u64_be(discriminant).into()
     }
 
@@ -148,14 +146,28 @@ impl Key {
 }
 
 impl dyn KVDatabase + '_ {
-    pub fn config(&self) -> Option<Result<DBConfig>> {
+    pub fn version(&self) -> Result<Option<u32>> {
         self.get(&Key::Config.to_bytes())
-            .map(|data| DBConfig::decode(&mut data.as_ref()).map_err(Into::into))
+            .map(|data| {
+                u32::decode(&mut data.as_ref()).context("Failed to decode database version")
+            })
+            .transpose()
     }
 
-    pub fn globals(&self) -> Option<Result<DBGlobals>> {
+    pub fn config(&self) -> Result<DBConfig> {
+        self.get(&Key::Config.to_bytes())
+            .context("Database config is not found")
+            .and_then(|data| {
+                DBConfig::decode(&mut data.as_ref()).context("Failed to decode database config")
+            })
+    }
+
+    pub fn globals(&self) -> Result<DBGlobals> {
         self.get(&Key::Globals.to_bytes())
-            .map(|data| DBGlobals::decode(&mut data.as_ref()).map_err(Into::into))
+            .context("Database globals are not found")
+            .and_then(|data| {
+                DBGlobals::decode(&mut data.as_ref()).context("Failed to decode database globals")
+            })
     }
 
     pub fn set_config(&self, config: DBConfig) {
@@ -347,6 +359,20 @@ impl RawDatabase {
         Self {
             kv: kv.clone_boxed(),
             cas: cas.clone_boxed(),
+        }
+    }
+
+    /// Constructs a raw overlaid database,
+    /// which stores all changed made into it
+    /// inside memory without changing the
+    /// underlying database.
+    ///
+    /// Primary used to check test migrations
+    /// without possibly breaking the database.
+    pub fn overlaid(self) -> Self {
+        Self {
+            cas: Box::new(CASOverlay::new(self.cas)),
+            kv: Box::new(KVOverlay::new(self.kv)),
         }
     }
 }
@@ -728,10 +754,7 @@ pub struct Database {
 
 impl Database {
     pub fn try_from_raw(raw: RawDatabase) -> Result<Self> {
-        let config = raw
-            .kv
-            .config()
-            .ok_or_else(|| anyhow::anyhow!("Database config not found"))??;
+        let config = raw.kv.config()?;
 
         if config.version != VERSION {
             return Err(anyhow::anyhow!(
@@ -741,10 +764,7 @@ impl Database {
             ));
         }
 
-        let globals = raw
-            .kv
-            .globals()
-            .ok_or_else(|| anyhow::anyhow!("Database globals not found"))??;
+        let globals = raw.kv.globals()?;
 
         let db = Self {
             raw,

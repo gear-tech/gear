@@ -111,7 +111,6 @@ members = [
     "ethexe/*",
     "ethexe/runtime/common",
     "ethexe/service/utils",
-    "ethexe/db/init",
 ]
 
 [workspace.dependencies]
