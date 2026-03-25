@@ -1137,6 +1137,151 @@ async fn injected_prioritized_over_canonical() {
     }
 }
 
+/// Tests that injected transactions and block events execute in the correct
+/// order when both are queued in the same block: injected queue is fully
+/// drained before any canonical (block-event) queue processing begins.
+#[cfg(debug_assertions)]
+#[tokio::test(flavor = "multi_thread")]
+async fn injected_and_block_events_execute_in_correct_order() {
+    const INJECTED_COUNT: usize = 10;
+    const CANONICAL_COUNT: usize = 10;
+
+    init_logger();
+
+    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let block1 = chain.blocks[1].to_simple();
+
+    let canonical_user = ActorId::from(10);
+    let injected_user = ActorId::from(20);
+    let actor_id = ActorId::from(0x10000);
+
+    // -- Step 1: create and initialise the program --
+    let mut handler = setup_handler(processor.db.clone(), block1);
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        }))
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 500_000_000_000_000,
+                },
+            ),
+        )
+        .expect("failed to top up balance");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: H256::random().0.into(),
+                source: canonical_user,
+                payload: b"INIT".to_vec(),
+                value: 0,
+                call_reply: false,
+            }),
+        )
+        .expect("failed to send init message");
+
+    handler.transitions = processor
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .await
+        .unwrap();
+
+    // -- Step 2: queue block events (canonical) BEFORE injected --
+    // Even though canonical events are queued first, injected messages
+    // must still be processed before canonical ones.
+    for _ in 0..CANONICAL_COUNT {
+        handler
+            .handle_mirror_event(
+                actor_id,
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: H256::random().0.into(),
+                    source: canonical_user,
+                    payload: b"PING".to_vec(),
+                    value: 0,
+                    call_reply: false,
+                }),
+            )
+            .expect("failed to queue canonical message");
+    }
+
+    let mut tx_hashes = vec![];
+    for _ in 0..INJECTED_COUNT {
+        let tx = injected(actor_id, b"PING", 0);
+        tx_hashes.push(tx.to_hash());
+        handler
+            .handle_injected_transaction(injected_user, tx)
+            .expect("failed to queue injected transaction");
+    }
+
+    // -- Step 3: process all queues --
+    let transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            Some(promise_out_tx),
+        )
+        .await
+        .unwrap();
+
+    // -- Step 4: verify promises for every injected transaction --
+    for tx_hash in &tx_hashes {
+        let promise = promise_receiver
+            .recv()
+            .await
+            .expect("expected promise for injected transaction");
+
+        assert_eq!(&promise.tx_hash, tx_hash);
+        assert_eq!(
+            promise.reply.code,
+            ReplyCode::Success(SuccessReplyReason::Manual),
+        );
+        assert_eq!(promise.reply.payload, b"PONG");
+    }
+
+    // -- Step 5: verify ordering in outgoing messages --
+    // Skip the very first message which is the INIT reply.
+    // All injected replies (destination == injected_user) must appear
+    // before any canonical reply (destination == canonical_user).
+    let messages: Vec<_> = transitions.current_messages().into_iter().skip(1).collect();
+
+    let mut injected_count = 0;
+    let mut canonical_count = 0;
+    let mut seen_canonical = false;
+
+    for (_, message) in &messages {
+        if message.destination == injected_user {
+            injected_count += 1;
+            assert!(
+                !seen_canonical,
+                "Injected reply appeared after a canonical reply — \
+                 injected messages must be fully processed first"
+            );
+        } else if message.destination == canonical_user {
+            canonical_count += 1;
+            seen_canonical = true;
+        }
+    }
+
+    assert_eq!(
+        injected_count, INJECTED_COUNT,
+        "Expected {INJECTED_COUNT} injected replies"
+    );
+    assert_eq!(
+        canonical_count, CANONICAL_COUNT,
+        "Expected {CANONICAL_COUNT} canonical replies"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn executable_balance_charged() {
     init_logger();
