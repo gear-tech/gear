@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {Base} from "./Base.t.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Vm} from "forge-std/Vm.sol";
@@ -13,6 +12,7 @@ import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.s
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
 import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
+import {Base} from "test/Base.t.sol";
 
 contract MiddlewareTest is Base {
     using MessageHashUtils for address;

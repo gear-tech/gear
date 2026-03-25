@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {IMirror} from "./IMirror.sol";
-import {IRouter} from "./IRouter.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
+import {IMirror} from "src/IMirror.sol";
+import {IRouter} from "src/IRouter.sol";
+import {IWrappedVara} from "src/IWrappedVara.sol";
 
 contract BatchMulticall {
     error InsufficientValue(uint256 expected, uint256 actual);

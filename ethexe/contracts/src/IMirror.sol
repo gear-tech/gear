@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {Gear} from "./libraries/Gear.sol";
+import {Gear} from "src/libraries/Gear.sol";
 
 // TODO (breathx): sort here everything.
 interface IMirror {

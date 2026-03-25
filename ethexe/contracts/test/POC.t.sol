@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {Base} from "./Base.t.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Vm} from "forge-std/Vm.sol";
@@ -9,6 +8,7 @@ import {FROSTOffchain, SigningKey} from "frost-secp256k1-evm/FROSTOffchain.sol";
 import {IRouter} from "src/IRouter.sol";
 import {IMirror} from "src/Mirror.sol";
 import {Gear} from "src/libraries/Gear.sol";
+import {Base} from "test/Base.t.sol";
 
 contract POCTest is Base {
     using MessageHashUtils for address;

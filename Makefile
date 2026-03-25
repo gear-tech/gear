@@ -9,6 +9,8 @@ ethexe-pre-commit-no-contracts: fmt clippy
 # Building ethexe contracts
 .PHONY: ethexe-contracts-pre-commit
 ethexe-contracts-pre-commit:
+	@ echo " > Adding instrumentation to Router" && cp ./ethexe/contracts/src/Router.sol ./ethexe/contracts/src/instrumented/RouterWithInstrumentation.sol && sed -i 's/contract Router is/contract RouterWithInstrumentation is/' ./ethexe/contracts/src/instrumented/RouterWithInstrumentation.sol && sed -i 's/\/\/ emit DebugEvent(/emit DebugEvent(/g' ./ethexe/contracts/src/instrumented/RouterWithInstrumentation.sol
+	@ echo " > Adding instrumentation to Mirror" && cp ./ethexe/contracts/src/Mirror.sol ./ethexe/contracts/src/instrumented/MirrorWithInstrumentation.sol && sed -i 's/contract Mirror is/contract MirrorWithInstrumentation is/' ./ethexe/contracts/src/instrumented/MirrorWithInstrumentation.sol && sed -i 's/\/\/ emit DebugEvent(/emit DebugEvent(/g' ./ethexe/contracts/src/instrumented/MirrorWithInstrumentation.sol
 	@ echo " > Cleaning contracts" && forge clean --root ethexe/contracts
 	@ echo " > Formatting contracts" && forge fmt --root ethexe/contracts
 	@ echo " > Building contracts" && forge build --root ethexe/contracts

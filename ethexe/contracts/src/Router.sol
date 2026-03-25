@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {IMiddleware} from "./IMiddleware.sol";
-import {IMirror} from "./IMirror.sol";
-import {IRouter} from "./IRouter.sol";
-import {Clones} from "./libraries/Clones.sol";
-import {ClonesSmall} from "./libraries/ClonesSmall.sol";
-import {Gear} from "./libraries/Gear.sol";
-import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {
@@ -20,6 +13,13 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
+import {IMiddleware} from "src/IMiddleware.sol";
+import {IMirror} from "src/IMirror.sol";
+import {IRouter} from "src/IRouter.sol";
+import {Clones} from "src/libraries/Clones.sol";
+import {ClonesSmall} from "src/libraries/ClonesSmall.sol";
+import {Gear} from "src/libraries/Gear.sol";
+import {SSTORE2} from "src/libraries/SSTORE2.sol";
 
 contract Router is
     IRouter,
@@ -32,6 +32,11 @@ contract Router is
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
     // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant TRANSIENT_STORAGE = 0xf02b465737fa6045c2ff53fb2df43c66916ac2166fa303264668fb2f6a1d8c00;
+
+    uint256 public constant COMMIT_BATCH_BEFORE_COMMIT_CODES = 1;
+    uint256 public constant COMMIT_BATCH_AFTER_COMMIT_CODES = 2;
+
+    event DebugEvent(uint256 indexed topic0) anonymous;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -364,7 +369,11 @@ contract Router is
         require(router.latestCommittedBatch.timestamp <= _batch.blockTimestamp, BatchTimestampTooEarly());
 
         bytes32 _chainCommitmentHash = _commitChain(router, _batch);
+
+        // emit DebugEvent(COMMIT_BATCH_BEFORE_COMMIT_CODES);
         bytes32 _codeCommitmentsHash = _commitCodes(router, _batch);
+        // emit DebugEvent(COMMIT_BATCH_AFTER_COMMIT_CODES);
+
         bytes32 _rewardsCommitmentHash = _commitRewards(router, _batch);
         bytes32 _validatorsCommitmentHash = _commitValidators(router, _batch);
 

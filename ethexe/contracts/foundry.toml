@@ -22,7 +22,7 @@ ignored_warnings_from = [
     "lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol",
     # Warning (3628): This contract has a payable fallback function, but no receive ether function.
     "src/Mirror.sol",
-    "src/MirrorWithInstrumentation.sol",
+    "src/instrumented/MirrorWithInstrumentation.sol",
     "src/MirrorProxy.sol",
 ]
 # Required for Middleware tests

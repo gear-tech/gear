@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.33;
 
-import {Gear} from "./libraries/Gear.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {Gear} from "src/libraries/Gear.sol";
 
 /// @title Gear.exe Middleware Interface
 /// @notice The Middleware contract is responsible for managing the interaction between the Router (Gear.exe) and the Symbiotic Ecosystem.

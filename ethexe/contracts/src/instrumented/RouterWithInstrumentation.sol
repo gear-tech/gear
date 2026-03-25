@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {IMiddleware} from "./IMiddleware.sol";
-import {IMirror} from "./IMirror.sol";
-import {IRouter} from "./IRouter.sol";
-import {Clones} from "./libraries/Clones.sol";
-import {ClonesSmall} from "./libraries/ClonesSmall.sol";
-import {Gear} from "./libraries/Gear.sol";
-import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {
@@ -20,6 +13,13 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
+import {IMiddleware} from "src/IMiddleware.sol";
+import {IMirror} from "src/IMirror.sol";
+import {IRouter} from "src/IRouter.sol";
+import {Clones} from "src/libraries/Clones.sol";
+import {ClonesSmall} from "src/libraries/ClonesSmall.sol";
+import {Gear} from "src/libraries/Gear.sol";
+import {SSTORE2} from "src/libraries/SSTORE2.sol";
 
 contract RouterWithInstrumentation is
     IRouter,

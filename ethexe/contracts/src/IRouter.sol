@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {Gear} from "./libraries/Gear.sol";
+import {Gear} from "src/libraries/Gear.sol";
 
 /// @title Gear.exe Router Interface
 /// @notice The Router interface provides basic co-processor functionalities, such as WASM submission, program creation, and result settlement, acting as an authority for acknowledged programs, driven by validator signature verification.

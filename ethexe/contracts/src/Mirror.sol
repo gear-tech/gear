@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {ICallbacks} from "./ICallbacks.sol";
-import {IMirror} from "./IMirror.sol";
-import {IRouter} from "./IRouter.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
-import {Gear} from "./libraries/Gear.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
+import {ICallbacks} from "src/ICallbacks.sol";
+import {IMirror} from "src/IMirror.sol";
+import {IRouter} from "src/IRouter.sol";
+import {IWrappedVara} from "src/IWrappedVara.sol";
+import {Gear} from "src/libraries/Gear.sol";
 
 contract Mirror is IMirror {
     /// @dev Special address to which Sails contract sends messages so that Mirror can decode events:
@@ -40,6 +40,29 @@ contract Mirror is IMirror {
 
     /// @dev The bool flag indicates whether to process arbitrary calls as `sendMessage` payload.
     bool isSmall;
+
+    uint256 internal constant PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID = 1;
+    uint256 internal constant PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID = 2;
+
+    uint256 internal constant PERFORM_STATE_TRANSITION_BEFORE_RETRIEVE_ETHER = 3;
+    uint256 internal constant PERFORM_STATE_TRANSITION_AFTER_RETRIEVE_ETHER = 4;
+
+    uint256 internal constant PERFORM_STATE_TRANSITION_BEFORE_SEND_MESSAGES = 5;
+    uint256 internal constant PERFORM_STATE_TRANSITION_AFTER_SEND_MESSAGES = 6;
+
+    uint256 internal constant PERFORM_STATE_TRANSITION_BEFORE_CLAIM_VALUES = 7;
+    uint256 internal constant PERFORM_STATE_TRANSITION_AFTER_CLAIM_VALUES = 8;
+
+    uint256 internal constant PERFORM_STATE_TRANSITION_BEFORE_SET_INHERITOR = 9;
+    uint256 internal constant PERFORM_STATE_TRANSITION_AFTER_SET_INHERITOR = 10;
+
+    uint256 internal constant PERFORM_STATE_TRANSITION_BEFORE_UPDATE_STATE_HASH = 11;
+    uint256 internal constant PERFORM_STATE_TRANSITION_AFTER_UPDATE_STATE_HASH = 12;
+
+    uint256 internal constant PERFORM_STATE_TRANSITION_BEFORE_RETURN_HASH = 13;
+    uint256 internal constant PERFORM_STATE_TRANSITION_AFTER_RETURN_HASH = 14;
+
+    event DebugEvent(uint256 indexed topic0) anonymous;
 
     /// @dev Minimal constructor that only sets the immutable router address.
     constructor(address _router) {
@@ -184,33 +207,46 @@ contract Mirror is IMirror {
         returns (bytes32)
     {
         /// @dev Verify that the transition belongs to this contract.
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID);
         require(_transition.actorId == address(this), InvalidActorId());
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID);
 
         /// @dev Transfer value to router if valueToReceive is non-zero and has negative sign.
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_RETRIEVE_ETHER);
         if (_transition.valueToReceiveNegativeSign) {
             _retrievingEther(_transition.valueToReceive);
         }
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_RETRIEVE_ETHER);
 
         /// @dev Send all outgoing messages.
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_SEND_MESSAGES);
         bytes32 messagesHashesHash = _sendMessages(_transition.messages);
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_SEND_MESSAGES);
 
         /// @dev Send value for each claim.
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_CLAIM_VALUES);
         bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_CLAIM_VALUES);
 
         /// @dev Set inheritor if exited.
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_SET_INHERITOR);
         if (_transition.exited) {
             _setInheritor(_transition.inheritor);
         } else {
             require(_transition.inheritor == address(0), InheritorMustBeZero());
         }
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_SET_INHERITOR);
 
         /// @dev Update the state hash if changed.
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_UPDATE_STATE_HASH);
         if (stateHash != _transition.newStateHash) {
             _updateStateHash(_transition.newStateHash);
         }
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_UPDATE_STATE_HASH);
 
         /// @dev Return hash of performed state transition.
-        return Gear.stateTransitionHash(
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_RETURN_HASH);
+        bytes32 _stateTransitionHash = Gear.stateTransitionHash(
             _transition.actorId,
             _transition.newStateHash,
             _transition.exited,
@@ -220,6 +256,8 @@ contract Mirror is IMirror {
             valueClaimsHash,
             messagesHashesHash
         );
+        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_RETURN_HASH);
+        return _stateTransitionHash;
     }
 
     // # Private calls

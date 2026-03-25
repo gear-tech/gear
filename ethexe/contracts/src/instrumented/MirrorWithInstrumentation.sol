@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {ICallbacks} from "./ICallbacks.sol";
-import {IMirror} from "./IMirror.sol";
-import {IRouter} from "./IRouter.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
-import {Gear} from "./libraries/Gear.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
+import {ICallbacks} from "src/ICallbacks.sol";
+import {IMirror} from "src/IMirror.sol";
+import {IRouter} from "src/IRouter.sol";
+import {IWrappedVara} from "src/IWrappedVara.sol";
+import {Gear} from "src/libraries/Gear.sol";
 
 contract MirrorWithInstrumentation is IMirror {
     /// @dev Special address to which Sails contract sends messages so that Mirror can decode events:
@@ -246,7 +246,7 @@ contract MirrorWithInstrumentation is IMirror {
 
         /// @dev Return hash of performed state transition.
         emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_RETURN_HASH);
-        bytes32 ret = Gear.stateTransitionHash(
+        bytes32 _stateTransitionHash = Gear.stateTransitionHash(
             _transition.actorId,
             _transition.newStateHash,
             _transition.exited,
@@ -257,7 +257,7 @@ contract MirrorWithInstrumentation is IMirror {
             messagesHashesHash
         );
         emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_RETURN_HASH);
-        return ret;
+        return _stateTransitionHash;
     }
 
     // # Private calls
