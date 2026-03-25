@@ -1,6 +1,6 @@
 use crate::{abi::deploy_send_message_multicall, args::LoadParams, batch::BatchPool};
 use alloy::{hex, primitives::Address, providers::Provider};
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use args::{Params, parse_cli_params};
 use ethexe_ethereum::Ethereum;
 use rand::rngs::SmallRng;
@@ -52,16 +52,16 @@ async fn load_node(params: LoadParams) -> Result<()> {
     const MINT_AMOUNT: u128 = 500_000_000_000_000_000_000_000;
 
     if params.workers == 0 {
-        return Err(anyhow::anyhow!("workers must be greater than 0"));
+        return Err(anyhow!("workers must be greater than 0"));
     }
 
     utils::validate_worker_count(params.ethexe_nodes.len(), params.workers)?;
 
-    for url in params.ethexe_nodes.iter() {
-        match ::url::Url::parse(url) {
+    for arg in params.ethexe_nodes.iter() {
+        match url::Url::parse(arg) {
             Ok(_) => (),
             Err(e) => {
-                return Err(anyhow::anyhow!("invalid Ethexe node URL '{}': {}", url, e));
+                return Err(anyhow!("invalid Ethexe node URL '{arg}': {e}"));
             }
         }
     }
