@@ -262,6 +262,9 @@ impl BatchCommitmentManager {
                     break;
                 }
             }
+            chain_commitment.transitions = super::utils::squash_transitions_by_actor(
+                std::mem::take(&mut chain_commitment.transitions),
+            );
             batch_parts.chain_commitment = Some(chain_commitment);
         }
 

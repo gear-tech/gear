@@ -63,7 +63,11 @@ impl BatchFiller {
         }
     }
 
-    pub fn into_parts(self) -> BatchParts {
+    pub fn into_parts(mut self) -> BatchParts {
+        if let Some(chain) = &mut self.parts.chain_commitment {
+            chain.transitions =
+                super::utils::squash_transitions_by_actor(std::mem::take(&mut chain.transitions));
+        }
         self.parts
     }
 
