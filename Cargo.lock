@@ -5153,38 +5153,30 @@ dependencies = [
 name = "ethexe-db"
 version = "1.10.0"
 dependencies = [
+ "alloy",
  "anyhow",
  "auto_impl",
  "dashmap 5.5.3",
  "delegate",
  "derive_more 2.1.1",
  "ethexe-common",
+ "ethexe-ethereum",
  "ethexe-runtime-common",
  "gear-core",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
+ "hex",
+ "indoc",
+ "log",
  "parity-scale-codec",
  "paste",
  "rocksdb",
+ "scale-info",
  "scopeguard",
+ "sha3",
  "tempfile",
  "tracing",
-]
-
-[[package]]
-name = "ethexe-db-init"
-version = "1.10.0"
-dependencies = [
- "alloy",
- "anyhow",
- "ethexe-common",
- "ethexe-db",
- "ethexe-ethereum",
- "gear-workspace-hack",
- "gprimitives",
- "gsigner",
- "log",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -5280,7 +5272,6 @@ dependencies = [
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
- "ethexe-db-init",
  "ethexe-ethereum",
  "future-timing",
  "futures",
@@ -5457,7 +5448,6 @@ dependencies = [
  "ethexe-compute",
  "ethexe-consensus",
  "ethexe-db",
- "ethexe-db-init",
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
