@@ -9,16 +9,21 @@ repository.workspace = true
 
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }
+ethexe-ethereum.workspace = true
 ethexe-runtime-common = { workspace = true, features = ["std"] }
 gear-core = { workspace = true, features = ["std"] }
 gprimitives = { workspace = true, features = ["std"] }
+gsigner.workspace = true
 
+alloy.workspace = true
 anyhow.workspace = true
 dashmap.workspace = true
+log.workspace = true
 parity-scale-codec.workspace = true
 tracing.workspace = true
 paste.workspace = true
 derive_more.workspace = true
+scale-info = { workspace = true, features = ["derive"] }
 auto_impl.workspace = true
 gear-workspace-hack.workspace = true
 delegate.workspace = true
@@ -38,6 +43,10 @@ version = "0.21"
 scopeguard.workspace = true
 tempfile.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
+indoc.workspace = true
+scale-info = { workspace = true, features = ["docs"] }
+sha3.workspace = true
+hex.workspace = true
 
 [features]
 default = ["mock"]

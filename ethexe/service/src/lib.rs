@@ -29,8 +29,7 @@ use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_db::{Database, RawDatabase, RocksDatabase};
-use ethexe_db_init::InitConfig;
+use ethexe_db::{Database, InitConfig, RawDatabase, RocksDatabase};
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
@@ -221,7 +220,7 @@ impl Service {
         )
         .with_context(|| "failed to open database")?;
 
-        let db = ethexe_db_init::initialize_db(
+        let db = ethexe_db::initialize_db(
             InitConfig {
                 ethereum_rpc: config.ethereum.rpc.clone(),
                 router_address: config.ethereum.router_address,

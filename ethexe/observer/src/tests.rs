@@ -18,7 +18,7 @@
 
 use super::*;
 use alloy::node_bindings::Anvil;
-use ethexe_db_init::InitConfig;
+use ethexe_db::InitConfig;
 use ethexe_ethereum::deploy::EthereumDeployer;
 use gsigner::secp256k1::Signer;
 
@@ -55,7 +55,7 @@ async fn test_deployment() -> Result<()> {
         .deploy()
         .await?;
 
-    let database = ethexe_db_init::create_initialized_empty_memory_db(InitConfig {
+    let database = ethexe_db::create_initialized_empty_memory_db(InitConfig {
         ethereum_rpc: ethereum_rpc.clone(),
         router_address: ethereum.router().address(),
         slot_duration_secs: 1,
