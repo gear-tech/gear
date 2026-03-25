@@ -192,10 +192,14 @@ impl Processor {
         let mut transitions =
             InBlockTransitions::new(block.header.height, program_states, schedule);
 
-        transitions = self.process_tasks(transitions);
+        // First step: push injected to queues and handle block events.
         transitions =
             self.handle_injected_and_events(transitions, injected_transactions, events)?;
 
+        // Second step: process scheduled tasks.
+        transitions = self.process_tasks(transitions);
+
+        // Third step: process queues until limits are exhausted or all queues are empty.
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
                 .process_queues(transitions, block, gas_allowance, promise_out_tx)
