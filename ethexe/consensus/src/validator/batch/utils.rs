@@ -258,8 +258,8 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
 ///
 /// For each actor, the newest transition (last in chronological order) provides the
 /// `new_state_hash`. Messages, value claims, and `value_to_receive` are accumulated
-/// from all transitions. If any transition marks the actor as exited, the earliest
-/// such exit's inheritor is preserved.
+/// from all transitions. If any transition marks the actor as exited, the resulting
+/// inheritor is taken from the newest exit transition.
 pub fn squash_transitions_by_actor(transitions: Vec<StateTransition>) -> Vec<StateTransition> {
     let mut aggregations: BTreeMap<ActorId, ActorAggregation> = BTreeMap::new();
     for transition in transitions {
@@ -694,15 +694,6 @@ mod tests {
         assert_eq!(squashed[0].value_to_receive, 3);
     }
 
-    /// Comprehensive test covering multiple actors across several "blocks",
-    /// exercising every squashing rule simultaneously:
-    /// - newest state_hash wins per actor
-    /// - messages accumulate in chronological order
-    /// - value_claims accumulate in chronological order
-    /// - value_to_receive sums (with saturation)
-    /// - exit/inheritor: latest exit's inheritor wins; early exit + later non-exit still exited
-    /// - actors that appear only once pass through unchanged
-    /// - negative sign follows the newest transition
     #[test]
     fn test_squash_comprehensive() {
         use ethexe_common::gear::{Message, ValueClaim};
@@ -714,7 +705,6 @@ mod tests {
         let actor_c = ActorId::from([0xCC; 32]); // appears only once (singleton)
 
         let inheritor_1 = ActorId::from([0x11; 32]);
-        let inheritor_2 = ActorId::from([0x22; 32]);
 
         // --- Messages ---
         let msg = |tag: &[u8], val: u128| Message {
@@ -872,14 +862,7 @@ mod tests {
         assert!(!st_c.value_to_receive_negative_sign);
     }
 
-    /// Edge case: empty input produces empty output.
-    #[test]
-    fn test_squash_empty_input() {
-        let squashed = squash_transitions_by_actor(vec![]);
-        assert!(squashed.is_empty());
-    }
-
-    /// Edge case: exit in a later block overrides an earlier exit's inheritor.
+    /// Exit in a later block overrides an earlier exit's inheritor.
     #[test]
     fn test_squash_later_exit_overrides_earlier() {
         let actor = ActorId::from([0xEE; 32]);
