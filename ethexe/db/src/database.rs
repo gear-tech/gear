@@ -59,6 +59,7 @@ enum Key {
     // TODO (kuzmindev): use `HashOf<T>` here
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
+    BlockAnnounces(H256) = 13,
 
     ValidatorSet(u64) = 2,
 
@@ -75,14 +76,11 @@ enum Key {
 
     InjectedTransaction(HashOf<InjectedTransaction>) = 12,
 
-    // TODO kuzmindev: make keys prefixes consistent. We don't change it to avoid corrupting existing key layout.
     Globals = 14,
     Config = 15,
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
     LatestEraValidatorsCommitted(H256),
-
-    BlockAnnounces(H256) = 17,
 }
 
 impl Key {
