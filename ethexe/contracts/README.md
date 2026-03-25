@@ -62,7 +62,19 @@ $ ../scripts/deploy-ethereum-contracts.sh $HOODI_RPC_URL
 
 _Notes:_
 
-_- If environment variable `DEV_MODE` is set to `true` than `DeploymentScript` skips Middleware deployment_
+_- If environment variable `IS_POA` is set to `true` than `DeploymentScript` skips Middleware deployment_
+
+### Actions (Pause/Unpause)
+
+```shell
+$ source .env
+
+$ forge script script/actions/Pause.s.sol:PauseScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
+$ forge script script/actions/Pause.s.sol:PauseScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
+
+$ forge script script/actions/Unpause.s.sol:UnpauseScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
+$ forge script script/actions/Unpause.s.sol:UnpauseScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
+```
 
 ### Upgrade
 
@@ -74,6 +86,9 @@ $ source .env
 
 $ forge script script/upgrades/Mirror.s.sol:MirrorScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/upgrades/Mirror.s.sol:MirrorScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
+
+$ forge script script/upgrades/POAMiddleware.s.sol:POAMiddlewareScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
+$ forge script script/upgrades/POAMiddleware.s.sol:POAMiddlewareScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
 
 $ forge script script/upgrades/Router.s.sol:RouterScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/upgrades/Router.s.sol:RouterScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv

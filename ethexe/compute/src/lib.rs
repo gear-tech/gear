@@ -16,16 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub use compute::{
+    ComputeConfig, ComputeSubService,
+    utils::{find_canonical_events_post_quarantine, prepare_executable_for_announce},
+};
 use ethexe_common::{
-    Announce, CodeAndIdUnchecked, ComputedAnnounce, HashOf, injected::InjectedTransaction,
+    Announce, CodeAndIdUnchecked, HashOf,
+    injected::{InjectedTransaction, Promise},
 };
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
-use std::collections::HashSet;
-
-pub use compute::{ComputeConfig, ComputeSubService, prepare_executable_for_announce};
 pub use service::ComputeService;
+use std::collections::HashSet;
+use tokio::sync::mpsc;
 
 mod codes;
 mod compute;
@@ -40,12 +44,13 @@ pub struct BlockProcessed {
     pub block_hash: H256,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    AnnounceComputed(ComputedAnnounce),
+    AnnounceComputed(HashOf<Announce>),
+    Promise(Promise, HashOf<Announce>),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -59,7 +64,7 @@ pub enum ComputeError {
     #[error("block header not found for synced block({0})")]
     BlockHeaderNotFound(H256),
     #[error("block validators committed for era not found for block({0})")]
-    BlockValidatorsCommittedForEraNotFound(H256),
+    CommittedEraNotFound(H256),
     #[error("process code join error")]
     CodeProcessJoin(#[from] tokio::task::JoinError),
     #[error("codes queue not found for computed block({0})")]
@@ -72,8 +77,6 @@ pub enum ComputeError {
     AnnounceNotFound(HashOf<Announce>),
     #[error("Announces for prepared block {0:?} not found in db")]
     PreparedBlockAnnouncesSetMissing(H256),
-    #[error("Latest data not found")]
-    LatestDataNotFound,
     #[error(
         "Received validators commitment for an earlier era {commitment_era_index}, previous was {previous_commitment_era_index}"
     )]
@@ -87,6 +90,8 @@ pub enum ComputeError {
     ScheduleNotFound(HashOf<Announce>),
     #[error("Injected transaction not found for hash {0:?}")]
     InjectedTransactionNotFound(HashOf<InjectedTransaction>),
+    #[error("Promise sender dropped")]
+    PromiseSenderDropped,
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -96,26 +101,26 @@ type Result<T> = std::result::Result<T, ComputeError>;
 
 pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     /// Process block events and return the result.
-    fn process_announce(
+    fn process_programs(
         &mut self,
         executable: ExecutableData,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
-    fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked)
-    -> Result<ProcessedCodeInfo>;
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo>;
 }
 
 impl ProcessorExt for Processor {
-    async fn process_announce(
+    async fn process_programs(
         &mut self,
         executable: ExecutableData,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
-        self.process_programs(executable).await.map_err(Into::into)
+        self.process_programs(executable, promise_out_tx)
+            .await
+            .map_err(Into::into)
     }
 
-    fn process_upload_code(
-        &mut self,
-        code_and_id: CodeAndIdUnchecked,
-    ) -> Result<ProcessedCodeInfo> {
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
         self.process_code(code_and_id).map_err(Into::into)
     }
 }

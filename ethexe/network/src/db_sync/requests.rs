@@ -20,11 +20,11 @@ use crate::{
     db_sync::{
         AnnouncesRequest, Config, Event, ExternalDataProvider, HandleResult, HashesRequest,
         InnerAnnouncesResponse, InnerBehaviour, InnerHashesResponse, InnerProgramIdsRequest,
-        InnerProgramIdsResponse, InnerRequest, InnerResponse, NewRequestRoundReason, PeerId,
-        ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
+        InnerProgramIdsResponse, InnerRequest, InnerResponse, Metrics, NewRequestRoundReason,
+        PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
     },
     peer_score::Handle,
-    utils::ConnectionMap,
+    utils::{ConnectionMap, NoLimits},
 };
 use anyhow::Context as _;
 use ethexe_common::{
@@ -35,10 +35,7 @@ use ethexe_common::{
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;
-use libp2p::{
-    request_response::OutboundRequestId,
-    swarm::{ConnectionClosed, FromSwarm, behaviour::ConnectionEstablished},
-};
+use libp2p::{request_response::OutboundRequestId, swarm::FromSwarm};
 use rand::prelude::IteratorRandom;
 use std::{
     cell::OnceCell,
@@ -60,7 +57,7 @@ pub(crate) struct OngoingRequests {
     requests: HashMap<RequestId, (OngoingRequestFuture, Option<oneshot::Sender<HandleResult>>)>,
     active_requests: HashMap<OutboundRequestId, RequestId>,
     responses: HashMap<RequestId, Result<InnerResponse, ()>>,
-    connections: ConnectionMap,
+    connections: ConnectionMap<NoLimits>,
     waker: Option<Waker>,
     // used in requests themselves
     peer_score_handle: Handle,
@@ -81,7 +78,7 @@ impl OngoingRequests {
             requests: Default::default(),
             active_requests: Default::default(),
             responses: Default::default(),
-            connections: Default::default(),
+            connections: ConnectionMap::without_limits(),
             waker: None,
             peer_score_handle,
             external_data_provider,
@@ -98,24 +95,8 @@ impl OngoingRequests {
 
     /// Tracks all active connections.
     pub(crate) fn on_swarm_event(&mut self, event: FromSwarm) {
-        match event {
-            FromSwarm::ConnectionEstablished(ConnectionEstablished {
-                peer_id,
-                connection_id,
-                ..
-            }) => {
-                let res = self.connections.add_connection(peer_id, connection_id);
-                debug_assert_eq!(res, Ok(()));
-                self.wake();
-            }
-            FromSwarm::ConnectionClosed(ConnectionClosed {
-                peer_id,
-                connection_id,
-                ..
-            }) => {
-                self.connections.remove_connection(peer_id, connection_id);
-            }
-            _ => {}
+        if self.connections.on_swarm_event(event) {
+            self.wake();
         }
     }
 
@@ -199,6 +180,7 @@ impl OngoingRequests {
         &mut self,
         cx: &mut Context<'_>,
         behaviour: &mut InnerBehaviour,
+        metrics: &Metrics,
     ) -> Poll<Event> {
         loop {
             if let Some(event) = self.pending_events.pop_front() {
@@ -273,6 +255,7 @@ impl OngoingRequests {
 
                 true
             });
+            metrics.ongoing_requests.set(self.requests.len() as f64);
 
             // it means some futures are pending, so we definitely will wake the task
             if !self.requests.is_empty() {

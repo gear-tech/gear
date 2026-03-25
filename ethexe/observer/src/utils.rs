@@ -36,6 +36,7 @@ use futures::{TryFutureExt, future};
 use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture, ops::RangeInclusive};
 
+// TODO: #4562 append also a configurable batch size parameter
 /// Max number of blocks to query in alloy.
 const MAX_QUERY_BLOCK_RANGE: usize = 256;
 

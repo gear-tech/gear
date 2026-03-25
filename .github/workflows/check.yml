@@ -89,13 +89,15 @@ jobs:
 
       - name: "Check: ABI files are updated"
         run: |
-          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
-          cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
+          cp ./ethexe/contracts/out/POAMiddleware.sol/POAMiddleware.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi
 
-          git diff --exit-code ./ethexe/ethereum/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
+          git diff --exit-code ./ethexe/ethereum/abi/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
 
       - name: "Check: Clones.sol is updated"
         run: |
@@ -104,6 +106,12 @@ jobs:
           --clones src/libraries/Clones.sol
           forge fmt
           git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
+        working-directory: ethexe/contracts
+
+      - name: "Check: Mirror.sol events are updated"
+        run: |
+          set +H && sed -i '/\/\/ forgefmt: disable-start/,/\/\/ forgefmt: disable-end/{//!d}' src/Mirror.sol && GENERATED_CONDITION=$(grep -Po "    event\s+\K[^(]+" src/IMirror.sol | xargs -I{} echo "            topic1 != {}.selector &&" | sed '$ s/ &&$//') && awk -v cond="$GENERATED_CONDITION" '/\/\/ forgefmt: disable-start/{print; print "        if (!("; print cond; print "        )) {"; print "            return false;"; print "        }"; next}1' src/Mirror.sol > src/Mirror.tmp && mv src/Mirror.tmp src/Mirror.sol
+          git diff --exit-code src/Mirror.sol || (echo "Mirror.sol has been modified. Please commit the changes." && exit 1)
         working-directory: ethexe/contracts
 
   clippy:
@@ -180,9 +188,12 @@ jobs:
           target: x86_64-unknown-linux-gnu
 
       - name: "Check if workspace hack Cargo.toml is up-to-date"
-        uses: ./.github/actions/cargo-hakari
-        with:
-          args: generate --diff
+        run: |
+          cargo hakari generate && ./scripts/hakari-post-process.sh
+          git diff --exit-code utils/gear-workspace-hack/Cargo.toml || {
+            echo "::error::workspace hack Cargo.toml is out of date. Run 'make workspace-hack' and commit the result."
+            exit 1
+          }
 
       - name: "Check if all workspace crates depend on workspace hack"
         uses: ./.github/actions/cargo-hakari

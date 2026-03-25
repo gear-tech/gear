@@ -19,18 +19,18 @@
 mod requests;
 mod responses;
 
-use crate::{db_sync::requests::OngoingRequests, utils::AlternateCollectionFmt};
 pub(crate) use crate::{
+    DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
-    peer_score,
     utils::ParityScaleCodec,
 };
+use crate::{db_sync::requests::OngoingRequests, peer_score, utils::AlternateCollectionFmt};
 use async_trait::async_trait;
 use ethexe_common::{
     db::{
-        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, InjectedStorageRO,
-        LatestDataStorageRO,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO,
+        HashStorageRO, InjectedStorageRO,
     },
     gear::CodeState,
     network::{AnnouncesRequest, AnnouncesResponse, NetworkAnnounce},
@@ -51,6 +51,7 @@ use libp2p::{
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    num::NonZeroU32,
     pin::Pin,
     sync::atomic::{AtomicU64, Ordering},
     task::{Context, Poll},
@@ -59,6 +60,15 @@ use std::{
 use tokio::sync::{mpsc, oneshot};
 
 const STREAM_PROTOCOL: StreamProtocol = StreamProtocol::new("/ethexe/db-sync/1.0.0");
+
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_network_db_sync")]
+struct Metrics {
+    /// Number of either active or pending requests
+    ongoing_requests: metrics::Gauge,
+    /// Number of incoming dropped requests
+    incoming_dropped_requests: metrics::Counter,
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum NewRequestRoundReason {
@@ -93,7 +103,7 @@ pub enum Event {
     },
     /// Request is in pending state because of lack of available peers
     PendingStateRequest {
-        //// The ID of request
+        /// The ID of request
         request_id: RequestId,
     },
     /// Request completion done
@@ -143,6 +153,7 @@ pub(crate) struct Config {
     pub max_rounds_per_request: u32,
     pub request_timeout: Duration,
     pub max_simultaneous_responses: u32,
+    pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl Default for Config {
@@ -151,6 +162,7 @@ impl Default for Config {
             max_rounds_per_request: 10,
             request_timeout: Duration::from_secs(100),
             max_simultaneous_responses: 10,
+            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 }
@@ -361,11 +373,12 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest,
 pub trait DbSyncDatabase:
     Send
     + HashStorageRO
-    + LatestDataStorageRO
     + BlockMetaStorageRO
     + AnnounceStorageRO
-    + InjectedStorageRO
     + CodesStorageRO
+    + ConfigStorageRO
+    + GlobalsStorageRO
+    + InjectedStorageRO
 {
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
 }
@@ -382,6 +395,7 @@ pub(crate) struct Behaviour {
     rx: mpsc::UnboundedReceiver<(HandleAction, oneshot::Sender<HandleResult>)>,
     ongoing_requests: OngoingRequests,
     ongoing_responses: OngoingResponses,
+    metrics: Metrics,
 }
 
 impl Behaviour {
@@ -407,6 +421,7 @@ impl Behaviour {
                 external_data_provider,
             ),
             ongoing_responses: OngoingResponses::new(db, &config),
+            metrics: Metrics::default(),
         }
     }
 
@@ -439,6 +454,7 @@ impl Behaviour {
                         peer_id: peer,
                     }
                 } else {
+                    self.metrics.incoming_dropped_requests.increment(1);
                     Event::IncomingRequestDropped { peer_id: peer }
                 };
 
@@ -580,7 +596,10 @@ impl NetworkBehaviour for Behaviour {
             }
         }
 
-        if let Poll::Ready(request_event) = self.ongoing_requests.poll(cx, &mut self.inner) {
+        if let Poll::Ready(request_event) =
+            self.ongoing_requests
+                .poll(cx, &mut self.inner, &self.metrics)
+        {
             return Poll::Ready(ToSwarm::GenerateEvent(request_event));
         }
 
@@ -612,7 +631,7 @@ pub(crate) mod tests {
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
     use ethexe_common::{Announce, HashOf, StateHashWithQueueSize, db::*};
-    use ethexe_db::{Database, MemDb};
+    use ethexe_db::Database;
     use libp2p::{
         Swarm, Transport,
         core::{transport::MemoryTransport, upgrade::Version},
@@ -646,7 +665,7 @@ pub(crate) mod tests {
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database, DataProvider) {
         let data_provider = DataProvider::default();
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let behaviour = Behaviour::new(
             config,
             peer_score::Handle::new_test(),
@@ -671,8 +690,8 @@ pub(crate) mod tests {
         let (mut bob, bob_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
-        let hello_hash = bob_db.write_hash(b"hello");
-        let world_hash = bob_db.write_hash(b"world");
+        let hello_hash = bob_db.cas().write(b"hello");
+        let world_hash = bob_db.cas().write(b"world");
 
         alice.connect(&mut bob).await;
         tokio::spawn(async move {
@@ -1001,9 +1020,9 @@ pub(crate) mod tests {
         tokio::spawn(charlie.loop_on_next());
         tokio::spawn(dave.loop_on_next());
 
-        let hello_hash = bob_db.write_hash(b"hello");
-        let world_hash = charlie_db.write_hash(b"world");
-        let mark_hash = dave_db.write_hash(b"!");
+        let hello_hash = bob_db.cas().write(b"hello");
+        let world_hash = charlie_db.cas().write(b"world");
+        let mark_hash = dave_db.cas().write(b"!");
 
         let request = alice_handle.request(Request::hashes([hello_hash, world_hash, mark_hash]));
         let request_id = request.request_id();
@@ -1059,8 +1078,8 @@ pub(crate) mod tests {
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
 
-        let hello_hash = bob_db.write_hash(b"hello");
-        let world_hash = charlie_db.write_hash(b"world");
+        let hello_hash = bob_db.cas().write(b"hello");
+        let world_hash = charlie_db.cas().write(b"world");
 
         let request = alice_handle.request(Request::hashes([hello_hash, world_hash]));
         let request_id = request.request_id();
@@ -1244,7 +1263,7 @@ pub(crate) mod tests {
         alice.connect(&mut charlie).await;
         tokio::spawn(charlie.loop_on_next());
 
-        let key = charlie_db.write_hash(b"test");
+        let key = charlie_db.cas().write(b"test");
         assert_eq!(request_key, key);
         let request = alice_handle.retry(retriable_request);
         let request_id = request.request_id();

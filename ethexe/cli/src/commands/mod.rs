@@ -36,7 +36,7 @@ pub enum Command {
     /// Keystore manipulations.
     Key(KeyCommand),
     /// Run the node.
-    Run(Box<RunCommand>),
+    Run(RunCommand),
     /// Submit a transaction.
     Tx(TxCommand),
     /// Check ethexe database for integrity and/or computation correctness.
@@ -50,9 +50,9 @@ impl Command {
     fn with_file_params(self, file_params: Params) -> Self {
         match self {
             Self::Key(key_cmd) => Self::Key(key_cmd.with_params(file_params)),
-            Self::Run(run_cmd) => Self::Run(Box::new(run_cmd.with_params(file_params))),
+            Self::Run(run_cmd) => Self::Run(run_cmd.with_params(file_params)),
             Self::Tx(tx_cmd) => Self::Tx(tx_cmd.with_params(file_params)),
-            Self::Check(check_cmd) => Self::Check(check_cmd),
+            Self::Check(check_cmd) => Self::Check(check_cmd.with_params(file_params)),
         }
     }
 

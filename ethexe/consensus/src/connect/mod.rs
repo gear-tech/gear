@@ -27,10 +27,10 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, ComputedAnnounce, SimpleBlockData,
+    Address, Announce, HashOf, PromisePolicy, ProtocolTimelines, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::{AnnounceStorageRO, OnChainStorageRO},
-    injected::SignedInjectedTransaction,
+    db::{AnnounceStorageRO, ConfigStorageRO, OnChainStorageRO},
+    injected::{Promise, SignedInjectedTransaction},
     network::{AnnouncesRequest, AnnouncesResponse, NetworkAnnounce},
 };
 use ethexe_db::Database;
@@ -103,6 +103,7 @@ pub struct ConnectService {
     db: Database,
     slot_duration: Duration,
     commitment_delay_limit: u32,
+    timelines: ProtocolTimelines,
 
     state: State,
     pending_announces: LruCache<(Address, H256), NetworkAnnounce>,
@@ -117,10 +118,13 @@ impl ConnectService {
     /// - `slot_duration`: Duration of each slot in the consensus protocol.
     /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
     pub fn new(db: Database, slot_duration: Duration, commitment_delay_limit: u32) -> Self {
+        let timelines = db.config().timelines;
+
         Self {
             db,
             slot_duration,
             commitment_delay_limit,
+            timelines,
             state: State::WaitingForBlock,
             pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
             output: VecDeque::new(),
@@ -164,8 +168,10 @@ impl ConnectService {
                 let announce = self.db.announce(announce_hash).ok_or_else(|| {
                     anyhow!("accepted announce {announce_hash} is missing from database")
                 })?;
-                self.output
-                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
+                self.output.push_back(ConsensusEvent::ComputeAnnounce(
+                    announce,
+                    PromisePolicy::Disabled,
+                ));
             }
         }
 
@@ -187,11 +193,7 @@ impl ConsensusService for ConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let timelines = self
-                .db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
-            let block_era = timelines.era_from_ts(block.header.timestamp);
+            let block_era = self.timelines.era_from_ts(block.header.timestamp);
             let validators = self.db.validators(block_era).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;
@@ -265,7 +267,7 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_computed_announce(&mut self, _computed_data: ComputedAnnounce) -> Result<()> {
+    fn receive_computed_announce(&mut self, _announce_hash: HashOf<Announce>) -> Result<()> {
         Ok(())
     }
 
@@ -285,6 +287,22 @@ impl ConsensusService for ConnectService {
                 .push((sender, announce.block_hash), announce);
         }
 
+        Ok(())
+    }
+
+    fn receive_promise_for_signing(
+        &mut self,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<()> {
+        tracing::error!(
+            "Connected consensus node receives the promise for signing, but it not responsible for promises providing: \
+            promise={promise:?}, announce_hash={announce_hash}"
+        );
+        debug_assert!(
+            false,
+            "Connect node received the promise for signing, this should never happen"
+        );
         Ok(())
     }
 

@@ -28,6 +28,17 @@ use k256::sha2::Digest as _;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
+/// The maximum batch size limit - 120 KB.
+pub const MAX_BATCH_SIZE_LIMIT: u64 = 120 * 1024;
+
+/// The default batch size - 100 KB.
+pub const DEFAULT_BATCH_SIZE_LIMIT: u64 = 100 * 1024;
+
+/// Default threshold for producer to submit commitment despite of no transitions
+pub const DEFAULT_CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
+
+// pub type VerifiedAnnounce = VerifiedData<Announce>;
+
 pub type VerifiedAnnounce = VerifiedData<NetworkAnnounce>;
 pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
@@ -105,6 +116,3 @@ impl ToDigest for BatchCommitmentValidationReply {
         hasher.update(signature.into_pre_eip155_bytes())
     }
 }
-
-/// Default threshold for producer to submit commitment despite of no transitions
-pub const DEFAULT_CHAIN_DEEPNESS_THRESHOLD: u32 = 500;

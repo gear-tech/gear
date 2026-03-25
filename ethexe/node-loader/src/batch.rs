@@ -1,15 +1,19 @@
 use alloy::{
     consensus::Transaction,
     eips::BlockId,
-    network::{BlockResponse, Network, primitives::HeaderResponse},
-    primitives::{Address, FixedBytes},
+    network::{BlockResponse, primitives::HeaderResponse},
+    primitives::{Address, FixedBytes, U256},
     providers::{Provider, WalletProvider},
-    rpc::types::{BlockTransactions, Filter},
-    sol_types::SolCall,
+    rpc::types::{BlockTransactions, Filter, Header},
+    sol_types::{SolCall, SolEvent},
 };
 use anyhow::Result;
 use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
-use ethexe_ethereum::{Ethereum, abi::IRouter::commitBatchCall, mirror::events::try_extract_event};
+use ethexe_ethereum::{
+    Ethereum, TryGetReceipt,
+    abi::{IMirror, IRouter::commitBatchCall},
+    mirror::events::try_extract_event,
+};
 use ethexe_sdk::VaraEthApi;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
@@ -24,10 +28,14 @@ use std::{
     marker::PhantomData,
     sync::Arc,
 };
-use tokio::sync::{RwLock, broadcast::Receiver};
+use tokio::sync::{
+    RwLock,
+    broadcast::{Receiver, error::RecvError},
+};
 use tracing::instrument;
 
 use crate::{
+    abi::BatchMulticall,
     args::{LoadParams, SeedVariant},
     batch::{
         context::Context,
@@ -46,8 +54,9 @@ pub struct BatchPool<Rng: CallGenRng> {
     eth_rpc_url: String,
     pool_size: usize,
     batch_size: usize,
+    send_message_multicall: Address,
     task_context: Context,
-    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    rx: Receiver<Header>,
     _marker: PhantomData<Rng>,
 }
 
@@ -77,13 +86,12 @@ struct ProcessEventsStats {
     mirror_value_claimed_events: usize,
 }
 
-const INJECTED_TX_RATIO_NUM: u8 = 7;
-const INJECTED_TX_RATIO_DEN: u8 = 10;
-/// This is the amount of VARA to top up newly created programs with.
-///
-/// It is an ERC20 token with 12 decimals, so this is 500,000 VARA.
+/// Amount of wVARA (12 decimals) to top up each program's executable balance.
 const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 
+const INJECTED_TX_RATIO_NUM: u8 = 7;
+const INJECTED_TX_RATIO_DEN: u8 = 10;
+const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
     (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
@@ -125,24 +133,22 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         eth_rpc_url: String,
         pool_size: usize,
         batch_size: usize,
-        rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+        send_message_multicall: Address,
+        rx: Receiver<Header>,
     ) -> Self {
         Self {
             apis,
             eth_rpc_url,
             pool_size,
             batch_size,
+            send_message_multicall,
             task_context: Context::new(),
             rx,
             _marker: PhantomData,
         }
     }
 
-    pub async fn run(
-        mut self,
-        params: LoadParams,
-        _rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
-    ) -> Result<()> {
+    pub async fn run(mut self, params: LoadParams, _rx: Receiver<Header>) -> Result<()> {
         let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
 
         let run_result = tokio::select! {
@@ -180,6 +186,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                 api,
                 vapi,
                 batch_with_seed,
+                self.send_message_multicall,
                 self.rx.resubscribe(),
                 mid_map.clone(),
             ));
@@ -196,6 +203,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                 api,
                 vapi,
                 batch_with_seed,
+                self.send_message_multicall,
                 self.rx.resubscribe(),
                 mid_map.clone(),
             ));
@@ -213,13 +221,24 @@ async fn run_batch(
     api: Ethereum,
     vapi: VaraEthApi,
     batch: BatchWithSeed,
-    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    send_message_multicall: Address,
+    rx: Receiver<Header>,
     mid_map: MidMap,
 ) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
     let mut rng = SmallRng::seed_from_u64(seed);
 
-    match run_batch_impl(api, vapi, batch, rx, mid_map, &mut rng).await {
+    match run_batch_impl(
+        api,
+        vapi,
+        batch,
+        send_message_multicall,
+        rx,
+        mid_map,
+        &mut rng,
+    )
+    .await
+    {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             tracing::warn!("Batch failed: {err:?}");
@@ -233,10 +252,14 @@ async fn run_batch_for_worker(
     api: Ethereum,
     vapi: VaraEthApi,
     batch: BatchWithSeed,
-    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    send_message_multicall: Address,
+    rx: Receiver<Header>,
     mid_map: MidMap,
 ) -> (usize, Result<BatchRunReport>) {
-    (worker_idx, run_batch(api, vapi, batch, rx, mid_map).await)
+    (
+        worker_idx,
+        run_batch(api, vapi, batch, send_message_multicall, rx, mid_map).await,
+    )
 }
 
 #[instrument(skip_all)]
@@ -244,7 +267,8 @@ async fn run_batch_impl(
     api: Ethereum,
     vapi: VaraEthApi,
     batch: Batch,
-    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    send_message_multicall: Address,
+    rx: Receiver<Header>,
     mid_map: MidMap,
     rng: &mut SmallRng,
 ) -> Result<Report> {
@@ -254,12 +278,15 @@ async fn run_batch_impl(
             let mut code_ids = Vec::with_capacity(args.len());
 
             for arg in args.iter() {
+                let expected_code_id = CodeId::generate(&arg.0.0);
                 tracing::debug!(
                     "Uploading code {} for program (len = {} bytes)",
-                    CodeId::generate(&arg.0.0),
+                    expected_code_id,
                     arg.0.0.len()
                 );
                 let (_, code_id) = vapi.router().request_code_validation(&arg.0.0).await?;
+                tracing::debug!("Code {code_id} upload requested");
+                assert_eq!(code_id, CodeId::generate(&arg.0.0));
                 vapi.router().wait_for_code_validation(code_id).await?;
                 tracing::debug!("Code {code_id} uploaded and validated");
                 code_ids.push(code_id);
@@ -267,45 +294,44 @@ async fn run_batch_impl(
 
             let mut program_ids = BTreeSet::new();
             let mut messages = BTreeMap::new();
-            let block_hash = api.get_latest_block().await?.hash;
+            let block_number = api.provider().get_block_number().await?;
+
+            let mut upload_calls = Vec::with_capacity(args.len());
             for (call_id, (arg, code_id)) in args.iter().zip(code_ids.iter().copied()).enumerate() {
                 let salt = &arg.0.1;
-                let (_, program_id) = api
-                    .router()
-                    .create_program(code_id, salt_to_h256(salt), None)
-                    .await?;
-
-                api.router()
-                    .wvara()
-                    .approve(program_id, TOP_UP_AMOUNT)
-                    .await?;
-                let mirror = api.mirror(program_id);
-                mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
-                tracing::debug!("[Call with id {call_id}]: Program created {program_id}");
-
-                // Send init message: prefer injected transactions, but keep some
-                // regular on-chain calls to exercise both paths.
                 let fuzzed_value = fuzz_message_value(rng);
-                // TODO: Injected TXs can't send init message
                 tracing::debug!(
-                    "[Call with id {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}"
+                    "[Call with id {call_id}]: Queuing program create+init via multicall with value={fuzzed_value}"
                 );
-                let mirror = api.mirror(program_id);
-                let (_, message_id) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
-
-                mid_map.write().await.insert(message_id, program_id);
-                messages.insert(message_id, (program_id, call_id));
-                tracing::debug!("[Call with id {call_id}]: Init message sent {message_id}");
-                program_ids.insert(program_id);
+                upload_calls.push((
+                    call_id,
+                    code_id,
+                    salt_to_h256(salt),
+                    arg.0.2.clone(),
+                    fuzzed_value,
+                    TOP_UP_AMOUNT,
+                ));
             }
 
-            let blocks_per_action = 4;
-            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
+            let (created, tx_count) =
+                create_program_batch_via_multicall(&api, send_message_multicall, &upload_calls)
+                    .await?;
+
+            for (call_id, program_id, message_id) in created {
+                program_ids.insert(program_id);
+                mid_map.write().await.insert(message_id, program_id);
+                messages.insert(message_id, (program_id, call_id));
+                tracing::debug!(
+                    "[Call with id {call_id}]: Program created {program_id}, init sent {message_id}"
+                );
+            }
+
+            let wait_for_event_blocks = blocks_window(tx_count, 1, 0);
             process_events(
                 api,
                 messages,
                 rx,
-                block_hash.0.into(),
+                block_number,
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -315,19 +341,24 @@ async fn run_batch_impl(
         Batch::UploadCode(args) => {
             tracing::info!("Uploading codes");
             let mut code_ids = Vec::with_capacity(args.len());
+            let start = std::time::Instant::now();
 
             for arg in args.iter() {
-                let code_id = CodeId::generate(&arg.0);
-                tracing::debug!("Uploading code {code_id} (len = {})", arg.0.len());
-                let start = std::time::Instant::now();
+                let expected_code_id = CodeId::generate(&arg.0);
+                tracing::debug!("Uploading code {expected_code_id} (len = {})", arg.0.len());
                 let (_, code_id) = vapi.router().request_code_validation(&arg.0).await?;
+                tracing::debug!("Code {code_id} upload requested");
+                assert_eq!(code_id, CodeId::generate(&arg.0));
                 vapi.router().wait_for_code_validation(code_id).await?;
-                tracing::debug!(
-                    "Code {code_id} uploaded and validated in {:?}s",
-                    start.elapsed().as_secs_f64()
-                );
+                tracing::debug!("Code {code_id} uploaded and validated");
                 code_ids.push(code_id);
             }
+
+            tracing::debug!(
+                "Validated {} code(s) in {:?}s",
+                code_ids.len(),
+                start.elapsed().as_secs_f64()
+            );
 
             Ok(Report {
                 codes: code_ids.into_iter().collect(),
@@ -338,37 +369,52 @@ async fn run_batch_impl(
         Batch::SendMessage(args) => {
             tracing::info!("Sending messages");
             let mut messages = BTreeMap::new();
-            let block_hash = api.get_latest_block().await?.hash;
+            let block_number = api.provider().get_block_number().await?;
+            let mut regular_calls = Vec::new();
+            let mut injected_tx_count = 0usize;
+            let mut multicall_tx_count = 0usize;
 
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
                 let fuzzed_value = fuzz_message_value(rng);
-                let message_id = if prefer_injected_tx(rng) {
+                if prefer_injected_tx(rng) {
                     tracing::debug!(
                         "[Call with id {i}]: Sending injected message to {to} with value=0"
                     );
                     let mirror = vapi.mirror(to);
-                    mirror.send_message_injected(&arg.0.1, 0).await?
+                    let message_id = mirror.send_message_injected(&arg.0.1, 0).await?;
+                    messages.insert(message_id, (to, i));
+                    mid_map.write().await.insert(message_id, to);
+                    injected_tx_count = injected_tx_count.saturating_add(1);
+                    tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
                 } else {
                     tracing::debug!(
-                        "[Call with id {i}]: Sending message to {to} through Mirror contract with value={fuzzed_value}"
+                        "[Call with id {i}]: Queuing message to {to} via multicall with value={fuzzed_value}"
                     );
-                    let mirror = api.mirror(to);
-                    let (_, mid) = mirror.send_message(&arg.0.1, fuzzed_value).await?;
-                    mid
-                };
-                messages.insert(message_id, (to, i));
-                mid_map.write().await.insert(message_id, to);
-                tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
+                    regular_calls.push((i, to, arg.0.1.clone(), fuzzed_value));
+                }
             }
 
-            let blocks_per_action = 1;
-            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
+            if !regular_calls.is_empty() {
+                let (sent, tx_count) =
+                    send_message_batch_via_multicall(&api, send_message_multicall, &regular_calls)
+                        .await?;
+                multicall_tx_count = tx_count;
+
+                for (call_id, to, message_id) in sent {
+                    messages.insert(message_id, (to, call_id));
+                    mid_map.write().await.insert(message_id, to);
+                    tracing::debug!("[Call with id {call_id}]: Message sent #{message_id} to {to}");
+                }
+            }
+
+            let dispatched_txs = injected_tx_count.saturating_add(multicall_tx_count);
+            let wait_for_event_blocks = blocks_window(dispatched_txs, 1, 0);
             process_events(
                 api,
                 messages,
                 rx,
-                block_hash.0.into(),
+                block_number,
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -404,7 +450,7 @@ async fn run_batch_impl(
 
             let mut messages = BTreeMap::new();
 
-            let block_hash = api.get_latest_block().await?.hash;
+            let block_number = api.provider().get_block_number().await?;
 
             for (call_id, arg) in args.iter().enumerate() {
                 let mid = arg.0.0;
@@ -433,7 +479,7 @@ async fn run_batch_impl(
                 api,
                 messages,
                 rx,
-                block_hash.0.into(),
+                block_number,
                 mid_map,
                 wait_for_event_blocks,
             )
@@ -448,53 +494,345 @@ async fn run_batch_impl(
             tracing::info!("Creating programs");
             let mut programs = BTreeSet::new();
             let mut messages = BTreeMap::new();
-            let block_hash = api.get_latest_block().await?.hash;
+            let block_number = api.provider().get_block_number().await?;
 
+            let mut upload_calls = Vec::with_capacity(args.len());
             for (call_id, arg) in args.iter().enumerate() {
                 let code_id = arg.0.0;
                 let salt = &arg.0.1;
-                let (_, program_id) = api
-                    .router()
-                    .create_program(code_id, salt_to_h256(salt), None)
-                    .await?;
-                api.router()
-                    .wvara()
-                    .approve(program_id, TOP_UP_AMOUNT)
-                    .await?;
-                let mirror = api.mirror(program_id);
-                mirror.executable_balance_top_up(TOP_UP_AMOUNT).await?;
-                tracing::debug!("[Call with id: {call_id}]: Program created {program_id}");
-
-                // TODO: Ditto
-
-                // send init message to program with payload and value.
                 let fuzzed_value = fuzz_message_value(rng);
                 tracing::debug!(
-                    "[Call with id: {call_id}]: Sending init message to {program_id} through Mirror contract with value={fuzzed_value}",
+                    "[Call with id: {call_id}]: Queuing program create+init via multicall with value={fuzzed_value}"
                 );
-                let (_, message_id) = mirror.send_message(&arg.0.2, fuzzed_value).await?;
+                upload_calls.push((
+                    call_id,
+                    code_id,
+                    salt_to_h256(salt),
+                    arg.0.2.clone(),
+                    fuzzed_value,
+                    TOP_UP_AMOUNT,
+                ));
+            }
 
+            let (created, tx_count) =
+                create_program_batch_via_multicall(&api, send_message_multicall, &upload_calls)
+                    .await?;
+
+            for (call_id, program_id, message_id) in created {
                 programs.insert(program_id);
                 mid_map.write().await.insert(message_id, program_id);
                 messages.insert(message_id, (program_id, call_id));
                 tracing::debug!(
-                    "[Call with id: {call_id}]: Successfully sent init message {message_id}"
+                    "[Call with id: {call_id}]: Program created {program_id}, init sent {message_id}"
                 );
             }
 
-            let blocks_per_action = 4;
-            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
+            let wait_for_event_blocks = blocks_window(tx_count, 1, 0);
             process_events(
                 api,
                 messages,
                 rx,
-                block_hash.0.into(),
+                block_number,
                 mid_map,
                 wait_for_event_blocks,
             )
             .await
         }
     }
+}
+
+async fn send_message_batch_via_multicall(
+    api: &Ethereum,
+    multicall_address: Address,
+    calls: &[(usize, ActorId, Vec<u8>, u128)],
+) -> Result<(Vec<(usize, ActorId, MessageId)>, usize)> {
+    let multicall = BatchMulticall::new(multicall_address, api.provider());
+
+    if calls.is_empty() {
+        return Ok((Vec::new(), 0));
+    }
+
+    let mut mapped = Vec::with_capacity(calls.len());
+    let mut tx_count = 0usize;
+    let mut offset = 0usize;
+
+    while offset < calls.len() {
+        let chunk_start = offset;
+        let mut value_sum = 0_u128;
+        let mut chunk_end = offset;
+        let mut batched_calls = Vec::new();
+
+        while chunk_end < calls.len() {
+            let (_, actor_id, payload, value) = &calls[chunk_end];
+            let mut candidate_calls = batched_calls.clone();
+            candidate_calls.push(BatchMulticall::MessageCall {
+                mirror: Address::from(actor_id.to_address_lossy().0),
+                payload: payload.clone().into(),
+                value: *value,
+            });
+
+            let candidate_value_sum = value_sum.saturating_add(*value);
+            let candidate_calldata_len = multicall
+                .sendMessageBatch(candidate_calls.clone())
+                .value(U256::from(candidate_value_sum));
+            let candidate_calldata_len = candidate_calldata_len.calldata().len();
+
+            tracing::trace!(
+                chunk_start,
+                candidate_end = chunk_end + 1,
+                candidate_calls = candidate_calls.len(),
+                candidate_calldata_len,
+                max_calldata_len = MAX_MULTICALL_CALLDATA_BYTES,
+                "Evaluated multicall send_message chunk candidate"
+            );
+
+            if candidate_calldata_len > MAX_MULTICALL_CALLDATA_BYTES {
+                if batched_calls.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "single send_message call exceeds calldata limit: {} > {} bytes",
+                        candidate_calldata_len,
+                        MAX_MULTICALL_CALLDATA_BYTES
+                    ));
+                }
+
+                tracing::debug!(
+                    chunk_start,
+                    split_before = chunk_end,
+                    accepted_calls = batched_calls.len(),
+                    candidate_calldata_len,
+                    max_calldata_len = MAX_MULTICALL_CALLDATA_BYTES,
+                    "Splitting send_message multicall due to calldata size limit"
+                );
+
+                break;
+            }
+
+            batched_calls = candidate_calls;
+            value_sum = candidate_value_sum;
+            chunk_end += 1;
+        }
+
+        tracing::debug!(
+            chunk_start,
+            chunk_end,
+            chunk_calls = batched_calls.len(),
+            chunk_value = value_sum,
+            "Submitting send_message multicall chunk"
+        );
+
+        let receipt = multicall
+            .sendMessageBatch(batched_calls)
+            .value(U256::from(value_sum))
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        let mut batch_result = None;
+        for log in receipt.inner.logs() {
+            if log.topic0() == Some(&BatchMulticall::SendMessageBatchResult::SIGNATURE_HASH) {
+                let event = BatchMulticall::SendMessageBatchResult::decode_raw_log(
+                    log.topics(),
+                    &log.data().data,
+                )?;
+                batch_result = Some(event);
+            }
+        }
+
+        let batch_result = batch_result
+            .ok_or_else(|| anyhow::anyhow!("multicall send_message result event not found"))?;
+
+        let chunk_calls = &calls[offset..chunk_end];
+        if batch_result.messageIds.len() != chunk_calls.len() {
+            return Err(anyhow::anyhow!(
+                "multicall send_message result size mismatch: expected {}, got messageIds={}",
+                chunk_calls.len(),
+                batch_result.messageIds.len()
+            ));
+        }
+
+        tracing::debug!(
+            chunk_start,
+            chunk_end,
+            chunk_calls = chunk_calls.len(),
+            returned_message_ids = batch_result.messageIds.len(),
+            "Processed send_message multicall chunk result"
+        );
+
+        mapped.extend(
+            chunk_calls.iter().zip(batch_result.messageIds).map(
+                |((call_id, to, ..), message_id)| (*call_id, *to, MessageId::new(message_id.0)),
+            ),
+        );
+
+        tx_count = tx_count.saturating_add(1);
+        offset = chunk_end;
+    }
+
+    tracing::info!(
+        total_calls = calls.len(),
+        multicall_txs = tx_count,
+        "Completed send_message multicall batching"
+    );
+
+    Ok((mapped, tx_count))
+}
+
+type Call = (usize, CodeId, H256, Vec<u8>, u128, u128);
+
+/// Batch-create programs, send init messages, and top up executable balances via the multicall contract.
+/// Each call contains (call_id, code_id, salt, init_payload, init_value, top_up_value).
+/// Returns (call_id, program_id, message_id) for each created program.
+async fn create_program_batch_via_multicall(
+    api: &Ethereum,
+    multicall_address: Address,
+    calls: &[Call],
+) -> Result<(Vec<(usize, ActorId, MessageId)>, usize)> {
+    let multicall = BatchMulticall::new(multicall_address, api.provider());
+    let router_address = Address(FixedBytes(api.router().address().0));
+
+    if calls.is_empty() {
+        return Ok((Vec::new(), 0));
+    }
+
+    let mut mapped = Vec::with_capacity(calls.len());
+    let mut tx_count = 0usize;
+    let mut offset = 0usize;
+
+    while offset < calls.len() {
+        let chunk_start = offset;
+        let mut value_sum = 0_u128;
+        let mut chunk_end = offset;
+        let mut batched_calls = Vec::new();
+
+        while chunk_end < calls.len() {
+            let (_, code_id, salt, payload, value, top_up) = &calls[chunk_end];
+            let mut candidate_calls = batched_calls.clone();
+            candidate_calls.push(BatchMulticall::CreateProgramCall {
+                codeId: code_id.into_bytes().into(),
+                salt: salt.to_fixed_bytes().into(),
+                initPayload: payload.clone().into(),
+                initValue: *value,
+                topUpValue: *top_up,
+            });
+
+            let candidate_value_sum = value_sum.saturating_add(*value);
+            let candidate_calldata_len = multicall
+                .createProgramBatch(router_address, candidate_calls.clone())
+                .value(U256::from(candidate_value_sum));
+            let candidate_calldata_len = candidate_calldata_len.calldata().len();
+
+            tracing::trace!(
+                chunk_start,
+                candidate_end = chunk_end + 1,
+                candidate_calls = candidate_calls.len(),
+                candidate_calldata_len,
+                max_calldata_len = MAX_MULTICALL_CALLDATA_BYTES,
+                "Evaluated multicall create_program chunk candidate"
+            );
+
+            if candidate_calldata_len > MAX_MULTICALL_CALLDATA_BYTES {
+                if batched_calls.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "single create_program call exceeds calldata limit: {} > {} bytes",
+                        candidate_calldata_len,
+                        MAX_MULTICALL_CALLDATA_BYTES
+                    ));
+                }
+
+                tracing::debug!(
+                    chunk_start,
+                    split_before = chunk_end,
+                    accepted_calls = batched_calls.len(),
+                    candidate_calldata_len,
+                    max_calldata_len = MAX_MULTICALL_CALLDATA_BYTES,
+                    "Splitting create_program multicall due to calldata size limit"
+                );
+
+                break;
+            }
+
+            batched_calls = candidate_calls;
+            value_sum = candidate_value_sum;
+            chunk_end += 1;
+        }
+
+        tracing::debug!(
+            chunk_start,
+            chunk_end,
+            chunk_calls = batched_calls.len(),
+            chunk_value = value_sum,
+            "Submitting create_program multicall chunk"
+        );
+
+        let receipt = multicall
+            .createProgramBatch(router_address, batched_calls)
+            .value(U256::from(value_sum))
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        let mut program_ids = Vec::new();
+        let mut message_ids = Vec::new();
+
+        for log in receipt.inner.logs() {
+            if log.topic0() == Some(&ethexe_ethereum::router::events::signatures::PROGRAM_CREATED) {
+                let event = ethexe_ethereum::abi::IRouter::ProgramCreated::decode_raw_log(
+                    log.topics(),
+                    &log.data().data,
+                )?;
+                program_ids.push(ActorId::from(*event.actorId.into_word()));
+            } else if log.topic0()
+                == Some(&ethexe_ethereum::mirror::signatures::MESSAGE_QUEUEING_REQUESTED)
+            {
+                let event = IMirror::MessageQueueingRequested::decode_raw_log(
+                    log.topics(),
+                    &log.data().data,
+                )?;
+                message_ids.push((*event.id).into());
+            }
+        }
+
+        let chunk_calls = &calls[offset..chunk_end];
+        if program_ids.len() != chunk_calls.len() || message_ids.len() != chunk_calls.len() {
+            tracing::warn!(
+                chunk_start,
+                chunk_end,
+                expected = chunk_calls.len(),
+                programs = program_ids.len(),
+                messages = message_ids.len(),
+                "multicall create_program chunk produced fewer events than requested calls"
+            );
+        }
+
+        tracing::debug!(
+            chunk_start,
+            chunk_end,
+            chunk_calls = chunk_calls.len(),
+            returned_program_ids = program_ids.len(),
+            returned_message_ids = message_ids.len(),
+            "Processed create_program multicall chunk result"
+        );
+
+        mapped.extend(
+            chunk_calls
+                .iter()
+                .zip(program_ids.into_iter().zip(message_ids))
+                .map(|((call_id, ..), (pid, mid))| (*call_id, pid, mid)),
+        );
+
+        tx_count = tx_count.saturating_add(1);
+        offset = chunk_end;
+    }
+
+    tracing::info!(
+        total_calls = calls.len(),
+        multicall_txs = tx_count,
+        "Completed create_program multicall batching"
+    );
+
+    Ok((mapped, tx_count))
 }
 
 fn blocks_window(action_count: usize, blocks_per_action: usize, headroom_blocks: usize) -> usize {
@@ -786,12 +1124,27 @@ async fn parse_mirror_logs(
     Ok(block_stats)
 }
 
-/// Wait for the new events since provided `block_hash`.
+async fn recv_next_header<T: Clone>(rx: &mut Receiver<T>) -> Result<T> {
+    loop {
+        match rx.recv().await {
+            Ok(header) => return Ok(header),
+            Err(RecvError::Lagged(skipped)) => {
+                tracing::warn!(
+                    skipped,
+                    "Header subscription lagged; skipping stale headers and continuing"
+                );
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
+}
+
+/// Wait for the new events since provided `block_number`.
 async fn process_events(
     api: Ethereum,
     mut messages: BTreeMap<MessageId, (ActorId, usize)>,
-    mut rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
-    block_hash: FixedBytes<32>,
+    mut rx: Receiver<Header>,
+    block_number: u64,
     mid_map: MidMap,
     wait_for_event_blocks: usize,
 ) -> Result<Report> {
@@ -799,13 +1152,23 @@ async fn process_events(
     let mut exited_programs = BTreeSet::new();
     let initial_messages_len = messages.len();
     let mut stats = ProcessEventsStats {
-        start_search_window_blocks: 5,
+        start_search_window_blocks: 0,
         ..Default::default()
     };
 
     let results = {
-        let mut block = rx.recv().await?;
-
+        let mut block = recv_next_header(&mut rx).await?;
+        while block.number < block_number {
+            stats.start_search_window_blocks += 1;
+            block = recv_next_header(&mut rx).await?;
+        }
+        stats.start_block_found = true;
+        tracing::info!(
+            target_block = block_number,
+            observed_block = block.number,
+            "Start block reached after searching {} blocks",
+            stats.start_search_window_blocks
+        );
         let to: Address = api.provider().default_signer_address();
         let sent_message_ids: BTreeSet<MessageId> = messages.keys().copied().collect();
         let mut transition_outcomes: BTreeMap<MessageId, Option<String>> = BTreeMap::new();
@@ -868,7 +1231,7 @@ async fn process_events(
                 utils::capture_mailbox_messages(&api, &v, messages.keys().copied()).await?;
             mailbox_added.append(&mut mailbox_from_events);
 
-            block = rx.recv().await?;
+            block = recv_next_header(&mut rx).await?;
             current_bn = block.hash();
         }
 
@@ -944,7 +1307,7 @@ async fn process_events(
     let unresolved_count = messages.len();
     let unresolved_sample: Vec<MessageId> = messages.keys().copied().take(10).collect();
     tracing::info!(
-        start_block_target = ?block_hash,
+        start_block_target = block_number,
         wait_for_event_blocks,
         batch_messages_total = initial_messages_len,
         results_total = results.len(),

@@ -20,7 +20,7 @@ use crate::{
     DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest,
     db::InjectedStorageRW,
     events::BlockEvent,
-    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -29,11 +29,12 @@ use alloc::{
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
-#[derive(Debug, Clone, Copy, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
     pub height: u32,
@@ -70,7 +71,9 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, derive_more::Display, Copy, Clone, PartialEq, Eq, Encode, Decode, Default)]
+#[derive(
+    Debug, derive_more::Display, Copy, Clone, PartialEq, Eq, Encode, Decode, TypeInfo, Default,
+)]
 #[display("Block(hash: {hash}, height: {}, parent: {}, ts: {})", header.height, header.parent_hash, header.timestamp)]
 pub struct SimpleBlockData {
     pub hash: H256,
@@ -78,7 +81,7 @@ pub struct SimpleBlockData {
 }
 
 #[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Display)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, derive_more::Display)]
 #[display(
     "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})"
 )]
@@ -307,26 +310,17 @@ impl ToDigest for NetworkAnnounce {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComputedAnnounce {
-    pub announce_hash: HashOf<Announce>,
-    pub promises: Vec<Promise>,
+/// [`PromisePolicy`] tells processor whether should it emits promises or not.
+#[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Encode, Decode, derive_more::IsVariant)]
+pub enum PromisePolicy {
+    /// Emits promises in execution process.
+    Enabled,
+    // Do not emit promises in execution process.
+    #[default]
+    Disabled,
 }
 
-impl ComputedAnnounce {
-    pub fn from_announce_hash(announce_hash: HashOf<Announce>) -> Self {
-        Self {
-            announce_hash,
-            promises: Default::default(),
-        }
-    }
-
-    pub fn merge_promises(&mut self, other: ComputedAnnounce) {
-        self.promises.extend(other.promises);
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,
@@ -344,7 +338,7 @@ impl StateHashWithQueueSize {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct CodeBlobInfo {
     pub timestamp: u64,
     pub tx_hash: H256,
@@ -405,16 +399,18 @@ impl CodeAndId {
 ///
 /// TODO(kuzmindev): `ProtocolTimelines` can store more protocol parameters,
 /// for example `max_validators` in election.
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ProtocolTimelines {
-    // The genesis timestamp of the GearExe network.
+    // The genesis timestamp of the GearExe network in seconds.
     pub genesis_ts: u64,
     // The duration of an era in seconds.
     pub era: u64,
-    // The election duration in seconds before the end of an era when the next set of validators elected.
+    /// The election duration in seconds before the end of an era when the next set of validators elected.
     ///  (start of era)[ - - - - - - - - - - -  + - - - - ] (end of era)
     ///                                         ^ election
     pub election: u64,
+    /// The slot duration in seconds.
+    pub slot: u64,
 }
 
 impl ProtocolTimelines {
@@ -472,6 +468,7 @@ mod tests {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era
@@ -491,6 +488,7 @@ mod tests {
             genesis_ts: 100,
             era: 234,
             election: 200,
+            slot: 10,
         }
         .era_from_ts(50);
     }
@@ -501,6 +499,7 @@ mod tests {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era
@@ -518,10 +517,10 @@ mod tests {
             PrivateKey::random(),
             InjectedTransaction {
                 destination: ActorId::zero(),
-                payload: vec![id].into(),
+                payload: vec![id].try_into().unwrap(),
                 value: 0,
                 reference_block: H256::from_low_u64_be(id as u64),
-                salt: vec![id, id].into(),
+                salt: vec![id, id].try_into().unwrap(),
             },
         )
         .expect("signing transaction should succeed")
