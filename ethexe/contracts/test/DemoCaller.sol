@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.33;
 
-import {IDemoCallbacks} from "./IDemoCallbacks.sol";
 import {IMirror} from "src/IMirror.sol";
+import {IDemoCallbacks} from "test/IDemoCallbacks.sol";
 
 contract DemoCaller is IDemoCallbacks {
     IMirror public immutable VARA_ETH_PROGRAM;
