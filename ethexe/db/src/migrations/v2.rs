@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::v0;
-use crate::{InitConfig, RawDatabase, database::BlockSmallData};
+use crate::{InitConfig, RawDatabase, database::BlockSmallData, migrations::v0};
 use anyhow::{Context, Result};
 use ethexe_common::db::{BlockMeta, DBConfig};
 use gprimitives::H256;
@@ -27,7 +26,7 @@ pub const VERSION: u32 = 2;
 
 pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     // Changes from v1 to v2:
-    // - Block announces are moved from `BlockMeta` to `AnnounceStorage`.
+    // - Block announces are moved from `BlockMeta` to `BlockAnnounces` key.
 
     let block_small_data_prefix = H256::from_low_u64_be(0);
     let block_announces_prefix = H256::from_low_u64_be(13);
