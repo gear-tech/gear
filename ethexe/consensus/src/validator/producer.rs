@@ -85,8 +85,9 @@ impl StateHandler for Producer {
                     future: self
                         .ctx
                         .core
+                        .batch_manager
                         .clone()
-                        .aggregate_batch_commitment(self.block, announce_hash)
+                        .create_batch_commitment(self.block, announce_hash)
                         .boxed(),
                 };
 
@@ -139,7 +140,7 @@ impl StateHandler for Producer {
             State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
                 Poll::Ready(Ok(Some(batch))) => {
                     tracing::debug!(batch.block_hash = %batch.block_hash, "Batch commitment aggregated, switch to Coordinator");
-                    return Coordinator::create(self.ctx, self.validators, batch)
+                    return Coordinator::create(self.ctx, self.validators, batch, self.block)
                         .map(|s| (Poll::Ready(()), s));
                 }
                 Poll::Ready(Ok(None)) => {

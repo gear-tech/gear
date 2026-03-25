@@ -42,6 +42,7 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     validator::{
+        batch::{BatchCommitmentManager, BatchLimits},
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
         participant::Participant,
@@ -79,16 +80,16 @@ use std::{
     time::Duration,
 };
 
+mod batch;
 mod coordinator;
 mod core;
 mod initial;
+#[cfg(test)]
+mod mock;
 mod participant;
 mod producer;
 mod subordinate;
 mod tx_pool;
-
-#[cfg(test)]
-mod mock;
 
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
@@ -115,6 +116,8 @@ pub struct ValidatorConfig {
     pub router_address: Address,
     /// Threshold for producer to submit commitment despite of no transitions
     pub chain_deepness_threshold: u32,
+    /// The maximum size of abi encoded batch commitment.
+    pub batch_size_limit: u64,
 }
 
 impl ValidatorService {
@@ -135,6 +138,15 @@ impl ValidatorService {
         config: ValidatorConfig,
     ) -> Result<Self> {
         let timelines = db.config().timelines;
+        let limits = BatchLimits {
+            chain_deepness_threshold: config.chain_deepness_threshold,
+            commitment_delay_limit: config.commitment_delay_limit,
+            batch_size_limit: config.batch_size_limit,
+        };
+
+        let middleware = MiddlewareWrapper::from_inner(election_provider);
+        let batch_manager = BatchCommitmentManager::new(limits, db.clone(), middleware);
+
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
@@ -145,8 +157,9 @@ impl ValidatorService {
                 signer,
                 db: db.clone(),
                 committer: committer.into(),
-                middleware: MiddlewareWrapper::from_inner(election_provider),
+                batch_manager,
                 injected_pool: InjectedTxPool::new(db),
+                metrics: ValidatorMetrics::default(),
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
@@ -578,4 +591,11 @@ impl ValidatorContext {
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {
         self.pending_events.push_front(event.into());
     }
+}
+
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_consensus")]
+struct ValidatorMetrics {
+    /// The last block number validator signed batch commitment for.
+    pub last_signed_commitment_block_number: metrics::Gauge,
 }

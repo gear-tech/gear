@@ -5270,6 +5270,7 @@ dependencies = [
 name = "ethexe-consensus"
 version = "1.10.0"
 dependencies = [
+ "alloy",
  "anyhow",
  "async-trait",
  "derive_more 2.1.1",
@@ -5286,6 +5287,8 @@ dependencies = [
  "gsigner",
  "hashbrown 0.14.5",
  "lru 0.16.3",
+ "metrics",
+ "metrics-derive",
  "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",

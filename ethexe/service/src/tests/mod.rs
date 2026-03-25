@@ -36,7 +36,7 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -102,6 +102,7 @@ async fn basics() {
         pre_funded_accounts: 10,
         fast_sync: false,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+        batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
     };
 
     let eth_cfg = EthereumConfig {
