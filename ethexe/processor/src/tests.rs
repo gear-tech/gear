@@ -1297,6 +1297,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .await
         .unwrap();
 
+    // Promises still returns for panic injected txs.
     let panic_promise = promise_receiver
         .recv()
         .await
@@ -1309,6 +1310,7 @@ async fn executable_balance_injected_panic_not_charged() {
             SimpleExecutionError::UserspacePanic
         ))
     );
+    assert_eq!(panic_promise.reply.payload, b"\xE0\x80\x80");
 
     let to_users = handler.transitions.current_messages();
 
