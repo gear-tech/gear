@@ -107,15 +107,17 @@ impl Announce {
             .iter()
             .map(|tx| (tx.signature(), tx.data().to_hash()))
             .collect::<Vec<_>>();
-        let transactions_hash = transactions
+
+        // NOTE: we use here the fact that None is encoding similar to empty vector:
+        // None -> 0x00
+        // vec![] -> 0x00
+        let maybe_transactions_hash = transactions
             .is_empty()
             .not()
-            .then(|| utils::hash(&transactions.encode()))
-            .into_iter()
-            .collect::<Vec<_>>();
+            .then(|| utils::hash(&transactions.encode()));
 
-        let announce_copy = (&block_hash, &parent, &gas_allowance, transactions_hash);
-        unsafe { HashOf::new(H256(utils::hash(&announce_copy.encode()))) }
+        let announce_parts = (block_hash, parent, gas_allowance, maybe_transactions_hash);
+        unsafe { HashOf::new(H256(utils::hash(&announce_parts.encode()))) }
     }
 
     pub fn base(block_hash: H256, parent: HashOf<Self>) -> Self {
@@ -348,8 +350,23 @@ mod tests {
         assert_eq!(timelines.era_start_ts(1), 244);
     }
 
+    // The possible future announce structure
+    #[derive(Encode)]
+    struct AnnounceV2 {
+        block_hash: H256,
+        parent: H256,
+        gas_allowance: Option<u64>,
+        injected_txs_hash: Option<H256>,
+    }
+
+    impl AnnounceV2 {
+        fn to_hash(&self) -> H256 {
+            H256(utils::hash(&self.encode()))
+        }
+    }
+
     #[test]
-    fn test_announce_hash() {
+    fn test_announce_hash_no_injected() {
         let announce = Announce {
             block_hash: H256::random(),
             parent: unsafe { HashOf::new(H256::random()) },
@@ -365,6 +382,22 @@ mod tests {
             "Announce without injected transactions should have the same hash as its SCALE encoding"
         );
 
+        let announce_v2 = AnnounceV2 {
+            block_hash: announce.block_hash,
+            parent: announce.parent.inner(),
+            gas_allowance: announce.gas_allowance,
+            injected_txs_hash: None,
+        };
+        let hash3 = announce_v2.to_hash();
+        assert_eq!(
+            hash1.inner().0,
+            hash3.0,
+            "Announce without injected transactions should have the same hash as its possible future announce structure"
+        );
+    }
+
+    #[test]
+    fn test_announce_hash_with_injected() {
         let announce = Announce {
             block_hash: H256::random(),
             parent: unsafe { HashOf::new(H256::random()) },
@@ -392,33 +425,42 @@ mod tests {
         );
 
         // Just to be sure that hash is calculated from all fields of Announce
-        let hash3 = {
-            let Announce {
-                block_hash,
-                parent,
-                gas_allowance,
-                injected_transactions,
-            } = announce;
-            let txs_hashes = injected_transactions
-                .into_iter()
-                .map(|tx| {
-                    let (tx, signature) = tx.into_parts();
-                    (signature, tx.to_hash())
-                })
-                .collect::<Vec<_>>();
-            let txs_hash = txs_hashes
-                .is_empty()
-                .not()
-                .then(|| utils::hash(&txs_hashes.encode()))
-                .into_iter()
-                .collect::<Vec<_>>();
-            let announce_copy = (block_hash, parent, gas_allowance, txs_hash);
-            H256(utils::hash(&announce_copy.encode()))
-        };
+        let Announce {
+            block_hash,
+            parent,
+            gas_allowance,
+            injected_transactions,
+        } = announce.clone();
+        let txs_hashes = injected_transactions
+            .into_iter()
+            .map(|tx| {
+                let (tx, signature) = tx.into_parts();
+                (signature, tx.to_hash())
+            })
+            .collect::<Vec<_>>();
+        let maybe_txs_hash = txs_hashes
+            .is_empty()
+            .not()
+            .then(|| utils::hash(&txs_hashes.encode()));
+        let announce_parts = (block_hash, parent, gas_allowance, maybe_txs_hash);
+        let hash3 = H256(utils::hash(&announce_parts.encode()));
         assert_eq!(
             hash1.inner().0,
             hash3.0,
             "Announce hash should be calculated from all fields of Announce"
+        );
+
+        let announce_v2 = AnnounceV2 {
+            block_hash: announce.block_hash,
+            parent: announce.parent.inner(),
+            gas_allowance: announce.gas_allowance,
+            injected_txs_hash: maybe_txs_hash.map(H256),
+        };
+
+        assert_eq!(
+            hash1.inner().0,
+            announce_v2.to_hash().0,
+            "Announce hash should be consistent with the possible future announce structure"
         );
     }
 }
