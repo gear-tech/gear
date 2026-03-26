@@ -176,7 +176,7 @@ mod utils {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn ping_init() {
     init_logger();
 
@@ -313,7 +313,7 @@ fn handle_new_code_invalid() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn ping_pong() {
     init_logger();
 
@@ -387,7 +387,7 @@ async fn ping_pong() {
     assert_eq!(message.payload, b"PONG");
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn async_and_ping() {
     init_logger();
 
@@ -506,7 +506,7 @@ async fn async_and_ping() {
     assert_eq!(message.payload, wait_for_reply_to.into_bytes());
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn many_waits() {
     init_logger();
 
@@ -666,7 +666,7 @@ async fn many_waits() {
 }
 
 // Tests that when overlay execution is performed, it doesn't change the original state.
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn overlay_execution() {
     init_logger();
 
@@ -914,7 +914,7 @@ async fn overlay_execution() {
     assert_eq!(reply_info.payload, MessageId::zero().encode());
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn injected_ping_pong() {
     init_logger();
 
@@ -1022,7 +1022,7 @@ async fn injected_ping_pong() {
 }
 
 #[cfg(debug_assertions)] // FIXME: test fails in release mode
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn injected_prioritized_over_canonical() {
     const MSG_NUM: usize = 100;
 
@@ -1137,7 +1137,7 @@ async fn injected_prioritized_over_canonical() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn executable_balance_charged() {
     init_logger();
 
@@ -1216,7 +1216,7 @@ async fn executable_balance_charged() {
     assert!(exec_balance_after < exec_balance_before);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn executable_balance_injected_panic_not_charged() {
     // Testing special case when injected message causes panic in the program.
     // In this case executable balance should not be charged if gas burned during
@@ -1360,7 +1360,7 @@ async fn executable_balance_injected_panic_not_charged() {
     assert!(exec_balance_after < init_balance);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn insufficient_executable_balance_still_charged() {
     // Just enough balance to charge for instrumentation and instantiation but not enough to process the message.
     const INSUFFICIENT_EXECUTABLE_BALANCE: u128 = 30_000_000_000;
@@ -1424,7 +1424,7 @@ async fn insufficient_executable_balance_still_charged() {
     assert!(exec_balance_after < INSUFFICIENT_EXECUTABLE_BALANCE);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn call_gr_wait_is_forbidden() {
     init_logger();
 
@@ -1452,7 +1452,7 @@ async fn call_gr_wait_is_forbidden() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn call_wake_with_delay_is_unsupported() {
     init_logger();
 
@@ -1502,7 +1502,7 @@ async fn call_wake_with_delay_is_unsupported() {
     assert_eq!(reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn call_wait_up_to_with_huge_duration() {
     init_logger();
 
