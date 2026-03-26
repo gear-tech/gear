@@ -20,7 +20,7 @@
 
 pub use host::InstanceError;
 
-use crate::{host::InstanceWrapper, thread_pool::ThreadPool};
+use crate::thread_pool::ThreadPool;
 use core::num::NonZero;
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
@@ -41,7 +41,6 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
-use itertools::Either;
 use std::sync::LazyLock;
 use tokio::sync::mpsc;
 
@@ -52,22 +51,7 @@ mod host;
 mod tests;
 mod thread_pool;
 
-type ExecuteChunkInput = handling::run::chunk_execution_spawn::Executable;
-type ExecuteChunkOutput = Result<handling::run::chunk_execution_spawn::ChunkItemOutput>;
-type ProcessCodeInput = (InstanceWrapper, Vec<u8>);
-type ProcessCodeOutput = host::Result<Option<(InstrumentedCode, CodeMetadata)>>;
-type ThreadPoolInput = Either<ExecuteChunkInput, ProcessCodeInput>;
-type ThreadPoolOutput = Either<ExecuteChunkOutput, ProcessCodeOutput>;
-
-static THREAD_POOL: LazyLock<ThreadPool<ThreadPoolInput, ThreadPoolOutput>> = LazyLock::new(|| {
-    ThreadPool::new(|input: ThreadPoolInput| {
-        input
-            .map_left(|executable| {
-                handling::run::chunk_execution_spawn::execute_chunk_item(executable)
-            })
-            .map_right(|(instance, code)| Processor::instrument_code(instance, code))
-    })
-});
+static THREAD_POOL: LazyLock<ThreadPool> = LazyLock::new(ThreadPool::new);
 
 // Default amount of programs in one chunk to be processed in parallel.
 pub const DEFAULT_CHUNK_SIZE: NonZero<usize> = NonZero::new(16).unwrap();
@@ -158,13 +142,6 @@ impl Processor {
         OverlaidProcessor(self)
     }
 
-    fn instrument_code(
-        mut instance: InstanceWrapper,
-        code: Vec<u8>,
-    ) -> host::Result<Option<(InstrumentedCode, CodeMetadata)>> {
-        instance.instrument(code)
-    }
-
     pub async fn process_code(
         &mut self,
         code_and_id: CodeAndIdUnchecked,
@@ -180,11 +157,13 @@ impl Processor {
             });
         }
 
-        let instance = self.creator.instantiate()?;
         let res = THREAD_POOL
-            .spawn(Either::Right((instance, code.clone())))
-            .await
-            .unwrap_right()?;
+            .spawn({
+                let mut instance = self.creator.instantiate()?;
+                let code = code.clone();
+                move || instance.instrument(code)
+            })
+            .await?;
         let Some((instrumented_code, code_metadata)) = res else {
             return Ok(ProcessedCodeInfo {
                 code_id,
