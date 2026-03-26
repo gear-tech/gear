@@ -1311,12 +1311,9 @@ async fn executable_balance_injected_panic_not_charged() {
     );
 
     let to_users = handler.transitions.current_messages();
-    assert_eq!(to_users.len(), 2);
 
-    let message = &to_users[1].1;
-    assert_eq!(message.destination, user_id);
-    // Check that panic indeed happened
-    assert_eq!(&message.payload[..3], b"\xE0\x80\x80");
+    // Only one message to user, because injected message panic and do not charge gas.
+    assert_eq!(to_users.len(), 1);
 
     // Check that executable balance is unchanged
     let exec_balance_after = handler.program_state(actor_id).executable_balance;
@@ -1346,12 +1343,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .unwrap();
 
     let to_users = transitions.current_messages();
-    assert_eq!(to_users.len(), 3);
-
-    let message = &to_users[2].1;
-    assert_eq!(message.destination, user_id);
-    // Check that panic indeed happened
-    assert_eq!(&message.payload[..3], b"\xE0\x80\x80");
+    assert_eq!(to_users.len(), 2);
 
     // Check that executable balance decreased on canonical message
     let exec_balance_after = ProcessingHandler::new(processor.db.clone(), transitions)

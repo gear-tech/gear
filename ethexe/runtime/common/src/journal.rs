@@ -5,7 +5,10 @@ use crate::{
         Program, ProgramState, Storage,
     },
 };
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    vec::Vec,
+};
 use core::{mem, num::NonZero, panic};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
@@ -507,6 +510,10 @@ where
         let notes_count = journal.len();
         let mut skipped_notes = 0;
 
+        // The set of panic injected messages for which we do not charge executable balance.
+        // Dispatches for these messages will not be include into filtered journal notes.
+        let mut messages_to_skip = BTreeSet::new();
+
         let filtered: Vec<_> = journal
             .filter_map(|note| {
                 match note {
@@ -530,15 +537,19 @@ where
                         allocations_update.insert(program_id, allocations);
                     }
                     JournalNote::GasBurned {
-                        message_id: _,
+                        message_id,
                         amount,
                         is_panic,
                     } => {
                         self.gas_allowance_counter.charge(amount);
 
                         // Special case for panicked `Injected` messages with gas spent less than the threshold.
-                        if !is_panic || self.should_charge_exec_balance_on_panic(amount) {
-                            self.charge_exec_balance(amount);
+                        match (!is_panic, self.should_charge_exec_balance_on_panic(amount)) {
+                            (false, false) => {
+                                // Message panic and we do not charge exec balance - do not include to journal.
+                                messages_to_skip.insert(message_id);
+                            }
+                            _ => self.charge_exec_balance(amount),
                         }
                     }
                     note @ JournalNote::StopProcessing {
@@ -554,20 +565,28 @@ where
                     // * SendDispatch to self
                     // * SendValue to self
                     note => {
-                        if let JournalNote::SendDispatch { dispatch, .. } = &note {
-                            // TODO: #5227 delay must be taken into account
-                            self.limiter.outgoing_messages =
-                                self.limiter.outgoing_messages.saturating_sub(1);
-                            self.limiter.outgoing_messages_bytes =
-                                self.limiter.outgoing_messages_bytes.saturating_sub(
-                                    u32::try_from(dispatch.payload_bytes().len())
-                                        .expect("payload size is too big for u32"),
-                                );
-
-                            if dispatch.is_reply() && self.call_reply {
-                                self.limiter.call_replies =
-                                    self.limiter.call_replies.saturating_sub(1);
+                        match &note {
+                            JournalNote::SendDispatch { message_id, .. }
+                                if messages_to_skip.contains(message_id) =>
+                            {
+                                return None;
                             }
+                            JournalNote::SendDispatch { dispatch, .. } => {
+                                // TODO: #5227 delay must be taken into account
+                                self.limiter.outgoing_messages =
+                                    self.limiter.outgoing_messages.saturating_sub(1);
+                                self.limiter.outgoing_messages_bytes =
+                                    self.limiter.outgoing_messages_bytes.saturating_sub(
+                                        u32::try_from(dispatch.payload_bytes().len())
+                                            .expect("payload size is too big for u32"),
+                                    );
+
+                                if dispatch.is_reply() && self.call_reply {
+                                    self.limiter.call_replies =
+                                        self.limiter.call_replies.saturating_sub(1);
+                                }
+                            }
+                            _ => {}
                         }
 
                         skipped_notes += 1;
