@@ -24,6 +24,7 @@ use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
+use core::ops::Not;
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
@@ -102,12 +103,18 @@ impl Announce {
             injected_transactions,
         } = self;
 
-        let transitions_hashes = injected_transactions
+        let transactions = injected_transactions
             .iter()
             .map(|tx| (tx.signature(), tx.data().to_hash()))
             .collect::<Vec<_>>();
+        let transactions_hash = transactions
+            .is_empty()
+            .not()
+            .then(|| utils::hash(&transactions.encode()))
+            .into_iter()
+            .collect::<Vec<_>>();
 
-        let announce_copy = (&block_hash, &parent, &gas_allowance, transitions_hashes);
+        let announce_copy = (&block_hash, &parent, &gas_allowance, transactions_hash);
         unsafe { HashOf::new(H256(utils::hash(&announce_copy.encode()))) }
     }
 
@@ -286,13 +293,10 @@ pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
-
-    use gsigner::PrivateKey;
-
-    use crate::injected::InjectedTransaction;
-
     use super::*;
+    use crate::injected::InjectedTransaction;
+    use gsigner::PrivateKey;
+    use std::vec;
 
     #[test]
     fn test_era_from_ts_calculation() {
@@ -385,6 +389,36 @@ mod tests {
             hash1.inner().0,
             hash2,
             "Announce with injected transactions should have a different hash than its SCALE encoding, unfortunately ..."
+        );
+
+        // Just to be sure that hash is calculated from all fields of Announce
+        let hash3 = {
+            let Announce {
+                block_hash,
+                parent,
+                gas_allowance,
+                injected_transactions,
+            } = announce;
+            let txs_hashes = injected_transactions
+                .into_iter()
+                .map(|tx| {
+                    let (tx, signature) = tx.into_parts();
+                    (signature, tx.to_hash())
+                })
+                .collect::<Vec<_>>();
+            let txs_hash = txs_hashes
+                .is_empty()
+                .not()
+                .then(|| utils::hash(&txs_hashes.encode()))
+                .into_iter()
+                .collect::<Vec<_>>();
+            let announce_copy = (block_hash, parent, gas_allowance, txs_hash);
+            H256(utils::hash(&announce_copy.encode()))
+        };
+        assert_eq!(
+            hash1.inner().0,
+            hash3.0,
+            "Announce hash should be calculated from all fields of Announce"
         );
     }
 }
