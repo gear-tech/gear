@@ -14,7 +14,6 @@ use ethexe_ethereum::{
     abi::{IMirror, IRouter::commitBatchCall},
     mirror::events::try_extract_event,
 };
-use ethexe_sdk::VaraEthApi;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::{
@@ -48,10 +47,13 @@ use crate::{
 pub mod context;
 pub mod generator;
 pub mod report;
+pub mod rpc_pool;
+
+use rpc_pool::EthexeRpcPool;
 
 pub struct BatchPool<Rng: CallGenRng> {
     apis: Vec<Ethereum>,
-    eth_rpc_url: String,
+    rpc_pools: Vec<Option<EthexeRpcPool>>,
     pool_size: usize,
     batch_size: usize,
     send_message_multicall: Address,
@@ -92,12 +94,12 @@ const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 const INJECTED_TX_RATIO_NUM: u8 = 7;
 const INJECTED_TX_RATIO_DEN: u8 = 10;
 const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
+
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
     (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
 }
 
-/// Generate a fuzzed value for a message.
 fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
     // 60% zero value
     if rng.next_u32() % 10 < 6 {
@@ -130,22 +132,34 @@ pub struct Event {
 impl<Rng: CallGenRng> BatchPool<Rng> {
     pub fn new(
         apis: Vec<Ethereum>,
-        eth_rpc_url: String,
+        ethexe_rpc_urls: Vec<String>,
         pool_size: usize,
         batch_size: usize,
         send_message_multicall: Address,
         rx: Receiver<Header>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let rpc_pools = (0..pool_size)
+            .map(|worker_idx| {
+                let pool = EthexeRpcPool::new(ethexe_rpc_urls.clone())?;
+                tracing::info!(
+                    worker_idx,
+                    endpoints = pool.endpoint_count(),
+                    "Initialized dedicated ethexe RPC pool for worker"
+                );
+                Ok(Some(pool))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Self {
             apis,
-            eth_rpc_url,
+            rpc_pools,
             pool_size,
             batch_size,
             send_message_multicall,
             task_context: Context::new(),
             rx,
             _marker: PhantomData,
-        }
+        })
     }
 
     pub async fn run(mut self, params: LoadParams, _rx: Receiver<Header>) -> Result<()> {
@@ -166,6 +180,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         let mut batches = FuturesUnordered::new();
         let mid_map = MidMap::default();
         let seed = loader_seed.unwrap_or_else(gear_utils::now_millis);
+        let mut rpc_rng = SmallRng::seed_from_u64(seed ^ 0xA17E_7E11);
         tracing::info!(
             message = "Running task pool with params",
             seed,
@@ -180,11 +195,15 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         for worker_idx in 0..self.pool_size {
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
             let api = self.apis[worker_idx].clone();
-            let vapi = VaraEthApi::new(&self.eth_rpc_url, api.clone()).await?;
+            let rpc_pool = self.rpc_pools[worker_idx]
+                .take()
+                .expect("rpc pool must be present for worker");
+            let endpoint_idx = rpc_pool.random_endpoint_index(&mut rpc_rng);
             batches.push(run_batch_for_worker(
                 worker_idx,
                 api,
-                vapi,
+                rpc_pool,
+                endpoint_idx,
                 batch_with_seed,
                 self.send_message_multicall,
                 self.rx.resubscribe(),
@@ -192,16 +211,30 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             ));
         }
 
-        while let Some((worker_idx, report)) = batches.next().await {
-            self.process_run_report(report?);
+        while let Some((worker_idx, rpc_pool, report)) = batches.next().await {
+            self.rpc_pools[worker_idx] = Some(rpc_pool);
+            match report {
+                Ok(report) => self.process_run_report(report),
+                Err(err) => {
+                    tracing::error!(
+                        worker_idx,
+                        error = %err,
+                        "Batch failed, scheduling next batch for worker"
+                    );
+                }
+            }
 
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
             let api = self.apis[worker_idx].clone();
-            let vapi = VaraEthApi::new(&self.eth_rpc_url, api.clone()).await?;
+            let rpc_pool = self.rpc_pools[worker_idx]
+                .take()
+                .expect("rpc pool must be present for worker");
+            let endpoint_idx = rpc_pool.random_endpoint_index(&mut rpc_rng);
             batches.push(run_batch_for_worker(
                 worker_idx,
                 api,
-                vapi,
+                rpc_pool,
+                endpoint_idx,
                 batch_with_seed,
                 self.send_message_multicall,
                 self.rx.resubscribe(),
@@ -219,18 +252,20 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
 async fn run_batch(
     api: Ethereum,
-    vapi: VaraEthApi,
+    mut rpc_pool: EthexeRpcPool,
+    endpoint_idx: usize,
     batch: BatchWithSeed,
     send_message_multicall: Address,
     rx: Receiver<Header>,
     mid_map: MidMap,
-) -> Result<BatchRunReport> {
+) -> (EthexeRpcPool, Result<BatchRunReport>) {
     let (seed, batch) = batch.into();
     let mut rng = SmallRng::seed_from_u64(seed);
 
-    match run_batch_impl(
+    let result = match run_batch_impl(
         api,
-        vapi,
+        &mut rpc_pool,
+        endpoint_idx,
         batch,
         send_message_multicall,
         rx,
@@ -244,28 +279,45 @@ async fn run_batch(
             tracing::warn!("Batch failed: {err:?}");
             Err(err)
         }
-    }
+    };
+    (rpc_pool, result)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_batch_for_worker(
     worker_idx: usize,
     api: Ethereum,
-    vapi: VaraEthApi,
+    rpc_pool: EthexeRpcPool,
+    endpoint_idx: usize,
     batch: BatchWithSeed,
     send_message_multicall: Address,
     rx: Receiver<Header>,
     mid_map: MidMap,
-) -> (usize, Result<BatchRunReport>) {
-    (
+) -> (usize, EthexeRpcPool, Result<BatchRunReport>) {
+    tracing::debug!(
         worker_idx,
-        run_batch(api, vapi, batch, send_message_multicall, rx, mid_map).await,
+        endpoint_idx,
+        "Running batch on pooled ethexe RPC endpoint"
+    );
+    let (rpc_pool, result) = run_batch(
+        api,
+        rpc_pool,
+        endpoint_idx,
+        batch,
+        send_message_multicall,
+        rx,
+        mid_map,
     )
+    .await;
+    (worker_idx, rpc_pool, result)
 }
 
 #[instrument(skip_all)]
+#[allow(clippy::too_many_arguments)]
 async fn run_batch_impl(
     api: Ethereum,
-    vapi: VaraEthApi,
+    rpc_pool: &mut EthexeRpcPool,
+    endpoint_idx: usize,
     batch: Batch,
     send_message_multicall: Address,
     rx: Receiver<Header>,
@@ -284,10 +336,14 @@ async fn run_batch_impl(
                     expected_code_id,
                     arg.0.0.len()
                 );
-                let (_, code_id) = vapi.router().request_code_validation(&arg.0.0).await?;
+                let code_id = rpc_pool
+                    .request_code_validation(endpoint_idx, &api, &arg.0.0)
+                    .await?;
                 tracing::debug!("Code {code_id} upload requested");
                 assert_eq!(code_id, CodeId::generate(&arg.0.0));
-                vapi.router().wait_for_code_validation(code_id).await?;
+                rpc_pool
+                    .wait_for_code_validation(endpoint_idx, &api, code_id)
+                    .await?;
                 tracing::debug!("Code {code_id} uploaded and validated");
                 code_ids.push(code_id);
             }
@@ -326,7 +382,7 @@ async fn run_batch_impl(
                 );
             }
 
-            let wait_for_event_blocks = blocks_window(tx_count, 1, 0);
+            let wait_for_event_blocks = blocks_window(tx_count, 2, 6);
             process_events(
                 api,
                 messages,
@@ -346,10 +402,14 @@ async fn run_batch_impl(
             for arg in args.iter() {
                 let expected_code_id = CodeId::generate(&arg.0);
                 tracing::debug!("Uploading code {expected_code_id} (len = {})", arg.0.len());
-                let (_, code_id) = vapi.router().request_code_validation(&arg.0).await?;
+                let code_id = rpc_pool
+                    .request_code_validation(endpoint_idx, &api, &arg.0)
+                    .await?;
                 tracing::debug!("Code {code_id} upload requested");
                 assert_eq!(code_id, CodeId::generate(&arg.0));
-                vapi.router().wait_for_code_validation(code_id).await?;
+                rpc_pool
+                    .wait_for_code_validation(endpoint_idx, &api, code_id)
+                    .await?;
                 tracing::debug!("Code {code_id} uploaded and validated");
                 code_ids.push(code_id);
             }
@@ -381,8 +441,9 @@ async fn run_batch_impl(
                     tracing::debug!(
                         "[Call with id {i}]: Sending injected message to {to} with value=0"
                     );
-                    let mirror = vapi.mirror(to);
-                    let message_id = mirror.send_message_injected(&arg.0.1, 0).await?;
+                    let message_id = rpc_pool
+                        .send_message_injected(endpoint_idx, &api, to, &arg.0.1, 0)
+                        .await?;
                     messages.insert(message_id, (to, i));
                     mid_map.write().await.insert(message_id, to);
                     injected_tx_count = injected_tx_count.saturating_add(1);
@@ -409,7 +470,7 @@ async fn run_batch_impl(
             }
 
             let dispatched_txs = injected_tx_count.saturating_add(multicall_tx_count);
-            let wait_for_event_blocks = blocks_window(dispatched_txs, 1, 0);
+            let wait_for_event_blocks = blocks_window(dispatched_txs, 1, 6);
             process_events(
                 api,
                 messages,
@@ -474,7 +535,7 @@ async fn run_batch_impl(
             }
 
             let blocks_per_action = 1;
-            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 4);
+            let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 6);
             process_events(
                 api,
                 messages,
@@ -527,7 +588,7 @@ async fn run_batch_impl(
                 );
             }
 
-            let wait_for_event_blocks = blocks_window(tx_count, 1, 0);
+            let wait_for_event_blocks = blocks_window(tx_count, 1, 6);
             process_events(
                 api,
                 messages,
