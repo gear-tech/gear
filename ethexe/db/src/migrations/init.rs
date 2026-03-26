@@ -78,6 +78,19 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
 
                 migration.migrate(&config, &db).await?;
 
+                let version_after_migration = db
+                    .kv
+                    .version()
+                    .map(|v| v.context("Config not found after migration"))
+                    .flatten()
+                    .context("Cannot retrieve database version after migration")?;
+                ensure!(
+                    version_after_migration == from_version + 1,
+                    "Expected database version {}, but found {}",
+                    from_version + 1,
+                    version_after_migration
+                );
+
                 log::info!(
                     "Migration from version {} to version {} completed",
                     from_version,

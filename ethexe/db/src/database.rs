@@ -48,6 +48,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use std::{
     collections::BTreeSet,
     mem::size_of,
@@ -802,7 +803,7 @@ impl HashStorageRO for Database {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub(crate) struct BlockSmallData {
     pub(crate) block_header: Option<BlockHeader>,
     pub(crate) block_is_synced: bool,

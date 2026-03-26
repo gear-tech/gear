@@ -104,7 +104,7 @@ impl Announce {
 
         let transitions_hashes = injected_transactions
             .iter()
-            .map(|tx| utils::hash(&tx.encode()))
+            .map(|tx| (tx.signature(), tx.data().to_hash()))
             .collect::<Vec<_>>();
 
         let announce_copy = (&block_hash, &parent, &gas_allowance, transitions_hashes);

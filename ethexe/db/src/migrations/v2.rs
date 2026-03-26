@@ -17,31 +17,42 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::InitConfig;
-use crate::{RawDatabase, database::BlockSmallData, migrations::v1};
-use anyhow::{Context as _, Result, anyhow, ensure};
-use ethexe_common::{
-    Announce,
-    db::{AnnounceStorageRW, DBConfig},
-};
+use anyhow::{Context as _, Result, ensure};
 use gprimitives::H256;
 use parity_scale_codec::Decode;
 
+// Critical usages for migration
+#[allow(unused_imports)]
+use crate::KVDatabase;
+use crate::{RawDatabase, database::BlockSmallData};
+use ethexe_common::{
+    Announce, HashOf,
+    db::{AnnounceStorageRW, DBConfig, DBGlobals},
+};
+
 pub const VERSION: u32 = 2;
 
+const _: () = const {
+    assert!(
+        crate::VERSION == VERSION,
+        "Check migration code for types changing in case of version change: DBConfig, DBGlobals, Announce, BlockSmallData. \
+         Also check AnnounceStorageRW, KVDatabase, dyn KVDatabase implementations"
+    );
+};
+
 pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
-    // Changes from version 1 to version 2:
-    // Copy announces data to KV
+    // Changes from version 1 to version 2: copying announces data to KV
 
     log::info!("Migration investigation pass started: not modifying any data in database");
 
-    let config = db.kv.config().context("Cannot find db config")?;
-
-    ensure!(
-        config.version == v1::VERSION,
-        "Expected database version {}, but found {}",
-        v1::VERSION,
-        config.version
-    );
+    let cas_copy = db.cas.clone_boxed();
+    let get_announce_from_cas = move |announce_hash: HashOf<Announce>| {
+        cas_copy
+            .read(announce_hash.inner())
+            .context("cannot find data for announce in CAS")
+            .map(|data| Announce::decode(&mut data.as_slice()).context("failed to decode announce"))
+            .flatten()
+    };
 
     const BLOCK_SMALL_DATA_PREFIX: u64 = 0x00;
     let mut announces_to_copy = Vec::new();
@@ -55,33 +66,52 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 
         let block_hash = H256::from_slice(&k[std::mem::size_of::<H256>()..]);
 
-        let Some(BlockSmallData { meta, .. }) = BlockSmallData::decode(&mut v.as_slice()).ok()
-        else {
-            continue;
-        };
+        let BlockSmallData { meta, .. } = BlockSmallData::decode(&mut v.as_slice())
+            .context("failed to decode BlockSmallData during migration")?;
 
         log::trace!("Investigating block {block_hash:?} with meta {meta:?}");
 
-        let Some(announces) = meta.announces else {
-            continue;
-        };
-
-        for announce_hash in announces {
-            let data = db
-                .cas
-                .read(announce_hash.inner())
-                .ok_or_else(|| anyhow!("found a block with missed announce in set"))?;
-            let announce = Announce::decode(&mut data.as_slice())
-                .context("failed to decode announce during migration")?;
+        for announce_hash in meta.announces.into_iter().flatten() {
+            let announce = get_announce_from_cas(announce_hash)
+                .context(format!("cannot get announce by {announce_hash:?}"))?;
 
             ensure!(
                 announce.block_hash == block_hash,
                 "announce block hash doesn't match block hash in meta during migration"
             );
 
+            ensure!(
+                announce.to_hash() == announce_hash,
+                "announce hash changes is unsupported in this migration"
+            );
+
             announces_to_copy.push(announce);
         }
     }
+
+    let config = db.kv.config().context("Cannot find db config")?;
+    let globals: DBGlobals = db.kv.globals().context("Cannot find db globals")?;
+
+    // Check that announce hashes in config and globals are correct, to be sure that we won't break anything by copying announces
+    let genesis_announce_hash = get_announce_from_cas(config.genesis_announce_hash)
+        .context("Cannot find genesis announce in CAS")?;
+    let start_announce_hash = get_announce_from_cas(globals.start_announce_hash)
+        .context("Cannot find start announce in CAS")?;
+    let latest_computed_announce_hash =
+        get_announce_from_cas(globals.latest_computed_announce_hash)
+            .context("Cannot find latest computed announce in CAS")?;
+    ensure!(
+        genesis_announce_hash.to_hash() == config.genesis_announce_hash,
+        "Unsupported: genesis announce hash changed"
+    );
+    ensure!(
+        start_announce_hash.to_hash() == globals.start_announce_hash,
+        "Unsupported: start announce hash changed"
+    );
+    ensure!(
+        latest_computed_announce_hash.to_hash() == globals.latest_computed_announce_hash,
+        "Unsupported: latest computed announce hash changed"
+    );
 
     log::info!(
         "Migration investigation pass finished: found {} announces to copy, starting copy process",
@@ -98,4 +128,25 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::migrations::test::assert_migration_types_hash;
+    use scale_info::meta_type;
+
+    #[test]
+    fn ensure_migration_types() {
+        assert_migration_types_hash(
+            "v1->v2",
+            vec![
+                meta_type::<DBConfig>(),
+                meta_type::<DBGlobals>(),
+                meta_type::<Announce>(),
+                meta_type::<BlockSmallData>(),
+            ],
+            "81abd3c542f8e52406a3f590c9baffdbd9bd6f983ca1410f536c3967544f069e",
+        );
+    }
 }
