@@ -72,7 +72,7 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 
         for announce_hash in meta.announces.into_iter().flatten() {
             let announce = get_announce_from_cas(announce_hash)
-                .context(format!("cannot get announce by {announce_hash:?}"))?;
+                .with_context(|| format!("cannot get announce by {announce_hash:?}"))?;
 
             ensure!(
                 announce.block_hash == block_hash,
