@@ -6,6 +6,12 @@ rsync -av gear-cli-and-runtime-release/ target/release/
 chmod +x target/release/gear
 ''']
 
+[scripts.setup.set-envs]
+command = ["bash", "-c", '''
+echo "CARGO_BUILD_JOBS=1" >> $NEXTEST_ENV
+echo "RAYON_NUM_THREADS=1" >> $NEXTEST_ENV
+''']
+
 [profile.default]
 leak-timeout = { period = "5s", result = "fail" }
 slow-timeout = { period = "1m", terminate-after = 5 }
@@ -14,6 +20,10 @@ slow-timeout = { period = "1m", terminate-after = 5 }
 path = "junit.xml"
 store-success-output = false
 store-failure-output = true
+
+[[profile.default.scripts]]
+filter = 'all()'
+setup = "set-envs"
 
 [profile.ci]
 fail-fast = false
