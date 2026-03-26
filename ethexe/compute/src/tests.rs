@@ -79,7 +79,7 @@ impl ProcessorExt for MockProcessor {
         Ok(self.process_programs_result.take().unwrap_or_default())
     }
 
-    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+    async fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
         Ok(self
             .process_codes_result
             .take()

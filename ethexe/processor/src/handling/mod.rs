@@ -23,7 +23,6 @@ use gprimitives::ActorId;
 pub(crate) mod events;
 pub(crate) mod overlaid;
 pub(crate) mod run;
-mod thread_pool;
 
 /// A high-level interface for executing ops,
 /// which mutate states based on the current block request events.

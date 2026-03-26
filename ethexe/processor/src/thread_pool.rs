@@ -20,7 +20,7 @@
 //! and `threadpool` is not smart enough.
 
 use futures::prelude::*;
-use std::{num::NonZero, panic::AssertUnwindSafe, thread};
+use std::{env, num::NonZero, panic::AssertUnwindSafe, thread};
 
 type Task<I, O> = (I, tokio::sync::oneshot::Sender<thread::Result<O>>);
 
@@ -41,7 +41,11 @@ where
     where
         F: FnMut(I) -> O + Send + Clone + 'static,
     {
-        let n_cpus = thread::available_parallelism().map_or(1, NonZero::get);
+        let n_cpus = env::var("ETHEXE_PROCESSOR_NUM_THREADS")
+            .ok()
+            .and_then(|num| num.parse().ok())
+            .or_else(|| thread::available_parallelism().ok())
+            .map_or(1, NonZero::get);
 
         let (task_tx, task_rx) = crossbeam::channel::unbounded::<Task<I, O>>();
 

@@ -570,11 +570,57 @@ pub(super) mod chunks_splitting {
     }
 }
 
-mod chunk_execution_spawn {
+pub(crate) mod chunk_execution_spawn {
     use super::*;
-    use crate::{handling::thread_pool::ThreadPool, host::InstanceWrapper};
+    use crate::{THREAD_POOL, host::InstanceWrapper};
     use ethexe_runtime_common::ProcessQueueContext;
-    use std::sync::LazyLock;
+    use itertools::Either;
+
+    pub struct Executable {
+        queue_type: MessageType,
+        block_info: BlockInfo,
+        promise_policy: PromisePolicy,
+        program_id: ActorId,
+        state_hash: H256,
+        instrumented_code: InstrumentedCode,
+        code_metadata: CodeMetadata,
+        executor: InstanceWrapper,
+        db: Box<dyn CASDatabase>,
+        gas_allowance_for_chunk: u64,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+    }
+
+    pub fn execute_chunk_item(executable: Executable) -> Result<ChunkItemOutput> {
+        let Executable {
+            queue_type,
+            block_info,
+            promise_policy,
+            program_id,
+            state_hash,
+            instrumented_code,
+            code_metadata,
+            mut executor,
+            db,
+            gas_allowance_for_chunk,
+            promise_out_tx,
+        } = executable;
+
+        let (jn, new_state_hash, gas_spent) = executor.run(
+            db,
+            ProcessQueueContext {
+                program_id,
+                state_root: state_hash,
+                queue_type,
+                instrumented_code,
+                code_metadata,
+                gas_allowance: GasAllowanceCounter::new(gas_allowance_for_chunk),
+                block_info,
+                promise_policy,
+            },
+            promise_out_tx,
+        )?;
+        Ok((program_id, new_state_hash, jn, gas_spent))
+    }
 
     /// An alias introduced for better readability of the chunks execution steps.
     pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
@@ -585,60 +631,11 @@ mod chunk_execution_spawn {
     /// It means that in the same time unit (!) all programs simultaneously charge gas allowance. If programs were to be
     /// executed concurrently, then each of the program should have received a reference to the global gas allowance counter
     /// and charge gas from it concurrently.
-    pub async fn spawn_chunk_execution(
+    pub(super) async fn spawn_chunk_execution(
         ctx: &mut impl RunContext,
         chunk: Vec<(ActorId, H256)>,
         queue_type: MessageType,
     ) -> Result<Vec<ChunkItemOutput>> {
-        struct Executable {
-            queue_type: MessageType,
-            block_info: BlockInfo,
-            promise_policy: PromisePolicy,
-            program_id: ActorId,
-            state_hash: H256,
-            instrumented_code: InstrumentedCode,
-            code_metadata: CodeMetadata,
-            executor: InstanceWrapper,
-            db: Box<dyn CASDatabase>,
-            gas_allowance_for_chunk: u64,
-            promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-        }
-
-        fn execute_chunk_item(executable: Executable) -> Result<ChunkItemOutput> {
-            let Executable {
-                queue_type,
-                block_info,
-                promise_policy,
-                program_id,
-                state_hash,
-                instrumented_code,
-                code_metadata,
-                mut executor,
-                db,
-                gas_allowance_for_chunk,
-                promise_out_tx,
-            } = executable;
-
-            let (jn, new_state_hash, gas_spent) = executor.run(
-                db,
-                ProcessQueueContext {
-                    program_id,
-                    state_root: state_hash,
-                    queue_type,
-                    instrumented_code,
-                    code_metadata,
-                    gas_allowance: GasAllowanceCounter::new(gas_allowance_for_chunk),
-                    block_info,
-                    promise_policy,
-                },
-                promise_out_tx,
-            )?;
-            Ok((program_id, new_state_hash, jn, gas_spent))
-        }
-
-        static THREAD_POOL: LazyLock<ThreadPool<Executable, Result<ChunkItemOutput>>> =
-            LazyLock::new(|| ThreadPool::new(execute_chunk_item));
-
         let gas_allowance_for_chunk = ctx
             .inner()
             .gas_allowance_counter
@@ -660,7 +657,7 @@ mod chunk_execution_spawn {
 
                 let executor = ctx.inner().instance_creator.instantiate()?;
 
-                Ok(Executable {
+                Ok(Either::Left(Executable {
                     queue_type,
                     block_info,
                     promise_policy,
@@ -672,11 +669,15 @@ mod chunk_execution_spawn {
                     db: ctx.inner().db.cas().clone_boxed(),
                     gas_allowance_for_chunk,
                     promise_out_tx: ctx.inner().promise_out_tx.clone(),
-                })
+                }))
             })
             .collect::<Result<Vec<_>>>()?;
 
-        THREAD_POOL.spawn_many(executables).try_collect().await
+        THREAD_POOL
+            .spawn_many(executables)
+            .map(|output| output.unwrap_left())
+            .try_collect()
+            .await
     }
 }
 
