@@ -27,8 +27,13 @@ pub struct LoadParams {
     /// Ethexe node
     #[arg(long, default_value = "ws://localhost:8545")]
     pub node: String,
-    #[arg(long, default_value = "ws://localhost:9944")]
-    pub ethexe_node: String,
+    #[arg(
+        long = "ethexe-node",
+        value_delimiter = ',',
+        num_args = 1..,
+        default_value = "ws://localhost:9944"
+    )]
+    pub ethexe_nodes: Vec<String>,
 
     /// Router address to send messages into.
     #[arg(long, default_value = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9")]
@@ -47,7 +52,7 @@ pub struct LoadParams {
     pub loader_seed: Option<u64>,
     #[arg(long)]
     pub code_seed_type: Option<SeedVariant>,
-    /// Desirable amount of workers in task pool (max 48).
+    /// Desirable amount of workers in task pool, bounded by available prebuilt Anvil accounts.
     #[arg(long, short, default_value = "1")]
     pub workers: usize,
     #[arg(long, short, default_value = "1")]
