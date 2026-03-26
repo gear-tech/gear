@@ -81,8 +81,7 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
                 let version_after_migration = db
                     .kv
                     .version()
-                    .map(|v| v.context("Config not found after migration"))
-                    .flatten()
+                    .and_then(|v| v.context("Config not found"))
                     .context("Cannot retrieve database version after migration")?;
                 ensure!(
                     version_after_migration == from_version + 1,

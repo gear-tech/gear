@@ -49,9 +49,8 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     let get_announce_from_cas = move |announce_hash: HashOf<Announce>| {
         cas_copy
             .read(announce_hash.inner())
-            .context("cannot find data for announce in CAS")
-            .map(|data| Announce::decode(&mut data.as_slice()).context("failed to decode announce"))
-            .flatten()
+            .and_then(|data| Announce::decode(&mut data.as_slice()).ok())
+            .context("cannot get announce from CAS")
     };
 
     const BLOCK_SMALL_DATA_PREFIX: u64 = 0x00;
