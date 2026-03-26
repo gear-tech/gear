@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #[cfg(feature = "client")]
-pub use crate::apis::{BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient};
+pub use crate::apis::{
+    AnnounceClient, BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient,
+};
 
 use anyhow::Result;
 use apis::{

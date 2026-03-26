@@ -78,7 +78,7 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-#[cfg_attr(feature = "serde", derive(Hash, serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(Hash, serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, derive_more::Display)]
 #[display(
     "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})"
@@ -140,7 +140,7 @@ pub enum PromisePolicy {
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,
     pub canonical_queue_size: u8,
