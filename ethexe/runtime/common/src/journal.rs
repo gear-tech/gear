@@ -544,8 +544,8 @@ where
                         self.gas_allowance_counter.charge(amount);
 
                         // Special case for panicked `Injected` messages with gas spent less than the threshold.
-                        match (!is_panic, self.should_charge_exec_balance_on_panic(amount)) {
-                            (false, false) => {
+                        match (is_panic, self.should_charge_exec_balance_on_panic(amount)) {
+                            (true, false) => {
                                 // Message panic and we do not charge exec balance - do not include to journal.
                                 messages_to_skip.insert(message_id);
                             }
