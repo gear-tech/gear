@@ -36,25 +36,7 @@ path = "junit.xml"
 store-success-output = false
 store-failure-output = true
 
-# sdk
-[[profile.ci.overrides]]
-filter = 'package(gsdk) or package(gcli)'
-retries = 5
-
 [[profile.ci.scripts]]
 filter = 'package(gsdk) or package(gcli)'
 platform = "cfg(unix)"
 setup = "replace-node-and-runtime"
-
-# sometimes fails on CI machine in debug profile
-# due to an inconsistent machine load and unoptimized code
-[[profile.ci.overrides]]
-filter = 'package(gear-authorship)'
-retries = 5
-threads-required = 4
-
-# ethexe
-[[profile.ci.overrides]]
-filter = 'package(ethexe-service) or package(ethexe-observer)'
-retries = 5
-threads-required = 4
