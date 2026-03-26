@@ -572,55 +572,9 @@ pub(super) mod chunks_splitting {
 
 pub(crate) mod chunk_execution_spawn {
     use super::*;
-    use crate::{THREAD_POOL, host::InstanceWrapper};
+    use crate::THREAD_POOL;
     use ethexe_runtime_common::ProcessQueueContext;
-    use itertools::Either;
-
-    pub struct Executable {
-        queue_type: MessageType,
-        block_info: BlockInfo,
-        promise_policy: PromisePolicy,
-        program_id: ActorId,
-        state_hash: H256,
-        instrumented_code: InstrumentedCode,
-        code_metadata: CodeMetadata,
-        executor: InstanceWrapper,
-        db: Box<dyn CASDatabase>,
-        gas_allowance_for_chunk: u64,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-    }
-
-    pub fn execute_chunk_item(executable: Executable) -> Result<ChunkItemOutput> {
-        let Executable {
-            queue_type,
-            block_info,
-            promise_policy,
-            program_id,
-            state_hash,
-            instrumented_code,
-            code_metadata,
-            mut executor,
-            db,
-            gas_allowance_for_chunk,
-            promise_out_tx,
-        } = executable;
-
-        let (jn, new_state_hash, gas_spent) = executor.run(
-            db,
-            ProcessQueueContext {
-                program_id,
-                state_root: state_hash,
-                queue_type,
-                instrumented_code,
-                code_metadata,
-                gas_allowance: GasAllowanceCounter::new(gas_allowance_for_chunk),
-                block_info,
-                promise_policy,
-            },
-            promise_out_tx,
-        )?;
-        Ok((program_id, new_state_hash, jn, gas_spent))
-    }
+    use futures::stream::FuturesOrdered;
 
     /// An alias introduced for better readability of the chunks execution steps.
     pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
@@ -650,32 +604,32 @@ pub(crate) mod chunk_execution_spawn {
             timestamp: block_header.timestamp,
         };
 
-        let executables = chunk
+        chunk
             .into_iter()
             .map(|(program_id, state_hash)| {
                 let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
-
-                let executor = ctx.inner().instance_creator.instantiate()?;
-
-                Ok(Either::Left(Executable {
-                    queue_type,
-                    block_info,
-                    promise_policy,
-                    program_id,
-                    state_hash,
-                    instrumented_code,
-                    code_metadata,
-                    executor,
-                    db: ctx.inner().db.cas().clone_boxed(),
-                    gas_allowance_for_chunk,
-                    promise_out_tx: ctx.inner().promise_out_tx.clone(),
+                let mut executor = ctx.inner().instance_creator.instantiate()?;
+                let db = ctx.inner().db.cas().clone_boxed();
+                let promise_out_tx = ctx.inner().promise_out_tx.clone();
+                Ok(THREAD_POOL.spawn(move || {
+                    let (jn, new_state_hash, gas_spent) = executor.run(
+                        db,
+                        ProcessQueueContext {
+                            program_id,
+                            state_root: state_hash,
+                            queue_type,
+                            instrumented_code,
+                            code_metadata,
+                            gas_allowance: GasAllowanceCounter::new(gas_allowance_for_chunk),
+                            block_info,
+                            promise_policy,
+                        },
+                        promise_out_tx,
+                    )?;
+                    Ok((program_id, new_state_hash, jn, gas_spent))
                 }))
             })
-            .collect::<Result<Vec<_>>>()?;
-
-        THREAD_POOL
-            .spawn_many(executables)
-            .map(|output| output.unwrap_left())
+            .collect::<Result<FuturesOrdered<_>>>()?
             .try_collect()
             .await
     }
