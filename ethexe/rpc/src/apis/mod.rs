@@ -16,17 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod announce;
 mod block;
 mod code;
 mod injected;
 mod program;
 
+pub use announce::{AnnounceApi, AnnounceServer};
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
 pub use injected::{InjectedApi, InjectedServer};
-pub use program::{FullProgramState, ProgramApi, ProgramServer};
+pub use program::{ProgramApi, ProgramServer};
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient,
+    announce::AnnounceClient, block::BlockClient, code::CodeClient, injected::InjectedClient,
+    program::ProgramClient,
 };
