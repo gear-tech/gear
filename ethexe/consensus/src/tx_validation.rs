@@ -32,7 +32,7 @@ use hashbrown::HashSet;
 pub const MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES: u128 =
     INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD as u128 * 100 * 2;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::IsVariant)]
 pub enum TxValidity {
     /// Transaction is valid and can be include into announce.
     Valid,
