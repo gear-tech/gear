@@ -20,11 +20,17 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Announce, HashOf, ProgramStates, SimpleBlockData,
     db::{AnnounceStorageRO, GlobalsStorageRO, OnChainStorageRO},
+    gear::INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
     injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
 };
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use hashbrown::HashSet;
+
+/// Minimum executable balance for a program to receive injected transactions.
+/// 100 - is value per gas
+pub const MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES: u128 =
+    INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD as u128 * 100 * 2;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TxValidity {
@@ -44,6 +50,8 @@ pub enum TxValidity {
     // TODO: #5083 support non zero value transactions.
     /// Transaction with non zero value is not supported for now.
     NonZeroValue,
+    /// Transaction's destination contract has insufficient balance for injected messages.
+    InsufficientBalanceForInjectedMessages,
 }
 
 pub struct TxValidityChecker<DB> {
@@ -123,6 +131,11 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO + Storage> TxVa
 
         if state.requires_init_message() {
             return Ok(TxValidity::UninitializedDestination);
+        }
+
+        // If contract has balance less this, do not allow injected txs
+        if state.executable_balance < MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES {
+            return Ok(TxValidity::InsufficientBalanceForInjectedMessages);
         }
 
         Ok(TxValidity::Valid)
@@ -245,6 +258,7 @@ mod tests {
             memory_infix: MemoryInfix::new(0),
             initialized: destination_initialized,
         });
+        state.executable_balance = MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES;
         let state_hash = db.write_program_state(state);
 
         let state = StateHashWithQueueSize {

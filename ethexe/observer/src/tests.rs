@@ -34,7 +34,7 @@ fn wat2wasm(s: &str) -> Vec<u8> {
     wat2wasm_with_validate(s, true)
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn test_deployment() -> Result<()> {
     gear_utils::init_default_logger();
 
