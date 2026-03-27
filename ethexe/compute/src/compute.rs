@@ -320,7 +320,6 @@ pub(crate) mod utils {
         let injected_transactions = announce
             .injected_transactions
             .iter()
-            .cloned()
             .map(|tx| {
                 db.injected_transaction(tx.tx_hash())
                     .map(|tx| tx.into_verified())

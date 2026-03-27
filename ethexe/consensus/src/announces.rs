@@ -741,7 +741,7 @@ pub fn accept_announce(
     let tx_checker = TxValidityChecker::new_for_announce(db, block, announce.parent)?;
 
     for tx in injected_transactions.iter() {
-        let validity_status = tx_checker.check_tx_validity(&tx)?;
+        let validity_status = tx_checker.check_tx_validity(tx)?;
 
         match validity_status {
             TxValidity::Valid => {

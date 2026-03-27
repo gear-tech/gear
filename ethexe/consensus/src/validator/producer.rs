@@ -30,7 +30,7 @@ use ethexe_common::{
     Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec,
     db::BlockMetaStorageRO,
     gear::BatchCommitment,
-    injected::Promise,
+    injected::{AnnounceInjectedTransaction, Promise},
     network::{NetworkAnnounce, ValidatorMessage},
 };
 use ethexe_service_utils::Timer;
@@ -210,15 +210,17 @@ impl Producer {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
-            injected_transactions,
+            injected_transactions: injected_transactions
+                .iter()
+                .map(AnnounceInjectedTransaction::from_signed_tx)
+                .collect(),
         };
 
         let network_announce = NetworkAnnounce {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
-            // injected_transactions,
-            injected_transactions: vec![], // TODO: FIXME
+            injected_transactions,
         };
 
         let (announce_hash, newly_included) =

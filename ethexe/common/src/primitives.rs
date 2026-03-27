@@ -105,7 +105,7 @@ impl Announce {
 
         let transactions = injected_transactions
             .iter()
-            .map(|tx| (tx.signature().clone(), tx.tx_hash()))
+            .map(|tx| (*tx.signature(), tx.tx_hash()))
             .collect::<Vec<_>>();
 
         // NOTE: we use here the fact that None is encoding similar to empty vector:
@@ -225,7 +225,7 @@ impl From<&NetworkAnnounce> for Announce {
             injected_transactions: network_announce
                 .injected_transactions
                 .iter()
-                .map(|tx| AnnounceInjectedTransaction::from_signed_tx(&tx))
+                .map(AnnounceInjectedTransaction::from_signed_tx)
                 .collect(),
         }
     }
@@ -549,7 +549,7 @@ mod tests {
     }
 
     fn make_announce_tx(signed_tx: &SignedInjectedTransaction) -> AnnounceInjectedTransaction {
-        AnnounceInjectedTransaction::from_signed_tx(&signed_tx)
+        AnnounceInjectedTransaction::from_signed_tx(signed_tx)
     }
 
     #[test]

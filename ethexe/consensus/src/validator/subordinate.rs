@@ -309,7 +309,7 @@ mod tests {
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
                 ConsensusEvent::ComputeAnnounce(
-                    Announce::from(announce.data()).into(),
+                    Announce::from(announce.data()),
                     PromisePolicy::Disabled
                 )
             ]

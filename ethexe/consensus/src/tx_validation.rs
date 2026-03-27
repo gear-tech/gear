@@ -248,7 +248,7 @@ mod tests {
             parent,
             injected_transactions: txs
                 .iter()
-                .map(|tx| AnnounceInjectedTransaction::from_signed_tx(&tx))
+                .map(AnnounceInjectedTransaction::from_signed_tx)
                 .collect(),
             ..Announce::mock(())
         };

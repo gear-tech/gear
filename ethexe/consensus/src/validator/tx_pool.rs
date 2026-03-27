@@ -23,7 +23,7 @@ use ethexe_common::{
     db::{
         AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
     },
-    injected::{AnnounceInjectedTransaction, InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -76,7 +76,7 @@ where
         &mut self,
         block: SimpleBlockData,
         parent_announce: HashOf<Announce>,
-    ) -> Result<Vec<AnnounceInjectedTransaction>> {
+    ) -> Result<Vec<SignedInjectedTransaction>> {
         tracing::trace!(block = ?block.hash, "start collecting injected transactions");
 
         let tx_checker =
@@ -128,9 +128,8 @@ where
 
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
 
-                    let announce_tx = AnnounceInjectedTransaction::from_signed_tx(&tx);
                     touched_programs.insert(program_id);
-                    selected_txs.push(announce_tx);
+                    selected_txs.push(tx);
                     size_counter += tx_size;
                 }
                 TxValidity::Duplicate => {
@@ -286,7 +285,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             selected_txs,
-            vec![AnnounceInjectedTransaction::from_signed_tx(&signed_tx)],
+            vec![signed_tx],
             "tx should be selected for announce"
         );
         assert_eq!(
