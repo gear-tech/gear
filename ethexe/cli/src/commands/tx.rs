@@ -33,7 +33,10 @@ use ethexe_common::{
     gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
     injected::{AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE},
 };
-use ethexe_ethereum::{Ethereum, mirror::ClaimInfo, router::CodeValidationResult};
+use ethexe_ethereum::{
+    Ethereum, INCREASED_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE, mirror::ClaimInfo,
+    router::CodeValidationResult,
+};
 use ethexe_rpc::{InjectedClient, ProgramClient};
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
@@ -274,9 +277,17 @@ impl TxCommand {
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
-        let ethereum = Ethereum::new(&rpc, router_addr, signer.clone(), sender)
-            .await
-            .with_context(|| "failed to create Ethereum client")?;
+        // INCREASED_BLOB_GAS_MULTIPLIER (TODO: from config, default is increased)
+        let ethereum = Ethereum::new(
+            &rpc,
+            router_addr,
+            signer.clone(),
+            sender,
+            NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            INCREASED_BLOB_GAS_MULTIPLIER,
+        )
+        .await
+        .with_context(|| "failed to create Ethereum client")?;
 
         eprintln!("RPC:      {rpc}");
         if let TxSubcommand::Query { rpc_url, .. }

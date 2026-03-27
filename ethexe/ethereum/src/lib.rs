@@ -31,6 +31,7 @@ use alloy::{
             BlobGasEstimator, BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill,
             NonceFiller, SimpleNonceManager, WalletFiller,
         },
+        utils::{self, Eip1559Estimator},
     },
     rpc::types::{TransactionReceipt, TransactionRequest, eth::Log},
     signers::{
@@ -93,8 +94,17 @@ impl Ethereum {
         router_address: Address,
         signer: Signer,
         sender_address: Address,
+        eip1559_fee_increase_percentage: u64,
+        blob_gas_multiplier: u128,
     ) -> Result<Ethereum> {
-        let provider = create_provider(ethereum_rpc_url, signer.clone(), sender_address).await?;
+        let provider = create_provider(
+            ethereum_rpc_url,
+            signer.clone(),
+            sender_address,
+            eip1559_fee_increase_percentage,
+            blob_gas_multiplier,
+        )
+        .await?;
         let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         let router = router_address.into();
         let wvara = router_query.wvara_address().await?.into();
@@ -188,14 +198,25 @@ impl Ethereum {
     }
 }
 
+pub const NO_EIP1559_FEE_INCREASE_PERCENTAGE: u64 = 0;
+pub const INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE: u64 = 15;
+
+pub const NO_BLOB_GAS_MULTIPLIER: u128 = 1;
+pub const INCREASED_BLOB_GAS_MULTIPLIER: u128 = 3;
+
 pub(crate) async fn create_provider(
     rpc_url: &str,
     signer: Signer,
     sender_address: Address,
+    eip1559_fee_increase_percentage: u64,
+    blob_gas_multiplier: u128,
 ) -> Result<AlloyProvider> {
     Ok(ProviderBuilder::default()
-        .with_gas_estimation()
-        .with_blob_gas_estimator(BlobGasEstimator::scaled(3))
+        .with_eip1559_estimator(Eip1559Estimator::new(move |base_fee_per_gas, rewards| {
+            utils::eip1559_default_estimator(base_fee_per_gas, rewards)
+                .scaled_by_pct(eip1559_fee_increase_percentage)
+        }))
+        .with_blob_gas_estimator(BlobGasEstimator::scaled(blob_gas_multiplier))
         .with_simple_nonce_management()
         .fetch_chain_id()
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))

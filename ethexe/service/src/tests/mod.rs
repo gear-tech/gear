@@ -53,7 +53,8 @@ use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::verifier::IntegrityVerifier;
 use ethexe_ethereum::{
-    TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
+    NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE, TryGetReceipt, abi::IDemoCaller,
+    deploy::ContractsDeploymentParams, router::Router,
 };
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_prometheus::PrometheusConfig;
@@ -81,7 +82,6 @@ use tokio::sync::{
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
 
-#[ignore = "until rpc fixed"]
 #[tokio::test]
 async fn basics() {
     init_logger();
@@ -110,10 +110,12 @@ async fn basics() {
     let eth_cfg = EthereumConfig {
         rpc: "wss://hoodi-reth-rpc.gear-tech.io/ws".into(),
         beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
-        router_address: "0x61e49a1B6e387060Da92b1Cd85d640011acAeF26"
+        router_address: "0xE549b0AfEdA978271FF7E712232B9F7f39A0b060"
             .parse()
             .expect("infallible"),
         block_time: Duration::from_secs(12),
+        eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+        blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
     };
 
     let mut config = Config {
