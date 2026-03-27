@@ -600,15 +600,33 @@ pub fn best_parent_announce(
     db: &impl DBAnnouncesExt,
     block_hash: H256,
     commitment_delay_limit: u32,
-) -> Result<HashOf<Announce>> {
+) -> Result<(HashOf<Announce>, Announce)> {
+    let announces = db
+        .block_meta(block_hash)
+        .announces
+        .ok_or_else(|| anyhow!("announces not found for block {block_hash}"))?;
+
     // We do not take announces directly from parent block,
     // because some of them may be expired at `block_hash`,
     // so we take parents of all announces from `block_hash`,
     // to be sure that we take only not expired parent announces.
-    let parent_announces =
-        db.announces_parents(db.block_meta(block_hash).announces.into_iter().flatten())?;
+    let parent_announces = db.announces_parents(announces.clone().into_iter())?;
 
-    best_announce(db, parent_announces, commitment_delay_limit)
+    let best_announce_hash = best_announce(db, parent_announces, commitment_delay_limit)?;
+
+    for announce_hash in announces {
+        let announce = db
+            .announce(announce_hash)
+            .ok_or_else(|| anyhow!("announce({announce_hash}) not found in db"))?;
+
+        if announce.parent == best_announce_hash {
+            return Ok((best_announce_hash, announce));
+        }
+    }
+
+    unreachable!(
+        "Best announce {best_announce_hash} must be parent of at least one announce in block {block_hash}"
+    );
 }
 
 /// Returns announce hash, which is supposed to be best among provided announces.
@@ -656,7 +674,90 @@ pub fn best_announce(
         }
     }
 
-    Ok(best_announce_hash)
+    if let AnnounceSiblingsOutcomeStatus::OutcomeIsSame {
+        sibling_announce_hash,
+        sibling_announce,
+    } = check_announce_sibling_outcome(db, best_announce_hash)?
+        && sibling_announce.is_base()
+    {
+        // if sibling has same outcome and it's base, then better to use base
+        Ok(sibling_announce_hash)
+    } else {
+        Ok(best_announce_hash)
+    }
+}
+
+pub enum AnnounceSiblingsOutcomeStatus {
+    NotFound,
+    NotComputed,
+    OutcomeIsDifferent,
+    OutcomeIsSame {
+        sibling_announce_hash: HashOf<Announce>,
+        sibling_announce: Announce,
+    },
+}
+
+/// Siblings of announce is announces with the same parent
+pub fn check_announce_sibling_outcome(
+    db: &impl DBAnnouncesExt,
+    announce_hash: HashOf<Announce>,
+) -> Result<AnnounceSiblingsOutcomeStatus> {
+    let Some((sibling_announce_hash, sibling_announce)) = announce_sibling(db, announce_hash)?
+    else {
+        return Ok(AnnounceSiblingsOutcomeStatus::NotFound);
+    };
+
+    if !db.announce_meta(announce_hash).computed
+        || !db.announce_meta(sibling_announce_hash).computed
+    {
+        return Ok(AnnounceSiblingsOutcomeStatus::NotComputed);
+    }
+
+    let announce_outcome = db
+        .announce_outcome(announce_hash)
+        .ok_or_else(|| anyhow!("outcome not found for computed announce {announce_hash:?}"))?;
+    let sibling_outcome = db.announce_outcome(sibling_announce_hash).ok_or_else(|| {
+        anyhow!("outcome not found for computed sibling announce {sibling_announce_hash:?}")
+    })?;
+
+    if announce_outcome == sibling_outcome {
+        Ok(AnnounceSiblingsOutcomeStatus::OutcomeIsSame {
+            sibling_announce_hash,
+            sibling_announce,
+        })
+    } else {
+        Ok(AnnounceSiblingsOutcomeStatus::OutcomeIsDifferent)
+    }
+}
+
+pub fn announce_sibling(
+    db: &impl DBAnnouncesExt,
+    announce_hash: HashOf<Announce>,
+) -> Result<Option<(HashOf<Announce>, Announce)>> {
+    let announce = db
+        .announce(announce_hash)
+        .ok_or_else(|| anyhow!("announce({announce_hash}) not found"))?;
+
+    let neighbors = db
+        .block_meta(announce.block_hash)
+        .announces
+        .ok_or_else(|| anyhow!("announces not found for block({})", announce.block_hash))?;
+
+    for neighbor_hash in neighbors {
+        if neighbor_hash == announce_hash {
+            continue;
+        }
+
+        let neighbor_announce = db
+            .announce(neighbor_hash)
+            .ok_or_else(|| anyhow!("announce({neighbor_hash}) not found"))?;
+
+        if neighbor_announce.parent == announce.parent {
+            return Ok(Some((neighbor_hash, neighbor_announce)));
+        }
+    }
+
+    Ok(None)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]

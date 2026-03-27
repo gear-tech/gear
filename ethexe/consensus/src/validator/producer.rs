@@ -21,7 +21,7 @@ use super::{
 };
 use crate::{
     ConsensusEvent,
-    announces::{self, DBAnnouncesExt},
+    announces::{self, AnnounceSiblingsOutcomeStatus, DBAnnouncesExt},
     validator::DefaultProcessing,
 };
 use anyhow::{Result, anyhow};
@@ -52,6 +52,8 @@ enum State {
     Delay {
         #[debug(skip)]
         timer: Option<Timer>,
+        best_parent_announce_hash: HashOf<Announce>,
+        child_announce_hash: Option<HashOf<Announce>>,
     },
     WaitingAnnounceComputed(HashOf<Announce>),
     AggregateBatchCommitment {
@@ -77,17 +79,48 @@ impl StateHandler for Producer {
         mut self,
         announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
-        match &self.state {
-            State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
-                // Aggregate commitment for the block and use `announce_hash` as head for chain commitment.
-                // `announce_hash` is computed and included in the db already, so it's safe to use it.
+        match self.state {
+            State::Delay {
+                timer,
+                child_announce_hash: Some(child_announce_hash),
+                best_parent_announce_hash,
+            } if child_announce_hash == announce_hash => {
+                let timer_is_none = timer.is_none();
+                self.state = State::Delay {
+                    timer,
+                    best_parent_announce_hash,
+                    child_announce_hash: None,
+                };
+
+                if timer_is_none {
+                    self.produce_announce(best_parent_announce_hash)
+                } else {
+                    Ok(self.into())
+                }
+            }
+            State::WaitingAnnounceComputed(expected) if expected == announce_hash => {
+                // use base sibling announce as best if it has the same outcome as current announce, otherwise use current announce as best.
+                let best_announce_hash = if let AnnounceSiblingsOutcomeStatus::OutcomeIsSame {
+                    sibling_announce_hash,
+                    sibling_announce,
+                } =
+                    announces::check_announce_sibling_outcome(&self.ctx.core.db, announce_hash)?
+                    && sibling_announce.is_base()
+                {
+                    sibling_announce_hash
+                } else {
+                    announce_hash
+                };
+
+                // Aggregate commitment for the block and use `best_announce_hash` as head for chain commitment.
+                // `best_announce_hash` is computed and included in the db already, so it's safe to use it.
                 self.state = State::AggregateBatchCommitment {
                     future: self
                         .ctx
                         .core
                         .batch_manager
                         .clone()
-                        .create_batch_commitment(self.block, announce_hash)
+                        .create_batch_commitment(self.block, best_announce_hash)
                         .boxed(),
                 };
 
@@ -131,9 +164,23 @@ impl StateHandler for Producer {
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         match &mut self.state {
-            State::Delay { timer: Some(timer) } => {
+            State::Delay {
+                timer: Some(timer),
+                child_announce_hash,
+                best_parent_announce_hash,
+            } => {
                 if timer.poll_unpin(cx).is_ready() {
-                    let state = self.produce_announce()?;
+                    let state = if child_announce_hash.is_none() {
+                        let announce_hash = *best_parent_announce_hash;
+                        self.produce_announce(announce_hash)?
+                    } else {
+                        self.state = State::Delay {
+                            timer: None,
+                            best_parent_announce_hash: *best_parent_announce_hash,
+                            child_announce_hash: *child_announce_hash,
+                        };
+                        self.into()
+                    };
                     return Ok((Poll::Ready(()), state));
                 }
             }
@@ -175,27 +222,37 @@ impl Producer {
 
         ctx.pending_events.clear();
 
+        let (best_parent_announce_hash, child_announce) = announces::best_parent_announce(
+            &ctx.core.db,
+            block.hash,
+            ctx.core.commitment_delay_limit,
+        )?;
+
+        let child_announce_hash = Some(child_announce.to_hash());
+        ctx.output(ConsensusEvent::ComputeAnnounce(
+            child_announce,
+            PromisePolicy::Disabled,
+        ));
+
         Ok(Self {
             ctx,
             block,
             validators,
-            state: State::Delay { timer: Some(timer) },
+            state: State::Delay {
+                timer: Some(timer),
+                best_parent_announce_hash,
+                child_announce_hash,
+            },
         }
         .into())
     }
 
-    fn produce_announce(mut self) -> Result<ValidatorState> {
+    fn produce_announce(mut self, parent: HashOf<Announce>) -> Result<ValidatorState> {
         if !self.ctx.core.db.block_meta(self.block.hash).prepared {
             return Err(anyhow!(
                 "Impossible, block must be prepared before creating announce"
             ));
         }
-
-        let parent = announces::best_parent_announce(
-            &self.ctx.core.db,
-            self.block.hash,
-            self.ctx.core.commitment_delay_limit,
-        )?;
 
         let injected_transactions = self
             .ctx
@@ -268,7 +325,7 @@ mod tests {
     async fn create() {
         let (mut ctx, keys, _) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(());
+        let block = BlockChain::mock(2).setup(&ctx.core.db).blocks[2].to_simple();
 
         ctx.pending(PendingEvent::ValidationRequest(
             ctx.core.signer.mock_verified_data(keys[0], ()),
@@ -481,16 +538,28 @@ mod tests {
             let producer = self.unwrap_producer();
             assert!(
                 producer.state.is_delay(),
-                "Works only for waiting for codes state, got {:?}",
+                "Works only for delay state, got {:?}",
                 producer.state
             );
 
             let state = ValidatorState::from(producer);
 
+            // Base announce computation
+            let (state, event) = state.wait_for_event().await?;
+            assert!(state.is_producer(), "Expected producer state, got {state}");
+            let ConsensusEvent::ComputeAnnounce(announce, PromisePolicy::Disabled) = event else {
+                panic!("Expected ComputeAnnounce event announces disabled, got {event:?}");
+            };
+
+            // Set announce as computed
+            let state = state.process_computed_announce(announce.to_hash())?;
+
+            // Announce message publication
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer(), "Expected producer state, got {state}");
             assert!(event.is_publish_message());
 
+            // Announce computation
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer(), "Expected producer state, got {state}");
             assert!(event.is_compute_announce());

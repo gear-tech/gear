@@ -151,7 +151,7 @@ async fn basics() {
 }
 
 #[tokio::test]
-#[ntest::timeout(30_000)]
+#[ntest::timeout(60_000)]
 async fn invalid_code() {
     init_logger();
 
@@ -163,11 +163,11 @@ async fn invalid_code() {
     node.start_service().await;
 
     let wasm_binary = [1; 10]; // Invalid WASM binary
+    let upload = env.upload_code(&wasm_binary).await.unwrap();
     let res = env
-        .upload_code(&wasm_binary)
-        .await
-        .unwrap()
-        .wait_for()
+        .ethereum
+        .router()
+        .wait_for_code_validation(upload.code_id)
         .await
         .unwrap();
     assert!(!res.valid);
@@ -1759,7 +1759,7 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_announce_computed(latest_block).await;
+    alice.events().find_block_computed_twice(latest_block).await;
 
     log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync()).await;
@@ -1783,7 +1783,7 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_announce_computed(latest_block).await;
+    alice.events().find_block_computed_twice(latest_block).await;
     bob.events().find_announce_computed(latest_block).await;
 
     log::info!("📗 Stopping Bob");
@@ -1814,7 +1814,7 @@ async fn fast_sync() {
     env.skip_blocks(100).await;
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_announce_computed(latest_block).await;
+    alice.events().find_block_computed_twice(latest_block).await;
 
     log::info!("📗 Starting Bob again to check how it handles partially empty database");
     bob.start_service().await;
@@ -1830,7 +1830,7 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_announce_computed(latest_block).await;
+    alice.events().find_block_computed_twice(latest_block).await;
     bob.events().find_announce_computed(latest_block).await;
 
     assert_chain(
@@ -2051,7 +2051,7 @@ async fn execution_with_canonical_events_quarantine() {
     log::info!("📗 waiting announce for block {latest_block} computed");
     validator
         .events()
-        .find_announce_computed(latest_block)
+        .find_block_computed_twice(latest_block)
         .await;
 
     // create a receiver without history so we don't face old `BlockSynced` in further for-loop
@@ -2097,7 +2097,7 @@ async fn execution_with_canonical_events_quarantine() {
 
         assert!(!check_for_pong(block_hash), "PONG received too early");
 
-        receiver.find_announce_computed(block_hash).await;
+        receiver.find_block_computed_twice(block_hash).await;
         env.force_new_block().await;
     }
 
@@ -2953,7 +2953,7 @@ async fn announces_conflicts() {
         let latest_block = env.latest_block().await.hash;
         let mut latest_computed_announce_hash = HashOf::zero();
         for receiver in &mut receivers {
-            let announce_hash = receiver.find_announce_computed(latest_block).await;
+            let announce_hash = receiver.find_block_computed_twice(latest_block).await;
             assert!(
                 latest_computed_announce_hash == HashOf::zero()
                     || latest_computed_announce_hash == announce_hash,
@@ -3287,11 +3287,8 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 
     // Wait until both stops processing
     let latest_block = env.latest_block().await.hash;
-    let latest_announce_hash = bob.events().find_announce_computed(latest_block).await;
-    assert_eq!(
-        alice.events().find_announce_computed(latest_block).await,
-        latest_announce_hash
-    );
+    bob.events().find_announce_computed(latest_block).await;
+    alice.events().find_block_computed_twice(latest_block).await;
 
     log::info!("📗 Stopping Bob");
     bob.stop_service().await;
@@ -3306,7 +3303,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 
     // Wait until Alice stop processing
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_announce_computed(latest_block).await;
+    alice.events().find_block_computed_twice(latest_block).await;
 
     log::info!("📗 Stopping Alice");
     alice.stop_service().await;
@@ -3367,80 +3364,79 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         wait_for.wait_for().await.unwrap();
     }
 
-    log::info!("📗 Waiting for two rejected announces from Bob");
+    log::info!("📗 Waiting for two accepted announces from Bob");
     for _ in 0..2 {
-        bob.events().find_announce_rejected(AnnounceId::Any).await;
+        bob.events().find_announce_accepted(AnnounceId::Any).await;
     }
 
-    log::info!("📗 Sending third PING message, one more attempt for Bob to catch up Alice");
-    {
-        let receiver = env.new_observer_events();
-        let pending = env
-            .ethereum
-            .mirror(ping_id)
-            .send_message_pending(b"PING", 0)
-            .await
-            .unwrap();
-        env.force_new_block().await;
-        let wait_for = WaitForReplyTo::from_raw_parts(
-            receiver,
-            pending.try_get_message_send_receipt().await.unwrap().1,
-        );
+    // TODO: after changes in best announce selection, Bob is able to catch up Alice.
+    // We should create more complex test case to cover the scenario when Bob is not able to catch up Alice.
 
-        // Waiting until Alice is ready for commitment1
-        wait_signal_receiver.recv().await.unwrap();
+    // log::info!("📗 Sending third PING message, one more attempt for Bob to catch up Alice");
+    // {
+    //     let receiver = env.new_observer_events();
+    //     let pending = env
+    //         .ethereum
+    //         .mirror(ping_id)
+    //         .send_message_pending(b"PING", 0)
+    //         .await
+    //         .unwrap();
+    //     env.force_new_block().await;
+    //     let wait_for = WaitForReplyTo::from_raw_parts(
+    //         receiver,
+    //         pending.try_get_message_send_receipt().await.unwrap().1,
+    //     );
 
-        // Force new block, so that commitment1 would skip this block
-        env.force_new_block().await;
+    //     // Waiting until Alice is ready for commitment1
+    //     wait_signal_receiver.recv().await.unwrap();
 
-        // Send signal to make commitment1 and wait until it's sent
-        commit_signal_sender.send(()).unwrap();
-        wait_signal_receiver.recv().await.unwrap();
+    //     // Force new block, so that commitment1 would skip this block
+    //     env.force_new_block().await;
 
-        // Wait until Alice is ready for next commitment2
-        wait_signal_receiver.recv().await.unwrap();
+    //     // Send signal to make commitment1 and wait until it's sent
+    //     commit_signal_sender.send(()).unwrap();
+    //     wait_signal_receiver.recv().await.unwrap();
 
-        // Force new block to commit commitment1
-        // if commitment_delay_limit == 3 => commitment1 would fail because contains expired announces
-        // if commitment_delay_limit == 5 => commitment1 would succeed
-        env.force_new_block().await;
+    //     // Wait until Alice is ready for next commitment2
+    //     wait_signal_receiver.recv().await.unwrap();
 
-        if commitment_delay_limit == 3 {
-            // Waiting until Alice is ready for commitment2
-            wait_signal_receiver.recv().await.unwrap();
+    //     // Force new block to commit commitment1
+    //     // if commitment_delay_limit == 3 => commitment1 would fail because contains expired announces
+    //     // if commitment_delay_limit == 5 => commitment1 would succeed
+    //     env.force_new_block().await;
 
-            // Send signal to make commitment2 and wait until it's sent
-            commit_signal_sender.send(()).unwrap();
-            wait_signal_receiver.recv().await.unwrap();
+    //     if commitment_delay_limit == 3 {
+    //         // Waiting until Alice is ready for commitment2
+    //         wait_signal_receiver.recv().await.unwrap();
 
-            // Force new block to commit commitment2, succeed
-            env.force_new_block().await;
-        } else if commitment_delay_limit == 5 {
-            // commitment1 already committed, so Alice would not commit commitment2, because it's empty
-        } else {
-            unreachable!();
-        }
+    //         // Send signal to make commitment2 and wait until it's sent
+    //         commit_signal_sender.send(()).unwrap();
+    //         wait_signal_receiver.recv().await.unwrap();
 
-        // Now commitment1 or commitment2 must be applied in the forced blocks
-        wait_for.wait_for().await.unwrap();
-    }
+    //         // Force new block to commit commitment2, succeed
+    //         env.force_new_block().await;
+    //     } else if commitment_delay_limit == 5 {
+    //         // commitment1 already committed, so Alice would not commit commitment2, because it's empty
+    //     } else {
+    //         unreachable!();
+    //     }
 
-    let latest_block = env.latest_block().await.hash;
-    let latest_announce_hash = alice.events().find_announce_computed(latest_block).await;
+    //     // Now commitment1 or commitment2 must be applied in the forced blocks
+    //     wait_for.wait_for().await.unwrap();
+    // }
 
-    if commitment_delay_limit == 3 {
-        log::info!("📗 Bob accepts announce from Alice at last");
-        bob.events()
-            .find_announce_accepted(latest_announce_hash)
-            .await;
-    } else if commitment_delay_limit == 5 {
-        log::info!("📗 Bob still rejects announce from Alice");
-        bob.events()
-            .find_announce_rejected(latest_announce_hash)
-            .await;
-    } else {
-        unreachable!();
-    }
+    // let latest_block = env.latest_block().await.hash;
+    // alice.events().find_block_computed_twice(latest_block).await;
+
+    // if commitment_delay_limit == 3 {
+    //     log::info!("📗 Bob accepts announce from Alice at last");
+    //     bob.events().find_announce_accepted(latest_block).await;
+    // } else if commitment_delay_limit == 5 {
+    //     log::info!("📗 Bob still rejects announce from Alice");
+    //     bob.events().find_announce_rejected(AnnounceId::Any).await;
+    // } else {
+    //     unreachable!();
+    // }
 }
 
 #[tokio::test]

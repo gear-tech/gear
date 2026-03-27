@@ -286,6 +286,15 @@ impl TestingEventReceiver {
         .await
     }
 
+    pub async fn find_block_computed_twice(&mut self, block_hash: H256) -> HashOf<Announce> {
+        log::info!("📗 waiting for base and not-base computed for block: {block_hash:?}");
+        // First base announce
+        self.find_announce_computed(block_hash).await;
+        // Second not-base announce
+        self.find_announce_computed(block_hash).await
+    }
+
+    #[allow(unused)]
     pub async fn find_announce_rejected(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
         let id = id.into();
         log::info!("📗 waiting for announce rejected: {id:?}");
