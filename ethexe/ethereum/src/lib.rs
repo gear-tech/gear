@@ -195,11 +195,9 @@ pub(crate) async fn create_provider(
     sender_address: Address,
 ) -> Result<AlloyProvider> {
     Ok(ProviderBuilder::default()
-        .with_eip1559_estimator(Eip1559Estimator::new(
-            |base_fee_per_gas: u128, rewards: &[Vec<u128>]| {
-                utils::eip1559_default_estimator(base_fee_per_gas, rewards).scaled_by_pct(15)
-            },
-        ))
+        .with_eip1559_estimator(Eip1559Estimator::new(|base_fee_per_gas, rewards| {
+            utils::eip1559_default_estimator(base_fee_per_gas, rewards).scaled_by_pct(15)
+        }))
         .with_blob_gas_estimator(BlobGasEstimator::scaled(3))
         .with_simple_nonce_management()
         .fetch_chain_id()
