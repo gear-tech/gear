@@ -2,7 +2,7 @@ use crate::{abi::deploy_send_message_multicall, args::LoadParams, batch::BatchPo
 use alloy::{hex, primitives::Address, providers::Provider};
 use anyhow::{Result, anyhow};
 use args::{Params, parse_cli_params};
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::{Ethereum, NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE};
 use rand::rngs::SmallRng;
 use std::str::FromStr;
 use tokio::task::JoinSet;
@@ -84,6 +84,8 @@ async fn load_node(params: LoadParams) -> Result<()> {
         router_addr.into(),
         deployer_signer,
         deployer_address,
+        NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+        NO_BLOB_GAS_MULTIPLIER,
     )
     .await?;
 
@@ -105,7 +107,15 @@ async fn load_node(params: LoadParams) -> Result<()> {
         let router = router_addr;
 
         init_tasks.spawn(async move {
-            let api = Ethereum::new(&node, router.into(), signer, address).await?;
+            let api = Ethereum::new(
+                &node,
+                router.into(),
+                signer,
+                address,
+                NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+                NO_BLOB_GAS_MULTIPLIER,
+            )
+            .await?;
             Ok((i, account_index, address, api))
         });
     }

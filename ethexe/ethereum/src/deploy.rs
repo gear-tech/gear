@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyProvider, Ethereum, TryGetReceipt,
+    AlloyProvider, Ethereum, NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+    TryGetReceipt,
     abi::{
         IERC1967Proxy,
         IMiddleware::{
@@ -102,7 +103,14 @@ impl Default for ContractsDeploymentParams {
 impl EthereumDeployer {
     /// Creates a new deployer from necessary arguments.
     pub async fn new(rpc: &str, signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
-        let provider = create_provider(rpc, signer, sender_address).await?;
+        let provider = create_provider(
+            rpc,
+            signer,
+            sender_address,
+            NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            NO_BLOB_GAS_MULTIPLIER,
+        )
+        .await?;
         Ok(EthereumDeployer {
             provider,
             validators: nonempty::nonempty![LocalAddress([1u8; 20])].into(),
