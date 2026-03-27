@@ -19,7 +19,28 @@
 //! Small custom thread pool interface, because `rayon` is too smart
 //! and `threadpool` is not smart enough.
 
-use std::{any::Any, env, num::NonZero, panic::AssertUnwindSafe, thread};
+use std::{any::Any, env, num::NonZero, panic::AssertUnwindSafe, sync::LazyLock, thread};
+
+static DEFAULT_THREAD_POOL: LazyLock<ThreadPool> = LazyLock::new(ThreadPool::new);
+
+/// Spawns a given task.
+///
+/// Returns `Ok(result)` if a worker successfully
+/// processed the task and `Err(panic_info)` if the worker panicked.
+///
+/// # Panics
+///
+/// Propagates panics from the worker thread to the main thread.
+///
+/// Panics if worker thread dies despite using
+/// `std::panic::catch_unwind` around the handler.
+pub async fn spawn<F, R>(f: F) -> R
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    DEFAULT_THREAD_POOL.spawn(f).await
+}
 
 type Task = (
     Box<dyn FnOnce() -> Box<dyn Any + Send + 'static> + Send + 'static>,
@@ -27,13 +48,12 @@ type Task = (
 );
 
 #[derive(Debug, Clone)]
-pub struct ThreadPool {
+struct ThreadPool {
     task_tx: crossbeam::channel::Sender<Task>,
 }
 
 impl ThreadPool {
-    /// Creates a new thread pool.
-    pub fn new() -> Self {
+    fn new() -> Self {
         let n_cpus = env::var("ETHEXE_PROCESSOR_NUM_THREADS")
             .ok()
             .and_then(|num| num.parse().ok())
@@ -61,18 +81,7 @@ impl ThreadPool {
         Self { task_tx }
     }
 
-    /// Spawns a given task.
-    ///
-    /// Returns `Ok(result)` if a worker successfully
-    /// processed the task and `Err(panic_info)` if the worker panicked.
-    ///
-    /// # Panics
-    ///
-    /// Propagates panics from the worker thread to the main thread.
-    ///
-    /// Panics if worker thread dies despite using
-    /// `std::panic::catch_unwind` around the handler.
-    pub async fn spawn<F, R>(&self, f: F) -> R
+    async fn spawn<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R + Send + 'static,
         R: Send + 'static,
@@ -107,14 +116,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_thread_pool() {
-        let thread_pool = ThreadPool::new();
-
-        assert_eq!(thread_pool.spawn(|| task(2)).await, "amogusamogus");
+        assert_eq!(spawn(|| task(2)).await, "amogusamogus");
 
         assert_eq!(
             [0, 1, 2, 3]
                 .into_iter()
-                .map(|n| thread_pool.spawn(move || task(n)))
+                .map(|n| spawn(move || task(n)))
                 .collect::<FuturesOrdered<_>>()
                 .collect::<Vec<_>>()
                 .await,
@@ -131,7 +138,7 @@ mod tests {
         // Ensure that panics don't break things
         for _ in 0..n_cpus * 2 {
             assert!(
-                AssertUnwindSafe(thread_pool.spawn(|| task(usize::MAX)))
+                AssertUnwindSafe(spawn(|| task(usize::MAX)))
                     .catch_unwind()
                     .await
                     .is_err()

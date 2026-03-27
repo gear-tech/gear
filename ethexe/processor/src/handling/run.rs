@@ -572,7 +572,7 @@ pub(super) mod chunks_splitting {
 
 pub(crate) mod chunk_execution_spawn {
     use super::*;
-    use crate::THREAD_POOL;
+    use crate::thread_pool;
     use ethexe_runtime_common::ProcessQueueContext;
     use futures::stream::FuturesOrdered;
 
@@ -611,7 +611,7 @@ pub(crate) mod chunk_execution_spawn {
                 let mut executor = ctx.inner().instance_creator.instantiate()?;
                 let db = ctx.inner().db.cas().clone_boxed();
                 let promise_out_tx = ctx.inner().promise_out_tx.clone();
-                Ok(THREAD_POOL.spawn(move || {
+                Ok(thread_pool::spawn(move || {
                     let (jn, new_state_hash, gas_spent) = executor.run(
                         db,
                         ProcessQueueContext {
