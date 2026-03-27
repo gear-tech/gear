@@ -298,7 +298,6 @@ impl TestEnv {
             // mul MAX_NETWORK_SERVICES_PER_TEST to avoid address collision between different test-threads
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
-            let mut bootstrap_observer_events = observer_events.1.new_receiver();
 
             let network_key = signer.generate().unwrap();
             let multiaddr: Multiaddr = address.parse().unwrap();
@@ -318,6 +317,7 @@ impl TestEnv {
             };
 
             let mut service = NetworkService::new(config, runtime_config).unwrap();
+            let mut observer_events = observer_events.1.new_receiver();
 
             let local_peer_id = service.local_peer_id();
 
@@ -326,7 +326,7 @@ impl TestEnv {
                     loop {
                         tokio::select! {
                             _event = service.select_next_some() => {}
-                            event = bootstrap_observer_events.select_next_some() => {
+                            event = observer_events.select_next_some() => {
                                 if let ethexe_observer::ObserverEvent::BlockSynced(block_hash) = event {
                                     service
                                         .set_chain_head(block_hash)
