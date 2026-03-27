@@ -186,9 +186,10 @@ impl OngoingResponses {
             let injected_transactions = announce_injected_transactions
                 .iter()
                 .cloned()
-                .map(|tx_hash| {
-                    db.injected_transaction(tx_hash)
-                        .ok_or(ProcessAnnounceError::InjectedTransactionMissing { hash: tx_hash })
+                .map(|tx| {
+                    db.injected_transaction(tx.tx_hash()).ok_or(
+                        ProcessAnnounceError::InjectedTransactionMissing { hash: tx.tx_hash() },
+                    )
                 })
                 .collect::<Result<_, _>>()?;
 

@@ -1,8 +1,10 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, str::FromStr};
 
 use alloy::{
+    hex,
     providers::{Provider, RootProvider, WalletProvider},
     rpc::types::Header,
+    signers::local::{MnemonicBuilder, coins_bip39::English},
 };
 use anyhow::Result;
 use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
@@ -20,6 +22,63 @@ use tokio::{fs::File, io::AsyncWriteExt, sync::broadcast};
 use tracing::warn;
 
 use crate::batch::Event;
+
+const ANVIL_MNEMONIC: &str = "test test test test test test test test test test test junk";
+const MAX_PREBUILT_ANVIL_ACCOUNTS: u32 = 256;
+
+#[derive(Clone, Copy)]
+pub struct PrefundedAccount {
+    pub private_key: &'static str,
+}
+
+pub const DEPLOYER_ACCOUNT: PrefundedAccount = PrefundedAccount {
+    private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+};
+
+pub fn signer_from_private_key(
+    private_key_hex: &str,
+) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
+    let private_key =
+        gsigner::secp256k1::PrivateKey::from_str(private_key_hex.trim_start_matches("0x"))?;
+    let signer = gsigner::secp256k1::Signer::memory();
+    let pubkey = signer.import(private_key)?;
+    let address = pubkey.to_address();
+
+    Ok((signer, address))
+}
+
+pub fn signer_from_anvil_account(
+    account_index: u32,
+) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
+    let signer = MnemonicBuilder::<English>::default()
+        .phrase(ANVIL_MNEMONIC)
+        .index(account_index)?
+        .build()?;
+
+    let private_key_hex = format!("0x{}", hex::encode(signer.to_bytes()));
+    signer_from_private_key(&private_key_hex)
+}
+
+pub fn worker_account_start(ethexe_nodes: usize) -> Result<u32> {
+    let validator_count = u32::try_from(ethexe_nodes)?;
+    Ok(validator_count + 1)
+}
+
+pub fn validate_worker_count(ethexe_nodes: usize, workers: usize) -> Result<()> {
+    let worker_account_start = worker_account_start(ethexe_nodes)?;
+    let workers = u32::try_from(workers)?;
+
+    if worker_account_start + workers > MAX_PREBUILT_ANVIL_ACCOUNTS {
+        return Err(anyhow::anyhow!(
+            "workers must not exceed {} for {} ethexe nodes (available prebuilt Anvil accounts: {})",
+            MAX_PREBUILT_ANVIL_ACCOUNTS - worker_account_start,
+            ethexe_nodes,
+            MAX_PREBUILT_ANVIL_ACCOUNTS
+        ));
+    }
+
+    Ok(())
+}
 
 pub async fn dump_with_seed(seed: u64) -> Result<()> {
     let code = gear_call_gen::generate_gear_program::<SmallRng, StandardGearWasmConfigsBundle>(

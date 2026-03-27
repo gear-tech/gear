@@ -23,7 +23,7 @@ use ethexe_common::{
     db::{
         AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
     },
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::{AnnounceInjectedTransaction, InjectedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -76,7 +76,7 @@ where
         &mut self,
         block: SimpleBlockData,
         parent_announce: HashOf<Announce>,
-    ) -> Result<Vec<SignedInjectedTransaction>> {
+    ) -> Result<Vec<AnnounceInjectedTransaction>> {
         tracing::trace!(block = ?block.hash, "start collecting injected transactions");
 
         let tx_checker =
@@ -128,8 +128,9 @@ where
 
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
 
+                    let announce_tx = AnnounceInjectedTransaction::from_signed_tx(&tx);
                     touched_programs.insert(program_id);
-                    selected_txs.push(tx);
+                    selected_txs.push(announce_tx);
                     size_counter += tx_size;
                 }
                 TxValidity::Duplicate => {
@@ -160,6 +161,14 @@ where
                         "tx sent to uninitialized actor, keeping in pool"
                     );
                 }
+                TxValidity::InsufficientBalanceForInjectedMessages => {
+                    // Keep in pool, in case destination actor balance increases later.
+                    tracing::trace!(
+                        tx_hash = ?tx_hash,
+                        tx = ?tx.data(),
+                        "tx destination actor has insufficient balance for injected messages, keeping in pool"
+                    );
+                }
                 TxValidity::NonZeroValue => {
                     tracing::trace!(
                         tx_hash = ?tx_hash,
@@ -181,6 +190,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::tx_validation::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES;
+
     use super::*;
     use ethexe_common::{
         StateHashWithQueueSize,
@@ -202,8 +213,11 @@ mod tests {
 
         let state_hash = db.write_program_state(
             // Make not required init message by setting terminated state.
-            ProgramState::zero()
-                .tap_mut(|s| s.program = Program::Terminated(ActorId::from([2; 32]))),
+            ProgramState {
+                program: Program::Terminated(ActorId::from([2; 32])),
+                executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
+                ..ProgramState::zero()
+            },
         );
         let program_id = ActorId::from([1; 32]);
 
@@ -272,7 +286,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             selected_txs,
-            vec![signed_tx],
+            vec![AnnounceInjectedTransaction::from_signed_tx(&signed_tx)],
             "tx should be selected for announce"
         );
         assert_eq!(
@@ -303,6 +317,7 @@ mod tests {
                 memory_infix: MemoryInfix::new(0),
                 initialized: true,
             }),
+            executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
             ..ProgramState::zero()
         };
         let state_hash = db.write_program_state(state);

@@ -696,21 +696,24 @@ pub fn accept_announce(
     db: &impl DBAnnouncesExt,
     network_announce: NetworkAnnounce,
 ) -> Result<AnnounceStatus> {
-    let NetworkAnnounce {
-        block_hash,
-        parent,
-        gas_allowance,
-        injected_transactions,
-    } = network_announce;
-    let announce = Announce {
-        block_hash,
-        parent,
-        gas_allowance,
-        injected_transactions: injected_transactions
-            .iter()
-            .map(|tx| tx.data().to_hash())
-            .collect(),
-    };
+    // let NetworkAnnounce {
+    //     block_hash,
+    //     parent,
+    //     gas_allowance,
+    //     injected_transactions,
+    // } = network_announce;
+    // let announce = Announce {
+    //     block_hash,
+    //     parent,
+    //     gas_allowance,
+    //     injected_transactions: injected_transactions
+    //         .iter()
+    //         .map(|tx| tx.data().to_hash())
+    //         .collect(),
+    // };
+    let announce = Announce::from(&network_announce);
+    let injected_transactions = network_announce.injected_transactions;
+
     let announce_hash = announce.to_hash();
     let parent_announce_hash = announce.parent;
     if !db.is_announce_included(parent_announce_hash) {
@@ -792,6 +795,7 @@ pub fn accept_announce(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tx_validation::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES;
     use ethexe_common::{
         StateHashWithQueueSize,
         db::*,
@@ -1075,6 +1079,7 @@ mod tests {
                 memory_infix: MemoryInfix::new(0),
                 initialized: true,
             }),
+            executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
             ..ProgramState::zero()
         };
         let state_hash = db.write_program_state(state);

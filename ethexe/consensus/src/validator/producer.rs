@@ -210,17 +210,15 @@ impl Producer {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
-            injected_transactions: injected_transactions
-                .iter()
-                .map(|tx| tx.data().to_hash())
-                .collect(),
+            injected_transactions,
         };
 
         let network_announce = NetworkAnnounce {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
-            injected_transactions,
+            // injected_transactions,
+            injected_transactions: vec![], // TODO: FIXME
         };
 
         let (announce_hash, newly_included) =

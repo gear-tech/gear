@@ -321,10 +321,10 @@ pub(crate) mod utils {
             .injected_transactions
             .iter()
             .cloned()
-            .map(|tx_hash| {
-                db.injected_transaction(tx_hash)
+            .map(|tx| {
+                db.injected_transaction(tx.tx_hash())
                     .map(|tx| tx.into_verified())
-                    .ok_or_else(|| ComputeError::InjectedTransactionNotFound(tx_hash))
+                    .ok_or_else(|| ComputeError::InjectedTransactionNotFound(tx.tx_hash()))
             })
             .collect::<Result<_>>()?;
 
@@ -417,6 +417,7 @@ mod tests {
             RouterEvent, mirror::ExecutableBalanceTopUpRequestedEvent, router::ProgramCreatedEvent,
         },
         gear::StateTransition,
+        injected::AnnounceInjectedTransaction,
         mock::*,
     };
     use ethexe_processor::Processor;
@@ -619,7 +620,7 @@ mod tests {
                     let txs = if i != 1 {
                         let tx = test_utils::injected_tx(ping_id, b"PING".into(), block);
                         db.set_injected_transaction(tx.clone());
-                        vec![tx.data().to_hash()]
+                        vec![AnnounceInjectedTransaction::from_signed_tx(&tx)]
                     } else {
                         Default::default()
                     };
@@ -672,7 +673,7 @@ mod tests {
             .map(|hash| {
                 let announce = db.announce(*hash).unwrap();
                 Promise {
-                    tx_hash: announce.injected_transactions[0],
+                    tx_hash: announce.injected_transactions[0].tx_hash(),
                     reply: ReplyInfo {
                         payload: b"PONG".into(),
                         value: 0,
@@ -735,7 +736,7 @@ mod tests {
                 .map(|_| {
                     let tx = test_utils::injected_tx(ping_id, b"PING".into(), ref_block);
                     db.set_injected_transaction(tx.clone());
-                    tx.data().to_hash()
+                    AnnounceInjectedTransaction::from_signed_tx(&tx)
                 })
                 .collect::<Vec<_>>();
             announce.injected_transactions = txs;
