@@ -90,6 +90,8 @@ pub enum ComputeError {
     ScheduleNotFound(HashOf<Announce>),
     #[error("Injected transaction not found for hash {0:?}")]
     InjectedTransactionNotFound(HashOf<InjectedTransaction>),
+    #[error("Injected transaction signature mismatch for hash {0:?}")]
+    InjectedTransactionSignatureMismatch(HashOf<InjectedTransaction>),
     #[error("Promise sender dropped")]
     PromiseSenderDropped,
 

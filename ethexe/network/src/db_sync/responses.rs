@@ -118,6 +118,7 @@ impl OngoingResponses {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     fn process_announce_request<
         DB: AnnounceStorageRO + GlobalsStorageRO + ConfigStorageRO + InjectedStorageRO,
     >(
