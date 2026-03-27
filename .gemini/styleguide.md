@@ -8,7 +8,7 @@ Review pull requests for the whole `gear` workspace with a balanced posture: pri
 
 Gear Protocol — a Substrate-based platform for running WebAssembly smart contracts (programs) with an actor-model message-passing architecture. The main network is **Vara**. The repo also contains **ethexe**, a layer that runs Gear programs on Ethereum.
 
-- Rust edition 2024, MSRV 1.91, nightly toolchain (2025-10-20)
+- Rust edition 2024, MSRV 1.91, pinned nightly `nightly-2025-10-20` (see `rust-toolchain.toml`)
 - 114-crate Cargo workspace; default member is `node/cli` (the Vara node binary)
 - `ethexe/` is excluded from the main workspace and has its own Cargo.toml + Solidity contracts (Foundry/Forge)
 - Sails framework lives in a separate repo (github.com/gear-tech/sails), not here
