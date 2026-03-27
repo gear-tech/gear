@@ -4,6 +4,126 @@
 
 Review pull requests for the whole `gear` workspace with a balanced posture: prioritize correctness, safety-critical behavior, and verification gaps before maintainability comments.
 
+## Repository Context
+
+Gear Protocol — a Substrate-based platform for running WebAssembly smart contracts (programs) with an actor-model message-passing architecture. The main network is **Vara**. The repo also contains **ethexe**, a layer that runs Gear programs on Ethereum.
+
+- Rust edition 2024, MSRV 1.91, nightly toolchain (2025-10-20)
+- 114-crate Cargo workspace; default member is `node/cli` (the Vara node binary)
+- `ethexe/` is excluded from the main workspace and has its own Cargo.toml + Solidity contracts (Foundry/Forge)
+- Sails framework lives in a separate repo (github.com/gear-tech/sails), not here
+
+### Execution Flow
+
+```
+User extrinsic (upload_program / send_message / send_reply)
+  → pallet-gear validates, reserves gas+value, queues StoredDispatch
+    → run() inherent fires each block (mandatory, unsigned)
+      → QueueRunner dequeues dispatches one by one
+        → core-processor loads program, creates Ext context
+          → core-backend instantiates WASM in sandbox (Wasmer/Wasmtime)
+            → Program calls gstd/gcore syscalls → dispatched to host fns
+            → lazy-pages intercepts SIGSEGV for on-demand memory paging
+          → Execution produces journal notes (outgoing messages, state changes, gas burns)
+        → pallet-gear applies journal: route messages, update waitlist/mailbox, transfer value
+```
+
+### Message Lifecycle
+
+Messages have four dispatch kinds: **Init**, **Handle**, **Reply**, **Signal**.
+
+Type progression: packets → typed messages → `Dispatch` → `StoredDispatch` (gasless, in queue) → `IncomingDispatch` (with gas, for execution). `ContextStore` preserves async execution state. Reply/signal messages carry `MessageDetails` with origin message ID and result code.
+
+### Program Lifecycle
+
+```
+[not exists] → upload_program → Active(Uninitialized { message_id })
+  → init succeeds → Active(Initialized)
+  → init fails → Terminated(inheritor)
+  → gr_exit called → Exited(inheritor)
+  → expiration_block reached → removed
+```
+
+`ActiveProgram` fields: `code_id`, `state`, `allocations_tree_len`, `memory_infix` (lazy-page storage namespace), `gas_reservation_map`, `expiration_block`.
+
+### Gas Model
+
+UTXO-like gas tree (`GasTree`) where each message owns a gas node. `GasCounter` tracks `(left, burned)`. Tree operations: `create`, `split`, `split_with_value`, `cut`, `consume`, `lock`/`unlock`. Lock IDs: `Mailbox`, `Waitlist`, `Reservation`, `DispatchStash`. `GasAllowanceCounter` enforces block-level gas budget. `ReservableTree` trait adds gas reservation management.
+
+### Queues: Waitlist, Mailbox, TaskPool
+
+**Message Queue** (gear-messenger): FIFO linked-list of `StoredDispatch` — processed each block by `run()`.
+
+**Waitlist** (gear-messenger): Programs waiting for a reply. Keyed by `(ActorId, MessageId) → StoredDispatch`.
+
+**Mailbox** (gear-messenger): Messages to user accounts. Keyed by `(AccountId, MessageId) → UserStoredMessage`. Rent-based TTL via `MailboxThreshold`.
+
+**TaskPool** (gear-scheduler): Delayed actions keyed by `(BlockNumber, Task)`. Types: delayed send, wake, mailbox expiry, reservation cleanup, stall timeout.
+
+### Lazy Pages
+
+Signal-based demand paging: `mprotect` on WASM pages → SIGSEGV handler loads from `LazyPagesStorage` → tracks accessed/write-accessed pages for state diff. `PagePrefix` ([u8; 32]) namespaces per program via `memory_infix`.
+
+### Key Layers
+
+**Program-facing libraries** (`no_std`, compiled to WASM):
+- `gstd` — high-level standard library (async runtime, message API, sync primitives)
+- `gcore` — low-level syscall bindings
+- `gsys` — raw system-level constants and FFI
+- `gprimitives` — shared types (ActorId, MessageId, CodeId)
+
+**Core engine** (native):
+- `core/` (`gear-core`) — fundamental types: messages, programs, gas, memory pages, code
+- `core/processor/` (`gear-core-processor`) — executes programs, manages context and state transitions
+- `core/backend/` (`gear-core-backend`) — bridges processor to WASM sandbox, implements syscall dispatch
+
+**Runtime integration**:
+- `pallets/gear/` — main Substrate pallet; manages message queue, mailbox, waitlist, program/code storage
+- `pallets/gear-messenger/` — message queue and mailbox storage
+- `pallets/gear-scheduler/` — task scheduling across blocks
+- `pallets/gear-bank/` — gas and balance accounting
+- `pallets/gear-voucher/` — pre-paid call vouchers (sponsor gas for specific users/programs)
+- `pallets/gear-builtin/` — native Rust actors (BLS12-381, staking, proxy, eth-bridge) — no WASM, no gas metering
+- `runtime/vara/` — Vara network runtime configuration
+
+**WASM tooling**:
+- `utils/wasm-builder/` — compiles Rust programs to WASM with gas metering injection
+- `utils/wasm-instrument/` — bytecode instrumentation (gas metering, stack checks)
+- `sandbox/` — WASM VM abstraction (Wasmer/Wasmtime backends)
+- `lazy-pages/` — demand-paged memory (signal-based, OS-specific)
+
+**Ethereum execution layer** (`ethexe/`):
+- Separate workspace; runs Gear programs on Ethereum
+- `ethexe/runtime/` — Gear runtime compiled to `no_std` WASM for EVM context (no Substrate pallets, no signaling/reservation syscalls)
+- `ethexe/contracts/` — Solidity: **Router** (validator batch commits, program creation), **Mirror** (per-program state on Ethereum), **Middleware** (validator staking via Symbiotic)
+- Contract ABIs in `ethexe/ethereum/abi/` must be regenerated after contract changes
+
+**Testing**:
+- `gtest` — local blockchain simulator (`System`, `Program`, `run_next_block()`)
+- `gsdk` — Rust SDK for running node interaction
+- `gcli` — CLI client
+
+### no_std Boundary
+
+```
+WASM program (no_std): gstd → gcore → gsys, gprimitives, gear-core-errors
+                            ↕ syscall FFI boundary
+Native runtime (std):   core-backend → core-processor → pallets → runtime/vara
+```
+
+`ethexe` feature flag in gstd/gcore disables syscalls unavailable in the Ethereum context.
+
+### Key Error Categories
+
+`ExtError` sub-enums: `ExecutionError` (100s), `MemoryError` (200s), `MessageError` (300s), `ReservationError` (500s). Encoded as little-endian u32. Code `0xffff` reserved for SyscallUsage.
+
+### Code Conventions
+
+- `rustfmt.toml`: `imports_granularity = "Crate"`, `format_code_in_doc_comments = true`
+- CI uses `[skip-ci]` (not `[skip ci]`) in commit messages for green status checks
+- `cargo nextest` is the test runner (not `cargo test`), except for doc tests
+- `cargo hakari` manages workspace dependency deduplication
+
 ## Review Priorities
 
 1. Correctness and protocol behavior.
