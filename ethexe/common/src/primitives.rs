@@ -29,6 +29,7 @@ use alloc::{
 use core::ops::Not;
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
+use gsigner::Signature;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sha3::Digest as _;
@@ -179,6 +180,7 @@ impl NetworkAnnounce {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn try_from_announce(
         announce: Announce,
         injected_transactions: Vec<SignedInjectedTransaction>,
@@ -263,6 +265,14 @@ pub enum NetworkAnnounceFromAnnounceError {
         expected: HashOf<InjectedTransaction>,
         actual: HashOf<InjectedTransaction>,
     },
+    #[display(
+        "injected transaction signature mismatch at index {index}: expected {expected}, got {actual}"
+    )]
+    InjectedTransactionSignatureMismatch {
+        index: usize,
+        expected: Signature,
+        actual: Signature,
+    },
 }
 
 #[cfg(feature = "std")]
@@ -302,6 +312,16 @@ impl TryFrom<(Announce, Vec<SignedInjectedTransaction>)> for NetworkAnnounce {
                         index,
                         expected: expected.tx_hash(),
                         actual,
+                    },
+                );
+            }
+
+            if *expected.signature() != *tx.signature() {
+                return Err(
+                    NetworkAnnounceFromAnnounceError::InjectedTransactionSignatureMismatch {
+                        index,
+                        expected: *expected.signature(),
+                        actual: *tx.signature(),
                     },
                 );
             }
