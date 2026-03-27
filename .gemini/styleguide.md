@@ -6,6 +6,9 @@ Review pull requests for the whole `gear` workspace with a balanced posture: pri
 
 ## Repository Context
 
+> **Note:** The canonical source for architecture documentation is [CLAUDE.md](../CLAUDE.md).
+> This section is a subset kept in sync for Gemini Code Assist, which only reads `styleguide.md`.
+
 Gear Protocol — a Substrate-based platform for running WebAssembly smart contracts (programs) with an actor-model message-passing architecture. The main network is **Vara**. The repo also contains **ethexe**, a layer that runs Gear programs on Ethereum.
 
 - Rust edition 2024, MSRV 1.91, pinned nightly `nightly-2025-10-20` (see `rust-toolchain.toml`)
