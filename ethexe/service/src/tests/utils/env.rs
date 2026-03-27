@@ -231,11 +231,12 @@ impl TestEnv {
         let router_query = router.query();
         let router_address = router.address();
 
-        let db = new_empty_initialized_memory_db(InitConfig {
+        let db = ethexe_db::create_initialized_empty_memory_db(InitConfig {
             ethereum_rpc: ws_rpc_url.clone(),
             router_address,
             slot_duration_secs: block_time.as_secs(),
-        })?;
+        })
+        .await?;
 
         let eth_cfg = EthereumConfig {
             rpc: ws_rpc_url.clone(),
@@ -355,7 +356,7 @@ impl TestEnv {
         })
     }
 
-    pub fn new_node(&mut self, config: NodeConfig) -> Node {
+    pub async fn new_node(&mut self, config: NodeConfig) -> Node {
         let NodeConfig {
             name,
             db,
@@ -366,7 +367,7 @@ impl TestEnv {
 
         let db = match db {
             Some(db) => db,
-            None => self.new_initialized_db(),
+            None => self.new_initialized_db().await,
         };
 
         let (network_address, network_bootstrap_address) = self
@@ -407,12 +408,13 @@ impl TestEnv {
         }
     }
 
-    pub fn new_initialized_db(&self) -> Database {
-        new_empty_initialized_memory_db(InitConfig {
+    pub async fn new_initialized_db(&self) -> Database {
+        ethexe_db::create_initialized_empty_memory_db(InitConfig {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
             router_address: self.eth_cfg.router_address,
             slot_duration_secs: self.eth_cfg.block_time.as_secs(),
         })
+        .await
         .unwrap()
     }
 
@@ -1326,11 +1328,4 @@ impl WaitForReplyTo {
 
         Ok(info)
     }
-}
-
-pub fn new_empty_initialized_memory_db(config: InitConfig) -> anyhow::Result<Database> {
-    let handle = tokio::runtime::Handle::current();
-    tokio::task::block_in_place(|| {
-        handle.block_on(ethexe_db::create_initialized_empty_memory_db(config))
-    })
 }
