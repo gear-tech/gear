@@ -19,7 +19,7 @@
 //! Small custom thread pool interface, because `rayon` is too smart
 //! and `threadpool` is not smart enough.
 
-use std::{any::Any, env, num::NonZero, panic::AssertUnwindSafe, sync::LazyLock, thread};
+use std::{env, num::NonZero, panic::AssertUnwindSafe, sync::LazyLock, thread};
 
 static DEFAULT_THREAD_POOL: LazyLock<ThreadPool> = LazyLock::new(ThreadPool::new);
 
@@ -42,10 +42,7 @@ where
     DEFAULT_THREAD_POOL.spawn(f).await
 }
 
-type Task = (
-    Box<dyn FnOnce() -> Box<dyn Any + Send + 'static> + Send + 'static>,
-    tokio::sync::oneshot::Sender<thread::Result<Box<dyn Any + Send + 'static>>>,
-);
+type Task = Box<dyn FnOnce() + Send + 'static>;
 
 #[derive(Debug, Clone)]
 struct ThreadPool {
@@ -67,13 +64,12 @@ impl ThreadPool {
 
             thread::spawn(move || {
                 loop {
-                    let Ok((task, sender)) = task_rx.recv() else {
+                    let Ok(task) = task_rx.recv() else {
                         // All connected `ThreadPool` instances were dropped
                         break;
                     };
 
-                    // Output receiver could be cancelled
-                    let _ = sender.send(std::panic::catch_unwind(AssertUnwindSafe(task)));
+                    task();
                 }
             });
         }
@@ -89,19 +85,17 @@ impl ThreadPool {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
         let f = Box::new(move || {
-            let res = f();
-            Box::new(res) as Box<_>
+            let res = std::panic::catch_unwind(AssertUnwindSafe(f));
+
+            // Output receiver could be cancelled
+            let _ = tx.send(res);
         });
 
-        self.task_tx
-            .try_send((f, tx))
-            .expect("The channel is unbounded");
+        self.task_tx.try_send(f).expect("The channel is unbounded");
 
-        let res = rx
-            .await
+        rx.await
             .expect("Worker thread has died")
-            .unwrap_or_else(|err| std::panic::resume_unwind(err));
-        *res.downcast::<R>().expect("Failed to downcast result")
+            .unwrap_or_else(|err| std::panic::resume_unwind(err))
     }
 }
 
