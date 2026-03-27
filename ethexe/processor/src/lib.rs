@@ -44,7 +44,6 @@ use tokio::sync::mpsc;
 
 mod handling;
 mod host;
-
 #[cfg(test)]
 mod tests;
 mod thread_pool;

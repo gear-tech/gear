@@ -570,7 +570,7 @@ pub(super) mod chunks_splitting {
     }
 }
 
-pub(crate) mod chunk_execution_spawn {
+mod chunk_execution_spawn {
     use super::*;
     use crate::thread_pool;
     use ethexe_runtime_common::ProcessQueueContext;
@@ -585,7 +585,7 @@ pub(crate) mod chunk_execution_spawn {
     /// It means that in the same time unit (!) all programs simultaneously charge gas allowance. If programs were to be
     /// executed concurrently, then each of the program should have received a reference to the global gas allowance counter
     /// and charge gas from it concurrently.
-    pub(super) async fn spawn_chunk_execution(
+    pub async fn spawn_chunk_execution(
         ctx: &mut impl RunContext,
         chunk: Vec<(ActorId, H256)>,
         queue_type: MessageType,
