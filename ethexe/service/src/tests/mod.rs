@@ -18,17 +18,12 @@
 
 //! Integration tests.
 
-use futures::StreamExt;
 pub(crate) mod utils;
 
-use crate::{
-    Service,
-    config::{self, Config},
-    tests::utils::{
-        AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
-        TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
-        Wallets, init_logger,
-    },
+use crate::tests::utils::{
+    AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
+    TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets,
+    init_logger,
 };
 use alloy::{
     primitives::U256,
@@ -36,7 +31,6 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -53,13 +47,12 @@ use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::verifier::IntegrityVerifier;
 use ethexe_ethereum::{
-    NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE, TryGetReceipt, abi::IDemoCaller,
-    deploy::ContractsDeploymentParams, router::Router,
+    TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
 };
-use ethexe_observer::{EthereumConfig, ObserverEvent};
-use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, InjectedClient, RpcConfig};
+use ethexe_observer::ObserverEvent;
+use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
+use futures::StreamExt;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -70,11 +63,8 @@ use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
-    net::{Ipv4Addr, SocketAddr},
     sync::Arc,
-    time::Duration,
 };
-use tempfile::tempdir;
 use tokio::sync::{
     Mutex,
     mpsc::{self, UnboundedReceiver, UnboundedSender},
