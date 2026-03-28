@@ -530,6 +530,8 @@ mod tests {
         assert_eq!(event, Event::BlockPrepared(block.hash));
     }
 
+    // we don't use an async Mutex to avoid holding a guard while awaiting `.next()`
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn test_receive_processed_code_wakes() {
@@ -562,9 +564,12 @@ mod tests {
         }
         .setup(&db);
 
-        service.lock().unwrap().receive_block_to_prepare(block.hash);
-        let request = service.lock().unwrap().next().await.unwrap();
-        assert_eq!(request, Event::RequestCodes([code1_id, code2_id].into()));
+        {
+            let mut service = service.lock().unwrap();
+            service.receive_block_to_prepare(block.hash);
+            let request = service.next().await.unwrap();
+            assert_eq!(request, Event::RequestCodes([code1_id, code2_id].into()));
+        }
 
         let service_clone = service.clone();
         let mut handle = tokio::spawn(future::poll_fn(move |cx| {
