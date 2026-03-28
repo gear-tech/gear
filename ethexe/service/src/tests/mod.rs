@@ -72,7 +72,6 @@ use tokio::sync::{
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
 
-#[ignore = "until rpc fixed"]
 #[tokio::test]
 #[ntest::timeout(30_000)]
 async fn invalid_code() {
