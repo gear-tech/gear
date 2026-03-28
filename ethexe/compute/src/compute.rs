@@ -33,7 +33,7 @@ use futures::{FutureExt, StreamExt, future::BoxFuture};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
 };
 use tokio::sync::mpsc;
 
@@ -82,6 +82,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
     metrics: Metrics,
 
     input: VecDeque<(Announce, PromisePolicy)>,
+    waker: Option<Waker>,
 
     // TODO kuzmindev: consider to refactor this (move to separate stream).
     computation: Option<ComputationFuture>,
@@ -97,6 +98,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             config,
             metrics: Metrics::default(),
             input: VecDeque::new(),
+            waker: None,
             computation: None,
             promises_stream: None,
             pending_event: None,
@@ -109,6 +111,10 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         promise_policy: PromisePolicy,
     ) {
         self.input.push_back((announce, promise_policy));
+
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
     }
 
     async fn compute(
@@ -264,6 +270,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
             }
         }
 
+        self.waker = Some(cx.waker().clone());
         Poll::Pending
     }
 }
@@ -414,11 +421,14 @@ mod tests {
         mock::*,
     };
     use ethexe_processor::Processor;
+    use futures::{FutureExt, future};
     use gear_core::{
         message::{ReplyCode, SuccessReplyReason},
         rpc::ReplyInfo,
     };
     use gprimitives::{ActorId, H256};
+    use std::sync::{Arc, Mutex};
+    use tokio::task;
 
     mod test_utils {
         use crate::CodeAndIdUnchecked;
@@ -569,6 +579,54 @@ mod tests {
 
         // Verify latest announce
         assert_eq!(db.globals().latest_computed_announce_hash, announce_hash);
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn test_receive_announce_to_compute_wakes() {
+        gear_utils::init_default_logger();
+
+        let db = Database::memory();
+        let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
+        let service = Arc::new(Mutex::new(ComputeSubService::new(
+            ComputeConfig::without_quarantine(),
+            db.clone(),
+            MockProcessor::default(),
+        )));
+
+        let announce = Announce {
+            block_hash,
+            parent: db.config().genesis_announce_hash,
+            gas_allowance: Some(100),
+            injected_transactions: vec![],
+        };
+        let announce_hash = announce.to_hash();
+
+        let service_clone = service.clone();
+        let mut handle = tokio::spawn(future::poll_fn(move |cx| {
+            service_clone.lock().unwrap().poll_next(cx)
+        }));
+
+        // yield, so `tokio::spawn` task definitely polled
+        task::yield_now().await;
+        let res = (&mut handle).now_or_never();
+        assert!(res.is_none());
+
+        service
+            .lock()
+            .unwrap()
+            .receive_announce_to_compute(announce, PromisePolicy::Disabled);
+
+        // yield, so `tokio::spawn` task polled again
+        task::yield_now().await;
+        let event = handle
+            .now_or_never()
+            .expect("compute service wasn't woken after receiving announce")
+            .expect("join failed")
+            .unwrap()
+            .unwrap_announce_computed();
+
+        assert_eq!(event, announce_hash);
     }
 
     #[tokio::test]

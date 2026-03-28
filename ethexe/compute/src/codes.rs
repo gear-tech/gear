@@ -25,7 +25,7 @@ use ethexe_db::Database;
 use ethexe_processor::{ProcessedCodeInfo, ValidCodeInfo};
 use gprimitives::CodeId;
 use metrics::Gauge;
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, Waker};
 use tokio::task::JoinSet;
 
 /// Metrics for the [`CodesSubService`].
@@ -42,6 +42,7 @@ pub struct CodesSubService<P: ProcessorExt> {
     metrics: Metrics,
 
     processions: JoinSet<Result<CodeId>>,
+    waker: Option<Waker>,
 }
 
 impl<P: ProcessorExt> CodesSubService<P> {
@@ -51,6 +52,7 @@ impl<P: ProcessorExt> CodesSubService<P> {
             processor,
             metrics: Metrics::default(),
             processions: JoinSet::new(),
+            waker: None,
         }
     }
 
@@ -106,6 +108,10 @@ impl<P: ProcessorExt> CodesSubService<P> {
         self.metrics
             .processing_codes
             .set(self.processions.len() as f64);
+
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
     }
 }
 
@@ -113,14 +119,16 @@ impl<P: ProcessorExt> SubService for CodesSubService<P> {
     type Output = CodeId;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
-        futures::ready!(self.processions.poll_join_next(cx))
-            .map(|res| {
-                self.metrics
-                    .processing_codes
-                    .set(self.processions.len() as f64);
-                res.map_err(ComputeError::CodeProcessJoin)?
-            })
-            .map_or(Poll::Pending, Poll::Ready)
+        if let Poll::Ready(Some(res)) = self.processions.poll_join_next(cx) {
+            self.metrics
+                .processing_codes
+                .set(self.processions.len() as f64);
+            let res = res.map_err(ComputeError::CodeProcessJoin)?;
+            return Poll::Ready(res);
+        }
+
+        self.waker = Some(cx.waker().clone());
+        Poll::Pending
     }
 }
 
@@ -129,7 +137,10 @@ mod tests {
     use super::*;
     use crate::tests::*;
     use ethexe_common::{CodeAndId, mock::Tap};
+    use futures::{FutureExt, future};
     use gear_core::code::{InstantiatedSectionSizes, InstrumentedCode};
+    use std::sync::{Arc, Mutex};
+    use tokio::task;
 
     #[tokio::test]
     #[ntest::timeout(3000)]
@@ -184,5 +195,41 @@ mod tests {
         service.receive_code_to_process(code_and_id.into_unchecked());
         assert_eq!(service.next().await.unwrap(), code_id);
         assert_eq!(db.code_valid(code_id), Some(false));
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn receive_code_to_process_wakes() {
+        let db = Database::memory();
+        let code_and_id = CodeAndId::new(vec![1, 2, 3, 4]);
+        let processor = MockProcessor::with_default_valid_code()
+            .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_and_id.code_id());
+        let service = Arc::new(Mutex::new(CodesSubService::new(db.clone(), processor)));
+        let code_id = code_and_id.code_id();
+
+        let service_clone = service.clone();
+        let mut handle = tokio::spawn(future::poll_fn(move |cx| {
+            service_clone.lock().unwrap().poll_next(cx)
+        }));
+
+        // yield, so `tokio::spawn` task definitely polled
+        task::yield_now().await;
+        let res = (&mut handle).now_or_never();
+        assert!(res.is_none());
+
+        service
+            .lock()
+            .unwrap()
+            .receive_code_to_process(code_and_id.into_unchecked());
+
+        // yield, so `tokio::spawn` task polled again
+        task::yield_now().await;
+        let event = handle
+            .now_or_never()
+            .expect("codes service wasn't woken after receiving code")
+            .expect("join failed")
+            .unwrap();
+
+        assert_eq!(event, code_id);
     }
 }

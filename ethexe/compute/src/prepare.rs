@@ -36,7 +36,7 @@ use gprimitives::{CodeId, H256};
 use metrics::Gauge;
 use std::{
     collections::{HashSet, VecDeque},
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,6 +77,7 @@ pub struct PrepareSubService {
     db: Database,
     state: State,
     input: VecDeque<H256>,
+    waker: Option<Waker>,
     metrics: Metrics,
 }
 
@@ -86,6 +87,7 @@ impl PrepareSubService {
             db,
             state: State::Start,
             input: VecDeque::new(),
+            waker: None,
             metrics: Metrics::default(),
         }
     }
@@ -93,6 +95,10 @@ impl PrepareSubService {
     pub fn receive_block_to_prepare(&mut self, block: H256) {
         self.input.push_back(block);
         self.metrics.blocks_queue_len.set(self.input.len() as f64);
+
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
     }
 
     pub fn receive_processed_code(&mut self, code_id: CodeId) {
@@ -100,6 +106,10 @@ impl PrepareSubService {
             && codes.remove(&code_id)
         {
             self.metrics.waiting_codes_count.set(codes.len() as f64);
+
+            if let Some(waker) = self.waker.take() {
+                waker.wake();
+            }
         }
     }
 }
@@ -107,13 +117,12 @@ impl PrepareSubService {
 impl SubService for PrepareSubService {
     type Output = Event;
 
-    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
-        if matches!(&self.state, State::WaitingForBlock | State::Start) {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
+        if let State::WaitingForBlock | State::Start = self.state
             // Use pop_back to prepare the most recent blocks first,
             // this is the most efficient way of preparing blocks in case of multiple pending blocks.
-            let Some(block_hash) = self.input.pop_back() else {
-                return Poll::Pending;
-            };
+            && let Some(block_hash) = self.input.pop_back()
+        {
             self.metrics.blocks_queue_len.set(self.input.len() as f64);
 
             if !self.db.block_synced(block_hash) {
@@ -175,6 +184,7 @@ impl SubService for PrepareSubService {
             return Poll::Ready(Ok(Event::BlockPrepared(head)));
         }
 
+        self.waker = Some(cx.waker().clone());
         Poll::Pending
     }
 }
@@ -371,8 +381,11 @@ mod tests {
     use super::*;
     use ethexe_common::{Announce, Digest, HashOf, events::BlockEvent, mock::*};
     use ethexe_db::Database;
+    use futures::{FutureExt, future};
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::H256;
+    use std::sync::{Arc, Mutex};
+    use tokio::task;
 
     #[test]
     fn test_prepare_one_block() {
@@ -483,6 +496,97 @@ mod tests {
             service.next().await.unwrap(),
             Event::BlockPrepared(block.hash),
         );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn test_receive_block_to_prepare_wakes() {
+        gear_utils::init_default_logger();
+
+        let db = Database::memory();
+        let service = Arc::new(Mutex::new(PrepareSubService::new(db.clone())));
+        let chain = BlockChain::mock(1).setup(&db);
+        let block = chain.blocks[1].to_simple().next_block().setup(&db);
+
+        let service_clone = service.clone();
+        let mut handle = tokio::spawn(future::poll_fn(move |cx| {
+            service_clone.lock().unwrap().poll_next(cx)
+        }));
+
+        // yield, so `tokio::spawn` task definitely polled
+        task::yield_now().await;
+        let res = (&mut handle).now_or_never();
+        assert!(res.is_none());
+
+        service.lock().unwrap().receive_block_to_prepare(block.hash);
+
+        // yield, so `tokio::spawn` task polled again
+        task::yield_now().await;
+        let event = handle
+            .now_or_never()
+            .expect("prepare service wasn't woken after receiving block")
+            .expect("join failed")
+            .unwrap();
+        assert_eq!(event, Event::BlockPrepared(block.hash));
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn test_receive_processed_code_wakes() {
+        gear_utils::init_default_logger();
+
+        let db = Database::memory();
+        let service = Arc::new(Mutex::new(PrepareSubService::new(db.clone())));
+        let chain = BlockChain::mock(1).setup(&db);
+
+        let code1_id = CodeId::from([1u8; 32]);
+        let code2_id = CodeId::from([2u8; 32]);
+
+        let block = chain.blocks[1].to_simple().next_block();
+        let block = BlockData {
+            hash: block.hash,
+            header: block.header,
+            events: vec![
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                    code_id: code1_id,
+                    valid: true,
+                })),
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent {
+                        code_id: code2_id,
+                        timestamp: 1000,
+                        tx_hash: H256::random(),
+                    },
+                )),
+            ],
+        }
+        .setup(&db);
+
+        service.lock().unwrap().receive_block_to_prepare(block.hash);
+        let request = service.lock().unwrap().next().await.unwrap();
+        assert_eq!(request, Event::RequestCodes([code1_id, code2_id].into()));
+
+        let service_clone = service.clone();
+        let mut handle = tokio::spawn(future::poll_fn(move |cx| {
+            service_clone.lock().unwrap().poll_next(cx)
+        }));
+
+        // yield, so `tokio::spawn` task definitely polled
+        task::yield_now().await;
+        let res = (&mut handle).now_or_never();
+        assert!(res.is_none());
+
+        service.lock().unwrap().receive_processed_code(code1_id);
+
+        // yield, so `tokio::spawn` task polled again
+        task::yield_now().await;
+        let event = handle
+            .now_or_never()
+            .expect("prepare service wasn't woken after receiving processed code")
+            .expect("join failed")
+            .unwrap();
+
+        assert_eq!(event, Event::BlockPrepared(block.hash));
     }
 
     #[tokio::test]
