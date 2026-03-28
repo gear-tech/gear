@@ -219,6 +219,14 @@ pub struct TxCommand {
     #[arg(long, alias = "eth-router")]
     pub ethereum_router: Option<Address>,
 
+    /// Ethereum EIP-1559 fee increase percentage (from "medium").
+    #[arg(long, alias = "eth-eip1559-fee-increase-percentage")]
+    pub eip1559_fee_increase_percentage: Option<u64>,
+
+    /// Ethereum blob gas multiplier.
+    #[arg(long, alias = "eth-blob-gas-multiplier")]
+    pub blob_gas_multiplier: Option<u128>,
+
     /// Sender address or public key to use. Must have a corresponding private key in the key store.
     #[arg(long)]
     pub sender: Option<Address>,
@@ -247,6 +255,19 @@ impl TxCommand {
             .ethereum_router
             .take()
             .or_else(|| params.ethereum.as_ref().and_then(|p| p.ethereum_router));
+
+        self.eip1559_fee_increase_percentage =
+            self.eip1559_fee_increase_percentage.take().or_else(|| {
+                params
+                    .ethereum
+                    .as_ref()
+                    .and_then(|p| p.eip1559_fee_increase_percentage)
+            });
+
+        self.blob_gas_multiplier = self
+            .blob_gas_multiplier
+            .take()
+            .or_else(|| params.ethereum.as_ref().and_then(|p| p.blob_gas_multiplier));
 
         self
     }
@@ -277,14 +298,15 @@ impl TxCommand {
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
-        // INCREASED_BLOB_GAS_MULTIPLIER (TODO: from config, default is increased)
         let ethereum = Ethereum::new(
             &rpc,
             router_addr,
             signer.clone(),
             sender,
-            NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-            INCREASED_BLOB_GAS_MULTIPLIER,
+            self.eip1559_fee_increase_percentage
+                .unwrap_or(NO_EIP1559_FEE_INCREASE_PERCENTAGE),
+            self.blob_gas_multiplier
+                .unwrap_or(INCREASED_BLOB_GAS_MULTIPLIER),
         )
         .await
         .with_context(|| "failed to create Ethereum client")?;
