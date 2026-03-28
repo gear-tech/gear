@@ -93,7 +93,10 @@ impl Params {
                     .transpose()
             })
             .transpose()?;
-        let rpc = rpc.and_then(|p| p.into_config(&node));
+        let rpc = match rpc {
+            Some(params) => params.into_config(&node)?,
+            None => None,
+        };
         let prometheus = prometheus.and_then(|p| p.into_config());
         Ok(Config {
             node,

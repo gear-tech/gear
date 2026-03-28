@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MergeParams;
+use anyhow::{Result, anyhow};
 use clap::Parser;
-use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
+use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, SnapshotRpcConfig};
 use ethexe_service::config::NodeConfig;
 use serde::Deserialize;
 use std::{
@@ -52,6 +53,31 @@ pub struct RpcParams {
 
     #[arg(long)]
     pub gas_limit_multiplier: Option<u64>,
+
+    /// Flag to enable snapshot download RPC API.
+    #[arg(long)]
+    #[serde(default)]
+    pub snapshot: bool,
+
+    /// Bearer token for snapshot download RPC authorization.
+    #[arg(long)]
+    #[serde(rename = "snapshot-token")]
+    pub snapshot_token: Option<String>,
+
+    /// Snapshot chunk size in bytes.
+    #[arg(long)]
+    #[serde(rename = "snapshot-chunk-bytes")]
+    pub snapshot_chunk_bytes: Option<usize>,
+
+    /// Snapshot retention period in seconds.
+    #[arg(long)]
+    #[serde(rename = "snapshot-retention-secs")]
+    pub snapshot_retention_secs: Option<u64>,
+
+    /// Max amount of concurrent snapshot downloads.
+    #[arg(long)]
+    #[serde(rename = "snapshot-max-concurrent")]
+    pub snapshot_max_concurrent: Option<u32>,
 }
 
 impl RpcParams {
@@ -59,9 +85,9 @@ impl RpcParams {
     pub const DEFAULT_RPC_PORT: u16 = 9944;
 
     /// Convert self into a proper `RpcConfig` object, if RPC service is enabled.
-    pub fn into_config(self, node_config: &NodeConfig) -> Option<RpcConfig> {
+    pub fn into_config(self, node_config: &NodeConfig) -> Result<Option<RpcConfig>> {
         if self.no_rpc {
-            return None;
+            return Ok(None);
         }
 
         let ipv4_addr = if self.rpc_external {
@@ -91,14 +117,49 @@ impl RpcParams {
             .gas_limit_multiplier
             .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER);
 
-        Some(RpcConfig {
+        let snapshot = if self.snapshot {
+            let auth_bearer_token = self.snapshot_token.ok_or_else(|| {
+                anyhow!("`snapshot-token` must be provided when `snapshot` rpc is enabled")
+            })?;
+            if auth_bearer_token.is_empty() {
+                return Err(anyhow!(
+                    "`snapshot-token` must be non-empty when `snapshot` rpc is enabled"
+                ));
+            }
+            Some(SnapshotRpcConfig {
+                auth_bearer_token,
+                chunk_size_bytes: self
+                    .snapshot_chunk_bytes
+                    .unwrap_or(SnapshotRpcConfig::DEFAULT_CHUNK_SIZE_BYTES)
+                    .max(1),
+                retention_secs: self
+                    .snapshot_retention_secs
+                    .unwrap_or(SnapshotRpcConfig::DEFAULT_RETENTION_SECS),
+                max_concurrent_downloads: self
+                    .snapshot_max_concurrent
+                    .unwrap_or(SnapshotRpcConfig::DEFAULT_MAX_CONCURRENT_DOWNLOADS)
+                    .max(1),
+            })
+        } else {
+            None
+        };
+
+        let gas_allowance = gas_limit_multiplier
+            .checked_mul(node_config.block_gas_limit)
+            .ok_or_else(|| {
+                anyhow!(
+                    "rpc gas allowance overflow: gas_limit_multiplier={gas_limit_multiplier}, block_gas_limit={}",
+                    node_config.block_gas_limit
+                )
+            })?;
+
+        Ok(Some(RpcConfig {
             listen_addr,
             cors,
-            gas_allowance: gas_limit_multiplier
-                .checked_mul(node_config.block_gas_limit)
-                .expect("RPC gas allowance overflow"),
+            gas_allowance,
             chunk_size: node_config.chunk_processing_threads,
-        })
+            snapshot,
+        }))
     }
 }
 
@@ -110,6 +171,15 @@ impl MergeParams for RpcParams {
             rpc_cors: self.rpc_cors.or(with.rpc_cors),
             no_rpc: self.no_rpc || with.no_rpc,
             gas_limit_multiplier: self.gas_limit_multiplier.or(with.gas_limit_multiplier),
+            snapshot: self.snapshot || with.snapshot,
+            snapshot_token: self.snapshot_token.or(with.snapshot_token),
+            snapshot_chunk_bytes: self.snapshot_chunk_bytes.or(with.snapshot_chunk_bytes),
+            snapshot_retention_secs: self
+                .snapshot_retention_secs
+                .or(with.snapshot_retention_secs),
+            snapshot_max_concurrent: self
+                .snapshot_max_concurrent
+                .or(with.snapshot_max_concurrent),
         }
     }
 }
@@ -178,5 +248,67 @@ impl<'de> Deserialize<'de> for Cors {
                 "Invalid value for cors. Possible values: \"all\" (alias \"*\") or list of strings like [\"http://localhost:*\", \"https://127.0.0.1:*\"].",
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_service::config::ConfigPublicKey;
+    use tempfile::tempdir;
+
+    fn node_config(block_gas_limit: u64) -> NodeConfig {
+        let database_dir = tempdir().expect("temporary directory should be created");
+        let key_dir = tempdir().expect("temporary directory should be created");
+
+        NodeConfig {
+            database_path: database_dir.path().to_path_buf(),
+            key_path: key_dir.path().to_path_buf(),
+            validator: ConfigPublicKey::Disabled,
+            validator_session: ConfigPublicKey::Disabled,
+            eth_max_sync_depth: 0,
+            worker_threads: None,
+            blocking_threads: None,
+            chunk_processing_threads: 2,
+            block_gas_limit,
+            canonical_quarantine: 0,
+            dev: false,
+            pre_funded_accounts: 0,
+            fast_sync: false,
+            chain_deepness_threshold: 0,
+        }
+    }
+
+    #[test]
+    fn rejects_empty_snapshot_token() {
+        let params = RpcParams {
+            snapshot: true,
+            snapshot_token: Some(String::new()),
+            ..Default::default()
+        };
+
+        let err = params
+            .into_config(&node_config(1))
+            .expect_err("empty snapshot token should be rejected");
+        assert!(
+            err.to_string().contains("must be non-empty"),
+            "unexpected error: {err:#}"
+        );
+    }
+
+    #[test]
+    fn rejects_gas_allowance_overflow() {
+        let params = RpcParams {
+            gas_limit_multiplier: Some(u64::MAX),
+            ..Default::default()
+        };
+
+        let err = params
+            .into_config(&node_config(2))
+            .expect_err("gas allowance overflow should be rejected");
+        assert!(
+            err.to_string().contains("rpc gas allowance overflow"),
+            "unexpected error: {err:#}"
+        );
     }
 }

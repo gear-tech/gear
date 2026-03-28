@@ -196,6 +196,26 @@
 # (optional, default: false).
 # no-rpc = false
 
+# Flag to enable RocksDB snapshot download RPC API.
+# (optional, default: false).
+# snapshot = false
+
+# Bearer token used by `snapshot_download`.
+# Must be provided when `snapshot = true`.
+# snapshot-token = "replace-with-strong-random-token"
+
+# Snapshot stream chunk size in bytes.
+# (optional, default: 1048576).
+# snapshot-chunk-bytes = 1048576
+
+# Snapshot artifact retention in seconds.
+# (optional, default: 600).
+# snapshot-retention-secs = 600
+
+# Maximum concurrent snapshot downloads.
+# (optional, default: 1).
+# snapshot-max-concurrent = 1
+
 ##########################################################################################
 
 ### Prometheus (metrics) service parameters.

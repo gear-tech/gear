@@ -7,6 +7,10 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[[example]]
+name = "snapshot_download_verify"
+required-features = ["client"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -30,12 +34,20 @@ tracing.workspace = true
 dashmap.workspace = true
 metrics.workspace = true
 metrics-derive.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tar = "0.4"
+zstd = "0.13"
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
+clap = { workspace = true, features = ["derive"] }
 jsonrpsee = { workspace = true, features = ["client"] }
 ethexe-common = { workspace = true, features = ["std", "mock"] }
+ethexe-db = { workspace = true, features = ["mock"] }
 ntest.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 tracing-subscriber.workspace = true
 
 [features]

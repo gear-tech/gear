@@ -142,6 +142,7 @@ async fn basics() {
             .checked_mul(config.node.block_gas_limit)
             .unwrap(),
         chunk_size: config.node.chunk_processing_threads,
+        snapshot: None,
     });
 
     config.prometheus = Some(PrometheusConfig {
