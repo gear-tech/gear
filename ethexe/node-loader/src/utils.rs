@@ -162,6 +162,7 @@ pub async fn listen_blocks(tx: broadcast::Sender<Header>, provider: RootProvider
     }
 }
 
+#[allow(dead_code)]
 pub async fn capture_mailbox_messages(
     api: &Ethereum,
     event_source: &[Event],
@@ -170,12 +171,7 @@ pub async fn capture_mailbox_messages(
     let to: ActorId = EthexeAddress::from(api.provider().default_signer_address()).into();
 
     let mailbox_messages = event_source.iter().filter_map(|event| match &event.event {
-        // Incoming message to the user's EOA.
         MirrorEvent::Message(msg) if msg.destination == to => Some(msg.id),
-
-        // Outgoing (request) message created by the user (useful for tracking).
-        MirrorEvent::MessageQueueingRequested(msg) if msg.source == to => Some(msg.id),
-
         _ => None,
     });
 
