@@ -162,22 +162,6 @@ pub async fn listen_blocks(tx: broadcast::Sender<Header>, provider: RootProvider
     }
 }
 
-#[allow(dead_code)]
-pub async fn capture_mailbox_messages(
-    api: &Ethereum,
-    event_source: &[Event],
-    _sent_message_ids: impl IntoIterator<Item = MessageId>,
-) -> Result<BTreeSet<MessageId>> {
-    let to: ActorId = EthexeAddress::from(api.provider().default_signer_address()).into();
-
-    let mailbox_messages = event_source.iter().filter_map(|event| match &event.event {
-        MirrorEvent::Message(msg) if msg.destination == to => Some(msg.id),
-        _ => None,
-    });
-
-    Ok(BTreeSet::from_iter(mailbox_messages))
-}
-
 /// Check whether processing batch of messages identified by corresponding
 /// `message_ids` resulted in errors or has been successful.
 ///
