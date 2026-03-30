@@ -18,10 +18,7 @@
 
 use crate::{
     ProcessorError, Result,
-    handling::run::{
-        self, CommonRunContext, RunContext,
-        chunks_splitting::{ActorStateHashWithQueueSize, ExecutionChunks},
-    },
+    handling::run::{self, CommonRunContext, RunContext, ActorStateHashWithQueueSize, ExecutionChunks},
     host::InstanceCreator,
 };
 use core_processor::common::JournalNote;
