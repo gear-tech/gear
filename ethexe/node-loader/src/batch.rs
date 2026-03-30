@@ -897,10 +897,8 @@ async fn parse_router_transitions(
                             for tr in commitment.transitions.iter() {
                                 let actor_id: ActorId = EthexeAddress::from(tr.actorId).into();
 
-                                if tr.exited {
-                                    if exited_programs.insert(actor_id) {
-                                        tracing::debug!(program = %actor_id, "Program exited");
-                                    }
+                                if tr.exited && exited_programs.insert(actor_id) {
+                                    tracing::debug!(program = %actor_id, "Program exited");
                                 }
 
                                 {

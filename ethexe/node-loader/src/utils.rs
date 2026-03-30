@@ -1,14 +1,11 @@
-use std::{collections::BTreeSet, str::FromStr};
-
 use alloy::{
     hex,
-    providers::{Provider, RootProvider, WalletProvider},
+    providers::{Provider, RootProvider},
     rpc::types::Header,
     signers::local::{MnemonicBuilder, coins_bip39::English},
 };
 use anyhow::Result;
-use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
-use ethexe_ethereum::Ethereum;
+use ethexe_common::events::MirrorEvent;
 use futures::StreamExt;
 use gear_call_gen::Seed;
 use gear_core::ids::prelude::MessageIdExt;
@@ -18,6 +15,7 @@ use gear_wasm_gen::{
 };
 use gprimitives::{ActorId, MessageId};
 use rand::rngs::SmallRng;
+use std::str::FromStr;
 use tokio::{fs::File, io::AsyncWriteExt, sync::broadcast};
 use tracing::warn;
 
