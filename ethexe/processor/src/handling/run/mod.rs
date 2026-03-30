@@ -104,9 +104,9 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
-mod chunk_execution_processing;
-mod chunk_execution_spawn;
-mod chunks_splitting;
+pub(super) mod chunk_execution_processing;
+pub(super) mod chunk_execution_spawn;
+pub(super) mod chunks_splitting;
 
 pub(crate) use chunks_splitting::ActorStateHashWithQueueSize;
 
