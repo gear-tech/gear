@@ -46,7 +46,8 @@ use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
-    Ethereum,
+    Ethereum, INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE, NO_BLOB_GAS_MULTIPLIER,
+    NO_EIP1559_FEE_INCREASE_PERCENTAGE,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
     middleware::MockElectionProvider,
     router::RouterQuery,
@@ -211,6 +212,8 @@ impl TestEnv {
                 router_address.parse().unwrap(),
                 signer.clone(),
                 sender_address,
+                INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE,
+                NO_BLOB_GAS_MULTIPLIER,
             )
             .await?
         } else {
@@ -243,6 +246,8 @@ impl TestEnv {
             beacon_rpc: http_rpc_url.clone(),
             router_address,
             block_time: config.block_time,
+            eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
         };
         let mut observer = ObserverService::new(
             db.clone(),
@@ -943,6 +948,8 @@ impl Node {
                         self.eth_cfg.router_address,
                         self.signer.clone(),
                         config.public_key.to_address(),
+                        self.eth_cfg.eip1559_fee_increase_percentage,
+                        self.eth_cfg.blob_gas_multiplier,
                     )
                     .await
                     .unwrap()
