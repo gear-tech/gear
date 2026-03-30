@@ -96,10 +96,19 @@ Signal-based demand paging: `mprotect` on WASM pages → SIGSEGV handler loads f
 - `lazy-pages/` — demand-paged memory (signal-based, OS-specific)
 
 **Ethereum execution layer** (`ethexe/`):
-- Separate workspace; runs Gear programs on Ethereum
-- `ethexe/runtime/` — Gear runtime compiled to `no_std` WASM for EVM context (no Substrate pallets, no signaling/reservation syscalls)
-- `ethexe/contracts/` — Solidity: **Router** (validator batch commits, program creation), **Mirror** (per-program state on Ethereum), **Middleware** (validator staking via Symbiotic)
-- Contract ABIs in `ethexe/ethereum/abi/` must be regenerated after contract changes
+- Separate Cargo workspace; runs Gear programs on Ethereum. Primary active development area.
+- Key crates: `ethexe-service` (main orchestrator), `ethexe-consensus` (validator state machine: Initial → Producer/Subordinate → Coordinator/Participant), `ethexe-compute` (orchestrates execution), `ethexe-processor` (Wasmtime program execution), `ethexe-runtime` (Gear runtime compiled to WASM), `ethexe-runtime-common` (shared types/traits)
+- Chain integration: `ethexe-observer` (Ethereum block sync), `ethexe-ethereum` (contract wrappers: Router, Mirror, Middleware, WVara), `ethexe-blob-loader` (EIP-4844 code blobs from beacon chain)
+- Infrastructure: `ethexe-network` (libp2p P2P — gossipsub, Kademlia, db-sync), `ethexe-db` (CASDatabase + KVDatabase — RocksDB/MemDb), `ethexe-rpc` (JSON-RPC 2.0: BlockApi, CodeApi, ProgramApi, InjectedApi), `ethexe-prometheus` (metrics)
+- Solidity contracts (`ethexe/contracts/`, Foundry/Forge, Solidity 0.8.33):
+  - **Router.sol** — UUPS upgradeable co-processor. Validators submit batch commitments, 2-of-3 threshold → `commitBatch`. Manages code validation, program creation, validator set, eras.
+  - **Mirror.sol** — per-program proxy. Stores `stateHash` + `nonce`. `sendMessage()` for user→program, `performStateTransition()` for validated state updates.
+  - **WrappedVara.sol** — ERC20 wrapper for Vara token.
+  - **Middleware.sol** / **POAMiddleware.sol** — validator election and permissions (Symbiotic staking or fixed POA set).
+  - Libraries: `Gear.sol` (core structs, FROST crypto), `SSTORE2.sol` (cheap storage), `Clones.sol`/`ClonesSmall.sol` (Mirror cloning).
+- Key types: `SimpleBlockData`, `BlockHeader`, `Announce` (block execution results), `InjectedTransaction`/`SignedInjectedTransaction` (cross-chain msgs), `ProgramStates`, `BlockEvent`
+- Runtime differences from Vara: no Substrate pallets, no signaling syscalls, no reservation operations; `RuntimeInterface` trait for host functions; `ethexe` feature flag in gstd/gcore disables unavailable syscalls
+- Contract ABIs in `ethexe/ethereum/abi/` must be regenerated after contract changes (`make ethexe-contracts-pre-commit`)
 
 **Testing**:
 - `gtest` — local blockchain simulator (`System`, `Program`, `run_next_block()`)
