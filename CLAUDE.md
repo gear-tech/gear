@@ -164,17 +164,147 @@ Available builtins: BLS12-381 verification, staking proxy, message proxy, Ethere
 
 ### Ethexe (Ethereum Execution Layer)
 
-Separate workspace that runs Gear programs on Ethereum via three Solidity contracts:
+Separate Cargo workspace (`ethexe/Cargo.toml`) that runs Gear programs on Ethereum. This is the primary active development area.
 
-**Router**: Central authority. Validators commit state transition batches (`commitBatch`). Handles code validation requests, program creation, computation/validation settings. Manages validator set and signing thresholds.
+#### Crate Map
 
-**Mirror**: One per Gear program on Ethereum. Stores `stateHash` + `nonce`. `sendMessage()` for user→program messages. `performStateTransition()` applies validated state changes from Router. Handles value claiming and program exit.
+| Crate | Path | Purpose |
+|-------|------|---------|
+| ethexe-cli | `ethexe/cli` | Binary. Commands: `run`, `key`, `tx`, `check` |
+| ethexe-service | `ethexe/service` | Main orchestrator — binds observer, consensus, compute, network, RPC, prometheus into one async service |
+| ethexe-consensus | `ethexe/consensus` | Validator state machine (Initial → Producer/Subordinate → Coordinator/Participant). `ConsensusService` trait with `ValidatorService` and `ConnectService` impls |
+| ethexe-compute | `ethexe/compute` | Orchestrates code preparation and program execution. Emits `ComputeEvent`s |
+| ethexe-processor | `ethexe/processor` | Executes Gear programs in Wasmtime. `ProcessorExt` trait with `process_programs()` and `execute_for_reply()` |
+| ethexe-runtime | `ethexe/runtime` | Gear runtime compiled to WASM itself — the actual computation binary run by validators |
+| ethexe-runtime-common | `ethexe/runtime/common` | Shared types: `TransitionController`, `ProgramState`, storage traits |
+| ethexe-observer | `ethexe/observer` | Watches Ethereum blocks, syncs chain state, decodes Router contract events |
+| ethexe-ethereum | `ethexe/ethereum` | Contract interaction layer: `Router`, `Mirror`, `Middleware`, `WVara` wrappers + event builders |
+| ethexe-blob-loader | `ethexe/blob-loader` | Loads code blobs from Ethereum beacon chain (EIP-4844) |
+| ethexe-network | `ethexe/network` | libp2p P2P: gossipsub (validator msgs), Kademlia DHT, request-response (db-sync). Port 20333, protocol `ethexe/0.1.0` |
+| ethexe-db | `ethexe/db` | Storage abstraction: `CASDatabase` (content-addressed), `KVDatabase` (key-value). Impls: `RocksDatabase`, `MemDb` |
+| ethexe-common | `ethexe/common` | Shared types: `BlockHeader`, `Announce`, `SimpleBlockData`, `InjectedTransaction`, `Promise`, crypto primitives |
+| ethexe-rpc | `ethexe/rpc` | JSON-RPC 2.0 server (jsonrpsee): `BlockApi`, `CodeApi`, `ProgramApi`, `InjectedApi` |
+| ethexe-sdk | `ethexe/sdk` | Rust SDK: `VaraEthApi`, contract wrappers for external consumers |
+| ethexe-prometheus | `ethexe/prometheus` | Metrics exposure via Prometheus HTTP |
 
-**Middleware**: Validator coordination via Symbiotic framework. Manages operator/vault staking, era transitions, slashing, reward distribution.
+#### Ethexe Architecture
 
-**ethexe runtime** (`ethexe/runtime/`): Gear runtime compiled to `no_std` WASM for EVM context. Differences from Vara: no Substrate pallets, no signaling syscalls, no reservation operations, simplified host function interface via `RuntimeInterface` trait.
+```
+Ethereum Chain
+    ↓ (blocks, events)
+Observer ──→ ConsensusService
+                ├── receive_new_chain_head()
+                ├── receive_announce()
+                └── receive_validation_request()
+                      ↓ (ConsensusEvent)
+              ComputeService
+                ├── fetch codes (BlobLoader)
+                ├── prepare block
+                ├── execute programs (Processor → Runtime WASM)
+                └── emit ComputeEvent
+                      ↓
+              ┌── Network (gossip announces to peers)
+              ├── RPC (serve client queries)
+              └── Ethereum (submit batch commitments via Router)
+```
 
-Contract ABIs must be copied after Forge build: `make ethexe-contracts-pre-commit` handles this (copies from `ethexe/contracts/out/` to `ethexe/ethereum/abi/`).
+All services run concurrently in ethexe-service, communicating via async event channels.
+
+#### Validator State Machine
+
+```
+Initial (per block)
+    ├─→ Producer (elected) → Coordinator → Initial
+    └─→ Subordinate → Participant → Initial
+```
+
+Transitions driven by block arrival, era changes, validation requests/replies, and network announces.
+
+#### Solidity Contracts (`ethexe/contracts/`)
+
+Foundry/Forge project, Solidity 0.8.33:
+
+- **Router.sol**: Central co-processor contract (UUPS upgradeable). Validators submit batch commitments (`submitBatchCommitment`), once 2-of-3 threshold reached → `commitBatch` applies state. Manages code validation, program creation, validator set, eras.
+- **Mirror.sol**: Per-program proxy. Stores `stateHash` + `nonce`. `sendMessage()` for user→program, `performStateTransition()` for validated state updates from Router.
+- **WrappedVara.sol**: ERC20 wrapper for Vara token.
+- **Middleware.sol** / **POAMiddleware.sol**: Validator election and permissions. Middleware integrates Symbiotic (operator/vault staking, slashing, rewards); POAMiddleware is a simpler fixed-set variant.
+- **Libraries**: `Gear.sol` (core structs, FROST crypto), `SSTORE2.sol` (cheap code storage), `Clones.sol` / `ClonesSmall.sol` (Mirror proxy cloning).
+
+Contract ABIs must be copied after Forge build: `make ethexe-contracts-pre-commit` (copies from `ethexe/contracts/out/` to `ethexe/ethereum/abi/`).
+
+#### Key Types
+
+```rust
+// Block model
+SimpleBlockData { hash: H256, header: BlockHeader }
+BlockHeader { height: u32, timestamp: u64, parent_hash: H256 }
+
+// Announces — block execution results committed by validators
+Announce { block_hash, parent: HashOf<Announce>, gas_allowance, injected_transactions }
+
+// Program state tracking
+ProgramStates: BTreeMap<ActorId, StateHashWithQueueSize>
+
+// Cross-chain messaging
+InjectedTransaction { origin, payload, reply_to }
+SignedInjectedTransaction { tx, signature }
+
+// Block events from Ethereum
+BlockEvent::Mirror { actor_id, event: MirrorEvent }
+BlockEvent::Router { event: RouterEvent }
+```
+
+#### Database Schema
+
+```
+CASDatabase: read(hash) → Vec<u8>, write(data) → H256    (code blobs, state)
+KVDatabase:  get(key) → Vec<u8>, put(key, data)           (metadata)
+
+Key prefixes (enum):
+  BlockSmallData(H256), BlockEvents(H256),
+  AnnounceProgramStates(HashOf<Announce>), AnnounceSchedule(HashOf<Announce>),
+  ProgramToCodeId(ActorId), InstrumentedCode(u32, CodeId),
+  CodeMetadata(CodeId), CodeValid(CodeId),
+  InjectedTransaction(HashOf<Tx>),
+  Config, Globals, LatestEraValidatorsCommitted(H256)
+```
+
+Impls: `RocksDatabase` (persistent, snappy compression) and `MemDb` (in-memory/testing). Database has versioned migrations.
+
+#### Network Protocol
+
+libp2p stack: QUIC + TCP + DNS + TLS + Yamux muxing.
+- **Gossipsub**: validator messages and promises (with peer scoring)
+- **Kademlia DHT**: peer discovery
+- **Request-response** (`/ethexe/db-sync/1.0.0`): sync announces and codes between peers
+- Constants: `DEFAULT_LISTEN_PORT = 20333`, `MAX_ESTABLISHED_CONNECTIONS = 500`
+
+#### CLI Usage
+
+```bash
+ethexe run --ethereum-rpc <URL> --router-address <ADDR>   # Start node
+ethexe run --validator <PUBKEY_OR_RANDOM>                  # Validator mode
+ethexe key new                                             # Generate keypair
+ethexe tx submit-injected                                  # Submit injected tx
+ethexe check --all                                         # Validate DB integrity
+```
+
+#### Ethexe Runtime Differences from Vara
+
+The ethexe runtime (`ethexe/runtime/`) is Gear runtime compiled to `no_std` WASM for EVM context:
+- No Substrate pallets
+- No signaling syscalls, no reservation operations
+- Simplified host function interface via `RuntimeInterface` trait
+- `ethexe` feature flag in gstd/gcore disables unavailable syscalls
+
+#### Ethexe Testing
+
+```bash
+cargo nextest run -p "ethexe-*" --no-fail-fast   # All ethexe tests
+forge test --root ethexe/contracts -vvv           # Solidity contract tests
+```
+
+Integration tests in ethexe-service use Anvil (local Ethereum) with mock contracts. Demo programs for testing: `demo-ping`, `demo-async`, `demo-panic-payload`, `demo-value-sender-ethexe`, etc. Use `MemDb` / `create_initialized_empty_memory_db()` for test databases.
 
 ### no_std Boundary
 
