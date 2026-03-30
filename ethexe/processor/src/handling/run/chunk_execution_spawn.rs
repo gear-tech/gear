@@ -21,8 +21,7 @@
 //! This module handles spawning program execution tasks in a thread pool.
 
 use super::*;
-use crate::handling::thread_pool::ThreadPool;
-use crate::host::InstanceWrapper;
+use crate::{handling::thread_pool::ThreadPool, host::InstanceWrapper};
 use ethexe_runtime_common::ProcessQueueContext;
 use std::sync::LazyLock;
 
