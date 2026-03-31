@@ -424,7 +424,9 @@ mod tests {
         );
 
         // After both announces are computed, not-validator subordinate switches to initial state.
-        let s = s.process_computed_announce(base_announce.to_hash()).unwrap();
+        let s = s
+            .process_computed_announce(base_announce.to_hash())
+            .unwrap();
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();

@@ -3286,13 +3286,12 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         wait_for.wait_for().await.unwrap();
     }
 
+    // TODO: after changes in best announce selection, Bob is able to catch up Alice.
+    // We should create more complex test case to cover the scenario when Bob is not able to catch up Alice.
     log::info!("📗 Waiting for two accepted announces from Bob");
     for _ in 0..2 {
         bob.events().find_announce_accepted(AnnounceId::Any).await;
     }
-
-    // TODO: after changes in best announce selection, Bob is able to catch up Alice.
-    // We should create more complex test case to cover the scenario when Bob is not able to catch up Alice.
 
     // log::info!("📗 Sending third PING message, one more attempt for Bob to catch up Alice");
     // {
