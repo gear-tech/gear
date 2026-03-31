@@ -1489,8 +1489,9 @@ async fn many_validators_repeated_ping() {
     let mut running_validators = Vec::with_capacity(VALIDATORS_COUNT);
     for (i, validator_cfg) in env.validators.clone().into_iter().enumerate() {
         log::info!("📗 Starting validator-{i}");
-        let mut node =
-            env.new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg));
+        let mut node = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg))
+            .await;
         node.start_service().await;
         running_validators.push(node);
     }
