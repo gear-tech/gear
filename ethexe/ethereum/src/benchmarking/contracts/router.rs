@@ -430,13 +430,10 @@ impl<'a> Router<'a> {
             ExecutionMode::ExecuteAndCommit => self.context.evm().transact_commit(tx)?,
             ExecutionMode::ExecuteAndInspect => self.context.evm().inspect_tx(tx)?.result,
         };
-        let ExecutionResult::Success {
-            gas_used: execution_gas,
-            ..
-        } = execution_result
-        else {
+        let ExecutionResult::Success { gas, .. } = execution_result else {
             bail!("failed to commit batch");
         };
+        let execution_gas = gas.used();
 
         if let ExecutionMode::ExecuteAndCommit = execution_mode {
             self.context.increment_deployer_nonce();

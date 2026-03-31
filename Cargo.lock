@@ -110,13 +110,13 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
  "alloy-contract",
  "alloy-core",
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-genesis",
  "alloy-network",
  "alloy-node-bindings",
@@ -124,7 +124,7 @@ dependencies = [
  "alloy-pubsub",
  "alloy-rpc-client",
  "alloy-rpc-types",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-signer",
  "alloy-signer-local",
  "alloy-transport",
@@ -147,13 +147,13 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-trie",
  "alloy-tx-macros",
  "auto_impl",
@@ -173,21 +173,21 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus-any"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "serde",
 ]
 
 [[package]]
 name = "alloy-contract"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -204,6 +204,7 @@ dependencies = [
  "futures-util",
  "serde_json",
  "thiserror 2.0.17",
+ "tracing",
 ]
 
 [[package]]
@@ -288,9 +289,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
-version = "1.7.3"
+version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f7ef09f21bd1e9cb8a686f168cb4a206646804567f0889eadb8dcc4c9288c8"
+checksum = "e6ef28c9fdad22d4eec52d894f5f2673a0895f1e5ef196734568e68c0f6caca8"
 dependencies = [
  "alloy-eip2124",
  "alloy-eip2930",
@@ -298,7 +299,7 @@ dependencies = [
  "alloy-eip7928",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 1.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "alloy-serde 1.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "auto_impl",
  "borsh",
  "c-kzg",
@@ -307,13 +308,12 @@ dependencies = [
  "serde",
  "serde_with",
  "sha2 0.10.9",
- "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "alloy-eips"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-eip2124",
  "alloy-eip2930",
@@ -321,7 +321,7 @@ dependencies = [
  "alloy-eip7928",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "auto_impl",
  "borsh",
  "c-kzg",
@@ -330,17 +330,16 @@ dependencies = [
  "serde",
  "serde_with",
  "sha2 0.10.9",
- "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "alloy-genesis"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-trie",
  "borsh",
  "serde",
@@ -374,8 +373,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-rpc"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -388,18 +387,18 @@ dependencies = [
 
 [[package]]
 name = "alloy-network"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-json-rpc",
  "alloy-network-primitives",
  "alloy-primitives",
  "alloy-rpc-types-any",
  "alloy-rpc-types-eth",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-signer",
  "alloy-sol-types",
  "async-trait",
@@ -413,20 +412,20 @@ dependencies = [
 
 [[package]]
 name = "alloy-network-primitives"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "serde",
 ]
 
 [[package]]
 name = "alloy-node-bindings"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-genesis",
  "alloy-hardforks",
@@ -473,12 +472,12 @@ dependencies = [
 
 [[package]]
 name = "alloy-provider"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-json-rpc",
  "alloy-network",
  "alloy-network-primitives",
@@ -503,7 +502,7 @@ dependencies = [
  "lru 0.16.3",
  "parking_lot 0.12.5",
  "pin-project",
- "reqwest",
+ "reqwest 0.13.2",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -515,8 +514,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-pubsub"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -558,8 +557,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-client"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -569,7 +568,7 @@ dependencies = [
  "alloy-transport-ws",
  "futures",
  "pin-project",
- "reqwest",
+ "reqwest 0.13.2",
  "serde",
  "serde_json",
  "tokio",
@@ -582,45 +581,45 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-anvil",
  "alloy-rpc-types-beacon",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "serde",
 ]
 
 [[package]]
 name = "alloy-rpc-types-anvil"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-eth",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "serde",
 ]
 
 [[package]]
 name = "alloy-rpc-types-any"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus-any",
  "alloy-rpc-types-eth",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
 ]
 
 [[package]]
 name = "alloy-rpc-types-beacon"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
  "alloy-rpc-types-engine",
  "derive_more 2.1.1",
@@ -632,14 +631,14 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-engine"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "derive_more 2.1.1",
  "rand 0.8.5",
  "serde",
@@ -648,16 +647,16 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-eth"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-network-primitives",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-sol-types",
  "itertools 0.14.0",
  "serde",
@@ -668,9 +667,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-serde"
-version = "1.7.3"
+version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2ce1e0dbf7720eee747700e300c99aac01b1a95bb93f493a01e78ee28bb1a37"
+checksum = "11ece63b89294b8614ab3f483560c08d016930f842bf36da56bf0b764a15c11e"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -679,8 +678,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-serde"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -689,8 +688,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-primitives",
  "async-trait",
@@ -703,8 +702,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer-local"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -794,8 +793,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-json-rpc",
  "auto_impl",
@@ -816,13 +815,13 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-http"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
  "itertools 0.14.0",
- "reqwest",
+ "reqwest 0.13.2",
  "serde_json",
  "tower 0.5.2",
  "tracing",
@@ -831,16 +830,17 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-ws"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-pubsub",
  "alloy-transport",
  "futures",
  "http 1.4.0",
+ "rustls 0.23.36",
  "serde_json",
  "tokio",
- "tokio-tungstenite 0.26.2",
+ "tokio-tungstenite 0.28.0",
  "tracing",
  "url",
  "ws_stream_wasm",
@@ -864,10 +864,10 @@ dependencies = [
 
 [[package]]
 name = "alloy-tx-macros"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+version = "1.8.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "darling 0.21.3",
+ "darling 0.23.0",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -1953,6 +1953,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "aws-lc-rs"
+version = "1.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a054912289d18629dc78375ba2c3726a3afe3ff71b4edba9dedfca0e3446d1fc"
+dependencies = [
+ "aws-lc-sys",
+ "zeroize",
+]
+
+[[package]]
+name = "aws-lc-sys"
+version = "0.39.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fa7e52a4c5c547c741610a2c6f123f3881e409b714cd27e6798ef020c514f0a"
+dependencies = [
+ "cc",
+ "cmake",
+ "dunce",
+ "fs_extra",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2528,9 +2550,9 @@ dependencies = [
 
 [[package]]
 name = "c-kzg"
-version = "2.1.5"
+version = "2.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e00bf4b112b07b505472dbefd19e37e53307e2bfed5a79e0cc161d58ccd0e687"
+checksum = "6648ed1e4ea8e8a1a4a2c78e1cda29a3fd500bc622899c340d8525ea9a76b24a"
 dependencies = [
  "blst",
  "cc",
@@ -3367,7 +3389,7 @@ dependencies = [
  "cargo_metadata",
  "clap 4.5.54",
  "gear-workspace-hack",
- "reqwest",
+ "reqwest 0.12.28",
  "serde",
  "tempfile",
  "tokio",
@@ -3628,6 +3650,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "darling"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25ae13da2f202d56bd7f91c25fba009e7717a1e4a1cc98a76d844b65ae912e9d"
+dependencies = [
+ "darling_core 0.23.0",
+ "darling_macro 0.23.0",
+]
+
+[[package]]
 name = "darling_core"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3657,6 +3689,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "darling_core"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9865a50f7c335f53564bb694ef660825eb8610e0a53d3e11bf1b0d3df31e03b0"
+dependencies = [
+ "ident_case",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "strsim 0.11.1",
+ "syn 2.0.114",
+]
+
+[[package]]
 name = "darling_macro"
 version = "0.20.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3674,6 +3720,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
 dependencies = [
  "darling_core 0.21.3",
+ "quote",
+ "syn 2.0.114",
+]
+
+[[package]]
+name = "darling_macro"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d"
+dependencies = [
+ "darling_core 0.23.0",
  "quote",
  "syn 2.0.114",
 ]
@@ -4223,6 +4280,15 @@ dependencies = [
  "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-reply-callback"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gear-workspace-hack",
+ "gstd",
 ]
 
 [[package]]
@@ -5172,7 +5238,7 @@ dependencies = [
  "gprimitives",
  "gsigner",
  "log",
- "reqwest",
+ "reqwest 0.12.28",
  "thiserror 2.0.17",
  "tokio",
 ]
@@ -5304,38 +5370,30 @@ dependencies = [
 name = "ethexe-db"
 version = "1.10.0"
 dependencies = [
+ "alloy",
  "anyhow",
  "auto_impl",
  "dashmap 5.5.3",
  "delegate",
  "derive_more 2.1.1",
  "ethexe-common",
+ "ethexe-ethereum",
  "ethexe-runtime-common",
  "gear-core",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
+ "hex",
+ "indoc",
+ "log",
  "parity-scale-codec",
  "paste",
  "rocksdb",
+ "scale-info",
  "scopeguard",
+ "sha3",
  "tempfile",
  "tracing",
-]
-
-[[package]]
-name = "ethexe-db-init"
-version = "1.10.0"
-dependencies = [
- "alloy",
- "anyhow",
- "ethexe-common",
- "ethexe-db",
- "ethexe-ethereum",
- "gear-workspace-hack",
- "gprimitives",
- "gsigner",
- "log",
- "parity-scale-codec",
 ]
 
 [[package]]
@@ -5421,6 +5479,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.22",
+ "url",
 ]
 
 [[package]]
@@ -5432,7 +5491,6 @@ dependencies = [
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
- "ethexe-db-init",
  "ethexe-ethereum",
  "future-timing",
  "futures",
@@ -5602,6 +5660,7 @@ dependencies = [
  "demo-mul-by-const",
  "demo-piggy-bank",
  "demo-ping",
+ "demo-reply-callback",
  "demo-value-sender-ethexe",
  "derive_more 2.1.1",
  "ethexe-blob-loader",
@@ -5609,7 +5668,6 @@ dependencies = [
  "ethexe-compute",
  "ethexe-consensus",
  "ethexe-db",
- "ethexe-db-init",
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
@@ -6400,6 +6458,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs_extra"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
+
+[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6653,7 +6717,7 @@ dependencies = [
  "gsigner",
  "hex",
  "indoc",
- "reqwest",
+ "reqwest 0.12.28",
  "scale-info",
  "serde",
  "snapbox",
@@ -7011,7 +7075,7 @@ dependencies = [
  "names",
  "parking_lot 0.12.5",
  "rand 0.8.5",
- "reqwest",
+ "reqwest 0.12.28",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
@@ -7450,8 +7514,7 @@ dependencies = [
  "alloy-chains",
  "alloy-consensus",
  "alloy-contract",
- "alloy-eip7702",
- "alloy-eips 1.7.3 (git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler)",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-json-abi",
  "alloy-primitives",
  "alloy-provider",
@@ -7480,7 +7543,6 @@ dependencies = [
  "blake2 0.10.6",
  "blake2b_simd",
  "blake3",
- "blst",
  "bounded-collections",
  "bp-header-chain",
  "bp-runtime",
@@ -7489,7 +7551,6 @@ dependencies = [
  "bytemuck",
  "byteorder",
  "bytes",
- "c-kzg",
  "cc",
  "cipher 0.4.4",
  "clap 4.5.54",
@@ -7508,7 +7569,6 @@ dependencies = [
  "darling_core 0.21.3",
  "data-encoding",
  "der",
- "derive-where",
  "derive_more 0.99.20",
  "derive_more 2.1.1",
  "derive_more-impl 2.1.1",
@@ -7597,8 +7657,6 @@ dependencies = [
  "num-integer",
  "num-rational",
  "num-traits",
- "num_enum 0.7.5",
- "num_enum_derive 0.7.5",
  "object 0.30.4",
  "object 0.32.2",
  "once_cell",
@@ -7663,7 +7721,7 @@ dependencies = [
  "regex",
  "regex-automata",
  "regex-syntax",
- "reqwest",
+ "reqwest 0.12.28",
  "ring 0.17.14",
  "ruint",
  "rustc-hash 1.1.0",
@@ -9402,7 +9460,7 @@ dependencies = [
  "pin-project",
  "rustls 0.23.36",
  "rustls-pki-types",
- "rustls-platform-verifier",
+ "rustls-platform-verifier 0.5.3",
  "soketto",
  "thiserror 1.0.69",
  "tokio",
@@ -9454,7 +9512,7 @@ dependencies = [
  "jsonrpsee-core",
  "jsonrpsee-types",
  "rustls 0.23.36",
- "rustls-platform-verifier",
+ "rustls-platform-verifier 0.5.3",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -14410,6 +14468,7 @@ version = "0.11.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1906b49b0c3bc04b5fe5d86a77925ae6524a19b816ae38ce1e426255f1d8a31"
 dependencies = [
+ "aws-lc-rs",
  "bytes",
  "getrandom 0.3.4",
  "lru-slab",
@@ -14855,6 +14914,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "reqwest"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab3f43e3283ab1488b624b44b0e988d0acea0b3214e694730a055cb6b2efa801"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "futures-core",
+ "http 1.4.0",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper 1.8.1",
+ "hyper-rustls 0.27.7",
+ "hyper-util",
+ "js-sys",
+ "log",
+ "percent-encoding",
+ "pin-project-lite",
+ "quinn 0.11.9",
+ "rustls 0.23.36",
+ "rustls-pki-types",
+ "rustls-platform-verifier 0.6.2",
+ "serde",
+ "serde_json",
+ "sync_wrapper",
+ "tokio",
+ "tokio-rustls 0.26.4",
+ "tower 0.5.2",
+ "tower-http 0.6.8",
+ "tower-service",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "resolv-conf"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14862,9 +14958,9 @@ checksum = "1e061d1b48cb8d38042de4ae0a7a6401009d6143dc80d2e2d6f31f0bdd6470c7"
 
 [[package]]
 name = "revm"
-version = "34.0.0"
+version = "36.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2aabdebaa535b3575231a88d72b642897ae8106cf6b0d12eafc6bfdf50abfc7"
+checksum = "b0abc15d09cd211e9e73410ada10134069c794d4bcdb787dfc16a1bf0939849c"
 dependencies = [
  "revm-bytecode",
  "revm-context",
@@ -14881,9 +14977,9 @@ dependencies = [
 
 [[package]]
 name = "revm-bytecode"
-version = "8.0.0"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74d1e5c1eaa44d39d537f668bc5c3409dc01e5c8be954da6c83370bbdf006457"
+checksum = "e86e468df3cf5cf59fa7ef71a3e9ccabb76bb336401ea2c0674f563104cf3c5e"
 dependencies = [
  "bitvec",
  "phf",
@@ -14893,9 +14989,9 @@ dependencies = [
 
 [[package]]
 name = "revm-context"
-version = "13.0.0"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "892ff3e6a566cf8d72ffb627fdced3becebbd9ba64089c25975b9b028af326a5"
+checksum = "9eb1f0a76b14d684a444fc52f7bf6b7564bf882599d91ee62e76d602e7a187c7"
 dependencies = [
  "bitvec",
  "cfg-if",
@@ -14910,9 +15006,9 @@ dependencies = [
 
 [[package]]
 name = "revm-context-interface"
-version = "14.0.0"
+version = "16.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57f61cc6d23678c4840af895b19f8acfbbd546142ec8028b6526c53cc1c16c98"
+checksum = "fc256b27743e2912ca16899568e6652a372eb5d1d573e6edb16c7836b16cf487"
 dependencies = [
  "alloy-eip2930",
  "alloy-eip7702",
@@ -14926,11 +15022,11 @@ dependencies = [
 
 [[package]]
 name = "revm-database"
-version = "10.0.0"
+version = "12.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "529528d0b05fe646be86223032c3e77aa8b05caa2a35447d538c55965956a511"
+checksum = "2c0a7d6da41061f2c50f99a2632571026b23684b5449ff319914151f4449b6c8"
 dependencies = [
- "alloy-eips 1.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "alloy-eips 1.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "revm-bytecode",
  "revm-database-interface",
  "revm-primitives",
@@ -14940,9 +15036,9 @@ dependencies = [
 
 [[package]]
 name = "revm-database-interface"
-version = "9.0.0"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7bf93ac5b91347c057610c0d96e923db8c62807e03f036762d03e981feddc1d"
+checksum = "bd497a38a79057b94a049552cb1f925ad15078bc1a479c132aeeebd1d2ccc768"
 dependencies = [
  "auto_impl",
  "either",
@@ -14954,9 +15050,9 @@ dependencies = [
 
 [[package]]
 name = "revm-handler"
-version = "15.0.0"
+version = "17.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cd0e43e815a85eded249df886c4badec869195e70cdd808a13cfca2794622d2"
+checksum = "9f1eed729ca9b228ae98688f352235871e9b8be3d568d488e4070f64c56e9d3d"
 dependencies = [
  "auto_impl",
  "derive-where",
@@ -14973,9 +15069,9 @@ dependencies = [
 
 [[package]]
 name = "revm-inspector"
-version = "15.0.0"
+version = "17.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f3ccad59db91ef93696536a0dbaf2f6f17cfe20d4d8843ae118edb7e97947ef"
+checksum = "cbf5102391706513689f91cb3cb3d97b5f13a02e8647e6e9cb7620877ef84847"
 dependencies = [
  "auto_impl",
  "either",
@@ -14991,9 +15087,9 @@ dependencies = [
 
 [[package]]
 name = "revm-interpreter"
-version = "32.0.0"
+version = "34.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11406408597bc249392d39295831c4b641b3a6f5c471a7c41104a7a1e3564c07"
+checksum = "cf22f80612bb8f58fd1f578750281f2afadb6c93835b14ae6a4d6b75ca26f445"
 dependencies = [
  "revm-bytecode",
  "revm-context-interface",
@@ -15004,9 +15100,9 @@ dependencies = [
 
 [[package]]
 name = "revm-precompile"
-version = "32.0.0"
+version = "32.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50c1285c848d240678bf69cb0f6179ff5a4aee6fc8e921d89708087197a0aff3"
+checksum = "e2ec11f45deec71e4945e1809736bb20d454285f9167ab53c5159dae1deb603f"
 dependencies = [
  "ark-bls12-381 0.5.0",
  "ark-bn254",
@@ -15028,9 +15124,9 @@ dependencies = [
 
 [[package]]
 name = "revm-primitives"
-version = "22.0.0"
+version = "22.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba580c56a8ec824a64f8a1683577876c2e1dbe5247044199e9b881421ad5dcf9"
+checksum = "4bcfb5ce6cf18b118932bcdb7da05cd9c250f2cb9f64131396b55f3fe3537c35"
 dependencies = [
  "alloy-primitives",
  "num_enum 0.7.5",
@@ -15040,9 +15136,9 @@ dependencies = [
 
 [[package]]
 name = "revm-state"
-version = "9.0.0"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "311720d4f0f239b041375e7ddafdbd20032a33b7bae718562ea188e188ed9fd3"
+checksum = "d29404707763da607e5d6e4771cb203998c28159279c2f64cc32de08d2814651"
 dependencies = [
  "alloy-eip7928",
  "bitflags 2.10.0",
@@ -15422,6 +15518,7 @@ version = "0.23.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c665f33d38cea657d9614f766881e4d510e0eda4239891eea56b4cadcf01801b"
 dependencies = [
+ "aws-lc-rs",
  "log",
  "once_cell",
  "ring 0.17.14",
@@ -15496,6 +15593,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls-platform-verifier"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d99feebc72bae7ab76ba994bb5e121b8d83d910ca40b36e0921f53becc41784"
+dependencies = [
+ "core-foundation 0.10.1",
+ "core-foundation-sys",
+ "jni",
+ "log",
+ "once_cell",
+ "rustls 0.23.36",
+ "rustls-native-certs 0.8.3",
+ "rustls-platform-verifier-android",
+ "rustls-webpki 0.103.8",
+ "security-framework 3.5.1",
+ "security-framework-sys",
+ "webpki-root-certs 1.0.5",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "rustls-platform-verifier-android"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15517,6 +15635,7 @@ version = "0.103.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ffdfa2f5286e2247234e03f680868ac2815974dc39e00ea15adc445d0aafe52"
 dependencies = [
+ "aws-lc-rs",
  "ring 0.17.14",
  "rustls-pki-types",
  "untrusted 0.9.0",
@@ -19398,9 +19517,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.26.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a9daff607c6d2bf6c16fd681ccb7eecc83e4e2cdc1ca067ffaadfca5de7f084"
+checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
 dependencies = [
  "futures-util",
  "log",
@@ -19408,7 +19527,7 @@ dependencies = [
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.4",
- "tungstenite 0.26.2",
+ "tungstenite 0.28.0",
  "webpki-roots 0.26.11",
 ]
 
@@ -19854,9 +19973,9 @@ dependencies = [
 
 [[package]]
 name = "tungstenite"
-version = "0.26.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4793cb5e56680ecbb1d843515b23b6de9a75eb04b66643e256a396d43be33c13"
+checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
 dependencies = [
  "bytes",
  "data-encoding",

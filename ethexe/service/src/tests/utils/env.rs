@@ -44,10 +44,10 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
-use ethexe_db::Database;
-use ethexe_db_init::InitConfig;
+use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
-    Ethereum,
+    Ethereum, INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE, NO_BLOB_GAS_MULTIPLIER,
+    NO_EIP1559_FEE_INCREASE_PERCENTAGE,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
     middleware::MockElectionProvider,
     router::RouterQuery,
@@ -212,6 +212,8 @@ impl TestEnv {
                 router_address.parse().unwrap(),
                 signer.clone(),
                 sender_address,
+                INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE,
+                NO_BLOB_GAS_MULTIPLIER,
             )
             .await?
         } else {
@@ -232,17 +234,20 @@ impl TestEnv {
         let router_query = router.query();
         let router_address = router.address();
 
-        let db = new_empty_initialized_memory_db(InitConfig {
+        let db = ethexe_db::create_initialized_empty_memory_db(InitConfig {
             ethereum_rpc: ws_rpc_url.clone(),
             router_address,
             slot_duration_secs: block_time.as_secs(),
-        })?;
+        })
+        .await?;
 
         let eth_cfg = EthereumConfig {
             rpc: ws_rpc_url.clone(),
             beacon_rpc: http_rpc_url.clone(),
             router_address,
             block_time: config.block_time,
+            eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
         };
         let mut observer = ObserverService::new(
             db.clone(),
@@ -317,13 +322,23 @@ impl TestEnv {
             };
 
             let mut service = NetworkService::new(config, runtime_config).unwrap();
+            let mut observer_events = observer_events.1.new_receiver();
 
             let local_peer_id = service.local_peer_id();
 
             let handle = task::spawn(
                 async move {
                     loop {
-                        let _event = service.select_next_some().await;
+                        tokio::select! {
+                            _event = service.select_next_some() => {}
+                            event = observer_events.select_next_some() => {
+                                if let ethexe_observer::ObserverEvent::BlockSynced(block_hash) = event {
+                                    service
+                                        .set_chain_head(block_hash)
+                                        .expect("failed to update bootstrap network chain head");
+                                }
+                            }
+                        }
                     }
                 }
                 .instrument(tracing::error_span!("network-stream")),
@@ -356,7 +371,7 @@ impl TestEnv {
         })
     }
 
-    pub fn new_node(&mut self, config: NodeConfig) -> Node {
+    pub async fn new_node(&mut self, config: NodeConfig) -> Node {
         let NodeConfig {
             name,
             db,
@@ -367,7 +382,7 @@ impl TestEnv {
 
         let db = match db {
             Some(db) => db,
-            None => self.new_initialized_db(),
+            None => self.new_initialized_db().await,
         };
 
         let (network_address, network_bootstrap_address) = self
@@ -408,12 +423,13 @@ impl TestEnv {
         }
     }
 
-    pub fn new_initialized_db(&self) -> Database {
-        new_empty_initialized_memory_db(InitConfig {
+    pub async fn new_initialized_db(&self) -> Database {
+        ethexe_db::create_initialized_empty_memory_db(InitConfig {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
             router_address: self.eth_cfg.router_address,
             slot_duration_secs: self.eth_cfg.block_time.as_secs(),
         })
+        .await
         .unwrap()
     }
 
@@ -942,6 +958,8 @@ impl Node {
                         self.eth_cfg.router_address,
                         self.signer.clone(),
                         config.public_key.to_address(),
+                        self.eth_cfg.eip1559_fee_increase_percentage,
+                        self.eth_cfg.blob_gas_multiplier,
                     )
                     .await
                     .unwrap()
@@ -1327,11 +1345,4 @@ impl WaitForReplyTo {
 
         Ok(info)
     }
-}
-
-pub fn new_empty_initialized_memory_db(config: InitConfig) -> anyhow::Result<Database> {
-    let handle = tokio::runtime::Handle::current();
-    tokio::task::block_in_place(|| {
-        handle.block_on(ethexe_db_init::create_initialized_empty_memory_db(config))
-    })
 }

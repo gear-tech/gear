@@ -24,6 +24,7 @@ use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
+use core::ops::Not;
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
@@ -95,7 +96,28 @@ pub struct Announce {
 impl Announce {
     pub fn to_hash(&self) -> HashOf<Self> {
         // # Safety because of implementation
-        unsafe { HashOf::new(H256(utils::hash(&self.encode()))) }
+        let Announce {
+            block_hash,
+            parent,
+            gas_allowance,
+            injected_transactions,
+        } = self;
+
+        let transactions = injected_transactions
+            .iter()
+            .map(|tx| (tx.signature(), tx.data().to_hash()))
+            .collect::<Vec<_>>();
+
+        // NOTE: we use here the fact that None is encoding similar to empty vector:
+        // None -> 0x00
+        // vec![] -> 0x00
+        let maybe_transactions_hash = transactions
+            .is_empty()
+            .not()
+            .then(|| utils::hash(&transactions.encode()));
+
+        let announce_parts = (block_hash, parent, gas_allowance, maybe_transactions_hash);
+        unsafe { HashOf::new(H256(utils::hash(&announce_parts.encode()))) }
     }
 
     pub fn base(block_hash: H256, parent: HashOf<Self>) -> Self {
@@ -273,7 +295,10 @@ pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 
 #[cfg(test)]
 mod tests {
-    use super::ProtocolTimelines;
+    use super::*;
+    use crate::injected::InjectedTransaction;
+    use gsigner::PrivateKey;
+    use std::vec;
 
     #[test]
     fn test_era_from_ts_calculation() {
@@ -323,5 +348,119 @@ mod tests {
         // For 1 era
         assert_eq!(timelines.era_start_ts(1), 244);
         assert_eq!(timelines.era_start_ts(1), 244);
+    }
+
+    // The possible future announce structure
+    #[derive(Encode)]
+    struct AnnounceV2 {
+        block_hash: H256,
+        parent: H256,
+        gas_allowance: Option<u64>,
+        injected_txs_hash: Option<H256>,
+    }
+
+    impl AnnounceV2 {
+        fn to_hash(&self) -> H256 {
+            H256(utils::hash(&self.encode()))
+        }
+    }
+
+    #[test]
+    fn test_announce_hash_no_injected() {
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: unsafe { HashOf::new(H256::random()) },
+            gas_allowance: Some(1_000_000),
+            injected_transactions: vec![],
+        };
+
+        let hash1 = announce.to_hash();
+        let hash2 = gear_core::utils::hash(&announce.encode());
+        assert_eq!(
+            hash1.inner().0,
+            hash2,
+            "Announce without injected transactions should have the same hash as its SCALE encoding"
+        );
+
+        let announce_v2 = AnnounceV2 {
+            block_hash: announce.block_hash,
+            parent: announce.parent.inner(),
+            gas_allowance: announce.gas_allowance,
+            injected_txs_hash: None,
+        };
+        let hash3 = announce_v2.to_hash();
+        assert_eq!(
+            hash1.inner().0,
+            hash3.0,
+            "Announce without injected transactions should have the same hash as its possible future announce structure"
+        );
+    }
+
+    #[test]
+    fn test_announce_hash_with_injected() {
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: unsafe { HashOf::new(H256::random()) },
+            gas_allowance: Some(1_000_000),
+            injected_transactions: vec![
+                SignedInjectedTransaction::create(
+                    PrivateKey::random(),
+                    InjectedTransaction {
+                        destination: ActorId::from([1; 32]),
+                        payload: vec![1, 2, 3].try_into().unwrap(),
+                        value: 100,
+                        reference_block: H256::random(),
+                        salt: vec![4, 5, 6].try_into().unwrap(),
+                    },
+                )
+                .unwrap(),
+            ],
+        };
+        let hash1 = announce.to_hash();
+        let hash2 = gear_core::utils::hash(&announce.encode());
+        assert_ne!(
+            hash1.inner().0,
+            hash2,
+            "Announce with injected transactions should have a different hash than its SCALE encoding, unfortunately ..."
+        );
+
+        // Just to be sure that hash is calculated from all fields of Announce
+        let Announce {
+            block_hash,
+            parent,
+            gas_allowance,
+            injected_transactions,
+        } = announce.clone();
+        let txs_hashes = injected_transactions
+            .into_iter()
+            .map(|tx| {
+                let (tx, signature) = tx.into_parts();
+                (signature, tx.to_hash())
+            })
+            .collect::<Vec<_>>();
+        let maybe_txs_hash = txs_hashes
+            .is_empty()
+            .not()
+            .then(|| utils::hash(&txs_hashes.encode()));
+        let announce_parts = (block_hash, parent, gas_allowance, maybe_txs_hash);
+        let hash3 = H256(utils::hash(&announce_parts.encode()));
+        assert_eq!(
+            hash1.inner().0,
+            hash3.0,
+            "Announce hash should be calculated from all fields of Announce"
+        );
+
+        let announce_v2 = AnnounceV2 {
+            block_hash: announce.block_hash,
+            parent: announce.parent.inner(),
+            gas_allowance: announce.gas_allowance,
+            injected_txs_hash: maybe_txs_hash.map(H256),
+        };
+
+        assert_eq!(
+            hash1.inner().0,
+            announce_v2.to_hash().0,
+            "Announce hash should be consistent with the possible future announce structure"
+        );
     }
 }

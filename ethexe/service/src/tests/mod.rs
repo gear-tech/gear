@@ -18,17 +18,12 @@
 
 //! Integration tests.
 
-use futures::StreamExt;
 pub(crate) mod utils;
 
-use crate::{
-    Service,
-    config::{self, Config},
-    tests::utils::{
-        AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
-        TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
-        Wallets, init_logger,
-    },
+use crate::tests::utils::{
+    AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
+    TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets,
+    init_logger,
 };
 use alloy::{
     primitives::U256,
@@ -36,7 +31,6 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -52,11 +46,13 @@ use ethexe_common::{
 use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::verifier::IntegrityVerifier;
-use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
-use ethexe_observer::{EthereumConfig, ObserverEvent};
-use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, InjectedClient, RpcConfig};
+use ethexe_ethereum::{
+    TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
+};
+use ethexe_observer::ObserverEvent;
+use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
+use futures::StreamExt;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -67,11 +63,8 @@ use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
-    net::{Ipv4Addr, SocketAddr},
     sync::Arc,
-    time::Duration,
 };
-use tempfile::tempdir;
 use tokio::sync::{
     Mutex,
     mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -79,83 +72,16 @@ use tokio::sync::{
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
 
-#[ignore = "until rpc fixed"]
 #[tokio::test]
-async fn basics() {
-    init_logger();
-
-    let tmp_dir = tempdir().unwrap();
-    let tmp_dir = tmp_dir.path().to_path_buf();
-
-    let node_cfg = config::NodeConfig {
-        database_path: tmp_dir.join("db"),
-        key_path: tmp_dir.join("key"),
-        validator: Default::default(),
-        validator_session: Default::default(),
-        eth_max_sync_depth: 1_000,
-        worker_threads: None,
-        blocking_threads: None,
-        chunk_processing_threads: 16,
-        block_gas_limit: 4_000_000_000_000,
-        canonical_quarantine: 0,
-        dev: false,
-        pre_funded_accounts: 10,
-        fast_sync: false,
-        chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
-        batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
-    };
-
-    let eth_cfg = EthereumConfig {
-        rpc: "wss://hoodi-reth-rpc.gear-tech.io/ws".into(),
-        beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
-        router_address: "0x61e49a1B6e387060Da92b1Cd85d640011acAeF26"
-            .parse()
-            .expect("infallible"),
-        block_time: Duration::from_secs(12),
-    };
-
-    let mut config = Config {
-        node: node_cfg,
-        ethereum: eth_cfg,
-        network: None,
-        rpc: None,
-        prometheus: None,
-    };
-
-    let service = Service::new(&config).await.unwrap();
-
-    // Enable all optional services
-    let network_key = service.signer.generate().unwrap();
-    config.network = Some(ethexe_network::NetworkConfig::new_local(
-        network_key,
-        config.ethereum.router_address,
-    ));
-
-    config.rpc = Some(RpcConfig {
-        listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
-        cors: None,
-        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER
-            .checked_mul(config.node.block_gas_limit)
-            .unwrap(),
-        chunk_size: config.node.chunk_processing_threads,
-    });
-
-    config.prometheus = Some(PrometheusConfig {
-        name: "DevNode".into(),
-        addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
-    });
-
-    Service::new(&config).await.unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(30_000)]
 async fn invalid_code() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let wasm_binary = [1; 10]; // Invalid WASM binary
@@ -169,14 +95,16 @@ async fn invalid_code() {
     assert!(!res.valid);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn write_memory_to_last_byte() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let wat = r#"
@@ -234,14 +162,16 @@ async fn write_memory_to_last_byte() {
     assert_eq!(res.value, 0);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn ping() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -313,14 +243,16 @@ async fn ping() {
     assert_eq!(res.value, 0);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn uninitialized_program() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -469,14 +401,16 @@ async fn uninitialized_program() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn mailbox() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -709,14 +643,16 @@ async fn mailbox() {
     assert!(schedule.is_empty(), "{schedule:?}");
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn value_reply_program_to_user() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -808,14 +744,16 @@ async fn value_reply_program_to_user() {
     assert!(default_anvil_balance - balance <= measurement_error);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn value_send_program_to_user_and_claimed() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -940,14 +878,16 @@ async fn value_send_program_to_user_and_claimed() {
     assert!(default_anvil_balance - balance <= measurement_error);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn value_send_program_to_user_and_replied() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -1075,14 +1015,16 @@ async fn value_send_program_to_user_and_replied() {
     assert!(default_anvil_balance - balance <= measurement_error);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn incoming_transfers() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -1163,7 +1105,7 @@ async fn incoming_transfers() {
     assert_eq!(local_balance, 2 * VALUE_SENT);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn ping_reorg() {
     init_logger();
@@ -1176,10 +1118,12 @@ async fn ping_reorg() {
     .unwrap();
 
     // Start a separate connect node, to be able to request missed announces.
-    let mut connect_node = env.new_node(NodeConfig::named("connect"));
+    let mut connect_node = env.new_node(NodeConfig::named("connect")).await;
     connect_node.start_service().await;
 
-    let mut node = env.new_node(NodeConfig::named("validator").validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::named("validator").validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -1256,7 +1200,7 @@ async fn ping_reorg() {
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
-    node.db = env.new_initialized_db();
+    node.db = env.new_initialized_db().await;
 
     log::info!("📗 Test after db cleanup and service shutting down");
     let send_message = env.send_message(ping_id, b"PING").await.unwrap();
@@ -1276,14 +1220,16 @@ async fn ping_reorg() {
 
 // Stop service - waits 150 blocks - send message - waits 150 blocks - start service.
 // Deep sync must load chain in batch.
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn ping_deep_sync() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -1341,7 +1287,7 @@ async fn ping_deep_sync() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn multiple_validators() {
     init_logger();
@@ -1366,7 +1312,9 @@ async fn multiple_validators() {
     let mut validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
         log::info!("📗 Starting validator-{i}");
-        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
+            .await;
         validator.start_service().await;
         validators.push(validator);
     }
@@ -1504,7 +1452,7 @@ async fn multiple_validators() {
     assert_eq!(res.payload, res.message_id.encode().as_slice());
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn send_injected_tx() {
     init_logger();
@@ -1522,19 +1470,23 @@ async fn send_injected_tx() {
     let validator1_pubkey = env.validators[1].public_key;
 
     log::info!("📗 Starting node 0");
-    let mut node0 = env.new_node(
-        NodeConfig::default()
-            .validator(env.validators[0])
-            .service_rpc(9505),
-    );
+    let mut node0 = env
+        .new_node(
+            NodeConfig::default()
+                .validator(env.validators[0])
+                .service_rpc(9505),
+        )
+        .await;
     node0.start_service().await;
 
     log::info!("📗 Starting node 1");
-    let mut node1 = env.new_node(
-        NodeConfig::default()
-            .service_rpc(9506)
-            .validator(env.validators[1]),
-    );
+    let mut node1 = env
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(9506)
+                .validator(env.validators[1]),
+        )
+        .await;
     node1.start_service().await;
 
     log::info!("Populate node-0 and node-1 with 2 valid blocks");
@@ -1595,7 +1547,7 @@ async fn send_injected_tx() {
     assert_eq!(node1_db_tx, tx_for_node1.tx);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn fast_sync() {
     init_logger();
@@ -1689,7 +1641,9 @@ async fn fast_sync() {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting Alice");
-    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+    let mut alice = env
+        .new_node(NodeConfig::named("Alice").validator(env.validators[0]))
+        .await;
     alice.start_service().await;
 
     log::info!("📗 Creating `demo-autoreply` programs");
@@ -1730,7 +1684,7 @@ async fn fast_sync() {
     alice.events().find_announce_computed(latest_block).await;
 
     log::info!("Starting Bob (fast-sync)");
-    let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync());
+    let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync()).await;
 
     bob.start_service().await;
 
@@ -1809,7 +1763,7 @@ async fn fast_sync() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn validators_election() {
     init_logger();
@@ -1860,7 +1814,9 @@ async fn validators_election() {
     let mut validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
         log::info!("📗 Starting validator-{i}");
-        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
+            .await;
         validator.start_service().await;
         validators.push(validator);
     }
@@ -1932,7 +1888,9 @@ async fn validators_election() {
     let mut new_validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
         log::info!("📗 Starting validator-{i}");
-        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
+            .await;
         validator.start_service().await;
         new_validators.push(validator);
     }
@@ -1955,7 +1913,7 @@ async fn validators_election() {
     assert_eq!(reply.program_id, ping_actor.program_id);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn execution_with_canonical_events_quarantine() {
     init_logger();
@@ -1967,7 +1925,9 @@ async fn execution_with_canonical_events_quarantine() {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting validator");
-    let mut validator = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut validator = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     validator.start_service().await;
 
     let uploaded_code = env
@@ -2074,7 +2034,7 @@ async fn execution_with_canonical_events_quarantine() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn value_send_program_to_program() {
     // 1_000 ETH
@@ -2084,7 +2044,9 @@ async fn value_send_program_to_program() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -2220,7 +2182,7 @@ async fn value_send_program_to_program() {
     assert_eq!(router_balance, 0);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn value_send_delayed() {
     // 1_000 ETH
@@ -2230,7 +2192,9 @@ async fn value_send_delayed() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
     node.start_service().await;
 
     let res = env
@@ -2393,7 +2357,7 @@ async fn value_send_delayed() {
     assert_eq!(router_balance, 0);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn injected_tx_fungible_token() {
     init_logger();
@@ -2407,11 +2371,13 @@ async fn injected_tx_fungible_token() {
     let mut env = TestEnv::new(env_config).await.unwrap();
 
     let pubkey = env.validators[0].public_key;
-    let mut node = env.new_node(
-        NodeConfig::default()
-            .service_rpc(8090)
-            .validator(env.validators[0]),
-    );
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(8090)
+                .validator(env.validators[0]),
+        )
+        .await;
     node.start_service().await;
     let rpc_client = node
         .rpc_ws_client()
@@ -2622,7 +2588,7 @@ async fn injected_tx_fungible_token() {
     tracing::info!("✅ Promise successfully received from RPC subscription");
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn injected_tx_fungible_token_over_network() {
     init_logger();
@@ -2637,7 +2603,9 @@ async fn injected_tx_fungible_token_over_network() {
 
     let user_pubkey = env.signer.generate().unwrap();
 
-    let mut alice_node = env.new_node(NodeConfig::named("Alice").service_rpc(8091));
+    let mut alice_node = env
+        .new_node(NodeConfig::named("Alice").service_rpc(8091))
+        .await;
     alice_node.start_service().await;
     let alice_rpc_client = alice_node
         .rpc_ws_client()
@@ -2645,7 +2613,9 @@ async fn injected_tx_fungible_token_over_network() {
         .expect("RPC client provide by node");
 
     let bob_pubkey = env.validators[0].public_key;
-    let mut bob_node = env.new_node(NodeConfig::named("Bob").validator(env.validators[0]));
+    let mut bob_node = env
+        .new_node(NodeConfig::named("Bob").validator(env.validators[0]))
+        .await;
     bob_node.start_service().await;
 
     // 1. Create Fungible token config
@@ -2771,7 +2741,7 @@ async fn injected_tx_fungible_token_over_network() {
     tracing::info!("✅ Tokens mint successfully");
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(120_000)]
 async fn announces_conflicts() {
     init_logger();
@@ -2787,7 +2757,9 @@ async fn announces_conflicts() {
     let mut validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
         log::info!("📗 Starting validator-{i}");
-        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
+            .await;
         validator.start_service().await;
         validators.push(validator);
     }
@@ -3029,7 +3001,7 @@ async fn announces_conflicts() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(120_000)]
 async fn whole_network_restore() {
     init_logger();
@@ -3045,7 +3017,9 @@ async fn whole_network_restore() {
     let mut validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
         log::info!("📗 Starting validator-{i}");
-        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
+            .await;
         validator.start_service().await;
         validators.push(validator);
     }
@@ -3133,13 +3107,13 @@ async fn whole_network_restore() {
     assert!(seen_messages.insert(init_res.message_id));
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn catch_up_3() {
     catch_up_test_case(3).await;
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn catch_up_5() {
     catch_up_test_case(5).await;
@@ -3206,11 +3180,13 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting Alice");
-    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+    let mut alice = env
+        .new_node(NodeConfig::named("Alice").validator(env.validators[0]))
+        .await;
     alice.start_service().await;
 
     log::info!("📗 Starting Bob");
-    let mut bob = env.new_node(NodeConfig::named("Bob"));
+    let mut bob = env.new_node(NodeConfig::named("Bob")).await;
     bob.start_service().await;
 
     let ping_code_id = env
@@ -3387,4 +3363,102 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     } else {
         unreachable!();
     }
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn reply_callback() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_reply_callback::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, demo_reply_callback::WASM_BINARY);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.payload, b"");
+    assert_eq!(res.value, 0);
+
+    let program_id = res.program_id;
+
+    let provider = env.ethereum.provider();
+    let demo_caller = IDemoCaller::deploy(provider.clone(), program_id.into())
+        .await
+        .expect("deploying DemoCaller failed");
+
+    assert!(!demo_caller.replyOnMethodNameCalled().call().await.unwrap());
+
+    demo_caller
+        .methodName(false)
+        .send()
+        .await
+        .unwrap()
+        .try_get_receipt()
+        .await
+        .unwrap();
+
+    env.new_observer_events()
+        .filter_map_block_synced()
+        .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
+        .await;
+
+    assert!(demo_caller.replyOnMethodNameCalled().call().await.unwrap());
+
+    assert!(!demo_caller.onErrorReplyCalled().call().await.unwrap());
+
+    demo_caller
+        .methodName(true)
+        .send()
+        .await
+        .unwrap()
+        .try_get_receipt()
+        .await
+        .unwrap();
+
+    env.new_observer_events()
+        .filter_map_block_synced()
+        .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
+        .await;
+
+    assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
 }
