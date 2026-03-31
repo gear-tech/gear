@@ -46,7 +46,8 @@ use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
-    Ethereum,
+    Ethereum, INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE, NO_BLOB_GAS_MULTIPLIER,
+    NO_EIP1559_FEE_INCREASE_PERCENTAGE,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
     middleware::MockElectionProvider,
     router::RouterQuery,
@@ -211,6 +212,8 @@ impl TestEnv {
                 router_address.parse().unwrap(),
                 signer.clone(),
                 sender_address,
+                INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE,
+                NO_BLOB_GAS_MULTIPLIER,
             )
             .await?
         } else {
@@ -243,6 +246,8 @@ impl TestEnv {
             beacon_rpc: http_rpc_url.clone(),
             router_address,
             block_time: config.block_time,
+            eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
         };
         let mut observer = ObserverService::new(
             db.clone(),
@@ -317,13 +322,23 @@ impl TestEnv {
             };
 
             let mut service = NetworkService::new(config, runtime_config).unwrap();
+            let mut observer_events = observer_events.1.new_receiver();
 
             let local_peer_id = service.local_peer_id();
 
             let handle = task::spawn(
                 async move {
                     loop {
-                        let _event = service.select_next_some().await;
+                        tokio::select! {
+                            _event = service.select_next_some() => {}
+                            event = observer_events.select_next_some() => {
+                                if let ethexe_observer::ObserverEvent::BlockSynced(block_hash) = event {
+                                    service
+                                        .set_chain_head(block_hash)
+                                        .expect("failed to update bootstrap network chain head");
+                                }
+                            }
+                        }
                     }
                 }
                 .instrument(tracing::error_span!("network-stream")),
@@ -943,6 +958,8 @@ impl Node {
                         self.eth_cfg.router_address,
                         self.signer.clone(),
                         config.public_key.to_address(),
+                        self.eth_cfg.eip1559_fee_increase_percentage,
+                        self.eth_cfg.blob_gas_multiplier,
                     )
                     .await
                     .unwrap()
