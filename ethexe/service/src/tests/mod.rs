@@ -1454,6 +1454,97 @@ async fn multiple_validators() {
 
 #[tokio::test]
 #[ntest::timeout(60_000)]
+async fn many_validators_repeated_ping() {
+    init_logger();
+
+    const VALIDATORS_COUNT: usize = 16;
+    const PING_ROUNDS: usize = 92;
+
+    log::info!(
+        "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
+    );
+
+    let signer = Signer::memory();
+    let validators: Vec<_> = (0..VALIDATORS_COUNT)
+        .map(|_| signer.generate().expect("must generate validator key"))
+        .collect();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::ProvidedValidators(validators),
+        network: EnvNetworkConfig::Enabled,
+        signer: signer.clone(),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("📗 Top-up balances for all validator accounts");
+    let validator_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    for validator in &env.validators {
+        env.provider
+            .anvil_set_balance(validator.public_key.to_address().into(), validator_balance)
+            .await
+            .unwrap();
+    }
+
+    let mut running_validators = Vec::with_capacity(VALIDATORS_COUNT);
+    for (i, validator_cfg) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut node =
+            env.new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg));
+        node.start_service().await;
+        running_validators.push(node);
+    }
+
+    log::info!("📗 Upload demo_ping code");
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    log::info!("📗 Create demo_ping program");
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_id = program.program_id;
+    for i in 0..PING_ROUNDS {
+        log::info!("📗 PING round {}/{}", i + 1, PING_ROUNDS);
+        let reply = env
+            .send_message(ping_id, b"PING")
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            reply.program_id, ping_id,
+            "unexpected program for round {i}"
+        );
+        assert_eq!(
+            reply.code,
+            ReplyCode::Success(SuccessReplyReason::Manual),
+            "unexpected reply code for round {i}"
+        );
+        assert_eq!(reply.payload, b"PONG", "unexpected payload for round {i}");
+        assert_eq!(reply.value, 0, "unexpected value for round {i}");
+    }
+
+    log::info!("📗 Completed all ping rounds successfully");
+
+    assert_eq!(running_validators.len(), VALIDATORS_COUNT);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
 async fn send_injected_tx() {
     init_logger();
 
