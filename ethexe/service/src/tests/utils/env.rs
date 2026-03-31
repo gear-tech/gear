@@ -398,6 +398,11 @@ impl TestEnv {
                 (format!("/memory/{nonce}"), bootstrap_address.clone())
             })
             .unzip();
+        let network_public_key = network_address.as_ref().map(|_| {
+            self.signer
+                .generate()
+                .expect("failed to generate network key")
+        });
 
         Node {
             name,
@@ -413,6 +418,7 @@ impl TestEnv {
             threshold: self.threshold,
             block_time: self.block_time,
             validator_config,
+            network_public_key,
             network_address,
             network_bootstrap_address,
             service_rpc_config,
@@ -908,6 +914,7 @@ pub struct Node {
     threshold: u64,
     block_time: Duration,
     validator_config: Option<ValidatorConfig>,
+    network_public_key: Option<PublicKey>,
     network_address: Option<String>,
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
@@ -1126,7 +1133,9 @@ impl Node {
 
         let addr = self.network_address.as_ref()?;
 
-        let network_key = self.signer.generate().unwrap();
+        let network_key = self
+            .network_public_key
+            .expect("network public key must exist when network is configured");
         let multiaddr: Multiaddr = addr.parse().unwrap();
 
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
