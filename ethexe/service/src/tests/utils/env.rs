@@ -322,13 +322,23 @@ impl TestEnv {
             };
 
             let mut service = NetworkService::new(config, runtime_config).unwrap();
+            let mut observer_events = observer_events.1.new_receiver();
 
             let local_peer_id = service.local_peer_id();
 
             let handle = task::spawn(
                 async move {
                     loop {
-                        let _event = service.select_next_some().await;
+                        tokio::select! {
+                            _event = service.select_next_some() => {}
+                            event = observer_events.select_next_some() => {
+                                if let ethexe_observer::ObserverEvent::BlockSynced(block_hash) = event {
+                                    service
+                                        .set_chain_head(block_hash)
+                                        .expect("failed to update bootstrap network chain head");
+                                }
+                            }
+                        }
                     }
                 }
                 .instrument(tracing::error_span!("network-stream")),
