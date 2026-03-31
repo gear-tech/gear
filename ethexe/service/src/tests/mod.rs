@@ -18,17 +18,12 @@
 
 //! Integration tests.
 
-use futures::StreamExt;
 pub(crate) mod utils;
 
-use crate::{
-    Service,
-    config::{self, Config},
-    tests::utils::{
-        AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
-        TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
-        Wallets, init_logger,
-    },
+use crate::tests::utils::{
+    AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
+    TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets,
+    init_logger,
 };
 use alloy::{
     primitives::U256,
@@ -36,7 +31,6 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -55,10 +49,10 @@ use ethexe_db::verifier::IntegrityVerifier;
 use ethexe_ethereum::{
     TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
 };
-use ethexe_observer::{EthereumConfig, ObserverEvent};
-use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, InjectedClient, RpcConfig};
+use ethexe_observer::ObserverEvent;
+use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
+use futures::StreamExt;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -69,86 +63,14 @@ use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
-    net::{Ipv4Addr, SocketAddr},
     sync::Arc,
-    time::Duration,
 };
-use tempfile::tempdir;
 use tokio::sync::{
     Mutex,
     mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
-
-#[ignore = "until rpc fixed"]
-#[tokio::test]
-async fn basics() {
-    init_logger();
-
-    let tmp_dir = tempdir().unwrap();
-    let tmp_dir = tmp_dir.path().to_path_buf();
-
-    let node_cfg = config::NodeConfig {
-        database_path: tmp_dir.join("db"),
-        key_path: tmp_dir.join("key"),
-        validator: Default::default(),
-        validator_session: Default::default(),
-        eth_max_sync_depth: 1_000,
-        worker_threads: None,
-        blocking_threads: None,
-        chunk_processing_threads: 16,
-        block_gas_limit: 4_000_000_000_000,
-        canonical_quarantine: 0,
-        dev: false,
-        pre_funded_accounts: 10,
-        fast_sync: false,
-        chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
-        batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
-    };
-
-    let eth_cfg = EthereumConfig {
-        rpc: "wss://hoodi-reth-rpc.gear-tech.io/ws".into(),
-        beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
-        router_address: "0x61e49a1B6e387060Da92b1Cd85d640011acAeF26"
-            .parse()
-            .expect("infallible"),
-        block_time: Duration::from_secs(12),
-    };
-
-    let mut config = Config {
-        node: node_cfg,
-        ethereum: eth_cfg,
-        network: None,
-        rpc: None,
-        prometheus: None,
-    };
-
-    let service = Service::new(&config).await.unwrap();
-
-    // Enable all optional services
-    let network_key = service.signer.generate().unwrap();
-    config.network = Some(ethexe_network::NetworkConfig::new_local(
-        network_key,
-        config.ethereum.router_address,
-    ));
-
-    config.rpc = Some(RpcConfig {
-        listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
-        cors: None,
-        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER
-            .checked_mul(config.node.block_gas_limit)
-            .unwrap(),
-        chunk_size: config.node.chunk_processing_threads,
-    });
-
-    config.prometheus = Some(PrometheusConfig {
-        name: "DevNode".into(),
-        addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9635),
-    });
-
-    Service::new(&config).await.unwrap();
-}
 
 #[tokio::test]
 #[ntest::timeout(30_000)]
@@ -1531,6 +1453,97 @@ async fn multiple_validators() {
 }
 
 #[tokio::test]
+#[ntest::timeout(60_000)]
+async fn many_validators_repeated_ping() {
+    init_logger();
+
+    const VALIDATORS_COUNT: usize = 16;
+    const PING_ROUNDS: usize = 92;
+
+    log::info!(
+        "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
+    );
+
+    let signer = Signer::memory();
+    let validators: Vec<_> = (0..VALIDATORS_COUNT)
+        .map(|_| signer.generate().expect("must generate validator key"))
+        .collect();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::ProvidedValidators(validators),
+        network: EnvNetworkConfig::Enabled,
+        signer: signer.clone(),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("📗 Top-up balances for all validator accounts");
+    let validator_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    for validator in &env.validators {
+        env.provider
+            .anvil_set_balance(validator.public_key.to_address().into(), validator_balance)
+            .await
+            .unwrap();
+    }
+
+    let mut running_validators = Vec::with_capacity(VALIDATORS_COUNT);
+    for (i, validator_cfg) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut node =
+            env.new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg));
+        node.start_service().await;
+        running_validators.push(node);
+    }
+
+    log::info!("📗 Upload demo_ping code");
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    log::info!("📗 Create demo_ping program");
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_id = program.program_id;
+    for i in 0..PING_ROUNDS {
+        log::info!("📗 PING round {}/{}", i + 1, PING_ROUNDS);
+        let reply = env
+            .send_message(ping_id, b"PING")
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            reply.program_id, ping_id,
+            "unexpected program for round {i}"
+        );
+        assert_eq!(
+            reply.code,
+            ReplyCode::Success(SuccessReplyReason::Manual),
+            "unexpected reply code for round {i}"
+        );
+        assert_eq!(reply.payload, b"PONG", "unexpected payload for round {i}");
+        assert_eq!(reply.value, 0, "unexpected value for round {i}");
+    }
+
+    log::info!("📗 Completed all ping rounds successfully");
+
+    assert_eq!(running_validators.len(), VALIDATORS_COUNT);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn send_injected_tx() {
     init_logger();

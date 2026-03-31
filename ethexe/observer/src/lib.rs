@@ -59,6 +59,8 @@ pub struct EthereumConfig {
     pub beacon_rpc: String,
     pub router_address: Address,
     pub block_time: Duration,
+    pub eip1559_fee_increase_percentage: u64,
+    pub blob_gas_multiplier: u128,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
