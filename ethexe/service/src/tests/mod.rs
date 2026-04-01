@@ -1508,7 +1508,6 @@ async fn many_validators_repeated_ping() {
         validators: ValidatorsConfig::ProvidedValidators(validators),
         network: EnvNetworkConfig::Enabled,
         signer: signer.clone(),
-        block_time: Duration::from_secs(2),
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
