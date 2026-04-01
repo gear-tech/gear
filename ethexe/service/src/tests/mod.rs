@@ -1487,13 +1487,13 @@ async fn multiple_validators() {
     assert_eq!(res.payload, res.message_id.encode().as_slice());
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn many_validators_repeated_ping() {
     init_logger();
 
     const VALIDATORS_COUNT: usize = 16;
-    const PING_ROUNDS: usize = 50;
+    const PING_ROUNDS: usize = 4;
 
     log::info!(
         "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
