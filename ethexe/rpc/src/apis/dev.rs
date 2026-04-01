@@ -16,20 +16,34 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod block;
-mod code;
-mod injected;
-mod program;
-mod dev;
-
-pub use block::{BlockApi, BlockServer};
-pub use code::{CodeApi, CodeServer};
-pub use dev::{DevApi, DevServer};
-pub use injected::{InjectedApi, InjectedServer};
-pub use program::{FullProgramState, ProgramApi, ProgramServer};
-
-#[cfg(feature = "client")]
-pub use crate::apis::{
-    block::BlockClient, code::CodeClient, dev::DevClient, injected::InjectedClient,
-    program::ProgramClient,
+use ethexe_common::{Address, db::ConfigStorageRO};
+use ethexe_db::Database;
+use jsonrpsee::{
+    core::{RpcResult, async_trait},
+    proc_macros::rpc,
 };
+
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
+pub trait Dev {
+    /// This call is infallible and always return the protocol Router address.
+    #[method(name = "routerAddress")]
+    async fn router_address(&self) -> RpcResult<Address>;
+}
+
+pub struct DevApi {
+    db: Database,
+}
+
+impl DevApi {
+    pub fn new(db: Database) -> Self {
+        Self { db }
+    }
+}
+
+#[async_trait]
+impl DevServer for DevApi {
+    async fn router_address(&self) -> RpcResult<Address> {
+        Ok(self.db.config().router_address)
+    }
+}

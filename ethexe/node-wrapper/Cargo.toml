@@ -1,0 +1,26 @@
+[package]
+name = "ethexe-node-wrapper"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-common.workspace = true
+
+anyhow.workspace = true
+which.workspace = true
+tracing-subscriber.workspace = true
+jsonrpsee = { workspace = true, features = ["client", "ws-client"] }
+
+libc.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #[cfg(feature = "client")]
-pub use crate::apis::{BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient};
+pub use crate::apis::{
+    BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
+};
+use crate::apis::{DevApi, DevServer};
 
 use anyhow::Result;
 use apis::{
@@ -115,6 +118,7 @@ impl RpcServer {
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
             injected: InjectedApi::new(rpc_sender),
+            dev: DevApi::new(self.db.clone()),
         };
         let injected_api = server_apis.injected.clone();
 
@@ -184,6 +188,7 @@ struct RpcServerApis {
     pub code: CodeApi,
     pub injected: InjectedApi,
     pub program: ProgramApi,
+    pub dev: DevApi,
 }
 
 impl RpcServerApis {
@@ -201,6 +206,9 @@ impl RpcServerApis {
             .expect("No conflicts");
         module
             .merge(ProgramServer::into_rpc(self.program))
+            .expect("No conflicts");
+        module
+            .merge(DevServer::into_rpc(self.dev))
             .expect("No conflicts");
 
         module
