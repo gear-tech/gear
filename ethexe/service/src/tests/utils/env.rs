@@ -1242,8 +1242,9 @@ pub struct WaitForUploadCode {
     pub code_id: CodeId,
 
     receiver: ObserverEventReceiver,
-    // Provider and block time if blocks are not generated continuously,
-    // and we may need to generate blocks manually to trigger code commitment.
+    /// Hack: contains provider and block time.
+    /// If Some then while waiting for code validation result
+    /// it would trigger new block mining each 3 block times.
     hack: Option<(RootProvider, Duration)>,
 }
 
@@ -1278,10 +1279,11 @@ impl WaitForUploadCode {
         let valid = loop {
             tokio::select! {
                 _ = tokio::time::sleep(block_time * 3) => {
-                    // A hack to avoid waiting indefinitely in case:
-                    // block producer skipping code validation commitment for some reason,
-                    // in block with validation request.
-                    // We forcing new block here, so that producer will start batch commitment aggregation again.
+                    // A hack to avoid waiting indefinitely in case
+                    // block producer skipped code validation commitment
+                    // by some reason in block with validation request.
+                    // We forcing a new block mining here,
+                    // so that producer have to start batch commitment aggregation for a new block.
                     log::info!("⏱️ Reached code validation timeout, forcing new block to trigger commitment");
                     provider.evm_mine(None).await.unwrap();
                 }
