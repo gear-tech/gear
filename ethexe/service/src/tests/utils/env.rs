@@ -220,7 +220,7 @@ impl TestEnv {
             log::info!("📗 Deploying new router");
             let validators_addresses: Vec<Address> =
                 validators.iter().map(|k| k.to_address()).collect();
-            EthereumDeployer::new(&ws_rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
+            EthereumDeployer::new(&ws_rpc_url, signer.clone(), sender_address)
                 .await
                 .unwrap()
                 .with_validators(validators_addresses.try_into().unwrap())
@@ -450,7 +450,12 @@ impl TestEnv {
         let (_tx_hash, new_code_id) = self.ethereum.router().request_code_validation(code).await?;
         assert_eq!(new_code_id, code_id);
 
-        Ok(WaitForUploadCode { receiver, code_id })
+        Ok(WaitForUploadCode {
+            code_id,
+            receiver,
+            provider: self.provider.clone(),
+            block_time: self.block_time,
+        })
     }
 
     pub async fn create_program(
@@ -1226,10 +1231,12 @@ impl Drop for Node {
     }
 }
 
-#[derive(Clone)]
 pub struct WaitForUploadCode {
-    receiver: ObserverEventReceiver,
     pub code_id: CodeId,
+
+    receiver: ObserverEventReceiver,
+    provider: RootProvider,
+    block_time: Duration,
 }
 
 #[derive(Debug)]
@@ -1242,17 +1249,26 @@ impl WaitForUploadCode {
     pub async fn wait_for(self) -> anyhow::Result<UploadCodeInfo> {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
-        let valid = self
-            .receiver
-            .filter_map_block_synced()
-            .find_map(|event| match event {
+        let mut receiver = self.receiver.filter_map_block_synced();
+        let future = receiver.find_map(|event| match event {
                 BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id,
                     valid,
                 })) if code_id == self.code_id => Some(valid),
                 _ => None,
-            })
-            .await;
+            });
+        tokio::pin!(future);
+
+        let valid = loop {
+            tokio::select! {
+                _ = tokio::time::sleep(self.block_time * 5) => {
+                    self.provider.evm_mine(None).await.unwrap();
+                }
+                valid = &mut future => {
+                    break valid;
+                }
+            }
+        };
 
         Ok(UploadCodeInfo {
             code_id: self.code_id,
