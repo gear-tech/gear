@@ -105,12 +105,6 @@ pub enum TransportType {
     Test,
 }
 
-impl TransportType {
-    fn mdns_enabled(&self) -> bool {
-        matches!(self, Self::Default)
-    }
-}
-
 /// Config from CLI
 #[derive(Debug, Clone)]
 pub struct NetworkConfig {
@@ -250,7 +244,7 @@ impl NetworkService {
             keypair: keypair.clone(),
             external_data_provider,
             db: DbSyncDatabase::clone_boxed(&db),
-            enable_mdns: transport_type.mdns_enabled(),
+            transport_type,
             validator_key,
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
@@ -638,7 +632,7 @@ struct BehaviourConfig {
     keypair: identity::Keypair,
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     db: Box<dyn DbSyncDatabase>,
-    enable_mdns: bool,
+    transport_type: TransportType,
     validator_key: Option<PublicKey>,
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
@@ -682,7 +676,7 @@ impl Behaviour {
             keypair,
             external_data_provider,
             db,
-            enable_mdns,
+            transport_type,
             validator_key,
             general_signer,
             validator_list_snapshot,
@@ -715,7 +709,11 @@ impl Behaviour {
             .with_max_pending_outgoing(Some(MAX_PENDING_OUTGOING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
 
-        let slots = slots::Behaviour::new(slots::Config::default());
+        let slots_config = match transport_type {
+            TransportType::Default => slots::Config::default(),
+            TransportType::Test => slots::Config::default().with_backoff_period(Duration::ZERO),
+        };
+        let slots = slots::Behaviour::new(slots_config);
 
         let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
         let peer_score_handle = peer_score.handle();
@@ -727,9 +725,13 @@ impl Behaviour {
         let identify = identify::Behaviour::new(identify_config);
 
         let mdns4 = Toggle::from(
-            enable_mdns
-                .then(|| mdns::Behaviour::new(mdns::Config::default(), peer_id))
-                .transpose()?,
+            match transport_type {
+                TransportType::Default => {
+                    Some(mdns::Behaviour::new(mdns::Config::default(), peer_id))
+                }
+                TransportType::Test => None,
+            }
+            .transpose()?,
         );
 
         let kad = kad::Behaviour::new(peer_id, peer_score_handle.clone(), metrics.clone());
