@@ -15,7 +15,7 @@ path = "src/main.rs"
 [dependencies]
 ethexe-network.workspace = true
 ethexe-prometheus.workspace = true
-ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-rpc = { workspace = true, features = ["client", "dev"] }
 ethexe-service.workspace = true
 ethexe-observer.workspace = true
 gsigner = { workspace = true, features = [

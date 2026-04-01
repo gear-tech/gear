@@ -18,15 +18,18 @@
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
+    BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient,
 };
-use crate::apis::{DevApi, DevServer};
+#[cfg(all(feature = "client", feature = "dev"))]
+pub use crate::apis::DevClient;
 
 use anyhow::Result;
 use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
+#[cfg(feature = "dev")]
+use crate::apis::{DevApi, DevServer};
 use ethexe_common::injected::{
     AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
 };
@@ -118,6 +121,7 @@ impl RpcServer {
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
             injected: InjectedApi::new(rpc_sender),
+            #[cfg(feature = "dev")]
             dev: DevApi::new(self.db.clone()),
         };
         let injected_api = server_apis.injected.clone();
@@ -188,6 +192,7 @@ struct RpcServerApis {
     pub code: CodeApi,
     pub injected: InjectedApi,
     pub program: ProgramApi,
+    #[cfg(feature = "dev")]
     pub dev: DevApi,
 }
 
@@ -207,6 +212,7 @@ impl RpcServerApis {
         module
             .merge(ProgramServer::into_rpc(self.program))
             .expect("No conflicts");
+        #[cfg(feature = "dev")]
         module
             .merge(DevServer::into_rpc(self.dev))
             .expect("No conflicts");

@@ -40,3 +40,4 @@ tracing-subscriber.workspace = true
 
 [features]
 client = ["jsonrpsee/client"]
+dev = []

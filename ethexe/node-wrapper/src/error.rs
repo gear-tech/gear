@@ -43,7 +43,4 @@ pub enum Error {
     /// Failed to query the Ethereum router address.
     #[error("failed to query router address: {0}")]
     QueryRouterAddress(#[source] jsonrpsee::core::ClientError),
-    /// Router address is not configured yet.
-    #[error("router address is not available yet")]
-    MissingRouterAddress,
 }
