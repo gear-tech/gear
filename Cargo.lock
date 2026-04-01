@@ -5340,6 +5340,7 @@ dependencies = [
  "jsonrpsee",
  "libc",
  "thiserror 2.0.17",
+ "tokio",
  "which",
 ]
 

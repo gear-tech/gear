@@ -41,13 +41,17 @@ const STARTUP_TIMEOUT: Duration = Duration::from_secs(2);
 /// Builder for launching `Vara.eth` node.
 ///
 /// ```no_run
-/// let veth = VaraEth::new().spawn().unwrap();
+/// use ethexe_node_wrapper::VaraEth;
 ///
-/// let http_endpoint = veth.http_endpoint();
-/// let router = veth.router_address().await.unwrap();
+/// async fn do_some_stuff() {
+///     let veth = VaraEth::new().spawn().unwrap();
 ///
-/// println!("Vara.eth running at: {http_endpoint}");
-/// println!("Router address: {router}");
+///     let http_endpoint = veth.http_endpoint();
+///     let router = veth.router_address().await.unwrap();
+///
+///     println!("Vara.eth running at: {http_endpoint}");
+///     println!("Router address: {router}");
+/// }
 /// ```
 #[derive(Clone, Debug, Default)]
 #[must_use = "This Builder struct does nothing unless it is `spawn`ed"]
@@ -183,4 +187,14 @@ impl VaraEth {
             child,
         })
     }
+}
+
+#[tokio::test]
+async fn simple_deploy() {
+    let veth = VaraEth::at("../../target/debug/ethexe").spawn().unwrap();
+
+    let http_endpoint = veth.http_endpoint();
+    let router = veth.router_address().await.unwrap();
+    println!("Vara.eth running at: {http_endpoint}");
+    println!("Router address: {router}");
 }

@@ -16,20 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(feature = "client")]
-pub use crate::apis::{
-    BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient,
-};
 #[cfg(all(feature = "client", feature = "dev"))]
 pub use crate::apis::DevClient;
+#[cfg(feature = "client")]
+pub use crate::apis::{BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient};
 
+#[cfg(feature = "dev")]
+use crate::apis::{DevApi, DevServer};
 use anyhow::Result;
 use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-#[cfg(feature = "dev")]
-use crate::apis::{DevApi, DevServer};
 use ethexe_common::injected::{
     AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
 };
