@@ -914,7 +914,7 @@ async fn parse_router_transitions(
                                     mid_map.write().await.insert(msg_id, actor_id);
 
                                     let is_reply = msg.replyDetails.to.0 != [0u8; 32];
-                                    if msg.destination == to && !is_reply {
+                                    if msg.destination == to {
                                         mailbox_added.insert(msg_id);
                                     }
 
