@@ -76,6 +76,7 @@ use std::{
     fmt, mem,
     net::SocketAddr,
     num::NonZero,
+    ops::Not,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
@@ -439,6 +440,10 @@ impl TestEnv {
         .unwrap()
     }
 
+    /// Upload code bytes and request a validation on router. Returns waiter for code validation result.
+    ///
+    /// NOTE: [`WaitForUploadCode`] contains a hack for not continuous block generation mode,
+    /// it may cause new blocks mining, so use it carefully, for more info see [`WaitForUploadCode::wait_for`].
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
         log::info!("📗 Upload code, len {}", code.len());
 
@@ -453,8 +458,10 @@ impl TestEnv {
         Ok(WaitForUploadCode {
             code_id,
             receiver,
-            provider: self.provider.clone(),
-            block_time: self.block_time,
+            hack: self
+                .continuous_block_generation
+                .not()
+                .then(|| (self.provider.clone(), self.block_time)),
         })
     }
 
@@ -1235,8 +1242,9 @@ pub struct WaitForUploadCode {
     pub code_id: CodeId,
 
     receiver: ObserverEventReceiver,
-    provider: RootProvider,
-    block_time: Duration,
+    // Provider and block time if blocks are not generated continuously,
+    // and we may need to generate blocks manually to trigger code commitment.
+    hack: Option<(RootProvider, Duration)>,
 }
 
 #[derive(Debug)]
@@ -1250,21 +1258,34 @@ impl WaitForUploadCode {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
         let mut receiver = self.receiver.filter_map_block_synced();
-        let future = receiver.find_map(|event| match event {
-                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
-                    code_id,
-                    valid,
-                })) if code_id == self.code_id => Some(valid),
-                _ => None,
+        let wait_for_validation_status = receiver.find_map(|event| match event {
+            BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                code_id,
+                valid,
+            })) if code_id == self.code_id => Some(valid),
+            _ => None,
+        });
+
+        let Some((provider, block_time)) = self.hack else {
+            return Ok(UploadCodeInfo {
+                code_id: self.code_id,
+                valid: wait_for_validation_status.await,
             });
-        tokio::pin!(future);
+        };
+
+        tokio::pin!(wait_for_validation_status);
 
         let valid = loop {
             tokio::select! {
-                _ = tokio::time::sleep(self.block_time * 5) => {
-                    self.provider.evm_mine(None).await.unwrap();
+                _ = tokio::time::sleep(block_time * 3) => {
+                    // A hack to avoid waiting indefinitely in case:
+                    // block producer skipping code validation commitment for some reason,
+                    // in block with validation request.
+                    // We forcing new block here, so that producer will start batch commitment aggregation again.
+                    log::info!("⏱️ Reached code validation timeout, forcing new block to trigger commitment");
+                    provider.evm_mine(None).await.unwrap();
                 }
-                valid = &mut future => {
+                valid = &mut wait_for_validation_status => {
                     break valid;
                 }
             }
