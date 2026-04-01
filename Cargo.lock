@@ -5335,13 +5335,11 @@ dependencies = [
 name = "ethexe-node-wrapper"
 version = "1.10.0"
 dependencies = [
- "anyhow",
  "ethexe-common",
  "ethexe-rpc",
  "jsonrpsee",
  "libc",
- "tokio",
- "tracing-subscriber",
+ "thiserror 2.0.17",
  "which",
 ]
 

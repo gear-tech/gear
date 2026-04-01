@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Context, Result};
+use crate::Error;
 use ethexe_common::Address;
 use ethexe_rpc::DevClient;
 use jsonrpsee::{
@@ -25,58 +25,61 @@ use jsonrpsee::{
 };
 use std::{net::SocketAddrV4, process::Child};
 
-pub struct InstanceConfig {
-    pub ethereum_rpc: SocketAddrV4,
-    pub rpc_addr: SocketAddrV4,
-}
-
+/// The Vara.eth CLI instance. Will close the instance when dropped.
+///
+/// Can be constructed only from [spawn](super::node::VaraEth::spawn) function.
+#[derive(Debug)]
 pub struct VaraEthInstance {
-    /// The Vara.eth node instance configuration.
-    pub(crate) config: InstanceConfig,
+    /// The Vara.eth rpc address.
+    pub(crate) rpc_addr: SocketAddrV4,
+    /// The Vara.eth anvil rpc address.
+    pub(crate) eth_rpc_addr: SocketAddrV4,
     /// The child process of instance
     pub(crate) child: Child,
 }
 
 impl VaraEthInstance {
     /// Fetches the Ethereum Router address.
-    pub async fn router_address(&self) -> Result<Address> {
+    pub async fn router_address(&self) -> Result<Address, Error> {
         self.http_client()?
             .router_address()
             .await
-            .with_context(|| "failed to query router address")
+            .map_err(Error::QueryRouterAddress)
     }
 
-    pub async fn ws_client(&self) -> Result<WsClient> {
+    /// Returns the websocket client.
+    pub async fn ws_client(&self) -> Result<WsClient, Error> {
         WsClientBuilder::new()
             .build(self.ws_endpoint())
             .await
-            .with_context(|| "failed to build ws client")
+            .map_err(Error::BuildWsClient)
     }
 
-    pub fn http_client(&self) -> Result<HttpClient> {
+    /// Returns the HTTP client.
+    pub fn http_client(&self) -> Result<HttpClient, Error> {
         HttpClient::builder()
             .build(self.http_endpoint())
-            .with_context(|| "failed to build HttpClient")
+            .map_err(Error::BuildHttpClient)
     }
 
     /// Returns the Websocket endpoint of Vara.eth rpc.
     pub fn ws_endpoint(&self) -> String {
-        format!("ws://{}", self.config.rpc_addr)
+        format!("ws://{}", self.rpc_addr)
     }
 
     /// Returns the HTTP endpoint of Vara.eth rpc.
     pub fn http_endpoint(&self) -> String {
-        format!("http://{}", self.config.rpc_addr)
+        format!("http://{}", self.rpc_addr)
     }
 
     /// Returns the Websocket endpoint Vara.eth node connected to.
     pub fn ethereum_rpc_ws_endpoint(&self) -> String {
-        format!("ws://{}", self.config.ethereum_rpc)
+        format!("ws://{}", self.eth_rpc_addr)
     }
 
     /// Returns the HTTP endpoint Vara.eth node connected to.
     pub fn ethereum_rpc_http_endpoint(&self) -> String {
-        format!("http://{}", self.config.ethereum_rpc)
+        format!("http://{}", self.eth_rpc_addr)
     }
 }
 

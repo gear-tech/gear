@@ -18,9 +18,9 @@
 
 mod block;
 mod code;
+mod dev;
 mod injected;
 mod program;
-mod dev;
 
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
