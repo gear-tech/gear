@@ -92,6 +92,11 @@ impl Default for Config {
 }
 
 impl Config {
+    pub(crate) fn with_backoff_period(mut self, backoff_period: Duration) -> Self {
+        self.backoff_period = backoff_period;
+        self
+    }
+
     fn incoming_peers_total(&self) -> u32 {
         self.inbound_max_peers + self.inbound_overflowing_peers
     }
