@@ -76,6 +76,7 @@ use std::{
     fmt, mem,
     net::SocketAddr,
     num::NonZero,
+    ops::Not,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
@@ -220,7 +221,7 @@ impl TestEnv {
             log::info!("📗 Deploying new router");
             let validators_addresses: Vec<Address> =
                 validators.iter().map(|k| k.to_address()).collect();
-            EthereumDeployer::new(&ws_rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
+            EthereumDeployer::new(&ws_rpc_url, signer.clone(), sender_address)
                 .await
                 .unwrap()
                 .with_validators(validators_addresses.try_into().unwrap())
@@ -398,6 +399,11 @@ impl TestEnv {
                 (format!("/memory/{nonce}"), bootstrap_address.clone())
             })
             .unzip();
+        let network_public_key = network_address.as_ref().map(|_| {
+            self.signer
+                .generate()
+                .expect("failed to generate network key")
+        });
 
         Node {
             name,
@@ -413,6 +419,7 @@ impl TestEnv {
             threshold: self.threshold,
             block_time: self.block_time,
             validator_config,
+            network_public_key,
             network_address,
             network_bootstrap_address,
             service_rpc_config,
@@ -433,6 +440,10 @@ impl TestEnv {
         .unwrap()
     }
 
+    /// Upload code bytes and request a validation on router. Returns waiter for code validation result.
+    ///
+    /// NOTE: [`WaitForUploadCode`] contains a hack for not continuous block generation mode,
+    /// it may cause new blocks mining, so use it carefully, for more info see [`WaitForUploadCode::wait_for`].
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
         log::info!("📗 Upload code, len {}", code.len());
 
@@ -444,7 +455,14 @@ impl TestEnv {
         let (_tx_hash, new_code_id) = self.ethereum.router().request_code_validation(code).await?;
         assert_eq!(new_code_id, code_id);
 
-        Ok(WaitForUploadCode { receiver, code_id })
+        Ok(WaitForUploadCode {
+            code_id,
+            receiver,
+            hack: self
+                .continuous_block_generation
+                .not()
+                .then(|| (self.provider.clone(), self.block_time)),
+        })
     }
 
     pub async fn create_program(
@@ -908,6 +926,7 @@ pub struct Node {
     threshold: u64,
     block_time: Duration,
     validator_config: Option<ValidatorConfig>,
+    network_public_key: Option<PublicKey>,
     network_address: Option<String>,
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
@@ -1126,7 +1145,9 @@ impl Node {
 
         let addr = self.network_address.as_ref()?;
 
-        let network_key = self.signer.generate().unwrap();
+        let network_key = self
+            .network_public_key
+            .expect("network public key must exist when network is configured");
         let multiaddr: Multiaddr = addr.parse().unwrap();
 
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
@@ -1217,10 +1238,14 @@ impl Drop for Node {
     }
 }
 
-#[derive(Clone)]
 pub struct WaitForUploadCode {
-    receiver: ObserverEventReceiver,
     pub code_id: CodeId,
+
+    receiver: ObserverEventReceiver,
+    /// Hack: contains provider and block time.
+    /// If Some then while waiting for code validation result
+    /// it would trigger new block mining each 3 block times.
+    hack: Option<(RootProvider, Duration)>,
 }
 
 #[derive(Debug)]
@@ -1233,17 +1258,40 @@ impl WaitForUploadCode {
     pub async fn wait_for(self) -> anyhow::Result<UploadCodeInfo> {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
-        let valid = self
-            .receiver
-            .filter_map_block_synced()
-            .find_map(|event| match event {
-                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
-                    code_id,
-                    valid,
-                })) if code_id == self.code_id => Some(valid),
-                _ => None,
-            })
-            .await;
+        let mut receiver = self.receiver.filter_map_block_synced();
+        let wait_for_validation_status = receiver.find_map(|event| match event {
+            BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                code_id,
+                valid,
+            })) if code_id == self.code_id => Some(valid),
+            _ => None,
+        });
+
+        let Some((provider, block_time)) = self.hack else {
+            return Ok(UploadCodeInfo {
+                code_id: self.code_id,
+                valid: wait_for_validation_status.await,
+            });
+        };
+
+        tokio::pin!(wait_for_validation_status);
+
+        let valid = loop {
+            tokio::select! {
+                _ = tokio::time::sleep(block_time * 3) => {
+                    // A hack to avoid waiting indefinitely in case
+                    // block producer skipped code validation commitment
+                    // by some reason in block with validation request.
+                    // We forcing a new block mining here,
+                    // so that producer have to start batch commitment aggregation for a new block.
+                    log::info!("⏱️ Reached code validation timeout, forcing new block to trigger commitment");
+                    provider.evm_mine(None).await.unwrap();
+                }
+                valid = &mut wait_for_validation_status => {
+                    break valid;
+                }
+            }
+        };
 
         Ok(UploadCodeInfo {
             code_id: self.code_id,
