@@ -356,9 +356,16 @@ impl Behaviour {
                     at: _,
                     direction: PeerDirection::Outbound,
                 } => {
-                    // we don't apply backoff period for disconnected outbound peer
-                    // because it can disconnect on its own backoff period,
-                    // so we try avoiding connection churn
+                    // peers that were first classified as outbound keep that
+                    // direction when they reconnect, even if the new transport
+                    // connection is accepted on our side after a disconnect.
+                    // this avoids applying the inbound backoff to churny peers
+                    // that reconnect through us after an outbound disconnect.
+
+                    // logical direction is also rewritten because of churn
+                    direction = PeerDirection::Outbound;
+
+                    self.peers.remove(&peer);
                 }
             }
         }
@@ -856,7 +863,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn add_outbound_connection_rejects_peer_in_backoff_period() {
+    async fn add_outbound_connection_allows_peer_in_outbound_backoff_period() {
         let mut behaviour = Behaviour::new(Config::default());
 
         let peer_id = PeerId::random();
@@ -866,16 +873,26 @@ mod tests {
             .unwrap();
         behaviour.remove_connection(peer_id, first_connection_id);
 
-        let err = behaviour
+        behaviour
             .add_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
-            .unwrap_err()
-            .downcast::<SlotConnectionError>()
             .unwrap();
-        assert_eq!(err, SlotConnectionError::ActiveBackoffPeriod);
+
+        let (connections, direction) = behaviour
+            .peers
+            .get(&peer_id)
+            .unwrap()
+            .unwrap_connected_ref();
+        assert_eq!(*direction, PeerDirection::Outbound);
+        assert_eq!(
+            *connections,
+            [ConnectionId::new_unchecked(2)]
+                .into_iter()
+                .collect::<HashSet<_>>()
+        );
     }
 
     #[tokio::test]
-    async fn add_outbound_connection_allows_peer_after_dialer_side_disconnect() {
+    async fn add_outbound_connection_allows_reconnect_for_peer_marked_outbound() {
         let mut behaviour = Behaviour::new(Config::default());
 
         let peer_id = PeerId::random();
@@ -885,11 +902,55 @@ mod tests {
             .unwrap();
         behaviour.remove_connection(peer_id, first_connection_id);
 
-        assert!(!behaviour.peers.contains_key(&peer_id));
+        assert_matches!(
+            behaviour.peers.get(&peer_id),
+            Some(PeerState::JustDisconnected {
+                direction: PeerDirection::Outbound,
+                ..
+            })
+        );
 
         behaviour
             .add_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
             .unwrap();
+
+        let (connections, direction) = behaviour
+            .peers
+            .get(&peer_id)
+            .unwrap()
+            .unwrap_connected_ref();
+        assert_eq!(*direction, PeerDirection::Outbound);
+        assert_eq!(
+            *connections,
+            [ConnectionId::new_unchecked(2)]
+                .into_iter()
+                .collect::<HashSet<_>>()
+        );
+    }
+
+    #[tokio::test]
+    async fn established_inbound_connection_keeps_outbound_direction_after_disconnect() {
+        let mut behaviour = Behaviour::new(Config::default());
+
+        let peer_id = PeerId::random();
+        behaviour.peers.insert(
+            peer_id,
+            PeerState::JustDisconnected {
+                at: Instant::now(),
+                direction: PeerDirection::Outbound,
+            },
+        );
+
+        let local_addr = random_multiaddr();
+        let remote_addr = random_multiaddr();
+        <Behaviour as NetworkBehaviour>::handle_established_inbound_connection(
+            &mut behaviour,
+            ConnectionId::new_unchecked(2),
+            peer_id,
+            &local_addr,
+            &remote_addr,
+        )
+        .unwrap();
 
         let (connections, direction) = behaviour
             .peers
@@ -966,7 +1027,10 @@ mod tests {
 
         behaviour.peers.insert(
             PeerId::random(),
-            PeerState::JustDisconnected(Instant::now()),
+            PeerState::JustDisconnected {
+                at: Instant::now(),
+                direction: PeerDirection::Inbound(InboundPeerDirection::Normal),
+            },
         );
 
         let peer_id = PeerId::random();
@@ -1226,7 +1290,10 @@ mod tests {
         );
         behaviour.peers.insert(
             PeerId::random(),
-            PeerState::JustDisconnected(Instant::now()),
+            PeerState::JustDisconnected {
+                at: Instant::now(),
+                direction: PeerDirection::Outbound,
+            },
         );
 
         let replacement_peer = PeerId::random();
@@ -1250,7 +1317,10 @@ mod tests {
         let disconnected_peer_id = PeerId::random();
         behaviour.peers.insert(
             disconnected_peer_id,
-            PeerState::JustDisconnected(Instant::now()),
+            PeerState::JustDisconnected {
+                at: Instant::now(),
+                direction: PeerDirection::Outbound,
+            },
         );
 
         let connected_peer_id = PeerId::random();
