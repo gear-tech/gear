@@ -22,7 +22,6 @@ use std::{
     env,
     ffi::OsString,
     net::{Ipv4Addr, SocketAddrV4},
-    os::unix::process::CommandExt,
     path::PathBuf,
     process::{Command, Stdio},
     time::{Duration, Instant},
@@ -150,6 +149,8 @@ impl VaraEth {
         // This hack is for killing the `anvil` that internally starts in `ethexe run --dev`.
         #[cfg(unix)]
         {
+            use std::os::unix::process::CommandExt;
+
             process = unsafe {
                 process.pre_exec(|| {
                     if libc::setpgid(0, 0) != 0 {
