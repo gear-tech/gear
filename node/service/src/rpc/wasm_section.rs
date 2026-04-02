@@ -18,7 +18,9 @@
 
 //! RPC endpoint for reading custom sections from program WASM original code.
 
+use gear_core::code::get_custom_section_data;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, types::ErrorObjectOwned};
+use parity_scale_codec::Decode;
 use sc_client_api::StorageProvider;
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256, twox_128};
@@ -96,10 +98,10 @@ where
 
         // The storage value is SCALE-encoded Vec<u8>, so we need to decode it.
         let wasm_bytes: Vec<u8> =
-            parity_scale_codec::Decode::decode(&mut wasm_data.0.as_slice())
+            Decode::decode(&mut wasm_data.0.as_slice())
                 .map_err(|e| rpc_err("Failed to decode stored WASM", Some(format!("{e:?}"))))?;
 
-        match gear_core::code::get_custom_section_data(&wasm_bytes, &section_name) {
+        match get_custom_section_data(&wasm_bytes, &section_name) {
             Ok(Some(data)) => Ok(Some(Bytes(data.to_vec()))),
             Ok(None) => Ok(None),
             Err(e) => Err(rpc_err(
