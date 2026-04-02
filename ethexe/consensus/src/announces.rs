@@ -880,6 +880,7 @@ mod tests {
         StateHashWithQueueSize,
         db::*,
         events::{BlockEvent, MirrorEvent, mirror::MessageQueueingRequestedEvent},
+        gear::StateTransition,
         injected::InjectedTransaction,
         mock::*,
     };
@@ -1226,6 +1227,142 @@ mod tests {
         assert_eq!(
             reason,
             AnnounceRejectionReason::TooManyTouchedPrograms(MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 1)
+        );
+    }
+
+    #[test]
+    fn best_announce_prefers_base_sibling_with_same_outcome() {
+        let db = Database::memory();
+
+        let mut chain = BlockChain::mock(5);
+
+        // Block 3 already has a base announce. Add a not-base sibling with the same parent.
+        let base_hash = chain.block_top_announce_hash(3);
+        let base_announce = &chain.block_top_announce(3).announce;
+        let parent = base_announce.parent;
+        let block_hash = base_announce.block_hash;
+
+        let not_base_announce = Announce::with_default_gas(block_hash, parent);
+        let not_base_hash = not_base_announce.to_hash();
+
+        chain.blocks[3]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .unwrap()
+            .insert(not_base_hash);
+
+        // Both announces computed with the same (empty) outcome
+        chain.announces.insert(
+            not_base_hash,
+            AnnounceData {
+                announce: not_base_announce,
+                computed: Some(MockComputedAnnounceData::default()),
+            },
+        );
+
+        let chain = chain.setup(&db);
+
+        // Not-base has more points (1 vs 0), but base sibling has the same outcome,
+        // so best_announce should prefer the base one.
+        let result = best_announce(&db, [not_base_hash, base_hash], 3).unwrap();
+        assert_eq!(
+            result, base_hash,
+            "Should prefer base announce when sibling outcomes are the same"
+        );
+
+        // Also verify via best_parent_announce: block 4 should pick base at block 3 as best parent
+        let (best_parent_hash, _child) =
+            best_parent_announce(&db, chain.blocks[4].hash, 3).unwrap();
+        assert_eq!(
+            best_parent_hash, base_hash,
+            "best_parent_announce should prefer base parent with same outcome"
+        );
+    }
+
+    #[test]
+    fn best_announce_keeps_not_base_when_outcomes_differ() {
+        let db = Database::memory();
+
+        let mut chain = BlockChain::mock(5);
+
+        let base_hash = chain.block_top_announce_hash(3);
+        let base_announce = &chain.block_top_announce(3).announce;
+        let parent = base_announce.parent;
+        let block_hash = base_announce.block_hash;
+
+        let not_base_announce = Announce::with_default_gas(block_hash, parent);
+        let not_base_hash = not_base_announce.to_hash();
+
+        chain.blocks[3]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .unwrap()
+            .insert(not_base_hash);
+
+        // Not-base announce has a different outcome (non-empty)
+        chain.announces.insert(
+            not_base_hash,
+            AnnounceData {
+                announce: not_base_announce,
+                computed: Some(MockComputedAnnounceData {
+                    outcome: vec![StateTransition {
+                        actor_id: ActorId::from(1u64),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }),
+            },
+        );
+
+        let _chain = chain.setup(&db);
+
+        // Not-base has more points AND different outcome, so it wins.
+        let result = best_announce(&db, [not_base_hash, base_hash], 3).unwrap();
+        assert_eq!(
+            result, not_base_hash,
+            "Should keep not-base announce when outcomes differ"
+        );
+    }
+
+    #[test]
+    fn best_announce_not_computed_keeps_not_base() {
+        let db = Database::memory();
+
+        let mut chain = BlockChain::mock(5);
+
+        let base_hash = chain.block_top_announce_hash(3);
+        let base_announce = &chain.block_top_announce(3).announce;
+        let parent = base_announce.parent;
+        let block_hash = base_announce.block_hash;
+
+        let not_base_announce = Announce::with_default_gas(block_hash, parent);
+        let not_base_hash = not_base_announce.to_hash();
+
+        chain.blocks[3]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .unwrap()
+            .insert(not_base_hash);
+
+        // Not-base announce is NOT computed (computed: None)
+        chain.announces.insert(
+            not_base_hash,
+            AnnounceData {
+                announce: not_base_announce,
+                computed: None,
+            },
+        );
+
+        let _chain = chain.setup(&db);
+
+        // Not-base has more points; sibling check returns NotComputed, so not-base wins.
+        let result = best_announce(&db, [not_base_hash, base_hash], 3).unwrap();
+        assert_eq!(
+            result, not_base_hash,
+            "Should keep not-base announce when sibling is not computed"
         );
     }
 }

@@ -3457,3 +3457,111 @@ async fn reply_callback() {
 
     assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
 }
+
+/// After several idle blocks (no user messages), when a ping message arrives,
+/// base-announce-priority ensures the announce chain consists of base announces,
+/// so the batch commitment expiry equals commitment_delay_limit (not 1).
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn batch_commitment_expiry_after_idle_blocks() {
+    init_logger();
+
+    let captured_expiry: Arc<Mutex<u8>> = Arc::new(Mutex::new(0));
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    // Custom committer that captures batch expiry values
+    let captured_expiry_clone = captured_expiry.clone();
+    let router = env.ethereum.router().clone();
+
+    #[derive(Clone)]
+    struct ExpiryCapturingCommitter {
+        router: Router,
+        captured: Arc<Mutex<u8>>,
+    }
+
+    #[async_trait::async_trait]
+    impl BatchCommitter for ExpiryCapturingCommitter {
+        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+            Box::new(self.clone())
+        }
+
+        async fn commit(
+            self: Box<Self>,
+            batch: BatchCommitment,
+            signatures: Vec<ContractSignature>,
+        ) -> anyhow::Result<H256> {
+            log::info!("📗 Captured batch commitment with expiry={}", batch.expiry);
+            *self.captured.lock().await = batch.expiry;
+            let pending = self.router.commit_batch_pending(batch, signatures).await;
+            pending?
+                .try_get_receipt_check_reverted()
+                .await
+                .map(|r| r.transaction_hash.0.into())
+        }
+    }
+
+    let committer = ExpiryCapturingCommitter {
+        router,
+        captured: captured_expiry_clone,
+    };
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.custom_committer = Some(Box::new(committer));
+    node.start_service().await;
+
+    // Setup: upload code and create program
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let res = env
+        .create_program(res.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = res.program_id;
+
+    // Initial ping to ensure program is fully initialized
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.payload, b"PONG");
+
+    // Skip several idle blocks (no messages, only base announces propagated)
+    env.skip_blocks(10).await;
+
+    // Send PING after idle period
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.payload, b"PONG");
+
+    // Check that the batch commitment after idle blocks has expiry == commitment_delay_limit.
+    // With base-announce-priority, the chain of announces during idle blocks is all base,
+    // so only the head announce (with the ping message) is not-base,
+    // resulting in expiry = commitment_delay_limit.
+    let last_expiry = *captured_expiry.lock().await;
+    assert_eq!(
+        last_expiry, env.commitment_delay_limit as u8,
+        "Batch commitment expiry should equal commitment_delay_limit ({}), got {last_expiry}",
+        env.commitment_delay_limit
+    );
+}
