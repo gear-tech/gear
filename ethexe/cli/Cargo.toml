@@ -12,10 +12,13 @@ rust-version.workspace = true
 name = "ethexe"
 path = "src/main.rs"
 
+[features]
+dev = ["ethexe-rpc/dev"]
+
 [dependencies]
 ethexe-network.workspace = true
 ethexe-prometheus.workspace = true
-ethexe-rpc = { workspace = true, features = ["client", "dev"] }
+ethexe-rpc = { workspace = true, features = ["client"] }
 ethexe-service.workspace = true
 ethexe-observer.workspace = true
 gsigner = { workspace = true, features = [
