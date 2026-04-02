@@ -9,7 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-ethexe-rpc = { workspace = true, features = ["client", "dev"] }
+ethexe-rpc = { workspace = true, features = ["client"] }
 ethexe-common.workspace = true
 
 which.workspace = true

@@ -18,23 +18,18 @@
 
 mod block;
 mod code;
+mod dev;
 mod injected;
 mod program;
 
-#[cfg(feature = "dev")]
-mod dev;
-
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
+pub use dev::{DevApi, DevServer};
 pub use injected::{InjectedApi, InjectedServer};
 pub use program::{FullProgramState, ProgramApi, ProgramServer};
 
-#[cfg(feature = "dev")]
-pub use dev::{DevApi, DevServer};
-
-#[cfg(all(feature = "client", feature = "dev"))]
-pub use crate::apis::dev::DevClient;
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient,
+    block::BlockClient, code::CodeClient, dev::DevClient, injected::InjectedClient,
+    program::ProgramClient,
 };

@@ -16,17 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(all(feature = "client", feature = "dev"))]
-pub use crate::apis::DevClient;
 #[cfg(feature = "client")]
-pub use crate::apis::{BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient};
+pub use crate::apis::{
+    BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
+};
 
-#[cfg(feature = "dev")]
-use crate::apis::{DevApi, DevServer};
 use anyhow::Result;
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
-    ProgramServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InjectedApi, InjectedServer,
+    ProgramApi, ProgramServer,
 };
 use ethexe_common::injected::{
     AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
@@ -76,6 +74,9 @@ pub struct RpcConfig {
     pub gas_allowance: u64,
     /// Amount of processing threads for queue processing.
     pub chunk_size: usize,
+    /// Flag to enable RPC DevApi.
+    /// Important: can be enabled only in dev mode, run: `ethexe run --dev`
+    pub with_dev_api: bool,
 }
 
 pub struct RpcServer {
@@ -119,8 +120,10 @@ impl RpcServer {
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
             injected: InjectedApi::new(rpc_sender),
-            #[cfg(feature = "dev")]
-            dev: DevApi::new(self.db.clone()),
+            dev: self
+                .config
+                .with_dev_api
+                .then(|| DevApi::new(self.db.clone())),
         };
         let injected_api = server_apis.injected.clone();
 
@@ -190,8 +193,7 @@ struct RpcServerApis {
     pub code: CodeApi,
     pub injected: InjectedApi,
     pub program: ProgramApi,
-    #[cfg(feature = "dev")]
-    pub dev: DevApi,
+    pub dev: Option<DevApi>,
 }
 
 impl RpcServerApis {
@@ -210,10 +212,11 @@ impl RpcServerApis {
         module
             .merge(ProgramServer::into_rpc(self.program))
             .expect("No conflicts");
-        #[cfg(feature = "dev")]
-        module
-            .merge(DevServer::into_rpc(self.dev))
-            .expect("No conflicts");
+        if let Some(dev) = self.dev {
+            module
+                .merge(DevServer::into_rpc(dev))
+                .expect("No conflicts");
+        }
 
         module
     }

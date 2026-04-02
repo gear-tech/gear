@@ -35,7 +35,7 @@ const VARA_ETH_BINARY: &str = "ethexe";
 const DEFAULT_ARGS: &[&str] = &["run", "--dev", "--no-network"];
 
 /// Timeout for waiting for the node starting.
-const STARTUP_TIMEOUT: Duration = Duration::from_secs(2);
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Builder for launching `Vara.eth` node.
 ///
@@ -193,6 +193,6 @@ async fn wait_for_rpc(url: String, timeout: Duration) -> Result<(), Error> {
             break Ok(());
         }
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
     }
 }

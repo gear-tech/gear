@@ -12,9 +12,6 @@ rust-version.workspace = true
 name = "ethexe"
 path = "src/main.rs"
 
-[features]
-dev = ["ethexe-rpc/dev"]
-
 [dependencies]
 ethexe-network.workspace = true
 ethexe-prometheus.workspace = true
