@@ -383,6 +383,7 @@ pub enum Event {
 }
 
 struct GetIdentities {
+    validator_address: Option<Address>,
     snapshot: Arc<ValidatorListSnapshot>,
     identities: ValidatorIdentities,
     query_identities: Option<BoxStream<'static, GetRecordResult>>,
@@ -405,6 +406,7 @@ impl GetIdentities {
     fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
         self.snapshot
             .iter()
+            .filter(|&address| Some(address) != self.validator_address)
             .map(|address| ValidatorIdentityKey { validator: address })
     }
 
@@ -430,6 +432,12 @@ impl GetIdentities {
     }
 
     fn put_identity(&mut self, record: ValidatorIdentityRecord) -> Result<bool, VerifyRecordError> {
+        debug_assert_ne!(
+            self.validator_address,
+            Some(record.value.address()),
+            "we never request our own identity"
+        );
+
         let Some(identity) = self.verify_record(record)? else {
             return Ok(false);
         };
@@ -465,10 +473,14 @@ impl GetIdentities {
                     kad.get_record(identity)
                 })
                 .collect::<Vec<_>>();
-            let stream = stream::iter(streams)
-                .flatten_unordered(Some(MAX_IN_FLIGHT_QUERIES))
-                .boxed();
-            self.query_identities.replace(stream);
+            if streams.is_empty() {
+                self.query_identities = None;
+            } else {
+                let stream = stream::iter(streams)
+                    .flatten_unordered(Some(MAX_IN_FLIGHT_QUERIES))
+                    .boxed();
+                self.query_identities.replace(stream);
+            }
             return Poll::Ready(ToSwarm::GenerateEvent(Event::GetIdentitiesStarted));
         }
 
@@ -620,6 +632,7 @@ impl Behaviour {
         Self {
             kad,
             get_identities: GetIdentities {
+                validator_address: validator_key.as_ref().map(|key| key.to_address()),
                 snapshot,
                 identities: HashMap::new(),
                 query_identities: None,
@@ -868,7 +881,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn behaviour_queries_and_puts() {
+    async fn behaviour_skips_self_query_and_puts() {
         let signer = Signer::memory();
         let validator_key = signer.generate().unwrap();
         let config = Config {
@@ -888,9 +901,41 @@ mod tests {
 
         let event = swarm.next_behaviour_event().await;
         assert_matches!(event, Event::GetIdentitiesStarted);
+        assert!(swarm.behaviour().get_identities.query_identities.is_none());
 
         let event = swarm.next_behaviour_event().await;
         assert_matches!(event, Event::PutIdentityStarted);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn behaviour_does_not_query_local_validator_identity() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate().unwrap();
+
+        let (kad_handle, mut kad_callback) = kad::test_utils::HandleCallback::new_pair();
+        kad_callback.on_get_record(move |_key| {
+            panic!("local validator identity should not be requested");
+        });
+        tokio::spawn(kad_callback.loop_on_receiver());
+
+        let config = Config {
+            kad: kad_handle,
+            keypair: Keypair::generate_secp256k1(),
+            validator_key: Some(validator_key),
+            signer,
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let behaviour = Behaviour::new(config);
+
+        let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
+        swarm.add_external_address(test_addr());
+
+        time::advance(KAD_TIMER_START).await;
+
+        let event = swarm.next_behaviour_event().await;
+        assert_matches!(event, Event::GetIdentitiesStarted);
+        assert!(swarm.behaviour().get_identities.query_identities.is_none());
     }
 
     #[tokio::test(start_paused = true)]
@@ -1066,43 +1111,46 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn duplicate_and_self_identity_handling() {
+    async fn duplicate_identity_handling() {
         let signer = Signer::memory();
         let validator_key = signer.generate().unwrap();
         let network_keypair = Keypair::generate_secp256k1();
 
         let config = Config {
             kad: kad::Handle::new_test(),
-            keypair: network_keypair.clone(),
-            validator_key: Some(validator_key),
+            keypair: Keypair::generate_secp256k1(),
+            validator_key: None,
             signer: signer.clone(),
             snapshot: new_snapshot(vec![validator_key.to_address()]),
             allow_non_global_addresses: false,
         };
         let mut behaviour = Behaviour::new(config);
 
-        // Create our own identity (simulating receiving our own record)
-        let our_identity = ValidatorIdentity {
+        let identity = ValidatorIdentity {
             addresses: ValidatorAddresses::new(network_keypair.public().to_peer_id(), test_addr()),
             creation_time: 10,
         };
-        let our_signed_identity = our_identity
+        let signed_identity = identity
             .clone()
             .sign(&signer, validator_key, &network_keypair)
             .unwrap();
 
-        // NOTE: consider ignoring our own identity
         behaviour
             .get_identities
             .put_identity(ValidatorIdentityRecord {
-                value: our_signed_identity.clone(),
+                value: signed_identity,
             })
             .unwrap();
-        assert!(behaviour.get_identity(validator_key.to_address()).is_some());
+        assert_eq!(
+            behaviour
+                .get_identity(validator_key.to_address())
+                .unwrap()
+                .peer_id(),
+            network_keypair.public().to_peer_id()
+        );
 
-        // Test duplicate records from different network keys (same validator)
         let other_network_keypair = Keypair::generate_secp256k1();
-        let duplicate_identity = our_identity
+        let duplicate_identity = identity
             .sign(&signer, validator_key, &other_network_keypair)
             .unwrap();
 
@@ -1113,9 +1161,56 @@ mod tests {
             })
             .unwrap();
 
-        // Should keep the newer one (or the first one if timestamps are equal)
-        // Currently implementation keeps the first one for equal timestamps
-        assert!(behaviour.get_identity(validator_key.to_address()).is_some());
+        // creation time is the same, so the first identity should be kept
+        assert_eq!(
+            behaviour
+                .get_identity(validator_key.to_address())
+                .unwrap()
+                .peer_id(),
+            network_keypair.public().to_peer_id()
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn get_identities_does_not_report_local_address_as_remote_peer() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate().unwrap();
+        let keypair = Keypair::generate_secp256k1();
+        let peer_id = keypair.public().to_peer_id();
+
+        let config = Config {
+            kad: kad::Handle::new_test(),
+            keypair,
+            validator_key: Some(validator_key),
+            signer,
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let behaviour = Behaviour::new(config);
+        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| behaviour);
+        swarm.add_external_address(test_addr());
+
+        time::advance(KAD_TIMER_START).await;
+
+        let event = swarm.next_behaviour_event().await;
+        assert_matches!(event, Event::GetIdentitiesStarted);
+        assert!(
+            swarm
+                .behaviour()
+                .get_identity(validator_key.to_address())
+                .is_none()
+        );
+
+        let addresses = swarm
+            .behaviour_mut()
+            .handle_pending_outbound_connection(
+                ConnectionId::new_unchecked(0),
+                Some(peer_id),
+                &[],
+                Endpoint::Dialer,
+            )
+            .unwrap();
+        assert!(addresses.is_empty());
     }
 
     #[tokio::test(start_paused = true)]
@@ -1216,15 +1311,15 @@ mod tests {
     async fn get_identities_reports_address() {
         let signer = Signer::memory();
         let validator_key = signer.generate().unwrap();
-        let network_keypair = Keypair::generate_secp256k1();
+        let keypair = Keypair::generate_secp256k1();
 
         let identity = new_signed_identity(&signer, validator_key, 10);
         let identity_addr = identity.addresses().iter().next().cloned().unwrap();
 
         let config = Config {
             kad: kad::Handle::new_test(),
-            keypair: network_keypair.clone(),
-            validator_key: Some(validator_key),
+            keypair,
+            validator_key: None,
             signer: signer.clone(),
             snapshot: new_snapshot(vec![validator_key.to_address()]),
             allow_non_global_addresses: false,
