@@ -25,6 +25,18 @@
 //! temporary: if they do not show recent useful activity, they are evicted.
 //! Fully disconnected peers stay in a short backoff window so the same peer
 //! cannot immediately feed dial storms by being retried over and over.
+//!
+//! Invariants:
+//! - peer direction is logical, not tied to the transport direction of the
+//!   latest connection
+//! - once a peer is first established as outbound, reconnects keep that
+//!   logical outbound classification even if the transport reconnect is
+//!   accepted as inbound
+//! - a disconnected outbound peer does not count towards the outbound minimum,
+//!   so we may dial a replacement while waiting to see whether it reconnects
+//!   on its own
+//! - if that peer reconnects during the backoff window, it is accepted as the
+//!   existing outbound peer instead of competing for inbound slots
 
 use crate::utils::{ConnectionMap, NoLimits, PeerAddresses};
 use libp2p::{
@@ -65,7 +77,8 @@ struct Metrics {
 /// observed as inbound or outbound, later connections keep that direction.
 /// The backoff period controls how long a fully disconnected peer stays in
 /// `JustDisconnected`, preventing that peer from immediately entering dial
-/// storms through repeated redials and reconnect attempts.
+/// storms through repeated redials and reconnect attempts. See the module-level
+/// invariants above for the special handling of disconnected outbound peers.
 #[derive(Debug, Clone)]
 pub struct Config {
     inbound_max_peers: u32,
@@ -357,12 +370,11 @@ impl Behaviour {
                     direction: PeerDirection::Outbound,
                 } => {
                     // peers that were first classified as outbound keep that
-                    // direction when they reconnect, even if the new transport
-                    // connection is accepted on our side after a disconnect.
-                    // this avoids applying the inbound backoff to churny peers
-                    // that reconnect through us after an outbound disconnect.
-
-                    // logical direction is also rewritten because of churn
+                    // logical direction when they reconnect, even if the new
+                    // transport connection is accepted on our side after a
+                    // disconnect. This avoids applying the inbound backoff to
+                    // churny peers that reconnect through us after an outbound
+                    // disconnect
                     direction = PeerDirection::Outbound;
 
                     self.peers.remove(&peer);
