@@ -19,10 +19,10 @@
 //! Database for ethexe.
 
 use crate::{
-    CASDatabase, KVDatabase,
+    CASDatabase, KVDatabase, VERSION,
     overlay::{CASOverlay, KVOverlay},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use delegate::delegate;
 use ethexe_common::{
     Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
@@ -48,13 +48,12 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use std::{
     collections::BTreeSet,
     mem::size_of,
     sync::{Arc, RwLock, RwLockReadGuard},
 };
-
-pub const VERSION: u32 = 1;
 
 #[repr(u64)]
 enum Key {
@@ -77,12 +76,13 @@ enum Key {
 
     InjectedTransaction(HashOf<InjectedTransaction>) = 12,
 
-    // TODO kuzmindev: make keys prefixes consistent. We don't change it to avoid corrupting existing key layout.
     Globals = 14,
     Config = 15,
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    LatestEraValidatorsCommitted(H256),
+    LatestEraValidatorsCommitted(H256) = 16,
+
+    Announces(HashOf<Announce>) = 17,
 }
 
 impl Key {
@@ -90,7 +90,7 @@ impl Key {
         // SAFETY: Because `Key` is marked as `#[repr(u64)]` it's actual layout
         // is `#[repr(C)]` and it's first field is a `u64` discriminant. We can read
         // it safely.
-        let discriminant = unsafe { <*const _>::from(self).cast::<u64>().read() };
+        let discriminant = unsafe { (self as *const Key).cast::<u64>().read() };
         H256::from_low_u64_be(discriminant).into()
     }
 
@@ -108,7 +108,8 @@ impl Key {
                 bytes.extend(era_index.to_le_bytes());
             }
 
-            Self::AnnounceProgramStates(hash)
+            Self::Announces(hash)
+            | Self::AnnounceProgramStates(hash)
             | Self::AnnounceOutcome(hash)
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => bytes.extend(hash.as_ref()),
@@ -145,14 +146,28 @@ impl Key {
 }
 
 impl dyn KVDatabase + '_ {
-    pub fn config(&self) -> Option<Result<DBConfig>> {
+    pub fn version(&self) -> Result<Option<u32>> {
         self.get(&Key::Config.to_bytes())
-            .map(|data| DBConfig::decode(&mut data.as_ref()).map_err(Into::into))
+            .map(|data| {
+                u32::decode(&mut data.as_ref()).context("Failed to decode database version")
+            })
+            .transpose()
     }
 
-    pub fn globals(&self) -> Option<Result<DBGlobals>> {
+    pub fn config(&self) -> Result<DBConfig> {
+        self.get(&Key::Config.to_bytes())
+            .context("Database config is not found")
+            .and_then(|data| {
+                DBConfig::decode(&mut data.as_ref()).context("Failed to decode database config")
+            })
+    }
+
+    pub fn globals(&self) -> Result<DBGlobals> {
         self.get(&Key::Globals.to_bytes())
-            .map(|data| DBGlobals::decode(&mut data.as_ref()).map_err(Into::into))
+            .context("Database globals are not found")
+            .and_then(|data| {
+                DBGlobals::decode(&mut data.as_ref()).context("Failed to decode database globals")
+            })
     }
 
     pub fn set_config(&self, config: DBConfig) {
@@ -163,7 +178,7 @@ impl dyn KVDatabase + '_ {
         self.put(&Key::Globals.to_bytes(), globals.encode());
     }
 
-    fn block_small_data(&self, block_hash: H256) -> Option<BlockSmallData> {
+    pub(crate) fn block_small_data(&self, block_hash: H256) -> Option<BlockSmallData> {
         self.get(&Key::BlockSmallData(block_hash).to_bytes())
             .map(|data| {
                 BlockSmallData::decode(&mut data.as_slice())
@@ -346,12 +361,26 @@ impl RawDatabase {
             cas: cas.clone_boxed(),
         }
     }
+
+    /// Constructs a raw overlaid database,
+    /// which stores all changed made into it
+    /// inside memory without changing the
+    /// underlying database.
+    ///
+    /// Primary used to check test migrations
+    /// without possibly breaking the database.
+    pub fn overlaid(self) -> Self {
+        Self {
+            cas: Box::new(CASOverlay::new(self.cas)),
+            kv: Box::new(KVOverlay::new(self.kv)),
+        }
+    }
 }
 
 impl AnnounceStorageRO for RawDatabase {
     fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
-        self.cas.read(hash.inner()).map(|data| {
-            Announce::decode(&mut &data[..]).expect("Failed to decode data into `Announce`")
+        self.kv.get(&Key::Announces(hash).to_bytes()).map(|data| {
+            Announce::decode(&mut data.as_slice()).expect("Failed to decode data into `Announce`")
         })
     }
 
@@ -395,8 +424,11 @@ impl AnnounceStorageRO for RawDatabase {
 
 impl AnnounceStorageRW for RawDatabase {
     fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
-        tracing::trace!(announce_hash = %announce.to_hash(), announce = ?announce, "Set announce");
-        unsafe { HashOf::new(self.cas.write(&announce.encode())) }
+        let announce_hash = announce.to_hash();
+        tracing::trace!(announce_hash = %announce_hash, announce = ?announce, "Set announce");
+        self.kv
+            .put(&Key::Announces(announce_hash).to_bytes(), announce.encode());
+        announce_hash
     }
 
     fn set_announce_program_states(
@@ -694,10 +726,7 @@ pub struct Database {
 
 impl Database {
     pub fn try_from_raw(raw: RawDatabase) -> Result<Self> {
-        let config = raw
-            .kv
-            .config()
-            .ok_or_else(|| anyhow::anyhow!("Database config not found"))??;
+        let config = raw.kv.config()?;
 
         if config.version != VERSION {
             return Err(anyhow::anyhow!(
@@ -707,10 +736,7 @@ impl Database {
             ));
         }
 
-        let globals = raw
-            .kv
-            .globals()
-            .ok_or_else(|| anyhow::anyhow!("Database globals not found"))??;
+        let globals = raw.kv.globals()?;
 
         let db = Self {
             raw,
@@ -777,11 +803,11 @@ impl HashStorageRO for Database {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-struct BlockSmallData {
-    block_header: Option<BlockHeader>,
-    block_is_synced: bool,
-    meta: BlockMeta,
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, TypeInfo)]
+pub(crate) struct BlockSmallData {
+    pub(crate) block_header: Option<BlockHeader>,
+    pub(crate) block_is_synced: bool,
+    pub(crate) meta: BlockMeta,
 }
 
 impl BlockMetaStorageRO for Database {

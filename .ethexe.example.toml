@@ -117,6 +117,14 @@
 # (optional, default: 12).
 # block-time = 12
 
+# EIP-1559 fee increase percentage (from "medium").
+# (optional, default: 15).
+# eip1559-fee-increase-percentage = 15
+
+# Blob gas multiplier.
+# (optional, default: 3).
+# blob-gas-multiplier = 3
+
 ##########################################################################################
 
 ### Network service related parameters.

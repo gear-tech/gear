@@ -15,7 +15,6 @@ ethexe-network.workspace = true
 ethexe-observer.workspace = true
 ethexe-blob-loader.workspace = true
 ethexe-processor.workspace = true
-ethexe-db-init.workspace = true
 ethexe-consensus.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common = { workspace = true, features = ["std", "mock"] }
@@ -40,7 +39,6 @@ tokio = { workspace = true, features = [
 futures.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 rand.workspace = true
-tempfile.workspace = true
 derive_more.workspace = true
 async-trait.workspace = true
 gear-workspace-hack.workspace = true
@@ -63,7 +61,6 @@ ntest.workspace = true
 gear-core-errors.workspace = true
 ethexe-network.workspace = true
 ethexe-db = { workspace = true, features = ["mock"] }
-ethexe-db-init = { workspace = true, features = ["mock"] }
 roast-secp256k1-evm.workspace = true
 ethexe-rpc = { workspace = true, features = ["client"] }
 tracing.workspace = true
@@ -72,6 +69,7 @@ ethexe-common = { workspace = true, features = ["mock"] }
 jsonrpsee = { workspace = true, features = ["client"] }
 async-broadcast.workspace = true
 wat.workspace = true
+tempfile.workspace = true
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-value-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }
@@ -79,6 +77,7 @@ demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-async-init = { workspace = true, features = ["debug", "ethexe"] }
 demo-mul-by-const = { workspace = true, features = ["debug"] }
 demo-piggy-bank = { workspace = true, features = ["debug", "ethexe"] }
+demo-reply-callback = { workspace = true, features = ["debug", "ethexe"] }
 demo-fungible-token = { workspace = true }
 demo-delayed-sender-ethexe = { workspace = true, features = [
     "debug",
