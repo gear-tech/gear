@@ -1249,8 +1249,8 @@ mod tests {
     }
 
     mod custom_section_tests {
-        use alloc::{vec, vec::Vec};
         use crate::code::get_custom_section_data;
+        use alloc::{vec, vec::Vec};
 
         fn make_wasm_with_custom_section(name: &str, data: &[u8]) -> Vec<u8> {
             let mut module = wasm_encoder::Module::new();

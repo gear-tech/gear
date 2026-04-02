@@ -139,13 +139,13 @@ where
     use pallet_gear_staking_rewards_rpc::{GearStakingRewards, GearStakingRewardsApiServer};
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
     use runtime_info::{RuntimeInfoApi, RuntimeInfoServer};
-    use wasm_section::{WasmSectionApi, WasmSectionServer};
     use sc_consensus_babe_rpc::{Babe, BabeApiServer};
     use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
     use sc_rpc::dev::{Dev, DevApiServer};
     use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
     use substrate_frame_rpc_system::{System, SystemApiServer};
     use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
+    use wasm_section::{WasmSectionApi, WasmSectionServer};
 
     let mut io = RpcModule::new(());
 

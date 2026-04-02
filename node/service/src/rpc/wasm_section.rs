@@ -97,17 +97,13 @@ where
         };
 
         // The storage value is SCALE-encoded Vec<u8>, so we need to decode it.
-        let wasm_bytes: Vec<u8> =
-            Decode::decode(&mut wasm_data.0.as_slice())
-                .map_err(|e| rpc_err("Failed to decode stored WASM", Some(format!("{e:?}"))))?;
+        let wasm_bytes: Vec<u8> = Decode::decode(&mut wasm_data.0.as_slice())
+            .map_err(|e| rpc_err("Failed to decode stored WASM", Some(format!("{e:?}"))))?;
 
         match get_custom_section_data(&wasm_bytes, &section_name) {
             Ok(Some(data)) => Ok(Some(Bytes(data.to_vec()))),
             Ok(None) => Ok(None),
-            Err(e) => Err(rpc_err(
-                "Failed to parse stored WASM",
-                Some(e.to_string()),
-            )),
+            Err(e) => Err(rpc_err("Failed to parse stored WASM", Some(e.to_string()))),
         }
     }
 }
