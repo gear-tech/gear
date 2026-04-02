@@ -19,9 +19,7 @@
 /// Error type for the Vara.eth node wrapper.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// No stdout was captured from the child process.
-    #[error("no stdout was captured from the process")]
-    NoStdout,
+    // # Node Errors
     /// Vara.eth binary not found in `$PATH`.
     #[error("Vara.eth binary not found in $PATH: {0}")]
     BinaryNotFound(#[source] which::Error),
@@ -31,9 +29,8 @@ pub enum Error {
     /// Timed out while waiting for the node to start.
     #[error("timed out waiting for node to spawn; is the node binary installed?")]
     Timeout,
-    /// Failed to read the node output stream.
-    #[error("could not read line from node output: {0}")]
-    ReadLine(#[source] std::io::Error),
+
+    // # Instance Errors
     /// Failed to build the Vara.eth HTTP client.
     #[error("failed to build HTTP client: {0}")]
     BuildHttpClient(#[source] jsonrpsee::core::ClientError),

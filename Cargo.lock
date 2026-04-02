@@ -5337,6 +5337,7 @@ version = "1.10.0"
 dependencies = [
  "ethexe-common",
  "ethexe-rpc",
+ "gear-workspace-hack",
  "jsonrpsee",
  "libc",
  "thiserror 2.0.17",
@@ -5498,6 +5499,7 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-ethereum",
+ "ethexe-node-wrapper",
  "ethexe-rpc",
  "ethexe-runtime-common",
  "futures",

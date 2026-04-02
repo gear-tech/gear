@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{Error, instance::VaraEthInstance};
+use jsonrpsee::ws_client::WsClientBuilder;
 use std::{
     env,
     ffi::OsString,
-    io::{BufRead, BufReader},
     net::{Ipv4Addr, SocketAddrV4},
     os::unix::process::CommandExt,
     path::PathBuf,
@@ -44,7 +44,7 @@ const STARTUP_TIMEOUT: Duration = Duration::from_secs(2);
 /// use ethexe_node_wrapper::VaraEth;
 ///
 /// async fn do_some_stuff() {
-///     let veth = VaraEth::new().spawn().unwrap();
+///     let veth = VaraEth::new().spawn_ready().await.unwrap();
 ///
 ///     let http_endpoint = veth.http_endpoint();
 ///     let router = veth.router_address().await.unwrap();
@@ -116,8 +116,8 @@ impl VaraEth {
         self
     }
 
-    /// Spawns the [VaraEthInstance] node wrapper.
-    pub fn spawn(self) -> Result<VaraEthInstance, Error> {
+    /// Spawns the [VaraEthInstance] node wrapper without waiting for RPC readiness.
+    pub fn spawn_immediate(self) -> Result<VaraEthInstance, Error> {
         let program_path = match self.program {
             Some(provided_path) => provided_path,
             None => which::which(VARA_ETH_BINARY).map_err(Error::BinaryNotFound)?,
@@ -131,16 +131,16 @@ impl VaraEth {
                 env::var_os("RUST_LOG").unwrap_or("=ethexe=info".into()),
             )
             .args(DEFAULT_ARGS.to_vec())
-            .stderr(Stdio::piped())
-            .stdout(Stdio::piped());
+            .stderr(Stdio::null())
+            .stdout(Stdio::null());
 
         // Important: RPC is always enabled, because of DevApi.
         let rpc_port = self.custom_rpc_port.unwrap_or(9944);
-        process = process.args(["--rpc-port".into(), rpc_port.to_string()]);
-        process = process.args(["--rpc-cors", "all"]);
+        let rpc_addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, rpc_port);
+        process = process.arg("--rpc-port").arg(rpc_port.to_string());
 
         if let Some(block_time) = self.block_time {
-            process = process.args(["--block-time".into(), block_time.to_string()]);
+            process = process.arg("--block-time").arg(block_time.to_string());
         }
 
         if !self.extra_args.is_empty() {
@@ -160,41 +160,38 @@ impl VaraEth {
             };
         }
 
-        let mut child = process.spawn().map_err(Error::Spawn)?;
-
-        let stdout = child.stdout.take().ok_or(Error::NoStdout)?;
-        let start = Instant::now();
-        let mut reader = BufReader::new(stdout);
-        let timeout = self.timeout.unwrap_or(STARTUP_TIMEOUT);
-
-        loop {
-            if start + timeout <= Instant::now() {
-                return Err(Error::Timeout);
-            }
-
-            let mut line = String::new();
-            reader.read_line(&mut line).map_err(Error::ReadLine)?;
-
-            // Waiting when node RPC service start.
-            if line.contains("Rpc server starting at:") {
-                break;
-            }
-        }
+        let child = process.spawn().map_err(Error::Spawn)?;
 
         Ok(VaraEthInstance {
-            rpc_addr: SocketAddrV4::new(Ipv4Addr::LOCALHOST, rpc_port),
+            rpc_addr,
             eth_rpc_addr: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8545),
             child,
         })
     }
+
+    /// Spawns the [VaraEthInstance] node wrapper and waits until RPC is ready.
+    pub async fn spawn_ready(self) -> Result<VaraEthInstance, Error> {
+        let timeout = self.timeout.unwrap_or(STARTUP_TIMEOUT);
+
+        let instance = self.spawn_immediate()?;
+        wait_for_rpc(instance.ws_endpoint(), timeout).await?;
+        Ok(instance)
+    }
 }
 
-#[tokio::test]
-async fn simple_deploy() {
-    let veth = VaraEth::at("../../target/debug/ethexe").spawn().unwrap();
+/// Waits for Vara.eth rpc starting.
+async fn wait_for_rpc(url: String, timeout: Duration) -> Result<(), Error> {
+    let start = Instant::now();
 
-    let http_endpoint = veth.http_endpoint();
-    let router = veth.router_address().await.unwrap();
-    println!("Vara.eth running at: {http_endpoint}");
-    println!("Router address: {router}");
+    loop {
+        if start + timeout <= Instant::now() {
+            return Err(Error::Timeout);
+        }
+
+        if WsClientBuilder::new().build(&url).await.is_ok() {
+            break Ok(());
+        }
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }

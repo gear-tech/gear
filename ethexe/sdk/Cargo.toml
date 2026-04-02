@@ -13,11 +13,13 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+ethexe-node-wrapper.workspace = true
+
 alloy.workspace = true
 anyhow.workspace = true
 ethexe-common.workspace = true
 ethexe-ethereum.workspace = true
-ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-rpc = { workspace = true, features = ["client", "dev"] }
 ethexe-runtime-common.workspace = true
 futures.workspace = true
 gsigner.workspace = true

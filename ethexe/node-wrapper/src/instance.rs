@@ -27,7 +27,8 @@ use std::{net::SocketAddrV4, process::Child};
 
 /// The Vara.eth CLI instance. Will close the instance when dropped.
 ///
-/// Can be constructed only from [spawn](super::node::VaraEth::spawn) function.
+/// Can be constructed only from [spawn_immediate](super::node::VaraEth::spawn_immediate)
+/// or [spawn_ready](super::node::VaraEth::spawn_ready).
 #[derive(Debug)]
 pub struct VaraEthInstance {
     /// The Vara.eth rpc address.

@@ -15,11 +15,9 @@ ethexe-common.workspace = true
 which.workspace = true
 jsonrpsee = { workspace = true, features = ["client", "ws-client"] }
 thiserror.workspace = true
-
-libc.workspace = true
-
 tokio.workspace = true
-
+libc.workspace = true
+gear-workspace-hack.workspace = true
 
 [lints]
 workspace = true
