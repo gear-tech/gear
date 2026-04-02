@@ -42,6 +42,7 @@ use sp_keystore::KeystorePtr;
 
 mod gear_events;
 mod runtime_info;
+mod wasm_section;
 
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
@@ -138,6 +139,7 @@ where
     use pallet_gear_staking_rewards_rpc::{GearStakingRewards, GearStakingRewardsApiServer};
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
     use runtime_info::{RuntimeInfoApi, RuntimeInfoServer};
+    use wasm_section::{WasmSectionApi, WasmSectionServer};
     use sc_consensus_babe_rpc::{Babe, BabeApiServer};
     use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
     use sc_rpc::dev::{Dev, DevApiServer};
@@ -224,6 +226,7 @@ where
     }
 
     io.merge(RuntimeInfoApi::<C, Block, B>::new(client.clone()).into_rpc())?;
+    io.merge(WasmSectionApi::<C, Block, B>::new(client.clone()).into_rpc())?;
 
     io.merge(GearStakingRewards::new(client.clone()).into_rpc())?;
 
