@@ -17,12 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #[cfg(feature = "client")]
-pub use crate::apis::{BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient};
+pub use crate::apis::{
+    AnnounceClient, BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient,
+};
 
 use anyhow::Result;
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
-    ProgramServer,
+    AnnounceApi, AnnounceServer, BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi,
+    InjectedServer, ProgramApi, ProgramServer,
 };
 use ethexe_common::injected::{
     AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
@@ -113,6 +115,7 @@ impl RpcServer {
         let server_apis = RpcServerApis {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
+            announce: AnnounceApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
             injected: InjectedApi::new(rpc_sender),
         };
@@ -181,6 +184,7 @@ impl FusedStream for RpcService {
 
 struct RpcServerApis {
     pub block: BlockApi,
+    pub announce: AnnounceApi,
     pub code: CodeApi,
     pub injected: InjectedApi,
     pub program: ProgramApi,
@@ -192,6 +196,9 @@ impl RpcServerApis {
 
         module
             .merge(BlockServer::into_rpc(self.block))
+            .expect("No conflicts");
+        module
+            .merge(AnnounceServer::into_rpc(self.announce))
             .expect("No conflicts");
         module
             .merge(CodeServer::into_rpc(self.code))
