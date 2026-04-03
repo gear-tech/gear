@@ -156,7 +156,8 @@ impl Router {
                     .try_into()
                     .expect("infallible"),
             );
-        let builder = builder.sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
+        let builder =
+            builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?);
 
         let receipt = builder
             .send()
