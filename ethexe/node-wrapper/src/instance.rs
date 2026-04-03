@@ -74,12 +74,12 @@ impl VaraEthInstance {
     }
 
     /// Returns the Websocket endpoint Vara.eth node connected to.
-    pub fn ethereum_rpc_ws_endpoint(&self) -> String {
+    pub fn ethereum_ws_endpoint(&self) -> String {
         format!("ws://{}", self.eth_rpc_addr)
     }
 
     /// Returns the HTTP endpoint Vara.eth node connected to.
-    pub fn ethereum_rpc_http_endpoint(&self) -> String {
+    pub fn ethereum_http_endpoint(&self) -> String {
         format!("http://{}", self.eth_rpc_addr)
     }
 }
