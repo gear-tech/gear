@@ -181,6 +181,21 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
         _: u32,
     ) -> Result<(MessageId, ActorId), Self::FallibleError> {
         // TODO: #5239 implement program creation in ethexe runtime
+        //
+        // To implement this syscall:
+        // 1. Remove `SyscallName::CreateProgram` from the forbidden list in the
+        //    `BlockConfig` built in `lib.rs`.
+        // 2. Reject non-zero `delay` with `ExtError::Unsupported` (like `wake`),
+        //    since delayed dispatch is not supported in the ethexe runtime.
+        // 3. Delegate to `self.core.create_program(packet, delay)`.
+        //    `existential_deposit` is already 0 in ethexe, so the ED charge is
+        //    a no-op and the core implementation should work as-is.
+        //    It will call `message_context.init_program()`, producing an
+        //    `(init_msg_id, new_prog_id)` pair recorded in
+        //    `program_candidates_data` (keyed by `code_id`) inside `ExtInfo`.
+        // 4. Verify that the journal handler (`RuntimeJournalHandler`) correctly
+        //    processes `JournalNote::CreateProgram` entries emitted by the
+        //    core processor, updating `ProgramState` in the ethexe DB.
         unreachable!("create_program syscall is forbidden in ethexe runtime")
     }
 
