@@ -5332,6 +5332,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-node-wrapper"
+version = "1.10.0"
+dependencies = [
+ "ethexe-common",
+ "ethexe-rpc",
+ "gear-workspace-hack",
+ "jsonrpsee",
+ "libc",
+ "thiserror 2.0.17",
+ "tokio",
+ "which",
+]
+
+[[package]]
 name = "ethexe-observer"
 version = "1.10.0"
 dependencies = [
@@ -5485,6 +5499,7 @@ dependencies = [
  "anyhow",
  "ethexe-common",
  "ethexe-ethereum",
+ "ethexe-node-wrapper",
  "ethexe-rpc",
  "ethexe-runtime-common",
  "futures",
@@ -6294,16 +6309,6 @@ checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
 dependencies = [
  "libc",
  "winapi",
-]
-
-[[package]]
-name = "fs4"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e871a4cfa68bb224863b53149d973df1ac8d1ed2fa1d1bfc37ac1bb65dd37207"
-dependencies = [
- "rustix 0.38.44",
- "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7322,7 +7327,6 @@ dependencies = [
  "bytes",
  "demo-constructor",
  "derive_more 2.1.1",
- "fs4",
  "gear-workspace-hack",
  "log",
  "loom",
@@ -9601,9 +9605,9 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "libc"
-version = "0.2.180"
+version = "0.2.183"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcc35a38544a891a5f7c865aca548a982ccb3b8650a5b06d0fd33a10283c56fc"
+checksum = "b5b646652bf6661599e1da8901b3b9522896f01e736bad5f723fe7a3a27f899d"
 
 [[package]]
 name = "libc-print"
