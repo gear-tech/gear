@@ -41,7 +41,7 @@
 use crate::utils::{ConnectionMap, NoLimits, PeerAddresses};
 use libp2p::{
     Multiaddr, PeerId,
-    core::{ConnectedPoint, Endpoint, transport::PortUse},
+    core::{Endpoint, transport::PortUse},
     swarm::{
         CloseConnection, ConnectionClosed, ConnectionDenied, ConnectionId, DialFailure, FromSwarm,
         NetworkBehaviour, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm,
@@ -444,12 +444,7 @@ impl Behaviour {
         self.add_connection(peer, connection_id, PeerDirection::Outbound)
     }
 
-    fn remove_connection(
-        &mut self,
-        peer: PeerId,
-        connection_id: ConnectionId,
-        endpoint: &ConnectedPoint,
-    ) -> bool {
+    fn remove_connection(&mut self, peer: PeerId, connection_id: ConnectionId) -> bool {
         match self.peers.entry(peer) {
             Entry::Occupied(mut entry) => {
                 let state = entry.get_mut();
@@ -602,11 +597,11 @@ impl NetworkBehaviour for Behaviour {
             FromSwarm::ConnectionClosed(ConnectionClosed {
                 peer_id,
                 connection_id,
-                endpoint,
+                endpoint: _,
                 cause: _,
                 remaining_established: _,
             }) => {
-                self.remove_connection(peer_id, connection_id, endpoint);
+                self.remove_connection(peer_id, connection_id);
             }
             FromSwarm::DialFailure(DialFailure {
                 peer_id: Some(peer_id),
@@ -888,14 +883,7 @@ mod tests {
         behaviour
             .add_outbound_connection(peer_id, first_connection_id)
             .unwrap();
-        behaviour.remove_connection(
-            peer_id,
-            first_connection_id,
-            &ConnectedPoint::Listener {
-                local_addr: random_multiaddr(),
-                send_back_addr: random_multiaddr(),
-            },
-        );
+        behaviour.remove_connection(peer_id, first_connection_id);
 
         behaviour
             .add_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
@@ -991,45 +979,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn add_outbound_connection_allows_peer_after_dialer_side_disconnect() {
-        let mut behaviour = Behaviour::new(Config::default());
-
-        let peer_id = PeerId::random();
-        let first_connection_id = ConnectionId::new_unchecked(1);
-        behaviour
-            .add_outbound_connection(peer_id, first_connection_id)
-            .unwrap();
-        behaviour.remove_connection(
-            peer_id,
-            first_connection_id,
-            &ConnectedPoint::Dialer {
-                address: random_multiaddr(),
-                role_override: Endpoint::Dialer,
-                port_use: PortUse::New,
-            },
-        );
-
-        assert!(!behaviour.peers.contains_key(&peer_id));
-
-        behaviour
-            .add_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
-            .unwrap();
-
-        let (connections, direction) = behaviour
-            .peers
-            .get(&peer_id)
-            .unwrap()
-            .unwrap_connected_ref();
-        assert_eq!(*direction, PeerDirection::Outbound);
-        assert_eq!(
-            *connections,
-            [ConnectionId::new_unchecked(2)]
-                .into_iter()
-                .collect::<HashSet<_>>()
-        );
-    }
-
-    #[tokio::test]
     async fn add_inbound_connection_rejects_peer_in_backoff_period() {
         let mut behaviour = Behaviour::new(Config::default());
 
@@ -1038,14 +987,7 @@ mod tests {
         behaviour
             .add_inbound_connection(peer_id, first_connection_id)
             .unwrap();
-        behaviour.remove_connection(
-            peer_id,
-            first_connection_id,
-            &ConnectedPoint::Listener {
-                local_addr: random_multiaddr(),
-                send_back_addr: random_multiaddr(),
-            },
-        );
+        behaviour.remove_connection(peer_id, first_connection_id);
 
         let err = behaviour
             .add_inbound_connection(peer_id, ConnectionId::new_unchecked(2))
@@ -1080,14 +1022,7 @@ mod tests {
         behaviour
             .add_outbound_connection(peer_id, first_connection_id)
             .unwrap();
-        behaviour.remove_connection(
-            peer_id,
-            first_connection_id,
-            &ConnectedPoint::Listener {
-                local_addr: random_multiaddr(),
-                send_back_addr: random_multiaddr(),
-            },
-        );
+        behaviour.remove_connection(peer_id, first_connection_id);
 
         let err = behaviour
             .add_pending_outbound_connection(peer_id, ConnectionId::new_unchecked(2))
