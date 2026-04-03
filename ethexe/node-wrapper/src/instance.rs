@@ -94,6 +94,6 @@ impl Drop for VaraEthInstance {
         }
 
         #[cfg(not(unix))]
-        self.child.kill();
+        let _ = self.child.kill();
     }
 }
