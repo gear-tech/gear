@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use ethexe_common::injected::Promise;
 use ethexe_ethereum::Ethereum;
 use ethexe_sdk::VaraEthApi;
 use gprimitives::{ActorId, CodeId, MessageId};
@@ -266,14 +267,14 @@ impl EthexeRpcPool {
         Err(anyhow!("wait_for_code_validation exhausted retries"))
     }
 
-    pub(crate) async fn send_message_injected(
+    pub(crate) async fn send_message_injected_and_watch(
         &mut self,
         preferred_endpoint_idx: usize,
         api: &Ethereum,
         actor: ActorId,
         payload: &[u8],
         value: u128,
-    ) -> Result<MessageId> {
+    ) -> Result<(MessageId, Promise)> {
         let mut last_err: Option<anyhow::Error> = None;
 
         for attempt in 1..=RPC_MAX_ATTEMPTS {
@@ -295,19 +296,22 @@ impl EthexeRpcPool {
 
                 match client
                     .mirror(actor)
-                    .send_message_injected(payload, value)
+                    .send_message_injected_and_watch(payload, value)
                     .await
                 {
-                    Ok(mid) => return Ok(mid),
+                    Ok(result) => return Ok(result),
                     Err(err) => {
                         tracing::warn!(
                             endpoint_idx,
                             attempt,
                             max_attempts = RPC_MAX_ATTEMPTS,
                             error = %err,
-                            "send_message_injected failed; scheduling delayed reconnect"
+                            "send_message_injected_and_watch failed; scheduling delayed reconnect"
                         );
-                        self.schedule_reconnect(endpoint_idx, "send_message_injected failure");
+                        self.schedule_reconnect(
+                            endpoint_idx,
+                            "send_message_injected_and_watch failure",
+                        );
                         last_err = Some(err);
                     }
                 }
@@ -317,7 +321,7 @@ impl EthexeRpcPool {
                 tracing::warn!(
                     attempt,
                     max_attempts = RPC_MAX_ATTEMPTS,
-                    "send_message_injected retrying with available endpoints"
+                    "send_message_injected_and_watch retrying with available endpoints"
                 );
             }
         }
@@ -326,6 +330,6 @@ impl EthexeRpcPool {
             return Err(err);
         }
 
-        Err(anyhow!("send_message_injected exhausted retries"))
+        Err(anyhow!("send_message_injected_and_watch exhausted retries"))
     }
 }
