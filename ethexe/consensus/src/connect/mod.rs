@@ -279,7 +279,7 @@ impl ConsensusService for ConnectService {
             self.process_announce_from_producer(announce, *producer)?;
             self.state = State::WaitingForBlock;
         } else {
-            tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
+            tracing::warn!("Receive unexpected {announce}, save to pending announces");
             self.pending_announces
                 .push((sender, announce.block_hash), announce);
         }

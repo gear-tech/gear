@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{
     ConsensusEvent,
-    announces::{self, AnnounceStatus},
+    announces::{self, AnnounceStatus, DBAnnouncesExt},
     validator::participant::Participant,
 };
 use anyhow::Result;
@@ -56,7 +56,7 @@ enum State {
     WaitingForAnnounce,
     WaitingAnnounceComputed {
         announce_hash: Option<HashOf<Announce>>,
-        sibling_hash: Option<HashOf<Announce>>,
+        base_announce_hash: Option<HashOf<Announce>>,
     },
 }
 
@@ -79,18 +79,18 @@ impl StateHandler for Subordinate {
     ) -> Result<ValidatorState> {
         if let State::WaitingAnnounceComputed {
             mut announce_hash,
-            mut sibling_hash,
+            mut base_announce_hash,
         } = self.state
         {
             if announce_hash == Some(computed_announce_hash) {
                 announce_hash = None;
-            } else if sibling_hash == Some(computed_announce_hash) {
-                sibling_hash = None;
+            } else if base_announce_hash == Some(computed_announce_hash) {
+                base_announce_hash = None;
             } else {
                 return DefaultProcessing::computed_announce(self, computed_announce_hash);
             }
 
-            if announce_hash.is_none() && sibling_hash.is_none() {
+            if announce_hash.is_none() && base_announce_hash.is_none() {
                 if self.is_validator {
                     return Participant::create(self.ctx, self.block, self.producer);
                 } else {
@@ -100,7 +100,7 @@ impl StateHandler for Subordinate {
 
             self.state = State::WaitingAnnounceComputed {
                 announce_hash,
-                sibling_hash,
+                base_announce_hash,
             };
 
             Ok(self.into())
@@ -192,20 +192,21 @@ impl Subordinate {
     fn send_announces_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
         match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
             AnnounceStatus::Accepted(announce_hash) => {
-                let sibling = announces::announce_sibling(&self.ctx.core.db, announce_hash)?;
-
                 self.ctx
                     .output(ConsensusEvent::AnnounceAccepted(announce_hash));
 
-                let sibling_hash = if let Some((hash, announce)) = sibling {
-                    self.ctx.output(ConsensusEvent::ComputeAnnounce(
-                        announce,
-                        PromisePolicy::Disabled,
-                    ));
-                    Some(hash)
-                } else {
-                    None
-                };
+                let base_announce_hash = self
+                    .ctx
+                    .core
+                    .db
+                    .find_block_base_announce_with_parent(announce.block_hash, announce.parent)?
+                    .map(|announce| {
+                        self.ctx.output(ConsensusEvent::ComputeAnnounce(
+                            announce.value,
+                            PromisePolicy::Disabled,
+                        ));
+                        announce.hash
+                    });
 
                 self.ctx.output(ConsensusEvent::ComputeAnnounce(
                     announce,
@@ -214,7 +215,7 @@ impl Subordinate {
 
                 self.state = State::WaitingAnnounceComputed {
                     announce_hash: Some(announce_hash),
-                    sibling_hash,
+                    base_announce_hash,
                 };
 
                 Ok(self.into())
@@ -223,7 +224,7 @@ impl Subordinate {
                 self.ctx
                     .output(ConsensusEvent::AnnounceRejected(announce.to_hash()));
                 self.warning(format!(
-                    "Received announce {announce:?} is rejected: {reason:?}"
+                    "Received announce {announce} is rejected: {reason:?}"
                 ));
 
                 Initial::create(self.ctx)

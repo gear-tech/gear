@@ -223,6 +223,28 @@ impl Initial {
 
 impl ValidatorContext {
     fn switch_to_producer_or_subordinate(self, block: SimpleBlockData) -> Result<ValidatorState> {
+        // print chain
+        {
+            use ethexe_common::{
+                HashOf,
+                db::{AnnounceStorageRO, BlockMetaStorageRO},
+            };
+
+            let db = &self.core.db;
+            for mut head in db.block_meta(block.hash).announces.into_iter().flatten() {
+                let mut chain_str = String::new();
+                while head != HashOf::zero() {
+                    let announce = db.announce(head).unwrap();
+                    chain_str = format!(
+                        "{head:6}({}) <- {chain_str}",
+                        if announce.is_base() { "B" } else { "P" }
+                    );
+                    head = announce.parent;
+                }
+                tracing::info!(block = %block.hash, "Announces chain: {chain_str}");
+            }
+        }
+
         let era_index = self.core.timelines.era_from_ts(block.header.timestamp);
         let validators = self
             .core

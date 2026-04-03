@@ -82,7 +82,7 @@ pub struct SimpleBlockData {
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, derive_more::Display)]
 #[display(
-    "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})"
+    "Announce(hash: {}, block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})", self.to_hash()
 )]
 pub struct Announce {
     pub block_hash: H256,

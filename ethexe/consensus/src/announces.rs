@@ -91,7 +91,7 @@
 use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
-    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData,
+    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData, WithHashOf,
     db::{
         AnnounceStorageRW, BlockMetaStorageRW, GlobalsStorageRO, InjectedStorageRW,
         OnChainStorageRO,
@@ -128,6 +128,13 @@ pub trait DBAnnouncesExt:
         &self,
         announces: impl IntoIterator<Item = HashOf<Announce>>,
     ) -> Result<BTreeSet<HashOf<Announce>>>;
+
+    /// Find announce in the same block with the same parent as provided announce.
+    fn find_block_base_announce_with_parent(
+        &self,
+        block_hash: H256,
+        parent: HashOf<Announce>,
+    ) -> Result<Option<WithHashOf<Announce>>>;
 }
 
 impl<
@@ -207,6 +214,32 @@ impl<
                     .ok_or_else(|| anyhow!("Announce {announce_hash:?} not found"))
             })
             .collect()
+    }
+
+    fn find_block_base_announce_with_parent(
+        &self,
+        block_hash: H256,
+        parent: HashOf<Announce>,
+    ) -> Result<Option<WithHashOf<Announce>>> {
+        let announces = self
+            .block_meta(block_hash)
+            .announces
+            .ok_or_else(|| anyhow!("announces not found for block({block_hash})"))?;
+
+        for announce_hash in announces {
+            let announce = self
+                .announce(announce_hash)
+                .ok_or_else(|| anyhow!("announce({announce_hash}) not found"))?;
+
+            if announce.parent == parent && announce.is_base() {
+                return Ok(Some(WithHashOf {
+                    hash: announce_hash,
+                    value: announce,
+                }));
+            }
+        }
+
+        Ok(None)
     }
 }
 
@@ -600,7 +633,7 @@ pub fn best_parent_announce(
     db: &impl DBAnnouncesExt,
     block_hash: H256,
     commitment_delay_limit: u32,
-) -> Result<(HashOf<Announce>, Announce)> {
+) -> Result<HashOf<Announce>> {
     let announces = db
         .block_meta(block_hash)
         .announces
@@ -610,30 +643,72 @@ pub fn best_parent_announce(
     // because some of them may be expired at `block_hash`,
     // so we take parents of all announces from `block_hash`,
     // to be sure that we take only not expired parent announces.
-    let parent_announces = db.announces_parents(announces.clone().into_iter())?;
+    let candidates = db.announces_parents(announces)?;
 
-    let best_announce_hash = best_announce(db, parent_announces, commitment_delay_limit)?;
+    best_announce(db, candidates, commitment_delay_limit - 1)
+}
 
-    for announce_hash in announces {
+pub fn block_best_announce(
+    db: &impl DBAnnouncesExt,
+    block_hash: H256,
+    commitment_delay_limit: u32,
+) -> Result<HashOf<Announce>> {
+    let candidates = db
+        .block_meta(block_hash)
+        .announces
+        .ok_or_else(|| anyhow!("announces not found for block {block_hash}"))?;
+
+    // We do not take announces directly from parent block,
+    // because some of them may be expired at `block_hash`,
+    // so we take parents of all announces from `block_hash`,
+    // to be sure that we take only not expired parent announces.
+    let parent_announces = db.announces_parents(candidates.iter().cloned())?;
+
+    let best_parent = best_announce(db, parent_announces, commitment_delay_limit - 1)?;
+
+    // Find child announces
+    let mut not_base_announce_hash = None;
+    let mut base_announce_hash = None;
+    for candidate in candidates {
         let announce = db
-            .announce(announce_hash)
-            .ok_or_else(|| anyhow!("announce({announce_hash}) not found in db"))?;
+            .announce(candidate)
+            .ok_or_else(|| anyhow!("announce({candidate}) not found"))?;
 
-        if announce.parent == best_announce_hash {
-            return Ok((best_announce_hash, announce));
+        if announce.parent == best_parent && !announce.is_base() {
+            if not_base_announce_hash.is_some() {
+                tracing::warn!("Found multiple not-base announces: maybe double announcement");
+            } else {
+                not_base_announce_hash = Some(candidate);
+            }
+        } else if announce.parent == best_parent && announce.is_base() {
+            if base_announce_hash.replace(candidate).is_some() {
+                unreachable!("Two different siblings base announces is impossible");
+            }
         }
     }
 
-    unreachable!(
-        "Best announce {best_announce_hash} must be parent of at least one announce in block {block_hash}"
-    );
+    match (not_base_announce_hash, base_announce_hash) {
+        (Some(not_base), Some(base)) => {
+            if announces_have_equal_outcomes(db, base, not_base) {
+                // if base announce has the same outcome as not-base announce, then better to use base
+                Ok(base)
+            } else {
+                Ok(not_base)
+            }
+        }
+        (Some(not_base), None) => Ok(not_base),
+        (None, Some(base)) => Ok(base),
+        (None, None) => Err(anyhow!(
+            "No announces with parent {best_parent} found for block {block_hash}"
+        )),
+    }
 }
 
 /// Returns announce hash, which is supposed to be best among provided announces.
-pub fn best_announce(
+fn best_announce(
     db: &impl DBAnnouncesExt,
     announces: impl IntoIterator<Item = HashOf<Announce>>,
-    commitment_delay_limit: u32,
+    limit: u32,
 ) -> Result<HashOf<Announce>> {
     let mut announces = announces.into_iter();
     let Some(first) = announces.next() else {
@@ -644,7 +719,7 @@ pub fn best_announce(
 
     let announce_points = |mut announce_hash| -> Result<u32> {
         let mut points = 0;
-        for _ in 0..commitment_delay_limit {
+        for _ in 0..limit {
             let announce = db
                 .announce(announce_hash)
                 .ok_or_else(|| anyhow!("Announce {announce_hash} not found in db"))?;
@@ -674,90 +749,37 @@ pub fn best_announce(
         }
     }
 
-    if let AnnounceSiblingsOutcomeStatus::OutcomeIsSame {
-        sibling_announce_hash,
-        sibling_announce,
-    } = check_announce_sibling_outcome(db, best_announce_hash)?
-        && sibling_announce.is_base()
-    {
-        // if sibling has same outcome and it's base, then better to use base
-        Ok(sibling_announce_hash)
+    let best_announce = db
+        .announce(best_announce_hash)
+        .ok_or_else(|| anyhow!("Best announce {best_announce_hash} not found in db"))?;
+
+    if best_announce.is_base() {
+        // we can return it without checking siblings
+        return Ok(best_announce_hash);
+    }
+
+    let Some(base_announce) =
+        db.find_block_base_announce_with_parent(best_announce.block_hash, best_announce.parent)?
+    else {
+        return Ok(best_announce_hash);
+    };
+
+    if announces_have_equal_outcomes(db, base_announce.hash, best_announce_hash) {
+        // if base announce has the same outcome as best announce, then better to use base
+        Ok(base_announce.hash)
     } else {
         Ok(best_announce_hash)
     }
 }
 
-pub enum AnnounceSiblingsOutcomeStatus {
-    NotFound,
-    NotComputed,
-    OutcomeIsDifferent,
-    OutcomeIsSame {
-        sibling_announce_hash: HashOf<Announce>,
-        sibling_announce: Announce,
-    },
-}
-
-/// Siblings of announce is announces with the same parent
-pub fn check_announce_sibling_outcome(
+pub fn announces_have_equal_outcomes(
     db: &impl DBAnnouncesExt,
-    announce_hash: HashOf<Announce>,
-) -> Result<AnnounceSiblingsOutcomeStatus> {
-    let Some((sibling_announce_hash, sibling_announce)) = announce_sibling(db, announce_hash)?
-    else {
-        return Ok(AnnounceSiblingsOutcomeStatus::NotFound);
-    };
-
-    if !db.announce_meta(announce_hash).computed
-        || !db.announce_meta(sibling_announce_hash).computed
-    {
-        return Ok(AnnounceSiblingsOutcomeStatus::NotComputed);
-    }
-
-    let announce_outcome = db
-        .announce_outcome(announce_hash)
-        .ok_or_else(|| anyhow!("outcome not found for computed announce {announce_hash:?}"))?;
-    let sibling_outcome = db.announce_outcome(sibling_announce_hash).ok_or_else(|| {
-        anyhow!("outcome not found for computed sibling announce {sibling_announce_hash:?}")
-    })?;
-
-    if announce_outcome == sibling_outcome {
-        Ok(AnnounceSiblingsOutcomeStatus::OutcomeIsSame {
-            sibling_announce_hash,
-            sibling_announce,
-        })
-    } else {
-        Ok(AnnounceSiblingsOutcomeStatus::OutcomeIsDifferent)
-    }
-}
-
-pub fn announce_sibling(
-    db: &impl DBAnnouncesExt,
-    announce_hash: HashOf<Announce>,
-) -> Result<Option<(HashOf<Announce>, Announce)>> {
-    let announce = db
-        .announce(announce_hash)
-        .ok_or_else(|| anyhow!("announce({announce_hash}) not found"))?;
-
-    let neighbors = db
-        .block_meta(announce.block_hash)
-        .announces
-        .ok_or_else(|| anyhow!("announces not found for block({})", announce.block_hash))?;
-
-    for neighbor_hash in neighbors {
-        if neighbor_hash == announce_hash {
-            continue;
-        }
-
-        let neighbor_announce = db
-            .announce(neighbor_hash)
-            .ok_or_else(|| anyhow!("announce({neighbor_hash}) not found"))?;
-
-        if neighbor_announce.parent == announce.parent {
-            return Ok(Some((neighbor_hash, neighbor_announce)));
-        }
-    }
-
-    Ok(None)
+    announce1_hash: HashOf<Announce>,
+    announce2_hash: HashOf<Announce>,
+) -> bool {
+    db.announce_outcome(announce1_hash)
+        .map(|base_outcome| Some(base_outcome) == db.announce_outcome(announce2_hash))
+        .unwrap_or(false)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -779,7 +801,7 @@ pub enum AnnounceRejectionReason {
 pub enum AnnounceStatus {
     #[display("Announce {_0} accepted")]
     Accepted(HashOf<Announce>),
-    #[display("Announce {announce:?} rejected: {reason:?}")]
+    #[display("Announce {announce} rejected: {reason:?}")]
     Rejected {
         announce: Announce,
         reason: AnnounceRejectionReason,
@@ -1272,8 +1294,7 @@ mod tests {
         );
 
         // Also verify via best_parent_announce: block 4 should pick base at block 3 as best parent
-        let (best_parent_hash, _child) =
-            best_parent_announce(&db, chain.blocks[4].hash, 3).unwrap();
+        let best_parent_hash = best_parent_announce(&db, chain.blocks[4].hash, 3).unwrap();
         assert_eq!(
             best_parent_hash, base_hash,
             "best_parent_announce should prefer base parent with same outcome"
