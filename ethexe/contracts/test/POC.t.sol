@@ -62,7 +62,7 @@ contract POCTest is Base {
         hashes[0] = bytes32(uint256(1));
         vm.blobhashes(hashes);
 
-        router.requestCodeValidation(_codeId);
+        router.requestCodeValidation{value: router.CODE_COMMITMENT_GAS() * router.latestGasPrice()}(_codeId);
 
         address[] memory _validators = router.validators();
         assertEq(_validators.length, maxValidators);

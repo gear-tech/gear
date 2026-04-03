@@ -8,7 +8,7 @@
   "lib/frost-secp256k1-evm": {
     "branch": {
       "name": "\"master\"",
-      "rev": "0596ea890c5a2354614f043b73e6b6d350993048"
+      "rev": "52b7473fea7c03d34dbb48d3ce9967e12c3ed574"
     }
   },
   "lib/openzeppelin-contracts": {

@@ -26,6 +26,8 @@ interface IRouter {
         uint256 programsCount;
         /// @notice Count of validated codes.
         uint256 validatedCodesCount;
+        /// @notice Latest gas price in Ethereum network (changes every batch commitment).
+        uint256 latestGasPrice;
     }
 
     /// @custom:storage-location erc7201:router.storage.Router.
@@ -116,6 +118,10 @@ interface IRouter {
 
     error RouterGenesisHashNotInitialized();
 
+    error InvalidValidationFee();
+
+    error PayValidationFeeFailed();
+
     error CodeAlreadyOnValidationOrValidated();
 
     error PredecessorBlockNotFound();
@@ -160,6 +166,8 @@ interface IRouter {
 
     error ZeroValueTransfer();
 
+    error WithdrawExecutableBalanceFailed();
+
     // # Views.
     function genesisBlockHash() external view returns (bytes32);
     function genesisTimestamp() external view returns (uint48);
@@ -189,6 +197,7 @@ interface IRouter {
     function programsCodeIds(address[] calldata programsIds) external view returns (bytes32[] memory);
     function programsCount() external view returns (uint256);
     function validatedCodesCount() external view returns (uint256);
+    function latestGasPrice() external view returns (uint256);
 
     function timelines() external view returns (Gear.Timelines memory);
 
@@ -196,12 +205,14 @@ interface IRouter {
     function setMirror(address newMirror) external;
     function pause() external;
     function unpause() external;
+    function withdrawExecutableBalance() external;
 
     // # Calls.
     function lookupGenesisHash() external;
 
     /// @dev CodeValidationRequested Emitted on success.
-    function requestCodeValidation(bytes32 codeId) external;
+    /// @dev `msg.value` must be `Router.CODE_COMMITMENT_GAS() * Router.latestGasPrice()` to cover validation costs.
+    function requestCodeValidation(bytes32 codeId) external payable;
     /// @dev ProgramCreated Emitted on success.
     function createProgram(bytes32 codeId, bytes32 salt, address overrideInitializer) external returns (address);
     /// @dev ProgramCreated Emitted on success.

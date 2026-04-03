@@ -33,6 +33,8 @@ contract Router is
     // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant TRANSIENT_STORAGE = 0xf02b465737fa6045c2ff53fb2df43c66916ac2166fa303264668fb2f6a1d8c00;
 
+    uint256 public constant CODE_COMMITMENT_GAS = 13_551;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -144,7 +146,8 @@ contract Router is
             computeSettings: router.computeSettings,
             timelines: router.timelines,
             programsCount: router.protocolData.programsCount,
-            validatedCodesCount: router.protocolData.validatedCodesCount
+            validatedCodesCount: router.protocolData.validatedCodesCount,
+            latestGasPrice: router.protocolData.latestGasPrice
         });
     }
 
@@ -270,6 +273,10 @@ contract Router is
         return _router().protocolData.validatedCodesCount;
     }
 
+    function latestGasPrice() public view returns (uint256) {
+        return _router().protocolData.latestGasPrice;
+    }
+
     function timelines() public view returns (Gear.Timelines memory) {
         return _router().timelines;
     }
@@ -287,6 +294,16 @@ contract Router is
         _unpause();
     }
 
+    function withdrawExecutableBalance() external onlyOwner {
+        IERC20 _wrappedVara = IERC20(wrappedVara());
+
+        uint256 value = _wrappedVara.balanceOf(address(this));
+        require(value > 0, ZeroValueTransfer());
+
+        bool success = _wrappedVara.transfer(msg.sender, value);
+        require(success, WithdrawExecutableBalanceFailed());
+    }
+
     // # Calls.
     function lookupGenesisHash() external whenNotPaused {
         Storage storage router = _router();
@@ -298,17 +315,23 @@ contract Router is
         require(genesisHash != bytes32(0), GenesisHashNotFound());
 
         router.genesisBlock.hash = blockhash(router.genesisBlock.number);
+        router.protocolData.latestGasPrice = tx.gasprice;
     }
 
-    function requestCodeValidation(bytes32 _codeId) external whenNotPaused {
+    function requestCodeValidation(bytes32 _codeId) external payable whenNotPaused {
         require(blobhash(0) != 0, BlobNotFound());
 
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
 
+        require(msg.value == CODE_COMMITMENT_GAS * router.protocolData.latestGasPrice, InvalidValidationFee());
+
         require(router.protocolData.codes[_codeId] == Gear.CodeState.Unknown, CodeAlreadyOnValidationOrValidated());
 
         router.protocolData.codes[_codeId] = Gear.CodeState.ValidationRequested;
+
+        (bool success,) = owner().call{value: msg.value}("");
+        require(success, PayValidationFeeFailed());
 
         emit CodeValidationRequested(_codeId);
     }

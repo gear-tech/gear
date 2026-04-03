@@ -207,6 +207,7 @@ impl EthereumDeployer {
 
         let builder = router.lookupGenesisHash();
         builder
+            .gas(100_000) // fixes out of gas error for unknown reason
             .send()
             .await?
             .try_get_receipt_check_reverted()

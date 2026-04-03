@@ -168,6 +168,8 @@ library Gear {
         mapping(address => bytes32) programs;
         uint256 programsCount;
         uint256 validatedCodesCount;
+        // Latest gas price in Ethereum network (changes every batch commitment)
+        uint256 latestGasPrice;
     }
 
     struct ReplyDetails {

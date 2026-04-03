@@ -143,11 +143,20 @@ impl Router {
     ) -> Result<(TransactionReceipt, CodeId)> {
         let code_id = CodeId::generate(code);
 
+        let query = self.query();
+
+        let code_commitment_gas = query.code_commitment_gas().await?;
+        let latest_gas_price = query.latest_gas_price().await?;
+
         let builder = self
             .instance
-            .requestCodeValidation(code_id.into_bytes().into());
-        let builder =
-            builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?);
+            .requestCodeValidation(code_id.into_bytes().into())
+            .value(
+                (code_commitment_gas * latest_gas_price)
+                    .try_into()
+                    .expect("infallible"),
+            );
+        let builder = builder.sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
 
         let receipt = builder
             .send()
@@ -356,6 +365,13 @@ impl RouterQuery {
 
     pub fn events(&self) -> RouterEvents<'_> {
         RouterEvents { query: self }
+    }
+
+    pub async fn code_commitment_gas(&self) -> Result<u64> {
+        let gas = self.instance.CODE_COMMITMENT_GAS().call().await?;
+        // it's impossible to ever reach this (maximum of u64)
+        let gas: u64 = gas.try_into().expect("infallible");
+        Ok(gas)
     }
 
     // TODO: move StorageView into ethexe-common and export
@@ -655,6 +671,13 @@ impl RouterQuery {
         // it's impossible to ever reach 18 quintillion programs (maximum of u64)
         let count: u64 = count.try_into().expect("infallible");
         Ok(count)
+    }
+
+    pub async fn latest_gas_price(&self) -> Result<u64> {
+        let gas = self.instance.latestGasPrice().call().await?;
+        // it's impossible to ever reach this (maximum of u64)
+        let gas: u64 = gas.try_into().expect("infallible");
+        Ok(gas)
     }
 
     pub async fn timelines(&self) -> Result<Timelines> {

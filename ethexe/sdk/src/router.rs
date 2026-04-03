@@ -195,6 +195,10 @@ impl<'a> Router<'a> {
         self.router_query_client.validated_codes_count_at(id).await
     }
 
+    pub async fn latest_gas_price(&self) -> Result<u64> {
+        self.router_query_client.latest_gas_price().await
+    }
+
     pub async fn timelines(&self) -> Result<Timelines> {
         self.router_query_client.timelines().await
     }
