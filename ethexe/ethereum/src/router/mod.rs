@@ -368,10 +368,10 @@ impl RouterQuery {
         RouterEvents { query: self }
     }
 
-    pub async fn code_commitment_gas(&self) -> Result<u64> {
+    pub async fn code_commitment_gas(&self) -> Result<u128> {
         let gas = self.instance.CODE_COMMITMENT_GAS().call().await?;
-        // it's impossible to ever reach this (maximum of u64)
-        let gas: u64 = gas.try_into().expect("infallible");
+        // it's impossible to ever reach this (maximum of u128)
+        let gas: u128 = gas.try_into().expect("infallible");
         Ok(gas)
     }
 
@@ -674,10 +674,10 @@ impl RouterQuery {
         Ok(count)
     }
 
-    pub async fn latest_gas_price(&self) -> Result<u64> {
+    pub async fn latest_gas_price(&self) -> Result<u128> {
         let gas = self.instance.latestGasPrice().call().await?;
-        // it's impossible to ever reach this (maximum of u64)
-        let gas: u64 = gas.try_into().expect("infallible");
+        // it's impossible to ever reach this (maximum of u128)
+        let gas: u128 = gas.try_into().expect("infallible");
         Ok(gas)
     }
 

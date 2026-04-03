@@ -324,7 +324,7 @@ contract Router is
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
 
-        require(msg.value == CODE_COMMITMENT_GAS * router.protocolData.latestGasPrice, InvalidValidationFee());
+        require(msg.value >= CODE_COMMITMENT_GAS * router.protocolData.latestGasPrice, InvalidValidationFee());
 
         require(router.protocolData.codes[_codeId] == Gear.CodeState.Unknown, CodeAlreadyOnValidationOrValidated());
 
@@ -404,6 +404,7 @@ contract Router is
 
         router.latestCommittedBatch.hash = _batchHash;
         router.latestCommittedBatch.timestamp = _batch.blockTimestamp;
+        router.protocolData.latestGasPrice = tx.gasprice;
 
         emit BatchCommitted(_batchHash);
 
