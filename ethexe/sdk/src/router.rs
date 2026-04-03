@@ -195,7 +195,7 @@ impl<'a> Router<'a> {
         self.router_query_client.validated_codes_count_at(id).await
     }
 
-    pub async fn latest_gas_price(&self) -> Result<u64> {
+    pub async fn latest_gas_price(&self) -> Result<u128> {
         self.router_query_client.latest_gas_price().await
     }
 
