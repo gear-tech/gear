@@ -680,10 +680,11 @@ pub fn block_best_announce(
             } else {
                 not_base_announce_hash = Some(candidate);
             }
-        } else if announce.parent == best_parent && announce.is_base() {
-            if base_announce_hash.replace(candidate).is_some() {
-                unreachable!("Two different siblings base announces is impossible");
-            }
+        } else if announce.parent == best_parent
+            && announce.is_base()
+            && base_announce_hash.replace(candidate).is_some()
+        {
+            unreachable!("Two different siblings base announces is impossible");
         }
     }
 
