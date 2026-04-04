@@ -45,6 +45,10 @@ impl<'a> Router<'a> {
         self.router_query_client.events()
     }
 
+    pub async fn code_commitment_gas(&self) -> Result<u128> {
+        self.router_query_client.code_commitment_gas().await
+    }
+
     // TODO: move StorageView into ethexe-common and export
 
     pub async fn storage_view(&self) -> Result<StorageView> {
