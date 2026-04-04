@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod custom_connection_limits;
 pub mod db_sync;
 mod gossipsub;
 mod injected;
@@ -75,8 +74,8 @@ pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 pub const PROTOCOL_VERSION: &str = "ethexe/0.1.0";
 pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
-const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
+// limit could be 1, but we want to prevent connection churn when both peers dial each other
+const MAX_ESTABLISHED_PER_PEER_CONNECTIONS: u32 = 2;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 500;
 const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
@@ -385,7 +384,6 @@ impl NetworkService {
 
     fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
-            BehaviourEvent::CustomConnectionLimits(event) => match event {},
             BehaviourEvent::ConnectionLimits(event) => match event {},
             BehaviourEvent::Slots(event) => match event {},
             BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
@@ -643,8 +641,6 @@ struct BehaviourConfig {
 
 #[derive(NetworkBehaviour)]
 pub(crate) struct Behaviour {
-    // custom options to limit connections
-    pub custom_connection_limits: custom_connection_limits::Behaviour,
     // hard caps
     pub connection_limits: connection_limits::Behaviour,
     // peer amount manager
@@ -687,22 +683,8 @@ impl Behaviour {
 
         let peer_id = keypair.public().to_peer_id();
 
-        // we use custom behaviour because
-        // `libp2p::connection_limits::Behaviour` limits inbound & outbound
-        // connections per peer in total, so protocols may fail to establish
-        // at least 1 inbound & 1 outbound connection in specific circumstances
-        // (for example, active VPN connection + communication with mDNS discovered peers)
-        let custom_connection_limits = custom_connection_limits::Limits::default()
-            .with_max_established_incoming_per_peer(Some(
-                MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS,
-            ))
-            .with_max_established_outbound_per_peer(Some(
-                MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS,
-            ));
-        let custom_connection_limits =
-            custom_connection_limits::Behaviour::new(custom_connection_limits);
-
         let connection_limits = connection_limits::ConnectionLimits::default()
+            .with_max_established_per_peer(Some(MAX_ESTABLISHED_PER_PEER_CONNECTIONS))
             .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS))
             .with_max_established_outgoing(Some(MAX_ESTABLISHED_OUTGOING_CONNECTIONS))
             .with_max_pending_incoming(Some(MAX_PENDING_INCOMING_CONNECTIONS))
@@ -768,7 +750,6 @@ impl Behaviour {
         let validator_discovery = validator::discovery::Behaviour::new(validator_discovery);
 
         Ok(Self {
-            custom_connection_limits,
             connection_limits,
             slots,
             peer_score,

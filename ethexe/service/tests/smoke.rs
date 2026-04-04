@@ -94,6 +94,7 @@ async fn constructor() {
             .checked_mul(config.node.block_gas_limit)
             .unwrap(),
         chunk_size: config.node.chunk_processing_threads,
+        with_dev_api: false,
     });
 
     config.prometheus = Some(PrometheusConfig {
