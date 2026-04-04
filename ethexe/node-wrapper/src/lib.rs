@@ -1,34 +1,30 @@
 // This file is part of Gear.
-
+//
 // Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
-
+//
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![allow(dead_code)]
-#![doc(html_logo_url = "https://gear-tech.io/logo.png")]
-#![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(missing_docs, unreachable_pub)]
 
-//! Vara.ETH SDK.
+//! Vara.eth node wrapper.
 
-pub use crate::{api::VaraEthApi, mirror::Mirror, router::Router, wvara::WVara};
+mod error;
+pub use error::Error;
 
-mod api;
-mod mirror;
-mod router;
-mod wvara;
+mod instance;
+pub use instance::VaraEthInstance;
 
-// Re-export the
-pub use ethexe_node_wrapper::{Error, VaraEth, VaraEthInstance};
+mod node;
+pub use node::VaraEth;
