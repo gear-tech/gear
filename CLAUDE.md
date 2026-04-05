@@ -351,3 +351,11 @@ Errors are encoded as little-endian u32. Code `0xffff` is reserved for SyscallUs
 - CI uses `[skip-ci]` (not `[skip ci]`) in commit messages to get green status checks while skipping workflows
 - `cargo nextest` is the test runner (not `cargo test`), except for doc tests
 - `cargo hakari` manages workspace dependency deduplication — run `make workspace-hack` after dependency changes
+
+## GitHub PR Review
+
+When asked to review a PR (e.g. `@claude review` in a PR comment):
+
+1. Read `.gemini/styleguide.md` for review priorities, guidelines, and anti-noise rules. Follow them strictly.
+2. Use the `/code-review:code-review` command with `--comment` flag to perform the review and post inline comments on specific lines.
+   Example: `/code-review:code-review OWNER/REPO/pull/NUMBER --comment`
