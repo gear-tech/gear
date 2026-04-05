@@ -20,31 +20,60 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
-      issues: read
+      pull-requests: write
+      issues: write
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code
-        id: claude
+      - name: Parse command
+        id: parse
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body || github.event.review.body || github.event.issue.body || '' }}
+        run: |
+          # Detect review mode: "@claude review" or "@claude opus review"
+          if echo "$COMMENT_BODY" | grep -qiE '@claude\s+(opus\s+)?review'; then
+            echo "is_review=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_review=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Detect model: "@claude opus ..." switches to opus
+          if echo "$COMMENT_BODY" | grep -qi '@claude.*opus'; then
+            echo "claude_args=--model opus" >> "$GITHUB_OUTPUT"
+          else
+            echo "claude_args=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Read review prompt
+        if: steps.parse.outputs.is_review == 'true'
+        id: review-prompt
+        run: |
+          {
+            echo 'prompt<<PROMPT_EOF'
+            cat .github/claude-review-prompt.md
+            echo 'PROMPT_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Claude Code Review
+        if: steps.parse.outputs.is_review == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-          # This is an optional setting that allows Claude to read CI results on PRs
+          claude_args: ${{ steps.parse.outputs.claude_args }}
+          prompt: ${{ steps.review-prompt.outputs.prompt }}
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
-
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
-
+      - name: Run Claude Code (General)
+        if: steps.parse.outputs.is_review != 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: ${{ steps.parse.outputs.claude_args }}
+          additional_permissions: |
+            actions: read
