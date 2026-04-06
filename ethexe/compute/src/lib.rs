@@ -62,8 +62,6 @@ pub enum ComputeError {
     BlockHeaderNotFound(H256),
     #[error("block validators committed for era not found for block({0})")]
     CommittedEraNotFound(H256),
-    #[error("process code join error")]
-    CodeProcessJoin(#[from] tokio::task::JoinError),
     #[error("codes queue not found for computed block({0})")]
     CodesQueueNotFound(H256),
     #[error("last committed batch not found for computed block({0})")]
@@ -101,7 +99,10 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
         executable: ExecutableData,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
-    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo>;
+    fn process_code(
+        &mut self,
+        code_and_id: CodeAndIdUnchecked,
+    ) -> impl Future<Output = Result<ProcessedCodeInfo>> + Send;
 }
 
 impl ProcessorExt for Processor {
@@ -115,7 +116,7 @@ impl ProcessorExt for Processor {
             .map_err(Into::into)
     }
 
-    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
-        self.process_code(code_and_id).map_err(Into::into)
+    async fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+        self.process_code(code_and_id).await.map_err(Into::into)
     }
 }

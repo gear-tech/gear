@@ -1,10 +1,20 @@
-experimental = ["setup-scripts"]
+experimental = ["setup-scripts", "wrapper-scripts"]
 
 [scripts.setup.replace-node-and-runtime]
 command = ["bash", "-c", '''
 rsync -av gear-cli-and-runtime-release/ target/release/
 chmod +x target/release/gear
 ''']
+
+[scripts.setup.set-envs]
+command = ["bash", "-c", '''
+echo "CARGO_BUILD_JOBS=1" >> "$NEXTEST_ENV"
+echo "RAYON_NUM_THREADS=1" >> "$NEXTEST_ENV"
+echo "ETHEXE_PROCESSOR_NUM_THREADS=1" >> "$NEXTEST_ENV"
+''']
+
+[scripts.wrapper.compute-4-cores]
+command = "env RAYON_NUM_THREADS=4 ETHEXE_PROCESSOR_NUM_THREADS=4"
 
 [profile.default]
 leak-timeout = { period = "5s", result = "fail" }
@@ -14,6 +24,10 @@ slow-timeout = { period = "1m", terminate-after = 5 }
 path = "junit.xml"
 store-success-output = false
 store-failure-output = true
+
+[[profile.default.scripts]]
+filter = 'all()'
+setup = "set-envs"
 
 [profile.ci]
 fail-fast = false
@@ -26,25 +40,17 @@ path = "junit.xml"
 store-success-output = false
 store-failure-output = true
 
-# sdk
-[[profile.ci.overrides]]
-filter = 'package(gsdk) or package(gcli)'
-retries = 5
-
 [[profile.ci.scripts]]
 filter = 'package(gsdk) or package(gcli)'
 platform = "cfg(unix)"
 setup = "replace-node-and-runtime"
 
-# sometimes fails on CI machine in debug profile
-# due to an inconsistent machine load and unoptimized code
-[[profile.ci.overrides]]
-filter = 'package(gear-authorship)'
-retries = 5
-threads-required = 4
+# tests of such crates have timeouts, so we need to compile runtime faster
+[[profile.ci.scripts]]
+filter = 'package(ethexe-service) or package(ethexe-rpc) or package(ethexe-compute)'
+run-wrapper = "compute-4-cores"
 
-# ethexe
 [[profile.ci.overrides]]
-filter = 'package(ethexe-service) or package(ethexe-observer)'
+filter = 'package(ethexe-service) or package(ethexe-rpc) or package(ethexe-compute)'
 retries = 5
 threads-required = 4

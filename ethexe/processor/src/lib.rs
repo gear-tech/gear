@@ -18,6 +18,9 @@
 
 //! Program's execution service for eGPU.
 
+pub use host::InstanceError;
+
+use crate::thread_pool::ThreadPool;
 use core::num::NonZero;
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
@@ -38,15 +41,17 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
+use std::sync::LazyLock;
 use tokio::sync::mpsc;
-
-pub use host::InstanceError;
 
 mod handling;
 mod host;
 
 #[cfg(test)]
 mod tests;
+mod thread_pool;
+
+static THREAD_POOL: LazyLock<ThreadPool> = LazyLock::new(ThreadPool::new);
 
 // Default amount of programs in one chunk to be processed in parallel.
 pub const DEFAULT_CHUNK_SIZE: NonZero<usize> = NonZero::new(16).unwrap();
@@ -137,7 +142,10 @@ impl Processor {
         OverlaidProcessor(self)
     }
 
-    pub fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+    pub async fn process_code(
+        &mut self,
+        code_and_id: CodeAndIdUnchecked,
+    ) -> Result<ProcessedCodeInfo> {
         log::debug!("Processing upload code {code_and_id:?}");
 
         let CodeAndIdUnchecked { code, code_id } = code_and_id;
@@ -149,9 +157,14 @@ impl Processor {
             });
         }
 
-        let Some((instrumented_code, code_metadata)) =
-            self.creator.instantiate()?.instrument(&code)?
-        else {
+        let res = THREAD_POOL
+            .spawn({
+                let mut instance = self.creator.instantiate()?;
+                let code = code.clone();
+                move || instance.instrument(code)
+            })
+            .await?;
+        let Some((instrumented_code, code_metadata)) = res else {
             return Ok(ProcessedCodeInfo {
                 code_id,
                 valid: None,
@@ -278,13 +291,13 @@ impl Processor {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ProcessedCodeInfo {
     pub code_id: CodeId,
     pub valid: Option<ValidCodeInfo>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ValidCodeInfo {
     pub code: Vec<u8>,
     pub instrumented_code: InstrumentedCode,

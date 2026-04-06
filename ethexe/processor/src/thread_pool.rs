@@ -19,35 +19,31 @@
 //! Small custom thread pool interface, because `rayon` is too smart
 //! and `threadpool` is not smart enough.
 
-use futures::prelude::*;
-use std::{num::NonZero, panic::AssertUnwindSafe, thread};
+use std::{any::Any, env, num::NonZero, panic::AssertUnwindSafe, thread};
 
-type Task<I, O> = (I, tokio::sync::oneshot::Sender<thread::Result<O>>);
+type Task = (
+    Box<dyn FnOnce() -> Box<dyn Any + Send + 'static> + Send + 'static>,
+    tokio::sync::oneshot::Sender<thread::Result<Box<dyn Any + Send + 'static>>>,
+);
 
-/// Thread pool that handler tasks of type `I`
-/// and produces outputs of type `O`.
 #[derive(Debug, Clone)]
-pub struct ThreadPool<I, O> {
-    task_tx: crossbeam::channel::Sender<Task<I, O>>,
+pub struct ThreadPool {
+    task_tx: crossbeam::channel::Sender<Task>,
 }
 
-impl<I, O> ThreadPool<I, O>
-where
-    I: Send + 'static,
-    O: Send + 'static,
-{
+impl ThreadPool {
     /// Creates a new thread pool.
-    pub fn new<F>(handler: F) -> Self
-    where
-        F: FnMut(I) -> O + Send + Clone + 'static,
-    {
-        let n_cpus = thread::available_parallelism().map_or(1, NonZero::get);
+    pub fn new() -> Self {
+        let n_cpus = env::var("ETHEXE_PROCESSOR_NUM_THREADS")
+            .ok()
+            .and_then(|num| num.parse().ok())
+            .or_else(|| thread::available_parallelism().ok())
+            .map_or(1, NonZero::get);
 
-        let (task_tx, task_rx) = crossbeam::channel::unbounded::<Task<I, O>>();
+        let (task_tx, task_rx) = crossbeam::channel::unbounded::<Task>();
 
         for _ in 0..n_cpus {
             let task_rx = task_rx.clone();
-            let handler = handler.clone();
 
             thread::spawn(move || {
                 loop {
@@ -56,12 +52,8 @@ where
                         break;
                     };
 
-                    let mut handler = handler.clone();
-
                     // Output receiver could be cancelled
-                    let _ = sender.send(std::panic::catch_unwind(AssertUnwindSafe(move || {
-                        handler(task)
-                    })));
+                    let _ = sender.send(std::panic::catch_unwind(AssertUnwindSafe(task)));
                 }
             });
         }
@@ -80,42 +72,50 @@ where
     ///
     /// Panics if worker thread dies despite using
     /// `std::panic::catch_unwind` around the handler.
-    pub async fn spawn(&self, input: I) -> O {
+    pub async fn spawn<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
         let (tx, rx) = tokio::sync::oneshot::channel();
 
+        let f = Box::new(move || {
+            let res = f();
+            Box::new(res) as Box<_>
+        });
+
         self.task_tx
-            .try_send((input, tx))
+            .try_send((f, tx))
             .expect("The channel is unbounded");
 
-        rx.await
+        let res = rx
+            .await
             .expect("Worker thread has died")
-            .unwrap_or_else(|err| std::panic::resume_unwind(err))
-    }
-
-    /// Spawns tasks from an iterator of inputs,
-    /// producing a stream of outputs.
-    ///
-    /// The outputs are ordered the same as inputs.
-    pub fn spawn_many<II: IntoIterator<Item = I>>(&self, input: II) -> impl Stream<Item = O> {
-        input
-            .into_iter()
-            .map(|input| self.spawn(input))
-            .collect::<stream::FuturesOrdered<_>>()
+            .unwrap_or_else(|err| std::panic::resume_unwind(err));
+        *res.downcast::<R>().expect("Failed to downcast result")
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::{FutureExt, StreamExt, stream::FuturesOrdered};
+
+    fn task(n: usize) -> String {
+        "amogus".repeat(n)
+    }
 
     #[tokio::test]
     async fn test_thread_pool() {
-        let thread_pool = ThreadPool::new(|n| "amogus".repeat(n));
+        let thread_pool = ThreadPool::new();
 
-        assert_eq!(thread_pool.spawn(2).await, "amogusamogus");
+        assert_eq!(thread_pool.spawn(|| task(2)).await, "amogusamogus");
+
         assert_eq!(
-            thread_pool
-                .spawn_many([0, 1, 2, 3])
+            [0, 1, 2, 3]
+                .into_iter()
+                .map(|n| thread_pool.spawn(move || task(n)))
+                .collect::<FuturesOrdered<_>>()
                 .collect::<Vec<_>>()
                 .await,
             vec![
@@ -131,7 +131,7 @@ mod tests {
         // Ensure that panics don't break things
         for _ in 0..n_cpus * 2 {
             assert!(
-                AssertUnwindSafe(thread_pool.spawn(usize::MAX))
+                AssertUnwindSafe(thread_pool.spawn(|| task(usize::MAX)))
                     .catch_unwind()
                     .await
                     .is_err()
