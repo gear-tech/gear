@@ -357,5 +357,21 @@ Errors are encoded as little-endian u32. Code `0xffff` is reserved for SyscallUs
 When asked to review a PR (e.g. `@claude review` in a PR comment):
 
 1. Read `.gemini/styleguide.md` for review priorities, guidelines, and anti-noise rules. Follow them strictly.
-2. Use the `/code-review:code-review` command with `--comment` flag to perform the review and post inline comments on specific lines.
-   Example: `/code-review:code-review OWNER/REPO/pull/NUMBER --comment`
+2. Start with a short summary of what the PR does (2-3 sentences) and an overall assessment.
+3. List each finding as a separate section with a severity label. Use exactly one of: `critical`, `high`, `medium`, `low`.
+   - **critical**: Logic errors, broken state transitions, security issues, consensus bugs
+   - **high**: Missing tests for behavior changes, incorrect API usage, race conditions
+   - **medium**: Missing edge case handling, suboptimal patterns, documentation gaps
+   - **low**: Minor improvements, optional refactors
+
+   Format each finding as:
+   ```
+   **severity: critical** — short description
+
+   File: `path/to/file.rs` lines X-Y
+
+   Explanation of the issue with code snippets if relevant.
+   ```
+4. Do NOT comment on formatting enforced by rustfmt or forge fmt.
+5. Do NOT suggest broad refactors without clear correctness, verification, or maintenance benefit.
+6. Do NOT flood with many small comments when one high-signal comment is enough.
