@@ -281,10 +281,10 @@ mod utils {
     fn calculate_next_producer(db: &Database) -> Result<Address> {
         let timelines = db.config().timelines;
 
-        let current_ts = SystemTime::now()
+        let current = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("infallible")
-            .as_secs();
+            .map_err(|err| crate::errors::runtime(format!("system clock error: {err}")))?;
+        let current_ts = current.as_secs();
 
         // Route to the producer of the next slot, not the current one.
         let next_timestamp = current_ts + timelines.slot;
