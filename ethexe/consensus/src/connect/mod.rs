@@ -279,12 +279,11 @@ impl ConsensusService for ConnectService {
             block_hash,
             announce_hash: expected,
         } = self.state
+            && expected == announce_hash
         {
-            if expected == announce_hash {
-                self.output
-                    .push_back(ConsensusEvent::BlockComputationComplete(block_hash));
-                self.state = State::WaitingForBlock;
-            }
+            self.output
+                .push_back(ConsensusEvent::BlockComputationComplete(block_hash));
+            self.state = State::WaitingForBlock;
         }
         Ok(())
     }

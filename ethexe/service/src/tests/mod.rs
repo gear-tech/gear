@@ -73,7 +73,7 @@ use tokio::sync::{
 const ETHER: u128 = 1_000_000_000_000_000_000;
 
 #[tokio::test]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(30_000)]
 async fn invalid_code() {
     init_logger();
 
@@ -2884,7 +2884,7 @@ async fn injected_tx_fungible_token_over_network() {
 }
 
 #[tokio::test]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn announces_conflicts() {
     init_logger();
 
@@ -3623,7 +3623,7 @@ async fn reply_callback() {
 /// base-announce-priority ensures the announce chain consists of base announces,
 /// so the batch commitment expiry equals commitment_delay_limit (not 1).
 #[tokio::test]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn batch_commitment_expiry_after_idle_blocks() {
     init_logger();
 
