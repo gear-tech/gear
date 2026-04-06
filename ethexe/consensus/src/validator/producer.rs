@@ -129,6 +129,9 @@ impl StateHandler for Producer {
                         _ => announce_hash,
                     };
 
+                self.ctx
+                    .output(ConsensusEvent::BlockComputationComplete(self.block.hash));
+
                 // Aggregate commitment for the block and use `best_announce_hash` as head for chain commitment.
                 // `best_announce_hash` is computed and included in the db already, so it's safe to use it.
                 self.state = State::AggregateBatchCommitment {
@@ -385,7 +388,10 @@ mod tests {
 
         // No commitments - no batch and goes to initial state
         assert!(state.is_initial());
-        assert_eq!(state.context().output.len(), 0);
+        assert_eq!(
+            state.context().output,
+            vec![ConsensusEvent::BlockComputationComplete(block.hash)]
+        );
         assert!(eth.committed_batch.read().await.is_none());
     }
 
@@ -468,14 +474,14 @@ mod tests {
         }
         .setup(&state.context().core.db);
 
-        let (state, event) = state
-            .process_computed_announce(announce_hash)
-            .unwrap()
-            .wait_for_event()
-            .await
-            .unwrap();
+        let state = state.process_computed_announce(announce_hash).unwrap();
+
+        // First event is BlockComputationComplete
+        let (state, event) = state.wait_for_event().await.unwrap();
+        assert_eq!(event, ConsensusEvent::BlockComputationComplete(block.hash));
 
         // If threshold is 2, producer must goes to coordinator state and emit validation request
+        let (state, event) = state.wait_for_event().await.unwrap();
         assert!(state.is_coordinator());
         event
             .unwrap_publish_message()

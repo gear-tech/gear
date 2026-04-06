@@ -697,6 +697,9 @@ impl Service {
 
                         network_fetcher.push(network.db_sync_handle().request(request.into()));
                     }
+                    ConsensusEvent::BlockComputationComplete(block_hash) => {
+                        log::trace!("Block computation complete: {block_hash}");
+                    }
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }

@@ -286,12 +286,16 @@ impl TestingEventReceiver {
         .await
     }
 
-    pub async fn find_block_computed_twice(&mut self, block_hash: H256) -> HashOf<Announce> {
-        log::info!("📗 waiting for base and not-base computed for block: {block_hash:?}");
-        // First base announce
-        self.find_announce_computed(block_hash).await;
-        // Second not-base announce
-        self.find_announce_computed(block_hash).await
+    pub async fn find_block_computation_complete(&mut self, block_hash: H256) {
+        log::info!("📗 waiting for block computation complete: {block_hash:?}");
+        self.find(|event| {
+            matches!(
+                event,
+                TestingEvent::Consensus(ConsensusEvent::BlockComputationComplete(h))
+                    if *h == block_hash
+            )
+        })
+        .await;
     }
 
     #[allow(unused)]

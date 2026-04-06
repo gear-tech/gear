@@ -1141,7 +1141,7 @@ async fn ping_reorg() {
     let latest_block = env.latest_block().await;
     connect_node
         .events()
-        .find_announce_computed(latest_block.hash)
+        .find_block_computation_complete(latest_block.hash)
         .await;
 
     log::info!("📗 Abort service to simulate node blocks skipping");
@@ -1209,7 +1209,7 @@ async fn ping_reorg() {
     let latest_block = env.latest_block().await;
     connect_node
         .events()
-        .find_announce_computed(latest_block.hash)
+        .find_block_computation_complete(latest_block.hash)
         .await;
 
     // The last step is to test correctness after db cleanup
@@ -1420,7 +1420,7 @@ async fn multiple_validators() {
     for validator in &mut validators {
         validator
             .events()
-            .find_announce_computed(latest_block.hash)
+            .find_block_computation_complete(latest_block.hash)
             .await;
     }
 
@@ -1441,7 +1441,7 @@ async fn multiple_validators() {
     for validator in validators.iter_mut().skip(1) {
         validator
             .events()
-            .find_announce_computed(latest_block.hash)
+            .find_block_computation_complete(latest_block.hash)
             .await;
     }
 
@@ -1807,7 +1807,10 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_block_computed_twice(latest_block).await;
+    alice
+        .events()
+        .find_block_computation_complete(latest_block)
+        .await;
 
     log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync()).await;
@@ -1831,8 +1834,13 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_block_computed_twice(latest_block).await;
-    bob.events().find_announce_computed(latest_block).await;
+    alice
+        .events()
+        .find_block_computation_complete(latest_block)
+        .await;
+    bob.events()
+        .find_block_computation_complete(latest_block)
+        .await;
 
     log::info!("📗 Stopping Bob");
     bob.stop_service().await;
@@ -1862,7 +1870,10 @@ async fn fast_sync() {
     env.skip_blocks(100).await;
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_block_computed_twice(latest_block).await;
+    alice
+        .events()
+        .find_block_computation_complete(latest_block)
+        .await;
 
     log::info!("📗 Starting Bob again to check how it handles partially empty database");
     bob.start_service().await;
@@ -1878,8 +1889,13 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_block_computed_twice(latest_block).await;
-    bob.events().find_announce_computed(latest_block).await;
+    alice
+        .events()
+        .find_block_computation_complete(latest_block)
+        .await;
+    bob.events()
+        .find_block_computation_complete(latest_block)
+        .await;
 
     assert_chain(
         latest_block,
@@ -2099,7 +2115,7 @@ async fn execution_with_canonical_events_quarantine() {
     log::info!("📗 waiting announce for block {latest_block} computed");
     validator
         .events()
-        .find_block_computed_twice(latest_block)
+        .find_block_computation_complete(latest_block)
         .await;
 
     // create a receiver without history so we don't face old `BlockSynced` in further for-loop
@@ -2145,7 +2161,7 @@ async fn execution_with_canonical_events_quarantine() {
 
         assert!(!check_for_pong(block_hash), "PONG received too early");
 
-        receiver.find_block_computed_twice(block_hash).await;
+        receiver.find_block_computation_complete(block_hash).await;
         env.force_new_block().await;
     }
 
@@ -2944,7 +2960,7 @@ async fn announces_conflicts() {
         for validator in &mut validators {
             validator
                 .events()
-                .find_announce_computed(latest_block.hash)
+                .find_block_computation_complete(latest_block.hash)
                 .await;
         }
     }
@@ -3006,20 +3022,13 @@ async fn announces_conflicts() {
             assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
         });
 
-        // Wait till all validators accept announce for the latest block
+        // Wait till all validators complete computation for the latest block
         let latest_block = env.latest_block().await.hash;
-        let mut latest_computed_announce_hash = HashOf::zero();
         for receiver in &mut receivers {
-            let announce_hash = receiver.find_block_computed_twice(latest_block).await;
-            assert!(
-                latest_computed_announce_hash == HashOf::zero()
-                    || latest_computed_announce_hash == announce_hash,
-                "All validators must compute the same announce for the latest block"
-            );
-            latest_computed_announce_hash = announce_hash;
+            receiver.find_block_computation_complete(latest_block).await;
         }
 
-        latest_computed_announce_hash
+        validators[0].db.top_announce_hash(latest_block)
     };
 
     let wait_for_pong = {
@@ -3199,7 +3208,7 @@ async fn whole_network_restore() {
     for validator in &mut validators {
         validator
             .events()
-            .find_announce_computed(latest_block.hash)
+            .find_block_computation_complete(latest_block.hash)
             .await;
     }
 
@@ -3353,8 +3362,13 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 
     // Wait until both stops processing
     let latest_block = env.latest_block().await.hash;
-    bob.events().find_announce_computed(latest_block).await;
-    alice.events().find_block_computed_twice(latest_block).await;
+    bob.events()
+        .find_block_computation_complete(latest_block)
+        .await;
+    alice
+        .events()
+        .find_block_computation_complete(latest_block)
+        .await;
 
     log::info!("📗 Stopping Bob");
     bob.stop_service().await;
@@ -3369,7 +3383,10 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 
     // Wait until Alice stop processing
     let latest_block = env.latest_block().await.hash;
-    alice.events().find_block_computed_twice(latest_block).await;
+    alice
+        .events()
+        .find_block_computation_complete(latest_block)
+        .await;
 
     log::info!("📗 Stopping Alice");
     alice.stop_service().await;
@@ -3491,7 +3508,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     // }
 
     // let latest_block = env.latest_block().await.hash;
-    // alice.events().find_block_computed_twice(latest_block).await;
+    // alice.events().find_block_computation_complete(latest_block).await;
 
     // if commitment_delay_limit == 3 {
     //     log::info!("📗 Bob accepts announce from Alice at last");

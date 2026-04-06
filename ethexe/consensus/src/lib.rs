@@ -127,6 +127,8 @@ pub enum ConsensusEvent {
     /// Informational event: commitment was successfully submitted
     #[from]
     CommitmentSubmitted(CommitmentSubmitted),
+    /// Informational event: all announce computations for the block are complete
+    BlockComputationComplete(H256),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }

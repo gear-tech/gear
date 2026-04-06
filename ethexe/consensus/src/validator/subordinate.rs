@@ -91,6 +91,9 @@ impl StateHandler for Subordinate {
             }
 
             if announce_hash.is_none() && base_announce_hash.is_none() {
+                self.ctx
+                    .output(ConsensusEvent::BlockComputationComplete(self.block.hash));
+
                 if self.is_validator {
                     return Participant::create(self.ctx, self.block, self.producer);
                 } else {
@@ -394,7 +397,8 @@ mod tests {
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
                 ConsensusEvent::ComputeAnnounce(base_announce.clone(), PromisePolicy::Disabled),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
+                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled),
+                ConsensusEvent::BlockComputationComplete(block.hash),
             ]
         );
     }
