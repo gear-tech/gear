@@ -17,14 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
+use anyhow::Result;
 use dashmap::DashMap;
 use ethexe_common::{
-    HashOf,
+    Address, HashOf,
+    consensus::block_producer_for,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
         SignedPromise,
     },
 };
+use ethexe_db::Database;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
@@ -61,6 +64,8 @@ type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<S
 /// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    /// Node database instance.
+    db: Database,
     /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
@@ -116,8 +121,9 @@ impl InjectedServer for InjectedApi {
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
+            db,
             rpc_sender,
             promise_waiters: PromiseWaiters::default(),
             metrics: InjectedApiMetrics::default(),
@@ -147,10 +153,10 @@ impl InjectedApi {
         self.promise_waiters.len()
     }
 
-    /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
+    /// This function forwards [`AddressedInjectedTransaction`] to main service and waits for its acceptance.
     async fn forward_transaction(
         &self,
-        transaction: AddressedInjectedTransaction,
+        mut transaction: AddressedInjectedTransaction,
     ) -> Result<InjectedTransactionAcceptance, ErrorObjectOwned> {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
@@ -167,6 +173,10 @@ impl InjectedApi {
             return Err(errors::bad_request(
                 "Injected transactions with non-zero value are not supported",
             ));
+        }
+
+        if transaction.recipient == Address::default() {
+            utils::route_transaction(&self.db, &mut transaction)?;
         }
 
         let event = RpcEvent::InjectedTransaction {
@@ -245,5 +255,48 @@ impl InjectedApi {
                 );
             }
         });
+    }
+}
+
+mod utils {
+    use super::*;
+    use ethexe_common::{
+        Address,
+        db::{ConfigStorageRO, OnChainStorageRO},
+    };
+    use std::time::SystemTime;
+
+    pub fn route_transaction(
+        db: &Database,
+        tx: &mut AddressedInjectedTransaction,
+    ) -> RpcResult<()> {
+        let next_producer =
+            calculate_next_producer(db).map_err(|_| crate::errors::db("validators not found"))?;
+        tx.recipient = next_producer;
+
+        Ok(())
+    }
+
+    /// Calculates the address of next block-producer to send transaction.
+    fn calculate_next_producer(db: &Database) -> Result<Address> {
+        let timelines = db.config().timelines;
+
+        let current_ts = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("infallible")
+            .as_secs();
+
+        // Route to the producer of the next slot, not the current one.
+        let next_timestamp = current_ts + timelines.slot;
+        let era = timelines.era_from_ts(next_timestamp);
+        let validators = db
+            .validators(era)
+            .ok_or_else(|| anyhow::anyhow!("validators not found for era={era}"))?;
+
+        Ok(block_producer_for(
+            &validators,
+            next_timestamp,
+            timelines.slot,
+        ))
     }
 }
