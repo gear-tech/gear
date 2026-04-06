@@ -33,19 +33,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Parse command
+      - name: Detect model
         id: parse
         env:
           COMMENT_BODY: ${{ github.event.comment.body || github.event.review.body || github.event.issue.body || '' }}
         run: |
-          # Detect review mode
-          if echo "$COMMENT_BODY" | grep -qiE '@claude\s+(opus\s+)?review'; then
-            echo "is_review=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_review=false" >> "$GITHUB_OUTPUT"
-          fi
-
-          # Detect model
           if echo "$COMMENT_BODY" | grep -qi '@claude.*opus'; then
             echo "claude_args=--model opus" >> "$GITHUB_OUTPUT"
           else
