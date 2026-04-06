@@ -195,18 +195,23 @@ impl Subordinate {
                 self.ctx
                     .output(ConsensusEvent::AnnounceAccepted(announce_hash));
 
-                let base_announce_hash = self
-                    .ctx
-                    .core
-                    .db
-                    .find_block_base_announce_with_parent(announce.block_hash, announce.parent)?
-                    .map(|announce| {
-                        self.ctx.output(ConsensusEvent::ComputeAnnounce(
-                            announce.value,
-                            PromisePolicy::Disabled,
-                        ));
-                        announce.hash
-                    });
+                let base_announce_hash = if !announce.is_base() {
+                    self.ctx
+                        .core
+                        .db
+                        .find_block_announce(announce.block_hash, |candidate| {
+                            candidate.value.is_base() && candidate.value.parent == announce.parent
+                        })?
+                        .map(|announce| {
+                            self.ctx.output(ConsensusEvent::ComputeAnnounce(
+                                announce.value,
+                                PromisePolicy::Disabled,
+                            ));
+                            announce.hash
+                        })
+                } else {
+                    None
+                };
 
                 self.ctx.output(ConsensusEvent::ComputeAnnounce(
                     announce,

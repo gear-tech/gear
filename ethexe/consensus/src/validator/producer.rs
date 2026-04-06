@@ -109,23 +109,25 @@ impl StateHandler for Producer {
                     .ok_or_else(|| anyhow!("Own announce {announce_hash} not found in db"))?;
 
                 // Check if there's a base sibling with the same outcome — prefer base if so.
-                let best_announce_hash = match self
-                    .ctx
-                    .core
-                    .db
-                    .find_block_base_announce_with_parent(self.block.hash, announce.parent)?
-                {
-                    Some(base)
-                        if announces::announces_have_equal_outcomes(
-                            &self.ctx.core.db,
-                            announce_hash,
-                            base.hash,
-                        ) =>
-                    {
-                        base.hash
-                    }
-                    _ => announce_hash,
-                };
+                let best_announce_hash =
+                    match self
+                        .ctx
+                        .core
+                        .db
+                        .find_block_announce(self.block.hash, |candidate| {
+                            candidate.value.is_base() && candidate.value.parent == announce.parent
+                        })? {
+                        Some(base)
+                            if announces::announces_have_equal_outcomes(
+                                &self.ctx.core.db,
+                                announce_hash,
+                                base.hash,
+                            ) =>
+                        {
+                            base.hash
+                        }
+                        _ => announce_hash,
+                    };
 
                 // Aggregate commitment for the block and use `best_announce_hash` as head for chain commitment.
                 // `best_announce_hash` is computed and included in the db already, so it's safe to use it.
@@ -231,11 +233,10 @@ impl Producer {
             ctx.core.commitment_delay_limit,
         )?;
 
-        let state = if let Some(base_announce) = ctx
-            .core
-            .db
-            .find_block_base_announce_with_parent(block.hash, best_parent_announce_hash)?
-        {
+        let state = if let Some(base_announce) =
+            ctx.core.db.find_block_announce(block.hash, |announce| {
+                announce.value.is_base() && announce.value.parent == best_parent_announce_hash
+            })? {
             ctx.output(ConsensusEvent::ComputeAnnounce(
                 base_announce.value,
                 PromisePolicy::Disabled,
