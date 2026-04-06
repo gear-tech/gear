@@ -298,8 +298,8 @@ mod utils {
         let remaining_time = slot_ms - (now.as_millis() % slot_ms);
 
         let target_timestamp = match remaining_time > NEXT_PRODUCER_THRESHOLD_MS {
-            true => now.as_secs(),
-            false => now.as_secs() + timelines.slot,
+            true => now.as_secs() + timelines.slot,
+            false => now.as_secs() + 2 * timelines.slot,
         };
 
         let era = timelines.era_from_ts(target_timestamp);
@@ -358,7 +358,7 @@ mod tests {
         let now = Duration::from_secs(SLOT / 2);
         let producer = utils::calculate_next_producer(&db, now).unwrap();
 
-        assert_eq!(validators[0], producer);
+        assert_eq!(validators[1], producer);
     }
 
     #[test]
@@ -370,6 +370,6 @@ mod tests {
         let now = Duration::from_secs(SLOT).sub(Duration::from_millis(half_threshold));
         let producer = utils::calculate_next_producer(&db, now).unwrap();
 
-        assert_eq!(validators[1], producer);
+        assert_eq!(validators[2], producer);
     }
 }
