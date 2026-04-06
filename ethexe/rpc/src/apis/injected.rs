@@ -264,7 +264,9 @@ mod utils {
         Address,
         db::{ConfigStorageRO, OnChainStorageRO},
     };
-    use std::time::SystemTime;
+    use std::time::{Duration, SystemTime};
+
+    const NEXT_PRODUCER_THRESHOLD_MS: u128 = 50;
 
     pub fn route_transaction(
         db: &Database,
@@ -277,25 +279,34 @@ mod utils {
         Ok(())
     }
 
-    /// Calculates the address of next block-producer to send transaction.
+    /// Calculates the producer address to route an injected transaction to.
     fn calculate_next_producer(db: &Database) -> Result<Address> {
         let timelines = db.config().timelines;
 
-        let current = SystemTime::now()
+        let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .map_err(|err| crate::errors::runtime(format!("system clock error: {err}")))?;
-        let current_ts = current.as_secs();
 
-        // Route to the producer of the next slot, not the current one.
-        let next_timestamp = current_ts + timelines.slot;
-        let era = timelines.era_from_ts(next_timestamp);
+        // Compute the remaining time in the current slot.
+        // If the slot is close to ending transaction will be sent to next-next producer.
+        // That avoids sending the transaction to a validator that probably will not receive it in time.
+        let slot_ms = Duration::from_secs(timelines.slot).as_millis();
+        let remaining_time = slot_ms - (now.as_millis() % slot_ms);
+
+        let target_timestamp = match remaining_time > NEXT_PRODUCER_THRESHOLD_MS {
+            true => now.as_secs(),
+            false => now.as_secs() + timelines.slot,
+        };
+
+        let era = timelines.era_from_ts(target_timestamp);
+
         let validators = db
             .validators(era)
             .ok_or_else(|| anyhow::anyhow!("validators not found for era={era}"))?;
 
         Ok(block_producer_for(
             &validators,
-            next_timestamp,
+            target_timestamp,
             timelines.slot,
         ))
     }
