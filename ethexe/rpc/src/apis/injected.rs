@@ -372,4 +372,20 @@ mod tests {
 
         assert_eq!(validators[2], producer);
     }
+
+    #[test]
+    fn test_calculate_next_producer_in_next_era() {
+        let db = Database::memory();
+        let validators = setup_db(&db);
+
+        // Prepate next era validators
+        let mut next_era_validators = validators.clone();
+        next_era_validators[0] = validators[9];
+        db.set_validators(1, next_era_validators.clone());
+
+        let now = Duration::from_secs(ERA).sub(Duration::from_secs(1));
+        let producer = utils::calculate_next_producer(&db, now).unwrap();
+
+        assert_eq!(next_era_validators[0], producer);
+    }
 }
