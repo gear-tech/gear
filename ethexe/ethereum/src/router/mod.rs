@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyEthereum, AlloyProvider, IntoBlockId, TryGetReceipt,
+    AlloyEthereum, AlloyProvider, Ethereum, IntoBlockId, TryGetReceipt,
     abi::{
-        IRouter,
+        GearLib, IRouter,
         utils::{uint48_to_u64, uint256_to_u256},
     },
     router::events::AllEventsBuilder,
@@ -28,9 +28,10 @@ use crate::{
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     eips::BlockId,
-    primitives::{Address as AlloyAddress, Bytes},
+    hex,
+    primitives::{Address as AlloyAddress, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::TransactionReceipt,
+    rpc::types::{TransactionReceipt, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -52,6 +53,7 @@ use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use serde::Serialize;
+use std::collections::HashMap;
 
 pub mod events;
 
@@ -312,7 +314,7 @@ impl Router {
         signatures: Vec<ContractSignature>,
     ) -> Result<PendingTransactionBuilder<AlloyEthereum>> {
         let builder = self.instance.commitBatch(
-            commitment.into(),
+            commitment.clone().into(),
             SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
@@ -320,7 +322,50 @@ impl Router {
                 .collect(),
         );
 
-        let gas_limit = Self::HUGE_GAS_LIMIT;
+        let mut state_diff = HashMap::default();
+        state_diff.insert(
+            // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
+            fixed_bytes!("e3d827fd4fed52666d49a0df00f9cc2ac79f0f2378fc627e62463164801b6500"),
+            // router.reserved = 1
+            fixed_bytes!("0000000000000000000000000000000000000000000000000000000000000001"),
+        );
+
+        let mut state = HashMap::default();
+        state.insert(
+            *self.instance.address(),
+            AccountOverride {
+                state_diff: Some(state_diff),
+                ..Default::default()
+            },
+        );
+
+        let estimate_gas_builder = builder.clone().state(state);
+        let calldata = estimate_gas_builder.calldata();
+        let estimated_gas_limit = match estimate_gas_builder.estimate_gas().await {
+            Ok(gas_limit) => gas_limit,
+            Err(err) => {
+                let latest_block = Ethereum::_get_latest_block(self.instance.provider()).await?;
+                let error = if let Some(router_error) =
+                    err.as_decoded_interface_error::<IRouter::IRouterErrors>()
+                {
+                    format!("{router_error:?}")
+                } else if let Some(gear_error) =
+                    err.as_decoded_interface_error::<GearLib::GearErrors>()
+                {
+                    format!("{gear_error:?}")
+                } else if let Some(bytes_error) = err.as_revert_data() {
+                    format!("0x{}", hex::encode(bytes_error))
+                } else {
+                    format!("{err}")
+                };
+                return Err(anyhow!(
+                    "Failed to estimate gas for batch commitment: (error: {error}, block info: {latest_block}, calldata: 0x{}, batch commitment: {commitment:?})",
+                    hex::encode(calldata),
+                ));
+            }
+        };
+        let gas_limit =
+            Self::HUGE_GAS_LIMIT.max(estimated_gas_limit + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
 
         builder.gas(gas_limit).send().await.map_err(Into::into)
     }

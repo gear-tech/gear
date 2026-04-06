@@ -2,7 +2,7 @@ use crate::{abi::deploy_send_message_multicall, args::LoadParams, batch::BatchPo
 use alloy::{hex, primitives::Address, providers::Provider};
 use anyhow::{Result, anyhow};
 use args::{Params, parse_cli_params};
-use ethexe_ethereum::{Ethereum, NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE};
+use ethexe_ethereum::{Ethereum, EthereumBuilder};
 use rand::rngs::SmallRng;
 use std::str::FromStr;
 use tokio::task::JoinSet;
@@ -79,15 +79,13 @@ async fn load_node(params: LoadParams) -> Result<()> {
 
     info!("deployer address: 0x{}", hex::encode(deployer_address.0));
 
-    let deployer_api = Ethereum::new(
-        &params.node,
-        router_addr.into(),
-        deployer_signer,
-        deployer_address,
-        NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-        NO_BLOB_GAS_MULTIPLIER,
-    )
-    .await?;
+    let deployer_api = EthereumBuilder::default()
+        .rpc_url(params.node.clone())
+        .router_address(router_addr.into())
+        .signer(deployer_signer.clone())
+        .sender_address(deployer_address)
+        .build()
+        .await?;
 
     let send_message_multicall = deploy_send_message_multicall(&deployer_api).await?;
     info!(
@@ -107,15 +105,13 @@ async fn load_node(params: LoadParams) -> Result<()> {
         let router = router_addr;
 
         init_tasks.spawn(async move {
-            let api = Ethereum::new(
-                &node,
-                router.into(),
-                signer,
-                address,
-                NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-                NO_BLOB_GAS_MULTIPLIER,
-            )
-            .await?;
+            let api = EthereumBuilder::default()
+                .rpc_url(&node)
+                .router_address(router.into())
+                .signer(signer)
+                .sender_address(address)
+                .build()
+                .await?;
             Ok((i, account_index, address, api))
         });
     }
