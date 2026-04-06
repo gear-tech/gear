@@ -185,7 +185,7 @@ impl EthereumBuilder {
         let blob_gas_multiplier = self
             .blob_gas_multiplier
             .unwrap_or(Ethereum::NO_BLOB_GAS_MULTIPLIER);
-        let initialize_addresses = self.initialize_addresses.unwrap_or(false);
+        let initialize_addresses = self.initialize_addresses.unwrap_or(true);
 
         Ethereum::new(
             &rpc_url,
