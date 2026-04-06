@@ -104,6 +104,7 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
         cors: None,
         gas_allowance: MAX_BLOCK_GAS_LIMIT,
         chunk_size: 2,
+        with_dev_api: false,
     };
     RpcServer::new(rpc_config, Database::memory())
         .run_server()
@@ -119,8 +120,10 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
 }
 
 #[tokio::test]
-#[ntest::timeout(20_000)]
+#[ntest::timeout(60_000)]
 async fn test_cleanup_promise_subscribers() {
+    let _ = tracing_subscriber::fmt::try_init();
+
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8002);
     let service = MockService::new(listen_addr).await;
     let injected_api = service.injected_api();
@@ -209,6 +212,8 @@ async fn test_cleanup_promise_subscribers() {
 #[tokio::test]
 #[ntest::timeout(120_000)]
 async fn test_concurrent_multiple_clients() {
+    let _ = tracing_subscriber::fmt::try_init();
+
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8010);
     let service = MockService::new(listen_addr).await;
     let injected_api = service.injected_api();

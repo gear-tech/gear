@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";

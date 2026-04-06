@@ -29,7 +29,7 @@ ROUTER_ADDRESS=$(cat "$BROADCAST_PATH" | jq '.transactions[] | select(.contractN
 WVARA_ADDRESS=$(cat "$BROADCAST_PATH" | jq '.transactions[] | select(.contractName == "WrappedVara") | .contractAddress' | tr -d '"')
 ROUTER_PROXY_ADDRESS=$(cat "$BROADCAST_PATH" |
   jq ".transactions[] | \
-  select(.contractName == \"TransparentUpgradeableProxy\") | \
+  select(.contractName == \"ERC1967Proxy\") | \
   select(.transactionType == \"CREATE\") | \
   select(.arguments[] | ascii_downcase | contains(\"${ROUTER_ADDRESS}\")) | \
   .contractAddress" |
@@ -38,7 +38,7 @@ ROUTER_PROXY_ADDRESS=$(cat "$BROADCAST_PATH" |
 )
 WVARA_PROXY_ADDRESS=$(cat "$BROADCAST_PATH" |
   jq ".transactions[] | \
-  select(.contractName == \"TransparentUpgradeableProxy\") | \
+  select(.contractName == \"ERC1967Proxy\") | \
   select(.transactionType == \"CREATE\") | \
   select(.arguments[] | ascii_downcase | contains(\"${WVARA_ADDRESS}\")) | \
   .contractAddress" |

@@ -19,18 +19,17 @@
 use crate::{
     ProcessorError, Result,
     handling::run::{
-        self, RunContext,
+        self, CommonRunContext, RunContext,
         chunks_splitting::{ActorStateHashWithQueueSize, ExecutionChunks},
     },
     host::InstanceCreator,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{db::CodesStorageRO, gear::MessageType};
-use ethexe_db::{CASDatabase, Database};
+use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType};
+use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
-    gas::GasAllowanceCounter,
     message::ReplyDetails,
 };
 use gprimitives::{ActorId, MessageId};
@@ -43,11 +42,7 @@ use std::collections::HashSet;
 /// The nullification is an optimization for RPC overlay mode execution of the target dispatch.
 /// It allows not to empty unnecessary queues processing of not concerned programs.
 pub(crate) struct OverlaidRunContext {
-    db: Database,
-    transitions: InBlockTransitions,
-    gas_allowance_counter: GasAllowanceCounter,
-    chunk_size: usize,
-    instance_creator: InstanceCreator,
+    inner: CommonRunContext,
     base_program: ActorId,
     nullified_queue_programs: HashSet<ActorId>,
 }
@@ -60,6 +55,7 @@ impl OverlaidRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         instance_creator: InstanceCreator,
+        block_header: BlockHeader,
     ) -> Self {
         let mut transition_controller = TransitionController {
             transitions: &mut transitions,
@@ -81,19 +77,23 @@ impl OverlaidRunContext {
         });
 
         Self {
-            db,
-            transitions,
-            gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
-            chunk_size,
-            instance_creator,
+            inner: CommonRunContext::new(
+                db,
+                instance_creator,
+                transitions,
+                gas_allowance,
+                chunk_size,
+                block_header,
+                None,
+            ),
             base_program,
             nullified_queue_programs: [base_program].into_iter().collect(),
         }
     }
 
     pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
-        let _ = run::run_for_queue_type(&mut self, MessageType::Canonical).await?;
-        Ok(self.transitions)
+        run::run_for_queue_type(&mut self, MessageType::Canonical).await?;
+        Ok(self.inner.transitions)
     }
 
     /// Nullifies queues of dispatches receivers in case there is no reply to the base message.
@@ -152,11 +152,11 @@ impl OverlaidRunContext {
 
         log::debug!("Nullifying queue for program {program_id}");
         let mut transition_controller = TransitionController {
-            transitions: &mut self.transitions,
-            storage: &self.db,
+            transitions: &mut self.inner.transitions,
+            storage: &self.inner.db,
         };
         transition_controller.update_state(program_id, |state, _, _| {
-            state.canonical_queue.modify_queue(&self.db, |queue| {
+            state.canonical_queue.modify_queue(&self.inner.db, |queue| {
                 log::debug!("Queue state before nullification - {:#?}", queue);
                 queue.clear();
                 log::debug!("Queue state after nullification - {:#?}", queue);
@@ -170,39 +170,26 @@ impl OverlaidRunContext {
 }
 
 impl RunContext for OverlaidRunContext {
-    fn instance_creator(&self) -> &InstanceCreator {
-        &self.instance_creator
+    fn inner(&self) -> &CommonRunContext {
+        &self.inner
     }
 
-    fn chunk_size(&self) -> usize {
-        self.chunk_size
+    fn inner_mut(&mut self) -> &mut CommonRunContext {
+        &mut self.inner
     }
 
     fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
         let code_id = self
+            .inner
             .db
             .program_code_id(program_id)
             .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))?;
 
-        run::instrumented_code_and_metadata(&self.db, code_id)
-    }
-
-    fn borrow_inner(
-        &mut self,
-    ) -> (
-        &dyn CASDatabase,
-        &mut InBlockTransitions,
-        &mut GasAllowanceCounter,
-    ) {
-        (
-            self.db.cas(),
-            &mut self.transitions,
-            &mut self.gas_allowance_counter,
-        )
+        run::instrumented_code_and_metadata(&self.inner.db, code_id)
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
-        run::states(&self.transitions, processing_queue_type)
+        run::states(&self.inner.transitions, processing_queue_type)
     }
 
     fn handle_chunk_data(

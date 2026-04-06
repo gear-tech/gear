@@ -39,6 +39,7 @@ rand = { workspace = true, default-features = false, features = [
     "std",
     "std_rng",
 ], optional = true }
+scale-info = { workspace = true, features = ["derive"], optional = true }
 schnorrkel = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive", "alloc"], optional = true }
 serde_json = { workspace = true, features = ["std"], optional = true }
@@ -101,7 +102,7 @@ secp256k1 = [
 sr25519 = ["dep:sp-core", "dep:schnorrkel", "dep:nacl", "serde"]
 ed25519 = ["dep:sp-core", "serde"]
 cli = ["std", "clap", "colored", "dep:tracing-subscriber", "keyring"]
-codec = ["dep:parity-scale-codec"]
+codec = ["dep:parity-scale-codec", "dep:scale-info"]
 keyring = ["std", "serde", "dep:nacl"]
 serde = ["dep:serde"]
 peer-id = ["dep:libp2p-identity"]

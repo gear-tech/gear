@@ -16,10 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::wasm::interface::promise_ri;
+
 use super::interface::database_ri;
 use alloc::vec::Vec;
-use core_processor::configs::BlockInfo;
-use ethexe_common::HashOf;
+use ethexe_common::{HashOf, injected::Promise};
 use ethexe_runtime_common::{
     RuntimeInterface,
     state::{
@@ -32,9 +33,9 @@ use gear_lazy_pages_interface::{LazyPagesInterface, LazyPagesRuntimeInterface};
 use gprimitives::H256;
 
 #[derive(Debug, Clone)]
-pub struct RuntimeInterfaceStorage;
+pub struct NativeRuntimeInterface;
 
-impl Storage for RuntimeInterfaceStorage {
+impl Storage for NativeRuntimeInterface {
     fn program_state(&self, hash: H256) -> Option<ProgramState> {
         if hash.is_zero() {
             Some(ProgramState::zero())
@@ -136,18 +137,8 @@ impl Storage for RuntimeInterfaceStorage {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct NativeRuntimeInterface {
-    pub(crate) block_info: BlockInfo,
-    pub(crate) storage: RuntimeInterfaceStorage,
-}
-
-impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
+impl RuntimeInterface for NativeRuntimeInterface {
     type LazyPages = LazyPagesRuntimeInterface;
-
-    fn block_info(&self) -> BlockInfo {
-        self.block_info
-    }
 
     fn init_lazy_pages(&self) {
         assert!(Self::LazyPages::try_to_enable_lazy_pages(Default::default()))
@@ -158,11 +149,11 @@ impl RuntimeInterface<RuntimeInterfaceStorage> for NativeRuntimeInterface {
         Default::default()
     }
 
-    fn storage(&self) -> &RuntimeInterfaceStorage {
-        &self.storage
-    }
-
     fn update_state_hash(&self, hash: &H256) {
         database_ri::update_state_hash(hash);
+    }
+
+    fn publish_promise(&self, promise: &Promise) {
+        promise_ri::publish_promise(promise);
     }
 }

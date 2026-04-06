@@ -36,7 +36,6 @@ use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
 use ethexe_network::{NetworkEvent, NetworkInjectedEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
-use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
 use futures::{Stream, StreamExt, future::Either, stream, stream::FusedStream};
 use gprimitives::H256;
@@ -66,10 +65,11 @@ impl TestingNetworkInjectedEvent {
     fn new(event: &NetworkInjectedEvent) -> Self {
         match event {
             NetworkInjectedEvent::InboundTransaction {
+                peer: _,
                 transaction,
                 channel: _,
             } => Self::InboundTransaction {
-                transaction: transaction.clone(),
+                transaction: SignedInjectedTransaction::clone(transaction),
             },
             NetworkInjectedEvent::OutboundAcceptance {
                 transaction_hash,
@@ -141,8 +141,8 @@ pub enum TestingEvent {
     Network(TestingNetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
-    Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
+    Prometheus,
     Fetching,
 }
 
@@ -154,8 +154,8 @@ impl TestingEvent {
             Event::Network(event) => Self::Network(TestingNetworkEvent::new(event)),
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
-            Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
+            Event::Prometheus(_event) => Self::Prometheus,
             Event::Fetching(_) => Self::Fetching,
         }
     }
@@ -277,8 +277,8 @@ impl TestingEventReceiver {
         let id = id.into();
         log::info!("📗 waiting for announce computed: {id:?}");
         self.find_announce(id, |event| {
-            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(computed_data)) = event {
-                Some(computed_data.announce_hash)
+            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(announce_hash)) = event {
+                Some(announce_hash)
             } else {
                 None
             }

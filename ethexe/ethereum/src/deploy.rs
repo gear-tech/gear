@@ -17,15 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyProvider, Ethereum, TryGetReceipt,
+    AlloyProvider, Ethereum, NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+    TryGetReceipt,
     abi::{
+        IERC1967Proxy,
         IMiddleware::{
             self, IMiddlewareInstance, InitParams as MiddlewareInitParams,
             initializeCall as MiddlewareInitializeCall,
         },
         IMirror,
         IRouter::{self, IRouterInstance, initializeCall as RouterInitializeCall},
-        ITransparentUpgradeableProxy,
         IWrappedVara::{self, IWrappedVaraInstance, initializeCall as WrappedVaraInitializeCall},
         middleware_abi::Gear::SymbioticContracts,
         symbiotic_abi::*,
@@ -102,7 +103,14 @@ impl Default for ContractsDeploymentParams {
 impl EthereumDeployer {
     /// Creates a new deployer from necessary arguments.
     pub async fn new(rpc: &str, signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
-        let provider = create_provider(rpc, signer, sender_address).await?;
+        let provider = create_provider(
+            rpc,
+            signer,
+            sender_address,
+            NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            NO_BLOB_GAS_MULTIPLIER,
+        )
+        .await?;
         Ok(EthereumDeployer {
             provider,
             validators: nonempty::nonempty![LocalAddress([1u8; 20])].into(),
@@ -213,10 +221,9 @@ where
     P: Provider + Clone,
 {
     let wrapped_vara_impl = IWrappedVara::deploy(provider.clone()).await?;
-    let proxy = ITransparentUpgradeableProxy::deploy(
+    let proxy = IERC1967Proxy::deploy(
         provider.clone(),
         *wrapped_vara_impl.address(),
-        deployer,
         Bytes::copy_from_slice(
             &WrappedVaraInitializeCall {
                 initialOwner: deployer,
@@ -283,10 +290,9 @@ where
     };
 
     let router_impl = IRouter::deploy(provider.clone()).await?;
-    let proxy = ITransparentUpgradeableProxy::deploy(
+    let proxy = IERC1967Proxy::deploy(
         provider.clone(),
         *router_impl.address(),
-        deployer,
         Bytes::copy_from_slice(
             &RouterInitializeCall {
                 _owner: deployer,
@@ -410,10 +416,9 @@ where
         symbiotic,
     };
 
-    let proxy = ITransparentUpgradeableProxy::deploy(
+    let proxy = IERC1967Proxy::deploy(
         provider.clone(),
         *middleware_impl.address(),
-        deployer,
         Bytes::copy_from_slice(
             &MiddlewareInitializeCall {
                 _params: (middleware_init_params),

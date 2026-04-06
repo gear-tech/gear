@@ -132,6 +132,10 @@ impl IntegrityVerifier {
             Err(self.errors)
         }
     }
+
+    pub fn into_errors(self) -> Vec<IntegrityVerifierError> {
+        self.errors
+    }
 }
 
 impl DatabaseVisitor for IntegrityVerifier {

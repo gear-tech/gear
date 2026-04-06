@@ -19,20 +19,18 @@
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
 use core::fmt;
-use ethexe_common::{HashOf, SimpleBlockData};
+use ethexe_common::{HashOf, injected::Promise};
 use ethexe_db::CASDatabase;
-use ethexe_runtime_common::{
-    BlockInfo,
-    state::{
-        ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState,
-        QueryableStorage, RegionIdx, Storage,
-    },
+use ethexe_runtime_common::state::{
+    ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState, QueryableStorage,
+    RegionIdx, Storage,
 };
 use gear_core::{ids::ActorId, memory::PageBuf, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};
 use std::{cell::RefCell, collections::BTreeMap};
+use tokio::sync::mpsc;
 
 const UNSET_PANIC: &str = "params should be set before query";
 const UNKNOWN_STATE: &str = "state should always be valid (must exist)";
@@ -43,8 +41,8 @@ thread_local! {
 
 pub struct ThreadParams {
     pub db: Box<dyn CASDatabase>,
-    pub block_info: BlockInfo,
     pub state_hash: H256,
+    pub promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
@@ -106,14 +104,15 @@ impl PageKey {
     }
 }
 
-pub fn set(db: Box<dyn CASDatabase>, chain_head: SimpleBlockData, state_hash: H256) {
+pub fn set(
+    db: Box<dyn CASDatabase>,
+    state_hash: H256,
+    promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+) {
     PARAMS.set(Some(ThreadParams {
         db,
-        block_info: BlockInfo {
-            height: chain_head.header.height,
-            timestamp: chain_head.header.timestamp,
-        },
         state_hash,
+        promise_out_tx,
         pages_registry_cache: None,
         pages_regions_cache: None,
     }))
@@ -137,19 +136,18 @@ pub fn with_db<T>(f: impl FnOnce(&dyn CASDatabase) -> T) -> T {
     })
 }
 
-pub fn chain_head_info() -> BlockInfo {
-    PARAMS.with_borrow(|v| {
-        let params = v.as_ref().expect(UNSET_PANIC);
-
-        params.block_info
-    })
-}
-
 pub fn with_params<T>(f: impl FnOnce(&mut ThreadParams) -> T) -> T {
     PARAMS.with_borrow_mut(|v| {
         let params = v.as_mut().expect(UNSET_PANIC);
 
         f(params)
+    })
+}
+
+pub fn clear_promise_out_tx() {
+    PARAMS.with_borrow_mut(|maybe_params| {
+        let params = maybe_params.as_mut().expect(UNSET_PANIC);
+        let _ = params.promise_out_tx.take();
     })
 }
 

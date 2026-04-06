@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
-import {IRouter} from "../IRouter.sol";
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {TransientSlot} from "@openzeppelin/contracts/utils/TransientSlot.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
+import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
+import {IRouter} from "src/IRouter.sol";
 
 library Gear {
     using ECDSA for bytes32;
@@ -236,6 +237,39 @@ library Gear {
         ECDSA
     }
 
+    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head) internal pure returns (bytes32) {
+        return Hashes.efficientKeccak256AsBytes32(_transitionsHash, _head);
+    }
+
+    function codeCommitmentHash(bytes32 codeId, bool valid) internal pure returns (bytes32) {
+        bytes32 _codeCommitmentHash;
+        assembly ("memory-safe") {
+            mstore(0x00, codeId)
+            mstore8(0x20, valid)
+            _codeCommitmentHash := keccak256(0x00, 0x21)
+        }
+        return _codeCommitmentHash;
+    }
+
+    function rewardsCommitmentHash(bytes32 _operatorRewardsHash, bytes32 _stakerRewardsHash, uint48 _timestamp)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_operatorRewardsHash, _stakerRewardsHash, _timestamp));
+    }
+
+    function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                commitment.aggregatedPublicKey.x,
+                commitment.aggregatedPublicKey.y,
+                commitment.validators,
+                commitment.eraIndex
+            )
+        );
+    }
+
     function batchCommitmentHash(
         bytes32 _block,
         uint48 _timestamp,
@@ -260,48 +294,6 @@ library Gear {
         );
     }
 
-    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_transitionsHash, _head));
-    }
-
-    function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                commitment.aggregatedPublicKey.x,
-                commitment.aggregatedPublicKey.y,
-                commitment.validators,
-                commitment.eraIndex
-            )
-        );
-    }
-
-    function blockIsPredecessor(bytes32 hash, uint8 expiry) internal view returns (bool) {
-        uint256 start = block.number - 1;
-        uint256 end = expiry >= block.number ? 0 : block.number - expiry;
-        for (uint256 i = start; i >= end;) {
-            bytes32 ret = blockhash(i);
-            if (ret == hash) {
-                return true;
-            } else if (ret == 0) {
-                break;
-            }
-
-            unchecked {
-                i--;
-            }
-        }
-
-        return false;
-    }
-
-    function codeCommitmentHash(CodeCommitment memory codeCommitment) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(codeCommitment.id, codeCommitment.valid));
-    }
-
-    function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
-        return ComputationSettings({threshold: COMPUTATION_THRESHOLD, wvaraPerSecond: WVARA_PER_SECOND});
-    }
-
     function messageHash(Message memory message) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
@@ -316,8 +308,8 @@ library Gear {
         );
     }
 
-    function newGenesis() internal view returns (GenesisBlockInfo memory) {
-        return GenesisBlockInfo({hash: bytes32(0), number: uint32(block.number), timestamp: uint48(block.timestamp)});
+    function valueClaimHash(bytes32 _messageId, address _destination, uint128 _value) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_messageId, _destination, _value));
     }
 
     function stateTransitionHash(
@@ -342,6 +334,33 @@ library Gear {
                 messagesHashesHash
             )
         );
+    }
+
+    function blockIsPredecessor(bytes32 hash, uint8 expiry) internal view returns (bool) {
+        uint256 start = block.number - 1;
+        uint256 end = expiry >= block.number ? 0 : block.number - expiry;
+        for (uint256 i = start; i >= end;) {
+            bytes32 ret = blockhash(i);
+            if (ret == hash) {
+                return true;
+            } else if (ret == 0) {
+                break;
+            }
+
+            unchecked {
+                i--;
+            }
+        }
+
+        return false;
+    }
+
+    function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
+        return ComputationSettings({threshold: COMPUTATION_THRESHOLD, wvaraPerSecond: WVARA_PER_SECOND});
+    }
+
+    function newGenesis() internal view returns (GenesisBlockInfo memory) {
+        return GenesisBlockInfo({hash: bytes32(0), number: uint32(block.number), timestamp: uint48(block.timestamp)});
     }
 
     /// @dev Validates signatures of the given data hash.
@@ -512,10 +531,6 @@ library Gear {
         unchecked {
             return (r > 0) ? d + 1 : d;
         }
-    }
-
-    function valueClaimBytes(ValueClaim memory claim) internal pure returns (bytes memory) {
-        return abi.encodePacked(claim.messageId, claim.destination, claim.value);
     }
 
     function eraIndexAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {

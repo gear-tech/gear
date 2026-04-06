@@ -22,8 +22,8 @@ use core::num::NonZero;
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
     ecdsa::VerifiedData,
-    events::{BlockRequestEvent, MirrorRequestEvent},
-    injected::InjectedTransaction,
+    events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
+    injected::{InjectedTransaction, Promise},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -38,6 +38,7 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
+use tokio::sync::mpsc;
 
 pub use host::InstanceError;
 
@@ -175,6 +176,7 @@ impl Processor {
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!("{executable}");
 
@@ -187,30 +189,27 @@ impl Processor {
             events,
         } = executable;
 
-        let injected_messages = injected_transactions
-            .iter()
-            .map(|tx| tx.data().to_message_id());
+        let mut transitions =
+            InBlockTransitions::new(block.header.height, program_states, schedule);
 
-        let mut transitions = InBlockTransitions::new(
-            block.header.height,
-            program_states,
-            schedule,
-            injected_messages,
-        );
-
+        // First step: push injected to queues and handle block events.
         transitions =
-            self.process_injected_and_events(transitions, injected_transactions, events)?;
+            self.handle_injected_and_events(transitions, injected_transactions, events)?;
+
+        // Second step: process scheduled tasks.
+        transitions = self.process_tasks(transitions);
+
+        // Third step: process queues until limits are exhausted or all queues are empty.
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance)
+                .process_queues(transitions, block, gas_allowance, promise_out_tx)
                 .await?;
         }
-        transitions = self.process_tasks(transitions);
 
         Ok(transitions.finalize())
     }
 
-    fn process_injected_and_events(
+    fn handle_injected_and_events(
         &mut self,
         transitions: InBlockTransitions,
         injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
@@ -243,15 +242,16 @@ impl Processor {
         transitions: InBlockTransitions,
         block: SimpleBlockData,
         gas_allowance: u64,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<InBlockTransitions> {
-        self.creator.set_chain_head(block);
-
         CommonRunContext::new(
             self.db.clone(),
             self.creator.clone(),
             transitions,
             gas_allowance,
             self.config.chunk_size,
+            block.header,
+            promise_out_tx,
         )
         .run()
         .await
@@ -278,11 +278,13 @@ impl Processor {
     }
 }
 
+#[derive(Clone, Default)]
 pub struct ProcessedCodeInfo {
     pub code_id: CodeId,
     pub valid: Option<ValidCodeInfo>,
 }
 
+#[derive(Clone)]
 pub struct ValidCodeInfo {
     pub code: Vec<u8>,
     pub instrumented_code: InstrumentedCode,
@@ -291,10 +293,10 @@ pub struct ValidCodeInfo {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "Programs processing at {block:?},
-        injected: {injected_transactions:?},
-        events: {events:?},
-        gas_allowance: {gas_allowance:?}"
+    "{block}, programs amount: {}, schedule len: {}, gas_allowance: {gas_allowance:?},
+    injected: {injected_transactions:?},
+    events: {events:?}",
+    program_states.len(), schedule.len(),
 )]
 pub struct ExecutableData {
     pub block: SimpleBlockData,
@@ -321,13 +323,9 @@ impl Default for ExecutableData {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "Execution for reply at {block:?}:
-        block: {block:?},
-        program_id: {program_id},
-        source: {source},
-        payload len: {},
-        value: {value},
-        gas_allowance: {gas_allowance}", payload.len()
+    "Execution for reply at {block:?}: block: {block:?}, \
+    program_id: {program_id}, source: {source}, payload len: {}, \
+    value: {value}, gas_allowance: {gas_allowance}", payload.len()
 )]
 pub struct ExecutableDataForReply {
     pub block: SimpleBlockData,
@@ -339,7 +337,7 @@ pub struct ExecutableDataForReply {
     pub gas_allowance: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, derive_more::AsRef, derive_more::AsMut)]
 pub struct OverlaidProcessor(Processor);
 
 impl OverlaidProcessor {
@@ -359,8 +357,6 @@ impl OverlaidProcessor {
             gas_allowance,
         } = executable;
 
-        self.0.creator.set_chain_head(block);
-
         let state_hash = program_states
             .get(&program_id)
             .ok_or(ExecuteForReplyError::ProgramStateHashNotFound(program_id))?
@@ -376,25 +372,23 @@ impl OverlaidProcessor {
             return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
-        let transitions = InBlockTransitions::new(
-            block.header.height,
-            program_states,
-            Schedule::default(),
-            vec![],
-        );
+        let transitions =
+            InBlockTransitions::new(block.header.height, program_states, Schedule::default());
 
-        let transitions = self.0.process_injected_and_events(
+        let transitions = self.0.handle_injected_and_events(
             transitions,
             vec![],
             vec![BlockRequestEvent::Mirror {
                 actor_id: program_id,
-                event: MirrorRequestEvent::MessageQueueingRequested {
-                    id: MessageId::zero(),
-                    source,
-                    payload: payload.clone(),
-                    value,
-                    call_reply: true,
-                },
+                event: MirrorRequestEvent::MessageQueueingRequested(
+                    MessageQueueingRequestedEvent {
+                        id: MessageId::zero(),
+                        source,
+                        payload: payload.clone(),
+                        value,
+                        call_reply: true,
+                    },
+                ),
             }],
         )?;
 
@@ -405,6 +399,7 @@ impl OverlaidProcessor {
             gas_allowance,
             self.0.config.chunk_size,
             self.0.creator.clone(),
+            block.header,
         )
         .run()
         .await?;

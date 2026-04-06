@@ -20,8 +20,8 @@ use crate::{IWrappedVara, decode_log, wvara::WVaraQuery};
 use alloy::{
     contract::Event,
     primitives::{Address as AlloyAddress, B256},
-    providers::RootProvider,
-    rpc::types::eth::Log,
+    providers::{Provider, RootProvider},
+    rpc::types::{Filter, Log, Topic},
     sol_types::{Error, SolEvent},
 };
 use anyhow::Result;
@@ -59,6 +59,33 @@ pub fn try_extract_event(log: &Log) -> Result<Option<WVaraEvent>> {
     };
 
     Ok(Some(event))
+}
+
+pub struct AllEventsBuilder<'a> {
+    query: &'a WVaraQuery,
+}
+
+impl<'a> AllEventsBuilder<'a> {
+    pub(crate) fn new(query: &'a WVaraQuery) -> Self {
+        Self { query }
+    }
+
+    pub async fn subscribe(self) -> Result<impl Stream<Item = Result<WVaraEvent>> + Unpin + use<>> {
+        let filter = Filter::new()
+            .address(*self.query.0.address())
+            .event_signature(Topic::from_iter([
+                signatures::TRANSFER,
+                signatures::APPROVAL,
+            ]));
+        Ok(self
+            .query
+            .0
+            .provider()
+            .subscribe_logs(&filter)
+            .await?
+            .into_stream()
+            .map(|log| try_extract_event(&log).transpose().expect("infallible")))
+    }
 }
 
 pub struct TransferEventBuilder<'a> {

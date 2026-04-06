@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.33;
+
+import {Script} from "forge-std/Script.sol";
+import {Router} from "src/Router.sol";
+
+contract UnpauseScript is Script {
+    function setUp() public {}
+
+    function run() public {
+        uint256 privateKey = vm.envUint("PRIVATE_KEY");
+        address routerAddress = vm.envAddress("ROUTER_ADDRESS");
+
+        vm.startBroadcast(privateKey);
+
+        Router(payable(routerAddress)).unpause();
+
+        vm.stopBroadcast();
+    }
+}

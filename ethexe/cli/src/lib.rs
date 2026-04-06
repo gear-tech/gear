@@ -21,6 +21,7 @@ use clap::Parser;
 use commands::Command;
 use params::Params;
 use std::path::PathBuf;
+use tracing_subscriber::EnvFilter;
 
 mod commands;
 mod params;
@@ -82,4 +83,17 @@ impl Cli {
             }
         })
     }
+}
+
+fn enable_logging(logging_level_name: &str) -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(logging_level_name.parse()?)
+                .from_env_lossy()
+                .add_directive("wasmtime_cranelift=off".parse()?)
+                .add_directive("cranelift=off".parse()?),
+        )
+        .try_init()
+        .map_err(|e| anyhow::anyhow!("failed to initialize logger: {e}"))
 }

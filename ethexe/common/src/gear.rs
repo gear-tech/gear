@@ -25,6 +25,7 @@ use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyRea
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 use roast_secp256k1_evm::frost::keys::VerifiableSecretSharingCommitment;
+use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 // TODO: support query from router.
@@ -296,7 +297,7 @@ pub struct ComputationSettings {
     pub wvara_per_second: u128,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Message {
     pub id: MessageId,
@@ -357,7 +358,7 @@ pub struct ProtocolData {
     pub validated_codes_count: U256,
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct StateTransition {
     pub actor_id: ActorId,
@@ -368,7 +369,7 @@ pub struct StateTransition {
     /// and each zero byte costs 4 gas (see <https://evm.codes/about#gascosts>).
     ///
     /// Negative numbers will be stored like this:
-    /// ```
+    /// ```bash
     /// $ cast
     /// > -1 ether
     /// Type: int256
@@ -402,19 +403,12 @@ impl ToDigest for StateTransition {
         hasher.update(inheritor.to_address_lossy());
         hasher.update(value_to_receive.to_be_bytes());
         hasher.update([*value_to_receive_negative_sign as u8]);
-        // Match router's hashing strategy: keccak256 of concatenated value-claim bytes.
-        hasher.update({
-            let mut hasher = sha3::Keccak256::new();
-            value_claims
-                .iter()
-                .for_each(|claim| claim.update_hasher(&mut hasher));
-            hasher.finalize()
-        });
+        hasher.update(value_claims.to_digest());
         hasher.update(messages.to_digest());
     }
 }
 
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueClaim {
     pub message_id: MessageId,
@@ -436,10 +430,30 @@ impl ToDigest for ValueClaim {
     }
 }
 
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Encode,
+    Decode,
+    PartialEq,
+    Eq,
+    Default,
+    PartialOrd,
+    Ord,
+    Hash,
+    derive_more::IsVariant,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MessageType {
     #[default]
     Canonical,
     Injected,
+}
+
+#[derive(Debug)]
+pub struct GenesisBlockInfo {
+    pub hash: H256,
+    pub number: u32,
+    pub timestamp: u64,
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -10,13 +10,15 @@ import {
 import {
     ERC20PermitUpgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 contract WrappedVara is
     Initializable,
     ERC20Upgradeable,
     ERC20BurnableUpgradeable,
     OwnableUpgradeable,
-    ERC20PermitUpgradeable
+    ERC20PermitUpgradeable,
+    UUPSUpgradeable
 {
     string private constant TOKEN_NAME = "Wrapped Vara";
     string private constant TOKEN_SYMBOL = "WVARA";
@@ -43,6 +45,12 @@ contract WrappedVara is
         __Ownable_init(owner());
         __ERC20Permit_init(TOKEN_NAME);
     }
+
+    /**
+     * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract.
+     *      Called by {upgradeToAndCall}.
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     function decimals() public pure override returns (uint8) {
         return 12;

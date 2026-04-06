@@ -21,7 +21,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::OnChainStorageRW, ecdsa::ContractSignature,
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::*, ecdsa::ContractSignature,
     gear::BatchCommitment, mock::*,
 };
 use hashbrown::HashMap;
@@ -143,11 +143,16 @@ impl WaitFor for ValidatorState {
     }
 }
 
+// TODO: #5138 restructure - pass db as parameter
 pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
     let ethereum = MockEthereum::default();
     let db = Database::memory();
     let timelines = ProtocolTimelines::mock(());
+
+    let limits = BatchLimits::default();
+    let middleware = MiddlewareWrapper::from_inner(ethereum.clone());
+    let batch_manager = BatchCommitmentManager::new(limits, db.clone(), middleware);
 
     let ctx = ValidatorContext {
         core: ValidatorCore {
@@ -160,8 +165,9 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             signer,
             db: db.clone(),
             committer: Box::new(ethereum.clone()),
-            middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
+            batch_manager,
             injected_pool: InjectedTxPool::new(db.clone()),
+            metrics: ValidatorMetrics::default(),
             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             producer_delay: Duration::from_millis(1),
@@ -171,7 +177,10 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         tasks: Default::default(),
     };
 
-    ctx.core.db.set_protocol_timelines(timelines);
+    ctx.core.db.set_config(DBConfig {
+        timelines,
+        ..DBConfig::mock(())
+    });
 
     (ctx, keys, ethereum)
 }

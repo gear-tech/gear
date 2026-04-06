@@ -18,17 +18,24 @@
 
 use crate::db_sync::PeerId;
 use async_trait::async_trait;
+use ip_network::IpNetwork;
 use libp2p::{
-    StreamProtocol,
+    Multiaddr, StreamProtocol,
     futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    request_response,
-    swarm::ConnectionId,
+    multiaddr, request_response,
+    swarm::{
+        ConnectionClosed, ConnectionId, DialError, DialFailure, FromSwarm, NewExternalAddrOfPeer,
+        behaviour::ConnectionEstablished,
+    },
 };
+use lru::LruCache;
 use parity_scale_codec::{Decode, DecodeAll, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
+    convert::Infallible,
     fmt, io,
     marker::PhantomData,
+    num::NonZeroUsize,
     pin::Pin,
     task::{Context, Poll, ready},
     time::Duration,
@@ -125,31 +132,57 @@ impl<Req, Resp> Clone for ParityScaleCodec<Req, Resp> {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-pub(crate) struct ConnectionMap {
-    inner: HashMap<PeerId, HashSet<ConnectionId>>,
-    limit: Option<u32>,
+pub(crate) trait MultiaddrExt {
+    fn is_global(&self) -> bool;
 }
 
-impl ConnectionMap {
-    pub(crate) fn new(limit: Option<u32>) -> Self {
-        Self {
-            inner: Default::default(),
-            limit,
-        }
+impl MultiaddrExt for Multiaddr {
+    fn is_global(&self) -> bool {
+        // we use `ip_network` crate instead of std method because it's unstable
+        self.iter().all(|protocol| match protocol {
+            multiaddr::Protocol::Ip4(ip) => IpNetwork::from(ip).is_global(),
+            multiaddr::Protocol::Ip6(ip) => IpNetwork::from(ip).is_global(),
+            _ => true,
+        })
+    }
+}
+
+pub(crate) trait ConnectionMapLimit {
+    type Error;
+
+    fn check_limit(
+        &self,
+        connections: &HashMap<PeerId, HashSet<ConnectionId>>,
+        peer_id: PeerId,
+    ) -> Result<(), Self::Error>;
+}
+
+pub(crate) struct NoLimits;
+
+impl ConnectionMapLimit for NoLimits {
+    type Error = Infallible;
+
+    fn check_limit(
+        &self,
+        _connections: &HashMap<PeerId, HashSet<ConnectionId>>,
+        _peer_id: PeerId,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ConnectionMap<T> {
+    inner: HashMap<PeerId, HashSet<ConnectionId>>,
+    limit: T,
+}
+
+impl<T: ConnectionMapLimit> ConnectionMap<T> {
+    pub fn contains_peer(&self, peer_id: &PeerId) -> bool {
+        self.inner.contains_key(peer_id)
     }
 
-    fn check_limit(&self, peer_id: PeerId) -> Result<(), u32> {
-        let current = self
-            .inner
-            .get(&peer_id)
-            .map(|connections| connections.len())
-            .unwrap_or(0) as u32;
-        let limit = self.limit.unwrap_or(u32::MAX);
-        if current < limit { Ok(()) } else { Err(limit) }
-    }
-
-    pub fn peers(&self) -> impl Iterator<Item = PeerId> {
+    pub fn peers(&self) -> impl ExactSizeIterator<Item = PeerId> {
         self.inner.keys().copied()
     }
 
@@ -157,10 +190,10 @@ impl ConnectionMap {
         &mut self,
         peer_id: PeerId,
         connection_id: ConnectionId,
-    ) -> Result<(), u32> {
-        self.check_limit(peer_id)?;
-        self.inner.entry(peer_id).or_default().insert(connection_id);
-        Ok(())
+    ) -> Result<bool, T::Error> {
+        self.limit.check_limit(&self.inner, peer_id)?;
+        let new = self.inner.entry(peer_id).or_default().insert(connection_id);
+        Ok(new)
     }
 
     pub(crate) fn remove_connection(&mut self, peer_id: PeerId, connection_id: ConnectionId) {
@@ -171,6 +204,38 @@ impl ConnectionMap {
             if connections.is_empty() {
                 entry.remove();
             }
+        }
+    }
+}
+
+impl ConnectionMap<NoLimits> {
+    pub(crate) fn without_limits() -> Self {
+        Self {
+            inner: Default::default(),
+            limit: NoLimits,
+        }
+    }
+
+    /// Returns true if a new connection added
+    pub(crate) fn on_swarm_event(&mut self, event: FromSwarm) -> bool {
+        match event {
+            FromSwarm::ConnectionEstablished(ConnectionEstablished {
+                peer_id,
+                connection_id,
+                ..
+            }) => {
+                let Ok(new) = self.add_connection(peer_id, connection_id);
+                new
+            }
+            FromSwarm::ConnectionClosed(ConnectionClosed {
+                peer_id,
+                connection_id,
+                ..
+            }) => {
+                self.remove_connection(peer_id, connection_id);
+                false
+            }
+            _ => false,
         }
     }
 }
@@ -225,17 +290,17 @@ impl<T: fmt::Debug> fmt::Debug for AlternateCollectionFmt<T> {
 pub struct ExponentialBackoffInterval {
     delay: Pin<Box<time::Sleep>>,
     next_duration: Duration,
+    max: Duration,
 }
 
 impl ExponentialBackoffInterval {
-    pub const START: Duration = Duration::from_secs(2);
     pub const FACTOR: u32 = 2;
-    pub const MAX: Duration = Duration::from_secs(600);
 
-    pub fn new() -> Self {
+    pub fn new(start: Duration, max: Duration) -> Self {
         Self {
-            delay: Box::pin(time::sleep(Self::START)),
-            next_duration: Self::START,
+            delay: Box::pin(time::sleep(start)),
+            next_duration: start,
+            max,
         }
     }
 
@@ -252,16 +317,88 @@ impl ExponentialBackoffInterval {
     }
 
     pub fn tick_at_max(&mut self) {
-        self.reset(Self::MAX);
+        self.reset(self.max);
     }
 
     pub fn poll_tick(&mut self, cx: &mut Context) -> Poll<()> {
         ready!(self.delay.as_mut().poll(cx));
 
-        let new_duration = (self.next_duration * Self::FACTOR).min(Self::MAX);
+        let new_duration = (self.next_duration * Self::FACTOR).min(self.max);
         self.reset(new_duration);
 
         Poll::Ready(())
+    }
+}
+
+/// Literally [`libp2p::swarm::PeerAddresses`], but we can iterate over peers
+#[derive(Debug)]
+pub struct PeerAddresses(LruCache<PeerId, LruCache<Multiaddr, ()>>);
+
+impl PeerAddresses {
+    fn new(number_of_peers: NonZeroUsize) -> Self {
+        Self(LruCache::new(number_of_peers))
+    }
+
+    fn prepare_addr(peer: &PeerId, addr: &Multiaddr) -> Result<Multiaddr, Multiaddr> {
+        addr.clone().with_p2p(*peer)
+    }
+
+    pub fn on_swarm_event(&mut self, event: &FromSwarm) -> bool {
+        match event {
+            FromSwarm::NewExternalAddrOfPeer(NewExternalAddrOfPeer { peer_id, addr }) => {
+                self.add(*peer_id, (*addr).clone())
+            }
+            FromSwarm::DialFailure(DialFailure {
+                peer_id: Some(peer_id),
+                error: DialError::Transport(errors),
+                ..
+            }) => {
+                for (addr, _error) in errors {
+                    self.remove(peer_id, addr);
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn add(&mut self, peer: PeerId, address: Multiaddr) -> bool {
+        match Self::prepare_addr(&peer, &address) {
+            Ok(address) => {
+                if let Some(cached) = self.0.get_mut(&peer) {
+                    cached.put(address, ()).is_none()
+                } else {
+                    let mut set = LruCache::new(NonZeroUsize::new(10).expect("10 > 0"));
+                    set.put(address, ());
+                    self.0.put(peer, set);
+
+                    true
+                }
+            }
+            Err(_) => false,
+        }
+    }
+
+    pub fn remove(&mut self, peer: &PeerId, address: &Multiaddr) -> bool {
+        match self.0.get_mut(peer) {
+            Some(addrs) => match Self::prepare_addr(peer, address) {
+                Ok(address) => addrs.pop(&address).is_some(),
+                Err(_) => false,
+            },
+            None => false,
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&PeerId, impl Iterator<Item = &Multiaddr>)> {
+        self.0
+            .iter()
+            .map(|(peer, set)| (peer, set.iter().map(|(addr, ())| addr)))
+    }
+}
+
+impl Default for PeerAddresses {
+    fn default() -> Self {
+        Self::new(NonZeroUsize::new(100).unwrap())
     }
 }
 
@@ -272,9 +409,12 @@ pub(crate) mod tests {
         utils::{ConnectionMap, ExponentialBackoffInterval},
     };
     use libp2p::swarm::ConnectionId;
-    use std::{collections::HashSet, future};
+    use std::{collections::HashSet, future, time::Duration};
     use tokio::time;
     use tracing_subscriber::EnvFilter;
+
+    const TIMER_START: Duration = Duration::from_secs(1);
+    const TIMER_MAX: Duration = Duration::from_secs(60);
 
     pub fn init_logger() {
         let _ = tracing_subscriber::fmt()
@@ -284,34 +424,8 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn connection_map_limit_works() {
-        const LIMIT: u32 = 5;
-
-        let mut map = ConnectionMap::new(Some(LIMIT));
-
-        let main_peer = PeerId::random();
-
-        for i in 0..LIMIT {
-            map.add_connection(main_peer, ConnectionId::new_unchecked(i as usize))
-                .unwrap();
-        }
-
-        let limit = map
-            .add_connection(main_peer, ConnectionId::new_unchecked(usize::MAX))
-            .unwrap_err();
-        assert_eq!(limit, LIMIT);
-
-        // new peer so no limit exceeded yet
-        map.add_connection(
-            PeerId::random(),
-            ConnectionId::new_unchecked(usize::MAX / 2),
-        )
-        .unwrap();
-    }
-
-    #[test]
     fn connection_map_key_cleared() {
-        let mut map = ConnectionMap::new(None);
+        let mut map = ConnectionMap::without_limits();
 
         let peer_set: HashSet<PeerId> = [
             PeerId::random(),
@@ -348,46 +462,46 @@ pub(crate) mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn interval_smoke() {
-        let mut interval = ExponentialBackoffInterval::new();
+        let mut interval = ExponentialBackoffInterval::new(TIMER_START, TIMER_MAX);
         assert_eq!(
             interval.next_duration,
-            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(0)
+            TIMER_START * ExponentialBackoffInterval::FACTOR.pow(0)
         );
 
         future::poll_fn(|cx| interval.poll_tick(cx)).await;
         assert_eq!(
             interval.next_duration,
-            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(1)
+            TIMER_START * ExponentialBackoffInterval::FACTOR.pow(1)
         );
 
         future::poll_fn(|cx| interval.poll_tick(cx)).await;
         assert_eq!(
             interval.next_duration,
-            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(2)
+            TIMER_START * ExponentialBackoffInterval::FACTOR.pow(2)
         );
 
-        while interval.next_duration != ExponentialBackoffInterval::MAX {
+        while interval.next_duration != TIMER_MAX {
             future::poll_fn(|cx| interval.poll_tick(cx)).await;
         }
 
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(interval.next_duration, TIMER_MAX);
+        assert_eq!(interval.next_duration, TIMER_MAX);
+        assert_eq!(interval.next_duration, TIMER_MAX);
     }
 
     #[tokio::test(start_paused = true)]
     async fn interval_tick_at_max() {
-        let mut interval = ExponentialBackoffInterval::new();
+        let mut interval = ExponentialBackoffInterval::new(TIMER_START, TIMER_MAX);
         interval.tick_at_max();
 
         let instant = time::Instant::now();
 
         future::poll_fn(|cx| interval.poll_tick(cx)).await;
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
-        assert_eq!(instant.elapsed(), ExponentialBackoffInterval::MAX);
+        assert_eq!(interval.next_duration, TIMER_MAX);
+        assert_eq!(instant.elapsed(), TIMER_MAX);
 
         future::poll_fn(|cx| interval.poll_tick(cx)).await;
-        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
-        assert_eq!(instant.elapsed(), ExponentialBackoffInterval::MAX * 2);
+        assert_eq!(interval.next_duration, TIMER_MAX);
+        assert_eq!(instant.elapsed(), TIMER_MAX * 2);
     }
 }

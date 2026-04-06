@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.33;
 
 import {IMiddleware} from "./IMiddleware.sol";
 import {IMirror} from "./IMirror.sol";
@@ -9,16 +9,25 @@ import {ClonesSmall} from "./libraries/ClonesSmall.sol";
 import {Gear} from "./libraries/Gear.sol";
 import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
 
-contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+contract Router is
+    IRouter,
+    OwnableUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardTransientUpgradeable,
+    UUPSUpgradeable
+{
     // keccak256(abi.encode(uint256(keccak256("router.storage.Slot")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant SLOT_STORAGE = 0x5c09ca1b9b8127a4fd9f3c384aac59b661441e820e17733753ff5f2e86e1e000;
     // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
@@ -42,6 +51,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         address[] calldata _validators
     ) public initializer {
         __Ownable_init(_owner);
+        __Pausable_init();
         __ReentrancyGuardTransient_init();
 
         // Because of validator storages impl we have to check, that current timestamp is greater than 0.
@@ -73,7 +83,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public reinitializer(2) {
+    function reinitialize() public onlyOwner reinitializer(2) {
         __Ownable_init(owner());
 
         Storage storage oldRouter = _router();
@@ -113,6 +123,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         // All protocol data must be removed - so leave it zeroed in new router.
     }
+
+    /**
+     * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract.
+     *      Called by {upgradeToAndCall}.
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     // # Views.
 
@@ -206,6 +222,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         );
     }
 
+    function paused() public view override(IRouter, PausableUpgradeable) returns (bool) {
+        return super.paused();
+    }
+
     function computeSettings() public view returns (Gear.ComputationSettings memory) {
         return _router().computeSettings;
     }
@@ -259,8 +279,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         _router().implAddresses.mirror = newMirror;
     }
 
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
     // # Calls.
-    function lookupGenesisHash() external {
+    function lookupGenesisHash() external whenNotPaused {
         Storage storage router = _router();
 
         require(router.genesisBlock.hash == bytes32(0), GenesisHashAlreadySet());
@@ -272,7 +300,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         router.genesisBlock.hash = blockhash(router.genesisBlock.number);
     }
 
-    function requestCodeValidation(bytes32 _codeId) external {
+    function requestCodeValidation(bytes32 _codeId) external whenNotPaused {
         require(blobhash(0) != 0, BlobNotFound());
 
         Storage storage router = _router();
@@ -285,7 +313,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         emit CodeValidationRequested(_codeId);
     }
 
-    function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer) external returns (address) {
+    function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer)
+        external
+        whenNotPaused
+        returns (address)
+    {
         address mirror = _createProgram(_codeId, _salt, true);
 
         IMirror(mirror)
@@ -299,7 +331,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         bytes32 _salt,
         address _overrideInitializer,
         address _abiInterface
-    ) external returns (address) {
+    ) external whenNotPaused returns (address) {
         address mirror = _createProgram(_codeId, _salt, false);
 
         IMirror(mirror)
@@ -347,7 +379,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             _validatorsCommitmentHash
         );
 
-        router.latestCommittedBatch = Gear.CommittedBatchInfo(_batchHash, _batch.blockTimestamp);
+        router.latestCommittedBatch.hash = _batchHash;
+        router.latestCommittedBatch.timestamp = _batch.blockTimestamp;
+
         emit BatchCommitted(_batchHash);
 
         require(
@@ -368,7 +402,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         // Check for duplicate isn't necessary, because `Clones.cloneDeterministic`
         // reverts execution in case of address is already taken.
-        bytes32 salt = keccak256(abi.encodePacked(_codeId, _salt));
+        bytes32 salt = Hashes.efficientKeccak256AsBytes32(_codeId, _salt);
         address actorId = _isSmall
             ? ClonesSmall.cloneDeterministic(address(this), salt)
             : Clones.cloneDeterministic(address(this), salt);
@@ -385,12 +419,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         require(_batch.chainCommitment.length <= 1, TooManyChainCommitments());
 
         if (_batch.chainCommitment.length == 0) {
+            /// forge-lint: disable-next-line(asm-keccak256)
             return keccak256("");
         }
 
         Gear.ChainCommitment calldata _commitment = _batch.chainCommitment[0];
 
-        bytes32 _transitionsHash = commitTransitions(router, _commitment.transitions);
+        bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
 
         emit AnnouncesCommitted(_commitment.head);
 
@@ -420,12 +455,14 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
             emit CodeGotValidated(_commitment.id, _commitment.valid);
 
-            bytes32 codeCommitmentHash = Gear.codeCommitmentHash(_commitment);
-            Memory.writeWord(codeCommitmentsPtr, offset, uint256(codeCommitmentHash));
-            offset += 32;
+            bytes32 codeCommitmentHash = Gear.codeCommitmentHash(_commitment.id, _commitment.valid);
+            Memory.writeWordAsBytes32(codeCommitmentsPtr, offset, codeCommitmentHash);
+            unchecked {
+                offset += 32;
+            }
         }
 
-        return bytes32(Hashes.efficientKeccak256(codeCommitmentsPtr, 0, codeCommitmentsHashSize));
+        return Hashes.efficientKeccak256AsBytes32(codeCommitmentsPtr, 0, codeCommitmentsHashSize);
     }
 
     // TODO #4609
@@ -434,6 +471,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         require(_batch.rewardsCommitment.length <= 1, TooManyRewardsCommitments());
 
         if (_batch.rewardsCommitment.length == 0) {
+            /// forge-lint: disable-next-line(asm-keccak256)
             return keccak256("");
         }
 
@@ -448,8 +486,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         require(commitmentEraIndex < batchEraIndex, RewardsCommitmentEraNotPrevious());
 
         address _middleware = router.implAddresses.middleware;
-        IERC20(router.implAddresses.wrappedVara)
+        bool success = IERC20(router.implAddresses.wrappedVara)
             .approve(_middleware, _commitment.operators.amount + _commitment.stakers.totalAmount);
+        require(success, ApproveERC20Failed());
 
         bytes32 _operatorRewardsHash = IMiddleware(_middleware)
             .distributeOperatorRewards(
@@ -459,7 +498,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         bytes32 _stakerRewardsHash =
             IMiddleware(_middleware).distributeStakerRewards(_commitment.stakers, _commitment.timestamp);
 
-        return keccak256(abi.encodePacked(_operatorRewardsHash, _stakerRewardsHash, _commitment.timestamp));
+        return Gear.rewardsCommitmentHash(_operatorRewardsHash, _stakerRewardsHash, _commitment.timestamp);
     }
 
     /// @dev Set validators for the next era.
@@ -467,6 +506,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         require(_batch.validatorsCommitment.length <= 1, TooManyValidatorsCommitments());
 
         if (_batch.validatorsCommitment.length == 0) {
+            /// forge-lint: disable-next-line(asm-keccak256)
             return keccak256("");
         }
 
@@ -498,8 +538,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return Gear.validatorsCommitmentHash(_commitment);
     }
 
-    function commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
-        internal
+    function _commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
+        private
         returns (bytes32)
     {
         uint256 transitionsLen = _transitions.length;
@@ -519,11 +559,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             }
 
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition{value: value}(transition);
-            Memory.writeWord(transitionsHashesMemPtr, offset, uint256(transitionHash));
-            offset += 32;
+            Memory.writeWordAsBytes32(transitionsHashesMemPtr, offset, transitionHash);
+            unchecked {
+                offset += 32;
+            }
         }
 
-        return bytes32(Hashes.efficientKeccak256(transitionsHashesMemPtr, 0, transitionsHashSize));
+        return Hashes.efficientKeccak256AsBytes32(transitionsHashesMemPtr, 0, transitionsHashSize);
     }
 
     function _resetValidators(
@@ -569,13 +611,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     function _setStorageSlot(string memory namespace) private onlyOwner {
-        bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
+        bytes32 slot = SlotDerivation.erc7201Slot(namespace);
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
 
         emit StorageSlotChanged(slot);
     }
 
-    receive() external payable {
+    receive() external payable whenNotPaused {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());
 

@@ -22,14 +22,12 @@ use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
     subordinate::Subordinate,
 };
-use crate::{
-    announces::{self, DBAnnouncesExt},
-    utils,
-};
+use crate::announces::{self, DBAnnouncesExt};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     SimpleBlockData,
+    consensus::block_producer_for,
     db::OnChainStorageRO,
     network::{AnnouncesRequest, AnnouncesResponse},
 };
@@ -230,7 +228,7 @@ impl ValidatorContext {
             .validators(era_index)
             .ok_or(anyhow!("validators not found for era {era_index}"))?;
 
-        let producer = utils::block_producer_for(
+        let producer = block_producer_for(
             &validators,
             block.header.timestamp,
             self.core.slot_duration.as_secs(),
@@ -296,7 +294,7 @@ mod tests {
         .into();
 
         let chain = BlockChain::mock((2, validators)).setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[2].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block).unwrap();
@@ -322,7 +320,7 @@ mod tests {
         .into();
 
         let chain = BlockChain::mock((1, validators)).setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[1].to_simple();
         let state = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(state.is_initial(), "got {:?}", state);
@@ -358,7 +356,7 @@ mod tests {
 
         chain.blocks[last].as_prepared_mut().last_committed_announce = announce1.to_hash();
         let chain = chain.setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block)
@@ -430,7 +428,7 @@ mod tests {
                 );
             })
             .setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block)
@@ -466,7 +464,7 @@ mod tests {
                 });
             })
             .setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let head = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, head)
@@ -619,7 +617,7 @@ mod tests {
         }
 
         let chain = chain.setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block)

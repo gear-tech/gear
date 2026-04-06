@@ -25,7 +25,6 @@ use core::{
 
 use alloc::sync::Arc;
 
-use parity_scale_codec::{Compact, MaxEncodedLen};
 use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use scale_info::{
@@ -93,12 +92,6 @@ impl Payload {
     pub fn len_u32(&self) -> u32 {
         // Safe, cause it's guarantied: `MAX_PAYLOAD_SIZE` <= u32::MAX
         self.len() as u32
-    }
-}
-
-impl MaxEncodedLen for Payload {
-    fn max_encoded_len() -> usize {
-        Compact::<u32>::max_encoded_len() + MAX_PAYLOAD_SIZE
     }
 }
 

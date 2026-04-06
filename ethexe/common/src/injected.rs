@@ -19,14 +19,23 @@
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
-use gear_core::rpc::ReplyInfo;
+use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
-use sp_core::Bytes;
 
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
+
+/// Maximum size of single injected transaction payload.
+///
+/// Limited by the maximum injected transactions size per announce.
+/// Currently is 126 KiB.
+pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 126 * 1024;
+
+/// Maximum size of injected transaction salt.
+pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
@@ -60,12 +69,13 @@ pub struct AddressedInjectedTransaction {
 /// IMPORTANT: message id == tx hash == blake2b256 hash of the struct fields concat.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, MaxEncodedLen, TypeInfo, PartialEq, Eq)]
 pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
-    pub payload: Bytes,
+    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
     pub value: u128,
@@ -74,7 +84,8 @@ pub struct InjectedTransaction {
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    pub salt: Bytes,
+    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
 }
 
 impl ToDigest for InjectedTransaction {
@@ -190,5 +201,30 @@ mod tests {
                 .to_address(),
             signed_tx.address()
         );
+    }
+}
+
+/// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
+#[cfg(feature = "std")]
+mod serde_hex {
+    pub fn serialize<S, const N: usize>(
+        data: &super::LimitedVec<u8, N>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        alloy_primitives::serde_hex::serialize(data.to_vec(), serializer)
+    }
+
+    pub fn deserialize<'de, D, const N: usize>(
+        deserializer: D,
+    ) -> Result<super::LimitedVec<u8, N>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let vec: Vec<u8> = alloy_primitives::serde_hex::deserialize(deserializer)?;
+        super::LimitedVec::<u8, N>::try_from(vec)
+            .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
     }
 }

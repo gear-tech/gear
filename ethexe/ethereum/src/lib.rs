@@ -31,6 +31,7 @@ use alloy::{
             BlobGasEstimator, BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill,
             NonceFiller, SimpleNonceManager, WalletFiller,
         },
+        utils::{self, Eip1559Estimator},
     },
     rpc::types::{TransactionReceipt, TransactionRequest, eth::Log},
     signers::{
@@ -43,7 +44,7 @@ use alloy::{
 use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{BlockHeader, Digest, SimpleBlockData, ecdsa::PublicKey};
-use gprimitives::{H256, MessageId};
+use gprimitives::{ActorId, H256, MessageId};
 use gsigner::secp256k1::{Address, Secp256k1SignerExt, Signer};
 use middleware::Middleware;
 use mirror::Mirror;
@@ -75,6 +76,7 @@ pub type AlloyProvider = FillProvider<
     RootProvider,
 >;
 
+#[derive(Clone)]
 pub struct Ethereum {
     router: AlloyAddress,
     wvara: AlloyAddress,
@@ -92,10 +94,18 @@ impl Ethereum {
         router_address: Address,
         signer: Signer,
         sender_address: Address,
+        eip1559_fee_increase_percentage: u64,
+        blob_gas_multiplier: u128,
     ) -> Result<Ethereum> {
-        let provider = create_provider(ethereum_rpc_url, signer.clone(), sender_address).await?;
-        let router_query =
-            RouterQuery::from_provider(router_address.into(), provider.root().clone());
+        let provider = create_provider(
+            ethereum_rpc_url,
+            signer.clone(),
+            sender_address,
+            eip1559_fee_increase_percentage,
+            blob_gas_multiplier,
+        )
+        .await?;
+        let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         let router = router_address.into();
         let wvara = router_query.wvara_address().await?.into();
         let middleware = router_query.middleware_address().await?.into();
@@ -166,8 +176,8 @@ impl Ethereum {
         Ok(SimpleBlockData { hash, header })
     }
 
-    pub fn mirror(&self, address: Address) -> Mirror {
-        Mirror::new(address.0.into(), self.provider())
+    pub fn mirror(&self, actor_id: ActorId) -> Mirror {
+        Mirror::new(actor_id.into(), self.provider())
     }
 
     pub fn router(&self) -> Router {
@@ -188,14 +198,25 @@ impl Ethereum {
     }
 }
 
+pub const NO_EIP1559_FEE_INCREASE_PERCENTAGE: u64 = 0;
+pub const INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE: u64 = 15;
+
+pub const NO_BLOB_GAS_MULTIPLIER: u128 = 1;
+pub const INCREASED_BLOB_GAS_MULTIPLIER: u128 = 3;
+
 pub(crate) async fn create_provider(
     rpc_url: &str,
     signer: Signer,
     sender_address: Address,
+    eip1559_fee_increase_percentage: u64,
+    blob_gas_multiplier: u128,
 ) -> Result<AlloyProvider> {
     Ok(ProviderBuilder::default()
-        .with_gas_estimation()
-        .with_blob_gas_estimator(BlobGasEstimator::scaled(3))
+        .with_eip1559_estimator(Eip1559Estimator::new(move |base_fee_per_gas, rewards| {
+            utils::eip1559_default_estimator(base_fee_per_gas, rewards)
+                .scaled_by_pct(eip1559_fee_increase_percentage)
+        }))
+        .with_blob_gas_estimator(BlobGasEstimator::scaled(blob_gas_multiplier))
         .with_simple_nonce_management()
         .fetch_chain_id()
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))

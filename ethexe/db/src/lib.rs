@@ -24,14 +24,19 @@ use gprimitives::H256;
 mod database;
 pub mod iterator;
 mod mem;
+mod migrations;
 mod overlay;
 mod rocks;
 pub mod verifier;
 pub mod visitor;
 
-pub use database::Database;
+pub use database::{Database, RawDatabase};
 pub use mem::MemDb;
+pub use migrations::{InitConfig, LATEST_VERSION as VERSION, initialize_db};
 pub use rocks::RocksDatabase;
+
+#[cfg(feature = "mock")]
+pub use migrations::create_initialized_empty_memory_db;
 
 pub fn hash(data: &[u8]) -> H256 {
     utils::hash(data).into()
@@ -61,7 +66,11 @@ pub trait KVDatabase: Send + Sync {
     fn get(&self, key: &[u8]) -> Option<Vec<u8>>;
 
     /// Take (get and remove) value by key.
-    fn take(&self, key: &[u8]) -> Option<Vec<u8>>;
+    ///
+    /// # Safety
+    /// This method is unsafe because it may lead to data loss if used improperly.
+    /// Must be used with caution.
+    unsafe fn take(&self, key: &[u8]) -> Option<Vec<u8>>;
 
     /// Check if data exists by key.
     fn contains(&self, key: &[u8]) -> bool;
@@ -73,6 +82,8 @@ pub trait KVDatabase: Send + Sync {
         &'a self,
         prefix: &'a [u8],
     ) -> Box<dyn Iterator<Item = (Vec<u8>, Vec<u8>)> + 'a>;
+
+    fn is_empty(&self) -> bool;
 }
 
 #[cfg(test)]

@@ -20,12 +20,11 @@ use crate::{
     Params,
     params::{MergeParams, NodeParams},
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result};
 use clap::Args;
 use ethexe_service::Service;
 use std::time::Duration;
 use tokio::runtime::Builder;
-use tracing_subscriber::EnvFilter;
 
 /// Run the node.
 #[derive(Debug, Args)]
@@ -53,22 +52,13 @@ impl RunCommand {
     /// Run the ethexe service (node).
     pub fn run(mut self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
-
-        tracing_subscriber::fmt()
-            .with_env_filter(
-                EnvFilter::builder()
-                    .with_default_directive(default.parse()?)
-                    .from_env_lossy()
-                    .add_directive("wasmtime_cranlift=off".parse()?)
-                    .add_directive("cranelift=off".parse()?),
-            )
-            .try_init()
-            .map_err(|e| anyhow!("failed to initialize logger: {e}"))?;
+        crate::enable_logging(default)?;
 
         let mut anvil_instance = None;
+        let is_dev_node = self.params.node.as_ref().map(|n| n.dev).unwrap_or_default();
 
         if let Some(node) = self.params.node.as_mut()
-            && node.dev
+            && is_dev_node
         {
             // set block time to 1 second if not set explicitly
             let block_time = Duration::from_secs(
@@ -110,10 +100,17 @@ impl RunCommand {
             anvil_instance = Some(anvil);
         }
 
-        let config = self
-            .params
-            .into_config()
-            .with_context(|| "invalid configuration")?;
+        let config = {
+            let mut config = self
+                .params
+                .into_config()
+                .with_context(|| "invalid configuration")?;
+
+            if is_dev_node && let Some(rpc_config) = config.rpc.as_mut() {
+                rpc_config.with_dev_api = true
+            }
+            config
+        };
 
         config.log_info();
 

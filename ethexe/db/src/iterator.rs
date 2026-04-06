@@ -21,7 +21,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{
         AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, CodesStorageRO,
-        LatestDataStorageRO, OnChainStorageRO,
+        OnChainStorageRO,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -43,23 +43,12 @@ use std::{
 };
 
 pub trait DatabaseIteratorStorage:
-    OnChainStorageRO
-    + BlockMetaStorageRO
-    + AnnounceStorageRO
-    + CodesStorageRO
-    + LatestDataStorageRO
-    + Storage
+    OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO + Storage
 {
 }
 
-impl<
-    T: OnChainStorageRO
-        + BlockMetaStorageRO
-        + AnnounceStorageRO
-        + CodesStorageRO
-        + LatestDataStorageRO
-        + Storage,
-> DatabaseIteratorStorage for T
+impl<T: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO + Storage>
+    DatabaseIteratorStorage for T
 {
 }
 
@@ -442,6 +431,16 @@ where
             storage,
             stack: Default::default(),
             visited_nodes: HashSet::new(),
+        };
+        this.push_node(node);
+        this
+    }
+
+    pub fn with_skip_nodes(storage: S, node: impl Into<Node>, skip_nodes: HashSet<u64>) -> Self {
+        let mut this = Self {
+            storage,
+            stack: Default::default(),
+            visited_nodes: skip_nodes,
         };
         this.push_node(node);
         this
@@ -869,11 +868,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop_front() {
-            let node_hash = {
-                let mut hasher = DefaultHasher::new();
-                node.hash(&mut hasher);
-                hasher.finish()
-            };
+            let node_hash = node_hash(&node);
 
             if !self.visited_nodes.insert(node_hash) {
                 // avoid recursion and duplicates
@@ -887,6 +882,12 @@ where
 
         None
     }
+}
+
+pub fn node_hash(node: &Node) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    node.hash(&mut hasher);
+    hasher.finish()
 }
 
 #[cfg(test)]

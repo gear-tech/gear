@@ -29,6 +29,8 @@ gsigner = { workspace = true, features = [
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 ethexe-processor.workspace = true
+ethexe-db.workspace = true
+ethexe-compute.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
@@ -48,6 +50,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 toml.workspace = true
 thiserror.workspace = true
 gear-workspace-hack.workspace = true
+indicatif = "0.18.3"
 
 [lints]
 workspace = true

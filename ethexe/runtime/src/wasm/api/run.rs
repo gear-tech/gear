@@ -16,47 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::wasm::{
-    interface::database_ri,
-    storage::{NativeRuntimeInterface, RuntimeInterfaceStorage},
-};
-use core_processor::configs::BlockInfo;
-use ethexe_common::gear::MessageType;
-use ethexe_runtime_common::{ProgramJournals, RuntimeInterface, process_queue, state::Storage};
-use gear_core::code::{CodeMetadata, InstrumentedCode};
-use gprimitives::{ActorId, H256};
+use crate::wasm::storage::NativeRuntimeInterface;
+use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, process_queue};
 
-pub fn run(
-    program_id: ActorId,
-    state_root: H256,
-    queue_type: MessageType,
-    maybe_instrumented_code: Option<InstrumentedCode>,
-    code_metadata: Option<CodeMetadata>,
-    gas_allowance: u64,
-) -> (ProgramJournals, u64) {
+pub fn run(ctx: ProcessQueueContext) -> (ProgramJournals, u64) {
     log::debug!("You're calling 'run(..)'");
 
-    let block_info = BlockInfo {
-        height: database_ri::get_block_height(),
-        timestamp: database_ri::get_block_timestamp(),
-    };
+    let ri = NativeRuntimeInterface;
 
-    let ri = NativeRuntimeInterface {
-        block_info,
-        storage: RuntimeInterfaceStorage,
-    };
-
-    let program_state = ri.storage().program_state(state_root).unwrap();
-
-    let (journals, gas_spent) = process_queue(
-        program_id,
-        program_state,
-        queue_type,
-        maybe_instrumented_code,
-        code_metadata,
-        &ri,
-        gas_allowance,
-    );
+    let (journals, gas_spent) = process_queue(ctx, &ri);
 
     for (journal, message_type, call_reply) in &journals {
         for note in journal {

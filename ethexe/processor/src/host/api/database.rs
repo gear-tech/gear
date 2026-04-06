@@ -24,12 +24,6 @@ use wasmtime::{Caller, Linker};
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     linker.func_wrap("env", "ext_database_read_by_hash_version_1", read_by_hash)?;
     linker.func_wrap("env", "ext_database_write_version_1", write)?;
-    linker.func_wrap("env", "ext_get_block_height_version_1", get_block_height)?;
-    linker.func_wrap(
-        "env",
-        "ext_get_block_timestamp_version_1",
-        get_block_timestamp,
-    )?;
     linker.func_wrap("env", "ext_update_state_hash_version_1", update_state_hash)?;
 
     Ok(())
@@ -82,24 +76,4 @@ fn write(caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
     log::trace!(target: "host_call", "write(..) -> {res:?}");
 
     res
-}
-
-fn get_block_height(_caller: Caller<'_, StoreData>) -> i32 {
-    log::trace!(target: "host_call", "get_block_height()");
-
-    let height = threads::chain_head_info().height;
-
-    log::trace!(target: "host_call", "get_block_height() -> {height:?}");
-
-    height as i32
-}
-
-fn get_block_timestamp(_caller: Caller<'_, StoreData>) -> i64 {
-    log::trace!(target: "host_call", "get_block_timestamp()");
-
-    let timestamp = threads::chain_head_info().timestamp;
-
-    log::trace!(target: "host_call", "get_block_timestamp() -> {timestamp:?}");
-
-    timestamp as i64
 }

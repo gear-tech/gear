@@ -20,6 +20,8 @@ fail-fast = false
 archive.include = [
   { path = "wasm32-gear", relative-to = "target", on-missing = "warn" },
 ]
+success-output = "never"
+failure-output = "never"
 
 [profile.ci.junit]
 path = "junit.xml"

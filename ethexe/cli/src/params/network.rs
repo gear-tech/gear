@@ -21,12 +21,12 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use ethexe_common::Address;
 use ethexe_network::{
-    NetworkConfig,
+    DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, NetworkConfig,
     export::{Multiaddr, Protocol},
 };
 use gsigner::secp256k1::Signer;
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{num::NonZeroU32, path::PathBuf};
 
 /// Parameters for the networking service to start.
 #[derive(Clone, Debug, Deserialize, Parser)]
@@ -61,6 +61,11 @@ pub struct NetworkParams {
     #[arg(long, alias = "no-net")]
     #[serde(default, rename = "no-network", alias = "no-net")]
     pub no_network: bool,
+
+    /// Maximum chain length allowed in announces responses.
+    #[arg(long, alias = "net-max-chain-len-for-announces-response")]
+    #[serde(rename = "max-chain-len-for-announces-response")]
+    pub max_chain_len_for_announces_response: Option<NonZeroU32>,
 }
 
 impl NetworkParams {
@@ -72,6 +77,7 @@ impl NetworkParams {
         self,
         config_dir: PathBuf,
         router_address: Address,
+        is_dev: bool,
     ) -> Result<Option<NetworkConfig>> {
         if self.no_network {
             return Ok(None);
@@ -135,6 +141,10 @@ impl NetworkParams {
             bootstrap_addresses,
             listen_addresses,
             transport_type: Default::default(),
+            allow_non_global_addresses: is_dev,
+            max_chain_len_for_announces_response: self
+                .max_chain_len_for_announces_response
+                .unwrap_or(DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE),
         }))
     }
 }
@@ -148,6 +158,9 @@ impl MergeParams for NetworkParams {
             network_listen_addr: self.network_listen_addr.or(with.network_listen_addr),
             network_port: self.network_port.or(with.network_port),
             no_network: self.no_network || with.no_network,
+            max_chain_len_for_announces_response: self
+                .max_chain_len_for_announces_response
+                .or(with.max_chain_len_for_announces_response),
         }
     }
 }

@@ -17,12 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #[cfg(feature = "client")]
-pub use crate::apis::{BlockClient, CodeClient, FullProgramState, InjectedClient, ProgramClient};
+pub use crate::apis::{
+    BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
+};
 
 use anyhow::Result;
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
-    ProgramServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InjectedApi, InjectedServer,
+    ProgramApi, ProgramServer,
 };
 use ethexe_common::injected::{
     AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
@@ -45,6 +47,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
 mod errors;
+mod metrics;
 mod utils;
 
 #[cfg(all(test, feature = "client"))]
@@ -71,6 +74,9 @@ pub struct RpcConfig {
     pub gas_allowance: u64,
     /// Amount of processing threads for queue processing.
     pub chunk_size: usize,
+    /// Flag to enable RPC DevApi.
+    /// Important: can be enabled only in dev mode, run: `ethexe run --dev`
+    pub with_dev_api: bool,
 }
 
 pub struct RpcServer {
@@ -106,13 +112,18 @@ impl RpcServer {
                 chunk_size: self.config.chunk_size,
             },
             self.db.clone(),
-        )?;
+        )?
+        .overlaid();
 
         let server_apis = RpcServerApis {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
-            injected: InjectedApi::new(rpc_sender),
+            injected: InjectedApi::new(self.db.clone(), rpc_sender),
+            dev: self
+                .config
+                .with_dev_api
+                .then(|| DevApi::new(self.db.clone())),
         };
         let injected_api = server_apis.injected.clone();
 
@@ -136,7 +147,9 @@ impl RpcServer {
 }
 
 pub struct RpcService {
+    /// Receiver for incoming RPC events to forward to the main service.
     receiver: mpsc::UnboundedReceiver<RpcEvent>,
+    /// Injected API implementation.
     injected_api: InjectedApi,
 }
 
@@ -180,6 +193,7 @@ struct RpcServerApis {
     pub code: CodeApi,
     pub injected: InjectedApi,
     pub program: ProgramApi,
+    pub dev: Option<DevApi>,
 }
 
 impl RpcServerApis {
@@ -198,6 +212,11 @@ impl RpcServerApis {
         module
             .merge(ProgramServer::into_rpc(self.program))
             .expect("No conflicts");
+        if let Some(dev) = self.dev {
+            module
+                .merge(DevServer::into_rpc(dev))
+                .expect("No conflicts");
+        }
 
         module
     }

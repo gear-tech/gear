@@ -40,7 +40,11 @@ use sha3::Digest as _;
 )]
 #[cfg_attr(
     feature = "codec",
-    derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
+    derive(
+        parity_scale_codec::Encode,
+        parity_scale_codec::Decode,
+        scale_info::TypeInfo
+    )
 )]
 #[repr(transparent)]
 #[as_ref(forward)]

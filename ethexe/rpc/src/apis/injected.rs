@@ -16,15 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{RpcEvent, errors};
+use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
+use anyhow::Result;
 use dashmap::DashMap;
 use ethexe_common::{
-    HashOf,
+    Address, HashOf,
+    consensus::block_producer_for,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
         SignedPromise,
     },
 };
+use ethexe_db::Database;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
@@ -61,10 +64,14 @@ type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<S
 /// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    /// Node database instance.
+    db: Database,
     /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
     promise_waiters: PromiseWaiters,
+    /// The metrics related to [`InjectedApi`]
+    metrics: InjectedApiMetrics,
 }
 
 #[async_trait]
@@ -88,6 +95,7 @@ impl InjectedServer for InjectedApi {
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
+        self.metrics.send_and_watch_injected_tx_calls.increment(1);
 
         // Check, that transaction wasn't already send.
         if self.promise_waiters.get(&tx_hash).is_some() {
@@ -113,10 +121,12 @@ impl InjectedServer for InjectedApi {
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
+            db,
             rpc_sender,
             promise_waiters: PromiseWaiters::default(),
+            metrics: InjectedApiMetrics::default(),
         }
     }
 
@@ -126,8 +136,14 @@ impl InjectedApi {
             return;
         };
 
-        if let Err(promise) = promise_sender.send(promise) {
-            tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
+        self.metrics.injected_tx_active_subscriptions.decrement(1);
+
+        match promise_sender.send(promise.clone()) {
+            Ok(()) => {
+                self.metrics.injected_tx_promises_given.increment(1);
+                tracing::trace!(promise = ?promise, "sent promise to subscriber");
+            }
+            Err(promise) => tracing::trace!(promise = ?promise, "rpc promise receiver dropped"),
         }
     }
 
@@ -137,12 +153,15 @@ impl InjectedApi {
         self.promise_waiters.len()
     }
 
-    /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
+    /// This function forwards [`AddressedInjectedTransaction`] to main service and waits for its acceptance.
     async fn forward_transaction(
         &self,
-        transaction: AddressedInjectedTransaction,
+        mut transaction: AddressedInjectedTransaction,
     ) -> Result<InjectedTransactionAcceptance, ErrorObjectOwned> {
         let tx_hash = transaction.tx.data().to_hash();
+        tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
+        self.metrics.send_injected_tx_calls.increment(1);
+
         let (response_sender, response_receiver) = oneshot::channel();
 
         if transaction.tx.data().value != 0 {
@@ -154,6 +173,10 @@ impl InjectedApi {
             return Err(errors::bad_request(
                 "Injected transactions with non-zero value are not supported",
             ));
+        }
+
+        if transaction.recipient == Address::default() {
+            utils::route_transaction(&self.db, &mut transaction)?;
         }
 
         let event = RpcEvent::InjectedTransaction {
@@ -191,6 +214,8 @@ impl InjectedApi {
     ) {
         // This clone is cheap, as it only increases the ref count.
         let promise_waiters = self.promise_waiters.clone();
+        self.metrics.injected_tx_active_subscriptions.increment(1);
+        let metrics = self.metrics.clone();
 
         tokio::spawn(async move {
             // Waiting for promise or client disconnection.
@@ -206,6 +231,7 @@ impl InjectedApi {
                 },
                 _ = sink.closed() => {
                     promise_waiters.remove(&tx_hash);
+                    metrics.injected_tx_active_subscriptions.decrement(1);
                     return;
                 },
             };
@@ -226,8 +252,51 @@ impl InjectedApi {
                     tx_hash = ?tx_hash,
                     error = %err,
                     "failed to send subscription message"
-                )
+                );
             }
         });
+    }
+}
+
+mod utils {
+    use super::*;
+    use ethexe_common::{
+        Address,
+        db::{ConfigStorageRO, OnChainStorageRO},
+    };
+    use std::time::SystemTime;
+
+    pub fn route_transaction(
+        db: &Database,
+        tx: &mut AddressedInjectedTransaction,
+    ) -> RpcResult<()> {
+        let next_producer =
+            calculate_next_producer(db).map_err(|_| crate::errors::db("validators not found"))?;
+        tx.recipient = next_producer;
+
+        Ok(())
+    }
+
+    /// Calculates the address of next block-producer to send transaction.
+    fn calculate_next_producer(db: &Database) -> Result<Address> {
+        let timelines = db.config().timelines;
+
+        let current_ts = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("infallible")
+            .as_secs();
+
+        // Route to the producer of the next slot, not the current one.
+        let next_timestamp = current_ts + timelines.slot;
+        let era = timelines.era_from_ts(next_timestamp);
+        let validators = db
+            .validators(era)
+            .ok_or_else(|| anyhow::anyhow!("validators not found for era={era}"))?;
+
+        Ok(block_producer_for(
+            &validators,
+            next_timestamp,
+            timelines.slot,
+        ))
     }
 }
