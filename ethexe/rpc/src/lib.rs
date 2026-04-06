@@ -119,7 +119,7 @@ impl RpcServer {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
-            injected: InjectedApi::new(rpc_sender),
+            injected: InjectedApi::new(self.db.clone(), rpc_sender),
             dev: self
                 .config
                 .with_dev_api
