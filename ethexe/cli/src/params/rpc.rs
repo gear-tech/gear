@@ -98,6 +98,7 @@ impl RpcParams {
                 .checked_mul(node_config.block_gas_limit)
                 .expect("RPC gas allowance overflow"),
             chunk_size: node_config.chunk_processing_threads,
+            with_dev_api: false,
         })
     }
 }
