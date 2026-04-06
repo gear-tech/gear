@@ -60,7 +60,7 @@ jobs:
           claude_args: ${{ steps.parse.outputs.claude_args }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.issue.number }} --comment'
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.issue.number }}'
           additional_permissions: |
             actions: read
 
