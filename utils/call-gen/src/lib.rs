@@ -20,6 +20,7 @@
 
 mod claim_value;
 mod create_program;
+mod peer_aware;
 mod rand_utils;
 mod send_message;
 mod send_reply;
@@ -28,6 +29,10 @@ mod upload_program;
 
 pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
+pub use peer_aware::{
+    PeerAwareGenerationContext, generate_upload_code_args_peer_aware,
+    generate_upload_program_args_peer_aware,
+};
 pub use rand_utils::{CallGenRng, CallGenRngCore};
 pub use send_message::SendMessageArgs;
 pub use send_reply::SendReplyArgs;
@@ -155,6 +160,17 @@ pub fn generate_gear_program<Rng: CallGenRng, C: gear_wasm_gen::ConfigsBundle>(
     seed: Seed,
     config: C,
 ) -> Vec<u8> {
+    generate_gear_program_with_builder::<Rng, _, _>(seed, |_| config)
+}
+
+pub(crate) fn generate_gear_program_with_builder<
+    Rng: CallGenRng,
+    C: gear_wasm_gen::ConfigsBundle,
+    F: FnOnce(&mut arbitrary::Unstructured<'_>) -> C,
+>(
+    seed: Seed,
+    build_config: F,
+) -> Vec<u8> {
     use arbitrary::Unstructured;
 
     let mut rng = Rng::seed_from_u64(seed);
@@ -163,6 +179,7 @@ pub fn generate_gear_program<Rng: CallGenRng, C: gear_wasm_gen::ConfigsBundle>(
     rng.fill_bytes(&mut buf);
 
     let mut u = Unstructured::new(&buf);
+    let config = build_config(&mut u);
 
     gear_wasm_gen::generate_gear_program_code(&mut u, config)
         .expect("failed generating gear program")
