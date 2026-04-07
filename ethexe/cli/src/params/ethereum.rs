@@ -21,7 +21,7 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use ethexe_common::Address;
 use ethexe_ethereum::{INCREASED_BLOB_GAS_MULTIPLIER, INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE};
-use ethexe_observer::EthereumConfig;
+use ethexe_service::config::EthereumConfig;
 use serde::Deserialize;
 use std::time::Duration;
 

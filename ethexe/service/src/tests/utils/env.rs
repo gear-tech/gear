@@ -18,6 +18,7 @@
 
 use crate::{
     RouterDataProvider, Service,
+    config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
         events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
@@ -55,7 +56,7 @@ use ethexe_ethereum::{
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
-    EthereumConfig, ObserverConfig, ObserverService,
+    ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
@@ -99,7 +100,6 @@ pub struct TestEnv {
     pub validators: Vec<ValidatorConfig>,
     pub sender_id: ActorId,
     pub threshold: u64,
-    pub block_time: Duration,
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: u32,
     pub compute_config: ComputeConfig,
@@ -247,7 +247,7 @@ impl TestEnv {
             rpc: ws_rpc_url.clone(),
             beacon_rpc: http_rpc_url.clone(),
             router_address,
-            block_time: config.block_time,
+            block_time,
             eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
             blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
         };
@@ -361,7 +361,6 @@ impl TestEnv {
             validators: validator_configs,
             sender_id: ActorId::from(H160::from(sender_address.0)),
             threshold,
-            block_time,
             continuous_block_generation,
             commitment_delay_limit,
             compute_config,
@@ -418,7 +417,6 @@ impl TestEnv {
             election_provider: self.election_provider.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
-            block_time: self.block_time,
             validator_config,
             network_public_key,
             network_address,
@@ -462,7 +460,7 @@ impl TestEnv {
             hack: self
                 .continuous_block_generation
                 .not()
-                .then(|| (self.provider.clone(), self.block_time)),
+                .then(|| (self.provider.clone(), self.eth_cfg.block_time)),
         })
     }
 
@@ -637,7 +635,8 @@ impl TestEnv {
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
     pub async fn next_block_producer_index(&self) -> usize {
-        let timestamp = self.latest_block().await.header.timestamp + self.block_time.as_secs();
+        let timestamp =
+            self.latest_block().await.header.timestamp + self.eth_cfg.block_time.as_secs();
         self.db
             .config()
             .timelines
@@ -933,7 +932,6 @@ pub struct Node {
     election_provider: MockElectionProvider,
     signer: Signer,
     threshold: u64,
-    block_time: Duration,
     validator_config: Option<ValidatorConfig>,
     network_public_key: Option<PublicKey>,
     network_address: Option<String>,
@@ -1006,7 +1004,7 @@ impl Node {
                             signatures_threshold: self.threshold,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                             commitment_delay_limit: self.commitment_delay_limit,
-                            producer_delay: self.block_time / 6,
+                            producer_delay: self.eth_cfg.block_time / 6,
                             router_address: self.eth_cfg.router_address,
                             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,

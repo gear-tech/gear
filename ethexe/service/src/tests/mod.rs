@@ -1458,9 +1458,12 @@ async fn multiple_validators() {
         .await
         .unwrap();
 
-    tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
-        .await
-        .expect_err("Timeout expected");
+    tokio::time::timeout(
+        env.eth_cfg.block_time * 5,
+        wait_for_reply_to.clone().wait_for(),
+    )
+    .await
+    .expect_err("Timeout expected");
 
     log::info!(
         "📗 Re-start validator 0 and check, that now ethexe is working, validator 1 is still stopped"
@@ -3037,7 +3040,7 @@ async fn announces_conflicts() {
         // skip slots for validators 3, 4, 5 and go to the timestamp, where next block producer is validator 6
         env.provider
             .anvil_set_next_block_timestamp(
-                env.latest_block().await.header.timestamp + env.block_time.as_secs() * 4,
+                env.latest_block().await.header.timestamp + env.eth_cfg.block_time.as_secs() * 4,
             )
             .await
             .unwrap();
