@@ -259,6 +259,7 @@ impl InjectedApi {
 
 mod utils {
     use super::*;
+    use anyhow::Context as _;
     use ethexe_common::{
         Address,
         db::{ConfigStorageRO, OnChainStorageRO},
@@ -266,7 +267,7 @@ mod utils {
     use std::time::{Duration, SystemTime, SystemTimeError};
     use tracing::{error, trace};
 
-    pub(super) const NEXT_PRODUCER_THRESHOLD_MS: u128 = 50;
+    pub(super) const NEXT_PRODUCER_THRESHOLD_MS: u64 = 50;
 
     pub fn route_transaction(
         db: &Database,
@@ -290,22 +291,20 @@ mod utils {
     pub(super) fn calculate_next_producer(db: &Database, now: Duration) -> Result<Address> {
         let timelines = db.config().timelines;
 
-        // Compute the remaining time in the current slot.
-        // If the slot is close to ending transaction will be sent to next-next producer.
-        // That avoids sending the transaction to a validator that probably will not receive it in time.
-        let slot_ms = Duration::from_secs(timelines.slot).as_millis();
-        let remaining_time = slot_ms - (now.as_millis() % slot_ms);
-
-        let target_timestamp = match remaining_time > NEXT_PRODUCER_THRESHOLD_MS {
-            true => now.as_secs() + timelines.slot,
-            false => now.as_secs() + 2 * timelines.slot,
-        };
+        // Calculate target timestamp, taking into account possible delays, so we append NEXT_PRODUCER_THRESHOLD_MS.
+        // The transaction should be included by the next producer, so we add `slot_duration` to the current time.
+        let target_timestamp = now
+            .checked_add(Duration::from_millis(NEXT_PRODUCER_THRESHOLD_MS))
+            .context("current time is too close to u64::MAX, cannot calculate next producer")?
+            .as_secs()
+            .checked_add(timelines.slot)
+            .context("current time is too close to u64::MAX, cannot calculate next producer")?;
 
         let era = timelines.era_from_ts(target_timestamp);
 
         let validators = db
             .validators(era)
-            .ok_or_else(|| anyhow::anyhow!("validators not found for era={era}"))?;
+            .with_context(|| format!("validators not found for era={era}"))?;
 
         Ok(timelines.block_producer_at(&validators, target_timestamp))
     }
