@@ -48,13 +48,14 @@ pub const fn block_producer_index_for_slot(validators_amount: usize, slot: u64) 
 }
 
 impl ProtocolTimelines {
-    /// Calculates the producer address for a given timestamp on the validators and timestamp.
+    /// Calculates the producer address for a given timestamp.
     ///
     /// # Arguments
     /// * `validators` - A non-empty vector of validator addresses.
     /// * `timestamp` - The timestamp for which to calculate the block producer.
-    /// * `slot_duration` - The duration of each slot in seconds.
-    /// * `genesis_timestamp` - The timestamp of the genesis block in seconds.
+    ///
+    /// # Panics
+    /// Panics if timestamp is before genesis.
     pub fn block_producer_at(&self, validators: &ValidatorsVec, timestamp: u64) -> Address {
         let block_producer_index = self.block_producer_index_at(validators.len(), timestamp);
         validators
@@ -63,6 +64,14 @@ impl ProtocolTimelines {
             .unwrap_or_else(|| unreachable!("index must be valid"))
     }
 
+    /// Calculates the block producer index for a given timestamp.
+    ///
+    /// # Arguments
+    /// * `validators_amount` - The number of validators in the protocol.
+    /// * `timestamp` - The timestamp for which to calculate the block producer index.
+    ///
+    /// # Panics
+    /// Panics if timestamp is before genesis or if validators_amount is zero.
     pub fn block_producer_index_at(&self, validators_amount: usize, timestamp: u64) -> usize {
         let slot = self.slot_from_ts(timestamp);
         block_producer_index_for_slot(validators_amount, slot)
