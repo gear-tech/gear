@@ -21,7 +21,6 @@ use anyhow::Result;
 use dashmap::DashMap;
 use ethexe_common::{
     Address, HashOf,
-    consensus::block_producer_for,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
         SignedPromise,
@@ -308,11 +307,7 @@ mod utils {
             .validators(era)
             .ok_or_else(|| anyhow::anyhow!("validators not found for era={era}"))?;
 
-        Ok(block_producer_for(
-            &validators,
-            target_timestamp,
-            timelines.slot,
-        ))
+        Ok(timelines.block_producer_at(&validators, target_timestamp))
     }
 
     /// Returns the current time since [SystemTime::UNIX_EPOCH].

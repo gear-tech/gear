@@ -276,6 +276,13 @@ impl ProtocolTimelines {
     pub fn era_election_start_ts(&self, era_index: u64) -> u64 {
         self.era_start_ts(era_index + 1) - self.election
     }
+
+    #[inline(always)]
+    pub fn slot_from_ts(&self, ts: u64) -> u64 {
+        ts.checked_sub(self.genesis_ts)
+            .expect("timestamp must be >= genesis_ts")
+            / self.slot
+    }
 }
 
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
