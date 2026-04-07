@@ -768,6 +768,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tx_validation::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES;
     use ethexe_common::{
         StateHashWithQueueSize,
         db::*,
@@ -1050,6 +1051,7 @@ mod tests {
                 memory_infix: MemoryInfix::new(0),
                 initialized: true,
             }),
+            executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
             ..ProgramState::zero()
         };
         let state_hash = db.write_program_state(state);

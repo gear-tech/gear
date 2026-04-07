@@ -81,7 +81,9 @@ enum Key {
     Config = 15,
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    LatestEraValidatorsCommitted(H256),
+    LatestEraValidatorsCommitted(H256) = 16,
+
+    Announces(HashOf<Announce>) = 17,
 }
 
 impl Key {
@@ -108,7 +110,8 @@ impl Key {
                 bytes.extend(era_index.to_le_bytes());
             }
 
-            Self::AnnounceProgramStates(hash)
+            Self::Announces(hash)
+            | Self::AnnounceProgramStates(hash)
             | Self::AnnounceOutcome(hash)
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => bytes.extend(hash.as_ref()),
@@ -177,7 +180,7 @@ impl dyn KVDatabase + '_ {
         self.put(&Key::Globals.to_bytes(), globals.encode());
     }
 
-    fn block_small_data(&self, block_hash: H256) -> Option<BlockSmallData> {
+    pub(crate) fn block_small_data(&self, block_hash: H256) -> Option<BlockSmallData> {
         self.get(&Key::BlockSmallData(block_hash).to_bytes())
             .map(|data| {
                 BlockSmallData::decode(&mut data.as_slice())
@@ -378,8 +381,8 @@ impl RawDatabase {
 
 impl AnnounceStorageRO for RawDatabase {
     fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
-        self.cas.read(hash.inner()).map(|data| {
-            Announce::decode(&mut &data[..]).expect("Failed to decode data into `Announce`")
+        self.kv.get(&Key::Announces(hash).to_bytes()).map(|data| {
+            Announce::decode(&mut data.as_slice()).expect("Failed to decode data into `Announce`")
         })
     }
 
@@ -432,8 +435,11 @@ impl AnnounceStorageRO for RawDatabase {
 
 impl AnnounceStorageRW for RawDatabase {
     fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
-        tracing::trace!(announce_hash = %announce.to_hash(), announce = ?announce, "Set announce");
-        unsafe { HashOf::new(self.cas.write(&announce.encode())) }
+        let announce_hash = announce.to_hash();
+        tracing::trace!(announce_hash = %announce_hash, announce = ?announce, "Set announce");
+        self.kv
+            .put(&Key::Announces(announce_hash).to_bytes(), announce.encode());
+        announce_hash
     }
 
     fn set_announce_program_states(

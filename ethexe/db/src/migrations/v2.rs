@@ -16,72 +16,116 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{InitConfig, RawDatabase, database::BlockSmallData, migrations::v0};
-use anyhow::{Context, Result};
-use ethexe_common::db::{BlockMeta, DBConfig};
+use super::InitConfig;
+use anyhow::{Context as _, Result, ensure};
 use gprimitives::H256;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Decode;
+
+// Critical usages for migration
+#[allow(unused_imports)]
+use crate::KVDatabase;
+use crate::RawDatabase;
+use super::v0;
+use ethexe_common::{
+    Announce, HashOf,
+    db::{AnnounceStorageRW, DBConfig, DBGlobals},
+};
 
 pub const VERSION: u32 = 2;
 
+const _: () = const {
+    assert!(
+        crate::VERSION == super::v3::VERSION,
+        "Check migration code for types changing in case of version change: DBConfig, DBGlobals, Announce, v0::BlockSmallData. \
+         Also check AnnounceStorageRW, KVDatabase, dyn KVDatabase implementations"
+    );
+};
+
 pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
-    // Changes from v1 to v2:
-    // - Block announces are moved from `BlockMeta` to `BlockAnnounces` key.
+    // Changes from version 1 to version 2: copying announces data to KV
 
-    let block_small_data_prefix = H256::from_low_u64_be(0);
-    let block_announces_prefix = H256::from_low_u64_be(13);
+    log::info!("Migration investigation pass started: not modifying any data in database");
 
-    for (key, value) in db.kv.iter_prefix(block_small_data_prefix.as_bytes()) {
-        let v0::BlockSmallData {
-            block_header,
-            block_is_synced,
-            meta:
-                v0::BlockMeta {
-                    prepared,
-                    announces,
-                    codes_queue,
-                    last_committed_batch,
-                    last_committed_announce,
-                },
-        } = v0::BlockSmallData::decode(&mut value.as_slice())?;
+    let cas_copy = db.cas.clone_boxed();
+    let get_announce_from_cas = move |announce_hash: HashOf<Announce>| {
+        cas_copy
+            .read(announce_hash.inner())
+            .and_then(|data| Announce::decode(&mut data.as_slice()).ok())
+            .context("cannot get announce from CAS")
+    };
 
-        let block_hash = &key[32..];
-        let announces_key = [block_announces_prefix.as_bytes(), block_hash].concat();
+    const BLOCK_SMALL_DATA_PREFIX: u64 = 0x00;
+    let mut announces_to_copy = Vec::new();
+    for (k, v) in db
+        .kv
+        .iter_prefix(H256::from_low_u64_be(BLOCK_SMALL_DATA_PREFIX).as_bytes())
+    {
+        if k.len() != 2 * std::mem::size_of::<H256>() {
+            continue;
+        }
 
-        db.kv.put(&announces_key, announces.encode());
+        let block_hash = H256::from_slice(&k[std::mem::size_of::<H256>()..]);
 
-        db.kv.put(
-            &key,
-            BlockSmallData {
-                block_header,
-                block_is_synced,
-                meta: BlockMeta {
-                    prepared,
-                    codes_queue,
-                    last_committed_batch,
-                    last_committed_announce,
-                },
-            }
-            .encode(),
-        );
+        let v0::BlockSmallData { meta, .. } = v0::BlockSmallData::decode(&mut v.as_slice())
+            .context("failed to decode BlockSmallData during migration")?;
+
+        log::trace!("Investigating block {block_hash:?} with meta {meta:?}");
+
+        for announce_hash in meta.announces.into_iter().flatten() {
+            let announce = get_announce_from_cas(announce_hash)
+                .with_context(|| format!("cannot get announce by {announce_hash:?}"))?;
+
+            ensure!(
+                announce.block_hash == block_hash,
+                "announce block hash doesn't match block hash in meta during migration"
+            );
+
+            ensure!(
+                announce.to_hash() == announce_hash,
+                "announce hash changes is unsupported in this migration"
+            );
+
+            announces_to_copy.push(announce);
+        }
     }
 
-    let config_key = [H256::from_low_u64_be(15).0.as_slice(), &[0u8; 8]].concat();
+    let config = db.kv.config().context("Cannot find db config")?;
+    let globals: DBGlobals = db.kv.globals().context("Cannot find db globals")?;
 
-    let old_config = db
-        .kv
-        .get(&config_key)
-        .context("Database config are guaranteed for version 1, but not found")
-        .and_then(|bytes| Ok(DBConfig::decode(&mut bytes.as_slice())?))?;
-
-    db.kv.put(
-        &config_key,
-        DBConfig {
-            version: VERSION,
-            ..old_config
-        }
-        .encode(),
+    // Check that announce hashes in config and globals are correct, to be sure that we won't break anything by copying announces
+    let genesis_announce_hash = get_announce_from_cas(config.genesis_announce_hash)
+        .context("Cannot find genesis announce in CAS")?;
+    let start_announce_hash = get_announce_from_cas(globals.start_announce_hash)
+        .context("Cannot find start announce in CAS")?;
+    let latest_computed_announce_hash =
+        get_announce_from_cas(globals.latest_computed_announce_hash)
+            .context("Cannot find latest computed announce in CAS")?;
+    ensure!(
+        genesis_announce_hash.to_hash() == config.genesis_announce_hash,
+        "Unsupported: genesis announce hash changed"
     );
+    ensure!(
+        start_announce_hash.to_hash() == globals.start_announce_hash,
+        "Unsupported: start announce hash changed"
+    );
+    ensure!(
+        latest_computed_announce_hash.to_hash() == globals.latest_computed_announce_hash,
+        "Unsupported: latest computed announce hash changed"
+    );
+
+    log::info!(
+        "Migration investigation pass finished: found {} announces to copy, starting copy process",
+        announces_to_copy.len()
+    );
+
+    for announce in announces_to_copy {
+        db.set_announce(announce);
+    }
+
+    db.kv.set_config(DBConfig {
+        version: VERSION,
+        ..config
+    });
 
     Ok(())
 }
@@ -98,12 +142,11 @@ mod tests {
             "v1->v2",
             vec![
                 meta_type::<DBConfig>(),
+                meta_type::<DBGlobals>(),
+                meta_type::<Announce>(),
                 meta_type::<v0::BlockSmallData>(),
-                meta_type::<v0::BlockMeta>(),
-                meta_type::<BlockSmallData>(),
-                meta_type::<BlockMeta>(),
             ],
-            "6506461993fe4e74645148eb4af27aecfef09e5b4789b5b9936c86adab62a8ff",
+            "a43d574bbfcfdfdd64dd335cc2c32219aba25fe00f81881e3e66e6a1d580501e",
         );
     }
 }

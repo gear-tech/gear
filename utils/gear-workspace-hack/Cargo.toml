@@ -217,17 +217,17 @@ features = ["test-helpers"]
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
+alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
-alloy-consensus = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["kzg", "serde"] }
-alloy-contract = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["pubsub"] }
-alloy-eips = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["kzg", "serde", "std"] }
+alloy-consensus = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["kzg", "serde"] }
+alloy-contract = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["pubsub"] }
+alloy-eips = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
-alloy-signer-local = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["mnemonic"] }
+alloy-provider = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
+alloy-signer-local = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["mnemonic"] }
 alloy-sol-type-parser = { version = "1", default-features = false, features = ["serde", "std"] }
 alloy-sol-types = { version = "1", features = ["json"] }
 anyhow = { version = "1" }
@@ -285,7 +285,6 @@ event-listener = { version = "5" }
 event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
-foldhash = { version = "0.2", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
@@ -490,17 +489,17 @@ zeroize = { version = "1", features = ["derive", "std"] }
 [build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
+alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
-alloy-consensus = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["kzg", "serde"] }
-alloy-contract = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["pubsub"] }
-alloy-eips = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["kzg", "serde", "std"] }
+alloy-consensus = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["kzg", "serde"] }
+alloy-contract = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["pubsub"] }
+alloy-eips = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
-alloy-signer-local = { git = "https://github.com/gear-tech/alloy.git", branch = "fix-blob-gas-filler", default-features = false, features = ["mnemonic"] }
+alloy-provider = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
+alloy-signer-local = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["mnemonic"] }
 alloy-sol-macro = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-expander = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-input = { version = "1", default-features = false, features = ["json"] }
@@ -545,8 +544,8 @@ crunchy = { version = "0.2", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
 ctr = { version = "0.9", default-features = false, features = ["zeroize"] }
 curve25519-dalek = { version = "4", features = ["digest", "legacy_compatibility"] }
-darling = { version = "0.21", features = ["serde"] }
-darling_core = { version = "0.21", default-features = false, features = ["serde", "suggestions"] }
+darling = { version = "0.21" }
+darling_core = { version = "0.21", default-features = false, features = ["suggestions"] }
 data-encoding = { version = "2" }
 der = { version = "0.7", default-features = false, features = ["oid", "std", "zeroize"] }
 derive_more-2247a326473123a6 = { package = "derive_more", version = "0.99" }
@@ -567,7 +566,6 @@ event-listener = { version = "5" }
 event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
-foldhash = { version = "0.2", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
@@ -779,7 +777,7 @@ zeroize = { version = "1", features = ["derive", "std"] }
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
@@ -791,20 +789,19 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
 rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
-rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-webpki = { version = "0.103", features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
+rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 spin = { version = "0.9", features = ["std"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
@@ -817,20 +814,19 @@ openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
 rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
-rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-webpki = { version = "0.103", features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
+rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 spin = { version = "0.9", features = ["std"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
@@ -842,19 +838,18 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
 rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
-rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-webpki = { version = "0.103", features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
+rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
@@ -867,19 +862,18 @@ openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
 rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
-rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-webpki = { version = "0.103", features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
+rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
@@ -888,20 +882,20 @@ nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
 rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
-rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-webpki = { version = "0.103", features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
+rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
+security-framework = { version = "3", features = ["OSX_10_14"] }
 security-framework-sys = { version = "2", features = ["OSX_10_14"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.build-dependencies]
 crossbeam-epoch = { version = "0.9" }
 errno = { version = "0.3" }
 gimli = { version = "0.28" }
-hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
 itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
@@ -911,13 +905,13 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
 rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
-rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-webpki = { version = "0.103", features = ["ring"] }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
+rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
+security-framework = { version = "3", features = ["OSX_10_14"] }
 security-framework-sys = { version = "2", features = ["OSX_10_14"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
 
 ### END HAKARI SECTION

@@ -28,7 +28,7 @@ use crate::args::FuzzParams;
 use alloy::{hex, primitives::Address, providers::Provider, rpc::types::Filter};
 use anyhow::Result;
 use demo_syscalls_ethexe::InitConfig;
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::{Ethereum, NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE};
 use ethexe_sdk::VaraEthApi;
 use gprimitives::MessageId;
 use parity_scale_codec::Encode;
@@ -43,14 +43,22 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     let router_addr = Address::from_str(&params.router_address)?;
 
     let (signer, address) = if let Some(ref pk) = params.sender_private_key {
-        crate::signer_from_private_key(pk)?
+        crate::utils::signer_from_private_key(pk)?
     } else {
-        crate::signer_from_private_key(crate::DEPLOYER_ACCOUNT.private_key)?
+        crate::utils::signer_from_private_key(crate::utils::DEPLOYER_ACCOUNT.private_key)?
     };
 
     info!("Fuzz deployer address: 0x{}", hex::encode(address.0));
 
-    let api = Ethereum::new(&params.node, router_addr.into(), signer.clone(), address).await?;
+    let api = Ethereum::new(
+        &params.node,
+        router_addr.into(),
+        signer.clone(),
+        address,
+        NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+        NO_BLOB_GAS_MULTIPLIER,
+    )
+    .await?;
     let vapi = VaraEthApi::new(&params.ethexe_node, api.clone()).await?;
 
     info!("Uploading mega syscall contract code...");
