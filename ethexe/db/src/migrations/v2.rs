@@ -22,10 +22,10 @@ use gprimitives::H256;
 use parity_scale_codec::Decode;
 
 // Critical usages for migration
+use super::v0;
 #[allow(unused_imports)]
 use crate::KVDatabase;
 use crate::RawDatabase;
-use super::v0;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRW, DBConfig, DBGlobals},
