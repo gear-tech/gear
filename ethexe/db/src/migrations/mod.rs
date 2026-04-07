@@ -32,6 +32,7 @@ mod migration;
 mod v0;
 mod v1;
 mod v2;
+mod v3;
 
 pub const OLDEST_SUPPORTED_VERSION: u32 = v0::VERSION;
 pub const LATEST_VERSION: u32 = v2::VERSION;
