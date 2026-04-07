@@ -209,11 +209,12 @@ mod tests {
         let code_id = CodeId::generate(&code);
 
         let db = DB::memory();
+        let processor = MockProcessor::with_default_valid_code()
+            .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_id);
         let mut service = ComputeService::new(
             ComputeConfig::without_quarantine(),
             db.clone(),
-            MockProcessor::with_default_valid_code()
-                .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_id),
+            processor.clone(),
         );
 
         // Create test code
@@ -236,5 +237,15 @@ mod tests {
             }
             _ => panic!("Expected CodeProcessed event"),
         }
+
+        // Verify that the processor was called for non-validated code
+        assert_eq!(
+            processor.process_code_call_count(),
+            1,
+            "Processor should be called for non-validated code"
+        );
+
+        // Verify code is now marked as valid in DB
+        assert_eq!(db.code_valid(code_id), Some(true));
     }
 }

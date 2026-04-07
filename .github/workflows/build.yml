@@ -30,6 +30,7 @@ env:
   CARGO_PROFILE_TEST_DEBUG: line-tables-only
   CARGO_INCREMENTAL: 0
   NEXTEST_PROFILE: ci
+  DOCKER_BUILD_SUMMARY: false
 
 jobs:
   dynamic-matrix:
@@ -283,7 +284,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.5.1
+          version: nightly-c07d504b4ae67754584f4e05ff0c547a43c50f7b
 
       - name: "Show: Versioning"
         run: |

@@ -254,9 +254,12 @@ pub struct ProtocolTimelines {
     pub slot: u64,
 }
 
+// TODO: #5290 remove panics here
 impl ProtocolTimelines {
     /// Returns the era index for the given timestamp. Eras starts from 0.
-    /// If given `ts` less than `genesis_ts` function returns `0`;
+    ///
+    /// # Panics
+    /// If the given timestamp is less than `genesis_ts`, this function will panic.
     #[inline(always)]
     pub fn era_from_ts(&self, ts: u64) -> u64 {
         ts.checked_sub(self.genesis_ts)
@@ -275,6 +278,17 @@ impl ProtocolTimelines {
     #[inline(always)]
     pub fn era_election_start_ts(&self, era_index: u64) -> u64 {
         self.era_start_ts(era_index + 1) - self.election
+    }
+
+    /// Returns the slot index for the given timestamp. Slots starts from 0.
+    ///
+    /// # Panics
+    /// If the given timestamp is less than `genesis_ts`, this function will panic.
+    #[inline(always)]
+    pub fn slot_from_ts(&self, ts: u64) -> u64 {
+        ts.checked_sub(self.genesis_ts)
+            .expect("timestamp must be >= genesis_ts")
+            / self.slot
     }
 }
 

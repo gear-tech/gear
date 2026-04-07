@@ -1,14 +1,11 @@
-use std::{collections::BTreeSet, str::FromStr};
-
 use alloy::{
     hex,
-    providers::{Provider, RootProvider, WalletProvider},
+    providers::{Provider, RootProvider},
     rpc::types::Header,
     signers::local::{MnemonicBuilder, coins_bip39::English},
 };
 use anyhow::Result;
-use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
-use ethexe_ethereum::Ethereum;
+use ethexe_common::events::MirrorEvent;
 use futures::StreamExt;
 use gear_call_gen::Seed;
 use gear_core::ids::prelude::MessageIdExt;
@@ -18,6 +15,7 @@ use gear_wasm_gen::{
 };
 use gprimitives::{ActorId, MessageId};
 use rand::rngs::SmallRng;
+use std::str::FromStr;
 use tokio::{fs::File, io::AsyncWriteExt, sync::broadcast};
 use tracing::warn;
 
@@ -160,26 +158,6 @@ pub async fn listen_blocks(tx: broadcast::Sender<Header>, provider: RootProvider
             retry_count, MAX_RETRIES
         );
     }
-}
-
-pub async fn capture_mailbox_messages(
-    api: &Ethereum,
-    event_source: &[Event],
-    _sent_message_ids: impl IntoIterator<Item = MessageId>,
-) -> Result<BTreeSet<MessageId>> {
-    let to: ActorId = EthexeAddress::from(api.provider().default_signer_address()).into();
-
-    let mailbox_messages = event_source.iter().filter_map(|event| match &event.event {
-        // Incoming message to the user's EOA.
-        MirrorEvent::Message(msg) if msg.destination == to => Some(msg.id),
-
-        // Outgoing (request) message created by the user (useful for tracking).
-        MirrorEvent::MessageQueueingRequested(msg) if msg.source == to => Some(msg.id),
-
-        _ => None,
-    });
-
-    Ok(BTreeSet::from_iter(mailbox_messages))
 }
 
 /// Check whether processing batch of messages identified by corresponding

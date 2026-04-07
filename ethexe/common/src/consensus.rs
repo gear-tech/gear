@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, Digest, HashOf, ToDigest,
+    Address, Announce, Digest, HashOf, ProtocolTimelines, ToDigest,
     ecdsa::{ContractSignature, VerifiedData},
     gear::BatchCommitment,
+    validators::ValidatorsVec,
 };
 use alloc::vec::Vec;
 use gprimitives::CodeId;
@@ -39,6 +40,43 @@ pub const DEFAULT_CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
 pub type VerifiedAnnounce = VerifiedData<Announce>;
 pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
+
+// TODO #4553: temporary implementation, should be improved
+/// Returns block producer for time slot. Next slot is the next validator in the list.
+pub const fn block_producer_index_for_slot(validators_amount: usize, slot: u64) -> usize {
+    (slot % validators_amount as u64) as usize
+}
+
+impl ProtocolTimelines {
+    /// Calculates the producer address for a given timestamp.
+    ///
+    /// # Arguments
+    /// * `validators` - A non-empty vector of validator addresses.
+    /// * `timestamp` - The timestamp for which to calculate the block producer.
+    ///
+    /// # Panics
+    /// Panics if timestamp is before genesis.
+    pub fn block_producer_at(&self, validators: &ValidatorsVec, timestamp: u64) -> Address {
+        let block_producer_index = self.block_producer_index_at(validators.len(), timestamp);
+        validators
+            .get(block_producer_index)
+            .cloned()
+            .unwrap_or_else(|| unreachable!("index must be valid"))
+    }
+
+    /// Calculates the block producer index for a given timestamp.
+    ///
+    /// # Arguments
+    /// * `validators_amount` - The number of validators in the protocol.
+    /// * `timestamp` - The timestamp for which to calculate the block producer index.
+    ///
+    /// # Panics
+    /// Panics if timestamp is before genesis or if validators_amount is zero.
+    pub fn block_producer_index_at(&self, validators_amount: usize, timestamp: u64) -> usize {
+        let slot = self.slot_from_ts(timestamp);
+        block_producer_index_for_slot(validators_amount, slot)
+    }
+}
 
 /// Represents a request for validating a batch commitment.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
@@ -111,5 +149,60 @@ impl ToDigest for BatchCommitmentValidationReply {
         let Self { digest, signature } = self;
         hasher.update(digest.0);
         hasher.update(signature.into_pre_eip155_bytes())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn block_producer_index_calculates_correct_index() {
+        let validators_amount = 5;
+        let slot = 7;
+
+        let index = block_producer_index_for_slot(validators_amount, slot);
+
+        assert_eq!(index, 2);
+    }
+
+    #[test]
+    fn block_producer_for_calculates_correct_producer() {
+        let validators = vec![
+            Address::from([1; 20]),
+            Address::from([2; 20]),
+            Address::from([3; 20]),
+        ]
+        .try_into()
+        .unwrap();
+
+        let producer = ProtocolTimelines {
+            slot: 1,
+            genesis_ts: 0,
+            ..Default::default()
+        }
+        .block_producer_at(&validators, 10);
+
+        assert_eq!(producer, Address::from([2; 20]));
+    }
+
+    #[test]
+    fn block_producer_for_calculates_correct_producer_with_genesis_timestamp() {
+        let validators = vec![
+            Address::from([1; 20]),
+            Address::from([2; 20]),
+            Address::from([3; 20]),
+        ]
+        .try_into()
+        .unwrap();
+
+        let producer = ProtocolTimelines {
+            slot: 2,
+            genesis_ts: 6,
+            ..Default::default()
+        }
+        .block_producer_at(&validators, 16);
+
+        assert_eq!(producer, Address::from([3; 20]));
     }
 }

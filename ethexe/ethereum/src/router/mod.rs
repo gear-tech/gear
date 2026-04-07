@@ -143,16 +143,11 @@ impl Router {
     ) -> Result<(TransactionReceipt, CodeId)> {
         let code_id = CodeId::generate(code);
 
-        let chain_id = self.instance.provider().get_chain_id().await?;
         let builder = self
             .instance
             .requestCodeValidation(code_id.into_bytes().into());
-        let builder = if chain_id == 31337 {
-            // TODO: remove when https://github.com/foundry-rs/foundry/pull/12404 is merged
-            builder.sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?)
-        } else {
-            builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?)
-        };
+        let builder =
+            builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?);
 
         let receipt = builder
             .send()
