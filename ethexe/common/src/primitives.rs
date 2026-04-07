@@ -254,6 +254,7 @@ pub struct ProtocolTimelines {
     pub slot: u64,
 }
 
+// TODO: #5290 remove panics here
 impl ProtocolTimelines {
     /// Returns the era index for the given timestamp. Eras starts from 0.
     /// If given `ts` less than `genesis_ts` function returns `0`;
