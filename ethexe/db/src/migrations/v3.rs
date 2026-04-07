@@ -41,10 +41,10 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
             .context("failed to decode BlockSmallData during migration")?;
 
         // Move announces to separate BlockAnnounces key
-        if let Some(announces) = &old_data.meta.announces {
-            if !announces.is_empty() {
-                db.set_block_announces(block_hash, announces.clone());
-            }
+        if let Some(announces) = &old_data.meta.announces
+            && !announces.is_empty()
+        {
+            db.set_block_announces(block_hash, announces.clone());
         }
 
         // Re-encode with new format (BlockMeta without announces)
