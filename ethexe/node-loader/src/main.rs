@@ -152,7 +152,6 @@ async fn create_deployer_api(params: &LoadParams, router_addr: Address) -> Resul
         NO_BLOB_GAS_MULTIPLIER,
     )
     .await
-    .map_err(Into::into)
 }
 
 async fn deploy_multicall(deployer_api: &Ethereum) -> Result<Address> {
