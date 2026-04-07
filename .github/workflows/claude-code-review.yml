@@ -114,6 +114,10 @@ jobs:
     if: >-
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
+      github.event.sender.type == 'User' &&
+      (github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'COLLABORATOR') &&
       contains(github.event.comment.body, '/review-delta')
     runs-on: ubuntu-latest
     permissions:
@@ -153,7 +157,7 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.pr.outputs.head_ref }}
+          ref: ${{ steps.pr.outputs.head_sha }}
           fetch-depth: 1
 
       - name: Fetch delta base commit
