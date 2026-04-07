@@ -263,7 +263,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "fe6086aaff64c357bccf5f0dd0c931467de148eb4ef34d8ca2114169c8008d35";
+            "220941638ab7471f79d9682c3d0451fbb33895e2bf6c352f00b87e09a162f9af";
 
         let types = [
             meta_type::<BlockMeta>(),
