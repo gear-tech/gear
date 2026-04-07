@@ -43,7 +43,7 @@ pub struct ProtocolTimelines {
     pub election: u64,
 }
 
-#[derive(Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct BlockMeta {
     pub prepared: bool,
     pub announces: Option<BTreeSet<HashOf<Announce>>>,
