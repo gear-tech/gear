@@ -44,8 +44,6 @@ pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 
 // TODO #4553: temporary implementation, should be improved
 /// Returns block producer index for time slot. Next slot is the next validator in the list.
-///
-/// Returns `None` if `validators_amount == 0`.
 pub const fn block_producer_index_for_slot(validators_amount: NonZeroUsize, slot: u64) -> usize {
     (slot % validators_amount.get() as u64) as usize
 }
