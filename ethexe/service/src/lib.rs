@@ -317,6 +317,8 @@ impl Service {
                     config.ethereum.router_address,
                     signer.clone(),
                     pub_key.to_address(),
+                    config.ethereum.eip1559_fee_increase_percentage,
+                    config.ethereum.blob_gas_multiplier,
                 )
                 .await?;
                 Box::pin(ValidatorService::new(

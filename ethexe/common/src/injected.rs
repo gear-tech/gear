@@ -246,7 +246,7 @@ mod serde_hex {
     where
         S: serde::Serializer,
     {
-        alloy_primitives::hex::serialize(data.to_vec(), serializer)
+        alloy_primitives::serde_hex::serialize(data.to_vec(), serializer)
     }
 
     pub fn deserialize<'de, D, const N: usize>(
@@ -255,7 +255,7 @@ mod serde_hex {
     where
         D: serde::Deserializer<'de>,
     {
-        let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
+        let vec: Vec<u8> = alloy_primitives::serde_hex::deserialize(deserializer)?;
         super::LimitedVec::<u8, N>::try_from(vec)
             .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
     }

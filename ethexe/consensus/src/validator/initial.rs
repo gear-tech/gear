@@ -22,14 +22,12 @@ use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
     subordinate::Subordinate,
 };
-use crate::{
-    announces::{self, DBAnnouncesExt},
-    utils,
-};
+use crate::announces::{self, DBAnnouncesExt};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     SimpleBlockData,
+    consensus::block_producer_for,
     db::OnChainStorageRO,
     network::{AnnouncesRequest, AnnouncesResponse},
 };
@@ -235,7 +233,7 @@ impl ValidatorContext {
             .validators(era_index)
             .ok_or(anyhow!("validators not found for era {era_index}"))?;
 
-        let producer = utils::block_producer_for(
+        let producer = block_producer_for(
             &validators,
             block.header.timestamp,
             self.core.slot_duration.as_secs(),

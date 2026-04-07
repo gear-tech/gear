@@ -21,6 +21,7 @@ use crate::{
     ecdsa::{ContractSignature, VerifiedData},
     gear::BatchCommitment,
     network::NetworkAnnounce,
+    validators::ValidatorsVec,
 };
 use alloc::vec::Vec;
 use gprimitives::CodeId;
@@ -42,6 +43,26 @@ pub const DEFAULT_CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
 pub type VerifiedAnnounce = VerifiedData<NetworkAnnounce>;
 pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
+
+// TODO #4553: temporary implementation, should be improved
+/// Returns block producer for time slot. Next slot is the next validator in the list.
+pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
+    (slot % validators_amount as u64) as usize
+}
+
+/// Calculates the producer address for a given slot based on the validators and timestamp.
+pub fn block_producer_for(
+    validators: &ValidatorsVec,
+    timestamp: u64,
+    slot_duration: u64,
+) -> crate::Address {
+    let slot = timestamp / slot_duration;
+    let index = block_producer_index(validators.len(), slot);
+    validators
+        .get(index)
+        .cloned()
+        .unwrap_or_else(|| unreachable!("index must be valid"))
+}
 
 /// Represents a request for validating a batch commitment.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
@@ -114,5 +135,36 @@ impl ToDigest for BatchCommitmentValidationReply {
         let Self { digest, signature } = self;
         hasher.update(digest.0);
         hasher.update(signature.into_pre_eip155_bytes())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn block_producer_index_calculates_correct_index() {
+        let validators_amount = 5;
+        let slot = 7;
+
+        let index = block_producer_index(validators_amount, slot);
+
+        assert_eq!(index, 2);
+    }
+
+    #[test]
+    fn block_producer_for_calculates_correct_producer() {
+        let validators = vec![
+            crate::Address::from([1; 20]),
+            crate::Address::from([2; 20]),
+            crate::Address::from([3; 20]),
+        ]
+        .try_into()
+        .unwrap();
+        let timestamp = 10;
+
+        let producer = block_producer_for(&validators, timestamp, 1);
+
+        assert_eq!(producer, validators[timestamp as usize % validators.len()]);
     }
 }

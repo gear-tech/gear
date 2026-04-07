@@ -32,7 +32,7 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     limited::LimitedVec,
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::{CodeId, H160, H256};
 use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
 pub use tap::Tap;
@@ -219,7 +219,7 @@ impl Mock<()> for InjectedTransaction {
 impl Mock<PrivateKey> for AddressedInjectedTransaction {
     fn mock(pk: PrivateKey) -> Self {
         AddressedInjectedTransaction {
-            recipient: Default::default(),
+            recipient: Address::from(H160::random()),
             tx: SignedMessage::create(pk, InjectedTransaction::mock(()))
                 .expect("Signing injected transaction will succeed"),
         }

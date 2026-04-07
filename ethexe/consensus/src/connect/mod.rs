@@ -23,12 +23,11 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     announces::{self, AnnounceStatus, DBAnnouncesExt},
-    utils,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, HashOf, PromisePolicy, ProtocolTimelines, SimpleBlockData,
-    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    consensus::{VerifiedAnnounce, VerifiedValidationRequest, block_producer_for},
     db::{AnnounceStorageRO, ConfigStorageRO, OnChainStorageRO},
     injected::{Promise, SignedInjectedTransaction},
     network::{AnnouncesRequest, AnnouncesResponse, NetworkAnnounce},
@@ -197,7 +196,7 @@ impl ConsensusService for ConnectService {
             let validators = self.db.validators(block_era).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;
-            let producer = utils::block_producer_for(
+            let producer = block_producer_for(
                 &validators,
                 block.header.timestamp,
                 self.slot_duration.as_secs(),
