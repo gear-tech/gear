@@ -641,7 +641,14 @@ impl TestEnv {
         self.db
             .config()
             .timelines
-            .block_producer_index_at(self.validators.len(), timestamp)
+            .block_producer_index_at(
+                self.validators
+                    .len()
+                    .try_into()
+                    .expect("empty validators unexpected"),
+                timestamp,
+            )
+            .expect("failed to calculate block producer index")
     }
 
     /// Waits until the next block producer index becomes equal to `index`.

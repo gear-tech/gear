@@ -760,7 +760,12 @@ impl Database {
             version: VERSION,
             chain_id: 0,
             router_address: Address([0; 20]),
-            timelines: ProtocolTimelines::default(),
+            timelines: ProtocolTimelines {
+                genesis_ts: 0,
+                era: 1.try_into().unwrap(),
+                election: 0,
+                slot: 1.try_into().unwrap(),
+            },
             genesis_block_hash: H256::zero(),
             genesis_announce_hash: HashOf::zero(),
         };

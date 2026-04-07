@@ -185,13 +185,20 @@ impl ConsensusService for ConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let block_era = self.timelines.era_from_ts(block.header.timestamp);
-            let validators = self.db.validators(block_era).ok_or(anyhow!(
-                "validators not found for synced block({block_hash})"
-            ))?;
+            let block_era = self
+                .timelines
+                .era_from_ts(block.header.timestamp)
+                .ok_or_else(|| anyhow!("failed to calculate era for synced block({block_hash})"))?;
+            let validators = self
+                .db
+                .validators(block_era)
+                .ok_or_else(|| anyhow!("validators not found for synced block({block_hash})"))?;
             let producer = self
                 .timelines
-                .block_producer_at(&validators, block.header.timestamp);
+                .block_producer_at(&validators, block.header.timestamp)
+                .ok_or_else(|| {
+                    anyhow!("failed to calculate block producer for synced block({block_hash})")
+                })?;
 
             self.state = State::WaitingForPreparedBlock {
                 block: *block,

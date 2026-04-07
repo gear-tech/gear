@@ -265,7 +265,6 @@ mod utils {
         db::{ConfigStorageRO, OnChainStorageRO},
     };
     use std::time::{Duration, SystemTime, SystemTimeError};
-    use tracing::{error, trace};
 
     pub(super) const NEXT_PRODUCER_THRESHOLD_MS: u64 = 50;
 
@@ -274,12 +273,12 @@ mod utils {
         tx: &mut AddressedInjectedTransaction,
     ) -> RpcResult<()> {
         let now = now_since_unix_epoch().map_err(|err| {
-            error!("system clock error: {err}");
+            tracing::error!("system clock error: {err}");
             crate::errors::internal()
         })?;
 
         let next_producer = calculate_next_producer(db, now).map_err(|err| {
-            trace!("calculate next producer error: {err}");
+            tracing::error!("calculate next producer error: {err}");
             crate::errors::internal()
         })?;
         tx.recipient = next_producer;
@@ -297,16 +296,20 @@ mod utils {
             .checked_add(Duration::from_millis(NEXT_PRODUCER_THRESHOLD_MS))
             .context("current time is too close to u64::MAX, cannot calculate next producer")?
             .as_secs()
-            .checked_add(timelines.slot)
+            .checked_add(timelines.slot.get())
             .context("current time is too close to u64::MAX, cannot calculate next producer")?;
 
-        let era = timelines.era_from_ts(target_timestamp);
+        let era = timelines
+            .era_from_ts(target_timestamp)
+            .context("failed to calculate era from target timestamp")?;
 
         let validators = db
             .validators(era)
             .with_context(|| format!("validators not found for era={era}"))?;
 
-        Ok(timelines.block_producer_at(&validators, target_timestamp))
+        timelines
+            .block_producer_at(&validators, target_timestamp)
+            .context("failed to calculate block producer")
     }
 
     /// Returns the current time since [SystemTime::UNIX_EPOCH].
@@ -333,9 +336,10 @@ mod tests {
         let validators = ValidatorsVec::from_iter((0..10u64).map(Address::from));
 
         let timelines = ProtocolTimelines {
-            slot: SLOT,
-            era: ERA,
-            ..Default::default()
+            genesis_ts: 0,
+            era: ERA.try_into().unwrap(),
+            election: 0,
+            slot: SLOT.try_into().unwrap(),
         };
         db.set_validators(0, validators.clone());
         let mut config = db.config().clone();

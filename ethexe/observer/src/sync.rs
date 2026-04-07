@@ -23,7 +23,7 @@ use crate::{
     utils::{BlockLoader, EthereumBlockLoader},
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
     db::{GlobalsStorageRO, GlobalsStorageRW, OnChainStorageRO, OnChainStorageRW},
@@ -35,7 +35,7 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use gprimitives::H256;
-use std::{collections::HashMap, ops::Add};
+use std::collections::HashMap;
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -181,7 +181,8 @@ impl ChainSync {
         let chain_head_era = self
             .config
             .timelines
-            .era_from_ts(block_data.header.timestamp);
+            .era_from_ts(block_data.header.timestamp)
+            .context("failed to calculate era from timestamp")?;
 
         // If we don't have validators for current era - set them.
         if self.db.validators(chain_head_era).is_none() {
@@ -191,14 +192,14 @@ impl ChainSync {
 
         // Fetch next era validators if timestamp `finalized` and we don't set them in database already.
         if let Some(election_ts) = self.election_timestamp_finalized(block_data.header.timestamp)
-            && self.db.validators(chain_head_era.add(1)).is_none()
+            && self.db.validators(chain_head_era + 1).is_none()
         {
             let next_era_validators = self
                 .middleware_query
                 .make_election_at(election_ts, 10)
                 .await?;
             self.db
-                .set_validators(chain_head_era.add(1), next_era_validators);
+                .set_validators(chain_head_era + 1, next_era_validators);
         }
 
         Ok(())
@@ -224,12 +225,10 @@ impl ChainSync {
     ///
     /// The `finalization` blocks period set in observer's [`RuntimeConfig`].
     fn election_timestamp_finalized(&self, timestamp: u64) -> Option<u64> {
-        let election_ts = self
-            .config
-            .timelines
-            .era_election_start_ts(self.config.timelines.era_from_ts(timestamp));
+        let era = self.config.timelines.era_from_ts(timestamp)?;
+        let election_ts = self.config.timelines.era_election_start_ts(era)?;
         (timestamp.saturating_sub(election_ts)
-            > self.config.timelines.slot * self.config.finalization_period_blocks)
+            > self.config.timelines.slot.get() * self.config.finalization_period_blocks)
             .then_some(election_ts)
     }
 }

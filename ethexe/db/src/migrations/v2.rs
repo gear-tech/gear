@@ -145,7 +145,7 @@ mod tests {
                 meta_type::<Announce>(),
                 meta_type::<BlockSmallData>(),
             ],
-            "81abd3c542f8e52406a3f590c9baffdbd9bd6f983ca1410f536c3967544f069e",
+            "a42529a60fdedc5550c7cf9fa6270e77495a99e3e52fa185f4d81a74ecbf4352",
         );
     }
 }

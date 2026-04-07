@@ -23,6 +23,7 @@ use crate::{
     validators::ValidatorsVec,
 };
 use alloc::vec::Vec;
+use core::num::NonZeroUsize;
 use gprimitives::CodeId;
 use k256::sha2::Digest as _;
 use parity_scale_codec::{Decode, Encode};
@@ -42,9 +43,11 @@ pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationReque
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 
 // TODO #4553: temporary implementation, should be improved
-/// Returns block producer for time slot. Next slot is the next validator in the list.
-pub const fn block_producer_index_for_slot(validators_amount: usize, slot: u64) -> usize {
-    (slot % validators_amount as u64) as usize
+/// Returns block producer index for time slot. Next slot is the next validator in the list.
+///
+/// Returns `None` if `validators_amount == 0`.
+pub const fn block_producer_index_for_slot(validators_amount: NonZeroUsize, slot: u64) -> usize {
+    (slot % validators_amount.get() as u64) as usize
 }
 
 impl ProtocolTimelines {
@@ -54,14 +57,10 @@ impl ProtocolTimelines {
     /// * `validators` - A non-empty vector of validator addresses.
     /// * `timestamp` - The timestamp for which to calculate the block producer.
     ///
-    /// # Panics
-    /// Panics if timestamp is before genesis.
-    pub fn block_producer_at(&self, validators: &ValidatorsVec, timestamp: u64) -> Address {
-        let block_producer_index = self.block_producer_index_at(validators.len(), timestamp);
-        validators
-            .get(block_producer_index)
-            .cloned()
-            .unwrap_or_else(|| unreachable!("index must be valid"))
+    /// Returns `None` if timestamp is before genesis.
+    pub fn block_producer_at(&self, validators: &ValidatorsVec, timestamp: u64) -> Option<Address> {
+        let idx = self.block_producer_index_at(validators.len_nonzero(), timestamp)?;
+        validators.get(idx).cloned()
     }
 
     /// Calculates the block producer index for a given timestamp.
@@ -70,11 +69,14 @@ impl ProtocolTimelines {
     /// * `validators_amount` - The number of validators in the protocol.
     /// * `timestamp` - The timestamp for which to calculate the block producer index.
     ///
-    /// # Panics
-    /// Panics if timestamp is before genesis or if validators_amount is zero.
-    pub fn block_producer_index_at(&self, validators_amount: usize, timestamp: u64) -> usize {
-        let slot = self.slot_from_ts(timestamp);
-        block_producer_index_for_slot(validators_amount, slot)
+    /// Returns `None` if timestamp is before genesis.
+    pub fn block_producer_index_at(
+        &self,
+        validators_amount: NonZeroUsize,
+        timestamp: u64,
+    ) -> Option<usize> {
+        let slot = self.slot_from_ts(timestamp)?;
+        Some(block_producer_index_for_slot(validators_amount, slot))
     }
 }
 
@@ -155,10 +157,11 @@ impl ToDigest for BatchCommitmentValidationReply {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::num::NonZeroU64;
 
     #[test]
     fn block_producer_index_calculates_correct_index() {
-        let validators_amount = 5;
+        let validators_amount = NonZeroUsize::new(5).unwrap();
         let slot = 7;
 
         let index = block_producer_index_for_slot(validators_amount, slot);
@@ -168,7 +171,7 @@ mod tests {
 
     #[test]
     fn block_producer_for_calculates_correct_producer() {
-        let validators = vec![
+        let validators: ValidatorsVec = vec![
             Address::from([1; 20]),
             Address::from([2; 20]),
             Address::from([3; 20]),
@@ -177,18 +180,19 @@ mod tests {
         .unwrap();
 
         let producer = ProtocolTimelines {
-            slot: 1,
+            slot: NonZeroU64::new(1).unwrap(),
             genesis_ts: 0,
-            ..Default::default()
+            era: NonZeroU64::new(1).unwrap(),
+            election: 0,
         }
         .block_producer_at(&validators, 10);
 
-        assert_eq!(producer, Address::from([2; 20]));
+        assert_eq!(producer, Some(Address::from([2; 20])));
     }
 
     #[test]
     fn block_producer_for_calculates_correct_producer_with_genesis_timestamp() {
-        let validators = vec![
+        let validators: ValidatorsVec = vec![
             Address::from([1; 20]),
             Address::from([2; 20]),
             Address::from([3; 20]),
@@ -197,12 +201,28 @@ mod tests {
         .unwrap();
 
         let producer = ProtocolTimelines {
-            slot: 2,
+            slot: NonZeroU64::new(2).unwrap(),
             genesis_ts: 6,
-            ..Default::default()
+            era: NonZeroU64::new(1).unwrap(),
+            election: 0,
         }
         .block_producer_at(&validators, 16);
 
-        assert_eq!(producer, Address::from([3; 20]));
+        assert_eq!(producer, Some(Address::from([3; 20])));
+    }
+
+    #[test]
+    fn block_producer_at_returns_none_before_genesis() {
+        let validators: ValidatorsVec = vec![Address::from([1; 20])].try_into().unwrap();
+
+        let producer = ProtocolTimelines {
+            slot: NonZeroU64::new(1).unwrap(),
+            genesis_ts: 100,
+            era: NonZeroU64::new(1).unwrap(),
+            election: 0,
+        }
+        .block_producer_at(&validators, 50);
+
+        assert_eq!(producer, None);
     }
 }

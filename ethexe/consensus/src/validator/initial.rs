@@ -220,17 +220,27 @@ impl Initial {
 
 impl ValidatorContext {
     fn switch_to_producer_or_subordinate(self, block: SimpleBlockData) -> Result<ValidatorState> {
-        let era_index = self.core.timelines.era_from_ts(block.header.timestamp);
+        let era_index = self
+            .core
+            .timelines
+            .era_from_ts(block.header.timestamp)
+            .ok_or_else(|| anyhow!("failed to calculate era for block {}", block.hash))?;
         let validators = self
             .core
             .db
             .validators(era_index)
-            .ok_or(anyhow!("validators not found for era {era_index}"))?;
+            .ok_or_else(|| anyhow!("validators not found for era {era_index}"))?;
 
         let producer = self
             .core
             .timelines
-            .block_producer_at(&validators, block.header.timestamp);
+            .block_producer_at(&validators, block.header.timestamp)
+            .ok_or_else(|| {
+                anyhow!(
+                    "failed to calculate block producer for block {}",
+                    block.hash
+                )
+            })?;
         let my_address = self.core.pub_key.to_address();
 
         if my_address == producer {
