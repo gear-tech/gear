@@ -329,7 +329,6 @@ impl Service {
                     ValidatorConfig {
                         pub_key,
                         signatures_threshold: threshold,
-                        slot_duration: config.ethereum.block_time,
                         block_gas_limit: config.node.block_gas_limit,
                         // TODO: #4942 commitment_delay_limit is a protocol specific constant
                         // which better to be configurable by router contract
@@ -341,11 +340,7 @@ impl Service {
                     },
                 )?)
             } else {
-                Box::pin(ConnectService::new(
-                    db.clone(),
-                    config.ethereum.block_time,
-                    3,
-                ))
+                Box::pin(ConnectService::new(db.clone(), 3))
             }
         };
 
