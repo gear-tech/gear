@@ -336,7 +336,7 @@ mod tests {
     const ERA: u64 = 1000;
 
     fn setup_db(db: &Database) -> ValidatorsVec {
-        let validators = ValidatorsVec::from_iter((0..10u64).map(|i| Address::from(i)));
+        let validators = ValidatorsVec::from_iter((0..10u64).map(Address::from));
 
         let timelines = ProtocolTimelines {
             slot: SLOT,
@@ -378,7 +378,7 @@ mod tests {
         let db = Database::memory();
         let validators = setup_db(&db);
 
-        // Prepate next era validators
+        // Prepare next era validators
         let mut next_era_validators = validators.clone();
         next_era_validators[0] = validators[9];
         db.set_validators(1, next_era_validators.clone());
