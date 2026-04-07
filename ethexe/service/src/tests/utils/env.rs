@@ -33,7 +33,7 @@ use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD, block_producer_index},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{
         BlockEvent, MirrorEvent, RouterEvent,
@@ -637,7 +637,7 @@ impl TestEnv {
     /// then the return may be outdated.
     pub async fn next_block_producer_index(&self) -> usize {
         let timestamp = self.latest_block().await.header.timestamp;
-        ethexe_consensus::block_producer_index(
+        block_producer_index(
             self.validators.len(),
             (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
         )
@@ -850,6 +850,7 @@ impl NodeConfig {
             cors: None,
             gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * DEFAULT_BLOCK_GAS_LIMIT,
             chunk_size: DEFAULT_CHUNK_SIZE.get(),
+            with_dev_api: false,
         };
         self.rpc = Some(service_rpc_config);
 
