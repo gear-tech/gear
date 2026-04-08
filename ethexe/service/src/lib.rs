@@ -26,7 +26,7 @@
 //! ## Event Loop
 //! The subservices in [`Service`] communicate with each other via the [`Event`] enum.
 //!
-//! In [`Service::run_inner`], the service uses the [tokio::select] macro to poll
+//! In [`Service::run`], the service uses the [tokio::select] macro to poll
 //! event streams (see [`futures::Stream`]) and route events to the appropriate subservice.
 //!
 //! ## Configuration And Startup
