@@ -18,16 +18,16 @@
 
 //! # Vara.eth node wrapper.
 //!
-//! Node wraper is a wrapper around the Vara.eth node.
+//! Node wrapper is a wrapper around the Vara.eth node.
 //! Internally, it do the next things:
 //! - spawns the Vara.eth node process
-//!     - spanws the Anvil node process
+//!     - spawns the Anvil node process
 //!     - deploy Ethereum smart-contracts on Anvil
-//! - provides the acess to node PRC endpoints and Ethereum RPC endpoint
+//! - provides the access to node PRC endpoints and Ethereum RPC endpoint
 //!
 //! ## Modules
 //! - [`node`] - provides the [VaraEth] struct - the node configurator
-//! - [`instance`] - provides the [VaraEthInstance] struct - the instance which holds the inner spanwed process and RPC endpoints.
+//! - [`instance`] - provides the [VaraEthInstance] struct - the instance which holds the inner spawned process and RPC endpoints.
 //! - [`error`] - provides the [Error] enum - the error type for module errors.
 
 #![warn(missing_docs, unreachable_pub)]
