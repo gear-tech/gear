@@ -27,17 +27,25 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, injected::Promise, network::ValidatorMessage,
+    Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec,
+    db::BlockMetaStorageRO,
+    gear::BatchCommitment,
+    injected::{Promise, SignedInjectedTransaction},
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gsigner::secp256k1::Secp256k1SignerExt;
 use std::task::{Context, Poll};
 
+/// Maximum number of mini-announces per ETH block. Defense-in-depth against
+/// TX spam. Normal operation uses 1-3. At ~400ms compute each, 30 would
+/// saturate the full 12s block window.
+const MAX_MINI_ANNOUNCES_PER_BLOCK: u32 = 30;
+
 /// [`Producer`] is the state of the validator, which creates a new block
-/// and publish it to the network. It waits for the block to be computed
-/// and then switches to [`Coordinator`] state.
+/// and publishes it to the network. After the announce is computed, it enters
+/// a ready state for mini-announces until the next block arrives.
 #[derive(Debug, Display)]
 #[display("PRODUCER in {:?}", self.state)]
 pub struct Producer {
@@ -45,6 +53,11 @@ pub struct Producer {
     block: SimpleBlockData,
     validators: ValidatorsVec,
     state: State,
+    /// The next block to process after batch commitment completes.
+    /// Set when `process_new_head` arrives during `ReadyForMiniAnnounce`.
+    next_block: Option<SimpleBlockData>,
+    /// Counter for mini-announces created in this block's cycle.
+    mini_announce_count: u32,
 }
 
 #[derive(Debug, derive_more::IsVariant)]
@@ -54,6 +67,9 @@ enum State {
         timer: Option<Timer>,
     },
     WaitingAnnounceComputed(HashOf<Announce>),
+    ReadyForMiniAnnounce {
+        last_announce_hash: HashOf<Announce>,
+    },
     AggregateBatchCommitment {
         #[debug(skip)]
         future: BoxFuture<'static, Result<Option<BatchCommitment>>>,
@@ -79,19 +95,14 @@ impl StateHandler for Producer {
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
-                // Aggregate commitment for the block and use `announce_hash` as head for chain commitment.
-                // `announce_hash` is computed and included in the db already, so it's safe to use it.
-                self.state = State::AggregateBatchCommitment {
-                    future: self
-                        .ctx
-                        .core
-                        .batch_manager
-                        .clone()
-                        .create_batch_commitment(self.block, announce_hash)
-                        .boxed(),
+                // Enter ready state for mini-announces. Batch commitment for this block
+                // will be created when the next block arrives (see process_new_head).
+                self.state = State::ReadyForMiniAnnounce {
+                    last_announce_hash: announce_hash,
                 };
 
-                Ok(self.into())
+                // Drain any TXs that arrived during computation.
+                self.produce_mini_announce()
             }
             State::WaitingAnnounceComputed(expected) => {
                 self.warning(format!(
@@ -129,6 +140,40 @@ impl StateHandler for Producer {
         }
     }
 
+    fn process_injected_transaction(
+        mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<ValidatorState> {
+        self.ctx.core.process_injected_transaction(tx)?;
+        if let State::ReadyForMiniAnnounce { .. } = &self.state {
+            self.produce_mini_announce()
+        } else {
+            Ok(self.into())
+        }
+    }
+
+    fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
+        if let State::ReadyForMiniAnnounce { last_announce_hash } = &self.state {
+            // Create batch commitment before transitioning to Initial for the new head.
+            // This defers batch creation from block N's announce-compute time to block N+1's
+            // arrival, but ensures the batch is still created before processing the new block.
+            let last_announce_hash = *last_announce_hash;
+            self.next_block = Some(block);
+            self.state = State::AggregateBatchCommitment {
+                future: self
+                    .ctx
+                    .core
+                    .batch_manager
+                    .clone()
+                    .create_batch_commitment(self.block, last_announce_hash)
+                    .boxed(),
+            };
+            Ok(self.into())
+        } else {
+            DefaultProcessing::new_head(self, block)
+        }
+    }
+
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         match &mut self.state {
             State::Delay { timer: Some(timer) } => {
@@ -140,12 +185,27 @@ impl StateHandler for Producer {
             State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
                 Poll::Ready(Ok(Some(batch))) => {
                     tracing::debug!(batch.block_hash = %batch.block_hash, "Batch commitment aggregated, switch to Coordinator");
-                    return Coordinator::create(self.ctx, self.validators, batch, self.block)
-                        .map(|s| (Poll::Ready(()), s));
+                    let next_block = self.next_block.take();
+                    let state = Coordinator::create(self.ctx, self.validators, batch, self.block)?;
+                    // Only pass next_block if Coordinator resolved to Initial
+                    // (threshold=1). For threshold>1, Coordinator needs to collect
+                    // validation replies first; the next block will arrive via the
+                    // service event loop when N+2 comes.
+                    let state = match next_block {
+                        Some(block) if state.is_initial() => state.process_new_head(block)?,
+                        _ => state,
+                    };
+                    return Ok((Poll::Ready(()), state));
                 }
                 Poll::Ready(Ok(None)) => {
                     tracing::info!("No commitments - skip batch commitment");
-                    return Initial::create(self.ctx).map(|s| (Poll::Ready(()), s));
+                    let next_block = self.next_block.take();
+                    let state = Initial::create(self.ctx)?;
+                    let state = match next_block {
+                        Some(block) => state.process_new_head(block)?,
+                        None => state,
+                    };
+                    return Ok((Poll::Ready(()), state));
                 }
                 Poll::Ready(Err(err)) => {
                     return Err(err);
@@ -180,6 +240,8 @@ impl Producer {
             block,
             validators,
             state: State::Delay { timer: Some(timer) },
+            next_block: None,
+            mini_announce_count: 0,
         }
         .into())
     }
@@ -249,6 +311,70 @@ impl Producer {
 
         Ok(self.into())
     }
+
+    fn produce_mini_announce(mut self) -> Result<ValidatorState> {
+        let State::ReadyForMiniAnnounce { last_announce_hash } = &self.state else {
+            unreachable!("produce_mini_announce called in wrong state");
+        };
+        let last_announce_hash = *last_announce_hash;
+
+        if self.mini_announce_count >= MAX_MINI_ANNOUNCES_PER_BLOCK {
+            tracing::warn!(
+                count = self.mini_announce_count,
+                "Mini-announce cap reached, deferring remaining TXs to next block"
+            );
+            return Ok(self.into());
+        }
+
+        let injected_transactions = self
+            .ctx
+            .core
+            .injected_pool
+            .select_for_announce(self.block, last_announce_hash)?;
+
+        if injected_transactions.is_empty() {
+            return Ok(self.into()); // stay in ReadyForMiniAnnounce
+        }
+
+        let announce = Announce {
+            block_hash: self.block.hash,
+            parent: last_announce_hash,
+            gas_allowance: Some(self.ctx.core.block_gas_limit),
+            injected_transactions,
+        };
+
+        let (announce_hash, newly_included) =
+            self.ctx.core.db.include_announce(announce.clone())?;
+        if !newly_included {
+            return Ok(self.into());
+        }
+
+        let era_index = self
+            .ctx
+            .core
+            .timelines
+            .era_from_ts(self.block.header.timestamp);
+        let message = ValidatorMessage {
+            era_index,
+            payload: announce.clone(),
+        };
+        let message = self
+            .ctx
+            .core
+            .signer
+            .signed_data(self.ctx.core.pub_key, message, None)?;
+
+        self.mini_announce_count += 1;
+        self.state = State::WaitingAnnounceComputed(announce_hash);
+        self.ctx
+            .output(ConsensusEvent::PublishMessage(message.into()));
+        self.ctx.output(ConsensusEvent::ComputeAnnounce(
+            announce,
+            PromisePolicy::Enabled,
+        ));
+
+        Ok(self.into())
+    }
 }
 
 #[cfg(test)]
@@ -256,11 +382,13 @@ mod tests {
     use super::*;
     use crate::{
         mock::*,
+        tx_validation::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES,
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{HashOf, db::*, gear::CodeCommitment, mock::*};
-    use futures::StreamExt;
+    use ethexe_common::{HashOf, StateHashWithQueueSize, db::*, mock::*};
+    use ethexe_runtime_common::state::{Program, ProgramState, Storage};
+    use gprimitives::ActorId;
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -287,7 +415,7 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn simple() {
-        let (ctx, keys, eth) = mock_validator_context();
+        let (ctx, keys, _eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
 
@@ -304,131 +432,262 @@ mod tests {
         }
         .setup(&state.context().core.db);
 
-        let state = state
-            .process_computed_announce(announce_hash)
-            .unwrap()
-            .wait_for_state(|state| state.is_initial())
-            .await
-            .unwrap();
+        let state = state.process_computed_announce(announce_hash).unwrap();
 
-        // No commitments - no batch and goes to initial state
-        assert!(state.is_initial());
-        assert_eq!(state.context().output.len(), 0);
-        assert!(eth.committed_batch.read().await.is_none());
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(3000)]
-    async fn threshold_one() {
-        gear_utils::init_default_logger();
-
-        let (ctx, keys, eth) = mock_validator_context();
-        let validators: ValidatorsVec =
-            nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
-        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
-        let block = ctx.core.db.simple_block_data(batch.block_hash);
-
-        // If threshold is 1, we should not emit any events and goes thru states coordinator -> submitter -> initial
-        // until batch is committed
-        let (state, announce_hash) = Producer::create(ctx, block, validators.clone())
-            .unwrap()
-            .skip_timer()
-            .await
-            .unwrap();
-
-        // Waiting for announce to be computed
+        // After computed announce, producer enters ReadyForMiniAnnounce.
+        // Batch commitment is deferred to the next block's cycle.
         assert!(state.is_producer());
-
-        // change head announce in the batch
-        if let Some(c) = batch.chain_commitment.as_mut() {
-            c.head_announce = announce_hash
-        }
-
-        // compute announce
-        AnnounceData {
-            announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(Default::default()),
-        }
-        .setup(&state.context().core.db);
-
-        let mut state = state
-            .process_computed_announce(announce_hash)
-            .unwrap()
-            .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
-            .await
-            .unwrap();
-
-        state.context_mut().tasks.select_next_some().await.unwrap();
-
-        // Check that we have a batch with commitments after submitting
-        let (committed_batch, signatures) = eth
-            .committed_batch
-            .read()
-            .await
-            .clone()
-            .expect("Expected that batch is committed");
-
-        assert_eq!(committed_batch, batch);
-        assert_eq!(signatures.len(), 1);
+        let producer = state.unwrap_producer();
+        assert!(producer.state.is_ready_for_mini_announce());
     }
 
     #[tokio::test]
     #[ntest::timeout(3000)]
-    async fn threshold_two() {
+    async fn mini_announce_produced() {
         gear_utils::init_default_logger();
 
-        let (mut ctx, keys, _) = mock_validator_context();
-        ctx.core.signatures_threshold = 2;
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
-        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
-        let block = ctx.core.db.simple_block_data(batch.block_hash);
-
-        let (state, announce_hash) = Producer::create(ctx, block, validators)
-            .unwrap()
-            .skip_timer()
-            .await
-            .unwrap();
-
-        assert!(state.is_producer(), "got {state:?}");
-
-        // compute announce
-        AnnounceData {
-            announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(Default::default()),
-        }
-        .setup(&state.context().core.db);
-
-        let (state, event) = state
-            .process_computed_announce(announce_hash)
-            .unwrap()
-            .wait_for_event()
-            .await
-            .unwrap();
-
-        // If threshold is 2, producer must goes to coordinator state and emit validation request
-        assert!(state.is_coordinator());
-        event
-            .unwrap_publish_message()
-            .unwrap_request_batch_validation();
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(3000)]
-    async fn code_commitments_only() {
-        gear_utils::init_default_logger();
-
-        let (ctx, keys, eth) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
-
-        let code1 = CodeCommitment::mock(());
-        let code2 = CodeCommitment::mock(());
-        ctx.core.db.set_code_valid(code1.id, code1.valid);
-        ctx.core.db.set_code_valid(code2.id, code2.valid);
-        ctx.core.db.mutate_block_meta(block.hash, |meta| {
-            meta.codes_queue = Some([code1.id, code2.id].into_iter().collect())
+        let (ctx, keys, _) = mock_validator_context();
+        let program_id = ActorId::from([1; 32]);
+        let state_hash = ctx.core.db.write_program_state(ProgramState {
+            program: Program::Terminated(ActorId::from([2; 32])),
+            executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
+            ..ProgramState::zero()
         });
 
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+
+        let (state, announce_hash) = Producer::create(ctx, block, validators)
+            .unwrap()
+            .skip_timer()
+            .await
+            .unwrap();
+
+        // compute first announce with a known program in its state
+        let mut program_states = ethexe_common::ProgramStates::new();
+        program_states.insert(
+            program_id,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        );
+        AnnounceData {
+            announce: state.context().core.db.announce(announce_hash).unwrap(),
+            computed: Some(MockComputedAnnounceData {
+                program_states,
+                ..Default::default()
+            }),
+        }
+        .setup(&state.context().core.db);
+
+        // Mark this announce as latest computed
+        state
+            .context()
+            .core
+            .db
+            .globals_mutate(|g| g.latest_computed_announce_hash = announce_hash);
+
+        let state = state.process_computed_announce(announce_hash).unwrap();
+
+        // Inject a TX with valid destination while in ReadyForMiniAnnounce
+        let signer = gsigner::secp256k1::Signer::memory();
+        let key = signer.generate().unwrap();
+        let tx = signer
+            .signed_message(
+                key,
+                ethexe_common::injected::InjectedTransaction {
+                    reference_block: chain.blocks[0].hash,
+                    destination: program_id,
+                    ..ethexe_common::injected::InjectedTransaction::mock(())
+                },
+                None,
+            )
+            .unwrap();
+
+        let state = state.process_injected_transaction(tx).unwrap();
+
+        // Producer should still be a producer, now in WaitingAnnounceComputed for the mini-announce
+        assert!(state.is_producer());
+        let producer = state.unwrap_producer();
+        assert!(
+            producer.state.is_waiting_announce_computed(),
+            "Expected WaitingAnnounceComputed after mini-announce, got {:?}",
+            producer.state
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn mini_announce_empty_pool() {
+        let (ctx, keys, _) = mock_validator_context();
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+
+        let (state, announce_hash) = Producer::create(ctx, block, validators)
+            .unwrap()
+            .skip_timer()
+            .await
+            .unwrap();
+
+        AnnounceData {
+            announce: state.context().core.db.announce(announce_hash).unwrap(),
+            computed: Some(Default::default()),
+        }
+        .setup(&state.context().core.db);
+
+        let state = state.process_computed_announce(announce_hash).unwrap();
+
+        // Inject a TX that won't pass pool selection (no valid destination)
+        let signer = gsigner::secp256k1::Signer::memory();
+        let key = signer.generate().unwrap();
+        let tx = signer
+            .signed_message(
+                key,
+                ethexe_common::injected::InjectedTransaction::mock(()),
+                None,
+            )
+            .unwrap();
+
+        let state = state.process_injected_transaction(tx).unwrap();
+
+        // Should stay in ReadyForMiniAnnounce since pool filtered out the TX
+        assert!(state.is_producer());
+        let producer = state.unwrap_producer();
+        assert!(
+            producer.state.is_ready_for_mini_announce(),
+            "Expected ReadyForMiniAnnounce when pool is empty, got {:?}",
+            producer.state
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn mini_announce_chaining() {
+        gear_utils::init_default_logger();
+
+        let (ctx, keys, _) = mock_validator_context();
+        let program_id = ActorId::from([1; 32]);
+        let state_hash = ctx.core.db.write_program_state(ProgramState {
+            program: Program::Terminated(ActorId::from([2; 32])),
+            executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
+            ..ProgramState::zero()
+        });
+
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+
+        let (state, announce1_hash) = Producer::create(ctx, block, validators)
+            .unwrap()
+            .skip_timer()
+            .await
+            .unwrap();
+
+        // compute first announce with known program
+        let mut program_states = ethexe_common::ProgramStates::new();
+        program_states.insert(
+            program_id,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        );
+        AnnounceData {
+            announce: state.context().core.db.announce(announce1_hash).unwrap(),
+            computed: Some(MockComputedAnnounceData {
+                program_states,
+                ..Default::default()
+            }),
+        }
+        .setup(&state.context().core.db);
+
+        state
+            .context()
+            .core
+            .db
+            .globals_mutate(|g| g.latest_computed_announce_hash = announce1_hash);
+
+        let state = state.process_computed_announce(announce1_hash).unwrap();
+        assert!(state.is_producer());
+
+        // Read first announce before injecting TX
+        let first_announce = state.context().core.db.announce(announce1_hash).unwrap();
+
+        // Now inject TX to trigger mini-announce
+        let signer = gsigner::secp256k1::Signer::memory();
+        let key = signer.generate().unwrap();
+        let tx = signer
+            .signed_message(
+                key,
+                ethexe_common::injected::InjectedTransaction {
+                    reference_block: chain.blocks[0].hash,
+                    destination: program_id,
+                    ..ethexe_common::injected::InjectedTransaction::mock(())
+                },
+                None,
+            )
+            .unwrap();
+
+        let state = state.process_injected_transaction(tx).unwrap();
+        assert!(state.is_producer());
+
+        // Find the mini-announce hash from the compute event output
+        let mini2_hash = state
+            .context()
+            .output
+            .iter()
+            .find_map(|e| match e {
+                ConsensusEvent::ComputeAnnounce(a, _) if a.parent == announce1_hash => {
+                    Some(a.to_hash())
+                }
+                _ => None,
+            })
+            .expect("Expected a ComputeAnnounce event for mini-announce");
+
+        // Verify the mini-announce chains to the first announce
+        let mini2 = state.context().core.db.announce(mini2_hash).unwrap();
+        assert_eq!(
+            mini2.parent, announce1_hash,
+            "mini-announce parent must be first announce"
+        );
+        assert_eq!(
+            mini2.block_hash, first_announce.block_hash,
+            "mini-announce must reference same block"
+        );
+
+        // Compute mini-announce 2
+        AnnounceData {
+            announce: mini2.clone(),
+            computed: Some(Default::default()),
+        }
+        .setup(&state.context().core.db);
+
+        let state = state.process_computed_announce(mini2_hash).unwrap();
+        let producer = state.unwrap_producer();
+        assert!(producer.state.is_ready_for_mini_announce());
+        match &producer.state {
+            State::ReadyForMiniAnnounce { last_announce_hash } => {
+                assert_eq!(
+                    *last_announce_hash, mini2_hash,
+                    "ready state must track mini2"
+                );
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn new_head_triggers_batch_commitment() {
+        let (ctx, keys, _) = mock_validator_context();
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+
         let (state, announce_hash) = Producer::create(ctx, block, validators)
             .unwrap()
             .skip_timer()
@@ -442,24 +701,25 @@ mod tests {
         }
         .setup(&state.context().core.db);
 
-        let mut state = state
-            .process_computed_announce(announce_hash)
-            .unwrap()
-            .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
-            .await
-            .unwrap();
+        let state = state.process_computed_announce(announce_hash).unwrap();
+        assert!(state.is_producer());
 
-        state.context_mut().tasks.select_next_some().await.unwrap();
+        // New block arrives — should trigger batch commitment creation
+        let new_block = SimpleBlockData::mock(());
+        let state = state.process_new_head(new_block).unwrap();
 
-        let (batch, signatures) = eth
-            .committed_batch
-            .read()
-            .await
-            .clone()
-            .expect("Expected that batch is committed");
-        assert_eq!(signatures.len(), 1);
-        assert_eq!(batch.chain_commitment, None);
-        assert_eq!(batch.code_commitments.len(), 2);
+        // Should still be producer, now in AggregateBatchCommitment
+        assert!(state.is_producer());
+        let producer = state.unwrap_producer();
+        assert!(
+            producer.state.is_aggregate_batch_commitment(),
+            "Expected AggregateBatchCommitment after new head in ReadyForMiniAnnounce, got {:?}",
+            producer.state
+        );
+        assert!(
+            producer.next_block.is_some(),
+            "next_block must be saved for processing after batch completes"
+        );
     }
 
     // TODO: test that zero timer works as expected

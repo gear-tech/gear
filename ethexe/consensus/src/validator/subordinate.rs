@@ -51,10 +51,11 @@ pub struct Subordinate {
     state: State,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, derive_more::IsVariant)]
 enum State {
     WaitingForAnnounce,
     WaitingAnnounceComputed { announce_hash: HashOf<Announce> },
+    ReadyForMoreAnnounces,
 }
 
 impl StateHandler for Subordinate {
@@ -71,18 +72,20 @@ impl StateHandler for Subordinate {
     }
 
     fn process_computed_announce(
-        self,
+        mut self,
         computed_announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed { announce_hash }
                 if *announce_hash == computed_announce_hash =>
             {
-                if self.is_validator {
-                    Participant::create(self.ctx, self.block, self.producer)
-                } else {
-                    Initial::create(self.ctx)
-                }
+                // Enter waiting state for more announces (mini-announces).
+                // The Participant transition happens when the validation request arrives.
+                self.state = State::ReadyForMoreAnnounces;
+
+                // Replay pending events that arrived during computation
+                // (mini-announces or validation requests from the producer).
+                self.replay_pending_events()
             }
             _ => DefaultProcessing::computed_announce(self, computed_announce_hash),
         }
@@ -97,6 +100,13 @@ impl StateHandler for Subordinate {
                 let (announce, _pub_key) = verified_announce.into_parts();
                 self.send_announce_for_computation(announce)
             }
+            State::ReadyForMoreAnnounces
+                if verified_announce.address() == self.producer
+                    && verified_announce.data().block_hash == self.block.hash =>
+            {
+                let (announce, _pub_key) = verified_announce.into_parts();
+                self.send_announce_for_computation(announce)
+            }
             _ => DefaultProcessing::announce_from_producer(self, verified_announce),
         }
     }
@@ -105,15 +115,21 @@ impl StateHandler for Subordinate {
         mut self,
         request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
-        if request.address() == self.producer {
-            tracing::trace!(
-                "Receive validation request from producer: {request:?}, saved for later."
-            );
-            self.ctx.pending(request);
-
-            Ok(self.into())
-        } else {
-            DefaultProcessing::validation_request(self, request)
+        match &self.state {
+            State::ReadyForMoreAnnounces
+                if request.address() == self.producer && self.is_validator =>
+            {
+                self.ctx.pending(request);
+                Participant::create(self.ctx, self.block, self.producer)
+            }
+            _ if request.address() == self.producer => {
+                tracing::trace!(
+                    "Receive validation request from producer: {request:?}, saved for later."
+                );
+                self.ctx.pending(request);
+                Ok(self.into())
+            }
+            _ => DefaultProcessing::validation_request(self, request),
         }
     }
 }
@@ -166,6 +182,22 @@ impl Subordinate {
         } else {
             Ok(state.into())
         }
+    }
+
+    fn replay_pending_events(mut self) -> Result<ValidatorState> {
+        let pending = mem::take(&mut self.ctx.pending_events);
+        let mut state: ValidatorState = self.into();
+
+        for event in pending {
+            state = match event {
+                PendingEvent::Announce(announce) => state.process_announce(announce)?,
+                PendingEvent::ValidationRequest(request) => {
+                    state.process_validation_request(request)?
+                }
+            };
+        }
+
+        Ok(state)
     }
 
     fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
@@ -330,18 +362,14 @@ mod tests {
             ]
         );
 
-        // After announce is computed, subordinate switches to participant state.
+        // After announce is computed, subordinate enters ReadyForMoreAnnounces.
+        // Participant transition happens when validation request arrives.
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();
-        assert!(s.is_participant(), "got {s:?}");
-        assert_eq!(
-            s.context().output,
-            vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
-            ]
-        );
+        assert!(s.is_subordinate(), "got {s:?}");
+        let sub = s.unwrap_subordinate();
+        assert!(sub.state.is_ready_for_more_announces());
     }
 
     #[test]
@@ -372,11 +400,114 @@ mod tests {
             ]
         );
 
-        // After announce is computed, not-validator subordinate switches to initial state.
+        // After announce is computed, non-validator also enters ReadyForMoreAnnounces.
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();
-        assert!(s.is_initial(), "got {s:?}");
+        assert!(s.is_subordinate(), "got {s:?}");
+        let sub = s.unwrap_subordinate();
+        assert!(sub.state.is_ready_for_more_announces());
+    }
+
+    #[test]
+    fn accept_mini_announce() {
+        let (ctx, pub_keys, _) = mock_validator_context();
+        let producer = pub_keys[0];
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+        let parent_announce_hash = chain.block_top_announce_hash(0);
+        let announce1 = ctx
+            .core
+            .signer
+            .mock_verified_data(producer, (block.hash, parent_announce_hash));
+
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+        let s = s.process_announce(announce1.clone()).unwrap();
+
+        // Compute the first announce → ReadyForMoreAnnounces
+        let s = s
+            .process_computed_announce(announce1.data().to_hash())
+            .unwrap();
+        assert!(s.is_subordinate());
+
+        // Second announce (mini-announce) from producer for the same block
+        let announce2: VerifiedAnnounce = s
+            .context()
+            .core
+            .signer
+            .mock_verified_data(producer, (block.hash, announce1.data().to_hash()));
+
+        let s = s.process_announce(announce2.clone()).unwrap();
+        assert!(s.is_subordinate(), "got {s:?}");
+        // Should have accepted the mini-announce and sent it for computation
+        assert!(
+            s.context()
+                .output
+                .iter()
+                .any(|e| matches!(e, ConsensusEvent::AnnounceAccepted(_)))
+        );
+    }
+
+    #[test]
+    fn reject_mini_announce_wrong_producer() {
+        let (ctx, keys, _) = mock_validator_context();
+        let producer = keys[0];
+        let alice = keys[1];
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+        let parent_announce_hash = chain.block_top_announce_hash(0);
+        let announce1 = ctx
+            .core
+            .signer
+            .mock_verified_data(producer, (block.hash, parent_announce_hash));
+
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+        let s = s.process_announce(announce1.clone()).unwrap();
+
+        let s = s
+            .process_computed_announce(announce1.data().to_hash())
+            .unwrap();
+
+        // Mini-announce from wrong address
+        let fake_announce: VerifiedAnnounce = s
+            .context()
+            .core
+            .signer
+            .mock_verified_data(alice, (block.hash, announce1.data().to_hash()));
+
+        let s = s.process_announce(fake_announce.clone()).unwrap();
+        // Should be saved as pending, not accepted
+        assert!(s.context().pending_events.iter().any(|e| matches!(
+            e,
+            PendingEvent::Announce(a) if a.data().to_hash() == fake_announce.data().to_hash()
+        )));
+    }
+
+    #[test]
+    fn validation_request_in_waiting_for_more() {
+        let (ctx, pub_keys, _) = mock_validator_context();
+        let producer = pub_keys[0];
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+        let parent_announce_hash = chain.block_top_announce_hash(0);
+        let announce = ctx
+            .core
+            .signer
+            .mock_verified_data(producer, (block.hash, parent_announce_hash));
+
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+        let s = s.process_announce(announce.clone()).unwrap();
+
+        // Compute → ReadyForMoreAnnounces
+        let s = s
+            .process_computed_announce(announce.data().to_hash())
+            .unwrap();
+        assert!(s.is_subordinate());
+
+        // Validation request from producer → should transition to Participant
+        let request = s.context().core.signer.mock_verified_data(producer, ());
+        let s = s.process_validation_request(request).unwrap();
+        assert!(s.is_participant(), "got {s:?}");
     }
 
     #[test]
