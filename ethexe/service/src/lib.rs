@@ -26,7 +26,7 @@
 //! ## Event Loop
 //! The subservices in [`Service`] communicate with each other via the [`Event`] enum.
 //!
-//! In [`Service::run_inner`], the service uses the `tokio::select!` macro to poll
+//! In [`Service::run_inner`], the service uses the [tokio::select] macro to poll
 //! event streams (see [`futures::Stream`]) and route events to the appropriate subservice.
 //!
 //! ## Configuration And Startup
@@ -41,7 +41,7 @@
 //! They use `TestEnv` to prepare an Anvil-based or external Ethereum environment,
 //! initialize an in-memory database, and construct test nodes.
 //!
-//! Each node runs [`Service`] in-process via [`Service::new_from_parts`].
+//! Each node runs [`Service`] using `Service::new_from_parts`.
 //! Tests observe service behavior through `TestingEvent` streams, which mirror the
 //! internal [`Event`] flow and allow waiting for startup, block sync, announce
 //! processing, network activity, and RPC requests.
