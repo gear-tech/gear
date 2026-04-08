@@ -38,14 +38,14 @@ const _: () = const {
 /// The previous schema stored `Vec<SignedInjectedTransaction` directly (see [v2_types::Announce]).
 /// So the current schema stores just the hashes and injected transaction and signatures (see [AnnounceInjectedTransaction]).
 ///
-/// This migration do the follwing:
+/// This migration do the following:
 /// 1. Reads all announces from the old schema.
 /// 2. Copy new announces and injected transactions which are not present in the database.
 /// 3. Rewrites announces in database and save injected transactions.
 ///
 /// **Important**:
 /// 1. The hashes of [ethexe_common::Announce] and [v2_types::Announce] are the same. So the migration just updates the body of announce.
-/// 2. The migration does not update the database untill all announces will be migrated.
+/// 2. The migration does not update the database until all announces will be migrated.
 pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     info!("⏳ Migrating from v2 to v3...");
 

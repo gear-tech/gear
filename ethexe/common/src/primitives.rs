@@ -154,7 +154,7 @@ impl ToDigest for Announce {
 
 /// [NetworkAnnounce] is the transport represenstation of [Announce].
 ///
-/// It is designed to keep the [Announce] a lighweight struct wihout any
+/// It is designed to keep the [Announce] a lightweight struct without any
 /// heavy dependencies.
 /// [NetworkAnnounce] is used for transport the [Announce] with [InjectedTransaction] bodies.
 #[cfg_attr(feature = "serde", derive(Hash))]
@@ -168,15 +168,7 @@ pub struct NetworkAnnounce {
 }
 
 impl NetworkAnnounce {
-    pub fn base(block_hash: H256, parent: HashOf<Announce>) -> Self {
-        Self {
-            block_hash,
-            parent,
-            gas_allowance: None,
-            injected_transactions: Vec::new(),
-        }
-    }
-
+    // TODO: make this only for tests or remove
     pub fn with_default_gas(block_hash: H256, parent: HashOf<Announce>) -> Self {
         Self {
             block_hash,
