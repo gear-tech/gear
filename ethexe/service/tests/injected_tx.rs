@@ -24,17 +24,27 @@ use ethexe_rpc::{BlockClient as _, InjectedClient as _};
 use gprimitives::H256;
 use gsigner::secp256k1::{Secp256k1SignerExt as _, Signer};
 use jsonrpsee::ws_client::WsClientBuilder;
-use std::{str::FromStr as _, time::Instant};
+use std::{
+    str::FromStr as _,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
 
+/// How to run this test:
+/// ```bash
+/// cargo test -p ethexe-service -- send_injected_tx_join_us --ignored --nocapture --exact
+/// ```
 #[tokio::test]
 #[ignore = "requires connection to vara.network validator"]
 async fn send_injected_tx_join_us() {
-    const VALIDATOR_RPC_URL: &str = "wss://validator-1-eth.vara.network";
+    const SLOT_DURATION: u64 = 12;
+    const VARA_ETH_MAINNET_GENESIS_TIMESTAMP: u64 = 1_774_445_351;
+    const VALIDATOR_RPC_URL: &str = "wss://validator-3-eth.vara.network";
     const DESTINATION: &str = "0x6286a1f8ebbd8b7d2ab75321f3f00b507d5ecc01";
     // SCALE-encoded payload: OneOfUs::JoinUs
     const PAYLOAD: &[u8] = &[
         0x1c, 0x4f, 0x6e, 0x65, 0x4f, 0x66, 0x55, 0x73, 0x18, 0x4a, 0x6f, 0x69, 0x6e, 0x55, 0x73,
     ];
+    const END_OF_SLOT_DELAY: u64 = 1;
 
     let client = WsClientBuilder::new()
         .build(VALIDATOR_RPC_URL)
@@ -65,7 +75,25 @@ async fn send_injected_tx_join_us() {
         tx: signer.signed_message(key, tx, None).unwrap(),
     };
 
-    println!("Sending transaction ...");
+    let in_slot_position = (SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        - VARA_ETH_MAINNET_GENESIS_TIMESTAMP)
+        % SLOT_DURATION;
+    if in_slot_position < SLOT_DURATION - END_OF_SLOT_DELAY {
+        let time_to_wait = SLOT_DURATION - in_slot_position - END_OF_SLOT_DELAY;
+        println!("Waiting for {time_to_wait}s to be close to the end of the slot...");
+        tokio::time::sleep(Duration::from_secs(time_to_wait)).await;
+    }
+
+    println!(
+        "Sending transaction start({}) ...",
+        chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S%.6f")
+            .to_string()
+    );
+
     let start = Instant::now();
 
     let mut subscription = client
@@ -73,7 +101,7 @@ async fn send_injected_tx_join_us() {
         .await
         .unwrap();
 
-    println!("Waiting for promise to ...");
+    println!("Waiting for promise time({:?}) ...", start.elapsed());
 
     let promise = subscription
         .next()

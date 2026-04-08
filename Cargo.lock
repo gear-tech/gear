@@ -5517,6 +5517,7 @@ dependencies = [
  "anyhow",
  "async-broadcast",
  "async-trait",
+ "chrono",
  "demo-async",
  "demo-async-init",
  "demo-delayed-sender-ethexe",

@@ -70,6 +70,7 @@ jsonrpsee = { workspace = true, features = ["client"] }
 async-broadcast.workspace = true
 wat.workspace = true
 tempfile.workspace = true
+chrono = "0.4"
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-value-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }
