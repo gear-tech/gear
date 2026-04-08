@@ -65,9 +65,9 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         let migrated_announce = ethexe_common::Announce {
             block_hash,
             // The hash of announce do not changed.
-            parent: unsafe {HashOf::new(parent.clone().inner())},
+            parent: unsafe {HashOf::new(parent.inner())},
             gas_allowance,
-            injected_transactions: injected_transactions.iter().map(|tx| AnnounceInjectedTransaction::from_signed_tx(tx)).collect()
+            injected_transactions: injected_transactions.iter().map(AnnounceInjectedTransaction::from_signed_tx).collect()
         };
         let migrated_announce_hash = migrated_announce.to_hash().inner();
 
@@ -84,7 +84,7 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         });
 
         announces_to_insert.push(migrated_announce);
-        return Ok(());
+        Ok(())
     })?;
 
     info!("✅ Migratable data from v2 to v3 prepared successfully");
