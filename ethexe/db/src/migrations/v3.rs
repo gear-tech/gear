@@ -20,11 +20,11 @@ use crate::{InitConfig, RawDatabase};
 use anyhow::{Context as _, Result, bail};
 use ethexe_common::{
     HashOf,
-    db::{AnnounceStorageRW, InjectedStorageRO, InjectedStorageRW},
+    db::{AnnounceStorageRW, DBConfig, InjectedStorageRO, InjectedStorageRW},
     injected::AnnounceInjectedTransaction,
 };
 use gprimitives::H256;
-use log::{info, warn};
+use log::{info, trace, warn};
 use parity_scale_codec::{Decode, Encode};
 
 pub const VERSION: u32 = 3;
@@ -48,6 +48,8 @@ const _: () = const {
 /// 2. The migration does not update the database until all announces will be migrated.
 pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     info!("⏳ Migrating from v2 to v3...");
+
+    let config = db.kv.config().context("DBConfig not found")?;
 
     // Migratable data
     let mut announces_to_insert = Vec::new();
@@ -90,8 +92,8 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         Ok(())
     })?;
 
-    info!("✅ Migratable data from v2 to v3 prepared successfully");
-    info!("⏳ Inserting migrated transactions and announces into the database...");
+    trace!("Migratable data from v2 to v3 prepared successfully");
+    trace!("Inserting migrated transactions and announces into the database...");
 
     announces_to_insert.into_iter().for_each(|announce| {
         db.set_announce(announce);
@@ -100,6 +102,15 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     transactions_to_insert.into_iter().for_each(|tx| {
         db.set_injected_transaction(tx);
     });
+
+    trace!("Data migrated successfully. Updating config...");
+
+    db.kv.set_config(DBConfig {
+        version: VERSION,
+        ..config
+    });
+
+    info!("✅ Migration successfully finished");
 
     Ok(())
 }
@@ -115,5 +126,20 @@ mod v2_types {
         pub parent: HashOf<Self>,
         pub gas_allowance: Option<u64>,
         pub injected_transactions: Vec<SignedInjectedTransaction>,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::migrations::test::assert_migration_types_hash;
+    use scale_info::meta_type;
+
+    #[test]
+    fn ensure_migration_types() {
+        assert_migration_types_hash(
+            "v2->v3",
+            vec![meta_type::<ethexe_common::Announce>()],
+            "7d8fe4b5d075d56e6e6e0618e0fe7b3af79b5c74475c9457ea3c16d0e1ccffaa",
+        );
     }
 }
