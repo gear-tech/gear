@@ -170,6 +170,10 @@ impl StateHandler for Producer {
             };
             Ok(self.into())
         } else {
+            // TODO: if in WaitingAnnounceComputed (mid mini-announce computation),
+            // batch commitment for this block is skipped. The announces are still in DB
+            // and will be picked up by the next block's collect_not_committed_predecessors,
+            // but block-specific code/validator/reward commitments could be missed.
             DefaultProcessing::new_head(self, block)
         }
     }
