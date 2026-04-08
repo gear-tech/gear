@@ -312,10 +312,10 @@ pub(crate) mod utils {
 
         // Check if parent announce is for the same block (mini-announce case).
         // If so, canonical events were already processed by the parent — skip them.
-        let parent_announce = db
+        let is_same_block = db
             .announce(announce.parent)
-            .ok_or(ComputeError::AnnounceNotFound(announce.parent))?;
-        let events = if parent_announce.block_hash == block_hash {
+            .is_some_and(|parent| parent.block_hash == block_hash);
+        let events = if is_same_block {
             vec![]
         } else {
             let matured_events =

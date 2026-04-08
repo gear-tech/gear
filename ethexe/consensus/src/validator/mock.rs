@@ -74,6 +74,7 @@ impl ElectionProvider for MockEthereum {
 #[async_trait]
 pub trait WaitFor {
     async fn wait_for_event(self) -> Result<(ValidatorState, ConsensusEvent)>;
+    #[allow(dead_code)]
     async fn wait_for_state<F>(self, f: F) -> Result<ValidatorState>
     where
         F: Fn(&ValidatorState) -> bool + Unpin + Send;
