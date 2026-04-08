@@ -21,8 +21,8 @@
 //! The crate provide both client and server APIs for the Vara.eth node.
 //!
 //! ## Crate modules
-//! The crate has the follwing structure:
-//! - [`apis`] - provides the RPC available APIs
+//! The crate has the following structure:
+//! - `apis` - provides the RPC available APIs
 //!     - `block` - Ethereum blocks API
 //!     - `code` - WASM codes API
 //!     - `injected` - API for communication with node via [`ethexe_common::injected::InjectedTransaction`]
@@ -76,7 +76,7 @@ use std::{
 use tokio::sync::{mpsc, oneshot};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-pub mod apis;
+mod apis;
 mod errors;
 mod metrics;
 mod utils;
