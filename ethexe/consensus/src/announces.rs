@@ -696,8 +696,7 @@ pub fn accept_announce(
     db: &impl DBAnnouncesExt,
     network_announce: NetworkAnnounce,
 ) -> Result<AnnounceStatus> {
-    let announce = Announce::from(&network_announce);
-    let injected_transactions = network_announce.injected_transactions;
+    let (announce, injected_transactions) = network_announce.split_into_parts();
 
     let announce_hash = announce.to_hash();
     let parent_announce_hash = announce.parent;

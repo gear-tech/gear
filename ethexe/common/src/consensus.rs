@@ -38,8 +38,6 @@ pub const DEFAULT_BATCH_SIZE_LIMIT: u64 = 100 * 1024;
 /// Default threshold for producer to submit commitment despite of no transitions
 pub const DEFAULT_CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
 
-// pub type VerifiedAnnounce = VerifiedData<Announce>;
-
 pub type VerifiedAnnounce = VerifiedData<NetworkAnnounce>;
 pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;

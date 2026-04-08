@@ -33,18 +33,21 @@ const _: () = const {
     assert!(crate::VERSION == VERSION);
 };
 
+/// This migration is fixes the storage schema for [ethexe_common::Announce].
+///
+/// The previous schema stored `Vec<SignedInjectedTransaction` directly (see [v2_types::Announce]).
+/// So the current schema stores just the hashes and injected transaction and signatures (see [AnnounceInjectedTransaction]).
+///
+/// This migration do the follwing:
+/// 1. Reads all announces from the old schema.
+/// 2. Copy new announces and injected transactions which are not present in the database.
+/// 3. Rewrites announces in database and save injected transactions.
+///
+/// **Important**:
+/// 1. The hashes of [ethexe_common::Announce] and [v2_types::Announce] are the same. So the migration just updates the body of announce.
+/// 2. The migration does not update the database untill all announces will be migrated.
 pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
-    // TODO: `Announce` keeps the same hash, but its stored value format changed:
-    // `Vec<SignedInjectedTransaction>` was replaced with
-    // `Vec<AnnounceInjectedTransaction>`.
-    //
-    // The migration must:
-    // 1. Read announces using the previous schema.
-    // 2. Backfill injected transaction storage with full signed transactions.
-    // 3. Rewrite announces into the new compact schema.
-    // 4. Verify `Announce::to_hash()` remains unchanged for migrated values.
-
-    info!("Migrating from v2 to v3");
+    info!("⏳ Migrating from v2 to v3...");
 
     // Migratable data
     let mut announces_to_insert = Vec::new();

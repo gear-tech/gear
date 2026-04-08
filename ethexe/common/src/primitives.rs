@@ -152,12 +152,18 @@ impl ToDigest for Announce {
     }
 }
 
+/// [NetworkAnnounce] is the transport represenstation of [Announce].
+///
+/// It is designed to keep the [Announce] a lighweight struct wihout any
+/// heavy dependencies.
+/// [NetworkAnnounce] is used for transport the [Announce] with [InjectedTransaction] bodies.
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct NetworkAnnounce {
     pub block_hash: H256,
     pub parent: HashOf<Announce>,
     pub gas_allowance: Option<u64>,
+    /// Full [InjectedTransaction] bodies.
     pub injected_transactions: Vec<SignedInjectedTransaction>,
 }
 
@@ -192,6 +198,8 @@ impl NetworkAnnounce {
         Announce::from(self).to_hash()
     }
 
+    /// Converts the [NetworkAnnounce] into an [Announce] and sets the injected transactions in the database.
+    /// Guarantees that the injected transactions are persisted in the database.
     pub fn into_announce_persisting_injected_transactions<DB: ?Sized + InjectedStorageRW>(
         self,
         db: &DB,
@@ -215,6 +223,12 @@ impl NetworkAnnounce {
             gas_allowance,
             injected_transactions: injected_transaction_hashes,
         }
+    }
+
+    /// Splits the [NetworkAnnounce] into an [Announce] and a vector of [SignedInjectedTransaction] bodies.
+    pub fn split_into_parts(self) -> (Announce, Vec<SignedInjectedTransaction>) {
+        let announce = Announce::from(&self);
+        (announce, self.injected_transactions)
     }
 }
 
