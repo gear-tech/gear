@@ -122,6 +122,11 @@ impl StateHandler for Subordinate {
                 self.ctx.pending(request);
                 Participant::create(self.ctx, self.block, self.producer)
             }
+            State::ReadyForMoreAnnounces if request.address() == self.producer => {
+                // Non-validator: VR is meaningless, drop it to avoid recycle loop
+                // in replay_pending_events.
+                Ok(self.into())
+            }
             _ if request.address() == self.producer => {
                 tracing::trace!(
                     "Receive validation request from producer: {request:?}, saved for later."
