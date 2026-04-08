@@ -35,6 +35,16 @@
 //!
 //! In the general case, [`Service::new`] is called from the `ethexe-cli` crate,
 //! where [`Config`] is parsed from command-line arguments or a configuration file.
+//!
+//! ## Testing
+//! Integration tests for this crate live in `src/tests`.
+//! They use `TestEnv` to prepare an Anvil-based or external Ethereum environment,
+//! initialize an in-memory database, and construct test nodes.
+//!
+//! Each node runs [`Service`] in-process via [`Service::new_from_parts`].
+//! Tests observe service behavior through `TestingEvent` streams, which mirror the
+//! internal [`Event`] flow and allow waiting for startup, block sync, announce
+//! processing, network activity, and RPC requests.
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::{
