@@ -136,7 +136,7 @@ impl InjectedServer for InjectedApi {
 
         if transaction_ids.len() > MAX_TRANSACTION_IDS {
             return Err(errors::invalid_params(
-                "Too many transaction ids requested. Maximum is 100.",
+                "Too many transaction ids requested. Maximum is {MAX_TRANSACTION_IDS}.",
             ));
         }
 
