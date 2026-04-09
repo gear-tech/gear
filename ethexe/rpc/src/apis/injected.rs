@@ -21,9 +21,10 @@ use anyhow::Result;
 use dashmap::DashMap;
 use ethexe_common::{
     Address, HashOf,
+    db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedPromise,
+        SignedInjectedTransaction, SignedPromise,
     },
 };
 use ethexe_db::Database;
@@ -35,6 +36,8 @@ use jsonrpsee::{
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
+
+const MAX_TRANSACTION_IDS: usize = 100;
 
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
@@ -56,6 +59,13 @@ pub trait Injected {
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
+
+    /// Retrieves injected transactions by the provided IDs
+    #[method(name = "getTransactions")]
+    async fn get_transactions(
+        &self,
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>>;
 }
 
 type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
@@ -116,6 +126,26 @@ impl InjectedServer for InjectedApi {
         self.spawn_promise_waiter(subscription_sink, promise_receiver, tx_hash);
 
         Ok(())
+    }
+
+    async fn get_transactions(
+        &self,
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>> {
+        tracing::trace!(?transaction_ids, "Called injected_getTransactions");
+
+        if transaction_ids.len() > MAX_TRANSACTION_IDS {
+            return Err(errors::invalid_params(
+                "Too many transaction ids requested. Maximum is 100.",
+            ));
+        }
+
+        let transactions = transaction_ids
+            .into_iter()
+            .map(|tx_id| self.db.injected_transaction(tx_id))
+            .collect::<Vec<Option<SignedInjectedTransaction>>>();
+
+        Ok(transactions)
     }
 }
 
