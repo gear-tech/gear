@@ -39,6 +39,11 @@ use tracing::{debug, info, warn};
 /// How much VARA (ERC-20 with 12 decimals) to give the mega contract.
 const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 
+/// Runs the syscall fuzzing workflow against a local `ethexe` deployment.
+///
+/// The function uploads the demo mega contract, creates and initializes a
+/// program instance, then repeatedly sends randomized command batches while
+/// classifying each iteration as success, trap, or transport error.
 pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     let router_addr = Address::from_str(&params.router_address)?;
 
@@ -152,10 +157,12 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     Ok(())
 }
 
-/// Wait for a reply to `msg_id` by polling blocks from `start_block` up to
-/// `max_blocks` ahead. Sleeps up to 12 seconds between polls when waiting for
-/// new blocks to appear.
-/// Returns `Ok(None)` on success, `Ok(Some(err))` on error reply, `Err` on timeout.
+/// Waits for the terminal outcome of one message by polling future blocks.
+///
+/// The function scans mirror logs from `start_block` forward up to
+/// `max_blocks`, sleeping between polls while waiting for new blocks. It
+/// returns `Ok(None)` on a successful reply and `Ok(Some(...))` when the
+/// message fails or times out within the scan window.
 async fn wait_for_reply(
     api: &Ethereum,
     msg_id: MessageId,
