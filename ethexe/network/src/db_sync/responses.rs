@@ -29,9 +29,7 @@ use ethexe_common::{
         AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO, InjectedStorageRO,
     },
     injected::InjectedTransaction,
-    network::{
-        AnnouncesRequest, AnnouncesRequestUntil, NetworkAnnounce, NetworkAnnounceFromAnnounceError,
-    },
+    network::{AnnouncesRequest, AnnouncesRequestUntil, NetworkAnnounce, NetworkAnnounceError},
 };
 use libp2p::request_response;
 use std::{
@@ -201,12 +199,12 @@ impl OngoingResponses {
             };
 
             let network_announce =
-                NetworkAnnounce::try_from_announce(announce, injected_transactions).map_err(
-                    |source| ProcessAnnounceError::AnnounceInjectedTransactionsMismatch {
+                NetworkAnnounce::new(announce, injected_transactions).map_err(|source| {
+                    ProcessAnnounceError::AnnounceInjectedTransactionsMismatch {
                         hash: current_announce_hash,
                         source,
-                    },
-                )?;
+                    }
+                })?;
 
             announces.push_front(network_announce);
         }
@@ -280,7 +278,7 @@ enum ProcessAnnounceError {
     AnnounceInjectedTransactionsMismatch {
         hash: HashOf<Announce>,
         #[source]
-        source: NetworkAnnounceFromAnnounceError,
+        source: NetworkAnnounceError,
     },
     #[error("reached genesis announce {genesis}")]
     ReachedGenesis { genesis: HashOf<Announce> },
@@ -308,8 +306,7 @@ mod tests {
 
     fn make_network_announce(block: u64, parent: HashOf<Announce>) -> NetworkAnnounce {
         let announce = make_announce(block, parent);
-        NetworkAnnounce::try_from_announce(announce, vec![])
-            .expect("empty announce hashes must match empty injected transactions")
+        NetworkAnnounce::new(announce, vec![]).unwrap()
     }
 
     fn set_db_data(db: &Database, genesis: HashOf<Announce>, start: HashOf<Announce>) {

@@ -26,7 +26,7 @@ use core::{hash::Hash, num::NonZeroU32};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
-pub use crate::primitives::{NetworkAnnounce, NetworkAnnounceFromAnnounceError};
+pub use crate::primitives::{NetworkAnnounce, NetworkAnnounceError};
 
 pub type ValidatorAnnounce = ValidatorMessage<NetworkAnnounce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;

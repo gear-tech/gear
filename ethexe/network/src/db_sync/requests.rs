@@ -552,10 +552,11 @@ impl ResponseHandler {
             return AnnouncesResponseHandled::NewRound;
         };
 
-        if request.head != last.to_hash() {
+        let last_announce_hash = last.to_announce().to_hash();
+        if request.head != last_announce_hash {
             return AnnouncesResponseHandled::Err(AnnouncesResponseError::HeadMismatch {
                 expected: request.head,
-                received: last.to_hash(),
+                received: last_announce_hash,
             });
         }
 
@@ -584,7 +585,7 @@ impl ResponseHandler {
             if announce.parent != expected_parent_hash {
                 return AnnouncesResponseHandled::Err(AnnouncesResponseError::ChainIsNotLinked);
             }
-            expected_parent_hash = announce.to_hash();
+            expected_parent_hash = announce.to_announce().to_hash();
         }
 
         unsafe { AnnouncesResponseHandled::Done(AnnouncesResponse::from_parts(request, announces)) }
@@ -912,7 +913,7 @@ mod tests {
                 gas_allowance: None,
                 injected_transactions: vec![],
             };
-            parent = announce.to_hash();
+            parent = announce.to_announce().to_hash();
             chain.push(announce);
         }
 
@@ -996,7 +997,7 @@ mod tests {
     #[test]
     fn try_into_checked_accepts_valid_tail_range() {
         let announces = make_chain(3);
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().to_announce().to_hash();
         let tail_hash = announces.first().unwrap().parent;
 
         let request = AnnouncesRequest {
@@ -1013,7 +1014,7 @@ mod tests {
     #[test]
     fn try_into_checked_accepts_valid_chain_len() {
         let announces = make_chain(4);
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().to_announce().to_hash();
 
         let request = AnnouncesRequest {
             head: head_hash,
@@ -1053,7 +1054,7 @@ mod tests {
     #[test]
     fn try_into_checked_rejects_head_mismatch() {
         let announces = make_chain(2);
-        let actual_head = announces.last().unwrap().to_hash();
+        let actual_head = announces.last().unwrap().to_announce().to_hash();
         let wrong_head = HashOf::random();
         let tail_hash = announces.first().unwrap().parent;
 
@@ -1077,7 +1078,7 @@ mod tests {
     fn try_into_checked_rejects_tail_mismatch() {
         let announces = make_chain(3);
         let actual_tail = announces.first().unwrap().parent;
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().to_announce().to_hash();
         let wrong_tail = HashOf::random();
 
         let request = AnnouncesRequest {
@@ -1099,7 +1100,7 @@ mod tests {
     #[test]
     fn try_into_checked_rejects_len_mismatch() {
         let announces = make_chain(2);
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().to_announce().to_hash();
 
         let request = AnnouncesRequest {
             head: head_hash,
@@ -1121,7 +1122,7 @@ mod tests {
     fn try_into_checked_rejects_non_linked_chain() {
         let mut announces = make_chain(3);
         announces[1].parent = HashOf::zero();
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().to_announce().to_hash();
         let tail_hash = announces.first().unwrap().parent;
 
         let request = AnnouncesRequest {

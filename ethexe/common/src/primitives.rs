@@ -18,7 +18,6 @@
 
 use crate::{
     DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest,
-    db::InjectedStorageRW,
     events::BlockEvent,
     injected::{AnnounceInjectedTransaction, InjectedTransaction, SignedInjectedTransaction},
 };
@@ -29,7 +28,6 @@ use alloc::{
 use core::ops::Not;
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
-use gsigner::Signature;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sha3::Digest as _;
@@ -168,60 +166,98 @@ pub struct NetworkAnnounce {
 }
 
 impl NetworkAnnounce {
-    // TODO: make this only for tests or remove
-    pub fn with_default_gas(block_hash: H256, parent: HashOf<Announce>) -> Self {
-        Self {
-            block_hash,
-            parent,
-            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
-            injected_transactions: Vec::new(),
-        }
-    }
-
-    #[allow(clippy::result_large_err)]
-    pub fn try_from_announce(
+    pub fn new(
         announce: Announce,
-        injected_transactions: Vec<SignedInjectedTransaction>,
-    ) -> Result<Self, NetworkAnnounceFromAnnounceError> {
-        (announce, injected_transactions).try_into()
-    }
-
-    pub fn to_hash(&self) -> HashOf<Announce> {
-        Announce::from(self).to_hash()
-    }
-
-    /// Converts the [NetworkAnnounce] into an [Announce] and sets the injected transactions in the database.
-    /// Guarantees that the injected transactions are persisted in the database.
-    pub fn into_announce_persisting_injected_transactions<DB: ?Sized + InjectedStorageRW>(
-        self,
-        db: &DB,
-    ) -> Announce {
-        let Self {
-            block_hash,
-            parent,
-            gas_allowance,
-            injected_transactions,
-        } = self;
-
-        let mut injected_transaction_hashes = Vec::with_capacity(injected_transactions.len());
-        for tx in injected_transactions {
-            injected_transaction_hashes.push(AnnounceInjectedTransaction::from_signed_tx(&tx));
-            db.set_injected_transaction(tx);
+        txs: Vec<SignedInjectedTransaction>,
+    ) -> Result<Self, NetworkAnnounceError> {
+        if announce.injected_transactions.len() != txs.len() {
+            return Err(NetworkAnnounceError::TxsLenMismatch {
+                announce_len: announce.injected_transactions.len(),
+                provided_len: txs.len(),
+            });
         }
 
+        let txs_zip_iter = txs.into_iter().zip(announce.injected_transactions);
+        let injected_transactions = txs_zip_iter
+            .map(|(stx, atx)| {
+                let stx_hash = stx.data().to_hash();
+                if stx_hash != atx.tx_hash() {
+                    return Err(NetworkAnnounceError::TxHashMismatch {
+                        expected: atx.tx_hash(),
+                        actual: stx_hash,
+                    });
+                }
+                if *stx.signature() != *atx.signature() {
+                    return Err(NetworkAnnounceError::TxSignatureMismatch { tx_hash: stx_hash });
+                }
+
+                Ok(stx)
+            })
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self {
+            block_hash: announce.block_hash,
+            parent: announce.parent,
+            gas_allowance: announce.gas_allowance,
+            injected_transactions,
+        })
+    }
+
+    pub fn to_announce(&self) -> Announce {
+        let transactions = self
+            .injected_transactions
+            .iter()
+            .map(AnnounceInjectedTransaction::from_signed_tx);
         Announce {
-            block_hash,
-            parent,
-            gas_allowance,
-            injected_transactions: injected_transaction_hashes,
+            block_hash: self.block_hash,
+            parent: self.parent,
+            gas_allowance: self.gas_allowance,
+            injected_transactions: transactions.collect(),
         }
     }
 
     /// Splits the [NetworkAnnounce] into an [Announce] and a vector of [SignedInjectedTransaction] bodies.
-    pub fn split_into_parts(self) -> (Announce, Vec<SignedInjectedTransaction>) {
-        let announce = Announce::from(&self);
-        (announce, self.injected_transactions)
+    pub fn into_parts(self) -> (Announce, Vec<SignedInjectedTransaction>) {
+        (self.to_announce(), self.injected_transactions)
     }
+    // #[allow(clippy::result_large_err)]
+    // pub fn try_from_announce(
+    //     announce: Announce,
+    //     injected_transactions: Vec<SignedInjectedTransaction>,
+    // ) -> Result<Self, NetworkAnnounceFromAnnounceError> {
+    //     (announce, injected_transactions).try_into()
+    // }
+
+    // pub fn to_hash(&self) -> HashOf<Announce> {
+    //     Announce::from(self).to_hash()
+    // }
+
+    // Converts the [NetworkAnnounce] into an [Announce] and sets the injected transactions in the database.
+    // Guarantees that the injected transactions are persisted in the database.
+    // pub fn into_announce_persisting_injected_transactions<DB: ?Sized + InjectedStorageRW>(
+    //     self,
+    //     db: &DB,
+    // ) -> Announce {
+    //     let Self {
+    //         block_hash,
+    //         parent,
+    //         gas_allowance,
+    //         injected_transactions,
+    //     } = self;
+
+    //     let mut injected_transaction_hashes = Vec::with_capacity(injected_transactions.len());
+    //     for tx in injected_transactions {
+    //         injected_transaction_hashes.push(AnnounceInjectedTransaction::from_signed_tx(&tx));
+    //         db.set_injected_transaction(tx);
+    //     }
+
+    //     Announce {
+    //         block_hash,
+    //         parent,
+    //         gas_allowance,
+    //         injected_transactions: injected_transaction_hashes,
+    //     }
+    // }
 }
 
 impl From<&NetworkAnnounce> for Announce {
@@ -254,101 +290,94 @@ impl From<NetworkAnnounce> for Announce {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
-pub enum NetworkAnnounceFromAnnounceError {
-    #[display(
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum NetworkAnnounceError {
+    #[error(
         "injected transactions count mismatch: announce has {announce_len}, provided {provided_len}"
     )]
-    InjectedTransactionsLenMismatch {
+    TxsLenMismatch {
         announce_len: usize,
         provided_len: usize,
     },
-    #[display(
-        "injected transaction hash mismatch at index {index}: expected {expected}, got {actual}"
-    )]
-    InjectedTransactionHashMismatch {
-        index: usize,
+    #[error("injected transaction hash mismatch: expected {expected}, got {actual}")]
+    TxHashMismatch {
         expected: HashOf<InjectedTransaction>,
         actual: HashOf<InjectedTransaction>,
     },
-    #[display(
-        "injected transaction signature mismatch at index {index}: expected {expected}, got {actual}"
-    )]
-    InjectedTransactionSignatureMismatch {
-        index: usize,
-        expected: Signature,
-        actual: Signature,
+    #[error("signature mismatch for injected transaction {tx_hash}")]
+    TxSignatureMismatch {
+        tx_hash: HashOf<InjectedTransaction>,
     },
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for NetworkAnnounceFromAnnounceError {}
+// #[cfg(feature = "std")]
+// impl std::error::Error for NetworkAnnounceFromAnnounceError {}
 
-impl TryFrom<(Announce, Vec<SignedInjectedTransaction>)> for NetworkAnnounce {
-    type Error = NetworkAnnounceFromAnnounceError;
+// impl TryFrom<(Announce, Vec<SignedInjectedTransaction>)> for NetworkAnnounce {
+//     type Error = NetworkAnnounceFromAnnounceError;
 
-    fn try_from(
-        (announce, injected_transactions): (Announce, Vec<SignedInjectedTransaction>),
-    ) -> Result<Self, Self::Error> {
-        let Announce {
-            block_hash,
-            parent,
-            gas_allowance,
-            injected_transactions: announce_injected_transactions,
-        } = announce;
+//     fn try_from(
+//         (announce, injected_transactions): (Announce, Vec<SignedInjectedTransaction>),
+//     ) -> Result<Self, Self::Error> {
+//         let Announce {
+//             block_hash,
+//             parent,
+//             gas_allowance,
+//             injected_transactions: announce_injected_transactions,
+//         } = announce;
 
-        if announce_injected_transactions.len() != injected_transactions.len() {
-            return Err(
-                NetworkAnnounceFromAnnounceError::InjectedTransactionsLenMismatch {
-                    announce_len: announce_injected_transactions.len(),
-                    provided_len: injected_transactions.len(),
-                },
-            );
-        }
+//         if announce_injected_transactions.len() != injected_transactions.len() {
+//             return Err(
+//                 NetworkAnnounceFromAnnounceError::InjectedTransactionsLenMismatch {
+//                     announce_len: announce_injected_transactions.len(),
+//                     provided_len: injected_transactions.len(),
+//                 },
+//             );
+//         }
 
-        for (index, (expected, tx)) in announce_injected_transactions
-            .iter()
-            .zip(&injected_transactions)
-            .enumerate()
-        {
-            let actual = tx.data().to_hash();
-            if expected.tx_hash() != actual {
-                return Err(
-                    NetworkAnnounceFromAnnounceError::InjectedTransactionHashMismatch {
-                        index,
-                        expected: expected.tx_hash(),
-                        actual,
-                    },
-                );
-            }
+//         for (index, (expected, tx)) in announce_injected_transactions
+//             .iter()
+//             .zip(&injected_transactions)
+//             .enumerate()
+//         {
+//             let actual = tx.data().to_hash();
+//             if expected.tx_hash() != actual {
+//                 return Err(
+//                     NetworkAnnounceFromAnnounceError::InjectedTransactionHashMismatch {
+//                         index,
+//                         expected: expected.tx_hash(),
+//                         actual,
+//                     },
+//                 );
+//             }
 
-            if *expected.signature() != *tx.signature() {
-                return Err(
-                    NetworkAnnounceFromAnnounceError::InjectedTransactionSignatureMismatch {
-                        index,
-                        expected: *expected.signature(),
-                        actual: *tx.signature(),
-                    },
-                );
-            }
-        }
+//             if *expected.signature() != *tx.signature() {
+//                 return Err(
+//                     NetworkAnnounceFromAnnounceError::InjectedTransactionSignatureMismatch {
+//                         index,
+//                         expected: *expected.signature(),
+//                         actual: *tx.signature(),
+//                     },
+//                 );
+//             }
+//         }
 
-        Ok(Self {
-            block_hash,
-            parent,
-            gas_allowance,
-            injected_transactions,
-        })
-    }
-}
+//         Ok(Self {
+//             block_hash,
+//             parent,
+//             gas_allowance,
+//             injected_transactions,
+//         })
+//     }
+// }
 
-impl TryFrom<Announce> for NetworkAnnounce {
-    type Error = NetworkAnnounceFromAnnounceError;
+// impl TryFrom<Announce> for NetworkAnnounce {
+//     type Error = NetworkAnnounceFromAnnounceError;
 
-    fn try_from(announce: Announce) -> Result<Self, Self::Error> {
-        Self::try_from_announce(announce, Vec::new())
-    }
-}
+//     fn try_from(announce: Announce) -> Result<Self, Self::Error> {
+//         Self::try_from_announce(announce, Vec::new())
+//     }
+// }
 
 impl ToDigest for NetworkAnnounce {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
@@ -517,12 +546,8 @@ pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        db::{InjectedStorageRO, InjectedStorageRW},
-        injected::InjectedTransaction,
-    };
+    use crate::{self, injected::InjectedTransaction};
     use gsigner::PrivateKey;
-    use std::{cell::RefCell, vec};
 
     #[test]
     fn test_era_from_ts_calculation() {
@@ -627,14 +652,13 @@ mod tests {
         };
 
         let network_announce =
-            NetworkAnnounce::try_from_announce(announce.clone(), vec![tx1.clone(), tx2.clone()])
+            NetworkAnnounce::new(announce.clone(), vec![tx1.clone(), tx2.clone()])
                 .expect("matching announce and transactions should convert");
 
         assert_eq!(network_announce.block_hash, announce.block_hash);
         assert_eq!(network_announce.parent, announce.parent);
         assert_eq!(network_announce.gas_allowance, announce.gas_allowance);
         assert_eq!(network_announce.injected_transactions, vec![tx1, tx2]);
-        assert_eq!(network_announce.to_hash(), announce.to_hash());
     }
 
     #[test]
@@ -647,10 +671,10 @@ mod tests {
             injected_transactions: vec![make_announce_tx(&tx)],
         };
 
-        let error = NetworkAnnounce::try_from_announce(announce, vec![]).unwrap_err();
+        let error = NetworkAnnounce::new(announce, vec![]).unwrap_err();
         assert_eq!(
             error,
-            NetworkAnnounceFromAnnounceError::InjectedTransactionsLenMismatch {
+            NetworkAnnounceError::TxsLenMismatch {
                 announce_len: 1,
                 provided_len: 0,
             }
@@ -668,38 +692,16 @@ mod tests {
             injected_transactions: vec![make_announce_tx(&tx1)],
         };
 
-        let error = NetworkAnnounce::try_from_announce(announce, vec![tx2.clone()]).unwrap_err();
+        let error = NetworkAnnounce::new(announce, vec![tx2.clone()]).unwrap_err();
         assert_eq!(
             error,
-            NetworkAnnounceFromAnnounceError::InjectedTransactionHashMismatch {
-                index: 0,
+            NetworkAnnounceError::TxHashMismatch {
                 expected: tx1.data().to_hash(),
                 actual: tx2.data().to_hash(),
             }
         );
     }
 
-    #[derive(Default)]
-    struct MockInjectedDb(RefCell<Vec<SignedInjectedTransaction>>);
-
-    impl InjectedStorageRO for MockInjectedDb {
-        fn injected_transaction(
-            &self,
-            hash: HashOf<InjectedTransaction>,
-        ) -> Option<SignedInjectedTransaction> {
-            self.0
-                .borrow()
-                .iter()
-                .find(|tx| tx.data().to_hash() == hash)
-                .cloned()
-        }
-    }
-
-    impl InjectedStorageRW for MockInjectedDb {
-        fn set_injected_transaction(&self, tx: SignedInjectedTransaction) {
-            self.0.borrow_mut().push(tx);
-        }
-    }
     // The possible future announce structure
     #[derive(Encode)]
     struct AnnounceV2 {
@@ -713,27 +715,6 @@ mod tests {
         fn to_hash(&self) -> H256 {
             H256(utils::hash(&self.encode()))
         }
-    }
-
-    #[test]
-    fn into_announce_persisting_injected_transactions_stores_transactions_and_hashes() {
-        let tx1 = make_signed_tx(1);
-        let tx2 = make_signed_tx(2);
-        let db = MockInjectedDb::default();
-
-        let announce = NetworkAnnounce {
-            block_hash: H256::from_low_u64_be(123),
-            parent: HashOf::random(),
-            gas_allowance: Some(777),
-            injected_transactions: vec![tx1.clone(), tx2.clone()],
-        }
-        .into_announce_persisting_injected_transactions(&db);
-
-        assert_eq!(
-            announce.injected_transactions,
-            vec![make_announce_tx(&tx1), make_announce_tx(&tx2)]
-        );
-        assert_eq!(db.0.into_inner(), vec![tx1, tx2]);
     }
 
     #[test]

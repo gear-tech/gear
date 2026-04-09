@@ -30,7 +30,7 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    HashOf, ScheduledTask, ToDigest,
+    Announce, HashOf, ScheduledTask, ToDigest,
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -2967,8 +2967,12 @@ async fn announces_conflicts() {
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
-        let network_announce = NetworkAnnounce::with_default_gas(block.hash, HashOf::random());
-        let announce_hash = network_announce.to_hash();
+        let network_announce = NetworkAnnounce::new(
+            Announce::with_default_gas(block.hash, HashOf::random()),
+            vec![],
+        )
+        .unwrap();
+        let announce_hash = network_announce.to_announce().to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
                 era_index,
@@ -3065,9 +3069,12 @@ async fn announces_conflicts() {
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
-        let network_announce6 =
-            NetworkAnnounce::with_default_gas(block.hash, latest_computed_announce_hash);
-        let announce6_hash = network_announce6.to_hash();
+        let network_announce6 = NetworkAnnounce::new(
+            Announce::with_default_gas(block.hash, latest_computed_announce_hash),
+            vec![],
+        )
+        .unwrap();
+        let announce6_hash = network_announce6.to_announce().to_hash();
         validator6
             .publish_validator_message(ValidatorMessage {
                 era_index,
@@ -3097,8 +3104,9 @@ async fn announces_conflicts() {
             .flatten()
             .find(|&announce_hash| validator1_db.announce(announce_hash).unwrap().is_base())
             .expect("base announces not found");
-        let network_announce7 = NetworkAnnounce::with_default_gas(block.hash, parent);
-        let announce7_hash = network_announce7.to_hash();
+        let network_announce7 =
+            NetworkAnnounce::new(Announce::with_default_gas(block.hash, parent), vec![]).unwrap();
+        let announce7_hash = network_announce7.to_announce().to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
                 era_index,

@@ -244,7 +244,7 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce1.data().to_hash()),
+                ConsensusEvent::AnnounceAccepted(announce1.data().to_announce().to_hash()),
                 ConsensusEvent::ComputeAnnounce(
                     Announce::from(announce1.data()),
                     PromisePolicy::Disabled
@@ -307,7 +307,7 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                ConsensusEvent::AnnounceAccepted(announce.data().to_announce().to_hash()),
                 ConsensusEvent::ComputeAnnounce(
                     Announce::from(announce.data()),
                     PromisePolicy::Disabled
@@ -339,7 +339,7 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                ConsensusEvent::AnnounceAccepted(announce.data().to_announce().to_hash()),
                 ConsensusEvent::ComputeAnnounce(
                     Announce::from(announce.data()),
                     PromisePolicy::Disabled
@@ -349,13 +349,13 @@ mod tests {
 
         // After announce is computed, subordinate switches to participant state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(announce.data().to_announce().to_hash())
             .unwrap();
         assert!(s.is_participant(), "got {s:?}");
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                ConsensusEvent::AnnounceAccepted(announce.data().to_announce().to_hash()),
                 ConsensusEvent::ComputeAnnounce(
                     Announce::from(announce.data()),
                     PromisePolicy::Disabled
@@ -387,7 +387,7 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                ConsensusEvent::AnnounceAccepted(announce.data().to_announce().to_hash()),
                 ConsensusEvent::ComputeAnnounce(
                     Announce::from(announce.data()),
                     PromisePolicy::Disabled
@@ -397,7 +397,7 @@ mod tests {
 
         // After announce is computed, not-validator subordinate switches to initial state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(announce.data().to_announce().to_hash())
             .unwrap();
         assert!(s.is_initial(), "got {s:?}");
     }
@@ -425,7 +425,7 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(producer_announce.data().to_hash()),
+                ConsensusEvent::AnnounceAccepted(producer_announce.data().to_announce().to_hash()),
                 ConsensusEvent::ComputeAnnounce(
                     Announce::from(producer_announce.data()),
                     PromisePolicy::Disabled
@@ -484,7 +484,7 @@ mod tests {
         assert_eq!(s.context().output.len(), 2);
         assert_eq!(
             s.context().output[0],
-            ConsensusEvent::AnnounceRejected(announce.data().to_hash())
+            ConsensusEvent::AnnounceRejected(announce.data().to_announce().to_hash())
         );
         assert!(
             s.context().output[1].is_warning(),

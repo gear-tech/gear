@@ -340,15 +340,17 @@ impl ConsensusService for ConnectService {
             announces
                 .into_iter()
                 .map(|network_announce| {
-                    let announce =
-                        network_announce.into_announce_persisting_injected_transactions(&self.db);
+                    // let announce =
+                    //     network_announce.into_announce_persisting_injected_transactions(&self.db);
+                    let (announce, _transactions) = network_announce.into_parts();
 
                     (announce.to_hash(), announce)
                 })
                 .collect(),
         )?;
 
-        self.process_after_propagation(block, producer)?;
+        // self.process_after_propagation(block, producer)?;
+        todo!("handle injected transactions");
 
         Ok(())
     }
@@ -401,7 +403,7 @@ mod tests {
             gas_allowance: Some(199),
             injected_transactions: vec![],
         };
-        let announce_hash = announce.to_hash();
+        let announce_hash = announce.to_announce().to_hash();
         service
             .receive_announce(
                 SignedData::create(&validator_private_key, announce.clone())

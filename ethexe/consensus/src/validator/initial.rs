@@ -182,9 +182,7 @@ impl StateHandler for Initial {
                     .1
                     .into_iter()
                     .map(|network_announce| {
-                        let announce = network_announce
-                            .into_announce_persisting_injected_transactions(&self.ctx.core.db);
-
+                        let (announce, _transactions) = network_announce.into_parts();
                         (announce.to_hash(), announce)
                     })
                     .collect();
@@ -196,7 +194,8 @@ impl StateHandler for Initial {
                     missing_announces,
                 )?;
 
-                self.ctx.switch_to_producer_or_subordinate(block)
+                // self.ctx.switch_to_producer_or_subordinate(block)
+                todo!("save transactions to database")
             }
             state => {
                 self.state = state;
@@ -380,23 +379,19 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
+        let announce3 = chain
+            .announces
+            .get(&chain.block_top_announce_hash(last - 3))
+            .unwrap()
+            .announce
+            .clone();
         let response = unsafe {
             AnnouncesResponse::from_parts(
                 expected_request,
                 vec![
-                    NetworkAnnounce::try_from(
-                        chain
-                            .announces
-                            .get(&chain.block_top_announce_hash(last - 3))
-                            .unwrap()
-                            .announce
-                            .clone(),
-                    )
-                    .expect("test announce has no injected transactions"),
-                    NetworkAnnounce::try_from(announce2.clone())
-                        .expect("test announce has no injected transactions"),
-                    NetworkAnnounce::try_from(announce1.clone())
-                        .expect("test announce has no injected transactions"),
+                    NetworkAnnounce::new(announce3, vec![]).unwrap(),
+                    NetworkAnnounce::new(announce2.clone(), vec![]).unwrap(),
+                    NetworkAnnounce::new(announce1.clone(), vec![]).unwrap(),
                 ],
             )
         };
@@ -576,10 +571,7 @@ mod tests {
                     head: invalid_announce_hash,
                     until: NonZeroU32::new(1).unwrap().into(),
                 },
-                vec![
-                    NetworkAnnounce::try_from(invalid_announce)
-                        .expect("test announce has no injected transactions"),
-                ],
+                vec![NetworkAnnounce::new(invalid_announce, vec![]).unwrap()],
             )
         };
 
@@ -649,21 +641,18 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
+        let announce = chain
+            .announces
+            .get(&chain.block_top_announce_hash(last - 7))
+            .unwrap()
+            .announce
+            .clone();
         let response = unsafe {
             AnnouncesResponse::from_parts(
                 expected_request,
                 vec![
-                    NetworkAnnounce::try_from(
-                        chain
-                            .announces
-                            .get(&chain.block_top_announce_hash(last - 7))
-                            .unwrap()
-                            .announce
-                            .clone(),
-                    )
-                    .expect("test announce has no injected transactions"),
-                    NetworkAnnounce::try_from(unknown_announce)
-                        .expect("test announce has no injected transactions"),
+                    NetworkAnnounce::new(announce, vec![]).unwrap(),
+                    NetworkAnnounce::new(unknown_announce, vec![]).unwrap(),
                 ],
             )
         };
