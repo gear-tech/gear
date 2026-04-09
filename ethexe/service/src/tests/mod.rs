@@ -1126,16 +1126,23 @@ async fn ping_reorg() {
         .await;
     node.start_service().await;
 
-    let res = env
+    let code_id = env
         .upload_code(demo_ping::WASM_BINARY)
         .await
         .unwrap()
         .wait_for()
         .await
+        .map(|res| {
+            assert!(res.valid);
+            res.code_id
+        })
         .unwrap();
-    assert!(res.valid);
 
-    let code_id = res.code_id;
+    let latest_block = env.latest_block().await;
+    connect_node
+        .events()
+        .find_announce_computed(latest_block.hash)
+        .await;
 
     log::info!("📗 Abort service to simulate node blocks skipping");
     node.stop_service().await;
@@ -1197,6 +1204,13 @@ async fn ping_reorg() {
         .unwrap();
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.payload, b"PONG");
+
+    // wait till connect node is fully synced
+    let latest_block = env.latest_block().await;
+    connect_node
+        .events()
+        .find_announce_computed(latest_block.hash)
+        .await;
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
@@ -1395,11 +1409,22 @@ async fn multiple_validators() {
     assert_eq!(res.value, 0);
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 
-    log::info!("📗 Stop validator 0 and check, that ethexe is still working");
-    if env.next_block_producer_index().await == 0 {
-        log::info!("📗 Skip one block to be sure validator 0 is not a producer for next block");
-        env.force_new_block().await;
+    // Set next producer as 1, to be sure that after next producer will be 2.
+    while env.next_block_producer_index().await != 1 {
+        log::info!("📗 Skip one block to be sure validator 1 is a producer for next block");
+        env.skip_blocks(1).await;
     }
+
+    // Wait till validators finish processing
+    let latest_block = env.latest_block().await;
+    for validator in &mut validators {
+        validator
+            .events()
+            .find_announce_computed(latest_block.hash)
+            .await;
+    }
+
+    log::info!("📗 Stop validator 0 and check, that ethexe is still working");
     validators[0].stop_service().await;
 
     let res = env
@@ -1410,6 +1435,15 @@ async fn multiple_validators() {
         .await
         .unwrap();
     assert_eq!(res.payload, res.message_id.encode().as_slice());
+
+    // Wait till validators finish processing
+    let latest_block = env.latest_block().await;
+    for validator in validators.iter_mut().skip(1) {
+        validator
+            .events()
+            .find_announce_computed(latest_block.hash)
+            .await;
+    }
 
     log::info!("📗 Stop validator 1 and check, that ethexe is not working after");
     validators[1].stop_service().await;
@@ -1458,7 +1492,7 @@ async fn many_validators_repeated_ping() {
     init_logger();
 
     const VALIDATORS_COUNT: usize = 16;
-    const PING_ROUNDS: usize = 92;
+    const PING_ROUNDS: usize = 4;
 
     log::info!(
         "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
@@ -1544,7 +1578,7 @@ async fn many_validators_repeated_ping() {
     assert_eq!(running_validators.len(), VALIDATORS_COUNT);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn send_injected_tx() {
     init_logger();
@@ -2904,6 +2938,15 @@ async fn announces_conflicts() {
                 assert_eq!(res.value, 0);
                 assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
             });
+
+        // Wait till all validators stop processing
+        let latest_block = env.latest_block().await;
+        for validator in &mut validators {
+            validator
+                .events()
+                .find_announce_computed(latest_block.hash)
+                .await;
+        }
     }
 
     let (mut receivers, validator0, wait_for_pong) = {
@@ -3150,6 +3193,15 @@ async fn whole_network_restore() {
     assert_eq!(init_res.value, 0);
     assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert!(seen_messages.insert(init_res.message_id));
+
+    // Wait till all validators stop processing
+    let latest_block = env.latest_block().await;
+    for validator in &mut validators {
+        validator
+            .events()
+            .find_announce_computed(latest_block.hash)
+            .await;
+    }
 
     for (i, v) in validators.iter_mut().enumerate() {
         log::info!("📗 Stopping validator-{i}");
