@@ -37,6 +37,7 @@ use jsonrpsee::{
 };
 use std::ops::Deref;
 use tokio::sync::mpsc;
+use tracing::trace;
 
 #[derive(Clone)]
 pub struct InjectedApi {
@@ -131,18 +132,13 @@ impl InjectedApi {
         &self,
         tx_hash: HashOf<InjectedTransaction>,
     ) -> RpcResult<Option<SignedPromise>> {
-        if self.db.injected_transaction(tx_hash).is_some() {
-            // TODO: add error message here
-            return Err(errors::bad_request(""));
-        }
-
         let Some(promise) = self.db.promise(tx_hash) else {
-            tracing::trace!(?tx_hash, "promise not found for injected transaction");
+            trace!(?tx_hash, "promise not found for injected transaction");
             return Ok(None);
         };
 
         let Some((signature, address)) = self.db.promise_signature(tx_hash) else {
-            tracing::trace!(
+            trace!(
                 ?tx_hash,
                 "promise signature not found for injected transaction"
             );
@@ -152,7 +148,7 @@ impl InjectedApi {
         match SignedMessage::try_from_parts(promise, signature, address) {
             Ok(message) => Ok(Some(message)),
             Err(err) => {
-                tracing::trace!(
+                trace!(
                     ?tx_hash,
                     ?err,
                     "failed to build signed promise from parts for injected transaction"

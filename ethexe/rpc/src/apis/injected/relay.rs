@@ -20,6 +20,7 @@ use crate::{RpcEvent, errors};
 use ethexe_common::injected::{AddressedInjectedTransaction, InjectedTransactionAcceptance};
 use jsonrpsee::core::RpcResult;
 use tokio::sync::{mpsc, oneshot};
+use tracing::{error, trace, warn};
 
 #[derive(Clone)]
 pub struct TransactionsRelayer {
@@ -36,7 +37,7 @@ impl TransactionsRelayer {
         transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         let tx_hash = transaction.tx.data().to_hash();
-        tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
+        trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
         // self.metrics.send_injected_tx_calls.increment(1);
 
         let (response_sender, response_receiver) = oneshot::channel();
@@ -47,32 +48,30 @@ impl TransactionsRelayer {
         };
 
         // TODO: maybe should implement the transaction validator.
-        // if transaction.tx.data().value != 0 {
-        //     tracing::warn!(
-        //         tx_hash = %tx_hash,
-        //         value = transaction.tx.data().value,
-        //         "Injected transaction with non-zero value is not supported"
-        //     );
-        //     return Err(errors::bad_request(
-        //         "Injected transactions with non-zero value are not supported",
-        //     ));
-        // }
+        if transaction.tx.data().value != 0 {
+            warn!(
+                tx_hash = %tx_hash,
+                value = transaction.tx.data().value,
+                "Injected transaction with non-zero value is not supported"
+            );
+            return Err(errors::bad_request(
+                "Injected transactions with non-zero value are not supported",
+            ));
+        }
 
         if let Err(err) = self.rpc_sender.send(event) {
-            tracing::error!(
+            error!(
                 "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
                 The receiving end in the main service might have been dropped."
             );
             return Err(errors::internal());
         }
 
-        tracing::trace!(%tx_hash, "Accept transaction, waiting for promise");
+        trace!(%tx_hash, "Accept transaction, waiting for promise");
 
         response_receiver.await.map_err(|err| {
             // Expecting no errors here, because the rpc channel is owned by main server.
-            tracing::error!(
-                "Response sender for the `RpcEvent::InjectedTransaction` was dropped: {err}"
-            );
+            error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {err}");
             errors::internal()
         })
     }

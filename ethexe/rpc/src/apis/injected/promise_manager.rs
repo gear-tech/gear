@@ -26,6 +26,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::oneshot;
+use tracing::trace;
 
 const MAX_PROMISE_WAITING_SECS: u64 = alloy::eips::merge::SLOT_DURATION_SECS * 5;
 
@@ -116,7 +117,7 @@ impl PromiseSubscriptionManager {
                 Err(_err) => todo!(),
             },
             None => {
-                tracing::trace!("not found promise in database, waiting for computation...");
+                trace!("not found promise in database, waiting for computation...");
                 self.waiting_for_compute.insert(tx_hash, compact);
             }
         }
@@ -143,7 +144,7 @@ impl PromiseSubscriptionManager {
         if let Some((_, sender)) = self.subscribers.remove(&promise.data().tx_hash)
             && let Err(unsent_promise) = sender.send(promise)
         {
-            tracing::trace!("failed to send promise to subscriber, promise={unsent_promise:?}");
+            trace!("failed to send promise to subscriber, promise={unsent_promise:?}");
         }
     }
 }
@@ -157,6 +158,7 @@ mod utils {
     ) -> Result<SignedPromise, &'static str> {
         let address = compact.address();
         let signature = *compact.signature();
+
         SignedMessage::try_from_parts(promise, signature, address)
     }
 }

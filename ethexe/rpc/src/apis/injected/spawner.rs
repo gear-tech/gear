@@ -19,10 +19,11 @@
 use super::promise_manager::PendingSubscription;
 use ethexe_common::{HashOf, injected::InjectedTransaction};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
+use tracing::{warn, trace};
 
-/// Spawns the transaction's promise watcher.
+/// Spawns [PendingSubscription] in tokio runtime.
 ///
-/// On task finishing applies the cleanup function that is need to drop some data.
+/// On task finishing applies the `on_finish` function that is need to drop some data.
 pub fn spawn_pending_subscription<F>(
     sink: SubscriptionSink,
     watcher: PendingSubscription,
@@ -32,25 +33,26 @@ pub fn spawn_pending_subscription<F>(
 {
     let (tx_hash, receiver) = watcher.into_parts();
 
-    tokio::spawn(async move {
+    // TODO: think about using this handle for aborting runtime tasks in case of long waiting.
+    let _handle = tokio::spawn(async move {
         let _guard = scopeguard::guard(tx_hash, on_finish);
 
-        // Waiting for one from: promise, timeout_err, client disconnect error.
+        // Waiting for the first one: promise, timeout_err, client disconnect error.
         let promise = tokio::select! {
             result = receiver => match result {
                 Ok(promise_result) => match promise_result {
                     Ok(promise) => promise,
                     Err(_err) => {
-                        unreachable!("promise sender is owned by the api; it cannot be dropped before this point");
+                        unreachable!("promise sender is owned by the server; it cannot be dropped before this point");
                     }
                 },
                 Err(_) => {
-                    tracing::warn!("promise wasn't received in time, finish waiting");
+                    warn!("promise wasn't received in time, finish waiting");
                     return;
                 }
             },
             _ = sink.closed() => {
-                tracing::trace!("subscription closed by user, stop background task");
+                trace!("subscription closed by user, stop background task");
                 return;
             }
         };
@@ -58,7 +60,7 @@ pub fn spawn_pending_subscription<F>(
         // TODO: remove unwrap here
         let message = SubscriptionMessage::from_json(&promise).unwrap();
         if let Err(err) = sink.send(message).await {
-            tracing::trace!("failed to send promise, client disconnected: err={err}");
+            trace!("failed to send promise, client disconnected: err={err}");
         }
     });
 }
