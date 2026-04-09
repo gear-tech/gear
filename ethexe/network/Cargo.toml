@@ -10,12 +10,18 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# workspace members
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
 gprimitives = { workspace = true, features = ["std", "codec"] }
 
+# libp2p
+libp2p = { version = "0.56.0", features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tcp", "dns", "tls", "tokio", "macros", "plaintext", "yamux", "metrics"] }
+libp2p-gossipsub = { version = "0.49.4", features = ["metrics"] }
+
+# other deps
 tokio = { workspace = true, features = ["macros", "sync"] }
 anyhow.workspace = true
 log.workspace = true
@@ -35,11 +41,9 @@ prometheus-client = "0.23.1" # specific version that lip2p uses
 metrics.workspace = true
 metrics-derive.workspace = true
 assert_matches.workspace = true
-gear-workspace-hack.workspace = true
 
-[dependencies.libp2p]
-version = "0.56.0"
-features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tcp", "dns", "tls", "tokio", "macros", "plaintext", "yamux", "metrics"]
+# workspace hack
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 libp2p-swarm-test = { version = "0.6.0", default-features = false, features = ["tokio"] }
