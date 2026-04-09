@@ -153,28 +153,37 @@ impl StateHandler for Producer {
     }
 
     fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
-        if let State::ReadyForMiniAnnounce { last_announce_hash } = &self.state {
-            // Create batch commitment before transitioning to Initial for the new head.
-            // This defers batch creation from block N's announce-compute time to block N+1's
-            // arrival, but ensures the batch is still created before processing the new block.
-            let last_announce_hash = *last_announce_hash;
-            self.next_block = Some(block);
-            self.state = State::AggregateBatchCommitment {
-                future: self
-                    .ctx
-                    .core
-                    .batch_manager
-                    .clone()
-                    .create_batch_commitment(self.block, last_announce_hash)
-                    .boxed(),
-            };
-            Ok(self.into())
-        } else {
-            // TODO: if in WaitingAnnounceComputed (mid mini-announce computation),
-            // batch commitment for this block is skipped. The announces are still in DB
-            // and will be picked up by the next block's collect_not_committed_predecessors,
-            // but block-specific code/validator/reward commitments could be missed.
-            DefaultProcessing::new_head(self, block)
+        match &self.state {
+            State::ReadyForMiniAnnounce { last_announce_hash } => {
+                // Create batch commitment before transitioning to Initial for the new head.
+                // This defers batch creation from block N's announce-compute time to block N+1's
+                // arrival, but ensures the batch is still created before processing the new block.
+                let last_announce_hash = *last_announce_hash;
+                self.next_block = Some(block);
+                self.state = State::AggregateBatchCommitment {
+                    future: self
+                        .ctx
+                        .core
+                        .batch_manager
+                        .clone()
+                        .create_batch_commitment(self.block, last_announce_hash)
+                        .boxed(),
+                };
+                Ok(self.into())
+            }
+            State::AggregateBatchCommitment { .. } => {
+                // Batch is in progress. Update next_block to the latest head
+                // so we process the most recent block after batch completes.
+                self.next_block = Some(block);
+                Ok(self.into())
+            }
+            _ => {
+                // TODO: if in WaitingAnnounceComputed (mid mini-announce computation),
+                // batch commitment for this block is skipped. The announces are still in DB
+                // and will be picked up by the next block's collect_not_committed_predecessors,
+                // but block-specific code/validator/reward commitments could be missed.
+                DefaultProcessing::new_head(self, block)
+            }
         }
     }
 
