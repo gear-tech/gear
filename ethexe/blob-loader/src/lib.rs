@@ -23,6 +23,7 @@ use alloy::{
     rpc::types::beacon::{genesis::GenesisResponse, sidecar::GetBlobsResponse},
     transports::{RpcError, TransportErrorKind},
 };
+use bytes::Bytes;
 use ethexe_common::{
     CodeAndIdUnchecked, CodeBlobInfo,
     db::{CodesStorageRO, OnChainStorageRO},
@@ -52,6 +53,17 @@ pub enum BlobLoaderError {
 }
 
 #[derive(thiserror::Error, Debug)]
+enum ReadBlobBundleError {
+    #[error("failed to read blob bundle from beacon node: {0}")]
+    Reqwest(#[from] reqwest::Error),
+    #[error("failed to decode blob bundle response: {error}, bytes: {bytes:?}")]
+    Serde {
+        error: serde_json::Error,
+        bytes: Bytes,
+    },
+}
+
+#[derive(thiserror::Error, Debug)]
 enum ReaderError {
     #[error("transport error: {0}")]
     Transport(#[from] RpcError<TransportErrorKind>),
@@ -64,7 +76,7 @@ enum ReaderError {
     #[error("failed to get block by hash: {0}")]
     BlockNotFound(H256),
     #[error("failed to read blob bundle: {0}")]
-    ReadBlob(reqwest::Error),
+    ReadBlob(#[from] ReadBlobBundleError),
     #[error("failed to decode blobs")]
     DecodeBlobs,
     #[error("failed to access genesis time: {0}")]
@@ -212,9 +224,10 @@ impl ConsensusLayerBlobReader {
         &self,
         slot: u64,
         versioned_hashes: &[B256],
-    ) -> reqwest::Result<GetBlobsResponse> {
+    ) -> Result<GetBlobsResponse, ReadBlobBundleError> {
         let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
-        self.http_client
+        let response = self
+            .http_client
             .get(format!(
                 "{ethereum_beacon_rpc}/eth/v1/beacon/blobs/{slot}?versioned_hashes={}",
                 versioned_hashes
@@ -224,9 +237,11 @@ impl ConsensusLayerBlobReader {
                     .join(",")
             ))
             .send()
-            .await?
-            .json::<GetBlobsResponse>()
-            .await
+            .await?;
+        let bytes = response.bytes().await?;
+        let blobs_response = serde_json::from_slice::<GetBlobsResponse>(&bytes)
+            .map_err(|error| ReadBlobBundleError::Serde { error, bytes })?;
+        Ok(blobs_response)
     }
 }
 
