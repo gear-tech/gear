@@ -34,6 +34,7 @@ use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
     consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
+    db::ConfigStorageRO,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{
         BlockEvent, MirrorEvent, RouterEvent,
@@ -634,11 +635,11 @@ impl TestEnv {
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
     pub async fn next_block_producer_index(&self) -> usize {
-        let timestamp = self.latest_block().await.header.timestamp;
-        ethexe_consensus::block_producer_index(
-            self.validators.len(),
-            (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
-        )
+        let timestamp = self.latest_block().await.header.timestamp + self.block_time.as_secs();
+        self.db
+            .config()
+            .timelines
+            .block_producer_index_at(self.validators.len(), timestamp)
     }
 
     /// Waits until the next block producer index becomes equal to `index`.
@@ -996,7 +997,6 @@ impl Node {
                         ethexe_consensus::ValidatorConfig {
                             pub_key: config.public_key,
                             signatures_threshold: self.threshold,
-                            slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                             commitment_delay_limit: self.commitment_delay_limit,
                             producer_delay: self.block_time / 6,
@@ -1010,7 +1010,6 @@ impl Node {
             } else {
                 Box::pin(ConnectService::new(
                     self.db.clone(),
-                    self.block_time,
                     self.commitment_delay_limit,
                 ))
             }

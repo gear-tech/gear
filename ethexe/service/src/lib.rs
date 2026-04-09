@@ -16,6 +16,36 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Vara.eth service
+//! Top-level runtime service for an ethexe node.
+//!
+//! ## Responsibilities
+//! This crate provides the top-level [`Service`] orchestrator for ethexe.
+//! The service owns all subservices and drives them through a single async event loop.
+//!
+//! ## Event Loop
+//! The subservices in [`Service`] communicate with each other via the [`Event`] enum.
+//!
+//! In [`Service::run`], the service uses the [tokio::select] macro to poll
+//! event streams (see [`futures::Stream`]) and route events to the appropriate subservice.
+//!
+//! ## Configuration And Startup
+//! [`Service::new`] takes a [`Config`] on startup.
+//! [`Config`] contains all configuration options required to create the subservices.
+//!
+//! In the general case, [`Service::new`] is called from the `ethexe-cli` crate,
+//! where [`Config`] is parsed from command-line arguments or a configuration file.
+//!
+//! ## Testing
+//! Integration tests for this crate live in `src/tests`.
+//! They use `TestEnv` to prepare an Anvil-based or external Ethereum environment,
+//! initialize an in-memory database, and construct test nodes.
+//!
+//! Each node runs [`Service`] using `Service::new_from_parts`.
+//! Tests observe service behavior through `TestingEvent` streams, which mirror the
+//! internal [`Event`] flow and allow waiting for startup, block sync, announce
+//! processing, network activity, and RPC requests.
+
 use crate::config::{Config, ConfigPublicKey};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
@@ -331,7 +361,6 @@ impl Service {
                     ValidatorConfig {
                         pub_key,
                         signatures_threshold: threshold,
-                        slot_duration: config.ethereum.block_time,
                         block_gas_limit: config.node.block_gas_limit,
                         // TODO: #4942 commitment_delay_limit is a protocol specific constant
                         // which better to be configurable by router contract
@@ -343,11 +372,7 @@ impl Service {
                     },
                 )?)
             } else {
-                Box::pin(ConnectService::new(
-                    db.clone(),
-                    config.ethereum.block_time,
-                    3,
-                ))
+                Box::pin(ConnectService::new(db.clone(), 3))
             }
         };
 

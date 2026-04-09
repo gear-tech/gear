@@ -2,28 +2,24 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    types: [labeled]
+  issue_comment:
+    types: [created]
 
 jobs:
-  claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
+  full-review:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.label.name == 'A0-pleasereview'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: read
       id-token: write
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout repository
@@ -31,14 +27,230 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Fetch base commit
+        run: git fetch origin ${{ github.event.pull_request.base.sha }} --depth=1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install code-review-graph
+        run: pip install code-review-graph==2.1.0
+
+      - name: Restore graph cache
+        id: cache-graph
+        uses: actions/cache@v4
+        with:
+          path: .code-review-graph
+          key: code-review-graph-${{ github.event.pull_request.base.sha }}
+          restore-keys: |
+            code-review-graph-
+
+      - name: Build or update graph
+        run: |
+          if [ "${{ steps.cache-graph.outputs.cache-hit }}" = "true" ]; then
+            code-review-graph update
+          else
+            code-review-graph build
+          fi
+
+      - name: Create MCP config
+        run: |
+          cat > /tmp/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "code-review-graph": {
+                "command": "code-review-graph",
+                "args": ["serve"]
+              }
+            }
+          }
+          EOF
+
       - name: Run Claude Code Review
-        id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+          claude_args: '--mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
+          prompt: |
+            Review PR #${{ github.event.pull_request.number }} in gear (114-crate Rust monorepo, Solidity contracts in ethexe/).
 
+            FIRST: Run `git diff ${{ github.event.pull_request.base.sha }} --name-only` to see exactly which files changed.
+            Only review those files. Do NOT review files that are not in the diff.
+
+            Read .gemini/styleguide.md for review priorities and anti-noise rules.
+
+            Graph tools (ALWAYS use include_source=false, max_depth=1 — large repo):
+            1. detect_changes_tool base="${{ github.event.pull_request.base.sha }}"
+            2. get_review_context_tool base="${{ github.event.pull_request.base.sha }}"
+            3. Read source of high-risk functions directly if needed.
+
+            Then READ each changed file + its direct callers. Verify:
+            - Callers still work with changed behavior
+            - No stale assumptions (error codes, return types, invariants)
+            - Tests cover changed paths
+            - No breaking API/wire format/serialization changes
+
+            Post line-specific findings as PR review comments using gh CLI:
+            gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments -f body="comment" -f commit_id="${{ github.event.pull_request.head.sha }}" -f path="file" -F line=N -f side=RIGHT
+            Then post summary: gh pr comment ${{ github.event.pull_request.number }} --body "<!-- claude-review sha:${{ github.event.pull_request.head.sha }} -->\n<body>"
+
+            Summary format (use exactly this structure):
+            ## Summary
+            One sentence: what the PR does.
+
+            ## Findings
+            | Severity | Finding | Suggestion |
+            |----------|---------|------------|
+            | critical/high/medium/low | What's wrong (no file paths or line numbers) | What to do about it |
+
+            If no findings, write "No issues found."
+            Do NOT mention file paths or line numbers in the summary — those belong in inline comments only.
+            Keep it SHORT. Max 5 rows in the table.
+            At the end of the summary, add: "\n---\n> After pushing new commits, comment `/review-delta` to get an incremental review."
+
+  delta-review:
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      github.event.sender.type == 'User' &&
+      (github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'COLLABORATOR') &&
+      contains(github.event.comment.body, '/review-delta')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    concurrency:
+      group: claude-review-${{ github.event.issue.number }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Get PR details
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_JSON=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}")
+          echo "head_sha=$(echo "$PR_JSON" | jq -r '.head.sha')" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$(echo "$PR_JSON" | jq -r '.head.ref')" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$(echo "$PR_JSON" | jq -r '.base.sha')" >> "$GITHUB_OUTPUT"
+          echo "number=$(echo "$PR_JSON" | jq -r '.number')" >> "$GITHUB_OUTPUT"
+
+      - name: Get last reviewed SHA
+        id: last-review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LAST_SHA=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" \
+            --jq '[.[] | select(.user.login == "claude[bot]" and (.body | contains("<!-- claude-review sha:")))] | last | .body | capture("<!-- claude-review sha:(?<sha>[a-f0-9]+) -->") | .sha // empty' 2>/dev/null || true)
+          if [ -n "$LAST_SHA" ]; then
+            echo "sha=$LAST_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ steps.pr.outputs.base_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_sha }}
+          fetch-depth: 1
+
+      - name: Fetch delta base commit
+        run: git fetch origin ${{ steps.last-review.outputs.sha }} --depth=1
+
+      - name: Fetch previous review content
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" \
+            --jq '[.[] | select(.user.login == "claude[bot]" and (.body | contains("<!-- claude-review sha:")))] | last | .body // "No previous review found."' \
+            > /tmp/prev-review.md 2>/dev/null || echo "No previous review found." > /tmp/prev-review.md
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install code-review-graph
+        run: pip install code-review-graph==2.1.0
+
+      - name: Restore graph cache
+        id: cache-graph
+        uses: actions/cache@v4
+        with:
+          path: .code-review-graph
+          key: code-review-graph-${{ steps.pr.outputs.base_sha }}
+          restore-keys: |
+            code-review-graph-
+
+      - name: Build or update graph
+        run: |
+          if [ "${{ steps.cache-graph.outputs.cache-hit }}" = "true" ]; then
+            code-review-graph update
+          else
+            code-review-graph build
+          fi
+
+      - name: Create MCP config
+        run: |
+          cat > /tmp/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "code-review-graph": {
+                "command": "code-review-graph",
+                "args": ["serve"]
+              }
+            }
+          }
+          EOF
+
+      - name: Run Claude Delta Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
+          prompt: |
+            Delta review of new commits on PR #${{ steps.pr.outputs.number }} in gear (114-crate Rust monorepo).
+            Diff: ${{ steps.last-review.outputs.sha }}..${{ steps.pr.outputs.head_sha }}. Do NOT re-review old code.
+
+            FIRST: Run `git diff ${{ steps.last-review.outputs.sha }} --name-only` to see exactly which files changed.
+            Only review those files. Do NOT review files that are not in the diff.
+
+            Read /tmp/prev-review.md — your previous review. Do not repeat covered findings.
+
+            Graph tools (ALWAYS use include_source=false, max_depth=1 — large repo):
+            1. detect_changes_tool base="${{ steps.last-review.outputs.sha }}"
+            2. get_review_context_tool base="${{ steps.last-review.outputs.sha }}"
+            3. Read source of high-risk functions directly if needed.
+
+            Then READ each changed file + its direct callers. Check:
+            - Do new changes address previous review issues?
+            - Any NEW correctness issues?
+            - Callers still work with changed behavior?
+
+            Post line-specific findings as PR review comments using gh CLI:
+            gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/comments -f body="comment" -f commit_id="${{ steps.pr.outputs.head_sha }}" -f path="file" -F line=N -f side=RIGHT
+            Then post summary: gh pr comment ${{ steps.pr.outputs.number }} --body "<!-- claude-review sha:${{ steps.pr.outputs.head_sha }} -->\n<body>"
+
+            Summary format (use exactly this structure):
+            ## Delta Review
+            One sentence: what changed since last review.
+
+            ## Previous Issues
+            | Status | Finding |
+            |--------|---------|
+            | fixed/open | One-line description from previous review |
+
+            ## New Findings
+            | Severity | Finding | Suggestion |
+            |----------|---------|------------|
+            | critical/high/medium/low | What's wrong (no file paths or line numbers) | What to do about it |
+
+            If no new findings, write "No new issues."
+            Do NOT mention file paths or line numbers in the summary — those belong in inline comments only.
+            Keep it SHORT. Max 5 rows per table.
