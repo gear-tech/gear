@@ -193,7 +193,9 @@ impl Subordinate {
         let pending = mem::take(&mut self.ctx.pending_events);
         let mut state: ValidatorState = self.into();
 
-        for event in pending {
+        // Iterate oldest-first: pending_events stores newest at front (push_front),
+        // so reverse to process parent announces before children.
+        for event in pending.into_iter().rev() {
             state = match event {
                 PendingEvent::Announce(announce) => state.process_announce(announce)?,
                 PendingEvent::ValidationRequest(request) => {
