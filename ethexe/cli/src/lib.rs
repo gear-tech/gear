@@ -18,8 +18,8 @@
 
 //! Command-line entrypoint for operating Vara.eth nodes.
 //!
-//! The crate glues together the configuration model from [`params`] and the executable
-//! workflows from [`commands`].
+//! The crate glues together the configuration model from the `params` module and the
+//! executable workflows from the `commands` module.
 //! At startup the binary:
 //! - parses the top-level CLI with [`Cli`]
 //! - optionally loads `./.ethexe.toml` or a custom file passed through `--cfg`
@@ -27,10 +27,10 @@
 //! - dispatches to one of the supported command groups
 //!
 //! The main command groups are:
-//! - [`commands::RunCommand`] for launching the service stack
-//! - [`commands::KeyCommand`] for key-store management
-//! - [`commands::TxCommand`] for Ethereum and injected transaction flows
-//! - [`commands::CheckCommand`] for database verification
+//! - `RunCommand` for launching the service stack
+//! - `KeyCommand` for key-store management
+//! - `TxCommand` for Ethereum and injected transaction flows
+//! - `CheckCommand` for database verification
 
 use anyhow::{Context, Result};
 use clap::Parser;
