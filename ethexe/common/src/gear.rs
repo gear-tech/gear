@@ -369,7 +369,7 @@ pub struct StateTransition {
     /// and each zero byte costs 4 gas (see <https://evm.codes/about#gascosts>).
     ///
     /// Negative numbers will be stored like this:
-    /// ```
+    /// ```bash
     /// $ cast
     /// > -1 ether
     /// Type: int256
@@ -449,4 +449,11 @@ pub enum MessageType {
     #[default]
     Canonical,
     Injected,
+}
+
+#[derive(Debug)]
+pub struct GenesisBlockInfo {
+    pub hash: H256,
+    pub number: u32,
+    pub timestamp: u64,
 }

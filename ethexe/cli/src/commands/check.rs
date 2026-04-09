@@ -16,19 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::params::{MergeParams, Params};
 use anyhow::{Context, Result, anyhow, ensure};
 use clap::Parser;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
-    db::{AnnounceStorageRO, LatestData, LatestDataStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, DBGlobals, GlobalsStorageRO, OnChainStorageRO},
+    gear::CANONICAL_QUARANTINE,
 };
 use ethexe_db::{
-    Database, RocksDatabase,
+    Database, InitConfig, RawDatabase, RocksDatabase,
     iterator::{BlockNode, DatabaseIterator},
     verifier::IntegrityVerifier,
     visitor::{self},
 };
-use ethexe_processor::{Processor, ProcessorConfig};
+use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor, ProcessorConfig};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{collections::HashSet, path::PathBuf};
 
@@ -38,15 +40,13 @@ const PROGRESS_BAR_TEMPLATE: &str = "{spinner:.green} [{elapsed_precise}] [{wide
 /// Run checks on ethexe database, see more in [`super::Command::Check`].
 #[derive(Debug, Parser)]
 pub struct CheckCommand {
-    /// Path to database directory (including router addr subdirectory).
+    /// CLI parameters to be merged with file ones before execution.
+    #[clap(flatten)]
+    pub params: Params,
+
+    /// Override database location.
     #[arg(long)]
-    pub db: PathBuf,
-
-    #[arg(long, default_value = "2")]
-    pub chunk_size: usize,
-
-    #[arg(long, default_value = "4")]
-    pub canonical_quarantine: u8,
+    pub db: Option<PathBuf>,
 
     /// Perform computations of announces, by default from start announce to latest computed announce.
     #[arg(long, alias = "compute")]
@@ -56,12 +56,21 @@ pub struct CheckCommand {
     #[arg(long, alias = "integrity")]
     pub integrity_check: bool,
 
+    /// Perform migrations before checking the database.
+    #[arg(long)]
+    pub migrate: bool,
+
     /// Enable logging verbosity (debug level by default), disables progress bar.
     #[arg(short, long)]
     pub verbose: bool,
 }
 
 impl CheckCommand {
+    pub fn with_params(mut self, params: Params) -> Self {
+        self.params = self.params.merge(params);
+        self
+    }
+
     /// Execute the command.
     pub fn exec(self) -> Result<()> {
         tokio::runtime::Builder::new_multi_thread()
@@ -80,19 +89,48 @@ impl CheckCommand {
             self.integrity_check = true;
         }
 
-        let rocks_db = RocksDatabase::open(self.db).context("failed to open rocks database")?;
-        let db = Database::from_one(&rocks_db);
+        let rocks_db = RocksDatabase::open(
+            self.db
+                .or_else(|| self.params.node.as_ref().map(|node| node.db_dir()))
+                .context("missing database path")?,
+        )
+        .context("failed to open rocks database")?;
+        let raw_db = RawDatabase::from_one(&rocks_db);
 
-        let latest_data = db
-            .latest_data()
-            .ok_or_else(|| anyhow!("no latest data found in db"))?;
+        let db = if self.migrate {
+            let ethereum_config = self
+                .params
+                .ethereum
+                .context("missing Ethereum-related configuration")?
+                .into_config()?;
 
+            ethexe_db::initialize_db(
+                InitConfig {
+                    ethereum_rpc: ethereum_config.rpc.clone(),
+                    router_address: ethereum_config.router_address,
+                    slot_duration_secs: ethereum_config.block_time.as_secs(),
+                },
+                raw_db.overlaid(),
+            )
+            .await?
+        } else {
+            Database::try_from_raw(raw_db)?
+        };
+
+        let globals = db.globals().clone();
+
+        let node_params = self.params.node.unwrap_or_default();
         let checker = Checker {
             db,
-            latest_data,
+            globals,
             progress_bar: !self.verbose,
-            chunk_size: self.chunk_size,
-            canonical_quarantine: self.canonical_quarantine,
+            chunk_size: node_params
+                .chunk_processing_threads
+                .unwrap_or(DEFAULT_CHUNK_SIZE)
+                .get(),
+            canonical_quarantine: node_params
+                .canonical_quarantine
+                .unwrap_or(CANONICAL_QUARANTINE),
         };
 
         if self.integrity_check {
@@ -116,7 +154,7 @@ impl CheckCommand {
 #[derive(Clone)]
 struct Checker {
     db: Database,
-    latest_data: LatestData,
+    globals: DBGlobals,
     progress_bar: bool,
     chunk_size: usize,
     canonical_quarantine: u8,
@@ -125,8 +163,8 @@ struct Checker {
 impl Checker {
     async fn integrity_check(&self) -> Result<()> {
         let db = &self.db;
-        let bottom = self.latest_data.start_block_hash;
-        let head = self.latest_data.synced_block.hash;
+        let bottom = self.globals.start_block_hash;
+        let head = self.globals.latest_synced_block.hash;
 
         let bottom = db
             .block_header(bottom)
@@ -199,8 +237,8 @@ impl Checker {
 
     async fn computation_check(&self) -> Result<()> {
         let db = &self.db;
-        let bottom = self.latest_data.start_announce_hash;
-        let head = self.latest_data.computed_announce_hash;
+        let bottom = self.globals.start_announce_hash;
+        let head = self.globals.latest_computed_announce_hash;
         let progress_bar = self.progress_bar;
         let chunk_size = self.chunk_size;
         let canonical_quarantine = self.canonical_quarantine;

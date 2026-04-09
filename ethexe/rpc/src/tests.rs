@@ -107,6 +107,7 @@ async fn start_new_server(listen_addr: SocketAddr, db: Database) -> (ServerHandl
         cors: None,
         gas_allowance: MAX_BLOCK_GAS_LIMIT,
         chunk_size: 2,
+        with_dev_api: false,
     };
     RpcServer::new(rpc_config, db)
         .run_server()

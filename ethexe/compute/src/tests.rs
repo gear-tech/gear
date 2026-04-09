@@ -27,72 +27,78 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_db::Database;
+use ethexe_processor::ValidCodeInfo;
 use futures::StreamExt;
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
-use std::{cell::RefCell, collections::BTreeMap};
-use tokio::sync::mpsc;
-
-thread_local! {
-    pub(crate) static PROCESSOR_RESULT: RefCell<FinalizedBlockTransitions> = const { RefCell::new(
-        FinalizedBlockTransitions {
-            transitions: Vec::new(),
-            states: BTreeMap::new(),
-            schedule: BTreeMap::new(),
-            program_creations: Vec::new(),
-        }
-    ) };
-}
+use std::time::Duration;
+use tokio::{sync::mpsc, time::timeout};
 
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
-#[derive(Clone)]
-pub(crate) struct MockProcessor;
+#[derive(Clone, Default)]
+pub(crate) struct MockProcessor {
+    pub process_programs_result: Option<FinalizedBlockTransitions>,
+    pub process_codes_result: Option<ProcessedCodeInfo>,
+    pub process_code_calls: std::sync::Arc<std::sync::Mutex<Vec<CodeAndIdUnchecked>>>,
+}
+
+impl MockProcessor {
+    pub fn with_default_valid_code() -> Self {
+        Self {
+            process_programs_result: None,
+            process_codes_result: Some(ProcessedCodeInfo {
+                code_id: CodeId::zero(),
+                valid: Some(ValidCodeInfo {
+                    code: vec![],
+                    instrumented_code: InstrumentedCode::new(
+                        vec![],
+                        InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
+                    ),
+                    code_metadata: CodeMetadata::new(
+                        0,
+                        Default::default(),
+                        0.into(),
+                        None,
+                        gear_core::code::InstrumentationStatus::Instrumented {
+                            version: 0,
+                            code_len: 0,
+                        },
+                    ),
+                }),
+            }),
+            process_code_calls: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn process_code_call_count(&self) -> usize {
+        self.process_code_calls.lock().unwrap().len()
+    }
+}
 
 impl ProcessorExt for MockProcessor {
-    async fn process_announce(
+    async fn process_programs(
         &mut self,
         _executable: ExecutableData,
         _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
-        let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
-        PROCESSOR_RESULT.with_borrow_mut(|r| {
-            *r = FinalizedBlockTransitions {
-                transitions: vec![],
-                states: BTreeMap::new(),
-                schedule: BTreeMap::new(),
-                program_creations: vec![],
-            }
-        });
-
-        Ok(result)
+        Ok(self.process_programs_result.take().unwrap_or_default())
     }
 
-    fn process_upload_code(
-        &mut self,
-        code_and_id: CodeAndIdUnchecked,
-    ) -> Result<ProcessedCodeInfo> {
-        Ok(ProcessedCodeInfo {
-            code_id: code_and_id.code_id,
-            valid: Some(ethexe_processor::ValidCodeInfo {
-                code: code_and_id.code,
-                instrumented_code: InstrumentedCode::new(
-                    vec![],
-                    InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
-                ),
-                code_metadata: CodeMetadata::new(
-                    0,
-                    Default::default(),
-                    0.into(),
-                    None,
-                    gear_core::code::InstrumentationStatus::Instrumented {
-                        version: 0,
-                        code_len: 0,
-                    },
-                ),
-            }),
-        })
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+        self.process_code_calls
+            .lock()
+            .unwrap()
+            .push(code_and_id.clone());
+
+        Ok(self
+            .process_codes_result
+            .take()
+            .unwrap_or(ProcessedCodeInfo {
+                code_id: code_and_id.code_id,
+                valid: None,
+            }))
     }
 }
 
@@ -332,6 +338,168 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
     let announce = new_announce(&env.db, env.chain.blocks[1].hash, Some(100));
     env.compute_and_assert_announce(announce.clone()).await;
     env.compute_and_assert_announce(announce.clone()).await;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn code_validation_request_for_already_processed_code_does_not_request_loading() -> Result<()>
+{
+    gear_utils::init_default_logger();
+
+    let db = Database::memory();
+    let processor = MockProcessor::default();
+    let mut compute = ComputeService::new(
+        ComputeConfig::without_quarantine(),
+        db.clone(),
+        processor.clone(),
+    );
+
+    let code = create_new_code(1);
+    let code_id = db.set_original_code(&code);
+    db.set_code_valid(code_id, true);
+
+    // Setup chain and mark blocks as not prepared
+    let mut chain = BlockChain::mock(1);
+    mark_as_not_prepared(&mut chain);
+    let chain = chain.setup(&db);
+    let block_hash = chain.blocks[1].hash;
+
+    // Add CodeValidationRequested event for the already-validated code
+    let events = db.block_events(block_hash).unwrap_or_default();
+    let mut new_events = events.clone();
+    new_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
+        CodeValidationRequestedEvent {
+            code_id,
+            timestamp: 0u64,
+            tx_hash: H256::random(),
+        },
+    )));
+    db.set_block_events(block_hash, &new_events);
+
+    compute.prepare_block(block_hash);
+
+    // The first event should be BlockPrepared, NOT RequestCodes
+    // because the code is already validated
+    let event = compute
+        .next()
+        .await
+        .unwrap()
+        .expect("expect compute service to produce an event");
+
+    // Verify block was prepared without requesting code loading
+    let prepared_block = event.unwrap_block_prepared();
+    assert_eq!(prepared_block, block_hash);
+
+    // Verify that no follow-up events are produced (no RequestCodes)
+    let no_follow_up_event = timeout(Duration::from_millis(100), compute.next()).await;
+    assert!(
+        no_follow_up_event.is_err(),
+        "unexpected follow-up compute event after block preparation: {no_follow_up_event:?}"
+    );
+
+    // Verify that the processor was NOT called
+    assert_eq!(
+        processor.process_code_call_count(),
+        0,
+        "Processor should not be called for already-validated code"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn code_validation_request_for_non_validated_code_requests_loading() -> Result<()> {
+    gear_utils::init_default_logger();
+
+    let db = Database::memory();
+    let processor = MockProcessor::default();
+    let mut compute = ComputeService::new(
+        ComputeConfig::without_quarantine(),
+        db.clone(),
+        processor.clone(),
+    );
+
+    let code = create_new_code(1);
+    let code_id = db.set_original_code(&code);
+    // Note: code is NOT marked as valid (db.code_valid(code_id) is None)
+
+    // Setup chain and mark blocks as not prepared
+    let mut chain = BlockChain::mock(1);
+    mark_as_not_prepared(&mut chain);
+    let chain = chain.setup(&db);
+    let block_hash = chain.blocks[1].hash;
+
+    // Add CodeValidationRequested event for the non-validated code
+    let events = db.block_events(block_hash).unwrap_or_default();
+    let mut new_events = events.clone();
+    new_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
+        CodeValidationRequestedEvent {
+            code_id,
+            timestamp: 0u64,
+            tx_hash: H256::random(),
+        },
+    )));
+    db.set_block_events(block_hash, &new_events);
+
+    compute.prepare_block(block_hash);
+
+    // The first event should be RequestCodes because the code is NOT validated
+    let event = compute
+        .next()
+        .await
+        .unwrap()
+        .expect("expect compute service to produce an event");
+
+    // Verify that RequestCodes is emitted for non-validated code
+    let codes_to_load = event.unwrap_request_load_codes();
+    assert!(
+        codes_to_load.contains(&code_id),
+        "CodeId should be requested for loading when not validated"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn process_code_for_already_processed_valid_code_emits_code_processed() -> Result<()> {
+    gear_utils::init_default_logger();
+
+    let db = Database::memory();
+    let processor = MockProcessor::default();
+    let mut compute = ComputeService::new(
+        ComputeConfig::without_quarantine(),
+        db.clone(),
+        processor.clone(),
+    );
+
+    let code = create_new_code(2);
+    let code_id = db.set_original_code(&code);
+
+    db.set_instrumented_code(
+        ethexe_runtime_common::VERSION,
+        code_id,
+        InstrumentedCode::new(vec![0], InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
+    );
+    db.set_code_valid(code_id, true);
+
+    compute.process_code(CodeAndIdUnchecked { code_id, code });
+
+    let event = compute
+        .next()
+        .await
+        .unwrap()
+        .expect("expect already processed code to produce CodeProcessed event");
+    let processed_code_id = event.unwrap_code_processed();
+    assert_eq!(processed_code_id, code_id);
+
+    // Verify that the processor was NOT called for already-validated code
+    // The CodesSubService should short-circuit and emit CodeProcessed without calling the processor
+    assert_eq!(
+        processor.process_code_call_count(),
+        0,
+        "Processor should not be called for already-validated code"
+    );
 
     Ok(())
 }

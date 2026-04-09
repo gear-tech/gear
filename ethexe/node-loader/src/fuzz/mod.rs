@@ -25,10 +25,10 @@
 mod cmd_gen;
 
 use crate::args::FuzzParams;
-use alloy::primitives::Address;
+use alloy::{hex, primitives::Address, providers::Provider, rpc::types::Filter};
 use anyhow::Result;
 use demo_syscalls_ethexe::InitConfig;
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::{Ethereum, NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE};
 use ethexe_sdk::VaraEthApi;
 use gprimitives::MessageId;
 use parity_scale_codec::Encode;
@@ -43,14 +43,22 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     let router_addr = Address::from_str(&params.router_address)?;
 
     let (signer, address) = if let Some(ref pk) = params.sender_private_key {
-        crate::signer_from_private_key(pk)?
+        crate::utils::signer_from_private_key(pk)?
     } else {
-        crate::signer_from_private_key(crate::DEPLOYER_ACCOUNT.private_key)?
+        crate::utils::signer_from_private_key(crate::utils::DEPLOYER_ACCOUNT.private_key)?
     };
 
-    info!("Fuzz deployer address: 0x{}", alloy::hex::encode(address.0));
+    info!("Fuzz deployer address: 0x{}", hex::encode(address.0));
 
-    let api = Ethereum::new(&params.node, router_addr.into(), signer.clone(), address).await?;
+    let api = Ethereum::new(
+        &params.node,
+        router_addr.into(),
+        signer.clone(),
+        address,
+        NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+        NO_BLOB_GAS_MULTIPLIER,
+    )
+    .await?;
     let vapi = VaraEthApi::new(&params.ethexe_node, api.clone()).await?;
 
     info!("Uploading mega syscall contract code...");
@@ -76,10 +84,7 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     info!("Program topped up");
 
     let init_config = InitConfig { echo_dest: None };
-    let init_block = {
-        use alloy::providers::Provider;
-        api.provider().get_block_number().await?
-    };
+    let init_block = api.provider().get_block_number().await?;
     let (_, init_mid) = mirror.send_message(&init_config.encode(), 0).await?;
     info!("Init message sent: {init_mid}");
 
@@ -113,10 +118,7 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
             payload.len()
         );
 
-        let start_block = {
-            use alloy::providers::Provider;
-            api.provider().get_block_number().await?
-        };
+        let start_block = api.provider().get_block_number().await?;
         let (_, msg_id) = mirror.send_message(&payload, 0).await?;
         debug!("Message sent: {msg_id}");
 
@@ -160,7 +162,6 @@ async fn wait_for_reply(
     start_block: u64,
     max_blocks: usize,
 ) -> Result<Option<String>> {
-    use alloy::{providers::Provider, rpc::types::Filter};
     use ethexe_common::events::MirrorEvent;
     use ethexe_ethereum::mirror::events::try_extract_event;
     use gear_core::ids::prelude::MessageIdExt;

@@ -28,7 +28,7 @@ use crate::{
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, HashOf, PromiseEmissionMode, PromisePolicy, SimpleBlockData,
+    Address, Announce, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
 };
 use std::mem;
@@ -173,14 +173,10 @@ impl Subordinate {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx
                     .output(ConsensusEvent::AnnounceAccepted(announce_hash));
-
-                let promise_policy = match self.ctx.core.promise_emission_mode {
-                    PromiseEmissionMode::AlwaysEmit => PromisePolicy::Enabled,
-                    PromiseEmissionMode::ConsensusDriven => PromisePolicy::Disabled,
-                };
-                self.ctx
-                    .output(ConsensusEvent::ComputeAnnounce(announce, promise_policy));
-
+                self.ctx.output(ConsensusEvent::ComputeAnnounce(
+                    announce,
+                    PromisePolicy::Disabled,
+                ));
                 self.state = State::WaitingAnnounceComputed { announce_hash };
 
                 Ok(self.into())

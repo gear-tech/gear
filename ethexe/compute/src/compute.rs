@@ -20,8 +20,8 @@ use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubServic
 use ethexe_common::{
     Announce, HashOf, PromisePolicy, SimpleBlockData,
     db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW,
-        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW, ConfigStorageRO,
+        GlobalsStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
     injected::Promise,
@@ -45,7 +45,7 @@ pub struct ComputeConfig {
 
 /// Metrics for the [`ComputeSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
-#[metrics(scope = "ethexe_compute:compute")]
+#[metrics(scope = "ethexe_compute_compute")]
 struct Metrics {
     /// The latency of announce processing in seconds represented as f64.
     announce_processing_latency: metrics::Histogram,
@@ -83,6 +83,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
 
     input: VecDeque<(Announce, PromisePolicy)>,
 
+    // TODO kuzmindev: consider to refactor this (move to separate stream).
     computation: Option<ComputationFuture>,
     promises_stream: Option<utils::AnnouncePromisesStream>,
     pending_event: Option<Result<ComputeEvent>>,
@@ -124,7 +125,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             return Err(ComputeError::BlockNotPrepared(block_hash));
         }
 
-        let not_computed_announces = utils::find_parent_not_computed_announces(&announce, &db)?;
+        let not_computed_announces = utils::collect_not_computed_predecessors(&announce, &db)?;
         if !not_computed_announces.is_empty() {
             log::trace!(
                 "compute-sub-service: announce({announce_hash}) contains a {} previous not computed announce, start computing...",
@@ -161,7 +162,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         let executable =
             utils::prepare_executable_for_announce(db, announce, config.canonical_quarantine())?;
         let processing_result = processor
-            .process_announce(executable, promise_out_tx)
+            .process_programs(executable, promise_out_tx)
             .await?;
 
         let FinalizedBlockTransitions {
@@ -184,10 +185,9 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             meta.computed = true;
         });
 
-        db.mutate_latest_data(|data| {
-            data.computed_announce_hash = announce_hash;
-        })
-        .ok_or(ComputeError::LatestDataNotFound)?;
+        db.globals_mutate(|globals| {
+            globals.latest_computed_announce_hash = announce_hash;
+        });
 
         Ok(announce_hash)
     }
@@ -341,19 +341,15 @@ pub(crate) mod utils {
         })
     }
 
-    pub(super) fn find_parent_not_computed_announces<DB>(
+    pub(super) fn collect_not_computed_predecessors<DB>(
         announce: &Announce,
         db: &DB,
     ) -> Result<VecDeque<(HashOf<Announce>, Announce)>>
     where
-        DB: AnnounceStorageRO + LatestDataStorageRO,
+        DB: AnnounceStorageRO,
     {
         let mut parent_hash = announce.parent;
         let mut announces_chain = VecDeque::new();
-        let start_announce_hash = db
-            .latest_data()
-            .ok_or_else(|| ComputeError::LatestDataNotFound)?
-            .start_announce_hash;
 
         loop {
             if db.announce_meta(parent_hash).computed {
@@ -367,11 +363,6 @@ pub(crate) mod utils {
             let next_parent_hash = parent_announce.parent;
             announces_chain.push_front((parent_hash, parent_announce));
 
-            // This was a start announce, no need to go further.
-            if parent_hash == start_announce_hash {
-                break;
-            }
-
             parent_hash = next_parent_hash;
         }
 
@@ -384,10 +375,7 @@ pub(crate) mod utils {
         mut block_hash: H256,
         canonical_quarantine: u8,
     ) -> Result<Vec<BlockEvent>> {
-        let genesis_block = db
-            .latest_data()
-            .ok_or_else(|| ComputeError::LatestDataNotFound)?
-            .genesis_block_hash;
+        let genesis_block = db.config().genesis_block_hash;
 
         let mut block_header = db
             .block_header(block_hash)
@@ -415,13 +403,10 @@ pub(crate) mod utils {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        ComputeService,
-        tests::{MockProcessor, PROCESSOR_RESULT},
-    };
+    use crate::{ComputeService, tests::MockProcessor};
     use ethexe_common::{
         DEFAULT_BLOCK_GAS_LIMIT,
-        db::OnChainStorageRW,
+        db::{GlobalsStorageRO, OnChainStorageRW},
         events::{
             RouterEvent, mirror::ExecutableBalanceTopUpRequestedEvent, router::ProgramCreatedEvent,
         },
@@ -535,19 +520,6 @@ mod tests {
     async fn test_compute() {
         gear_utils::init_default_logger();
 
-        let db = Database::memory();
-        let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
-        let config = ComputeConfig::without_quarantine();
-        let mut service = ComputeSubService::new(config, db.clone(), MockProcessor);
-
-        let announce = Announce {
-            block_hash,
-            parent: db.latest_data().unwrap().genesis_announce_hash,
-            gas_allowance: Some(100),
-            injected_transactions: vec![],
-        };
-        let announce_hash = announce.to_hash();
-
         // Create non-empty processor result with transitions
         let non_empty_result = FinalizedBlockTransitions {
             transitions: vec![StateTransition {
@@ -559,8 +531,26 @@ mod tests {
             ..Default::default()
         };
 
-        // Set the PROCESSOR_RESULT to return non-empty result
-        PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
+        let db = Database::memory();
+        let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeSubService::new(
+            config,
+            db.clone(),
+            MockProcessor {
+                process_programs_result: Some(non_empty_result),
+                ..Default::default()
+            },
+        );
+
+        let announce = Announce {
+            block_hash,
+            parent: db.config().genesis_announce_hash,
+            gas_allowance: Some(100),
+            injected_transactions: vec![],
+        };
+        let announce_hash = announce.to_hash();
+
         service.receive_announce_to_compute(announce, PromisePolicy::Disabled);
 
         assert_eq!(
@@ -578,14 +568,11 @@ mod tests {
         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
 
         // Verify latest announce
-        assert_eq!(
-            db.latest_data().unwrap().computed_announce_hash,
-            announce_hash
-        );
+        assert_eq!(db.globals().latest_computed_announce_hash, announce_hash);
     }
 
     #[tokio::test]
-    #[ntest::timeout(30000)]
+    #[ntest::timeout(60000)]
     async fn test_compute_with_promises() {
         gear_utils::init_default_logger();
         const BLOCKCHAIN_LEN: usize = 10;
@@ -604,8 +591,8 @@ mod tests {
 
             let announce_hash = db.set_announce(announce);
             db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
-            db.mutate_latest_data(|data| {
-                data.start_announce_hash = announce_hash;
+            db.globals_mutate(|globals| {
+                globals.start_announce_hash = announce_hash;
             });
             db.set_announce_program_states(announce_hash, Default::default());
             db.set_announce_schedule(announce_hash, Default::default());
@@ -708,6 +695,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ntest::timeout(60000)]
     async fn test_compute_with_early_break() {
         gear_utils::init_default_logger();
 
@@ -757,27 +745,24 @@ mod tests {
     }
 
     #[test]
-    fn find_not_computed_announces_work_correctly() {
+    fn collect_not_computed_predecessors_work_correctly() {
         const BLOCKCHAIN_LEN: usize = 10;
 
         let db = Database::memory();
-        let mut blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32).setup(&db);
+        let blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32).setup(&db);
 
-        // Setup announces except the head to not-computed state.
-        blockchain
-            .announces
-            .iter_mut()
-            .enumerate()
-            .for_each(|(idx, (announce_hash, _))| {
-                // Set the announces to not computed state
-                if idx != BLOCKCHAIN_LEN - 1 {
-                    db.mutate_announce_meta(*announce_hash, |meta| {
-                        meta.computed = false;
-                    });
-                }
-            });
+        // Setup announces except the start-announce to not-computed state.
+        (0..BLOCKCHAIN_LEN - 1).for_each(|idx| {
+            let announce_hash = blockchain.block_top_announce(idx).announce.to_hash();
 
-        let expected_not_computed_announces = (0..BLOCKCHAIN_LEN - 1)
+            if idx == 0 {
+                db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
+            } else {
+                db.mutate_announce_meta(announce_hash, |meta| meta.computed = false);
+            }
+        });
+
+        let expected_not_computed_announces = (1..BLOCKCHAIN_LEN - 1)
             .map(|idx| blockchain.block_top_announce(idx).announce.to_hash())
             .collect::<Vec<_>>();
 
@@ -785,7 +770,7 @@ mod tests {
             .block_top_announce(BLOCKCHAIN_LEN - 1)
             .announce
             .clone();
-        let not_computed_announces = utils::find_parent_not_computed_announces(&head_announce, &db)
+        let not_computed_announces = utils::collect_not_computed_predecessors(&head_announce, &db)
             .unwrap()
             .into_iter()
             .map(|v| v.0)

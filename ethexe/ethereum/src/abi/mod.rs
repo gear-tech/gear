@@ -16,11 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::sol;
-
 mod events;
 mod gear;
 
+use alloy::sol;
 pub use middleware_abi::*;
 pub use mirror_abi::*;
 
@@ -51,8 +50,8 @@ sol!(
 
 sol!(
     #[sol(rpc)]
-    ITransparentUpgradeableProxy,
-    "abi/TransparentUpgradeableProxy.json"
+    IERC1967Proxy,
+    "abi/ERC1967Proxy.json"
 );
 
 sol!(
@@ -60,6 +59,12 @@ sol!(
     #[sol(rpc)]
     IWrappedVara,
     "abi/WrappedVara.json"
+);
+
+sol!(
+    #[sol(rpc)]
+    IDemoCaller,
+    "abi/DemoCaller.json"
 );
 
 /// Bindings for Symbiotic contracts.

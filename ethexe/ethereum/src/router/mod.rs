@@ -143,16 +143,11 @@ impl Router {
     ) -> Result<(TransactionReceipt, CodeId)> {
         let code_id = CodeId::generate(code);
 
-        let chain_id = self.instance.provider().get_chain_id().await?;
         let builder = self
             .instance
             .requestCodeValidation(code_id.into_bytes().into());
-        let builder = if chain_id == 31337 {
-            // TODO: remove when https://github.com/foundry-rs/foundry/pull/12404 is merged
-            builder.sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?)
-        } else {
-            builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?)
-        };
+        let builder =
+            builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?);
 
         let receipt = builder
             .send()
@@ -345,17 +340,17 @@ pub struct RouterQuery {
 }
 
 impl RouterQuery {
-    pub async fn new(rpc_url: &str, router_address: Address) -> Result<Self> {
+    pub async fn new(rpc_url: &str, router_address: impl Into<AlloyAddress>) -> Result<Self> {
         let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self {
-            instance: QueryInstance::new(AlloyAddress::new(router_address.0), provider),
+            instance: QueryInstance::new(router_address.into(), provider),
         })
     }
 
-    pub fn from_provider(router_address: AlloyAddress, provider: RootProvider) -> Self {
+    pub fn from_provider(router_address: impl Into<AlloyAddress>, provider: RootProvider) -> Self {
         Self {
-            instance: QueryInstance::new(router_address, provider),
+            instance: QueryInstance::new(router_address.into(), provider),
         }
     }
 

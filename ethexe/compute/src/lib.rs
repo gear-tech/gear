@@ -61,7 +61,7 @@ pub enum ComputeError {
     #[error("block header not found for synced block({0})")]
     BlockHeaderNotFound(H256),
     #[error("block validators committed for era not found for block({0})")]
-    BlockValidatorsCommittedForEraNotFound(H256),
+    CommittedEraNotFound(H256),
     #[error("process code join error")]
     CodeProcessJoin(#[from] tokio::task::JoinError),
     #[error("codes queue not found for computed block({0})")]
@@ -74,8 +74,6 @@ pub enum ComputeError {
     AnnounceNotFound(HashOf<Announce>),
     #[error("Announces for prepared block {0:?} not found in db")]
     PreparedBlockAnnouncesSetMissing(H256),
-    #[error("Latest data not found")]
-    LatestDataNotFound,
     #[error(
         "Received validators commitment for an earlier era {commitment_era_index}, previous was {previous_commitment_era_index}"
     )]
@@ -98,17 +96,16 @@ type Result<T> = std::result::Result<T, ComputeError>;
 
 pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     /// Process block events and return the result.
-    fn process_announce(
+    fn process_programs(
         &mut self,
         executable: ExecutableData,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
-    fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked)
-    -> Result<ProcessedCodeInfo>;
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo>;
 }
 
 impl ProcessorExt for Processor {
-    async fn process_announce(
+    async fn process_programs(
         &mut self,
         executable: ExecutableData,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
@@ -118,10 +115,7 @@ impl ProcessorExt for Processor {
             .map_err(Into::into)
     }
 
-    fn process_upload_code(
-        &mut self,
-        code_and_id: CodeAndIdUnchecked,
-    ) -> Result<ProcessedCodeInfo> {
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
         self.process_code(code_and_id).map_err(Into::into)
     }
 }

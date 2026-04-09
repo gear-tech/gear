@@ -26,7 +26,7 @@ use crate::{
         self, GetRecordResult, PutRecordFuture, RecordKey, ValidatorIdentityKey,
         ValidatorIdentityRecord,
     },
-    utils::ExponentialBackoffInterval,
+    utils::{ExponentialBackoffInterval, MultiaddrExt},
     validator::list::ValidatorListSnapshot,
 };
 use anyhow::Context as _;
@@ -41,15 +41,14 @@ use futures::{
 };
 use gsigner::secp256k1::{PrivateKey, Secp256k1SignerExt, Signer};
 use indexmap::IndexSet;
-use ip_network::IpNetwork;
 use libp2p::{
     Multiaddr,
     core::{Endpoint, transport::PortUse},
     identity::Keypair,
     multiaddr,
     swarm::{
-        ConnectionDenied, ConnectionId, ExternalAddresses, FromSwarm, NetworkBehaviour, THandler,
-        THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
+        ConnectionDenied, ConnectionId, ExternalAddresses, FromSwarm, NetworkBehaviour,
+        PeerAddresses, THandler, THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
     },
 };
 use parity_scale_codec::{Decode, Encode, Input, Output};
@@ -57,7 +56,7 @@ use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
     task::{Context, Poll, ready},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 /// From Substrate sources:
@@ -67,6 +66,10 @@ const MAX_IDENTITY_ADDRESSES: usize = 10;
 ///
 /// Limit is to not flood the network
 const MAX_IN_FLIGHT_QUERIES: usize = 10;
+/// Timer for GET and PUT queries starts after this time, ensuring Kademlia has been bootstrapped
+const KAD_TIMER_START: Duration = Duration::from_secs(2);
+/// How often to initiate GET and PUT queries once an exponential backoff timer reaches its limits
+const KAD_TIMER_MAX: Duration = Duration::from_secs(600);
 
 pub type ValidatorIdentities = HashMap<Address, SignedValidatorIdentity>;
 
@@ -380,11 +383,13 @@ pub enum Event {
 }
 
 struct GetIdentities {
+    validator_address: Option<Address>,
     snapshot: Arc<ValidatorListSnapshot>,
     identities: ValidatorIdentities,
     query_identities: Option<BoxStream<'static, GetRecordResult>>,
     query_identities_interval: ExponentialBackoffInterval,
     pending_events: VecDeque<ToSwarm<Event, THandlerInEvent<Behaviour>>>,
+    peer_addresses: PeerAddresses,
 }
 
 impl GetIdentities {
@@ -401,6 +406,7 @@ impl GetIdentities {
     fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
         self.snapshot
             .iter()
+            .filter(|&address| Some(address) != self.validator_address)
             .map(|address| ValidatorIdentityKey { validator: address })
     }
 
@@ -426,9 +432,25 @@ impl GetIdentities {
     }
 
     fn put_identity(&mut self, record: ValidatorIdentityRecord) -> Result<bool, VerifyRecordError> {
+        debug_assert_ne!(
+            self.validator_address,
+            Some(record.value.address()),
+            "we never request our own identity"
+        );
+
         let Some(identity) = self.verify_record(record)? else {
             return Ok(false);
         };
+
+        for addr in identity.addresses() {
+            if self.peer_addresses.add(identity.peer_id(), addr.clone()) {
+                self.pending_events
+                    .push_back(ToSwarm::NewExternalAddrOfPeer {
+                        peer_id: identity.peer_id(),
+                        address: addr.clone(),
+                    });
+            }
+        }
 
         self.identities.insert(identity.address(), identity);
         Ok(true)
@@ -451,10 +473,14 @@ impl GetIdentities {
                     kad.get_record(identity)
                 })
                 .collect::<Vec<_>>();
-            let stream = stream::iter(streams)
-                .flatten_unordered(Some(MAX_IN_FLIGHT_QUERIES))
-                .boxed();
-            self.query_identities.replace(stream);
+            if streams.is_empty() {
+                self.query_identities = None;
+            } else {
+                let stream = stream::iter(streams)
+                    .flatten_unordered(Some(MAX_IN_FLIGHT_QUERIES))
+                    .boxed();
+                self.query_identities.replace(stream);
+            }
             return Poll::Ready(ToSwarm::GenerateEvent(Event::GetIdentitiesStarted));
         }
 
@@ -507,18 +533,10 @@ struct PutIdentity {
 
 impl PutIdentity {
     fn new_identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
-        let external_addresses = self.external_addresses.iter().filter(|addr| {
-            if self.allow_non_global_addresses {
-                return true;
-            }
-
-            // we use `ip_network` crate instead of std method because it's unstable
-            addr.iter().all(|protocol| match protocol {
-                multiaddr::Protocol::Ip4(ip) => IpNetwork::from(ip).is_global(),
-                multiaddr::Protocol::Ip6(ip) => IpNetwork::from(ip).is_global(),
-                _ => true,
-            })
-        });
+        let external_addresses = self
+            .external_addresses
+            .iter()
+            .filter(|addr| self.allow_non_global_addresses || addr.is_global());
 
         let addresses = ValidatorAddresses::from_external_addresses(
             self.keypair.public().to_peer_id(),
@@ -614,23 +632,29 @@ impl Behaviour {
         Self {
             kad,
             get_identities: GetIdentities {
+                validator_address: validator_key.as_ref().map(|key| key.to_address()),
                 snapshot,
                 identities: HashMap::new(),
                 query_identities: None,
-                query_identities_interval: ExponentialBackoffInterval::new(),
+                query_identities_interval: Self::default_exponential_backoff_interval(),
                 pending_events: VecDeque::new(),
+                peer_addresses: PeerAddresses::default(),
             },
             put_identity: validator_key.map(|validator_key| PutIdentity {
                 keypair,
                 validator_key,
                 signer,
                 allow_non_global_addresses,
-                interval: ExponentialBackoffInterval::new(),
+                interval: Self::default_exponential_backoff_interval(),
                 external_addresses: ExternalAddresses::default(),
                 fut: None,
             }),
             metrics: Metrics::default(),
         }
+    }
+
+    fn default_exponential_backoff_interval() -> ExponentialBackoffInterval {
+        ExponentialBackoffInterval::new(KAD_TIMER_START, KAD_TIMER_MAX)
     }
 
     pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
@@ -666,6 +690,28 @@ impl NetworkBehaviour for Behaviour {
         _remote_addr: &Multiaddr,
     ) -> Result<THandler<Self>, ConnectionDenied> {
         Ok(dummy::ConnectionHandler)
+    }
+
+    fn handle_pending_outbound_connection(
+        &mut self,
+        _connection_id: ConnectionId,
+        maybe_peer: Option<PeerId>,
+        _addresses: &[Multiaddr],
+        _effective_role: Endpoint,
+    ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+        let Some(peer_id) = maybe_peer else {
+            return Ok(vec![]);
+        };
+
+        let Some(identity) = self
+            .identities()
+            .values()
+            .find(|identity| identity.peer_id() == peer_id)
+        else {
+            return Ok(vec![]);
+        };
+
+        Ok(identity.addresses().iter().cloned().collect())
     }
 
     fn handle_established_outbound_connection(
@@ -717,7 +763,11 @@ mod tests {
     use assert_matches::assert_matches;
     use core::convert::TryFrom;
     use ethexe_common::ValidatorsVec;
-    use libp2p::{Multiaddr, Swarm, identity::Keypair, swarm::behaviour::ExternalAddrConfirmed};
+    use libp2p::{
+        Multiaddr, Swarm,
+        identity::Keypair,
+        swarm::{SwarmEvent, behaviour::ExternalAddrConfirmed},
+    };
     use libp2p_swarm_test::SwarmExt;
     use std::sync::Arc;
     use tokio::time;
@@ -831,7 +881,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn behaviour_queries_and_puts() {
+    async fn behaviour_skips_self_query_and_puts() {
         let signer = Signer::memory();
         let validator_key = signer.generate().unwrap();
         let config = Config {
@@ -847,13 +897,45 @@ mod tests {
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.add_external_address(test_addr());
 
-        time::advance(ExponentialBackoffInterval::START).await;
+        time::advance(KAD_TIMER_START).await;
 
         let event = swarm.next_behaviour_event().await;
         assert_matches!(event, Event::GetIdentitiesStarted);
+        assert!(swarm.behaviour().get_identities.query_identities.is_none());
 
         let event = swarm.next_behaviour_event().await;
         assert_matches!(event, Event::PutIdentityStarted);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn behaviour_does_not_query_local_validator_identity() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate().unwrap();
+
+        let (kad_handle, mut kad_callback) = kad::test_utils::HandleCallback::new_pair();
+        kad_callback.on_get_record(move |_key| {
+            panic!("local validator identity should not be requested");
+        });
+        tokio::spawn(kad_callback.loop_on_receiver());
+
+        let config = Config {
+            kad: kad_handle,
+            keypair: Keypair::generate_secp256k1(),
+            validator_key: Some(validator_key),
+            signer,
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let behaviour = Behaviour::new(config);
+
+        let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
+        swarm.add_external_address(test_addr());
+
+        time::advance(KAD_TIMER_START).await;
+
+        let event = swarm.next_behaviour_event().await;
+        assert_matches!(event, Event::GetIdentitiesStarted);
+        assert!(swarm.behaviour().get_identities.query_identities.is_none());
     }
 
     #[tokio::test(start_paused = true)]
@@ -1029,43 +1111,46 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn duplicate_and_self_identity_handling() {
+    async fn duplicate_identity_handling() {
         let signer = Signer::memory();
         let validator_key = signer.generate().unwrap();
         let network_keypair = Keypair::generate_secp256k1();
 
         let config = Config {
             kad: kad::Handle::new_test(),
-            keypair: network_keypair.clone(),
-            validator_key: Some(validator_key),
+            keypair: Keypair::generate_secp256k1(),
+            validator_key: None,
             signer: signer.clone(),
             snapshot: new_snapshot(vec![validator_key.to_address()]),
             allow_non_global_addresses: false,
         };
         let mut behaviour = Behaviour::new(config);
 
-        // Create our own identity (simulating receiving our own record)
-        let our_identity = ValidatorIdentity {
+        let identity = ValidatorIdentity {
             addresses: ValidatorAddresses::new(network_keypair.public().to_peer_id(), test_addr()),
             creation_time: 10,
         };
-        let our_signed_identity = our_identity
+        let signed_identity = identity
             .clone()
             .sign(&signer, validator_key, &network_keypair)
             .unwrap();
 
-        // NOTE: consider ignoring our own identity
         behaviour
             .get_identities
             .put_identity(ValidatorIdentityRecord {
-                value: our_signed_identity.clone(),
+                value: signed_identity,
             })
             .unwrap();
-        assert!(behaviour.get_identity(validator_key.to_address()).is_some());
+        assert_eq!(
+            behaviour
+                .get_identity(validator_key.to_address())
+                .unwrap()
+                .peer_id(),
+            network_keypair.public().to_peer_id()
+        );
 
-        // Test duplicate records from different network keys (same validator)
         let other_network_keypair = Keypair::generate_secp256k1();
-        let duplicate_identity = our_identity
+        let duplicate_identity = identity
             .sign(&signer, validator_key, &other_network_keypair)
             .unwrap();
 
@@ -1076,9 +1161,56 @@ mod tests {
             })
             .unwrap();
 
-        // Should keep the newer one (or the first one if timestamps are equal)
-        // Currently implementation keeps the first one for equal timestamps
-        assert!(behaviour.get_identity(validator_key.to_address()).is_some());
+        // creation time is the same, so the first identity should be kept
+        assert_eq!(
+            behaviour
+                .get_identity(validator_key.to_address())
+                .unwrap()
+                .peer_id(),
+            network_keypair.public().to_peer_id()
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn get_identities_does_not_report_local_address_as_remote_peer() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate().unwrap();
+        let keypair = Keypair::generate_secp256k1();
+        let peer_id = keypair.public().to_peer_id();
+
+        let config = Config {
+            kad: kad::Handle::new_test(),
+            keypair,
+            validator_key: Some(validator_key),
+            signer,
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let behaviour = Behaviour::new(config);
+        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| behaviour);
+        swarm.add_external_address(test_addr());
+
+        time::advance(KAD_TIMER_START).await;
+
+        let event = swarm.next_behaviour_event().await;
+        assert_matches!(event, Event::GetIdentitiesStarted);
+        assert!(
+            swarm
+                .behaviour()
+                .get_identity(validator_key.to_address())
+                .is_none()
+        );
+
+        let addresses = swarm
+            .behaviour_mut()
+            .handle_pending_outbound_connection(
+                ConnectionId::new_unchecked(0),
+                Some(peer_id),
+                &[],
+                Endpoint::Dialer,
+            )
+            .unwrap();
+        assert!(addresses.is_empty());
     }
 
     #[tokio::test(start_paused = true)]
@@ -1107,7 +1239,7 @@ mod tests {
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.add_external_address(test_addr());
 
-        time::advance(ExponentialBackoffInterval::START).await;
+        time::advance(KAD_TIMER_START).await;
 
         let event = swarm.next_behaviour_event().await;
         assert_eq!(event, Event::GetIdentitiesStarted);
@@ -1120,10 +1252,7 @@ mod tests {
         let event = swarm.next_behaviour_event().await;
         assert_eq!(event, Event::PutIdentityTicksAtMax);
         let put_identity = &swarm.behaviour().put_identity.as_ref().unwrap();
-        assert_eq!(
-            put_identity.interval.period(),
-            ExponentialBackoffInterval::MAX
-        );
+        assert_eq!(put_identity.interval.period(), KAD_TIMER_MAX);
         assert!(put_identity.fut.is_none());
     }
 
@@ -1149,7 +1278,7 @@ mod tests {
             validator_key,
             signer,
             allow_non_global_addresses: false,
-            interval: ExponentialBackoffInterval::new(),
+            interval: Behaviour::default_exponential_backoff_interval(),
             external_addresses: Default::default(),
             fut: None,
         };
@@ -1176,5 +1305,54 @@ mod tests {
         assert_eq!(addresses.len(), 2);
         assert_eq!(*addresses.next().unwrap(), global_addr);
         assert_eq!(*addresses.next().unwrap(), local_addr);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn get_identities_reports_address() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate().unwrap();
+        let keypair = Keypair::generate_secp256k1();
+
+        let identity = new_signed_identity(&signer, validator_key, 10);
+        let identity_addr = identity.addresses().iter().next().cloned().unwrap();
+
+        let config = Config {
+            kad: kad::Handle::new_test(),
+            keypair,
+            validator_key: None,
+            signer: signer.clone(),
+            snapshot: new_snapshot(vec![validator_key.to_address()]),
+            allow_non_global_addresses: false,
+        };
+        let behaviour = Behaviour::new(config);
+        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| behaviour);
+
+        swarm
+            .behaviour_mut()
+            .get_identities
+            .put_identity(ValidatorIdentityRecord {
+                value: identity.clone(),
+            })
+            .unwrap();
+
+        let event = swarm.next_swarm_event().await;
+        assert_matches!(
+            event,
+            SwarmEvent::NewExternalAddrOfPeer {
+                peer_id,
+                address
+            } if peer_id == identity.peer_id() && address == identity_addr
+        );
+
+        let addresses = swarm
+            .behaviour_mut()
+            .handle_pending_outbound_connection(
+                ConnectionId::new_unchecked(0),
+                Some(identity.peer_id()),
+                &[],
+                Endpoint::Dialer,
+            )
+            .unwrap();
+        assert_eq!(addresses, vec![identity_addr]);
     }
 }

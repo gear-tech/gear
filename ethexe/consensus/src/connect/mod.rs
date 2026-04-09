@@ -23,13 +23,12 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     announces::{self, AnnounceStatus, DBAnnouncesExt},
-    utils,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, HashOf, PromisePolicy, SimpleBlockData,
+    Address, Announce, HashOf, PromisePolicy, ProtocolTimelines, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::{ConfigStorageRO, OnChainStorageRO},
     injected::{Promise, SignedInjectedTransaction},
     network::{AnnouncesRequest, AnnouncesResponse},
 };
@@ -43,7 +42,6 @@ use std::{
     num::NonZeroUsize,
     pin::Pin,
     task::{Context, Poll},
-    time::Duration,
 };
 
 /// Maximum number of pending announces to store
@@ -101,8 +99,8 @@ enum State {
 #[derive(derive_more::Debug)]
 pub struct ConnectService {
     db: Database,
-    slot_duration: Duration,
     commitment_delay_limit: u32,
+    timelines: ProtocolTimelines,
 
     state: State,
     pending_announces: LruCache<(Address, H256), Announce>,
@@ -114,13 +112,14 @@ impl ConnectService {
     ///
     /// # Parameters
     /// - `db`: Database instance.
-    /// - `slot_duration`: Duration of each slot in the consensus protocol.
     /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
-    pub fn new(db: Database, slot_duration: Duration, commitment_delay_limit: u32) -> Self {
+    pub fn new(db: Database, commitment_delay_limit: u32) -> Self {
+        let timelines = db.config().timelines;
+
         Self {
             db,
-            slot_duration,
             commitment_delay_limit,
+            timelines,
             state: State::WaitingForBlock,
             pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
             output: VecDeque::new(),
@@ -163,8 +162,7 @@ impl ConnectService {
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
                 self.output.push_back(ConsensusEvent::ComputeAnnounce(
                     announce,
-                    // TODO: FIXME
-                    PromisePolicy::Enabled,
+                    PromisePolicy::Disabled,
                 ));
             }
         }
@@ -187,19 +185,13 @@ impl ConsensusService for ConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let timelines = self
-                .db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
-            let block_era = timelines.era_from_ts(block.header.timestamp);
+            let block_era = self.timelines.era_from_ts(block.header.timestamp);
             let validators = self.db.validators(block_era).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;
-            let producer = utils::block_producer_for(
-                &validators,
-                block.header.timestamp,
-                self.slot_duration.as_secs(),
-            );
+            let producer = self
+                .timelines
+                .block_producer_at(&validators, block.header.timestamp);
 
             self.state = State::WaitingForPreparedBlock {
                 block: *block,
@@ -297,6 +289,10 @@ impl ConsensusService for ConnectService {
             "Connected consensus node receives the promise for signing, but it not responsible for promises providing: \
             promise={promise:?}, announce_hash={announce_hash}"
         );
+        debug_assert!(
+            false,
+            "Connect node received the promise for signing, this should never happen"
+        );
         Ok(())
     }
 
@@ -381,7 +377,7 @@ mod tests {
         let db = Database::memory();
         let chain = BlockChain::mock((10, validators)).setup(&db);
 
-        let mut service = ConnectService::new(db, Duration::from_secs(12), 10);
+        let mut service = ConnectService::new(db, 10);
         service
             .receive_new_chain_head(chain.blocks[10].to_simple())
             .unwrap();

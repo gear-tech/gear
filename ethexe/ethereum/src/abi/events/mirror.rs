@@ -120,3 +120,32 @@ impl From<IMirror::ValueClaimed> for ValueClaimedEvent {
         }
     }
 }
+
+impl From<IMirror::TransferLockedValueToInheritorFailed>
+    for TransferLockedValueToInheritorFailedEvent
+{
+    fn from(value: IMirror::TransferLockedValueToInheritorFailed) -> Self {
+        Self {
+            inheritor: address_to_actor_id(value.inheritor),
+            value: value.value,
+        }
+    }
+}
+
+impl From<IMirror::ReplyTransferFailed> for ReplyTransferFailedEvent {
+    fn from(value: IMirror::ReplyTransferFailed) -> Self {
+        Self {
+            destination: address_to_actor_id(value.destination),
+            value: value.value,
+        }
+    }
+}
+
+impl From<IMirror::ValueClaimFailed> for ValueClaimFailedEvent {
+    fn from(value: IMirror::ValueClaimFailed) -> Self {
+        Self {
+            claimed_id: bytes32_to_message_id(value.claimedId),
+            value: value.value,
+        }
+    }
+}

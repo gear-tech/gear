@@ -22,9 +22,10 @@
 
 extern crate alloc;
 
+use crate::journal::{Limiter, LimitsStatus};
 use alloc::vec::Vec;
 use core_processor::{
-    ContextCharged, Ext, ProcessExecutionContext,
+    ContextCharged, ProcessExecutionContext,
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
 };
@@ -33,8 +34,9 @@ use ethexe_common::{
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
     injected::Promise,
 };
+use ext::Ext;
 use gear_core::{
-    code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
+    code::{CodeMetadata, InstrumentedCode, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
     gas::GasAllowanceCounter,
     gas_metering::Schedule,
     ids::ActorId,
@@ -45,17 +47,17 @@ use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::{H256, MessageId};
 use gsys::{GasMultiplier, Percent};
 use journal::RuntimeJournalHandler;
+use parity_scale_codec::{Decode, Encode};
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
-use gear_core::code::InstrumentedCodeAndMetadata;
-pub use journal::NativeJournalHandler as JournalHandler;
-use parity_scale_codec::{Decode, Encode};
+pub use journal::{NativeJournalHandler as JournalHandler, WAIT_UP_TO_SAFE_DURATION};
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
 pub mod state;
 
+mod ext;
 mod journal;
 mod schedule;
 mod transitions;
@@ -64,6 +66,17 @@ mod transitions;
 /// Version of the runtime.
 pub const VERSION: u32 = 1;
 pub const RUNTIME_ID: u32 = 1;
+
+/// Maximum number of outgoing messages per execution of one dispatch.
+pub const MAX_OUTGOING_MESSAGES_PER_EXECUTION: u32 = 4;
+/// Maximum total size of outgoing messages per execution of one dispatch.
+pub const MAX_OUTGOING_MESSAGES_BYTES_PER_EXECUTION: u32 = 4 * 1024;
+/// Maximum number of outgoing messages per process_queue run.
+pub const MAX_OUTGOING_MESSAGES_PER_RUN: u32 = 16;
+/// Maximum total size of outgoing messages per process_queue run.
+pub const MAX_OUTGOING_MESSAGES_BYTES_PER_RUN: u32 = 4 * 1024;
+/// Maximum number of call replies per process_queue run.
+pub const MAX_CALL_REPLIES_PER_RUN: u32 = 1;
 
 pub type ProgramJournals = Vec<(Vec<JournalNote>, MessageType, bool)>;
 
@@ -139,20 +152,18 @@ impl<S: Storage + ?Sized> TransitionController<'_, S> {
 
 pub fn process_queue<RI>(mut ctx: ProcessQueueContext, ri: &RI) -> (ProgramJournals, u64)
 where
-    RI: RuntimeInterface,
+    RI: RuntimeInterface + 'static,
     RI::LazyPages: Send,
 {
     let mut program_state = ri.program_state(ctx.state_root).unwrap();
 
-    let ProcessQueueContext {
-        program_id,
-        queue_type,
-        ..
-    } = ctx;
+    log::trace!(
+        "Processing {:?} queue for program {}",
+        ctx.queue_type,
+        ctx.program_id
+    );
 
-    log::trace!("Processing {queue_type:?} queue for program {program_id}");
-
-    let is_queue_empty = match queue_type {
+    let is_queue_empty = match ctx.queue_type {
         MessageType::Canonical => program_state.canonical_queue.hash.is_empty(),
         MessageType::Injected => program_state.injected_queue.hash.is_empty(),
     };
@@ -163,7 +174,7 @@ where
     }
 
     let queue = program_state
-        .queue_from_msg_type(queue_type)
+        .queue_from_msg_type(ctx.queue_type)
         .hash
         .map(|hash| ri.message_queue(hash).expect("Cannot get message queue"))
         .expect("Queue cannot be empty at this point");
@@ -188,6 +199,7 @@ where
             SyscallName::SendWGas,
             SyscallName::SystemReserveGas,
             SyscallName::UnreserveGas,
+            SyscallName::Wait,
             // TBD about deprecation
             SyscallName::SignalCode,
             SyscallName::SignalFrom,
@@ -199,8 +211,8 @@ where
         gas_multiplier: GasMultiplier::from_value_per_gas(100),
         costs: Schedule::default().process_costs(),
         max_pages: MAX_WASM_PAGES_AMOUNT.into(),
-        outgoing_limit: 1024,
-        outgoing_bytes_limit: 64 * 1024 * 1024,
+        outgoing_limit: MAX_OUTGOING_MESSAGES_PER_EXECUTION,
+        outgoing_bytes_limit: MAX_OUTGOING_MESSAGES_BYTES_PER_EXECUTION,
         // TBD about deprecation
         performance_multiplier: Percent::new(100),
         // Deprecated
@@ -212,6 +224,12 @@ where
 
     let mut mega_journal = Vec::new();
     let initial_gas_allowance = ctx.gas_allowance.left();
+
+    let mut limiter = Limiter {
+        outgoing_messages: MAX_OUTGOING_MESSAGES_PER_RUN,
+        outgoing_messages_bytes: MAX_OUTGOING_MESSAGES_BYTES_PER_RUN,
+        call_replies: MAX_CALL_REPLIES_PER_RUN,
+    };
 
     ri.init_lazy_pages();
 
@@ -231,10 +249,17 @@ where
             message_type: ctx.queue_type,
             is_first_execution,
             stop_processing: false,
+            call_reply,
+            limiter: &mut limiter,
         };
 
-        if ctx.promise_policy.is_enabled() && is_promise_required {
-            process_journal_for_injected_dispatch(ri, &journal, dispatch_id);
+        // Promise policy must be disabled for the canonical queue.
+        if ctx.queue_type.is_canonical() && ctx.promise_policy.is_enabled() {
+            debug_assert!(false, "Promise policy must be disabled for canonical queue");
+        }
+
+        if is_promise_required && ctx.promise_policy.is_enabled() {
+            parse_journal_for_injected_dispatch(ri, &journal, dispatch_id);
         }
 
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
@@ -249,6 +274,14 @@ where
         if handler.stop_processing {
             break;
         }
+
+        match limiter.status() {
+            LimitsStatus::WithinLimits => {}
+            status => {
+                log::trace!("Limits exceeded: {status:?}, stopping execution of the queue");
+                break;
+            }
+        }
     }
 
     let gas_spent = initial_gas_allowance
@@ -260,43 +293,44 @@ where
 
 /// Finds in [`process_dispatch`]'s the [`JournalNote::SendDispatch`] note and builds from it
 /// a [`ReplyInfo`] and [`Promise`] for injected message.
-fn process_journal_for_injected_dispatch<RI>(
-    ri: &RI,
-    journal: &[JournalNote],
-    dispatch_id: MessageId,
-) where
+fn parse_journal_for_injected_dispatch<RI>(ri: &RI, journal: &[JournalNote], dispatch_id: MessageId)
+where
     RI: RuntimeInterface,
 {
-    for note in journal.iter() {
-        if let JournalNote::SendDispatch {
+    let maybe_reply = journal.iter().find_map(|note| {
+        let JournalNote::SendDispatch {
             message_id,
             dispatch,
             ..
         } = note
-            && *message_id == dispatch_id
-            && dispatch.kind().is_reply()
-        {
-            let Some(code) = dispatch.reply_details().map(|d| d.to_reply_code()) else {
-                log::error!(
-                    "received reply dispatch without reply details; protocol invariant violated: \
-                    initial_dispatch_id={dispatch_id:?}, send_dispatch={dispatch:?}"
-                );
-                continue;
-            };
+        else {
+            return None;
+        };
 
-            let reply = ReplyInfo {
-                value: dispatch.value(),
-                code,
-                payload: dispatch.message().payload_bytes().to_vec(),
-            };
-
-            // SAFE: because of protocol logic - injected message id constructs from injected transaction hash.
-            let tx_hash = unsafe { HashOf::new(dispatch_id.into_bytes().into()) };
-            let promise = Promise { reply, tx_hash };
-
-            ri.publish_promise(&promise);
-            break;
+        if *message_id != dispatch_id || !dispatch.kind().is_reply() {
+            return None;
         }
+
+        let Some(code) = dispatch.reply_details().map(|d| d.to_reply_code()) else {
+            log::error!(
+                "received reply dispatch without reply details; protocol invariant violated: \
+                    initial_dispatch_id={dispatch_id:?}, send_dispatch={dispatch:?}"
+            );
+            return None;
+        };
+
+        Some(ReplyInfo {
+            value: dispatch.value(),
+            code,
+            payload: dispatch.message().payload_bytes().to_vec(),
+        })
+    });
+
+    if let Some(reply) = maybe_reply {
+        // SAFE: because of protocol logic - injected message id constructs from injected transaction hash.
+        let tx_hash = unsafe { HashOf::new(dispatch_id.into_bytes().into()) };
+        let promise = Promise { reply, tx_hash };
+        ri.publish_promise(&promise);
     }
 }
 
@@ -308,7 +342,7 @@ fn process_dispatch<RI>(
     ri: &RI,
 ) -> Vec<JournalNote>
 where
-    RI: RuntimeInterface,
+    RI: RuntimeInterface + 'static,
     RI::LazyPages: Send,
 {
     let Dispatch {
@@ -425,7 +459,7 @@ where
 
     let random_data = ri.random_data();
 
-    core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
+    core_processor::process::<Ext<RI>>(block_config, execution_context, random_data)
         .unwrap_or_else(|err| unreachable!("{err}"))
 }
 

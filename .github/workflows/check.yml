@@ -17,7 +17,7 @@ jobs:
   unused-deps:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: cargo-bins/cargo-binstall@main
       - run: cargo binstall --no-confirm cargo-shear
       - run: cargo shear --exclude=gear-workspace-hack
@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -37,7 +37,7 @@ jobs:
   typos:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
       - name: typos-action
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -65,10 +65,10 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.5.1
+          version: nightly-c07d504b4ae67754584f4e05ff0c547a43c50f7b
 
       - name: "Install: Node.js"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22.x
 
@@ -93,8 +93,9 @@ jobs:
           cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum/abi
           cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum/abi
           cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum/abi
-          cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json ./ethexe/ethereum/abi
           cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
+          cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi
 
           git diff --exit-code ./ethexe/ethereum/abi/*.json || (echo "Some abi files have been modified. Please commit the changes." && exit 1)
 
@@ -105,6 +106,12 @@ jobs:
           --clones src/libraries/Clones.sol
           forge fmt
           git diff --exit-code src/libraries/Clones.sol || (echo "Clones.sol has been modified. Please commit the changes." && exit 1)
+        working-directory: ethexe/contracts
+
+      - name: "Check: Mirror.sol events are updated"
+        run: |
+          set +H && sed -i '/\/\/ forgefmt: disable-start/,/\/\/ forgefmt: disable-end/{//!d}' src/Mirror.sol && GENERATED_CONDITION=$(grep -Po "    event\s+\K[^(]+" src/IMirror.sol | xargs -I{} echo "            topic1 != {}.selector &&" | sed '$ s/ &&$//') && awk -v cond="$GENERATED_CONDITION" '/\/\/ forgefmt: disable-start/{print; print "        if (!("; print cond; print "        )) {"; print "            return false;"; print "        }"; next}1' src/Mirror.sol > src/Mirror.tmp && mv src/Mirror.tmp src/Mirror.sol
+          git diff --exit-code src/Mirror.sol || (echo "Mirror.sol has been modified. Please commit the changes." && exit 1)
         working-directory: ethexe/contracts
 
   clippy:
@@ -131,7 +138,7 @@ jobs:
     name: clippy (${{ matrix.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -160,7 +167,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -211,7 +218,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -254,7 +261,7 @@ jobs:
     needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -308,7 +315,7 @@ jobs:
     name: stack-height (${{ matrix.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
         if: matrix.name != 'macos-x86_64'
@@ -335,7 +342,7 @@ jobs:
     needs: [clippy, wasm]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker

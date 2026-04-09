@@ -43,7 +43,6 @@ use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
 pub use connect::ConnectService;
-pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{BatchCommitter, ValidatorConfig, ValidatorService};
 
 mod announces;
@@ -71,7 +70,7 @@ pub trait ConsensusService:
     fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
 
     /// Process a computed block received
-    fn receive_computed_announce(&mut self, computed_data: HashOf<Announce>) -> Result<()>;
+    fn receive_computed_announce(&mut self, computed_announce: HashOf<Announce>) -> Result<()>;
 
     /// Process a received producer announce
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()>;
@@ -120,15 +119,14 @@ pub enum ConsensusEvent {
     /// Outer service have to publish signed message
     #[from]
     PublishMessage(SignedValidatorMessage),
+    #[from]
+    PublishPromise(CompactSignedPromise),
     /// Outer service have to request announces
     #[from]
     RequestAnnounces(AnnouncesRequest),
     /// Informational event: commitment was successfully submitted
     #[from]
     CommitmentSubmitted(CommitmentSubmitted),
-    /// Signed promise for [`ethexe_common::injected::InjectedTransaction`]
-    #[from]
-    SignedPromise(CompactSignedPromise),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }

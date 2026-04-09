@@ -1,12 +1,11 @@
-use std::collections::BTreeSet;
-
 use alloy::{
-    network::Network,
-    providers::{Provider, RootProvider, WalletProvider},
+    hex,
+    providers::{Provider, RootProvider},
+    rpc::types::Header,
+    signers::local::{MnemonicBuilder, coins_bip39::English},
 };
 use anyhow::Result;
-use ethexe_common::{Address as EthexeAddress, events::MirrorEvent};
-use ethexe_ethereum::Ethereum;
+use ethexe_common::events::MirrorEvent;
 use futures::StreamExt;
 use gear_call_gen::Seed;
 use gear_core::ids::prelude::MessageIdExt;
@@ -16,10 +15,68 @@ use gear_wasm_gen::{
 };
 use gprimitives::{ActorId, MessageId};
 use rand::rngs::SmallRng;
+use std::str::FromStr;
 use tokio::{fs::File, io::AsyncWriteExt, sync::broadcast};
 use tracing::warn;
 
 use crate::batch::Event;
+
+const ANVIL_MNEMONIC: &str = "test test test test test test test test test test test junk";
+const MAX_PREBUILT_ANVIL_ACCOUNTS: u32 = 256;
+
+#[derive(Clone, Copy)]
+pub struct PrefundedAccount {
+    pub private_key: &'static str,
+}
+
+pub const DEPLOYER_ACCOUNT: PrefundedAccount = PrefundedAccount {
+    private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+};
+
+pub fn signer_from_private_key(
+    private_key_hex: &str,
+) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
+    let private_key =
+        gsigner::secp256k1::PrivateKey::from_str(private_key_hex.trim_start_matches("0x"))?;
+    let signer = gsigner::secp256k1::Signer::memory();
+    let pubkey = signer.import(private_key)?;
+    let address = pubkey.to_address();
+
+    Ok((signer, address))
+}
+
+pub fn signer_from_anvil_account(
+    account_index: u32,
+) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
+    let signer = MnemonicBuilder::<English>::default()
+        .phrase(ANVIL_MNEMONIC)
+        .index(account_index)?
+        .build()?;
+
+    let private_key_hex = format!("0x{}", hex::encode(signer.to_bytes()));
+    signer_from_private_key(&private_key_hex)
+}
+
+pub fn worker_account_start(ethexe_nodes: usize) -> Result<u32> {
+    let validator_count = u32::try_from(ethexe_nodes)?;
+    Ok(validator_count + 1)
+}
+
+pub fn validate_worker_count(ethexe_nodes: usize, workers: usize) -> Result<()> {
+    let worker_account_start = worker_account_start(ethexe_nodes)?;
+    let workers = u32::try_from(workers)?;
+
+    if worker_account_start + workers > MAX_PREBUILT_ANVIL_ACCOUNTS {
+        return Err(anyhow::anyhow!(
+            "workers must not exceed {} for {} ethexe nodes (available prebuilt Anvil accounts: {})",
+            MAX_PREBUILT_ANVIL_ACCOUNTS - worker_account_start,
+            ethexe_nodes,
+            MAX_PREBUILT_ANVIL_ACCOUNTS
+        ));
+    }
+
+    Ok(())
+}
 
 pub async fn dump_with_seed(seed: u64) -> Result<()> {
     let code = gear_call_gen::generate_gear_program::<SmallRng, StandardGearWasmConfigsBundle>(
@@ -77,10 +134,7 @@ pub fn get_wasm_gen_config(
     }
 }
 
-pub async fn listen_blocks(
-    tx: broadcast::Sender<<alloy::network::Ethereum as Network>::HeaderResponse>,
-    provider: RootProvider,
-) -> Result<()> {
+pub async fn listen_blocks(tx: broadcast::Sender<Header>, provider: RootProvider) -> Result<()> {
     let mut retry_count = 0;
     const MAX_RETRIES: usize = 10;
 
@@ -104,26 +158,6 @@ pub async fn listen_blocks(
             retry_count, MAX_RETRIES
         );
     }
-}
-
-pub async fn capture_mailbox_messages(
-    api: &Ethereum,
-    event_source: &[Event],
-    _sent_message_ids: impl IntoIterator<Item = MessageId>,
-) -> Result<BTreeSet<MessageId>> {
-    let to: ActorId = EthexeAddress::from(api.provider().default_signer_address()).into();
-
-    let mailbox_messages = event_source.iter().filter_map(|event| match &event.event {
-        // Incoming message to the user's EOA.
-        MirrorEvent::Message(msg) if msg.destination == to => Some(msg.id),
-
-        // Outgoing (request) message created by the user (useful for tracking).
-        MirrorEvent::MessageQueueingRequested(msg) if msg.source == to => Some(msg.id),
-
-        _ => None,
-    });
-
-    Ok(BTreeSet::from_iter(mailbox_messages))
 }
 
 /// Check whether processing batch of messages identified by corresponding

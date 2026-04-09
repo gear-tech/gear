@@ -88,8 +88,9 @@ impl StateHandler for Producer {
                     future: self
                         .ctx
                         .core
+                        .batch_manager
                         .clone()
-                        .aggregate_batch_commitment(self.block, announce_hash)
+                        .create_batch_commitment(self.block, announce_hash)
                         .boxed(),
                 };
 
@@ -125,7 +126,10 @@ impl StateHandler for Producer {
                     CompactSignedPromise::from_signed_promise_unchecked(&signed_promise);
 
                 self.ctx
-                    .output(ConsensusEvent::SignedPromise(compact_signed_promise));
+                    .output(ConsensusEvent::PublishPromise(compact_signed_promise));
+                // =======
+                //                 self.ctx.output(signed_promise);
+                // >>>>>>> master
 
                 tracing::trace!("consensus sign promise for transaction-hash={tx_hash}");
                 Ok(self.into())
@@ -146,7 +150,7 @@ impl StateHandler for Producer {
             State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
                 Poll::Ready(Ok(Some(batch))) => {
                     tracing::debug!(batch.block_hash = %batch.block_hash, "Batch commitment aggregated, switch to Coordinator");
-                    return Coordinator::create(self.ctx, self.validators, batch)
+                    return Coordinator::create(self.ctx, self.validators, batch, self.block)
                         .map(|s| (Poll::Ready(()), s));
                 }
                 Poll::Ready(Ok(None)) => {
@@ -207,7 +211,7 @@ impl Producer {
             .ctx
             .core
             .injected_pool
-            .select_for_announce(self.block.hash, parent)?;
+            .select_for_announce(self.block, parent)?;
 
         let announce = Announce {
             block_hash: self.block.hash,
@@ -381,6 +385,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn threshold_two() {
+        gear_utils::init_default_logger();
+
         let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();

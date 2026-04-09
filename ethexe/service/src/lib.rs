@@ -16,6 +16,36 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Vara.eth service
+//! Top-level runtime service for an ethexe node.
+//!
+//! ## Responsibilities
+//! This crate provides the top-level [`Service`] orchestrator for ethexe.
+//! The service owns all subservices and drives them through a single async event loop.
+//!
+//! ## Event Loop
+//! The subservices in [`Service`] communicate with each other via the [`Event`] enum.
+//!
+//! In [`Service::run`], the service uses the [tokio::select] macro to poll
+//! event streams (see [`futures::Stream`]) and route events to the appropriate subservice.
+//!
+//! ## Configuration And Startup
+//! [`Service::new`] takes a [`Config`] on startup.
+//! [`Config`] contains all configuration options required to create the subservices.
+//!
+//! In the general case, [`Service::new`] is called from the `ethexe-cli` crate,
+//! where [`Config`] is parsed from command-line arguments or a configuration file.
+//!
+//! ## Testing
+//! Integration tests for this crate live in `src/tests`.
+//! They use `TestEnv` to prepare an Anvil-based or external Ethereum environment,
+//! initialize an in-memory database, and construct test nodes.
+//!
+//! Each node runs [`Service`] using `Service::new_from_parts`.
+//! Tests observe service behavior through `TestingEvent` streams, which mirror the
+//! internal [`Event`] flow and allow waiting for startup, block sync, announce
+//! processing, network activity, and RPC requests.
+
 use crate::config::{Config, ConfigPublicKey};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
@@ -25,20 +55,20 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, PromiseEmissionMode, gear::CodeState, network::VerifiedValidatorMessage,
+    COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_db::{Database, RocksDatabase};
+use ethexe_db::{Database, InitConfig, RawDatabase, RocksDatabase};
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
 };
 use ethexe_observer::{
-    ObserverEvent, ObserverService,
+    ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -221,7 +251,16 @@ impl Service {
                 .database_path_for(config.ethereum.router_address),
         )
         .with_context(|| "failed to open database")?;
-        let db = Database::from_one(&rocks_db);
+
+        let db = ethexe_db::initialize_db(
+            InitConfig {
+                ethereum_rpc: config.ethereum.rpc.clone(),
+                router_address: config.ethereum.router_address,
+                slot_duration_secs: config.ethereum.block_time.as_secs(),
+            },
+            RawDatabase::from_one(&rocks_db),
+        )
+        .await?;
 
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: config.ethereum.rpc.clone(),
@@ -242,19 +281,19 @@ impl Service {
 
         let rpc = config
             .rpc
-            .as_ref()
-            .map(|config| RpcServer::new(config.clone(), db.clone()));
+            .clone()
+            .map(|config| RpcServer::new(config, db.clone()));
 
-        let promise_emission_mode = if rpc.is_some() {
-            PromiseEmissionMode::AlwaysEmit
-        } else {
-            PromiseEmissionMode::ConsensusDriven
-        };
+        let observer = ObserverService::new(
+            db.clone(),
+            ObserverConfig {
+                rpc: &config.ethereum.rpc,
+                max_sync_depth: Some(config.node.eth_max_sync_depth),
+            },
+        )
+        .await
+        .context("failed to create observer service")?;
 
-        let observer =
-            ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
-                .await
-                .context("failed to create observer service")?;
         let latest_block = observer
             .block_loader()
             .load_simple(BlockId::Latest)
@@ -315,6 +354,8 @@ impl Service {
                     config.ethereum.router_address,
                     signer.clone(),
                     pub_key.to_address(),
+                    config.ethereum.eip1559_fee_increase_percentage,
+                    config.ethereum.blob_gas_multiplier,
                 )
                 .await?;
                 Box::pin(ValidatorService::new(
@@ -325,7 +366,6 @@ impl Service {
                     ValidatorConfig {
                         pub_key,
                         signatures_threshold: threshold,
-                        slot_duration: config.ethereum.block_time,
                         block_gas_limit: config.node.block_gas_limit,
                         // TODO: #4942 commitment_delay_limit is a protocol specific constant
                         // which better to be configurable by router contract
@@ -333,15 +373,11 @@ impl Service {
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
                         chain_deepness_threshold: config.node.chain_deepness_threshold,
-                        promise_emission_mode,
+                        batch_size_limit: config.node.batch_size_limit,
                     },
                 )?)
             } else {
-                Box::pin(ConnectService::new(
-                    db.clone(),
-                    config.ethereum.block_time,
-                    3,
-                ))
+                Box::pin(ConnectService::new(db.clone(), 3))
             }
         };
 
@@ -369,7 +405,7 @@ impl Service {
                 general_signer: signer.clone(),
                 network_signer,
                 external_data_provider: Box::new(RouterDataProvider(router_query)),
-                db: Box::new(db.clone()),
+                db: db.clone(),
             };
 
             let network = NetworkService::new(net_config.clone(), runtime_config)
@@ -590,10 +626,11 @@ impl Service {
                         }
                         NetworkEvent::InjectedTransaction(event) => match event {
                             ethexe_network::NetworkInjectedEvent::InboundTransaction {
+                                peer: _,
                                 transaction,
                                 channel,
                             } => {
-                                let res = consensus.receive_injected_transaction(transaction);
+                                let res = consensus.receive_injected_transaction(*transaction);
                                 channel
                                     .send(res.into())
                                     .expect("channel must never be closed");
@@ -658,7 +695,7 @@ impl Service {
                     ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
                         compute.compute_announce(announce, promise_policy)
                     }
-                    ConsensusEvent::SignedPromise(compact_promise) => {
+                    ConsensusEvent::PublishPromise(compact_promise) => {
                         if rpc.is_none() && network.is_none() {
                             panic!("Promise without network or rpc");
                         }
@@ -670,6 +707,12 @@ impl Service {
                         if let Some(network) = &mut network {
                             network.publish_promise(compact_promise);
                         }
+                        //     rpc.provide_promise(signed_promise.clone());
+                        // }
+
+                        // if let Some(network) = &mut network {
+                        //     network.publish_promise(signed_promise);
+                        // }
                     }
                     ConsensusEvent::PublishMessage(message) => {
                         let Some(network) = network.as_mut() else {

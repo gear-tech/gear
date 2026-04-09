@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{metrics::Libp2pMetrics, peer_score, validator::discovery::SignedValidatorIdentity};
+use crate::{
+    metrics::Libp2pMetrics, peer_score, utils::ExponentialBackoffInterval,
+    validator::discovery::SignedValidatorIdentity,
+};
 use anyhow::Context as _;
 use ethexe_common::Address;
 use futures::{FutureExt, Stream, stream::FusedStream};
@@ -25,18 +28,20 @@ use libp2p::{
     core::{Endpoint, transport::PortUse},
     kad,
     kad::{
-        Addresses, EntryView, KBucketKey, PeerRecord, PutRecordOk, QueryId, Quorum, store,
+        GetClosestPeersError, GetClosestPeersOk, PeerRecord, PutRecordOk, QueryId, Quorum, store,
         store::{MemoryStore, RecordStore},
     },
     metrics::Recorder,
     swarm::{
-        ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
-        THandlerOutEvent, ToSwarm,
+        ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, PeerAddresses, THandler,
+        THandlerInEvent, THandlerOutEvent, ToSwarm,
     },
 };
 use parity_scale_codec::{Decode, Encode, Input};
 use std::{
     collections::{HashMap, VecDeque},
+    iter,
+    num::NonZeroUsize,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, ready},
@@ -55,6 +60,8 @@ const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SEC
 // old record, so that we can update them once we notice
 // they have old records.
 const KAD_MIN_QUORUM_PEERS: u32 = 4;
+const DISCOVERY_TIMER_START: Duration = Duration::from_secs(1);
+const DISCOVERY_TIMER_MAX: Duration = Duration::from_secs(60);
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, Clone)]
 pub struct ValidatorIdentityKey {
@@ -220,7 +227,18 @@ pub struct GetRecordOk {
 #[derive(Debug, PartialEq, Eq, derive_more::Display, Clone)]
 pub enum GetRecordError {
     #[display("Record not found: key={key:?}")]
-    NotFound { key: RecordKey },
+    NotFound {
+        key: RecordKey,
+        closest_peers: Vec<PeerId>,
+    },
+    #[display("the quorum failed; needed {quorum} peers; key={key:?}")]
+    QuorumFailed {
+        key: RecordKey,
+        records: Vec<PeerRecord>,
+        quorum: NonZeroUsize,
+    },
+    #[display("the request timed out: key={key:?}")]
+    Timeout { key: RecordKey },
 }
 
 pub struct GetRecordStream {
@@ -303,13 +321,16 @@ pub struct Behaviour {
     inner: kad::Behaviour<MemoryStore>,
     handle: Handle,
     rx: mpsc::UnboundedReceiver<HandlerAction>,
-    pending_events: VecDeque<Event>,
+    pending_events: VecDeque<ToSwarm<Event, THandlerInEvent<kad::Behaviour<MemoryStore>>>>,
     get_record_queries: HashMap<QueryId, mpsc::UnboundedSender<GetRecordResult>>,
     put_record_queries: HashMap<QueryId, oneshot::Sender<PutRecordResult>>,
     peer_score: peer_score::Handle,
     cache_candidates_records: HashMap<QueryId, kad::Record>,
     min_quorum_peers: u32,
     metrics: Arc<Libp2pMetrics>,
+    // `get_closest_peers` related fields
+    peer_addresses: PeerAddresses,
+    discovery_timer: ExponentialBackoffInterval,
 }
 
 impl Behaviour {
@@ -329,7 +350,7 @@ impl Behaviour {
             .set_record_ttl(Some(KAD_RECORD_TTL))
             .set_publication_interval(Some(KAD_PUBLISHING_INTERVAL))
             .set_record_filtering(kad::StoreInserts::FilterBoth)
-            // only mDNS, bootstrap and directly connected peers will be inserted into the routing table
+            // only directly connected peers will be inserted into the routing table
             .set_kbucket_inserts(kad::BucketInserts::Manual);
         let mut inner = kad::Behaviour::with_config(peer, MemoryStore::new(peer), inner);
         inner.set_mode(Some(kad::Mode::Server));
@@ -348,6 +369,11 @@ impl Behaviour {
             cache_candidates_records: HashMap::new(),
             min_quorum_peers,
             metrics,
+            peer_addresses: Default::default(),
+            discovery_timer: ExponentialBackoffInterval::new(
+                DISCOVERY_TIMER_START,
+                DISCOVERY_TIMER_MAX,
+            ),
         }
     }
 
@@ -359,18 +385,18 @@ impl Behaviour {
         self.inner.add_address(&peer_id, multiaddr);
     }
 
-    pub fn remove_peer(
-        &mut self,
-        peer_id: PeerId,
-    ) -> Option<EntryView<KBucketKey<PeerId>, Addresses>> {
-        self.inner.remove_peer(&peer_id)
-    }
-
     fn handle_inner_event(&mut self, event: kad::Event) -> Poll<Event> {
         self.metrics.record(&event);
 
         match event {
-            kad::Event::RoutingUpdated { peer, .. } => {
+            kad::Event::RoutingUpdated {
+                peer, addresses, ..
+            } => {
+                // we don't want to report already known peer addresses
+                for addr in addresses.into_vec() {
+                    self.peer_addresses.add(peer, addr);
+                }
+
                 return Poll::Ready(Event::RoutingUpdated { peer });
             }
             kad::Event::InboundRequest {
@@ -420,8 +446,9 @@ impl Behaviour {
                                 && let Some(mut query) = self.inner.query_mut(&id)
                             {
                                 query.finish();
-                                self.pending_events
-                                    .push_back(Event::GetRecordEarlyFinished { query_id: id });
+                                self.pending_events.push_back(ToSwarm::GenerateEvent(
+                                    Event::GetRecordEarlyFinished { query_id: id },
+                                ));
                             }
 
                             let record = match Record::new(&original_record) {
@@ -471,22 +498,44 @@ impl Behaviour {
 
                             return Poll::Ready(Event::GetRecordFinished { query_id: id });
                         }
-                        Err(kad::GetRecordError::NotFound {
-                            key,
-                            closest_peers: _,
-                        }) => {
-                            let key = RecordKey::new(&key)
-                                .expect("invalid record key that we got from local storage")
-                                .expect("unknown record key that we got from local storage");
+                        Err(err) => {
+                            let key = match &err {
+                                kad::GetRecordError::NotFound {
+                                    key,
+                                    closest_peers: _,
+                                }
+                                | kad::GetRecordError::QuorumFailed {
+                                    key,
+                                    records: _,
+                                    quorum: _,
+                                }
+                                | kad::GetRecordError::Timeout { key } => RecordKey::new(key)
+                                    .expect("invalid record key that we got from local storage")
+                                    .expect("unknown record key that we got from local storage"),
+                            };
 
-                            let err = GetRecordError::NotFound { key };
+                            let err = match err {
+                                kad::GetRecordError::NotFound {
+                                    key: _,
+                                    closest_peers,
+                                } => GetRecordError::NotFound { key, closest_peers },
+                                kad::GetRecordError::QuorumFailed {
+                                    key: _,
+                                    records,
+                                    quorum,
+                                } => GetRecordError::QuorumFailed {
+                                    key,
+                                    records,
+                                    quorum,
+                                },
+                                kad::GetRecordError::Timeout { key: _ } => {
+                                    GetRecordError::Timeout { key }
+                                }
+                            };
 
                             let channel =
                                 self.get_record_queries.remove(&id).expect("unknown query");
                             let _res = channel.send(Err(err));
-                        }
-                        Err(err) => {
-                            log::trace!("failed to get record: {err}");
                         }
                     }
                 }
@@ -506,6 +555,28 @@ impl Behaviour {
                     if let Some(channel) = self.put_record_queries.remove(&id) {
                         let _res = channel.send(result);
                     }
+                }
+                kad::QueryResult::GetClosestPeers(result) => {
+                    let peers = match result {
+                        Ok(GetClosestPeersOk { key: _, peers }) => peers,
+                        Err(GetClosestPeersError::Timeout { key: _, peers }) => {
+                            log::trace!("timeout during get_closest_peers query");
+                            peers
+                        }
+                    };
+                    log::trace!("found {} peers during `get_closest_peers`", peers.len());
+
+                    let events = peers
+                        .into_iter()
+                        .flat_map(|kad::PeerInfo { peer_id, addrs }| {
+                            iter::repeat(peer_id).zip(addrs)
+                        })
+                        .filter(|(peer_id, addr)| self.peer_addresses.add(*peer_id, addr.clone()))
+                        .map(|(peer_id, address)| ToSwarm::NewExternalAddrOfPeer {
+                            peer_id,
+                            address,
+                        });
+                    self.pending_events.extend(events);
                 }
                 _ => {}
             },
@@ -552,12 +623,19 @@ impl NetworkBehaviour for Behaviour {
         addresses: &[Multiaddr],
         effective_role: Endpoint,
     ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
-        self.inner.handle_pending_outbound_connection(
+        let mut combined_addresses = self.inner.handle_pending_outbound_connection(
             connection_id,
             maybe_peer,
             addresses,
             effective_role,
-        )
+        )?;
+
+        if let Some(peer) = maybe_peer {
+            let addresses = self.peer_addresses.get(&peer);
+            combined_addresses.extend(addresses);
+        }
+
+        Ok(combined_addresses)
     }
 
     fn handle_established_outbound_connection(
@@ -596,7 +674,7 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Some(event) = self.pending_events.pop_front() {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
+            return Poll::Ready(event);
         }
 
         for (id, channel) in &self.get_record_queries {
@@ -607,8 +685,9 @@ impl NetworkBehaviour for Behaviour {
                 // so query from `get_record_queries` will be cleared in `handle_inner_event()`
                 query.finish();
 
-                self.pending_events
-                    .push_back(Event::GetRecordEarlyFinished { query_id: *id });
+                self.pending_events.push_back(ToSwarm::GenerateEvent(
+                    Event::GetRecordEarlyFinished { query_id: *id },
+                ));
             }
         }
 
@@ -620,8 +699,9 @@ impl NetworkBehaviour for Behaviour {
                 // so query from `get_record_queries` will be cleared in `handle_inner_event()`
                 query.finish();
 
-                self.pending_events
-                    .push_back(Event::PutRecordEarlyFinished { query_id: *id });
+                self.pending_events.push_back(ToSwarm::GenerateEvent(
+                    Event::PutRecordEarlyFinished { query_id: *id },
+                ));
             }
         }
 
@@ -648,6 +728,10 @@ impl NetworkBehaviour for Behaviour {
                     }
                 }
             }
+        }
+
+        if let Poll::Ready(()) = self.discovery_timer.poll_tick(cx) {
+            self.inner.get_closest_peers(PeerId::random());
         }
 
         let to_swarm = ready!(self.inner.poll(cx));
@@ -730,10 +814,15 @@ mod tests {
     use futures::StreamExt;
     use gsigner::secp256k1::Signer;
     use libp2p::{
-        Swarm, identity::Keypair, kad, kad::GetRecordOk as KadGetRecordOk, swarm::ConnectionId,
+        Swarm,
+        identity::Keypair,
+        kad,
+        kad::GetRecordOk as KadGetRecordOk,
+        swarm::{ConnectionId, SwarmEvent},
     };
     use libp2p_swarm_test::SwarmExt;
     use std::{collections::BTreeMap, num::NonZeroUsize};
+    use tokio::time;
 
     fn new_metrics() -> Arc<Libp2pMetrics> {
         Arc::new(Libp2pMetrics::new())
@@ -871,8 +960,8 @@ mod tests {
         assert_eq!(record, None);
     }
 
-    #[test]
-    fn validator_stores_record_after_successful_check() {
+    #[tokio::test]
+    async fn validator_stores_record_after_successful_check() {
         let signed = new_identity();
         let mut behaviour = new_behaviour();
         let original_record = Record::ValidatorIdentity(ValidatorIdentityRecord {
@@ -890,8 +979,8 @@ mod tests {
         assert!(behaviour.inner.store_mut().get(&key).is_some());
     }
 
-    #[test]
-    fn validator_does_not_store_when_check_fails() {
+    #[tokio::test]
+    async fn validator_does_not_store_when_check_fails() {
         let signed = new_identity();
         let mut behaviour = new_behaviour();
         let original_record = Record::ValidatorIdentity(ValidatorIdentityRecord {
@@ -909,8 +998,8 @@ mod tests {
         assert!(behaviour.inner.store_mut().get(&key).is_none());
     }
 
-    #[test]
-    fn inbound_put_record_emits_event_with_validator() {
+    #[tokio::test]
+    async fn inbound_put_record_emits_event_with_validator() {
         let signed = new_identity();
         let mut behaviour = new_behaviour();
         let peer = PeerId::random();
@@ -1048,7 +1137,11 @@ mod tests {
         };
 
         let _ = swarm.behaviour_mut().handle_inner_event(event);
-        let Err(GetRecordError::NotFound { key }) = stream.next().await.unwrap() else {
+        let Err(GetRecordError::NotFound {
+            key,
+            closest_peers: _,
+        }) = stream.next().await.unwrap()
+        else {
             panic!("expected not found")
         };
         let ValidatorIdentityKey { validator: got } = key.unwrap_validator_identity();
@@ -1200,5 +1293,64 @@ mod tests {
         let event = alice.next_behaviour_event().await;
         assert_matches!(event, Event::PutRecordEarlyFinished { .. });
         assert!(alice.behaviour().put_record_queries.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn get_closest_peers_works() {
+        init_logger();
+
+        let mut alice = new_swarm().await;
+        let mut bob = new_swarm().await;
+        let mut charlie = new_swarm().await;
+        let bob_peer_id = *bob.local_peer_id();
+        let charlie_peer_id = *charlie.local_peer_id();
+        let charlie_addr = charlie
+            .external_addresses()
+            .next()
+            .cloned()
+            .unwrap()
+            .with_p2p(charlie_peer_id)
+            .unwrap();
+
+        // DO connect Alice to Bob, Bob to Charlie
+        // DO NOT connect Alice to Charlie because we want to find the last one
+        alice.connect(&mut bob).await;
+        add_bootstrap_addresses([&mut alice, &mut bob]);
+        bob.connect(&mut charlie).await;
+        add_bootstrap_addresses([&mut bob, &mut charlie]);
+        tokio::spawn(bob.loop_on_next());
+        tokio::spawn(charlie.loop_on_next());
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(event, Event::RoutingUpdated { peer } if peer == bob_peer_id);
+
+        time::advance(DISCOVERY_TIMER_START).await;
+
+        time::timeout(Duration::from_secs(10), async {
+            loop {
+                let event = alice.next_swarm_event().await;
+                if let SwarmEvent::NewExternalAddrOfPeer {
+                    peer_id,
+                    address: _,
+                } = event
+                {
+                    assert_eq!(peer_id, charlie_peer_id);
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap();
+
+        let addresses = alice
+            .behaviour_mut()
+            .handle_pending_outbound_connection(
+                ConnectionId::new_unchecked(42),
+                Some(charlie_peer_id),
+                &[],
+                Endpoint::Dialer,
+            )
+            .unwrap();
+        assert_eq!(addresses, vec![charlie_addr]);
     }
 }
