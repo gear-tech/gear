@@ -98,9 +98,9 @@ use ethexe_common::{
     },
     network::{AnnouncesRequest, AnnouncesRequestUntil, NetworkAnnounce},
 };
-use ethexe_ethereum::primitives::map::HashMap;
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
+use hashbrown::HashMap;
 use std::collections::{BTreeSet, VecDeque};
 
 pub trait DBAnnouncesExt:

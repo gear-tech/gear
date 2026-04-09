@@ -31,6 +31,7 @@ use ethexe_common::{
     network::{AnnouncesRequest, AnnouncesResponse},
 };
 use gprimitives::H256;
+use hashbrown::HashMap;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -177,18 +178,15 @@ impl StateHandler for Initial {
             } if announces == *response.request() => {
                 tracing::debug!(block = %block.hash, "Received missing announces response");
 
-                let missing_announces = response
+                let (missing_announces, transactions) = response
                     .into_parts()
                     .1
                     .into_iter()
                     .map(|network_announce| {
                         let (announce, transactions) = network_announce.into_parts();
-                        transactions.into_iter().for_each(|tx| {
-                            self.ctx.core.db.set_injected_transaction(tx);
-                        });
-                        (announce.to_hash(), announce)
+                        ((announce.to_hash(), announce), transactions)
                     })
-                    .collect();
+                    .collect::<(HashMap<_, _>, Vec<_>)>();
 
                 announces::propagate_announces(
                     &self.ctx.core.db,
@@ -196,6 +194,11 @@ impl StateHandler for Initial {
                     self.ctx.core.commitment_delay_limit,
                     missing_announces,
                 )?;
+
+                // Save transacions in database after announce propagation
+                transactions.into_iter().flatten().for_each(|tx| {
+                    self.ctx.core.db.set_injected_transaction(tx);
+                });
 
                 self.ctx.switch_to_producer_or_subordinate(block)
             }

@@ -35,6 +35,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
+use hashbrown::HashMap;
 use lru::LruCache;
 use std::{
     collections::VecDeque,
@@ -333,22 +334,24 @@ impl ConsensusService for ConnectService {
             return Ok(());
         }
 
+        let (missing_announces, transactions) = announces
+            .into_iter()
+            .map(|network_announce| {
+                let (announce, transactions) = network_announce.into_parts();
+                ((announce.to_hash(), announce), transactions)
+            })
+            .collect::<(HashMap<_, _>, Vec<_>)>();
+
         announces::propagate_announces(
             &self.db,
             mem::take(chain),
             self.commitment_delay_limit,
-            announces
-                .into_iter()
-                .map(|network_announce| {
-                    let (announce, transactions) = network_announce.into_parts();
-                    transactions.into_iter().for_each(|tx| {
-                        self.db.set_injected_transaction(tx);
-                    });
-
-                    (announce.to_hash(), announce)
-                })
-                .collect(),
+            missing_announces,
         )?;
+
+        transactions.into_iter().flatten().for_each(|tx| {
+            self.db.set_injected_transaction(tx);
+        });
 
         self.process_after_propagation(block, producer)?;
 
