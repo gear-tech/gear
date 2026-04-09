@@ -9,6 +9,10 @@ repository.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package.metadata.cargo-shear]
+# we need it for applying `metrics` feature
+ignored = ["libp2p-gossipsub"]
+
 [dependencies]
 # workspace members
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
