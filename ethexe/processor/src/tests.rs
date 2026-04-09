@@ -1541,7 +1541,7 @@ async fn injected_and_events_then_tasks_then_queues() {
     "#;
 
     let (_, code) = wat_to_wasm(wat);
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]).await;
 
     let task_user = ActorId::from(10);
     let injected_user_pk = PrivateKey::random();
