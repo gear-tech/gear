@@ -27,7 +27,7 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     SimpleBlockData,
-    db::OnChainStorageRO,
+    db::{InjectedStorageRW, OnChainStorageRO},
     network::{AnnouncesRequest, AnnouncesResponse},
 };
 use gprimitives::H256;
@@ -182,7 +182,10 @@ impl StateHandler for Initial {
                     .1
                     .into_iter()
                     .map(|network_announce| {
-                        let (announce, _transactions) = network_announce.into_parts();
+                        let (announce, transactions) = network_announce.into_parts();
+                        transactions.into_iter().for_each(|tx| {
+                            self.ctx.core.db.set_injected_transaction(tx);
+                        });
                         (announce.to_hash(), announce)
                     })
                     .collect();
@@ -194,8 +197,7 @@ impl StateHandler for Initial {
                     missing_announces,
                 )?;
 
-                // self.ctx.switch_to_producer_or_subordinate(block)
-                todo!("save transactions to database")
+                self.ctx.switch_to_producer_or_subordinate(block)
             }
             state => {
                 self.state = state;

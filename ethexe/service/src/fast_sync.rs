@@ -23,8 +23,8 @@ use ethexe_common::{
     SimpleBlockData, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
-        ComputedAnnounceData, ConfigStorageRO, GlobalsStorageRW, OnChainStorageRW,
-        PreparedBlockData,
+        ComputedAnnounceData, ConfigStorageRO, GlobalsStorageRW, InjectedStorageRW,
+        OnChainStorageRW, PreparedBlockData,
     },
     events::{
         BlockEvent, RouterEvent,
@@ -194,14 +194,11 @@ async fn collect_announce(
 
     // Response is checked so we can just take the first announce
     let (_, mut announces) = response.into_parts();
-    todo!("we must save all received transactions from the network");
-    // let (announce)
-    // let (announce, txs) = network_annuounce.into_parts();
-    // db.save_txs(txs);
-    // Ok(announce)
-    // Ok(announces
-    //     .remove(0)
-    //     .into_announce_persisting_injected_transactions(db))
+    let (announce, transactions) = announces.remove(0).into_parts();
+    transactions.into_iter().for_each(|tx| {
+        db.set_injected_transaction(tx);
+    });
+    Ok(announce)
 }
 
 /// Collects a set of valid code IDs that are not yet validated in the local database.

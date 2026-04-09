@@ -546,7 +546,7 @@ pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{self, injected::InjectedTransaction};
+    use crate::injected::InjectedTransaction;
     use gsigner::PrivateKey;
 
     #[test]

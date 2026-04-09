@@ -28,7 +28,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, HashOf, PromisePolicy, ProtocolTimelines, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::{AnnounceStorageRO, ConfigStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, ConfigStorageRO, InjectedStorageRW, OnChainStorageRO},
     injected::{Promise, SignedInjectedTransaction},
     network::{AnnouncesRequest, AnnouncesResponse, NetworkAnnounce},
 };
@@ -340,17 +340,17 @@ impl ConsensusService for ConnectService {
             announces
                 .into_iter()
                 .map(|network_announce| {
-                    // let announce =
-                    //     network_announce.into_announce_persisting_injected_transactions(&self.db);
-                    let (announce, _transactions) = network_announce.into_parts();
+                    let (announce, transactions) = network_announce.into_parts();
+                    transactions.into_iter().for_each(|tx| {
+                        self.db.set_injected_transaction(tx);
+                    });
 
                     (announce.to_hash(), announce)
                 })
                 .collect(),
         )?;
 
-        // self.process_after_propagation(block, producer)?;
-        todo!("handle injected transactions");
+        self.process_after_propagation(block, producer)?;
 
         Ok(())
     }
