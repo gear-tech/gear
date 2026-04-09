@@ -1309,7 +1309,6 @@ async fn multiple_validators() {
     let config = TestEnvConfig {
         validators: ValidatorsConfig::PreDefined(3),
         network: EnvNetworkConfig::Enabled,
-        continuous_block_generation: false,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
