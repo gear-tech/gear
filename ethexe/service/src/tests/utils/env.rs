@@ -802,7 +802,7 @@ impl Default for TestEnvConfig {
             wallets: None,
             signer: Signer::memory(),
             router_address: None,
-            continuous_block_generation: true,
+            continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,

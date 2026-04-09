@@ -69,6 +69,8 @@ enum State {
     WaitingAnnounceComputed(HashOf<Announce>),
     ReadyForMiniAnnounce {
         last_announce_hash: HashOf<Announce>,
+        #[debug(skip)]
+        batch_timer: Timer,
     },
     AggregateBatchCommitment {
         #[debug(skip)]
@@ -95,10 +97,14 @@ impl StateHandler for Producer {
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
-                // Enter ready state for mini-announces. Batch commitment for this block
-                // will be created when the next block arrives (see process_new_head).
+                // Enter ready state for mini-announces. Batch commitment will be created
+                // either when the batch timer fires or when the next block arrives,
+                // whichever comes first.
+                let mut batch_timer = Timer::new("batch delay", self.ctx.core.producer_delay);
+                batch_timer.start(());
                 self.state = State::ReadyForMiniAnnounce {
                     last_announce_hash: announce_hash,
+                    batch_timer,
                 };
 
                 // Drain any TXs that arrived during computation.
@@ -154,7 +160,9 @@ impl StateHandler for Producer {
 
     fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
         match &self.state {
-            State::ReadyForMiniAnnounce { last_announce_hash } => {
+            State::ReadyForMiniAnnounce {
+                last_announce_hash, ..
+            } => {
                 // Create batch commitment before transitioning to Initial for the new head.
                 // This defers batch creation from block N's announce-compute time to block N+1's
                 // arrival, but ensures the batch is still created before processing the new block.
@@ -193,6 +201,25 @@ impl StateHandler for Producer {
                 if timer.poll_unpin(cx).is_ready() {
                     let state = self.produce_announce()?;
                     return Ok((Poll::Ready(()), state));
+                }
+            }
+            State::ReadyForMiniAnnounce {
+                batch_timer,
+                last_announce_hash,
+            } => {
+                if batch_timer.poll_unpin(cx).is_ready() {
+                    // Timer fired: create batch commitment now.
+                    let last_announce_hash = *last_announce_hash;
+                    self.state = State::AggregateBatchCommitment {
+                        future: self
+                            .ctx
+                            .core
+                            .batch_manager
+                            .clone()
+                            .create_batch_commitment(self.block, last_announce_hash)
+                            .boxed(),
+                    };
+                    return Ok((Poll::Ready(()), self.into()));
                 }
             }
             State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
@@ -326,7 +353,10 @@ impl Producer {
     }
 
     fn produce_mini_announce(mut self) -> Result<ValidatorState> {
-        let State::ReadyForMiniAnnounce { last_announce_hash } = &self.state else {
+        let State::ReadyForMiniAnnounce {
+            last_announce_hash, ..
+        } = &self.state
+        else {
             unreachable!("produce_mini_announce called in wrong state");
         };
         let last_announce_hash = *last_announce_hash;
@@ -683,7 +713,9 @@ mod tests {
         let producer = state.unwrap_producer();
         assert!(producer.state.is_ready_for_mini_announce());
         match &producer.state {
-            State::ReadyForMiniAnnounce { last_announce_hash } => {
+            State::ReadyForMiniAnnounce {
+                last_announce_hash, ..
+            } => {
                 assert_eq!(
                     *last_announce_hash, mini2_hash,
                     "ready state must track mini2"
