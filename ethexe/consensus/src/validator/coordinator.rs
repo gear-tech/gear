@@ -40,6 +40,8 @@ pub struct Coordinator {
     ctx: ValidatorContext,
     validators: BTreeSet<Address>,
     multisigned_batch: MultisignedBatchCommitment,
+    /// Buffered next block to process after submission completes.
+    next_block: Option<SimpleBlockData>,
 }
 
 impl StateHandler for Coordinator {
@@ -53,6 +55,12 @@ impl StateHandler for Coordinator {
 
     fn into_context(self) -> ValidatorContext {
         self.ctx
+    }
+
+    fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
+        // Buffer the new head instead of dying. Process it after submission.
+        self.next_block = Some(block);
+        Ok(self.into())
     }
 
     fn process_validation_reply(
@@ -72,7 +80,7 @@ impl StateHandler for Coordinator {
         }
 
         if self.multisigned_batch.signatures().len() as u64 >= self.ctx.core.signatures_threshold {
-            Self::submission(self.ctx, self.multisigned_batch)
+            Self::submission(self.ctx, self.multisigned_batch, self.next_block)
         } else {
             Ok(self.into())
         }
@@ -110,7 +118,7 @@ impl Coordinator {
             .set(block.header.height);
 
         if multisigned_batch.signatures().len() as u64 >= ctx.core.signatures_threshold {
-            return Self::submission(ctx, multisigned_batch);
+            return Self::submission(ctx, multisigned_batch, None);
         }
 
         let era_index = ctx
@@ -131,6 +139,7 @@ impl Coordinator {
             ctx,
             validators: validators.into_iter().collect(),
             multisigned_batch,
+            next_block: None,
         }
         .into())
     }
@@ -138,6 +147,7 @@ impl Coordinator {
     pub fn submission(
         ctx: ValidatorContext,
         multisigned_batch: MultisignedBatchCommitment,
+        next_block: Option<SimpleBlockData>,
     ) -> Result<ValidatorState> {
         let (batch, signatures) = multisigned_batch.into_parts();
         let cloned_committer = ctx.core.committer.clone_boxed();
@@ -150,16 +160,21 @@ impl Coordinator {
                         block_hash,
                         batch_digest,
                         tx,
-                    }.into(),
+                    }
+                    .into(),
                     Err(err) => ConsensusEvent::Warning(format!(
                         "Failed to submit commitment for block {block_hash}, digest {batch_digest}: {err}"
-                    ))
+                    )),
                 };
                 Ok(event)
             }
             .boxed(),
         );
-        Initial::create(ctx)
+        let state = Initial::create(ctx)?;
+        match next_block {
+            Some(block) => state.process_new_head(block),
+            None => Ok(state),
+        }
     }
 }
 

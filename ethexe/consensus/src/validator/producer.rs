@@ -227,13 +227,9 @@ impl StateHandler for Producer {
                     tracing::debug!(batch.block_hash = %batch.block_hash, "Batch commitment aggregated, switch to Coordinator");
                     let next_block = self.next_block.take();
                     let state = Coordinator::create(self.ctx, self.validators, batch, self.block)?;
-                    // Only pass next_block if Coordinator resolved to Initial
-                    // (threshold=1). For threshold>1, Coordinator needs to collect
-                    // validation replies first; the next block will arrive via the
-                    // service event loop when N+2 comes.
                     let state = match next_block {
-                        Some(block) if state.is_initial() => state.process_new_head(block)?,
-                        _ => state,
+                        Some(block) => state.process_new_head(block)?,
+                        None => state,
                     };
                     return Ok((Poll::Ready(()), state));
                 }
