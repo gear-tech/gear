@@ -158,14 +158,14 @@ impl EthereumBuilder {
 
     /// Sets whether to initialize the router-related addresses (wvara and middleware)
     /// during the construction of the [`Ethereum`] instance.
-    pub fn initialize_addresses(mut self, initialize_addresses: bool) -> Self {
+    pub(crate) fn initialize_addresses(mut self, initialize_addresses: bool) -> Self {
         self.initialize_addresses = Some(initialize_addresses);
         self
     }
 
     /// Sets whether to initialize the router-related addresses (wvara and middleware)
     /// during the construction of the [`Ethereum`] instance.
-    pub fn without_initializing_addresses(self) -> Self {
+    pub(crate) fn without_initializing_addresses(self) -> Self {
         self.initialize_addresses(false)
     }
 
