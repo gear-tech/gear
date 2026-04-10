@@ -606,9 +606,6 @@ impl Service {
                             rpc.receive_computed_promise(promise.clone());
                         }
 
-                        // TODO: validator+rpc subordinate nodes can compute promises locally for RPC
-                        // recovery, but they must not sign/publish them to the network unless they
-                        // are responsible for the announce as producer.
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },
@@ -718,12 +715,6 @@ impl Service {
                         if let Some(network) = &mut network {
                             network.publish_promise(compact_promise);
                         }
-                        //     rpc.provide_promise(signed_promise.clone());
-                        // }
-
-                        // if let Some(network) = &mut network {
-                        //     network.publish_promise(signed_promise);
-                        // }
                     }
                     ConsensusEvent::PublishMessage(message) => {
                         let Some(network) = network.as_mut() else {

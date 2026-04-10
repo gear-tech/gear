@@ -30,7 +30,7 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    Announce, HashOf, ScheduledTask, ToDigest,
+    Announce, HashOf, PromiseEmissionMode, ScheduledTask, ToDigest,
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -2718,12 +2718,17 @@ async fn injected_tx_fungible_token() {
 }
 
 #[tokio::test]
-#[ntest::timeout(60_000)]
+// TODO: up me back to 60s
+#[ntest::timeout(15_000)]
 async fn injected_tx_fungible_token_over_network() {
     init_logger();
 
     let env_config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
+        compute_config: ComputeConfig::builder()
+            .canonical_quarantine(Default::default())
+            .promises_mode(PromiseEmissionMode::AlwaysEmit)
+            .build(),
         ..Default::default()
     };
 

@@ -127,9 +127,6 @@ impl StateHandler for Producer {
 
                 self.ctx
                     .output(ConsensusEvent::PublishPromise(compact_signed_promise));
-                // =======
-                //                 self.ctx.output(signed_promise);
-                // >>>>>>> master
 
                 tracing::trace!("consensus sign promise for transaction-hash={tx_hash}");
                 Ok(self.into())
