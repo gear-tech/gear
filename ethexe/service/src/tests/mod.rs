@@ -3674,7 +3674,7 @@ async fn re_genesis_with_state_dump() {
     drop(node);
 
     log::info!(
-        "📗 Phase 3: reinitialize the router with the dump block {} as new genesis",
+        "📗 Phase 3: re-genesis the router with the dump block {} as new genesis",
         dump.block_hash
     );
     let block = env.ethereum.get_block(dump.block_hash).await.unwrap();
@@ -3683,14 +3683,7 @@ async fn re_genesis_with_state_dump() {
         number: block.header.height,
         timestamp: block.header.timestamp,
     };
-
-    env.ethereum
-        .router()
-        .reinitialize(new_genesis)
-        .await
-        .unwrap();
-
-    // check reinitialization is successful
+    env.ethereum.router().re_genesis(new_genesis).await.unwrap();
     assert_eq!(
         block.hash,
         env.ethereum

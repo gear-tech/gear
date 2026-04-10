@@ -5,7 +5,6 @@ import {Script} from "forge-std/Script.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {IRouter} from "src/IRouter.sol";
 import {Router} from "src/Router.sol";
-import {Gear} from "src/libraries/Gear.sol";
 
 contract RouterScript is Script {
     function setUp() public {}
@@ -20,9 +19,7 @@ contract RouterScript is Script {
         bytes memory data = reinitialize
             ? abi.encodeCall(
                 Router.reinitialize,
-                (Gear.GenesisBlockInfo({
-                        hash: bytes32(0), number: uint32(block.number), timestamp: uint48(block.timestamp)
-                    }))
+                () /*Router.reinitialize arguments*/
             )
             : new bytes(0);
         Upgrades.upgradeProxy(routerAddress, "Router.sol", data);

@@ -38,8 +38,8 @@ use ethexe_common::{
     ecdsa::ContractSignature,
     events::router::CodeGotValidatedEvent,
     gear::{
-        AggregatedPublicKey, BatchCommitment, CodeState, ComputationSettings, SignatureType,
-        Timelines,
+        AggregatedPublicKey, BatchCommitment, CodeState, ComputationSettings, GenesisBlockInfo,
+        SignatureType, Timelines,
     },
 };
 use events::{
@@ -115,21 +115,8 @@ impl Router {
         Ok(receipt)
     }
 
-    pub async fn reinitialize(
-        &self,
-        genesis: ethexe_common::gear::GenesisBlockInfo,
-    ) -> Result<TransactionReceipt> {
-        use crate::abi::{
-            Gear,
-            utils::{h256_to_bytes32, u64_to_uint48_lossy},
-        };
-
-        let new_genesis = Gear::GenesisBlockInfo {
-            hash: h256_to_bytes32(genesis.hash),
-            number: genesis.number,
-            timestamp: u64_to_uint48_lossy(genesis.timestamp),
-        };
-        let builder = self.instance.reinitialize(new_genesis);
+    pub async fn re_genesis(&self, genesis: GenesisBlockInfo) -> Result<TransactionReceipt> {
+        let builder = self.instance.reGenesis(genesis.into());
         let receipt = builder
             .send()
             .await?
