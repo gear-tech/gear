@@ -161,8 +161,8 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
 ///
 /// The function scans mirror logs from `start_block` forward up to
 /// `max_blocks`, sleeping between polls while waiting for new blocks. It
-/// returns `Ok(None)` on a successful reply and `Ok(Some(...))` when the
-/// message fails or times out within the scan window.
+/// returns Ok(None) on a successful reply, Ok(Some(reason)) if the
+/// message fails or times out, and Err(_) on transport or RPC failures.
 async fn wait_for_reply(
     api: &Ethereum,
     msg_id: MessageId,
