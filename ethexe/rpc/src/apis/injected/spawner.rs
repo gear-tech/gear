@@ -19,7 +19,7 @@
 use super::promise_manager::PendingSubscriber;
 use ethexe_common::{HashOf, injected::InjectedTransaction};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
-use tracing::{trace, warn};
+use tracing::{error, trace, warn};
 
 /// Spawns [PendingSubscriber] in tokio runtime.
 ///
@@ -57,10 +57,19 @@ pub fn spawn_pending_subscriber<F>(
             }
         };
 
-        // TODO: remove unwrap here
-        let message = SubscriptionMessage::from_json(&promise).unwrap();
-        if let Err(err) = sink.send(message).await {
-            trace!("failed to send promise, client disconnected: err={err}");
+        match SubscriptionMessage::from_json(&promise) {
+            Ok(message) => {
+                if let Err(err) = sink.send(message).await {
+                    trace!("failed to send promise, client disconnected: err={err}");
+                }
+            }
+            Err(err) => {
+                error!(
+                    ?promise,
+                    ?err,
+                    "serialization error: failed create `SubscriptionMessage` from promise; this must never happen"
+                );
+            }
         }
     });
 }

@@ -107,11 +107,17 @@ impl PromiseSubscriptionManager {
     }
 
     pub fn on_compact_promise(&self, compact: CompactSignedPromise) {
+        trace!(?compact, "received new compact promise");
         let tx_hash = compact.data().tx_hash;
+
         match self.db.promise(tx_hash) {
             Some(promise) => match utils::try_signed_promise_from_parts(promise, &compact) {
                 Ok(signed_promise) => self.dispatch_promise(signed_promise),
-                Err(_err) => todo!(),
+                Err(_err) => {
+                    trace!(
+                        ?compact, %tx_hash, "failed to create signed promise from parts, producer send invalid signature: compact_promise={compact:?}"
+                    );
+                }
             },
             None => {
                 trace!("not found promise in database, waiting for computation...");
@@ -121,13 +127,15 @@ impl PromiseSubscriptionManager {
     }
 
     pub fn on_computed_promise(&self, promise: Promise) {
-        // Set computed promise to RPC database
+        trace!(?promise, "received new computed promise");
         self.db.set_promise(&promise);
 
         if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) {
             match utils::try_signed_promise_from_parts(promise, &compact_promise) {
                 Ok(signed_promise) => self.dispatch_promise(signed_promise),
-                Err(_err) => {} // handle error, maybe reinsert to map.
+                Err(_err) => {
+                    trace!(?compact_promise, tx_hash=?compact_promise.data().tx_hash, "failed to create signed promise from parts");
+                }
             }
         }
     }

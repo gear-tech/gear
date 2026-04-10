@@ -285,16 +285,9 @@ impl ConsensusService for ConnectService {
         _promise: Promise,
         _announce_hash: HashOf<Announce>,
     ) -> Result<()> {
-        // TODO: remove this
-
-        // tracing::error!(
-        //     "Connect consensus node receives the promise for signing, but it not responsible for promises providing: \
-        //     promise={promise:?}, announce_hash={announce_hash}"
-        // );
-        // debug_assert!(
-        //     false,
-        //     "Connect node received the promise for signing, this should never happen"
-        // );
+        // Nothing to do.
+        // This case is not error because connect node can be also RPC node that produce promises,
+        // to send them for external users.
         Ok(())
     }
 
