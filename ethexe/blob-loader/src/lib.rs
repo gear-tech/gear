@@ -222,7 +222,7 @@ impl ConsensusLayerBlobReader {
         versioned_hashes: &[B256],
     ) -> Result<GetBlobsResponse, ReadBlobBundleError> {
         let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
-        let response = self
+        let bytes = self
             .http_client
             .get(format!(
                 "{ethereum_beacon_rpc}/eth/v1/beacon/blobs/{slot}?versioned_hashes={}",
@@ -233,12 +233,13 @@ impl ConsensusLayerBlobReader {
                     .join(",")
             ))
             .send()
+            .await?
+            .bytes()
             .await?;
-        let bytes = response.bytes().await?;
-        let blobs_response = serde_json::from_slice::<GetBlobsResponse>(&bytes).map_err(|err| {
-            log::trace!("failed to decode blob bundle response: {err}, bytes: {bytes:?}");
-            err
-        })?;
+        let blobs_response =
+            serde_json::from_slice::<GetBlobsResponse>(&bytes).inspect_err(|err| {
+                log::trace!("failed to decode blob bundle response: {err}, bytes: {bytes:?}")
+            })?;
         Ok(blobs_response)
     }
 }
