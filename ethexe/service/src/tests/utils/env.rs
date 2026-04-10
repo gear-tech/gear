@@ -836,7 +836,6 @@ impl NodeConfig {
         }
     }
 
-    #[allow(unused)]
     pub fn db(mut self, db: Database) -> Self {
         self.db = Some(db);
         self

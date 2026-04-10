@@ -21,7 +21,7 @@
 use super::StateDump;
 use anyhow::{Context, Result};
 use ethexe_common::{
-    Announce, HashOf, MaybeHashOf,
+    HashOf, MaybeHashOf,
     db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO},
 };
 use ethexe_runtime_common::state::{
@@ -201,16 +201,16 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
 }
 
 impl StateDump {
-    /// Collect a state dump from the database for a given announce hash.
+    /// Collect a state dump from the database for a given block hash.
     pub fn collect_from_storage(
         storage: &(impl AnnounceStorageRO + CodesStorageRO + BlockMetaStorageRO + HashStorageRO),
-        announce_hash: HashOf<Announce>,
+        block_hash: H256,
     ) -> Result<Self> {
-        let announce = storage
-            .announce(announce_hash)
-            .with_context(|| format!("announce not found for hash {announce_hash}"))?;
+        let announce_hash = storage
+            .block_meta(block_hash)
+            .last_committed_announce
+            .context("no committed announce found for block")?;
 
-        let block_hash = announce.block_hash;
         if !storage
             .block_meta(block_hash)
             .codes_queue
@@ -254,7 +254,7 @@ impl StateDump {
 
         Ok(StateDump {
             announce_hash,
-            block_hash: announce.block_hash,
+            block_hash,
             codes,
             programs,
             blobs: collector.blobs,

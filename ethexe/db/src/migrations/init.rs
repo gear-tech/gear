@@ -30,7 +30,7 @@ use ethexe_common::{
 };
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
-use futures::stream::FuturesUnordered;
+use futures::{TryStreamExt, stream::FuturesUnordered};
 use gprimitives::{CodeId, H256};
 
 pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Database> {
@@ -230,6 +230,8 @@ async fn genesis_data_initialization(
     db: &RawDatabase,
     genesis_block: SimpleBlockData,
 ) -> Result<(ProgramStates, Schedule)> {
+    log::info!("Start genesis {genesis_block} data initialization...");
+
     let StateDump {
         announce_hash: _,
         block_hash,
@@ -242,6 +244,13 @@ async fn genesis_data_initialization(
         block_hash == genesis_block.hash,
         "Genesis data block hash {block_hash} does not match the actual genesis block hash {}",
         genesis_block.hash
+    );
+
+    log::info!(
+        "Genesis data contains {} codes, {} programs, {} blobs",
+        codes.len(),
+        programs.len(),
+        blobs.len()
     );
 
     let mut code_bytes = BTreeMap::<CodeId, Vec<u8>>::new();
@@ -264,12 +273,12 @@ async fn genesis_data_initialization(
     for (code_id, code) in code_bytes {
         let process = initializer.process_code(code_id, code);
         let db_clone = db.clone();
-        code_processing_futures.push(async move || -> anyhow::Result<()> {
+        code_processing_futures.push(async move {
             let Some((instrumented_code, code_metadata)) = process.await? else {
                 bail!("Genesis data contains invalid code {code_id}");
             };
 
-            // Panic if not, because we checked that code_bytes.len() == codes.len(),
+            // Panic if not exists, because we checked that code_bytes.len() == codes.len(),
             // so all codes must be present in the database.
             assert!(
                 db_clone.original_code_exists(code_id),
@@ -280,9 +289,14 @@ async fn genesis_data_initialization(
             db_clone.set_instrumented_code(RUNTIME_ID, code_id, instrumented_code);
             db_clone.set_code_valid(code_id, true);
 
-            Ok(())
+            Ok::<_, anyhow::Error>(())
         });
     }
+
+    let _results = code_processing_futures
+        .try_collect::<Vec<_>>()
+        .await
+        .context("Failed to process genesis code")?;
 
     let mut program_states = ProgramStates::new();
     for (program_id, (code_id, state_hash)) in programs {
@@ -304,6 +318,12 @@ async fn genesis_data_initialization(
     let schedule =
         ScheduleRestorer::from_storage(&db.cas, &program_states, genesis_block.header.height)?
             .restore();
+    log::info!(
+        "Genesis schedule restored, tasks amount {}",
+        schedule.iter().flat_map(|(_, tasks)| tasks.iter()).count()
+    );
+
+    log::info!("Genesis data initialization completed");
 
     Ok((program_states, schedule))
 }

@@ -38,18 +38,19 @@ use ethexe_common::{
         mirror::{MessageEvent, ReplyEvent, StateChangedEvent, ValueClaimedEvent},
         router::{AnnouncesCommittedEvent, ValidatorsCommittedForEraEvent},
     },
-    gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
+    gear::{BatchCommitment, CANONICAL_QUARANTINE, GenesisBlockInfo, MessageType},
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
     mock::*,
     network::ValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
-use ethexe_db::verifier::IntegrityVerifier;
+use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::{
     TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
 };
 use ethexe_observer::ObserverEvent;
+use ethexe_processor::Processor;
 use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use futures::StreamExt;
@@ -3605,4 +3606,169 @@ async fn reply_callback() {
         .await;
 
     assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn re_genesis_with_state_dump() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    log::info!("📗 Phase 1: start a node, deploy ping program, do ping-pong.");
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+    let ping_id = res.program_id;
+
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    log::info!("📗 Phase 2: collect state dump from the node's database.");
+    let latest_prepared_block_hash = node.db.globals().latest_prepared_block_hash;
+    log::info!("Collecting state dump for block {latest_prepared_block_hash:?}...");
+
+    let dump =
+        ethexe_db::dump::StateDump::collect_from_storage(&node.db, latest_prepared_block_hash)
+            .unwrap();
+    log::info!(
+        "Dump: {} codes, {} programs, {} blobs",
+        dump.codes.len(),
+        dump.programs.len(),
+        dump.blobs.len(),
+    );
+    assert!(!dump.codes.is_empty());
+    assert!(!dump.programs.is_empty());
+
+    // Stop the first node.
+    drop(node);
+
+    log::info!(
+        "📗 Phase 3: reinitialize the router with the dump block {} as new genesis",
+        dump.block_hash
+    );
+    let block = env.ethereum.get_block(dump.block_hash).await.unwrap();
+    let new_genesis = GenesisBlockInfo {
+        hash: block.hash,
+        number: block.header.height,
+        timestamp: block.header.timestamp,
+    };
+
+    env.ethereum
+        .router()
+        .reinitialize(new_genesis)
+        .await
+        .unwrap();
+
+    // check reinitialization is successful
+    assert_eq!(
+        block.hash,
+        env.ethereum
+            .router()
+            .query()
+            .genesis_block_hash()
+            .await
+            .unwrap()
+            .0
+            .into()
+    );
+
+    log::info!("📗 Phase 4: create a new node with a fresh DB initialized from the state dump.");
+    struct GenesisInitializerFromDump {
+        dump: Option<ethexe_db::dump::StateDump>,
+        processor: Processor,
+    }
+
+    impl ethexe_db::GenesisInitializer for GenesisInitializerFromDump {
+        fn get_genesis_data(&mut self) -> anyhow::Result<ethexe_db::dump::StateDump> {
+            self.dump
+                .take()
+                .ok_or_else(|| anyhow::anyhow!("genesis data already consumed"))
+        }
+
+        fn process_code(
+            &mut self,
+            code_id: gprimitives::CodeId,
+            code: Vec<u8>,
+        ) -> ethexe_db::CodeProcessingFuture {
+            let mut cloned_processor = self.processor.clone();
+            let func = move || {
+                let info = cloned_processor
+                    .process_code(ethexe_common::CodeAndIdUnchecked { code_id, code })?;
+
+                let Some(valid) = info.valid else {
+                    return Ok(None);
+                };
+                Ok(Some((valid.instrumented_code, valid.code_metadata)))
+            };
+            Box::pin(async move { func() })
+        }
+    }
+
+    let memory_db = Database::memory();
+    let processor = Processor::new(memory_db).unwrap();
+    let initializer = GenesisInitializerFromDump {
+        dump: Some(dump),
+        processor,
+    };
+
+    let new_db = ethexe_db::create_initialized_empty_memory_db(ethexe_db::InitConfig {
+        ethereum_rpc: env.eth_cfg.rpc.clone(),
+        router_address: env.eth_cfg.router_address,
+        slot_duration_secs: env.eth_cfg.block_time.as_secs(),
+        genesis_initializer: Some(Box::new(initializer)),
+    })
+    .await
+    .unwrap();
+
+    let mut node2 = env
+        .new_node(
+            NodeConfig::default()
+                .db(new_db)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node2.start_service().await;
+
+    log::info!("📗 Phase 5: verify ping still works after re-genesis.");
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.program_id, ping_id);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
 }

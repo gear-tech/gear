@@ -19,10 +19,7 @@
 use crate::params::{MergeParams, Params};
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use ethexe_common::{
-    Announce, HashOf,
-    db::{BlockMetaStorageRO, GlobalsStorageRO},
-};
+use ethexe_common::db::GlobalsStorageRO;
 use ethexe_db::{Database, RawDatabase, RocksDatabase, dump::StateDump};
 use gprimitives::H256;
 use std::path::{Path, PathBuf};
@@ -45,12 +42,12 @@ pub struct DumpCommand {
 pub enum DumpSubcommand {
     /// Create a state dump from the database and write it to a file.
     /// Use `.blob` extension for binary format or `.json` for JSON format.
-    /// If --announce-hash is not provided, uses the latest committed announce.
+    /// If --block-hash is not provided, uses the latest committed block.
     Create {
-        /// Announce hash (hex-encoded, with or without 0x prefix).
-        /// If omitted, the latest committed announce is used.
+        /// Block hash (hex-encoded, with or without 0x prefix).
+        /// If omitted, the latest committed block is used.
         #[arg(long)]
-        announce_hash: Option<String>,
+        block_hash: Option<H256>,
 
         /// Output file path (.blob for binary, .json for JSON).
         #[arg(long, short)]
@@ -72,15 +69,12 @@ impl DumpCommand {
 
     pub fn exec(self) -> Result<()> {
         match &self.command {
-            DumpSubcommand::Create {
-                announce_hash,
-                output,
-            } => self.exec_create(announce_hash.as_deref(), output),
+            DumpSubcommand::Create { block_hash, output } => self.exec_create(*block_hash, output),
             DumpSubcommand::Json { file } => Self::exec_json(file),
         }
     }
 
-    fn exec_create(&self, announce_hash_str: Option<&str>, output: &Path) -> Result<()> {
+    fn exec_create(&self, block_hash: Option<H256>, output: &Path) -> Result<()> {
         crate::enable_logging("info")?;
 
         let rocks_db = RocksDatabase::open(
@@ -94,25 +88,16 @@ impl DumpCommand {
         let raw_db = RawDatabase::from_one(&rocks_db);
         let db = Database::try_from_raw(raw_db)?;
 
-        let announce_hash = match announce_hash_str {
-            Some(s) => parse_announce_hash(s)?,
-            None => {
-                let latest_prepared_block = db.globals().latest_prepared_block_hash;
-                let block_meta = db.block_meta(latest_prepared_block);
-                let announce_hash = block_meta
-                    .last_committed_announce
-                    .context("no committed announce found for latest prepared block")?;
+        let block_hash = block_hash.unwrap_or_else(|| {
+            let latest_prepared_block = db.globals().latest_prepared_block_hash;
+            log::info!(
+                "No block hash provided, using latest committed block: {latest_prepared_block:?}"
+            );
+            latest_prepared_block
+        });
 
-                log::info!(
-                    "No announce hash provided, using latest committed announce: {announce_hash}"
-                );
-
-                announce_hash
-            }
-        };
-
-        log::info!("Collecting state dump for announce {announce_hash:?}...");
-        let dump = StateDump::collect_from_storage(&db, announce_hash)?;
+        log::info!("Collecting state dump for block {block_hash:?}...");
+        let dump = StateDump::collect_from_storage(&db, block_hash)?;
 
         log::info!(
             "Dump collected: {} codes, {} programs, {} blobs",
@@ -132,13 +117,4 @@ impl DumpCommand {
         println!("{json}");
         Ok(())
     }
-}
-
-fn parse_announce_hash(s: &str) -> Result<HashOf<Announce>> {
-    let s = s.strip_prefix("0x").unwrap_or(s);
-    let bytes = hex::decode(s).context("invalid hex for announce hash")?;
-    anyhow::ensure!(bytes.len() == 32, "announce hash must be 32 bytes");
-    let h256 = H256::from_slice(&bytes);
-    // SAFETY: constructing HashOf from a user-provided hash for DB lookup.
-    Ok(unsafe { HashOf::new(h256) })
 }

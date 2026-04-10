@@ -18,7 +18,6 @@
 
 //! Ethexe state dump for re-genesis.
 
-mod apply;
 mod collect;
 
 use ethexe_common::{Announce, HashOf};
@@ -28,7 +27,8 @@ use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io, path::Path,
+    io,
+    path::Path,
 };
 
 /// State dump for ethexe re-genesis.
@@ -68,9 +68,7 @@ fn serialize_blobs<S: Serializer>(blobs: &Vec<Vec<u8>>, serializer: S) -> Result
     serializer.serialize_str(&hex)
 }
 
-fn deserialize_blobs<'de, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Vec<Vec<u8>>, D::Error> {
+fn deserialize_blobs<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<Vec<u8>>, D::Error> {
     let hex_str: String = Deserialize::deserialize(deserializer)?;
     let hex_str = hex_str.strip_prefix("0x").unwrap_or(&hex_str);
     let compressed = hex::decode(hex_str).map_err(serde::de::Error::custom)?;
