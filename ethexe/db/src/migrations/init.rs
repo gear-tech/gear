@@ -23,13 +23,13 @@ use crate::{Database, RawDatabase, dump::StateDump, migrations::GenesisInitializ
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, bail, ensure};
 use ethexe_common::{
-    Announce, BlockHeader, HashOf, ProgramStates, ProtocolTimelines, SimpleBlockData,
+    Announce, BlockHeader, HashOf, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
     StateHashWithQueueSize,
     db::{CodesStorageRO, CodesStorageRW, ComputedAnnounceData, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
 };
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_runtime_common::{RUNTIME_ID, state::Storage};
+use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
 use futures::stream::FuturesUnordered;
 use gprimitives::{CodeId, H256};
 
@@ -164,10 +164,10 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         injected_transactions: vec![],
     };
 
-    let program_states = if let Some(initializer) = config.genesis_initializer {
-        genesis_data_initialization(initializer, db, genesis_block.hash).await?
+    let (program_states, schedule) = if let Some(initializer) = config.genesis_initializer {
+        genesis_data_initialization(initializer, db, genesis_block).await?
     } else {
-        Default::default()
+        (Default::default(), Default::default())
     };
 
     let genesis_announce_hash = ethexe_common::setup_announce_in_db(
@@ -175,8 +175,8 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         ComputedAnnounceData {
             announce: genesis_announce,
             program_states,
+            schedule,
             outcome: Default::default(),
-            schedule: Default::default(),
         },
     );
 
@@ -228,19 +228,20 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
 async fn genesis_data_initialization(
     mut initializer: Box<dyn GenesisInitializer>,
     db: &RawDatabase,
-    genesis_block_hash: H256,
-) -> Result<ProgramStates> {
+    genesis_block: SimpleBlockData,
+) -> Result<(ProgramStates, Schedule)> {
     let StateDump {
+        announce_hash: _,
         block_hash,
         codes,
         programs,
         blobs,
-        ..
     } = initializer.get_genesis_data()?;
 
     ensure!(
-        block_hash == genesis_block_hash,
-        "Genesis data block hash {block_hash} does not match the actual genesis block hash {genesis_block_hash}"
+        block_hash == genesis_block.hash,
+        "Genesis data block hash {block_hash} does not match the actual genesis block hash {}",
+        genesis_block.hash
     );
 
     let mut code_bytes = BTreeMap::<CodeId, Vec<u8>>::new();
@@ -265,10 +266,11 @@ async fn genesis_data_initialization(
         let db_clone = db.clone();
         code_processing_futures.push(async move || -> anyhow::Result<()> {
             let Some((instrumented_code, code_metadata)) = process.await? else {
-                bail!("Genesis contains invalid code {code_id}");
+                bail!("Genesis data contains invalid code {code_id}");
             };
 
-            // Assert here, because we already checked that code_bytes.len() == codes.len()
+            // Panic if not, because we checked that code_bytes.len() == codes.len(),
+            // so all codes must be present in the database.
             assert!(
                 db_clone.original_code_exists(code_id),
                 "code {code_id} must be already presented in database",
@@ -299,5 +301,9 @@ async fn genesis_data_initialization(
         );
     }
 
-    Ok(program_states)
+    let schedule =
+        ScheduleRestorer::from_storage(&db.cas, &program_states, genesis_block.header.height)?
+            .restore();
+
+    Ok((program_states, schedule))
 }
