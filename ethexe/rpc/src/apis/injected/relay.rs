@@ -40,13 +40,6 @@ impl TransactionsRelayer {
         trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
         // self.metrics.send_injected_tx_calls.increment(1);
 
-        let (response_sender, response_receiver) = oneshot::channel();
-
-        let event = RpcEvent::InjectedTransaction {
-            transaction,
-            response_sender,
-        };
-
         // TODO: maybe should implement the transaction validator.
         if transaction.tx.data().value != 0 {
             warn!(
@@ -58,6 +51,12 @@ impl TransactionsRelayer {
                 "Injected transactions with non-zero value are not supported",
             ));
         }
+
+        let (response_sender, response_receiver) = oneshot::channel();
+        let event = RpcEvent::InjectedTransaction {
+            transaction,
+            response_sender,
+        };
 
         if let Err(err) = self.rpc_sender.send(event) {
             error!(

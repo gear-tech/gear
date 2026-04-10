@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce, HashOf, PromisePolicy, SimpleBlockData,
+    Announce, HashOf, PromiseEmissionMode, PromisePolicy, SimpleBlockData,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW, ConfigStorageRO,
         GlobalsStorageRW, OnChainStorageRO,
@@ -37,12 +37,6 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-#[derive(Debug, Clone, Copy)]
-pub struct ComputeConfig {
-    /// The delay in **blocks** in which events from Ethereum will be apply.
-    canonical_quarantine: u8,
-}
-
 /// Metrics for the [`ComputeSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_compute_compute")]
@@ -51,24 +45,23 @@ struct Metrics {
     announce_processing_latency: metrics::Histogram,
 }
 
+/// Configuration for [ComputeSubService].
+#[derive(Debug, Clone, Copy, bon::Builder)]
+#[cfg_attr(test, derive(Default))]
+pub struct ComputeConfig {
+    /// The delay in **blocks** in which events from Ethereum will be apply.
+    canonical_quarantine: u8,
+    /// The promises emission rule.
+    promises_mode: PromiseEmissionMode,
+}
+
 impl ComputeConfig {
-    /// Constructs [`ComputeConfig`] with provided `canonical_quarantine`.
-    /// In production builds `canonical_quarantine` should be equal [`ethexe_common::gear::CANONICAL_QUARANTINE`].
-    pub fn new(canonical_quarantine: u8) -> Self {
-        Self {
-            canonical_quarantine,
-        }
-    }
-
-    /// Must use only in testing purposes.
-    pub fn without_quarantine() -> Self {
-        Self {
-            canonical_quarantine: 0,
-        }
-    }
-
     pub fn canonical_quarantine(&self) -> u8 {
         self.canonical_quarantine
+    }
+
+    pub fn promises_mode(&self) -> PromiseEmissionMode {
+        self.promises_mode
     }
 }
 
@@ -201,18 +194,19 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
             && self.promises_stream.is_none()
             && let Some((announce, promise_policy)) = self.input.pop_front()
         {
-            let maybe_promise_out_tx = match promise_policy {
-                PromisePolicy::Enabled => {
-                    let (sender, receiver) = mpsc::unbounded_channel();
-                    self.promises_stream = Some(utils::AnnouncePromisesStream::new(
-                        receiver,
-                        announce.to_hash(),
-                    ));
+            let maybe_promise_out_tx =
+                match utils::resolve_promise_policy(promise_policy, self.config.promises_mode()) {
+                    PromisePolicy::Enabled => {
+                        let (sender, receiver) = mpsc::unbounded_channel();
+                        self.promises_stream = Some(utils::AnnouncePromisesStream::new(
+                            receiver,
+                            announce.to_hash(),
+                        ));
 
-                    Some(sender)
-                }
-                PromisePolicy::Disabled => None,
-            };
+                        Some(sender)
+                    }
+                    PromisePolicy::Disabled => None,
+                };
 
             self.computation = Some(future_timing::timed(
                 Self::compute(
@@ -273,6 +267,18 @@ pub(crate) mod utils {
     use super::*;
     use futures::Stream;
     use std::pin::Pin;
+
+    /// Resolves [PromisePolicy] with consensus provided policy and global
+    /// [PromiseEmissionMode] set for node.
+    pub(super) fn resolve_promise_policy(
+        consensus_policy: PromisePolicy,
+        mode: PromiseEmissionMode,
+    ) -> PromisePolicy {
+        match mode {
+            PromiseEmissionMode::AlwaysEmit => PromisePolicy::Enabled,
+            PromiseEmissionMode::ConsensusDriven => consensus_policy,
+        }
+    }
 
     /// The stream of promises from announce execution.
     pub(super) struct AnnouncePromisesStream {
@@ -533,7 +539,7 @@ mod tests {
 
         let db = Database::memory();
         let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
-        let config = ComputeConfig::without_quarantine();
+        let config = ComputeConfig::default();
         let mut service = ComputeSubService::new(
             config,
             db.clone(),
@@ -637,7 +643,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut compute_service =
-            ComputeService::new(ComputeConfig::without_quarantine(), db.clone(), processor);
+            ComputeService::new(ComputeConfig::default(), db.clone(), processor);
 
         // Send announces for computation.
         compute_service.compute_announce(
@@ -733,7 +739,7 @@ mod tests {
         };
 
         let mut compute_service =
-            ComputeService::new(ComputeConfig::without_quarantine(), db.clone(), processor);
+            ComputeService::new(ComputeConfig::default(), db.clone(), processor);
         compute_service.compute_announce(announce, PromisePolicy::Enabled);
 
         loop {

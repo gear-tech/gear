@@ -22,6 +22,7 @@ derive_more.workspace = true
 log.workspace = true
 gear-workspace-hack.workspace = true
 future-timing.workspace = true
+bon.workspace = true
 
 # metrics
 metrics.workspace = true

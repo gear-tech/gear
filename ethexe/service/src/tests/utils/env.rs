@@ -806,7 +806,10 @@ impl Default for TestEnvConfig {
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
-            compute_config: ComputeConfig::without_quarantine(),
+            compute_config: ComputeConfig::builder()
+                .canonical_quarantine(Default::default())
+                .promises_mode(Default::default())
+                .build(),
         }
     }
 }
@@ -1041,7 +1044,10 @@ impl Node {
             self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
         }
 
-        let rpc = self.service_rpc_config.clone().map(|config| RpcServer::new(config, self.db.clone()));
+        let rpc = self
+            .service_rpc_config
+            .clone()
+            .map(|config| RpcServer::new(config, self.db.clone()));
 
         self.receiver = Some(receiver);
 

@@ -55,7 +55,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage,
+    COMMITMENT_DELAY_LIMIT, PromiseEmissionMode, gear::CodeState, network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -415,7 +415,15 @@ impl Service {
             None
         };
 
-        let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
+        // RPC-node always requires promises
+        let promises_mode = match rpc.is_some() {
+            true => PromiseEmissionMode::AlwaysEmit,
+            false => PromiseEmissionMode::ConsensusDriven,
+        };
+        let compute_config = ComputeConfig::builder()
+            .canonical_quarantine(config.node.canonical_quarantine)
+            .promises_mode(promises_mode)
+            .build();
         let processor_config = ProcessorConfig {
             chunk_size: config.node.chunk_processing_threads,
         };
@@ -598,6 +606,9 @@ impl Service {
                             rpc.receive_computed_promise(promise.clone());
                         }
 
+                        // TODO: validator+rpc subordinate nodes can compute promises locally for RPC
+                        // recovery, but they must not sign/publish them to the network unless they
+                        // are responsible for the announce as producer.
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },

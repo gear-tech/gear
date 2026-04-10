@@ -30,12 +30,8 @@ use tracing::trace;
 
 const MAX_PROMISE_WAITING_SECS: u64 = alloy::eips::merge::SLOT_DURATION_SECS * 5;
 
-// TODO !!!!!!!!!!!!!!
-// I forgot about the problem - now promises produced only by producer node
-//  (only it compute announce with PromisePolicy::Enabled) :((
-//
-// Hmm, looks like `PromisePolicy` is useless, but maybe it will be helpful in cases when
-// somebody wants to host only connect node without promises.
+// TODO idea: implement `PromisesHandle` that provides two methods: `on_computed_promise` and `on_compact_promise`.
+// And provide this handle outside using `fn handle(&self) -> &PromiseHandle{}` to handle events in server.
 
 type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, CompactSignedPromise>>;

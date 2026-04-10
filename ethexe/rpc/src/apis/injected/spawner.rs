@@ -19,7 +19,7 @@
 use super::promise_manager::PendingSubscription;
 use ethexe_common::{HashOf, injected::InjectedTransaction};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
-use tracing::{warn, trace};
+use tracing::{trace, warn};
 
 /// Spawns [PendingSubscription] in tokio runtime.
 ///
