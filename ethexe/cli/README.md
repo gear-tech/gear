@@ -136,7 +136,7 @@ one of the transaction-oriented subcommands.
 
 Shared requirements:
 
-- `--sender` must resolve to a private key in the chosen key store
+- `--sender` is a 20-byte Ethereum address and must have a corresponding private key in the chosen key store
 - `--ethereum-rpc` and `--ethereum-router` must be provided directly or through config
 - `--key-store` defaults to the node `keys/` directory
 
