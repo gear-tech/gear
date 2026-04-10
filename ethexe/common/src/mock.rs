@@ -48,7 +48,7 @@ where
     T: Arbitrary + 'static,
 {
     T::arbitrary_with(args)
-        .new_tree(&mut TestRunner::deterministic())
+        .new_tree(&mut TestRunner::default())
         .expect("mock strategy must produce a value")
         .current()
 }
@@ -963,5 +963,19 @@ impl Arbitrary for DBGlobals {
                 },
             )
             .boxed()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn addressed_injected_transaction_mock_produces_distinct_hashes() {
+        let tx_hashes: std::collections::BTreeSet<_> = (0..8)
+            .map(|_| AddressedInjectedTransaction::mock(()).tx.data().to_hash())
+            .collect();
+
+        assert_eq!(tx_hashes.len(), 8);
     }
 }
