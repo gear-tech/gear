@@ -235,6 +235,7 @@ async fn genesis_data_initialization(
         codes,
         programs,
         blobs,
+        ..
     } = initializer.get_genesis_data()?;
 
     ensure!(

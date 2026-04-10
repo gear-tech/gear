@@ -253,6 +253,7 @@ impl StateDump {
         }
 
         Ok(StateDump {
+            announce_hash,
             block_hash: announce.block_hash,
             codes,
             programs,

@@ -5243,6 +5243,8 @@ dependencies = [
  "rocksdb",
  "scale-info",
  "scopeguard",
+ "serde",
+ "serde_json",
  "sha3",
  "tempfile",
  "tracing",

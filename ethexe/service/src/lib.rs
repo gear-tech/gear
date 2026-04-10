@@ -747,6 +747,7 @@ impl GenesisInitializerFromFile {
     pub fn new(genesis_state_path: PathBuf) -> Result<Self> {
         // Safety: in context of GenesisInitializerFromFile, processor doesn't access the database,
         // it's only used for code processing in memory, so it's safe to create it with an in-memory database.
+        #[allow(unused_unsafe)]
         let db = unsafe { Database::memory() };
         let processor = Processor::new(db)?;
 

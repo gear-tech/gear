@@ -754,7 +754,7 @@ impl Database {
     }
 
     #[cfg(not(feature = "mock"))]
-    unsafe fn memory() -> Self {
+    pub unsafe fn memory() -> Self {
         Self::memory_inner()
     }
 
