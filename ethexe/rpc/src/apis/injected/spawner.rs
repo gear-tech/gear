@@ -16,22 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::promise_manager::PendingSubscription;
+use super::promise_manager::PendingSubscriber;
 use ethexe_common::{HashOf, injected::InjectedTransaction};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
 use tracing::{trace, warn};
 
-/// Spawns [PendingSubscription] in tokio runtime.
+/// Spawns [PendingSubscriber] in tokio runtime.
 ///
 /// On task finishing applies the `on_finish` function that is need to drop some data.
-pub fn spawn_pending_subscription<F>(
+pub fn spawn_pending_subscriber<F>(
     sink: SubscriptionSink,
-    watcher: PendingSubscription,
+    subscriber: PendingSubscriber,
     on_finish: F,
 ) where
     F: FnOnce(HashOf<InjectedTransaction>) + std::marker::Send + 'static,
 {
-    let (tx_hash, receiver) = watcher.into_parts();
+    let (tx_hash, receiver) = subscriber.into_parts();
 
     // TODO: think about using this handle for aborting runtime tasks in case of long waiting.
     let _handle = tokio::spawn(async move {

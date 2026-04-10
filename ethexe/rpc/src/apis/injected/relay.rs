@@ -38,7 +38,6 @@ impl TransactionsRelayer {
     ) -> RpcResult<InjectedTransactionAcceptance> {
         let tx_hash = transaction.tx.data().to_hash();
         trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
-        // self.metrics.send_injected_tx_calls.increment(1);
 
         // TODO: maybe should implement the transaction validator.
         if transaction.tx.data().value != 0 {

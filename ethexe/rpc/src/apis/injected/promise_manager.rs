@@ -28,15 +28,13 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 use tracing::trace;
 
-const MAX_PROMISE_WAITING_SECS: u64 = alloy::eips::merge::SLOT_DURATION_SECS * 5;
-
-// TODO idea: implement `PromisesHandle` that provides two methods: `on_computed_promise` and `on_compact_promise`.
-// And provide this handle outside using `fn handle(&self) -> &PromiseHandle{}` to handle events in server.
+pub const MAX_PROMISE_WAITING: Duration =
+    Duration::from_secs(alloy::eips::merge::SLOT_DURATION_SECS * 20);
 
 type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, CompactSignedPromise>>;
 
-/// The manager for promise subscriptions.
+/// The manager for promise subscribers.
 #[derive(Debug, Clone)]
 pub struct PromiseSubscriptionManager {
     db: Database,
@@ -46,20 +44,30 @@ pub struct PromiseSubscriptionManager {
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
-pub enum RegisterWatcherError {
+pub enum RegisterSubscriberError {
     #[error("Subscriber for this transaction already exists, tx_hash={0}")]
     AlreadyRegistered(HashOf<InjectedTransaction>),
 }
 
 type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedPromise>>;
 
-pub struct PendingSubscription {
+/// The pending [SignedPromise] subscriber.
+/// Subscriber will be spawned in separate tokio runtime task and will wait for promise.
+///
+/// Important: to avoid infinite waiting we wrap [oneshot::Receiver] into [tokio::time::timeout].
+pub struct PendingSubscriber {
+    /// Tx hash waiting promise for.
     tx_hash: HashOf<InjectedTransaction>,
+    /// Wrapped promise [oneshot::Receiver].
     receiver: TimeoutReceiver,
 }
 
-impl PendingSubscription {
-    pub fn new(tx_hash: HashOf<InjectedTransaction>, receiver: TimeoutReceiver) -> Self {
+impl PendingSubscriber {
+    pub fn new(
+        tx_hash: HashOf<InjectedTransaction>,
+        receiver: oneshot::Receiver<SignedPromise>,
+    ) -> Self {
+        let receiver = tokio::time::timeout(MAX_PROMISE_WAITING, receiver);
         Self { tx_hash, receiver }
     }
 
@@ -77,23 +85,16 @@ impl PromiseSubscriptionManager {
         }
     }
 
-    pub fn watchers(&self) -> PromiseSubscribers {
-        self.subscribers.clone()
-    }
-
-    pub fn try_register_watcher(
+    pub fn try_register_subscriber(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> Result<PendingSubscription, RegisterWatcherError> {
+    ) -> Result<PendingSubscriber, RegisterSubscriberError> {
         match self.subscribers.entry(tx_hash) {
-            Entry::Occupied(_) => Err(RegisterWatcherError::AlreadyRegistered(tx_hash)),
+            Entry::Occupied(_) => Err(RegisterSubscriberError::AlreadyRegistered(tx_hash)),
             Entry::Vacant(entry) => {
                 let (sender, receiver) = oneshot::channel();
-                let receiver =
-                    tokio::time::timeout(Duration::from_secs(MAX_PROMISE_WAITING_SECS), receiver);
-
                 entry.insert(sender);
-                Ok(PendingSubscription::new(tx_hash, receiver))
+                Ok(PendingSubscriber::new(tx_hash, receiver))
             }
         }
     }
@@ -108,7 +109,7 @@ impl PromiseSubscriptionManager {
     pub fn on_compact_promise(&self, compact: CompactSignedPromise) {
         let tx_hash = compact.data().tx_hash;
         match self.db.promise(tx_hash) {
-            Some(promise) => match utils::try_build_signed_promise(promise, &compact) {
+            Some(promise) => match utils::try_signed_promise_from_parts(promise, &compact) {
                 Ok(signed_promise) => self.dispatch_promise(signed_promise),
                 Err(_err) => todo!(),
             },
@@ -124,16 +125,11 @@ impl PromiseSubscriptionManager {
         self.db.set_promise(&promise);
 
         if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) {
-            match utils::try_build_signed_promise(promise, &compact_promise) {
+            match utils::try_signed_promise_from_parts(promise, &compact_promise) {
                 Ok(signed_promise) => self.dispatch_promise(signed_promise),
                 Err(_err) => {} // handle error, maybe reinsert to map.
             }
         }
-    }
-
-    #[cfg(test)]
-    pub fn subscribers_count(&self) -> usize {
-        self.subscribers.len()
     }
 
     fn dispatch_promise(&self, promise: SignedPromise) {
@@ -143,18 +139,21 @@ impl PromiseSubscriptionManager {
             trace!("failed to send promise to subscriber, promise={unsent_promise:?}");
         }
     }
+
+    #[cfg(test)]
+    pub fn subscribers_count(&self) -> usize {
+        self.subscribers.len()
+    }
 }
 
 mod utils {
     use super::*;
 
-    pub fn try_build_signed_promise(
+    /// Tries build [SignedPromise] from its parts: [CompactSignedPromise] and [Promise].
+    pub fn try_signed_promise_from_parts(
         promise: Promise,
         compact: &CompactSignedPromise,
     ) -> Result<SignedPromise, &'static str> {
-        let address = compact.address();
-        let signature = *compact.signature();
-
-        SignedMessage::try_from_parts(promise, signature, address)
+        SignedMessage::try_from_parts(promise, *compact.signature(), compact.address())
     }
 }

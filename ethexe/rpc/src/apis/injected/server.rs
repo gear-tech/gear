@@ -46,6 +46,7 @@ pub struct InjectedApi {
     relayer: TransactionsRelayer,
 }
 
+// TODO: add metrics middleware for InjectedApi
 #[async_trait]
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
@@ -112,8 +113,8 @@ impl InjectedApi {
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
 
-        let pending_watcher = match self.manager.try_register_watcher(tx_hash) {
-            Ok(watcher) => watcher,
+        let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
+            Ok(subscriber) => subscriber,
             Err(err) => {
                 self.manager.cancel_registration(tx_hash);
                 return Err(errors::bad_request(err).into());
@@ -128,9 +129,9 @@ impl InjectedApi {
             }
         };
 
-        let watchers = self.manager.watchers();
-        spawner::spawn_pending_subscription(sink, pending_watcher, move |tx_hash| {
-            watchers.remove(&tx_hash);
+        let manager = self.manager.clone();
+        spawner::spawn_pending_subscriber(sink, pending_subscriber, move |tx_hash| {
+            manager.cancel_registration(tx_hash);
         });
         Ok(())
     }
