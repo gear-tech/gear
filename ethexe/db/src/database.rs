@@ -34,7 +34,7 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
+    injected::{CompactSignedPromise, InjectedTransaction, Promise, SignedInjectedTransaction},
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -47,7 +47,6 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
-use gsigner::{Address, secp256k1::Signature};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use std::{
@@ -85,7 +84,7 @@ enum Key {
 
     Announces(HashOf<Announce>) = 17,
     Promise(HashOf<InjectedTransaction>) = 18,
-    PromiseSignature(HashOf<InjectedTransaction>) = 19,
+    CompactPromise(HashOf<InjectedTransaction>) = 19,
 }
 
 impl Key {
@@ -117,9 +116,9 @@ impl Key {
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => bytes.extend(hash.as_ref()),
 
-            Self::InjectedTransaction(hash)
-            | Self::Promise(hash)
-            | Self::PromiseSignature(hash) => bytes.extend(hash.inner().as_ref()),
+            Self::InjectedTransaction(hash) | Self::Promise(hash) | Self::CompactPromise(hash) => {
+                bytes.extend(hash.inner().as_ref())
+            }
 
             Self::ProgramToCodeId(program_id) => bytes.extend(program_id.as_ref()),
 
@@ -716,12 +715,15 @@ impl InjectedStorageRO for RawDatabase {
         })
     }
 
-    fn promise_signature(&self, hash: HashOf<InjectedTransaction>) -> Option<(Signature, Address)> {
+    fn compact_promise(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> Option<CompactSignedPromise> {
         self.kv
-            .get(&Key::PromiseSignature(hash).to_bytes())
+            .get(&Key::CompactPromise(tx_hash).to_bytes())
             .map(|data| {
-                <(Signature, Address)>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `(Signature, Address)`")
+                CompactSignedPromise::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into CompactSignedPromise")
             })
     }
 }
@@ -742,18 +744,12 @@ impl InjectedStorageRW for RawDatabase {
             .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
     }
 
-    fn set_promise_signature(
-        &self,
-        hash: HashOf<InjectedTransaction>,
-        signature: Signature,
-        address: Address,
-    ) {
-        tracing::trace!(tx_hash = ?hash, ?signature, ?address, "Set signature for injected transaction promise");
+    fn set_compact_promise(&self, promise: &CompactSignedPromise) {
+        let tx_hash = promise.data().tx_hash;
+        tracing::trace!(?promise, "Set compact promise for injected transaction");
 
-        self.kv.put(
-            &Key::PromiseSignature(hash).to_bytes(),
-            (signature, address).encode(),
-        );
+        self.kv
+            .put(&Key::CompactPromise(tx_hash).to_bytes(), promise.encode())
     }
 }
 
@@ -955,7 +951,7 @@ impl InjectedStorageRO for Database {
     delegate!(to self.raw {
         fn injected_transaction(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedInjectedTransaction>;
         fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
-        fn promise_signature(&self, hash: HashOf<InjectedTransaction>) -> Option<(Signature, Address)>;
+        fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<CompactSignedPromise>;
     });
 }
 
@@ -963,11 +959,7 @@ impl InjectedStorageRW for Database {
     delegate!(to self.raw {
         fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
         fn set_promise(&self, promise: &Promise);
-        fn set_promise_signature(&self,
-            hash: HashOf<InjectedTransaction>,
-            signature: Signature,
-            address: Address,
-        );
+        fn set_compact_promise(&self, promise: &CompactSignedPromise);
     });
 }
 

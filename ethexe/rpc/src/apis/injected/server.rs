@@ -23,11 +23,11 @@ use super::{
     spawner,
 };
 use ethexe_common::{
-    HashOf, SignedMessage,
+    HashOf,
     db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedPromise,
+        SignedInjectedTransaction, SignedPromise, restore_signed_promise,
     },
 };
 use ethexe_db::Database;
@@ -91,8 +91,8 @@ impl InjectedApi {
     pub fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
             db: db.clone(),
-            manager: PromiseSubscriptionManager::new(db),
-            relayer: TransactionsRelayer::new(rpc_sender),
+            manager: PromiseSubscriptionManager::new(db.clone()),
+            relayer: TransactionsRelayer::new(rpc_sender, db),
         }
     }
 }
@@ -120,8 +120,15 @@ impl InjectedApi {
             }
         };
 
-        let sink = match self.relayer.relay(transaction).await? {
-            InjectedTransactionAcceptance::Accept => pending.accept().await?,
+        let acceptance = self.relayer.relay(transaction).await.inspect_err(|_err| {
+            self.manager.cancel_registration(tx_hash);
+        })?;
+        let sink = match acceptance {
+            InjectedTransactionAcceptance::Accept => {
+                pending.accept().await.inspect_err(|_err| {
+                    self.manager.cancel_registration(tx_hash);
+                })?
+            }
             InjectedTransactionAcceptance::Reject { reason } => {
                 self.manager.cancel_registration(tx_hash);
                 return Err(reason.into());
@@ -144,15 +151,15 @@ impl InjectedApi {
             return Ok(None);
         };
 
-        let Some((signature, address)) = self.db.promise_signature(tx_hash) else {
+        let Some(compact) = self.db.compact_promise(tx_hash) else {
             trace!(
                 ?tx_hash,
-                "promise signature not found for injected transaction"
+                "compact promise not found for injected transaction"
             );
             return Ok(None);
         };
 
-        match SignedMessage::try_from_parts(promise, signature, address) {
+        match restore_signed_promise(promise, &compact) {
             Ok(message) => Ok(Some(message)),
             Err(err) => {
                 trace!(

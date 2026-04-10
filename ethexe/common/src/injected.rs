@@ -227,6 +227,35 @@ impl TryFrom<&SignedPromise> for CompactSignedPromise {
     }
 }
 
+/// Restores the [SignedPromise] from parts: [Promise], [CompactSignedPromise].
+pub fn restore_signed_promise(
+    promise: Promise,
+    compact: &CompactSignedPromise,
+) -> Result<SignedPromise, RestorePromiseError> {
+    if promise.tx_hash != compact.data().tx_hash {
+        return Err(RestorePromiseError::HashesMismatch {
+            promise_tx_hash: promise.tx_hash,
+            compact_tx_hash: compact.data().tx_hash,
+        });
+    }
+
+    SignedMessage::try_from_parts(promise, *compact.signature(), compact.address())
+        .map_err(RestorePromiseError::InvalidSignature)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum RestorePromiseError {
+    #[error(
+        "promise and compact promise has different tx hashes: promise_tx_hash={promise_tx_hash:?}, compact_tx_hash={compact_tx_hash:?}"
+    )]
+    HashesMismatch {
+        promise_tx_hash: HashOf<InjectedTransaction>,
+        compact_tx_hash: HashOf<InjectedTransaction>,
+    },
+    #[error("compact promise signature do not match promise: {0}")]
+    InvalidSignature(&'static str),
+}
+
 /// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
 #[cfg(feature = "std")]
 mod serde_hex {

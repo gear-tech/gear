@@ -19,9 +19,11 @@
 use anyhow::Result;
 use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
-    HashOf, SignedMessage,
+    HashOf,
     db::{InjectedStorageRO, InjectedStorageRW},
-    injected::{CompactSignedPromise, InjectedTransaction, Promise, SignedPromise},
+    injected::{
+        CompactSignedPromise, InjectedTransaction, Promise, SignedPromise, restore_signed_promise,
+    },
 };
 use ethexe_db::Database;
 use std::{sync::Arc, time::Duration};
@@ -111,8 +113,12 @@ impl PromiseSubscriptionManager {
         let tx_hash = compact.data().tx_hash;
 
         match self.db.promise(tx_hash) {
-            Some(promise) => match utils::try_signed_promise_from_parts(promise, &compact) {
-                Ok(signed_promise) => self.dispatch_promise(signed_promise),
+            Some(promise) => match restore_signed_promise(promise, &compact) {
+                Ok(signed_promise) => {
+                    self.db.set_compact_promise(&compact);
+                    self.dispatch_promise(signed_promise);
+                }
+
                 Err(_err) => {
                     trace!(
                         ?compact, %tx_hash, "failed to create signed promise from parts, producer send invalid signature: compact_promise={compact:?}"
@@ -131,8 +137,11 @@ impl PromiseSubscriptionManager {
         self.db.set_promise(&promise);
 
         if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) {
-            match utils::try_signed_promise_from_parts(promise, &compact_promise) {
-                Ok(signed_promise) => self.dispatch_promise(signed_promise),
+            match restore_signed_promise(promise, &compact_promise) {
+                Ok(signed_promise) => {
+                    self.db.set_compact_promise(&compact_promise);
+                    self.dispatch_promise(signed_promise);
+                }
                 Err(_err) => {
                     trace!(?compact_promise, tx_hash=?compact_promise.data().tx_hash, "failed to create signed promise from parts");
                 }
@@ -151,17 +160,5 @@ impl PromiseSubscriptionManager {
     #[cfg(test)]
     pub fn subscribers_count(&self) -> usize {
         self.subscribers.len()
-    }
-}
-
-mod utils {
-    use super::*;
-
-    /// Tries build [SignedPromise] from its parts: [CompactSignedPromise] and [Promise].
-    pub fn try_signed_promise_from_parts(
-        promise: Promise,
-        compact: &CompactSignedPromise,
-    ) -> Result<SignedPromise, &'static str> {
-        SignedMessage::try_from_parts(promise, *compact.signature(), compact.address())
     }
 }
