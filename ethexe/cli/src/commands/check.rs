@@ -109,6 +109,7 @@ impl CheckCommand {
                     ethereum_rpc: ethereum_config.rpc.clone(),
                     router_address: ethereum_config.router_address,
                     slot_duration_secs: ethereum_config.block_time.as_secs(),
+                    genesis_initializer: None,
                 },
                 raw_db.overlaid(),
             )

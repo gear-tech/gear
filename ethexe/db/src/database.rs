@@ -750,6 +750,15 @@ impl Database {
     #[cfg(feature = "mock")]
     #[track_caller]
     pub fn memory() -> Self {
+        Self::memory_inner()
+    }
+
+    #[cfg(not(feature = "mock"))]
+    unsafe fn memory() -> Self {
+        Self::memory_inner()
+    }
+
+    fn memory_inner() -> Self {
         use crate::MemDb;
         use ethexe_common::{Address, ProtocolTimelines, SimpleBlockData};
 

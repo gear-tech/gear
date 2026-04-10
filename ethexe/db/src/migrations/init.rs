@@ -16,17 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::BTreeMap;
+
 use super::{InitConfig, LATEST_VERSION, MIGRATIONS, OLDEST_SUPPORTED_VERSION};
-use crate::{Database, RawDatabase};
+use crate::{Database, RawDatabase, dump::StateDump, migrations::GenesisInitializer};
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, bail, ensure};
 use ethexe_common::{
-    Announce, BlockHeader, HashOf, ProtocolTimelines, SimpleBlockData,
-    db::{ComputedAnnounceData, PreparedBlockData},
+    Announce, BlockHeader, HashOf, ProgramStates, ProtocolTimelines, SimpleBlockData,
+    StateHashWithQueueSize,
+    db::{CodesStorageRO, CodesStorageRW, ComputedAnnounceData, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
 };
 use ethexe_ethereum::router::RouterQuery;
-use gprimitives::H256;
+use ethexe_runtime_common::{RUNTIME_ID, state::Storage};
+use futures::stream::FuturesUnordered;
+use gprimitives::{CodeId, H256};
 
 pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Database> {
     log::info!("Initializing database to version {LATEST_VERSION}...");
@@ -152,16 +157,24 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         },
     };
 
+    let genesis_announce = Announce {
+        block_hash: genesis_block.hash,
+        parent: HashOf::zero(),
+        gas_allowance: None,
+        injected_transactions: vec![],
+    };
+
+    let program_states = if let Some(initializer) = config.genesis_initializer {
+        genesis_data_initialization(initializer, db, genesis_block.hash).await?
+    } else {
+        Default::default()
+    };
+
     let genesis_announce_hash = ethexe_common::setup_announce_in_db(
         &db,
         ComputedAnnounceData {
-            announce: Announce {
-                block_hash: genesis_block.hash,
-                parent: HashOf::zero(),
-                gas_allowance: None,
-                injected_transactions: vec![],
-            },
-            program_states: Default::default(),
+            announce: genesis_announce,
+            program_states,
             outcome: Default::default(),
             schedule: Default::default(),
         },
@@ -210,4 +223,80 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     db.kv.set_config(db_config);
 
     Ok(())
+}
+
+async fn genesis_data_initialization(
+    mut initializer: Box<dyn GenesisInitializer>,
+    db: &RawDatabase,
+    genesis_block_hash: H256,
+) -> Result<ProgramStates> {
+    let StateDump {
+        block_hash,
+        codes,
+        programs,
+        blobs,
+    } = initializer.get_genesis_data()?;
+
+    ensure!(
+        block_hash == genesis_block_hash,
+        "Genesis data block hash {block_hash} does not match the actual genesis block hash {genesis_block_hash}"
+    );
+
+    let mut code_bytes = BTreeMap::<CodeId, Vec<u8>>::new();
+    for blob in blobs {
+        let hash = db.cas.write(&blob);
+        let code_id = CodeId::from(hash.0);
+        if codes.contains(&code_id) {
+            code_bytes.insert(code_id, blob);
+        };
+    }
+
+    ensure!(
+        code_bytes.len() == codes.len(),
+        "Genesis data contains {} valid codes, but only {} code blobs were provided",
+        codes.len(),
+        code_bytes.len()
+    );
+
+    let code_processing_futures = FuturesUnordered::new();
+    for (code_id, code) in code_bytes {
+        let process = initializer.process_code(code_id, code);
+        let db_clone = db.clone();
+        code_processing_futures.push(async move || -> anyhow::Result<()> {
+            let Some((instrumented_code, code_metadata)) = process.await? else {
+                bail!("Genesis contains invalid code {code_id}");
+            };
+
+            // Assert here, because we already checked that code_bytes.len() == codes.len()
+            assert!(
+                db_clone.original_code_exists(code_id),
+                "code {code_id} must be already presented in database",
+            );
+
+            db_clone.set_code_metadata(code_id, code_metadata);
+            db_clone.set_instrumented_code(RUNTIME_ID, code_id, instrumented_code);
+            db_clone.set_code_valid(code_id, true);
+
+            Ok(())
+        });
+    }
+
+    let mut program_states = ProgramStates::new();
+    for (program_id, (code_id, state_hash)) in programs {
+        db.set_program_code_id(program_id, code_id);
+        let program_state = db
+            .cas
+            .program_state(state_hash)
+            .context("Incorrect genesis data: program state blob must be present")?;
+        program_states.insert(
+            program_id,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: program_state.canonical_queue.cached_queue_size,
+                injected_queue_size: program_state.injected_queue.cached_queue_size,
+            },
+        );
+    }
+
+    Ok(program_states)
 }

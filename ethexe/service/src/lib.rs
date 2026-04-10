@@ -21,15 +21,19 @@ use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
 };
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail, ensure};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
-use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
+use ethexe_common::{
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, gear::CodeState, network::VerifiedValidatorMessage,
+};
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_db::{Database, InitConfig, RawDatabase, RocksDatabase};
+use ethexe_db::{
+    Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
+};
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
@@ -39,7 +43,7 @@ use ethexe_observer::{
     ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
-use ethexe_processor::{Processor, ProcessorConfig};
+use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
@@ -225,6 +229,7 @@ impl Service {
                 ethereum_rpc: config.ethereum.rpc.clone(),
                 router_address: config.ethereum.router_address,
                 slot_duration_secs: config.ethereum.block_time.as_secs(),
+                genesis_initializer: None,
             },
             RawDatabase::from_one(&rocks_db),
         )
@@ -730,5 +735,52 @@ impl Service {
                 }
             }
         }
+    }
+}
+
+struct GenesisInitializerFromFile {
+    state_path: PathBuf,
+    processor: Processor,
+}
+
+impl GenesisInitializerFromFile {
+    pub fn new(genesis_state_path: PathBuf) -> Result<Self> {
+        // Safety: in context of GenesisInitializerFromFile, processor doesn't access the database,
+        // it's only used for code processing in memory, so it's safe to create it with an in-memory database.
+        let db = unsafe { Database::memory() };
+        let processor = Processor::new(db)?;
+
+        Ok(Self {
+            state_path: genesis_state_path,
+            processor,
+        })
+    }
+}
+
+impl GenesisInitializer for GenesisInitializerFromFile {
+    fn get_genesis_data(&mut self) -> anyhow::Result<ethexe_db::dump::StateDump> {
+        StateDump::read_from_file(&self.state_path)
+    }
+
+    fn process_code(&mut self, code_id: CodeId, code: Vec<u8>) -> ethexe_db::CodeProcessingFuture {
+        let mut cloned_processor = self.processor.clone();
+        let func = move || {
+            let ProcessedCodeInfo {
+                code_id: _,
+                valid: info,
+            } = cloned_processor.process_code(CodeAndIdUnchecked { code_id, code })?;
+
+            let Some(ValidCodeInfo {
+                code: _,
+                instrumented_code,
+                code_metadata,
+            }) = info
+            else {
+                return Ok(None);
+            };
+
+            Ok(Some((instrumented_code, code_metadata)))
+        };
+        Box::pin(async move { func() })
     }
 }

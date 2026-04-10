@@ -5229,6 +5229,8 @@ dependencies = [
  "ethexe-common",
  "ethexe-ethereum",
  "ethexe-runtime-common",
+ "flate2",
+ "futures",
  "gear-core",
  "gear-workspace-hack",
  "gprimitives",
