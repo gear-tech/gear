@@ -1,3 +1,22 @@
+//! Load generator and fuzzing harness for local `ethexe` nodes.
+//!
+//! `ethexe-node-loader` is a binary crate used during local development to put
+//! an `ethexe` deployment under sustained, mixed traffic. The loader operates in
+//! three modes:
+//!
+//! - `load`: continuously creates randomized batches that upload code, create
+//!   programs, send messages, send replies, and claim value;
+//! - `fuzz`: deploys the demo syscall contract and repeatedly sends randomized
+//!   command sequences to it;
+//! - `dump`: materializes a generated Gear WASM module for a fixed seed to help
+//!   with reproducing failures.
+//!
+//! In load mode, the crate derives worker accounts from the standard Anvil
+//! mnemonic, funds them through the configured deployer account, deploys a
+//! multicall helper contract, and then keeps a pool of worker tasks running in
+//! parallel. A block subscription drives event collection so the loader can keep
+//! track of created programs, mailbox state, and reply outcomes between batches.
+
 use crate::{abi::deploy_send_message_multicall, args::LoadParams, batch::BatchPool};
 use alloy::{hex, primitives::Address, providers::Provider};
 use anyhow::{Result, anyhow};
@@ -14,11 +33,13 @@ mod batch;
 mod fuzz;
 mod utils;
 
-/// Entrypoint for the node-loader CLI.
+/// Parses CLI arguments, initializes tracing, and dispatches to the selected mode.
 ///
-/// Runs a continuous load test against an `ethexe` dev node, generating randomized batches
-/// that upload code/programs, send messages, send replies, and claim values to stress-test
-/// the runtime and networking stack.
+/// The command supports:
+///
+/// - [`Params::Dump`] for deterministic WASM generation from a seed,
+/// - [`Params::Load`] for continuous mixed-workload generation,
+/// - [`Params::Fuzz`] for syscall fuzzing against the demo mega contract.
 #[tokio::main]
 async fn main() -> Result<()> {
     let fmt = tracing_subscriber::fmt::format().with_ansi(false).compact();
@@ -48,6 +69,15 @@ async fn main() -> Result<()> {
     }
 }
 
+/// Boots the load-testing workflow for a single Ethereum RPC endpoint.
+///
+/// The setup sequence is:
+///
+/// 1. validate worker counts and ethexe RPC URLs,
+/// 2. create the deployer client and deploy the multicall helper,
+/// 3. derive and initialize one Ethereum client per worker account,
+/// 4. fund and approve workers,
+/// 5. start the block listener and the batch worker pool.
 async fn load_node(params: LoadParams) -> Result<()> {
     const MINT_AMOUNT: u128 = 500_000_000_000_000_000_000_000;
 
