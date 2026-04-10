@@ -32,6 +32,10 @@ pub fn bad_request(err: impl ToString) -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Bad request", Some(err.to_string()))
 }
 
+pub fn not_found() -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Not found", None::<&str>)
+}
+
 pub fn internal() -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Internal error", None::<&str>)
 }

@@ -27,7 +27,7 @@ use ethexe_common::{
     db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedPromise,
+        SignedInjectedTransaction, SignedPromise,
     },
 };
 use ethexe_db::Database;
@@ -68,6 +68,13 @@ impl InjectedServer for InjectedApi {
         tx_hash: HashOf<InjectedTransaction>,
     ) -> RpcResult<Option<SignedPromise>> {
         self.get_transaction_promise(tx_hash).await
+    }
+
+    async fn get_transaction(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> RpcResult<SignedInjectedTransaction> {
+        self.get_transaction(tx_hash).await
     }
 }
 
@@ -156,5 +163,16 @@ impl InjectedApi {
                 Ok(None)
             }
         }
+    }
+
+    async fn get_transaction(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> RpcResult<SignedInjectedTransaction> {
+        let Some(tx) = self.db.injected_transaction(tx_hash) else {
+            return Err(errors::not_found());
+        };
+
+        Ok(tx)
     }
 }
