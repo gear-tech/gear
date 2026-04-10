@@ -23,7 +23,6 @@ use alloy::{
     rpc::types::beacon::{genesis::GenesisResponse, sidecar::GetBlobsResponse},
     transports::{RpcError, TransportErrorKind},
 };
-use bytes::Bytes;
 use ethexe_common::{
     CodeAndIdUnchecked, CodeBlobInfo,
     db::{CodesStorageRO, OnChainStorageRO},
@@ -56,11 +55,8 @@ pub enum BlobLoaderError {
 enum ReadBlobBundleError {
     #[error("failed to read blob bundle from beacon node: {0}")]
     Reqwest(#[from] reqwest::Error),
-    #[error("failed to decode blob bundle response: {error}, bytes: {bytes:?}")]
-    Serde {
-        error: serde_json::Error,
-        bytes: Bytes,
-    },
+    #[error("failed to decode blob bundle response: {0}")]
+    Serde(#[from] serde_json::Error),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -239,8 +235,10 @@ impl ConsensusLayerBlobReader {
             .send()
             .await?;
         let bytes = response.bytes().await?;
-        let blobs_response = serde_json::from_slice::<GetBlobsResponse>(&bytes)
-            .map_err(|error| ReadBlobBundleError::Serde { error, bytes })?;
+        let blobs_response = serde_json::from_slice::<GetBlobsResponse>(&bytes).map_err(|err| {
+            log::trace!("failed to decode blob bundle response: {err}, bytes: {bytes:?}");
+            err
+        })?;
         Ok(blobs_response)
     }
 }

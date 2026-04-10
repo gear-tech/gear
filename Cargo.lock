@@ -5081,7 +5081,6 @@ name = "ethexe-blob-loader"
 version = "1.10.0"
 dependencies = [
  "alloy",
- "bytes",
  "ethexe-common",
  "ethexe-ethereum",
  "futures",
