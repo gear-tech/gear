@@ -224,12 +224,21 @@ impl Service {
         )
         .with_context(|| "failed to open database")?;
 
+        let genesis_initializer: Option<Box<dyn GenesisInitializer>> =
+            match &config.node.genesis_state_dump {
+                Some(path) => {
+                    log::info!("Using genesis state dump: {}", path.display());
+                    Some(Box::new(GenesisInitializerFromFile::new(path.clone())?))
+                }
+                None => None,
+            };
+
         let db = ethexe_db::initialize_db(
             InitConfig {
                 ethereum_rpc: config.ethereum.rpc.clone(),
                 router_address: config.ethereum.router_address,
                 slot_duration_secs: config.ethereum.block_time.as_secs(),
-                genesis_initializer: None,
+                genesis_initializer,
             },
             RawDatabase::from_one(&rocks_db),
         )
@@ -746,7 +755,7 @@ struct GenesisInitializerFromFile {
 impl GenesisInitializerFromFile {
     pub fn new(genesis_state_path: PathBuf) -> Result<Self> {
         // Safety: in context of GenesisInitializerFromFile, processor doesn't access the database,
-        // it's only used for code processing in memory, so it's safe to create it with an in-memory database.
+        // it's only used for code processing, so it's safe to create it with an empty database.
         #[allow(unused_unsafe)]
         let db = unsafe { Database::memory() };
         let processor = Processor::new(db)?;

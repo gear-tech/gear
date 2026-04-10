@@ -57,6 +57,7 @@ async fn constructor() {
         fast_sync: false,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
         batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
+        genesis_state_dump: None,
     };
 
     let eth_cfg = EthereumConfig {

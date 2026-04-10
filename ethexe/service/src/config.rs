@@ -24,7 +24,8 @@ use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use gsigner::secp256k1::{Address, PublicKey};
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct Config {
@@ -67,6 +68,7 @@ pub struct NodeConfig {
     pub pre_funded_accounts: u32,
     pub fast_sync: bool,
     pub chain_deepness_threshold: u32,
+    pub genesis_state_dump: Option<PathBuf>,
 }
 
 impl NodeConfig {
