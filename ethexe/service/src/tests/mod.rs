@@ -45,7 +45,7 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
-use ethexe_db::{Database, verifier::IntegrityVerifier};
+use ethexe_db::{Database, GenesisInitializer, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{
     TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
 };
@@ -3658,9 +3658,7 @@ async fn re_genesis_with_state_dump() {
     let latest_prepared_block_hash = node.db.globals().latest_prepared_block_hash;
     log::info!("Collecting state dump for block {latest_prepared_block_hash:?}...");
 
-    let dump =
-        ethexe_db::dump::StateDump::collect_from_storage(&node.db, latest_prepared_block_hash)
-            .unwrap();
+    let dump = StateDump::collect_from_storage(&node.db, latest_prepared_block_hash).unwrap();
     log::info!(
         "Dump: {} codes, {} programs, {} blobs",
         dump.codes.len(),
@@ -3698,12 +3696,12 @@ async fn re_genesis_with_state_dump() {
 
     log::info!("📗 Phase 4: create a new node with a fresh DB initialized from the state dump.");
     struct GenesisInitializerFromDump {
-        dump: Option<ethexe_db::dump::StateDump>,
+        dump: Option<StateDump>,
         processor: Processor,
     }
 
-    impl ethexe_db::GenesisInitializer for GenesisInitializerFromDump {
-        fn get_genesis_data(&mut self) -> anyhow::Result<ethexe_db::dump::StateDump> {
+    impl GenesisInitializer for GenesisInitializerFromDump {
+        fn get_genesis_data(&mut self) -> anyhow::Result<StateDump> {
             self.dump
                 .take()
                 .ok_or_else(|| anyhow::anyhow!("genesis data already consumed"))
@@ -3764,4 +3762,216 @@ async fn re_genesis_with_state_dump() {
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
     assert_eq!(res.payload, b"PONG");
+}
+
+/// Test re-genesis with a program that has pending delayed messages in the dispatch stash.
+///
+/// WAT program: on `handle`, sends a delayed message (delay=5 blocks) to the source,
+/// then replies with "OK". After re-genesis, the delayed task should be restored
+/// in the scheduler from the dispatch stash in the program state.
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn re_genesis_preserves_dispatch_stash() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    // WAT program: on handle, sends a delayed message to source and replies.
+    //
+    // Memory layout:
+    //   0..32   : source ActorId (filled by gr_source)
+    //   32..48  : value u128 = 0 (for dest_with_value)
+    //   48..55  : payload "DELAYED"
+    //   64..100 : error(4) + message_id(32) result buffer
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_source" (func $gr_source (param i32)))
+            (import "env" "gr_send" (func $gr_send (param i32 i32 i32 i32 i32)))
+            (import "env" "gr_reply" (func $gr_reply (param i32 i32 i32 i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (data (i32.const 48) "DELAYED")
+            (func $init)
+            (func $handle
+                ;; Get source address into memory at offset 0.
+                (call $gr_source (i32.const 0))
+                ;; Send delayed message: dest_with_value=0, payload=48, len=7, delay=5, err_ptr=64
+                (call $gr_send (i32.const 0) (i32.const 48) (i32.const 7) (i32.const 5) (i32.const 64))
+                ;; Reply with "DE" via gr_reply: payload_ptr=48, len=2, value_ptr=32, err_ptr=64
+                (call $gr_reply (i32.const 48) (i32.const 2) (i32.const 32) (i32.const 64))
+            )
+        )
+    "#;
+
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse WAT module");
+
+    log::info!("📗 Phase 1: deploy program and trigger delayed send.");
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let program_id = res.program_id;
+
+    // First message initializes the program (calls `init`).
+    let res = env
+        .send_message(program_id, b"init")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    // Second message triggers handle with delayed send.
+    let res = env
+        .send_message(program_id, b"trigger")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(&res.payload, b"DE"); // first 2 bytes of "DELAYED"
+
+    // Wait for announce commit.
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    // Phase 2: collect dump.
+    log::info!("📗 Phase 2: collect state dump.");
+    let dump_block_hash = node.db.globals().latest_prepared_block_hash;
+    let dump = StateDump::collect_from_storage(&node.db, dump_block_hash).unwrap();
+    log::info!(
+        "Dump: {} codes, {} programs, {} blobs",
+        dump.codes.len(),
+        dump.programs.len(),
+        dump.blobs.len(),
+    );
+
+    // Verify the dispatch stash is non-empty (delayed message pending).
+    {
+        let (_code_id, state_hash) = dump.programs.values().next().unwrap();
+        let state = node.db.program_state(*state_hash).unwrap();
+        assert!(
+            !state.stash_hash.is_empty(),
+            "dispatch stash should contain the delayed message"
+        );
+    }
+
+    drop(node);
+
+    // Phase 3: re-genesis.
+    log::info!("📗 Phase 3: re-genesis.");
+    let block = env.ethereum.get_block(dump.block_hash).await.unwrap();
+    let new_genesis = GenesisBlockInfo {
+        hash: block.hash,
+        number: block.header.height,
+        timestamp: block.header.timestamp,
+    };
+    env.ethereum.router().re_genesis(new_genesis).await.unwrap();
+
+    // Phase 4: start new node with dump.
+    log::info!("📗 Phase 4: start new node with state dump.");
+
+    struct GenesisInitializerFromDump {
+        dump: Option<StateDump>,
+        processor: Processor,
+    }
+
+    impl GenesisInitializer for GenesisInitializerFromDump {
+        fn get_genesis_data(&mut self) -> anyhow::Result<StateDump> {
+            self.dump
+                .take()
+                .ok_or_else(|| anyhow::anyhow!("genesis data already consumed"))
+        }
+
+        fn process_code(
+            &mut self,
+            code_id: gprimitives::CodeId,
+            code: Vec<u8>,
+        ) -> ethexe_db::CodeProcessingFuture {
+            let mut cloned_processor = self.processor.clone();
+            let func = move || {
+                let info = cloned_processor
+                    .process_code(ethexe_common::CodeAndIdUnchecked { code_id, code })?;
+                let Some(valid) = info.valid else {
+                    return Ok(None);
+                };
+                Ok(Some((valid.instrumented_code, valid.code_metadata)))
+            };
+            Box::pin(async move { func() })
+        }
+    }
+
+    let memory_db = Database::memory();
+    let processor = Processor::new(memory_db).unwrap();
+    let initializer = GenesisInitializerFromDump {
+        dump: Some(dump),
+        processor,
+    };
+
+    let new_db = ethexe_db::create_initialized_empty_memory_db(ethexe_db::InitConfig {
+        ethereum_rpc: env.eth_cfg.rpc.clone(),
+        router_address: env.eth_cfg.router_address,
+        slot_duration_secs: env.eth_cfg.block_time.as_secs(),
+        genesis_initializer: Some(Box::new(initializer)),
+    })
+    .await
+    .unwrap();
+
+    // Verify schedule was restored with the delayed task.
+    {
+        use ethexe_common::db::AnnounceStorageRO;
+        let genesis_announce = new_db.config().genesis_announce_hash;
+        let schedule = new_db.announce_schedule(genesis_announce).unwrap();
+        let total_tasks: usize = schedule.values().map(|tasks| tasks.len()).sum();
+        log::info!(
+            "Restored schedule: {total_tasks} tasks across {} blocks",
+            schedule.len()
+        );
+        assert!(
+            total_tasks > 0,
+            "schedule must contain the delayed send task"
+        );
+    }
+
+    let mut node2 = env
+        .new_node(
+            NodeConfig::default()
+                .db(new_db)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node2.start_service().await;
+
+    // Phase 5: verify program is responsive after re-genesis.
+    log::info!("📗 Phase 5: verify program is alive after re-genesis.");
+    let res = env
+        .send_message(program_id, b"trigger2")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    log::info!("Program responsive and scheduler preserved after re-genesis.");
 }
