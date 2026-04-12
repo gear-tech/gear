@@ -16,6 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Lightweight peer scoring used by the `ethexe` network stack.
+//!
+//! Protocols report bad behaviour through [`Handle`]. Scores decay back toward
+//! zero over time; peers that cross the configured threshold are temporarily
+//! added to a libp2p block list until the decay loop unblocks them again.
+
 use crate::export::{Multiaddr, PeerId};
 use libp2p::{
     allow_block_list,
@@ -58,7 +64,7 @@ impl ScoreDecreaseReason {
     }
 }
 
-/// Handle to report peer actions
+/// Handle used by other behaviours to report peer misbehaviour.
 #[derive(Debug, Clone)]
 pub struct Handle(mpsc::UnboundedSender<(PeerId, ScoreDecreaseReason)>);
 
@@ -70,10 +76,13 @@ impl Handle {
         Self(tx)
     }
 
+    /// Report that a peer sent too much data or otherwise exhausted protocol
+    /// limits.
     pub fn excessive_data(&self, peer_id: PeerId) {
         let _res = self.0.send((peer_id, ScoreDecreaseReason::ExcessiveData));
     }
 
+    /// Report that a peer sent malformed or otherwise invalid data.
     pub fn invalid_data(&self, peer_id: PeerId) {
         let _res = self.0.send((peer_id, ScoreDecreaseReason::InvalidData));
     }

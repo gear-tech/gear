@@ -16,15 +16,34 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Networking stack for `ethexe`.
+//!
+//! This crate wires together the libp2p swarm used by the execution layer and
+//! exposes it as a single [`NetworkService`] stream. The service combines:
+//!
+//! - peer management and connection caps;
+//! - Kademlia-backed validator discovery;
+//! - gossipsub topics for validator messages and public promises;
+//! - request/response database synchronization;
+//! - private injected-transaction delivery to validators;
+//! - peer scoring and temporary peer blocking.
+//!
+//! [`NetworkService`] is the main integration point used by higher-level
+//! services. It owns the swarm, emits validated [`NetworkEvent`] items, and
+//! hands out protocol-specific handles such as [`db_sync::Handle`] and
+//! [`peer_score::Handle`].
+
+/// Database synchronization protocol and request API.
 pub mod db_sync;
 mod gossipsub;
 mod injected;
 mod kad;
-pub mod peer_score;
+mod peer_score;
 mod slots;
 mod utils;
 mod validator;
 
+/// Small set of libp2p types re-exported for callers of this crate.
 pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
@@ -67,9 +86,12 @@ use std::{
 };
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
+/// Default listen port.
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
+/// Protocol version string advertised through libp2p identify.
 pub const PROTOCOL_VERSION: &str = "ethexe/0.1.0";
+/// Agent version string advertised through libp2p identify.
 pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
 // limit could be 1, but we want to prevent connection churn when both peers dial each other
@@ -79,43 +101,67 @@ const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
 const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 
+/// Hard cap for the amount of announces that can be returned in one db-sync
+/// response.
 pub const DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
 
+/// High-level events produced by [`NetworkService`].
 #[derive(derive_more::Debug)]
 pub enum NetworkEvent {
-    // gossipsub
+    /// A validator-signed message from the validator gossipsub topic.
     ValidatorMessage(VerifiedValidatorMessage),
+    /// A public promise observed on the promise gossipsub topic.
     PromiseMessage(SignedPromise),
-    // validator-identity
+    /// Validator discovery learned or refreshed the network identity of the
+    /// given validator address.
     ValidatorIdentityUpdated(Address),
-    // injected-tx
+    /// Private injected-transaction protocol produced an event.
     InjectedTransaction(NetworkInjectedEvent),
-    // peer-score
+    /// Peer scoring blocked a peer.
     PeerBlocked(PeerId),
+    /// Swarm established a connection with a peer.
     PeerConnected(PeerId),
 }
 
+/// Selects which transport backend the swarm should use.
 #[derive(Default, Debug, Clone, Copy)]
 pub enum TransportType {
+    /// Production transport: QUIC and TCP, with optional mDNS on local
+    /// networks.
     #[default]
     Default,
+    /// In-memory transport used by tests.
     Test,
 }
 
-/// Config from CLI
+/// Static network configuration usually assembled from CLI flags.
 #[derive(Debug, Clone)]
 pub struct NetworkConfig {
+    /// Public key corresponding to the libp2p networking identity.
+    ///
+    /// This is not the validator key. Validator identity is handled
+    /// separately and may be absent on non-validator nodes.
     pub public_key: PublicKey,
+    /// Router address that namespaces network protocols and topics.
     pub router_address: Address,
+    /// Addresses advertised to other peers.
     pub external_addresses: HashSet<Multiaddr>,
+    /// Peers we try to connect to proactively at startup.
     pub bootstrap_addresses: HashSet<Multiaddr>,
+    /// Addresses the local swarm listens on.
     pub listen_addresses: HashSet<Multiaddr>,
+    /// Transport backend to use.
     pub transport_type: TransportType,
+    /// Whether private and local addresses are allowed in discovery and
+    /// identify flows.
     pub allow_non_global_addresses: bool,
+    /// Upper bound for `Announces` db-sync responses served by this node.
     pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl NetworkConfig {
+    /// Build a local-development config that listens on localhost with the
+    /// default transport stack.
     pub fn new_local(public_key: PublicKey, router_address: Address) -> Self {
         Self {
             public_key,
@@ -129,6 +175,7 @@ impl NetworkConfig {
         }
     }
 
+    /// Build a test config backed by the in-memory transport.
     pub fn new_test(public_key: PublicKey, router_address: Address) -> Self {
         Self {
             public_key,
@@ -143,19 +190,30 @@ impl NetworkConfig {
     }
 }
 
-/// Config from other services
+/// Runtime dependencies injected by other `ethexe` services.
 pub struct NetworkRuntimeConfig {
+    /// Latest known block header used to seed validator-era state.
     pub latest_block_header: BlockHeader,
+    /// Validator set at [`Self::latest_block_header`].
     pub latest_validators: ValidatorsVec,
+    /// Validator key when this node participates as a validator.
     pub validator_key: Option<PublicKey>,
+    /// General-purpose signer used for validator-facing messages.
     pub general_signer: Signer,
+    /// Signer used only to construct the libp2p networking keypair.
     pub network_signer: Signer,
+    /// External lookups needed by db-sync request validation.
     pub external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
+    /// Database backing validator discovery and db-sync responses.
     pub db: Database,
 }
 
 type Libp2pMetrics = (libp2p::metrics::Registry, Arc<libp2p::metrics::Metrics>);
 
+/// Unified libp2p service used by `ethexe`.
+///
+/// The service owns the full swarm and implements [`Stream`], yielding
+/// validated high-level [`NetworkEvent`] values to its caller.
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
@@ -197,6 +255,7 @@ impl FusedStream for NetworkService {
 }
 
 impl NetworkService {
+    /// Construct a network service with all protocols enabled.
     pub fn new(
         config: NetworkConfig,
         runtime_config: NetworkRuntimeConfig,
@@ -554,24 +613,33 @@ impl NetworkService {
         None
     }
 
+    /// Returns the local libp2p peer ID.
     pub fn local_peer_id(&self) -> PeerId {
         *self.swarm.local_peer_id()
     }
 
+    /// Encode the libp2p metrics registry in Prometheus text format.
     pub fn render_libp2p_metrics(&self, writer: &mut impl Write) {
         let (registry, _metrics) = &self.metrics;
         prometheus_client::encoding::text::encode_registry(writer, registry)
             .expect("failed to encode metrics");
     }
 
-    pub fn score_handle(&self) -> peer_score::Handle {
+    /// Handle used by internal tests to report peer misbehaviour.
+    #[cfg(test)]
+    fn score_handle(&self) -> peer_score::Handle {
         self.swarm.behaviour().peer_score.handle()
     }
 
+    /// Handle used by external services to start db-sync requests.
     pub fn db_sync_handle(&self) -> db_sync::Handle {
         self.swarm.behaviour().db_sync.handle()
     }
 
+    /// Refresh validator-era state after the chain head changes.
+    ///
+    /// This updates both validator-message verification and validator
+    /// discovery so they use the latest validator snapshot.
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
         let snapshot = self.validator_list.set_chain_head(chain_head)?;
 
@@ -584,10 +652,12 @@ impl NetworkService {
         Ok(())
     }
 
+    /// Publish a validator-signed message to the validator gossipsub topic.
     pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
+    /// Send an injected transaction privately to the destination validator.
     pub fn send_injected_transaction(
         &mut self,
         data: AddressedInjectedTransaction,
@@ -598,6 +668,7 @@ impl NetworkService {
             .send_transaction(behaviour.validator_discovery.identities(), data)
     }
 
+    /// Publish a signed promise to the public promise gossipsub topic.
     pub fn publish_promise(&mut self, promise: SignedPromise) {
         self.swarm.behaviour_mut().gossipsub.publish(promise)
     }

@@ -16,6 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Peer-to-peer database synchronization for `ethexe`.
+//!
+//! The protocol is built on libp2p request/response and is used to fetch data
+//! that can be revalidated locally: raw CAS blobs, program-to-code mappings,
+//! valid code sets, and announce chains. Requests are driven through
+//! [`Handle`], while the behaviour internally retries across peers, enforces a
+//! per-request timeout, and limits concurrent inbound responses.
+
 mod requests;
 mod responses;
 
@@ -191,14 +199,17 @@ impl Config {
 
 #[async_trait]
 pub trait ExternalDataProvider: Send + Sync {
+    /// Clone the provider as a trait object.
     fn clone_boxed(&self) -> Box<dyn ExternalDataProvider>;
 
+    /// Resolve program IDs to code IDs at the given block.
     async fn programs_code_ids_at(
         self: Box<Self>,
         program_ids: BTreeSet<ActorId>,
         block: H256,
     ) -> anyhow::Result<Vec<CodeId>>;
 
+    /// Resolve code IDs to code states at the given block.
     async fn codes_states_at(
         self: Box<Self>,
         code_ids: BTreeSet<CodeId>,
@@ -224,35 +235,45 @@ pub struct HashesRequest(
     #[debug("{:?}", AlternateCollectionFmt::set(_0, "hashes"))] pub BTreeSet<H256>,
 );
 
+/// Request to fetch the program-to-code mapping visible at a specific block.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ProgramIdsRequest {
     pub at: H256,
     pub expected_count: u64,
 }
 
+/// Request to fetch the set of valid codes visible at a specific block.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ValidCodesRequest {
     pub at: H256,
     pub validated_count: u64,
 }
 
+/// High-level db-sync request types supported by the network.
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
+    /// Fetch raw CAS blobs by hash.
     Hashes(HashesRequest),
+    /// Fetch the program-to-code mapping for a block.
     ProgramIds(ProgramIdsRequest),
+    /// Fetch the set of valid code IDs for a block.
     ValidCodes(ValidCodesRequest),
+    /// Fetch an announce chain segment.
     Announces(AnnouncesRequest),
 }
 
 impl Request {
+    /// Build a request for a set of CAS hashes.
     pub fn hashes(request: impl Into<BTreeSet<H256>>) -> Self {
         Self::Hashes(HashesRequest(request.into()))
     }
 
+    /// Build a request for program-to-code mappings at `at`.
     pub fn program_ids(at: H256, expected_count: u64) -> Self {
         Self::ProgramIds(ProgramIdsRequest { at, expected_count })
     }
 
+    /// Build a request for the valid code set at `at`.
     pub fn valid_codes(at: H256, validated_count: u64) -> Self {
         Self::ValidCodes(ValidCodesRequest {
             at,
@@ -261,16 +282,22 @@ impl Request {
     }
 }
 
+/// Successful db-sync responses returned to callers.
 #[derive(derive_more::Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Unwrap)]
 pub enum Response {
+    /// Raw CAS blobs keyed by hash.
     Hashes(#[debug("{:?}", AlternateCollectionFmt::map(_0, "entries"))] BTreeMap<H256, Vec<u8>>),
+    /// Program-to-code mapping reconstructed for a block.
     ProgramIds(
         #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
     ),
+    /// Set of valid code IDs known at a block.
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
+    /// Contiguous announce chain response.
     Announces(AnnouncesResponse),
 }
 
+/// Result delivered by [`HandleFuture`].
 pub type HandleResult = Result<Response, (RequestFailure, RetriableRequest)>;
 
 enum HandleAction {
@@ -287,12 +314,14 @@ impl HandleAction {
     }
 }
 
+/// Future returned by [`Handle::request`] and [`Handle::retry`].
 pub struct HandleFuture {
     request_id: RequestId,
     rx: oneshot::Receiver<HandleResult>,
 }
 
 impl HandleFuture {
+    /// Returns the identifier assigned to this request.
     pub fn request_id(&self) -> RequestId {
         self.request_id
     }
@@ -323,10 +352,12 @@ impl Handle {
         HandleFuture { request_id, rx }
     }
 
+    /// Enqueue a new request.
     pub fn request(&self, request: Request) -> HandleFuture {
         self.send(HandleAction::Request(RequestId::next(), request))
     }
 
+    /// Re-enqueue a retriable request returned by a previous failure.
     pub fn retry(&self, request: RetriableRequest) -> HandleFuture {
         self.send(HandleAction::Retry(request))
     }
@@ -380,6 +411,7 @@ pub trait DbSyncDatabase:
     + ConfigStorageRO
     + GlobalsStorageRO
 {
+    /// Clone the database as a trait object.
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
 }
 
