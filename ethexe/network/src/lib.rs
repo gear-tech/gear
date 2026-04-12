@@ -33,7 +33,6 @@
 //! hands out protocol-specific handles such as [`db_sync::Handle`] and
 //! [`peer_score::Handle`].
 
-/// Database synchronization protocol and request API.
 pub mod db_sync;
 mod gossipsub;
 mod injected;
