@@ -16,15 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Validator-specific networking helpers.
-//!
-//! This module groups the pieces that depend on the on-chain validator set:
-//!
-//! - [`discovery`] publishes and fetches signed validator identities;
-//! - [`list`] tracks the current and next validator sets around the chain head;
-//! - [`topic`] validates validator-signed gossipsub messages against that
-//!   snapshot.
-
 use ethexe_common::db::OnChainStorageRO;
 use ethexe_db::Database;
 use std::fmt;
@@ -35,7 +26,6 @@ pub(crate) mod topic;
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait ValidatorDatabase: Send + fmt::Debug + OnChainStorageRO {
-    /// Clone the database as a trait object.
     fn clone_boxed(&self) -> Box<dyn ValidatorDatabase>;
 }
 

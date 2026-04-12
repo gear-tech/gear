@@ -197,6 +197,7 @@ impl Config {
     }
 }
 
+/// An asynchronous provider of external blockchain data required for response validation.
 #[async_trait]
 pub trait ExternalDataProvider: Send + Sync {
     /// Clone the provider as a trait object.
@@ -242,7 +243,8 @@ pub struct ProgramIdsRequest {
     pub expected_count: u64,
 }
 
-/// Request to fetch the set of valid codes visible at a specific block.
+/// Request to fetch the current set of valid codes and verify the response
+/// using [`ExternalDataProvider`] at a specific block.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ValidCodesRequest {
     pub at: H256,
@@ -256,7 +258,7 @@ pub enum Request {
     Hashes(HashesRequest),
     /// Fetch the program-to-code mapping for a block.
     ProgramIds(ProgramIdsRequest),
-    /// Fetch the set of valid code IDs for a block.
+    /// Fetch the node's locally stored set of valid code IDs.
     ValidCodes(ValidCodesRequest),
     /// Fetch an announce chain segment.
     Announces(AnnouncesRequest),
@@ -273,7 +275,8 @@ impl Request {
         Self::ProgramIds(ProgramIdsRequest { at, expected_count })
     }
 
-    /// Build a request for the valid code set at `at`.
+    /// Build a request for the valid code set, using `at` only for response
+    /// verification.
     pub fn valid_codes(at: H256, validated_count: u64) -> Self {
         Self::ValidCodes(ValidCodesRequest {
             at,
