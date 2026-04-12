@@ -111,7 +111,7 @@ jobs:
           sha256sum artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}.wasm
 
       - name: Publish
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: artifact/*
           tag_name: ${{ github.event.inputs.tag_name }}
@@ -125,7 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch Multiplatform Build Workflow
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           github-token: ${{ env.GITHUB_TOKEN }}
           script: |
@@ -145,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch Docker Build Workflow
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           github-token: ${{ env.GITHUB_TOKEN }}
           script: |

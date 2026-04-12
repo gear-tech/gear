@@ -98,7 +98,7 @@ jobs:
         fi
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v4
 
     - name: Terraform Apply
       timeout-minutes: 30
@@ -157,7 +157,7 @@ jobs:
         id: upload-errors
         # This step will only run if the run-bench step failed
         if: ${{ failure() && steps.run-bench.conclusion == 'failure' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: benchmarking-errors
           path: scripts/benchmarking/benchmarking_errors.txt
@@ -177,7 +177,7 @@ jobs:
         # This step will run if benchmarking finished with no errors (upload-errors step was skipped),
         # This runs even if baremetal patching was failed - in that case, make sure to handle it.
         if: ${{ !cancelled() && steps.upload-errors.conclusion == 'skipped'}}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: weights-output
           path: scripts/benchmarking/weights-output
@@ -232,7 +232,7 @@ jobs:
         sparse-checkout: terraform
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v4
 
     - name: Terraform Destroy
       timeout-minutes: 60
