@@ -483,7 +483,7 @@ impl RouterQuery {
             .signingThresholdFraction()
             .call()
             .await
-            .map(|res| (res._0, res._1))
+            .map(|res| (res.thresholdNumerator, res.thresholdDenominator))
             .map_err(Into::into)
     }
 

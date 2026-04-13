@@ -19,7 +19,7 @@ import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
  *      This means we have two types of events:
  *      - "Requested" events - when user calls one of the methods marked as "Primary Gear logic" we emit such an event,
  *        and all our nodes process it off-chain
- *      - "Responsed" events - when we receive response from our nodes and transmit it back to Ethereum.
+ *      - "Responded" events - when we receive response from our nodes and transmit it back to Ethereum.
  *         All logic called within `performStateTransition(...)` and leading to methods marked as
  *         "Private calls related to performStateTransition" are such events.
  *
