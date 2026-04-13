@@ -314,17 +314,17 @@ impl StateDump {
         storage: &(impl AnnounceStorageRO + CodesStorageRO + BlockMetaStorageRO + HashStorageRO),
         block_hash: H256,
     ) -> Result<Self> {
-        let announce_hash = storage
-            .block_meta(block_hash)
+        let block_meta = storage.block_meta(block_hash);
+
+        let announce_hash = block_meta
             .last_committed_announce
             .context("no committed announce found for block")?;
 
-        if !storage
-            .block_meta(block_hash)
+        let codes_queue = block_meta
             .codes_queue
-            .with_context(|| format!("codes queue not found for block {block_hash}"))?
-            .is_empty()
-        {
+            .with_context(|| format!("codes queue not found for block {block_hash}"))?;
+
+        if !codes_queue.is_empty() {
             // StorageDump does not include codes queue, so after re-genesis the queue will be lost.
             log::warn!(
                 "Codes queue is not empty at block {block_hash:?}. This may cause hanging codes after re-genesis."

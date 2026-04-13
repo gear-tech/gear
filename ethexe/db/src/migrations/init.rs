@@ -278,11 +278,11 @@ async fn genesis_data_initialization(
                 bail!("Genesis data contains invalid code {code_id}");
             };
 
-            // Panic if not exists, because we checked that code_bytes.len() == codes.len(),
+            // Should not happen because we checked that code_bytes.len() == codes.len(),
             // so all codes must be present in the database.
-            assert!(
+            ensure!(
                 db_clone.original_code_exists(code_id),
-                "code {code_id} must be already presented in database",
+                "code {code_id} must be already present in database",
             );
 
             db_clone.set_code_metadata(code_id, code_metadata);
