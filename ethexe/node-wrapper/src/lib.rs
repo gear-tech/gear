@@ -16,15 +16,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Vara.eth node wrapper.
+//!
+//! Node wrapper is a wrapper around the Vara.eth node.
+//! Internally, it do the next things:
+//! - spawns the Vara.eth node process
+//!     - spawns the Anvil node process
+//!     - deploy Ethereum smart-contracts on Anvil
+//! - provides the access to node PRC endpoints and Ethereum RPC endpoint
+//!
+//! ## Modules
+//! - [`node`] - provides the [VaraEth] struct - the node configurator
+//! - [`instance`] - provides the [VaraEthInstance] struct - the instance which holds the inner spawned process and RPC endpoints.
+//! - [`error`] - provides the [Error] enum - the error type for module errors.
+
 #![warn(missing_docs, unreachable_pub)]
 
-//! Vara.eth node wrapper.
-
-mod error;
+/// Crate errors module.
+pub mod error;
 pub use error::Error;
 
-mod instance;
+/// The node wrapper spawned instance module
+pub mod instance;
 pub use instance::VaraEthInstance;
 
-mod node;
+/// The node wrapper configuration module.
+pub mod node;
 pub use node::VaraEth;

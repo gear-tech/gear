@@ -22,6 +22,9 @@ pub enum Params {
     Fuzz(FuzzParams),
 }
 
+/// Parameters for the continuous load-generation mode.
+///
+/// Most defaults assume a local Anvil + `ethexe run --dev` setup.
 #[derive(Debug, Parser)]
 pub struct LoadParams {
     /// Ethexe node
@@ -62,10 +65,12 @@ pub struct LoadParams {
     pub use_send_message_multicall: bool,
 }
 
+/// Parses CLI arguments for the binary and returns the selected subcommand.
 pub fn parse_cli_params() -> Params {
     Params::parse()
 }
 
+/// Parameters for the syscall fuzzing mode.
 #[derive(Debug, Parser)]
 pub struct FuzzParams {
     /// Ethereum RPC node endpoint
@@ -96,6 +101,10 @@ pub struct FuzzParams {
     pub max_commands: usize,
 }
 
+/// Controls how seeds for generated WASM programs are produced.
+///
+/// `Dynamic` advances an RNG stream starting from the provided value, while
+/// `Constant` keeps generating the same seed every time for easier repros.
 #[derive(Debug, Clone)]
 pub enum SeedVariant {
     // TODO remove later (considering)

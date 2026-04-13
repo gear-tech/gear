@@ -1,6 +1,7 @@
 use crate::batch::context::{Context, ContextTotals, ContextUpdate};
 use std::fmt::{self, Write};
 
+/// Final status of one load-generator run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunEndedBy {
     Completed,
@@ -41,6 +42,7 @@ impl BatchExecutionStats {
     }
 }
 
+/// Outcome of a single batch execution before it is folded into shared state.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BatchReport {
     pub context_update: ContextUpdate,
@@ -54,11 +56,13 @@ pub struct BatchRunReport {
 }
 
 impl BatchRunReport {
+    /// Wraps a raw batch report together with the seed that produced it.
     pub fn new(seed: u64, batch: BatchReport) -> Self {
         Self { seed, batch }
     }
 }
 
+/// Summary of a whole load-generator run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadRunReport {
     pub metadata: LoadRunMetadata,

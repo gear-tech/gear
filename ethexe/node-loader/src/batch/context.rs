@@ -103,6 +103,7 @@ pub struct ProgramContextUpdate {
     pub stats_delta: ProgramStats,
 }
 
+/// Delta produced by a batch execution and applied to the shared generator state.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContextUpdate {
     pub codes: BTreeSet<CodeId>,
@@ -172,10 +173,12 @@ pub struct Context {
 }
 
 impl Context {
+    /// Creates an empty generation context.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Applies one batch result to the shared context.
     pub fn update(&mut self, update: ContextUpdate) {
         let ContextUpdate {
             mut codes,
