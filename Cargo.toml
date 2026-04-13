@@ -116,10 +116,10 @@ members = [
 [workspace.dependencies]
 gear-workspace-hack = "0.1.0"
 
-alloy = "1.8" # TODO: #5160 use release version of alloy when BlobGasFiller is fixed
-alloy-chains = "0.2"
-alloy-primitives = { version = "1.5", default-features = false }
-alloy-sol-types = { version = "1.5", default-features = false }
+alloy = "2.0"
+alloy-chains = "0.2.33"
+alloy-primitives = { version = "1.5.7", default-features = false }
+alloy-sol-types = { version = "1.5.7", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"
@@ -633,7 +633,6 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
-alloy = { version = "1.8", git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation" }
 gear-workspace-hack = { path = "utils/gear-workspace-hack" }
 
 # these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
