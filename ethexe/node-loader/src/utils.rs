@@ -24,15 +24,18 @@ use crate::batch::Event;
 const ANVIL_MNEMONIC: &str = "test test test test test test test test test test test junk";
 const MAX_PREBUILT_ANVIL_ACCOUNTS: u32 = 256;
 
+/// Minimal description of a prefunded Ethereum account known to local tooling.
 #[derive(Clone, Copy)]
 pub struct PrefundedAccount {
     pub private_key: &'static str,
 }
 
+/// Default Anvil deployer account used when no explicit sender key is provided.
 pub const DEPLOYER_ACCOUNT: PrefundedAccount = PrefundedAccount {
     private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 };
 
+/// Builds an in-memory signer and the corresponding address from a hex private key.
 pub fn signer_from_private_key(
     private_key_hex: &str,
 ) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
@@ -45,6 +48,10 @@ pub fn signer_from_private_key(
     Ok((signer, address))
 }
 
+/// Derives one of Anvil's prebuilt accounts from the standard mnemonic.
+///
+/// This is used to allocate deterministic worker accounts without needing to
+/// pass private keys on the command line.
 pub fn signer_from_anvil_account(
     account_index: u32,
 ) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
@@ -57,11 +64,16 @@ pub fn signer_from_anvil_account(
     signer_from_private_key(&private_key_hex)
 }
 
+/// Returns the first Anvil account index reserved for loader workers.
+///
+/// Account `0` is the default deployer, and the next `ethexe_nodes.len()`
+/// accounts are expected to be used by validators in the common local setup.
 pub fn worker_account_start(ethexe_nodes: usize) -> Result<u32> {
     let validator_count = u32::try_from(ethexe_nodes)?;
     Ok(validator_count + 1)
 }
 
+/// Ensures the requested worker count fits within the prebuilt Anvil accounts.
 pub fn validate_worker_count(ethexe_nodes: usize, workers: usize) -> Result<()> {
     let worker_account_start = worker_account_start(ethexe_nodes)?;
     let workers = u32::try_from(workers)?;
@@ -78,6 +90,10 @@ pub fn validate_worker_count(ethexe_nodes: usize, workers: usize) -> Result<()> 
     Ok(())
 }
 
+/// Generates a Gear program for `seed` and writes it to `out.wasm`.
+///
+/// This is primarily used to preserve a failing generated program for manual
+/// inspection or deterministic replay.
 pub async fn dump_with_seed(seed: u64) -> Result<()> {
     let code = gear_call_gen::generate_gear_program::<SmallRng, StandardGearWasmConfigsBundle>(
         seed,
@@ -90,7 +106,11 @@ pub async fn dump_with_seed(seed: u64) -> Result<()> {
     Ok(())
 }
 
-/// Returns configs bundle with a gear wasm generator config, which logs `seed`.
+/// Builds the WASM generator configuration used by load-mode batches.
+///
+/// The configuration intentionally biases syscall selection toward a mix that is
+/// useful for stressing mailbox, allocation, and async execution paths while
+/// still embedding the generation seed into the resulting module metadata.
 pub fn get_wasm_gen_config(
     seed: Seed,
     _existing_programs: impl Iterator<Item = ActorId>,
@@ -134,6 +154,10 @@ pub fn get_wasm_gen_config(
     }
 }
 
+/// Streams new Ethereum block headers into the broadcast channel.
+///
+/// If the subscription drops, the function reconnects up to a fixed number of
+/// times before surfacing an error to the caller.
 pub async fn listen_blocks(tx: broadcast::Sender<Header>, provider: RootProvider) -> Result<()> {
     let mut retry_count = 0;
     const MAX_RETRIES: usize = 10;
@@ -164,8 +188,9 @@ pub async fn listen_blocks(tx: broadcast::Sender<Header>, provider: RootProvider
 /// `message_ids` resulted in errors or has been successful.
 ///
 /// This function returns a vector of statuses with an associated message
-/// identifier ([`MessageId`]). Each status can be an error message in case
-/// of an error.
+/// identifier ([`MessageId`]). Each status is `None` for a successful terminal
+/// event and `Some(...)` when an error payload or failure description was
+/// observed in mirror events.
 pub async fn err_waited_or_succeed_batch(
     event_source: &mut [Event],
     message_ids: impl IntoIterator<Item = MessageId>,
