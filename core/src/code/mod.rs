@@ -33,7 +33,9 @@ mod utils;
 pub use errors::*;
 pub use instrumented::*;
 pub use metadata::*;
-pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
+pub use utils::{
+    ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS, get_custom_section_data,
+};
 
 use utils::CodeTypeSectionSizes;
 
@@ -1244,5 +1246,70 @@ mod tests {
                 InstrumentationError::GasInjection
             ))
         ));
+    }
+
+    mod custom_section_tests {
+        use crate::code::get_custom_section_data;
+        use alloc::{vec, vec::Vec};
+
+        fn make_wasm_with_custom_section(name: &str, data: &[u8]) -> Vec<u8> {
+            let mut module = wasm_encoder::Module::new();
+            // Add a minimal type section so it's a valid module
+            let mut types = wasm_encoder::TypeSection::new();
+            types.ty().function(vec![], vec![]);
+            module.section(&types);
+            // Add the custom section
+            module.section(&wasm_encoder::CustomSection {
+                name: name.into(),
+                data: data.into(),
+            });
+            module.finish()
+        }
+
+        #[test]
+        fn section_found() {
+            let wasm = make_wasm_with_custom_section("sails:idl", b"hello idl");
+            let result = get_custom_section_data(&wasm, "sails:idl");
+            assert_eq!(result.unwrap().unwrap(), b"hello idl");
+        }
+
+        #[test]
+        fn section_not_found() {
+            let wasm = make_wasm_with_custom_section("other", b"data");
+            let result = get_custom_section_data(&wasm, "sails:idl");
+            assert_eq!(result.unwrap(), None);
+        }
+
+        #[test]
+        fn first_match_returned() {
+            let mut module = wasm_encoder::Module::new();
+            let mut types = wasm_encoder::TypeSection::new();
+            types.ty().function(vec![], vec![]);
+            module.section(&types);
+            module.section(&wasm_encoder::CustomSection {
+                name: "sails:idl".into(),
+                data: b"first".into(),
+            });
+            module.section(&wasm_encoder::CustomSection {
+                name: "sails:idl".into(),
+                data: b"second".into(),
+            });
+            let wasm = module.finish();
+
+            let result = get_custom_section_data(&wasm, "sails:idl");
+            assert_eq!(result.unwrap().unwrap(), b"first");
+        }
+
+        #[test]
+        fn invalid_wasm() {
+            let result = get_custom_section_data(b"not wasm at all", "sails:idl");
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn empty_input() {
+            let result = get_custom_section_data(b"", "sails:idl");
+            assert!(result.is_err());
+        }
     }
 }

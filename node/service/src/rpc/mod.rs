@@ -42,6 +42,7 @@ use sp_keystore::KeystorePtr;
 
 mod gear_events;
 mod runtime_info;
+mod wasm_section;
 
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
@@ -144,6 +145,7 @@ where
     use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
     use substrate_frame_rpc_system::{System, SystemApiServer};
     use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
+    use wasm_section::{WasmSectionApi, WasmSectionServer};
 
     let mut io = RpcModule::new(());
 
@@ -224,6 +226,7 @@ where
     }
 
     io.merge(RuntimeInfoApi::<C, Block, B>::new(client.clone()).into_rpc())?;
+    io.merge(WasmSectionApi::<C, Block, B>::new(client.clone()).into_rpc())?;
 
     io.merge(GearStakingRewards::new(client.clone()).into_rpc())?;
 
