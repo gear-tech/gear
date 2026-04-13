@@ -115,7 +115,7 @@ impl StateHandler for Producer {
                         .core
                         .db
                         .find_block_announce(self.block.hash, |candidate| {
-                            candidate.value.is_base() && candidate.value.parent == announce.parent
+                            candidate.data.is_base() && candidate.data.parent == announce.parent
                         })? {
                         Some(base)
                             if announces::announces_have_equal_outcomes(
@@ -238,10 +238,10 @@ impl Producer {
 
         let state = if let Some(base_announce) =
             ctx.core.db.find_block_announce(block.hash, |announce| {
-                announce.value.is_base() && announce.value.parent == best_parent_announce_hash
+                announce.data.is_base() && announce.data.parent == best_parent_announce_hash
             })? {
             ctx.output(ConsensusEvent::ComputeAnnounce(
-                base_announce.value,
+                base_announce.data,
                 PromisePolicy::Disabled,
             ));
             State::WaitForBaseComputed {

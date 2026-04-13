@@ -233,7 +233,7 @@ impl<
 
             let with_hash = WithHashOf {
                 hash: announce_hash,
-                value: announce,
+                data: announce,
             };
 
             if pred(&with_hash) {
@@ -665,10 +665,10 @@ pub fn block_best_announce(
     let best_parent = best_parent_announce(db, block_hash, commitment_delay_limit)?;
 
     let not_base_announce_hash = db.find_block_announce(block_hash, |announce| {
-        announce.value.parent == best_parent && !announce.value.is_base()
+        announce.data.parent == best_parent && !announce.data.is_base()
     })?;
     let base_announce_hash = db.find_block_announce(block_hash, |announce| {
-        announce.value.parent == best_parent && announce.value.is_base()
+        announce.data.parent == best_parent && announce.data.is_base()
     })?;
 
     match (not_base_announce_hash, base_announce_hash) {
@@ -692,7 +692,7 @@ pub fn block_best_announce(
 fn best_announce(
     db: &impl DBAnnouncesExt,
     announces: impl IntoIterator<Item = HashOf<Announce>>,
-    limit: u32,
+    ancestor_depth_limit: u32,
 ) -> Result<HashOf<Announce>> {
     let mut announces = announces.into_iter();
     let Some(first) = announces.next() else {
@@ -703,7 +703,7 @@ fn best_announce(
 
     let announce_points = |mut announce_hash| -> Result<u32> {
         let mut points = 0;
-        for _ in 0..limit {
+        for _ in 0..ancestor_depth_limit {
             let announce = db
                 .announce(announce_hash)
                 .ok_or_else(|| anyhow!("Announce {announce_hash} not found in db"))?;
@@ -743,7 +743,7 @@ fn best_announce(
     }
 
     let Some(base_announce) = db.find_block_announce(best_announce.block_hash, |announce| {
-        announce.value.is_base() && announce.value.parent == best_announce.parent
+        announce.data.is_base() && announce.data.parent == best_announce.parent
     })?
     else {
         return Ok(best_announce_hash);

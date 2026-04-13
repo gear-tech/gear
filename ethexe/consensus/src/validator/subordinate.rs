@@ -203,11 +203,11 @@ impl Subordinate {
                         .core
                         .db
                         .find_block_announce(announce.block_hash, |candidate| {
-                            candidate.value.is_base() && candidate.value.parent == announce.parent
+                            candidate.data.is_base() && candidate.data.parent == announce.parent
                         })?
                         .map(|announce| {
                             self.ctx.output(ConsensusEvent::ComputeAnnounce(
-                                announce.value,
+                                announce.data,
                                 PromisePolicy::Disabled,
                             ));
                             announce.hash

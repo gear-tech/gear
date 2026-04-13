@@ -216,9 +216,9 @@ impl<T> From<HashOf<T>> for MaybeHashOf<T> {
     }
 }
 
-/// Hash of value with the value itself.
+/// Hash of data with the data itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WithHashOf<T: 'static> {
     pub hash: HashOf<T>,
-    pub value: T,
+    pub data: T,
 }
