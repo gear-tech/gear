@@ -493,7 +493,7 @@ async fn run_batch_for_worker(
 }
 
 /// Executes one generated batch and converts chain observations into a
-/// [`Report`] that can update shared generator state.
+/// [`BatchReport`] that can update shared generator state.
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 async fn run_batch_impl(
@@ -1365,7 +1365,7 @@ async fn recv_next_header<T: Clone>(rx: &mut Receiver<T>) -> Result<T> {
 /// For injected transactions with promises, uses the promise data directly.
 /// For regular transactions, parses Router and Mirror events.
 ///
-/// The resulting [`Report`] captures new codes, programs, mailbox mutations,
+/// The resulting [`BatchReport`] captures new codes, programs, mailbox mutations,
 /// exits, and reply outcomes for the batch that was just submitted.
 async fn process_events(
     api: Ethereum,
