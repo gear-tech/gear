@@ -9,6 +9,8 @@ ethexe-pre-commit-no-contracts: fmt clippy-gear
 # Building ethexe contracts
 .PHONY: ethexe-contracts-pre-commit
 ethexe-contracts-pre-commit:
+	@ echo " > Adding instrumentation to Router" && cp ./ethexe/contracts/src/Router.sol ./ethexe/contracts/src/instrumented/RouterWithInstrumentation.sol && sed -i 's/contract Router is/contract RouterWithInstrumentation is/' ./ethexe/contracts/src/instrumented/RouterWithInstrumentation.sol && sed -i 's/\/\/ emit DebugEvent(/emit DebugEvent(/g' ./ethexe/contracts/src/instrumented/RouterWithInstrumentation.sol
+	@ echo " > Adding instrumentation to Mirror" && cp ./ethexe/contracts/src/Mirror.sol ./ethexe/contracts/src/instrumented/MirrorWithInstrumentation.sol && sed -i 's/contract Mirror is/contract MirrorWithInstrumentation is/' ./ethexe/contracts/src/instrumented/MirrorWithInstrumentation.sol && sed -i 's/\/\/ emit DebugEvent(/emit DebugEvent(/g' ./ethexe/contracts/src/instrumented/MirrorWithInstrumentation.sol
 	@ echo " > Cleaning contracts" && forge clean --root ethexe/contracts
 	@ echo " > Formatting contracts" && forge fmt --root ethexe/contracts
 	@ echo " > Building contracts" && forge build --root ethexe/contracts
@@ -16,7 +18,9 @@ ethexe-contracts-pre-commit:
 	@ echo " > Copying Middleware artifact" && cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum/abi
 	@ echo " > Copying POAMiddleware artifact" && cp ./ethexe/contracts/out/POAMiddleware.sol/POAMiddleware.json ./ethexe/ethereum/abi
 	@ echo " > Copying Mirror artifact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum/abi
+	@ echo " > Copying MirrorWithInstrumentation artifact" && cp ./ethexe/contracts/out/MirrorWithInstrumentation.sol/MirrorWithInstrumentation.json ./ethexe/ethereum/abi
 	@ echo " > Copying Router artifact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum/abi
+	@ echo " > Copying RouterWithInstrumentation artifact" && cp ./ethexe/contracts/out/RouterWithInstrumentation.sol/RouterWithInstrumentation.json ./ethexe/ethereum/abi
 	@ echo " > Copying ERC1967Proxy artifact" && cp ./ethexe/contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json ./ethexe/ethereum/abi
 	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
 	@ echo " > Copying BatchMulticall" && cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi

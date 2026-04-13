@@ -11,7 +11,7 @@ import {IRouter} from "src/IRouter.sol";
 import {IWrappedVara} from "src/IWrappedVara.sol";
 import {Gear} from "src/libraries/Gear.sol";
 
-contract Mirror is IMirror {
+contract MirrorWithInstrumentation is IMirror {
     /// @dev Special address to which Sails contract sends messages so that Mirror can decode events:
     ///      https://github.com/gear-tech/sails/blob/master/rs/src/solidity.rs
     address internal constant ETH_EVENT_ADDR = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
@@ -207,45 +207,45 @@ contract Mirror is IMirror {
         returns (bytes32)
     {
         /// @dev Verify that the transition belongs to this contract.
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_VERIFY_ACTOR_ID);
         require(_transition.actorId == address(this), InvalidActorId());
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_VERIFY_ACTOR_ID);
 
         /// @dev Transfer value to router if valueToReceive is non-zero and has negative sign.
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_RETRIEVE_ETHER);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_RETRIEVE_ETHER);
         if (_transition.valueToReceiveNegativeSign) {
             _retrievingEther(_transition.valueToReceive);
         }
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_RETRIEVE_ETHER);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_RETRIEVE_ETHER);
 
         /// @dev Send all outgoing messages.
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_SEND_MESSAGES);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_SEND_MESSAGES);
         bytes32 messagesHashesHash = _sendMessages(_transition.messages);
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_SEND_MESSAGES);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_SEND_MESSAGES);
 
         /// @dev Send value for each claim.
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_CLAIM_VALUES);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_CLAIM_VALUES);
         bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_CLAIM_VALUES);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_CLAIM_VALUES);
 
         /// @dev Set inheritor if exited.
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_SET_INHERITOR);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_SET_INHERITOR);
         if (_transition.exited) {
             _setInheritor(_transition.inheritor);
         } else {
             require(_transition.inheritor == address(0), InheritorMustBeZero());
         }
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_SET_INHERITOR);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_SET_INHERITOR);
 
         /// @dev Update the state hash if changed.
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_UPDATE_STATE_HASH);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_UPDATE_STATE_HASH);
         if (stateHash != _transition.newStateHash) {
             _updateStateHash(_transition.newStateHash);
         }
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_UPDATE_STATE_HASH);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_UPDATE_STATE_HASH);
 
         /// @dev Return hash of performed state transition.
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_RETURN_HASH);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_BEFORE_RETURN_HASH);
         bytes32 _stateTransitionHash = Gear.stateTransitionHash(
             _transition.actorId,
             _transition.newStateHash,
@@ -256,7 +256,7 @@ contract Mirror is IMirror {
             valueClaimsHash,
             messagesHashesHash
         );
-        // emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_RETURN_HASH);
+        emit DebugEvent(PERFORM_STATE_TRANSITION_AFTER_RETURN_HASH);
         return _stateTransitionHash;
     }
 

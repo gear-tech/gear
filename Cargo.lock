@@ -116,7 +116,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-contract",
  "alloy-core",
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-genesis",
  "alloy-network",
  "alloy-node-bindings",
@@ -124,7 +124,7 @@ dependencies = [
  "alloy-pubsub",
  "alloy-rpc-client",
  "alloy-rpc-types",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-signer",
  "alloy-signer-local",
  "alloy-transport",
@@ -150,10 +150,10 @@ name = "alloy-consensus"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-trie",
  "alloy-tx-macros",
  "auto_impl",
@@ -177,10 +177,10 @@ version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "serde",
 ]
 
@@ -270,6 +270,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "borsh",
+ "k256",
  "serde",
  "thiserror 2.0.17",
 ]
@@ -289,6 +290,29 @@ dependencies = [
 [[package]]
 name = "alloy-eips"
 version = "1.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6ef28c9fdad22d4eec52d894f5f2673a0895f1e5ef196734568e68c0f6caca8"
+dependencies = [
+ "alloy-eip2124",
+ "alloy-eip2930",
+ "alloy-eip7702",
+ "alloy-eip7928",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-serde 1.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "auto_impl",
+ "borsh",
+ "c-kzg",
+ "derive_more 2.1.1",
+ "either",
+ "serde",
+ "serde_with",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "alloy-eips"
+version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-eip2124",
@@ -297,7 +321,7 @@ dependencies = [
  "alloy-eip7928",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "auto_impl",
  "borsh",
  "c-kzg",
@@ -313,9 +337,9 @@ name = "alloy-genesis"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-trie",
  "borsh",
  "serde",
@@ -368,13 +392,13 @@ source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimatio
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-json-rpc",
  "alloy-network-primitives",
  "alloy-primitives",
  "alloy-rpc-types-any",
  "alloy-rpc-types-eth",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-signer",
  "alloy-sol-types",
  "async-trait",
@@ -392,9 +416,9 @@ version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "serde",
 ]
 
@@ -453,7 +477,7 @@ source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimatio
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-json-rpc",
  "alloy-network",
  "alloy-network-primitives",
@@ -565,7 +589,7 @@ dependencies = [
  "alloy-rpc-types-beacon",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "serde",
 ]
 
@@ -576,7 +600,7 @@ source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimatio
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-eth",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "serde",
 ]
 
@@ -587,7 +611,7 @@ source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimatio
 dependencies = [
  "alloy-consensus-any",
  "alloy-rpc-types-eth",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
 ]
 
 [[package]]
@@ -595,7 +619,7 @@ name = "alloy-rpc-types-beacon"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
  "alloy-rpc-types-engine",
  "derive_more 2.1.1",
@@ -611,10 +635,10 @@ version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-consensus",
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "derive_more 2.1.1",
  "rand 0.8.5",
  "serde",
@@ -628,17 +652,28 @@ source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimatio
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-network-primitives",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-sol-types",
  "itertools 0.14.0",
  "serde",
  "serde_json",
  "serde_with",
  "thiserror 2.0.17",
+]
+
+[[package]]
+name = "alloy-serde"
+version = "1.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11ece63b89294b8614ab3f483560c08d016930f842bf36da56bf0b764a15c11e"
+dependencies = [
+ "alloy-primitives",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -959,7 +994,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb00293ba84f51ce3bd026bd0de55899c4e68f0a39a5728cebae3a73ffdc0a4f"
 dependencies = [
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-std 0.4.0",
 ]
@@ -971,7 +1006,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20c7021f180a0cbea0380eba97c2af3c57074cdaffe0eef7e840e1c9f2841e55"
 dependencies = [
  "ark-bls12-377",
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-models-ext",
  "ark-std 0.4.0",
 ]
@@ -982,10 +1017,22 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c775f0d12169cba7aae4caeb547bb6a50781c7449a8aa53793827c9ec4abf488"
 dependencies = [
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
+]
+
+[[package]]
+name = "ark-bls12-381"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3df4dcc01ff89867cd86b0da835f23c3f02738353aaee7dde7495af71363b8d5"
+dependencies = [
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
 ]
 
 [[package]]
@@ -994,12 +1041,24 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1dc4b3d08f19e8ec06e949712f95b8361e43f1391d94f65e4234df03480631c"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
+ "ark-bls12-381 0.4.0",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-models-ext",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
+]
+
+[[package]]
+name = "ark-bn254"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d69eab57e8d2663efa5c63135b2af4f396d66424f88954c21104125ab6b3e6bc"
+dependencies = [
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-r1cs-std",
+ "ark-std 0.5.0",
 ]
 
 [[package]]
@@ -1009,7 +1068,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e0605daf0cc5aa2034b78d008aaf159f56901d92a52ee4f6ecdfdac4f426700"
 dependencies = [
  "ark-bls12-377",
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-std 0.4.0",
 ]
@@ -1021,7 +1080,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccee5fba47266f460067588ee1bf070a9c760bf2050c1c509982c5719aadb4f2"
 dependencies = [
  "ark-bw6-761",
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-models-ext",
  "ark-std 0.4.0",
@@ -1034,7 +1093,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "defd9a439d56ac24968cca0571f598a61bc8c55f71d50a89cda591cb750670ba"
 dependencies = [
  "ark-ff 0.4.2",
- "ark-poly",
+ "ark-poly 0.4.2",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
  "derivative",
@@ -1046,13 +1105,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-ec"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43d68f2d516162846c1238e755a7c4d131b892b70cc70c471a8e3ca3ed818fce"
+dependencies = [
+ "ahash",
+ "ark-ff 0.5.0",
+ "ark-poly 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "educe",
+ "fnv",
+ "hashbrown 0.15.5",
+ "itertools 0.13.0",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "zeroize",
+]
+
+[[package]]
 name = "ark-ed-on-bls12-377"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b10d901b9ac4b38f9c32beacedfadcdd64e46f8d7f8e88c1ae1060022cf6f6c6"
 dependencies = [
  "ark-bls12-377",
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-std 0.4.0",
 ]
@@ -1063,7 +1143,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "524a4fb7540df2e1a8c2e67a83ba1d1e6c3947f4f9342cc2359fc2e789ad731d"
 dependencies = [
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
  "ark-models-ext",
@@ -1076,8 +1156,8 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9cde0f2aa063a2a5c28d39b47761aa102bda7c13c84fc118a61b87c7b2f785c"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
+ "ark-bls12-381 0.4.0",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-std 0.4.0",
 ]
@@ -1088,7 +1168,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d15185f1acb49a07ff8cbe5f11a1adc5a93b19e211e325d826ae98e98e124346"
 dependencies = [
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ed-on-bls12-381-bandersnatch",
  "ark-ff 0.4.2",
  "ark-models-ext",
@@ -1227,7 +1307,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e9eab5d4b5ff2f228b763d38442adc9b084b0a465409b059fac5c2308835ec2"
 dependencies = [
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
@@ -1248,12 +1328,56 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-poly"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "579305839da207f02b89cd1679e50e67b4331e2f9294a57693e5051b7703fe27"
+dependencies = [
+ "ahash",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "ark-std 0.5.0",
+ "educe",
+ "fnv",
+ "hashbrown 0.15.5",
+]
+
+[[package]]
+name = "ark-r1cs-std"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "941551ef1df4c7a401de7068758db6503598e6f01850bdb2cfdb614a1f9dbea1"
+dependencies = [
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-relations",
+ "ark-std 0.5.0",
+ "educe",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "tracing",
+]
+
+[[package]]
+name = "ark-relations"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec46ddc93e7af44bcab5230937635b06fb5744464dd6a7e7b083e80ebd274384"
+dependencies = [
+ "ark-ff 0.5.0",
+ "ark-std 0.5.0",
+ "tracing",
+ "tracing-subscriber 0.2.25",
+]
+
+[[package]]
 name = "ark-scale"
 version = "0.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f69c00b3b529be29528a6f2fd5fa7b1790f8bed81b9cdca17e326538545a179"
 dependencies = [
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
@@ -1277,7 +1401,7 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb7b85a02b83d2f22f89bd5cac66c9c89474240cb6207cb1efc16d098e822a5"
 dependencies = [
- "ark-serialize-derive",
+ "ark-serialize-derive 0.4.2",
  "ark-std 0.4.0",
  "digest 0.10.7",
  "num-bigint",
@@ -1289,6 +1413,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f4d068aaf107ebcd7dfb52bc748f8030e0fc930ac8e360146ca54c1203088f7"
 dependencies = [
+ "ark-serialize-derive 0.5.0",
  "ark-std 0.5.0",
  "arrayvec 0.7.6",
  "digest 0.10.7",
@@ -1304,6 +1429,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "ark-serialize-derive"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "213888f660fddcca0d257e88e54ac05bca01885f258ccdf695bafd77031bb69d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -1790,6 +1926,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "aurora-engine-modexp"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "518bc5745a6264b5fd7b09dffb9667e400ee9e2bbe18555fac75e1fe9afa0df9"
+dependencies = [
+ "hex",
+ "num",
+]
+
+[[package]]
 name = "auto_impl"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2033,6 +2179,9 @@ name = "bitflags"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "812e12b5285cc515a9c72a5c1d3b6d46a19dac5acfef5265968c166106e31dd3"
+dependencies = [
+ "serde_core",
+]
 
 [[package]]
 name = "bitvec"
@@ -2042,6 +2191,7 @@ checksum = "1bc2832c24239b0141d5674bb9174f9d68a8b5b3f2753311927c172ca46f7e9c"
 dependencies = [
  "funty",
  "radium",
+ "serde",
  "tap",
  "wyz",
 ]
@@ -2400,9 +2550,9 @@ dependencies = [
 
 [[package]]
 name = "c-kzg"
-version = "2.1.5"
+version = "2.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e00bf4b112b07b505472dbefd19e37e53307e2bfed5a79e0cc161d58ccd0e687"
+checksum = "6648ed1e4ea8e8a1a4a2c78e1cda29a3fd500bc622899c340d8525ea9a76b24a"
 dependencies = [
  "blst",
  "cc",
@@ -2432,7 +2582,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gear-workspace-hack",
  "log",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "wasmer",
  "wasmer-types",
  "wat",
@@ -2464,7 +2614,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -2481,7 +2631,7 @@ dependencies = [
  "structopt",
  "tokio",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "warp",
 ]
 
@@ -5127,7 +5277,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "toml 0.8.23",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -5265,6 +5415,7 @@ dependencies = [
  "log",
  "nonempty 0.12.0",
  "rand 0.8.5",
+ "revm",
  "roast-secp256k1-evm",
  "serde",
  "tokio",
@@ -5303,7 +5454,7 @@ dependencies = [
  "rand 0.8.5",
  "thiserror 2.0.17",
  "tokio",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -5329,7 +5480,7 @@ dependencies = [
  "rand 0.8.5",
  "tokio",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "url",
 ]
 
@@ -5404,7 +5555,7 @@ dependencies = [
  "sp-wasm-interface",
  "thiserror 2.0.17",
  "tokio",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "wasmtime",
  "wat",
 ]
@@ -5453,7 +5604,7 @@ dependencies = [
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -5557,7 +5708,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "wat",
 ]
 
@@ -6515,8 +6666,8 @@ dependencies = [
 name = "gbuiltin-bls381"
 version = "1.10.0"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
+ "ark-bls12-381 0.4.0",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-scale",
  "ark-serialize 0.4.2",
@@ -6579,7 +6730,7 @@ dependencies = [
  "snapbox",
  "tokio",
  "toml 0.8.23",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "url",
 ]
 
@@ -6639,7 +6790,7 @@ dependencies = [
  "sp-state-machine",
  "sp-timestamp",
  "substrate-prometheus-endpoint",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "vara-runtime",
 ]
 
@@ -6776,7 +6927,7 @@ dependencies = [
  "scale-encode",
  "scale-info",
  "serde",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
 ]
@@ -6799,7 +6950,7 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -6875,7 +7026,7 @@ dependencies = [
  "proptest",
  "region",
  "sp-wasm-interface-common",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "wasmer-vm",
  "winapi",
 ]
@@ -6936,7 +7087,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-appender",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -7219,7 +7370,7 @@ dependencies = [
  "path-clean",
  "serde",
  "serde_json",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -7237,7 +7388,7 @@ dependencies = [
  "subxt",
  "thiserror 2.0.17",
  "tokio",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -7369,7 +7520,7 @@ dependencies = [
  "alloy-chains",
  "alloy-consensus",
  "alloy-contract",
- "alloy-eips",
+ "alloy-eips 1.8.3 (git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation)",
  "alloy-json-abi",
  "alloy-primitives",
  "alloy-provider",
@@ -7382,9 +7533,9 @@ dependencies = [
  "alloy-sol-type-parser",
  "alloy-sol-types",
  "anyhow",
- "ark-bls12-381",
+ "ark-bls12-381 0.4.0",
  "ark-bls12-381-ext",
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-models-ext",
  "ark-scale",
@@ -7680,7 +7831,7 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "trie-db",
  "trie-root",
  "trybuild",
@@ -7960,8 +8111,8 @@ dependencies = [
 name = "gsdk"
 version = "1.10.0"
 dependencies = [
- "ark-bls12-381",
- "ark-ec",
+ "ark-bls12-381 0.4.0",
+ "ark-ec 0.4.2",
  "ark-scale",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
@@ -8046,7 +8197,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.17",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -8126,7 +8277,7 @@ dependencies = [
  "sha2 0.10.9",
  "sp-core",
  "thiserror 2.0.17",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -10771,7 +10922,7 @@ dependencies = [
  "generator",
  "scoped-tls",
  "tracing",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -11679,6 +11830,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "num"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
+dependencies = [
+ "num-bigint",
+ "num-complex",
+ "num-integer",
+ "num-iter",
+ "num-rational",
+ "num-traits",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11719,6 +11884,17 @@ version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
 dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "num-iter"
+version = "0.1.45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1429034a0490724d0075ebb2bc9e875d6503c3cf69e235a8941aa757d83ef5bf"
+dependencies = [
+ "autocfg",
+ "num-integer",
  "num-traits",
 ]
 
@@ -11789,6 +11965,7 @@ version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff32365de1b6743cb203b710788263c44a03de03802daf96092f2da4fe6ba4d7"
 dependencies = [
+ "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -11996,6 +12173,18 @@ name = "os_str_bytes"
 version = "6.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2355d85b9a3786f481747ced0e0ff2ba35213a1f9bd406ed906554d7af805a1"
+
+[[package]]
+name = "p256"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
+dependencies = [
+ "ecdsa",
+ "elliptic-curve",
+ "primeorder",
+ "sha2 0.10.9",
+]
 
 [[package]]
 name = "page_size"
@@ -12274,7 +12463,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "test-syscalls",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
 ]
@@ -12347,7 +12536,7 @@ dependencies = [
  "sp-runtime",
  "sp-staking",
  "sp-std",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -12411,7 +12600,7 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-std",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -12467,7 +12656,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -12489,7 +12678,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -12616,7 +12805,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -12649,7 +12838,7 @@ dependencies = [
  "sp-npos-elections",
  "sp-runtime",
  "sp-std",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -13394,6 +13583,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "phf"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
+dependencies = [
+ "phf_macros",
+ "phf_shared",
+ "serde",
+]
+
+[[package]]
+name = "phf_generator"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "135ace3a761e564ec88c03a77317a7c6b80bb7f7135ef2544dbe054243b89737"
+dependencies = [
+ "fastrand",
+ "phf_shared",
+]
+
+[[package]]
+name = "phf_macros"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "812f032b54b1e759ccd5f8b6677695d5268c588701effba24601f6932f8269ef"
+dependencies = [
+ "phf_generator",
+ "phf_shared",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
+]
+
+[[package]]
+name = "phf_shared"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e57fef6bc5981e38c2ce2d63bfa546861309f875b8a75f092d1d54ae2d64f266"
+dependencies = [
+ "siphasher 1.0.1",
+]
+
+[[package]]
 name = "pin-project"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13696,6 +13928,15 @@ checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
 dependencies = [
  "proc-macro2",
  "syn 2.0.114",
+]
+
+[[package]]
+name = "primeorder"
+version = "0.13.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
+dependencies = [
+ "elliptic-curve",
 ]
 
 [[package]]
@@ -14721,6 +14962,197 @@ name = "resolv-conf"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e061d1b48cb8d38042de4ae0a7a6401009d6143dc80d2e2d6f31f0bdd6470c7"
+
+[[package]]
+name = "revm"
+version = "36.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0abc15d09cd211e9e73410ada10134069c794d4bcdb787dfc16a1bf0939849c"
+dependencies = [
+ "revm-bytecode",
+ "revm-context",
+ "revm-context-interface",
+ "revm-database",
+ "revm-database-interface",
+ "revm-handler",
+ "revm-inspector",
+ "revm-interpreter",
+ "revm-precompile",
+ "revm-primitives",
+ "revm-state",
+]
+
+[[package]]
+name = "revm-bytecode"
+version = "9.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e86e468df3cf5cf59fa7ef71a3e9ccabb76bb336401ea2c0674f563104cf3c5e"
+dependencies = [
+ "bitvec",
+ "phf",
+ "revm-primitives",
+ "serde",
+]
+
+[[package]]
+name = "revm-context"
+version = "15.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9eb1f0a76b14d684a444fc52f7bf6b7564bf882599d91ee62e76d602e7a187c7"
+dependencies = [
+ "bitvec",
+ "cfg-if",
+ "derive-where",
+ "revm-bytecode",
+ "revm-context-interface",
+ "revm-database-interface",
+ "revm-primitives",
+ "revm-state",
+ "serde",
+]
+
+[[package]]
+name = "revm-context-interface"
+version = "16.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc256b27743e2912ca16899568e6652a372eb5d1d573e6edb16c7836b16cf487"
+dependencies = [
+ "alloy-eip2930",
+ "alloy-eip7702",
+ "auto_impl",
+ "either",
+ "revm-database-interface",
+ "revm-primitives",
+ "revm-state",
+ "serde",
+]
+
+[[package]]
+name = "revm-database"
+version = "12.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c0a7d6da41061f2c50f99a2632571026b23684b5449ff319914151f4449b6c8"
+dependencies = [
+ "alloy-eips 1.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "revm-bytecode",
+ "revm-database-interface",
+ "revm-primitives",
+ "revm-state",
+ "serde",
+]
+
+[[package]]
+name = "revm-database-interface"
+version = "10.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd497a38a79057b94a049552cb1f925ad15078bc1a479c132aeeebd1d2ccc768"
+dependencies = [
+ "auto_impl",
+ "either",
+ "revm-primitives",
+ "revm-state",
+ "serde",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "revm-handler"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f1eed729ca9b228ae98688f352235871e9b8be3d568d488e4070f64c56e9d3d"
+dependencies = [
+ "auto_impl",
+ "derive-where",
+ "revm-bytecode",
+ "revm-context",
+ "revm-context-interface",
+ "revm-database-interface",
+ "revm-interpreter",
+ "revm-precompile",
+ "revm-primitives",
+ "revm-state",
+ "serde",
+]
+
+[[package]]
+name = "revm-inspector"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbf5102391706513689f91cb3cb3d97b5f13a02e8647e6e9cb7620877ef84847"
+dependencies = [
+ "auto_impl",
+ "either",
+ "revm-context",
+ "revm-database-interface",
+ "revm-handler",
+ "revm-interpreter",
+ "revm-primitives",
+ "revm-state",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "revm-interpreter"
+version = "34.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf22f80612bb8f58fd1f578750281f2afadb6c93835b14ae6a4d6b75ca26f445"
+dependencies = [
+ "revm-bytecode",
+ "revm-context-interface",
+ "revm-primitives",
+ "revm-state",
+ "serde",
+]
+
+[[package]]
+name = "revm-precompile"
+version = "32.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2ec11f45deec71e4945e1809736bb20d454285f9167ab53c5159dae1deb603f"
+dependencies = [
+ "ark-bls12-381 0.5.0",
+ "ark-bn254",
+ "ark-ec 0.5.0",
+ "ark-ff 0.5.0",
+ "ark-serialize 0.5.0",
+ "arrayref",
+ "aurora-engine-modexp",
+ "blst",
+ "c-kzg",
+ "cfg-if",
+ "k256",
+ "p256",
+ "revm-primitives",
+ "ripemd",
+ "secp256k1 0.31.1",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "revm-primitives"
+version = "22.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bcfb5ce6cf18b118932bcdb7da05cd9c250f2cb9f64131396b55f3fe3537c35"
+dependencies = [
+ "alloy-primitives",
+ "num_enum 0.7.5",
+ "once_cell",
+ "serde",
+]
+
+[[package]]
+name = "revm-state"
+version = "10.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d29404707763da607e5d6e4771cb203998c28159279c2f64cc32de08d2814651"
+dependencies = [
+ "alloy-eip7928",
+ "bitflags 2.10.0",
+ "revm-bytecode",
+ "revm-primitives",
+ "serde",
+]
 
 [[package]]
 name = "rfc6979"
@@ -16265,7 +16697,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tracing",
  "tracing-log",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -16638,6 +17070,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "secp256k1"
+version = "0.31.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c3c81b43dc2d8877c216a3fccf76677ee1ebccd429566d3e67447290d0c42b2"
+dependencies = [
+ "bitcoin_hashes 0.14.1",
+ "rand 0.9.2",
+ "secp256k1-sys 0.11.0",
+]
+
+[[package]]
 name = "secp256k1-sys"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16651,6 +17094,15 @@ name = "secp256k1-sys"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4387882333d3aa8cb20530a17c69a3752e97837832f34f6dccc760e715001d9"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcb913707158fadaf0d8702c2db0e857de66eb003ccfdda5924b5f5ac98efb38"
 dependencies = [
  "cc",
 ]
@@ -16849,6 +17301,7 @@ version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
 dependencies = [
+ "indexmap 2.13.0",
  "itoa",
  "memchr",
  "serde",
@@ -17559,11 +18012,11 @@ source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-377-ext",
- "ark-bls12-381",
+ "ark-bls12-381 0.4.0",
  "ark-bls12-381-ext",
  "ark-bw6-761",
  "ark-bw6-761-ext",
- "ark-ec",
+ "ark-ec 0.4.2",
  "ark-ed-on-bls12-377",
  "ark-ed-on-bls12-377-ext",
  "ark-ed-on-bls12-381-bandersnatch",
@@ -17949,7 +18402,7 @@ dependencies = [
  "parity-scale-codec",
  "tracing",
  "tracing-core",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -19297,7 +19750,7 @@ dependencies = [
  "crossbeam-channel",
  "thiserror 2.0.17",
  "time",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]
@@ -19349,6 +19802,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "704b1aeb7be0d0a84fc9828cae51dab5970fee5088f83d1dd7ee6f6246fc6ff1"
 dependencies = [
  "serde",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.2.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e0d2eaa99c3c2e41547cfa109e910a68ea03823cccad4a0525dcbc9b01e8c71"
+dependencies = [
  "tracing-core",
 ]
 
@@ -19858,7 +20320,7 @@ dependencies = [
  "sp-version",
  "substrate-build-script-utils",
  "substrate-wasm-builder",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
  "wat",
 ]
 
@@ -19904,11 +20366,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6bfb937b3d12077654a9e43e32a4e9c20177dd9fea0f3aba673e7840bb54f32"
 dependencies = [
  "ark-bls12-377",
- "ark-bls12-381",
- "ark-ec",
+ "ark-bls12-381 0.4.0",
+ "ark-ec 0.4.2",
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
- "ark-serialize-derive",
+ "ark-serialize-derive 0.4.2",
  "arrayref",
  "digest 0.10.7",
  "rand 0.8.5",
@@ -20139,7 +20601,7 @@ dependencies = [
  "gear-wasm-instrument",
  "gear-workspace-hack",
  "log",
- "tracing-subscriber",
+ "tracing-subscriber 0.3.22",
 ]
 
 [[package]]

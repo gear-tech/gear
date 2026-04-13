@@ -21,7 +21,7 @@ import {ClonesSmall} from "src/libraries/ClonesSmall.sol";
 import {Gear} from "src/libraries/Gear.sol";
 import {SSTORE2} from "src/libraries/SSTORE2.sol";
 
-contract Router is
+contract RouterWithInstrumentation is
     IRouter,
     OwnableUpgradeable,
     PausableUpgradeable,
@@ -370,9 +370,9 @@ contract Router is
 
         bytes32 _chainCommitmentHash = _commitChain(router, _batch);
 
-        // emit DebugEvent(COMMIT_BATCH_BEFORE_COMMIT_CODES);
+        emit DebugEvent(COMMIT_BATCH_BEFORE_COMMIT_CODES);
         bytes32 _codeCommitmentsHash = _commitCodes(router, _batch);
-        // emit DebugEvent(COMMIT_BATCH_AFTER_COMMIT_CODES);
+        emit DebugEvent(COMMIT_BATCH_AFTER_COMMIT_CODES);
 
         bytes32 _rewardsCommitmentHash = _commitRewards(router, _batch);
         bytes32 _validatorsCommitmentHash = _commitValidators(router, _batch);
