@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Ethereum connectivity and fee-tuning parameters.
+
 use super::MergeParams;
 use anyhow::{Result, anyhow};
 use clap::Parser;
@@ -77,7 +79,10 @@ impl EthereumParams {
     /// Default blob gas multiplier.
     pub const DEFAULT_BLOB_GAS_MULTIPLIER: u128 = INCREASED_BLOB_GAS_MULTIPLIER;
 
-    /// Convert self into a proper `EthereumConfig` object.
+    /// Converts Ethereum-facing CLI/TOML parameters into [`EthereumConfig`].
+    ///
+    /// The Router address is required because it anchors all on-chain operations. RPC
+    /// endpoints, block time, and fee-tuning values fall back to sensible local defaults.
     pub fn into_config(self) -> Result<EthereumConfig> {
         Ok(EthereumConfig {
             rpc: self

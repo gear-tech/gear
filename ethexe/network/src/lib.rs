@@ -20,7 +20,6 @@ pub mod db_sync;
 mod gossipsub;
 mod injected;
 mod kad;
-mod metrics;
 pub mod peer_score;
 mod slots;
 mod utils;
@@ -34,7 +33,6 @@ pub use injected::Event as NetworkInjectedEvent;
 
 use crate::{
     db_sync::DbSyncDatabase,
-    metrics::Libp2pMetrics,
     utils::MultiaddrExt,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
@@ -156,6 +154,8 @@ pub struct NetworkRuntimeConfig {
     pub db: Database,
 }
 
+type Libp2pMetrics = (libp2p::metrics::Registry, Arc<libp2p::metrics::Metrics>);
+
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
@@ -163,7 +163,7 @@ pub struct NetworkService {
     bootstrap_peers: HashSet<PeerId>,
     validator_list: ValidatorList,
     validator_topic: ValidatorTopic,
-    metrics: Arc<Libp2pMetrics>,
+    metrics: Libp2pMetrics,
     allow_non_global_addresses: bool,
 }
 
@@ -223,7 +223,8 @@ impl NetworkService {
         } = runtime_config;
 
         let timelines = db.config().timelines;
-        let mut metrics = Libp2pMetrics::new();
+        let mut registry = libp2p::metrics::Registry::default();
+        let metrics = Arc::new(libp2p::metrics::Metrics::new(&mut registry));
 
         let (validator_list, validator_list_snapshot) = ValidatorList::new(
             ValidatorDatabase::clone_boxed(&db),
@@ -235,8 +236,7 @@ impl NetworkService {
 
         let keypair = Self::create_keypair(&network_signer, public_key)?;
 
-        let transport = Self::create_transport(&keypair, transport_type, &mut metrics)?;
-        let metrics = Arc::new(metrics);
+        let transport = Self::create_transport(&keypair, transport_type, &mut registry)?;
 
         let behaviour_config = BehaviourConfig {
             router_address,
@@ -249,7 +249,7 @@ impl NetworkService {
             validator_list_snapshot: validator_list_snapshot.clone(),
             allow_non_global_addresses,
             max_chain_len_for_announces_response,
-            metrics: metrics.clone(),
+            metrics: (&mut registry, metrics.clone()),
         };
         let behaviour = Behaviour::new(behaviour_config)?;
 
@@ -299,7 +299,7 @@ impl NetworkService {
             bootstrap_peers,
             validator_list,
             validator_topic,
-            metrics,
+            metrics: (registry, metrics),
             allow_non_global_addresses,
         })
     }
@@ -315,7 +315,7 @@ impl NetworkService {
     fn create_transport(
         keypair: &identity::Keypair,
         transport_type: TransportType,
-        metrics: &mut Libp2pMetrics,
+        registry: &mut libp2p::metrics::Registry,
     ) -> anyhow::Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
         match transport_type {
             TransportType::Default => {
@@ -336,8 +336,7 @@ impl NetworkService {
                         });
                 let dns = libp2p::dns::tokio::Transport::system(quic_or_tcp)?;
 
-                let bandwidth = metrics
-                    .create_bandwidth_transport(dns)
+                let bandwidth = libp2p::metrics::BandwidthTransport::new(dns, registry)
                     .map(|(peer_id, conn), _| (peer_id, StreamMuxerBox::new(conn)));
 
                 Ok(bandwidth.boxed())
@@ -371,7 +370,7 @@ impl NetworkService {
     fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) -> Option<NetworkEvent> {
         log::trace!("new swarm event: {event:?}");
 
-        self.metrics.record(&event);
+        self.metrics.1.record(&event);
 
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
@@ -415,7 +414,7 @@ impl NetworkService {
     }
 
     fn handle_ping_event(&mut self, event: ping::Event) {
-        self.metrics.record(&event);
+        self.metrics.1.record(&event);
 
         let ping::Event {
             peer,
@@ -431,7 +430,7 @@ impl NetworkService {
     }
 
     fn handle_identify_event(&mut self, event: identify::Event) {
-        self.metrics.record(&event);
+        self.metrics.1.record(&event);
 
         match event {
             identify::Event::Received { peer_id, info, .. } => {
@@ -560,7 +559,9 @@ impl NetworkService {
     }
 
     pub fn render_libp2p_metrics(&self, writer: &mut impl Write) {
-        self.metrics.render(writer);
+        let (registry, _metrics) = &self.metrics;
+        prometheus_client::encoding::text::encode_registry(writer, registry)
+            .expect("failed to encode metrics");
     }
 
     pub fn score_handle(&self) -> peer_score::Handle {
@@ -625,7 +626,7 @@ impl NetworkService {
     }
 }
 
-struct BehaviourConfig {
+struct BehaviourConfig<'a> {
     router_address: Address,
     keypair: identity::Keypair,
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
@@ -636,7 +637,10 @@ struct BehaviourConfig {
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
     allow_non_global_addresses: bool,
     max_chain_len_for_announces_response: NonZeroU32,
-    metrics: Arc<Libp2pMetrics>,
+    metrics: (
+        &'a mut libp2p::metrics::Registry,
+        Arc<libp2p::metrics::Metrics>,
+    ),
 }
 
 #[derive(NetworkBehaviour)]
@@ -678,7 +682,7 @@ impl Behaviour {
             validator_list_snapshot,
             allow_non_global_addresses,
             max_chain_len_for_announces_response,
-            metrics,
+            metrics: (registry, metrics),
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
@@ -723,6 +727,7 @@ impl Behaviour {
             keypair.clone(),
             peer_score_handle.clone(),
             router_address,
+            registry,
             metrics.clone(),
         )
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
