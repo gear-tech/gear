@@ -166,10 +166,6 @@
 //! set for the block's era and the block's timestamp. Era boundaries are
 //! computed from the Ethereum block timestamp relative to the genesis
 //! timestamp stored in the database config (see `ProtocolTimelines`).
-//! NOTE: the only wall-clock logic the crate runs is
-//! [`ValidatorConfig::producer_delay`], a small pause inserted before
-//! the producer starts assembling its announce; it is currently used by
-//! tests and is otherwise set to zero in production.
 //!
 //! ## Injected transactions
 //!

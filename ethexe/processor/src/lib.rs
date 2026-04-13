@@ -74,6 +74,7 @@
 //!    (mailbox expiry cleanup, reservation removal, etc.).
 //! 3. Drain program message queues: the injected queue first, then the
 //!    canonical queue — unless a soft limit kicks in before that.
+//!    This stage is skipped entirely when `gas_allowance` is `None`.
 //!    Promises are collected only during the injected pass; the
 //!    canonical pass runs with the promise sender dropped, so any code
 //!    that introduces new promise emission points must make sure they
@@ -116,9 +117,8 @@
 //! ## Lazy pages
 //!
 //! Program memory is not materialized up front. Pages are protected
-//! after instance setup and loaded from the database on first access
-//! (via a page fault on Linux / a signal-driven mechanism on other
-//! platforms), through the [`gear_lazy_pages`] integration.
+//! after instance setup and loaded from the database on the first
+//! access fault, through the [`gear_lazy_pages`] integration.
 //!
 //! ## Determinism and error handling
 //!

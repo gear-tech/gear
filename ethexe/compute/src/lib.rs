@@ -117,10 +117,10 @@
 //! Ethereum events do not become visible to the runtime on the block they
 //! arrive in. When building the execution input for a block, compute
 //! instead takes the events from an ancestor that is
-//! [`ComputeConfig::canonical_quarantine`](ComputeConfig) blocks older
-//! (the genesis block is the floor). In production this delay must equal
-//! [`CANONICAL_QUARANTINE`](ethexe_common::gear::CANONICAL_QUARANTINE);
-//! [`ComputeConfig::without_quarantine`] is strictly for tests.
+//! [`ComputeConfig::canonical_quarantine`](ComputeConfig) blocks older.
+//! If the walk back would cross genesis, the returned event list is
+//! empty — i.e. the first `canonical_quarantine` blocks after genesis
+//! see no Ethereum events at all.
 //!
 //! ## Event flow summary
 //!
