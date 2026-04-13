@@ -21,7 +21,7 @@
 use super::StateDump;
 use anyhow::{Context, Result};
 use ethexe_common::{
-    HashOf, MaybeHashOf,
+    HashOf, MaybeHashOf, StateHashWithQueueSize,
     db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO},
 };
 use ethexe_runtime_common::state::{
@@ -31,20 +31,60 @@ use ethexe_runtime_common::state::{
 };
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Decode;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::{
+    any::TypeId,
+    collections::{BTreeMap, BTreeSet, VecDeque},
+};
 
 /// Collects all content-addressed blobs reachable from program states.
 struct BlobCollector<'a, S: ?Sized> {
     storage: &'a S,
-    visited: BTreeSet<H256>,
+    /// Dedup of blobs pushed into [`Self::blobs`], keyed by CAS hash alone.
+    collected: BTreeSet<H256>,
+    /// Dedup of graph traversal, keyed by `(TypeId, H256)`.
+    ///
+    /// Two unrelated types may serialize to the same bytes and therefore
+    /// share a CAS hash — notably any empty `BTreeMap`/`VecDeque`, which
+    /// SCALE-encodes as `[0x00]` and so makes empty `Waitlist`, `Mailbox`,
+    /// `UserMailbox`, `DispatchStash` and `MessageQueue` indistinguishable
+    /// at the storage level. Deduping traversal by hash alone would cause
+    /// the second visit to skip its own children and drop their reachable
+    /// blobs from the dump.
+    visited: BTreeSet<(TypeId, H256)>,
     blobs: Vec<Vec<u8>>,
 }
 
 impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
-    /// Read raw bytes from CAS by hash, record them as a blob, and return the bytes.
-    /// Returns `None` if hash is zero or was already visited.
-    fn read_and_collect(&mut self, hash: H256) -> Result<Option<Vec<u8>>> {
-        if hash.is_zero() || !self.visited.insert(hash) {
+    /// Read raw bytes from CAS by hash and record them as a blob.
+    ///
+    /// Use for leaf blobs that have no children to traverse (original code,
+    /// page data, stored payload). No-op if the hash is zero or the blob was
+    /// already collected.
+    fn read_and_collect(&mut self, hash: H256) -> Result<()> {
+        if hash.is_zero() || !self.collected.insert(hash) {
+            return Ok(());
+        }
+
+        let data = self
+            .storage
+            .read_by_hash(hash)
+            .with_context(|| format!("missing CAS blob for hash {hash}"))?;
+
+        self.blobs.push(data);
+        Ok(())
+    }
+
+    /// Read, record and decode a blob whose children must be traversed.
+    ///
+    /// Traversal is deduplicated per `(TypeId, H256)` so that the same bytes
+    /// reached under two different types each get their children walked;
+    /// blob storage is still deduplicated per `H256`.
+    fn read_and_decode<T: Decode + 'static>(&mut self, hash: H256) -> Result<Option<T>> {
+        if hash.is_zero() {
+            return Ok(None);
+        }
+
+        if !self.visited.insert((TypeId::of::<T>(), hash)) {
             return Ok(None);
         }
 
@@ -53,20 +93,19 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
             .read_by_hash(hash)
             .with_context(|| format!("missing CAS blob for hash {hash}"))?;
 
-        self.blobs.push(data.clone());
-        Ok(Some(data))
+        if self.collected.insert(hash) {
+            self.blobs.push(data.clone());
+        }
+
+        let value = T::decode(&mut &data[..])
+            .with_context(|| format!("failed to decode blob at hash {hash}"))?;
+        Ok(Some(value))
     }
 
-    fn read_and_decode<T: Decode>(&mut self, hash: H256) -> Result<Option<T>> {
-        self.read_and_collect(hash)?
-            .map(|data| {
-                T::decode(&mut &data[..])
-                    .with_context(|| format!("failed to decode blob at hash {hash}"))
-            })
-            .transpose()
-    }
-
-    fn collect_maybe_hash<T: Decode>(&mut self, maybe: MaybeHashOf<T>) -> Result<Option<T>> {
+    fn collect_maybe_hash<T: Decode + 'static>(
+        &mut self,
+        maybe: MaybeHashOf<T>,
+    ) -> Result<Option<T>> {
         match maybe.to_inner() {
             Some(hash) => self.read_and_decode(hash.inner()),
             None => Ok(None),
@@ -75,7 +114,7 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
 
     fn collect_payload(&mut self, payload: &PayloadLookup) -> Result<()> {
         if let PayloadLookup::Stored(hash) = payload {
-            let _ = self.read_and_collect(hash.inner())?;
+            self.read_and_collect(hash.inner())?;
         }
         Ok(())
     }
@@ -222,7 +261,7 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
 
             // `_page` is already included in the region blob (see collect_maybe_hash above)
             for (_page, page_data_hash) in MemoryPagesRegionInner::from(region) {
-                let _ = self.read_and_collect(page_data_hash.inner())?;
+                self.read_and_collect(page_data_hash.inner())?;
             }
         }
 
@@ -294,6 +333,7 @@ impl StateDump {
 
         let mut collector = BlobCollector {
             storage,
+            collected: BTreeSet::new(),
             visited: BTreeSet::new(),
             blobs: Vec::new(),
         };
@@ -302,7 +342,7 @@ impl StateDump {
         let codes = storage.valid_codes();
         for code_id in &codes {
             let code_hash = CodeId::into_bytes(*code_id).into();
-            let _ = collector.read_and_collect(code_hash)?;
+            collector.read_and_collect(code_hash)?;
         }
 
         let program_states = storage
@@ -311,14 +351,24 @@ impl StateDump {
 
         // Collect programs and their state trees.
         let mut programs = BTreeMap::new();
-        for (program_id, state_with_queue) in &program_states {
+
+        // `canonical_queue_size` and `injected_queue_size` are not included in the program state blob
+        for (
+            program_id,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: _,
+                injected_queue_size: _,
+            },
+        ) in &program_states
+        {
             let code_id = storage
                 .program_code_id(*program_id)
                 .with_context(|| format!("code id not found for program {program_id}"))?;
 
-            programs.insert(*program_id, (code_id, state_with_queue.hash));
+            programs.insert(*program_id, (code_id, *state_hash));
 
-            collector.collect_program_state(state_with_queue.hash)?;
+            collector.collect_program_state(*state_hash)?;
         }
 
         Ok(StateDump {
