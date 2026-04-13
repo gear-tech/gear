@@ -40,7 +40,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
 
     using EnumerableMap for EnumerableMap.AddressToAddressMap;
-    using MapWithTimeData for EnumerableMap.AddressToAddressMap;
 
     using Subnetwork for address;
 
@@ -50,7 +49,9 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     bytes32 private constant DEFAULT_ADMIN_ROLE = 0x00;
     uint8 private constant NETWORK_IDENTIFIER = 0;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
+    /**
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
     constructor() {
         _disableInitializers();
     }
@@ -87,7 +88,9 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _validateStorage($);
     }
 
-    /// @custom:oz-upgrades-validate-as-initializer
+    /**
+     * @custom:oz-upgrades-validate-as-initializer
+     */
     function reinitialize() public onlyOwner reinitializer(2) {
         __Ownable_init(owner());
 
@@ -128,7 +131,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    // # Views
+    /* # Views */
+
     function eraDuration() public view returns (uint48) {
         return _storage().eraDuration;
     }
@@ -185,7 +189,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return _storage().symbiotic;
     }
 
-    // # Calls.
+    /* # Calls */
 
     function changeSlashRequester(address newRole) external {
         Storage storage $ = _storage();
