@@ -60,7 +60,7 @@ use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, InitConfig, RawDatabase, RocksDatabase};
-use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
@@ -342,15 +342,17 @@ impl Service {
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(pub_key) = validator_pub_key {
-                let ethereum = Ethereum::new(
-                    &config.ethereum.rpc,
-                    config.ethereum.router_address,
-                    signer.clone(),
-                    pub_key.to_address(),
-                    config.ethereum.eip1559_fee_increase_percentage,
-                    config.ethereum.blob_gas_multiplier,
-                )
-                .await?;
+                let ethereum = EthereumBuilder::default()
+                    .rpc_url(&config.ethereum.rpc)
+                    .router_address(config.ethereum.router_address)
+                    .signer(signer.clone())
+                    .sender_address(pub_key.to_address())
+                    .eip1559_fee_increase_percentage(
+                        config.ethereum.eip1559_fee_increase_percentage,
+                    )
+                    .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
+                    .build()
+                    .await?;
                 Box::pin(ValidatorService::new(
                     signer.clone(),
                     ethereum.middleware().query(),
