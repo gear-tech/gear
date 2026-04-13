@@ -37,7 +37,6 @@ use tokio::sync::RwLock;
 
 #[derive(derive_more::Debug)]
 pub struct ValidatorCore {
-    pub slot_duration: Duration,
     pub signatures_threshold: u64,
     pub router_address: Address,
     pub pub_key: PublicKey,
@@ -69,7 +68,6 @@ pub struct ValidatorCore {
 impl Clone for ValidatorCore {
     fn clone(&self) -> Self {
         Self {
-            slot_duration: self.slot_duration,
             signatures_threshold: self.signatures_threshold,
             router_address: self.router_address,
             pub_key: self.pub_key,

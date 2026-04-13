@@ -2,6 +2,7 @@ use crate::batch::context::ContextUpdate;
 use gprimitives::{ActorId, CodeId, MessageId};
 use std::collections::BTreeSet;
 
+/// Outcome of a single batch execution before it is folded into shared state.
 #[derive(Default)]
 pub struct Report {
     pub codes: BTreeSet<CodeId>,
@@ -10,6 +11,7 @@ pub struct Report {
     pub exited_programs: BTreeSet<ActorId>,
 }
 
+/// Mailbox mutations observed while processing a batch.
 #[derive(Default)]
 pub struct MailboxReport {
     pub added: BTreeSet<MessageId>,
@@ -17,6 +19,7 @@ pub struct MailboxReport {
 }
 
 impl MailboxReport {
+    /// Marks mailbox messages as removed by this batch.
     #[allow(dead_code)]
     pub fn append_removed(&mut self, removed: impl IntoIterator<Item = MessageId>) {
         self.removed.append(&mut BTreeSet::from_iter(removed));
@@ -47,12 +50,14 @@ impl From<Report> for ContextUpdate {
 #[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct BatchRunReport {
-    /// Seed of the batch is the id.
+    /// Seed used to generate the batch.
     pub id: u64,
+    /// State delta derived from the batch result.
     pub context_update: ContextUpdate,
 }
 
 impl BatchRunReport {
+    /// Wraps a raw [`Report`] together with the batch seed that produced it.
     pub fn new(id: u64, report: Report) -> Self {
         Self {
             id,

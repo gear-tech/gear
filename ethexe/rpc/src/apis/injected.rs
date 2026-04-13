@@ -21,7 +21,6 @@ use anyhow::Result;
 use dashmap::DashMap;
 use ethexe_common::{
     Address, HashOf,
-    consensus::block_producer_for,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
         SignedPromise,
@@ -260,43 +259,127 @@ impl InjectedApi {
 
 mod utils {
     use super::*;
+    use anyhow::Context as _;
     use ethexe_common::{
         Address,
         db::{ConfigStorageRO, OnChainStorageRO},
     };
-    use std::time::SystemTime;
+    use std::time::{Duration, SystemTime, SystemTimeError};
+    use tracing::{error, trace};
+
+    pub(super) const NEXT_PRODUCER_THRESHOLD_MS: u64 = 50;
 
     pub fn route_transaction(
         db: &Database,
         tx: &mut AddressedInjectedTransaction,
     ) -> RpcResult<()> {
-        let next_producer =
-            calculate_next_producer(db).map_err(|_| crate::errors::db("validators not found"))?;
+        let now = now_since_unix_epoch().map_err(|err| {
+            error!("system clock error: {err}");
+            crate::errors::internal()
+        })?;
+
+        let next_producer = calculate_next_producer(db, now).map_err(|err| {
+            trace!("calculate next producer error: {err}");
+            crate::errors::internal()
+        })?;
         tx.recipient = next_producer;
 
         Ok(())
     }
 
-    /// Calculates the address of next block-producer to send transaction.
-    fn calculate_next_producer(db: &Database) -> Result<Address> {
+    /// Calculates the producer address to route an injected transaction to.
+    pub(super) fn calculate_next_producer(db: &Database, now: Duration) -> Result<Address> {
         let timelines = db.config().timelines;
 
-        let current_ts = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("infallible")
-            .as_secs();
+        // Calculate target timestamp, taking into account possible delays, so we append NEXT_PRODUCER_THRESHOLD_MS.
+        // The transaction should be included by the next producer, so we add `slot_duration` to the current time.
+        let target_timestamp = now
+            .checked_add(Duration::from_millis(NEXT_PRODUCER_THRESHOLD_MS))
+            .context("current time is too close to u64::MAX, cannot calculate next producer")?
+            .as_secs()
+            .checked_add(timelines.slot)
+            .context("current time is too close to u64::MAX, cannot calculate next producer")?;
 
-        // Route to the producer of the next slot, not the current one.
-        let next_timestamp = current_ts + timelines.slot;
-        let era = timelines.era_from_ts(next_timestamp);
+        let era = timelines.era_from_ts(target_timestamp);
+
         let validators = db
             .validators(era)
-            .ok_or_else(|| anyhow::anyhow!("validators not found for era={era}"))?;
+            .with_context(|| format!("validators not found for era={era}"))?;
 
-        Ok(block_producer_for(
-            &validators,
-            next_timestamp,
-            timelines.slot,
-        ))
+        Ok(timelines.block_producer_at(&validators, target_timestamp))
+    }
+
+    /// Returns the current time since [SystemTime::UNIX_EPOCH].
+    fn now_since_unix_epoch() -> Result<Duration, SystemTimeError> {
+        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::utils;
+    use ethexe_common::{
+        Address, ProtocolTimelines, ValidatorsVec,
+        db::{ConfigStorageRO, OnChainStorageRW, SetConfig},
+    };
+    use ethexe_db::Database;
+    use gear_core::pages::num_traits::ToPrimitive;
+    use std::{ops::Sub, time::Duration};
+
+    const SLOT: u64 = 10;
+    const ERA: u64 = 1000;
+
+    fn setup_db(db: &Database) -> ValidatorsVec {
+        let validators = ValidatorsVec::from_iter((0..10u64).map(Address::from));
+
+        let timelines = ProtocolTimelines {
+            slot: SLOT,
+            era: ERA,
+            ..Default::default()
+        };
+        db.set_validators(0, validators.clone());
+        let mut config = db.config().clone();
+        config.timelines = timelines;
+        db.set_config(config);
+        validators
+    }
+
+    #[test]
+    fn test_calculate_next_producer_return_next() {
+        let db = Database::memory();
+        let validators = setup_db(&db);
+
+        let now = Duration::from_secs(SLOT / 2);
+        let producer = utils::calculate_next_producer(&db, now).unwrap();
+
+        assert_eq!(validators[1], producer);
+    }
+
+    #[test]
+    fn test_calculate_next_producer_return_next_next() {
+        let db = Database::memory();
+        let validators = setup_db(&db);
+
+        let half_threshold = utils::NEXT_PRODUCER_THRESHOLD_MS.to_u64().unwrap();
+        let now = Duration::from_secs(SLOT).sub(Duration::from_millis(half_threshold));
+        let producer = utils::calculate_next_producer(&db, now).unwrap();
+
+        assert_eq!(validators[2], producer);
+    }
+
+    #[test]
+    fn test_calculate_next_producer_in_next_era() {
+        let db = Database::memory();
+        let validators = setup_db(&db);
+
+        // Prepare next era validators
+        let mut next_era_validators = validators.clone();
+        next_era_validators[0] = validators[9];
+        db.set_validators(1, next_era_validators.clone());
+
+        let now = Duration::from_secs(ERA).sub(Duration::from_secs(1));
+        let producer = utils::calculate_next_producer(&db, now).unwrap();
+
+        assert_eq!(next_era_validators[0], producer);
     }
 }

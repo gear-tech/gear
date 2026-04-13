@@ -27,7 +27,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, HashOf, PromisePolicy, ProtocolTimelines, SimpleBlockData,
-    consensus::{VerifiedAnnounce, VerifiedValidationRequest, block_producer_for},
+    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::{ConfigStorageRO, OnChainStorageRO},
     injected::{Promise, SignedInjectedTransaction},
     network::{AnnouncesRequest, AnnouncesResponse},
@@ -42,7 +42,6 @@ use std::{
     num::NonZeroUsize,
     pin::Pin,
     task::{Context, Poll},
-    time::Duration,
 };
 
 /// Maximum number of pending announces to store
@@ -107,7 +106,6 @@ enum State {
 #[derive(derive_more::Debug)]
 pub struct ConnectService {
     db: Database,
-    slot_duration: Duration,
     commitment_delay_limit: u32,
     timelines: ProtocolTimelines,
 
@@ -121,14 +119,12 @@ impl ConnectService {
     ///
     /// # Parameters
     /// - `db`: Database instance.
-    /// - `slot_duration`: Duration of each slot in the consensus protocol.
     /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
-    pub fn new(db: Database, slot_duration: Duration, commitment_delay_limit: u32) -> Self {
+    pub fn new(db: Database, commitment_delay_limit: u32) -> Self {
         let timelines = db.config().timelines;
 
         Self {
             db,
-            slot_duration,
             commitment_delay_limit,
             timelines,
             state: State::WaitingForBlock,
@@ -204,11 +200,9 @@ impl ConsensusService for ConnectService {
             let validators = self.db.validators(block_era).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;
-            let producer = block_producer_for(
-                &validators,
-                block.header.timestamp,
-                self.slot_duration.as_secs(),
-            );
+            let producer = self
+                .timelines
+                .block_producer_at(&validators, block.header.timestamp);
 
             self.state = State::WaitingForPreparedBlock {
                 block: *block,
@@ -403,7 +397,7 @@ mod tests {
         let db = Database::memory();
         let chain = BlockChain::mock((10, validators)).setup(&db);
 
-        let mut service = ConnectService::new(db, Duration::from_secs(12), 10);
+        let mut service = ConnectService::new(db, 10);
         service
             .receive_new_chain_head(chain.blocks[10].to_simple())
             .unwrap();
