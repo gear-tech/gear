@@ -32,11 +32,11 @@ use ethexe_common::{
     Address, Announce, Digest, HashOf, SimpleBlockData, ValidatorsVec,
     consensus::{BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT},
     db::*,
-    gear::{ChainCommitment, CodeCommitment},
+    gear::{ChainCommitment, CodeCommitment, StateTransition},
     mock::*,
 };
 use gear_core::ids::prelude::CodeIdExt;
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use gsigner::ToDigest;
 
 fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
@@ -399,6 +399,103 @@ async fn accepts_matching_request() {
         .core
         .batch_manager
         .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+
+    match status {
+        ValidationStatus::Accepted(digest) => assert_eq!(digest, expected_digest),
+        ValidationStatus::Rejected { reason, .. } => {
+            panic!("Expected acceptance, got rejection: {reason:?}")
+        }
+    }
+}
+
+#[tokio::test]
+#[ntest::timeout(3000)]
+async fn accepts_matching_request_with_mixed_sign_squash() {
+    gear_utils::init_default_logger();
+
+    let (ctx, _, _) = mock_validator_context();
+    let actor_negative = ActorId::from([0xA1; 32]);
+    let actor_positive = ActorId::from([0xB2; 32]);
+
+    let transition = |actor_id,
+                      new_state_hash,
+                      value_to_receive,
+                      value_to_receive_negative_sign| StateTransition {
+        actor_id,
+        new_state_hash,
+        exited: false,
+        inheritor: ActorId::zero(),
+        value_to_receive,
+        value_to_receive_negative_sign,
+        value_claims: vec![],
+        messages: vec![],
+    };
+
+    let announce1_negative = transition(actor_negative, H256::from([1; 32]), 70, true);
+    let announce1_positive = transition(actor_positive, H256::from([2; 32]), 30, false);
+    let announce2_negative = transition(actor_negative, H256::from([3; 32]), 20, false);
+    let announce2_positive = transition(actor_positive, H256::from([4; 32]), 10, false);
+
+    let chain = BlockChain::mock(3)
+        .tap_mut(|chain| {
+            let announce1_hash = chain.block_top_announce_mutate(1, |data| {
+                data.announce.gas_allowance = Some(19);
+                data.as_computed_mut().outcome =
+                    vec![announce1_negative.clone(), announce1_positive.clone()];
+            });
+
+            let announce2_hash = chain.block_top_announce_mutate(2, |data| {
+                data.announce.gas_allowance = Some(20);
+                data.announce.parent = announce1_hash;
+                data.as_computed_mut().outcome =
+                    vec![announce2_negative.clone(), announce2_positive.clone()];
+            });
+
+            let announce3_hash = chain.block_top_announce_mutate(3, |data| {
+                data.announce.gas_allowance = Some(21);
+                data.announce.parent = announce2_hash;
+                data.as_computed_mut().outcome = vec![];
+            });
+
+            chain.globals.latest_computed_announce_hash = announce3_hash;
+        })
+        .setup(&ctx.core.db);
+
+    let block = chain.blocks[3].to_simple();
+    let head_announce = chain.block_top_announce_hash(3);
+    let batch = ctx
+        .core
+        .batch_manager
+        .clone()
+        .create_batch_commitment(block, head_announce)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let chain_commitment = batch.chain_commitment.as_ref().expect("chain commitment");
+    // Squashing preserves first-seen actor order, then re-sorts so non-negative
+    // transitions execute before negative ones on-chain.
+    assert_eq!(
+        chain_commitment
+            .transitions
+            .iter()
+            .map(|transition| transition.actor_id)
+            .collect::<Vec<_>>(),
+        vec![actor_positive, actor_negative]
+    );
+    assert_eq!(chain_commitment.transitions[0].value_to_receive, 40);
+    assert!(!chain_commitment.transitions[0].value_to_receive_negative_sign);
+    assert_eq!(chain_commitment.transitions[1].value_to_receive, 50);
+    assert!(chain_commitment.transitions[1].value_to_receive_negative_sign);
+
+    let request = BatchCommitmentValidationRequest::new(&batch);
+    let expected_digest = request.digest;
+    let status = ctx
+        .core
+        .batch_manager
+        .validate_batch_commitment(ctx.core.db.simple_block_data(batch.block_hash), request)
         .await
         .unwrap();
 

@@ -85,18 +85,13 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
     db.set_code_valid(code_commitment1.id, code_commitment1.valid);
     db.set_code_valid(code_commitment2.id, code_commitment2.valid);
 
-    // Sort transitions by actor_id to match `squash_transitions_by_actor` output
-    // (which uses BTreeMap, producing actor_id-sorted results).
-    let mut transitions = [transitions1, transitions2].concat();
-    transitions.sort_by_key(|t| t.actor_id);
-
     BatchCommitment {
         block_hash: block3.hash,
         timestamp: block3.header.timestamp,
         previous_batch: Digest::zero(),
         expiry: 1,
         chain_commitment: Some(ChainCommitment {
-            transitions,
+            transitions: [transitions1, transitions2].concat(),
             head_announce: db.top_announce_hash(block3.hash),
         }),
         code_commitments: vec![code_commitment1, code_commitment2],

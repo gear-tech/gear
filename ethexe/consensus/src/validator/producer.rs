@@ -339,11 +339,9 @@ mod tests {
         // Waiting for announce to be computed
         assert!(state.is_producer());
 
-        // change head announce in the batch and sort transitions to match
-        // squash_transitions_by_actor output (BTreeMap orders by actor_id)
+        // change head announce in the batch
         if let Some(c) = batch.chain_commitment.as_mut() {
             c.head_announce = announce_hash;
-            c.transitions.sort_by_key(|t| t.actor_id);
         }
 
         // compute announce
