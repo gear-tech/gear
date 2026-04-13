@@ -20,7 +20,7 @@ jobs:
     runs-on: [kuberunner]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust

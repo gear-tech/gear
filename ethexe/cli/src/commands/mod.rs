@@ -16,6 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Executable command handlers for the `ethexe` CLI.
+//!
+//! Each submodule owns one command family and is responsible for merging file-backed
+//! configuration into its command-line arguments before execution.
+
 use crate::params::Params;
 use anyhow::Result;
 use clap::Subcommand;
