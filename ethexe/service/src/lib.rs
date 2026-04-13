@@ -16,6 +16,36 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Vara.eth service
+//! Top-level runtime service for an ethexe node.
+//!
+//! ## Responsibilities
+//! This crate provides the top-level [`Service`] orchestrator for ethexe.
+//! The service owns all subservices and drives them through a single async event loop.
+//!
+//! ## Event Loop
+//! The subservices in [`Service`] communicate with each other via the [`Event`] enum.
+//!
+//! In [`Service::run`], the service uses the [tokio::select] macro to poll
+//! event streams (see [`futures::Stream`]) and route events to the appropriate subservice.
+//!
+//! ## Configuration And Startup
+//! [`Service::new`] takes a [`Config`] on startup.
+//! [`Config`] contains all configuration options required to create the subservices.
+//!
+//! In the general case, [`Service::new`] is called from the `ethexe-cli` crate,
+//! where [`Config`] is parsed from command-line arguments or a configuration file.
+//!
+//! ## Testing
+//! Integration tests for this crate live in `src/tests`.
+//! They use `TestEnv` to prepare an Anvil-based or external Ethereum environment,
+//! initialize an in-memory database, and construct test nodes.
+//!
+//! Each node runs [`Service`] using `Service::new_from_parts`.
+//! Tests observe service behavior through `TestingEvent` streams, which mirror the
+//! internal [`Event`] flow and allow waiting for startup, block sync, announce
+//! processing, network activity, and RPC requests.
+
 use crate::config::{Config, ConfigPublicKey};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
@@ -34,7 +64,7 @@ use ethexe_consensus::{
 use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
-use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
@@ -326,15 +356,17 @@ impl Service {
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(pub_key) = validator_pub_key {
-                let ethereum = Ethereum::new(
-                    &config.ethereum.rpc,
-                    config.ethereum.router_address,
-                    signer.clone(),
-                    pub_key.to_address(),
-                    config.ethereum.eip1559_fee_increase_percentage,
-                    config.ethereum.blob_gas_multiplier,
-                )
-                .await?;
+                let ethereum = EthereumBuilder::default()
+                    .rpc_url(&config.ethereum.rpc)
+                    .router_address(config.ethereum.router_address)
+                    .signer(signer.clone())
+                    .sender_address(pub_key.to_address())
+                    .eip1559_fee_increase_percentage(
+                        config.ethereum.eip1559_fee_increase_percentage,
+                    )
+                    .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
+                    .build()
+                    .await?;
                 Box::pin(ValidatorService::new(
                     signer.clone(),
                     ethereum.middleware().query(),

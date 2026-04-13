@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Implementation of the `ethexe check` command.
+
 use crate::params::{MergeParams, Params};
 use anyhow::{Context, Result, anyhow, ensure};
 use clap::Parser;
@@ -66,6 +68,7 @@ pub struct CheckCommand {
 }
 
 impl CheckCommand {
+    /// Merges command-line options over file-backed parameters.
     pub fn with_params(mut self, params: Params) -> Self {
         self.params = self.params.merge(params);
         self
@@ -152,6 +155,7 @@ impl CheckCommand {
     }
 }
 
+/// Shared state for the two database verification passes.
 #[derive(Clone)]
 struct Checker {
     db: Database,
@@ -162,6 +166,7 @@ struct Checker {
 }
 
 impl Checker {
+    /// Traverses the persisted block DAG and validates referential integrity.
     async fn integrity_check(&self) -> Result<()> {
         let db = &self.db;
         let bottom = self.globals.start_block_hash;
@@ -236,6 +241,7 @@ impl Checker {
         Ok(())
     }
 
+    /// Recomputes announces and checks the stored outcomes against fresh execution results.
     async fn computation_check(&self) -> Result<()> {
         let db = &self.db;
         let bottom = self.globals.start_announce_hash;
@@ -325,6 +331,7 @@ impl Checker {
     }
 }
 
+/// Resolves the block associated with a stored announce.
 fn announce_block(db: &Database, announce_hash: HashOf<Announce>) -> Result<SimpleBlockData> {
     let announce = db
         .announce(announce_hash)

@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Node-scoped parameters shared across `run`, `key`, `tx`, and `check`.
+
 use super::MergeParams;
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
@@ -123,7 +125,13 @@ impl NodeParams {
     /// Default number of pre-funded accounts in dev mode.
     pub const DEFAULT_PRE_FUNDED_ACCOUNTS: NonZero<u32> = NonZero::new(10).unwrap();
 
-    /// Convert self into a proper `NodeConfig` object.
+    /// Converts CLI/TOML node parameters into a service-ready [`NodeConfig`].
+    ///
+    /// Besides simple field mapping this also:
+    /// - validates that validator and validator-session are configured together
+    /// - resolves the effective database and key directories
+    /// - clamps gas and batch limits to protocol maxima
+    /// - fills in defaults for the execution and sync knobs
     pub fn into_config(self) -> Result<NodeConfig> {
         ensure!(
             self.validator.is_some() == self.validator_session.is_some(),
@@ -166,7 +174,10 @@ impl NodeParams {
         })
     }
 
-    /// Get path to the database directory.
+    /// Returns the database directory used by RocksDB.
+    ///
+    /// Development and temporary modes intentionally keep the database in a fresh temp
+    /// directory so that local experiments do not reuse persistent state.
     pub fn db_dir(&self) -> PathBuf {
         if self.tmp || self.dev {
             Self::tmp_db()
@@ -175,12 +186,12 @@ impl NodeParams {
         }
     }
 
-    /// Get path to the keystore directory.
+    /// Returns the directory that stores validator and sender keys.
     pub fn keys_dir(&self) -> PathBuf {
         self.base().join("keys")
     }
 
-    /// Get path to the network directory.
+    /// Returns the directory that stores the libp2p identity.
     pub fn net_dir(&self) -> PathBuf {
         self.base().join("net")
     }
@@ -189,6 +200,7 @@ impl NodeParams {
         self.base.clone().unwrap_or_else(Self::default_base)
     }
 
+    /// Computes the platform-specific default base directory.
     fn default_base() -> PathBuf {
         ProjectDirs::from("com", "Gear", "ethexe")
             .expect("couldn't find home directory")
@@ -196,6 +208,7 @@ impl NodeParams {
             .to_path_buf()
     }
 
+    /// Lazily allocates and returns a process-wide temporary database directory.
     fn tmp_db() -> PathBuf {
         let mut tmp = TMP_DB.write();
 

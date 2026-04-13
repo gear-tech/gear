@@ -11,12 +11,14 @@ use gear_wasm_gen::StandardGearWasmConfigsBundle;
 use std::iter;
 use tracing::instrument;
 
+/// Runtime values that need to stay in sync with the target `ethexe` network.
 #[derive(Clone, Copy)]
 pub struct RuntimeSettings {
     gas_limit: u64,
 }
 
 impl RuntimeSettings {
+    /// Loads the runtime settings used when generating call arguments.
     pub fn new() -> Result<Self> {
         let gas_limit = DEFAULT_BLOCK_GAS_LIMIT;
 
@@ -24,6 +26,7 @@ impl RuntimeSettings {
     }
 }
 
+/// Stateful random batch generator used by the worker pool.
 pub struct BatchGenerator<Rng> {
     pub batch_gen_rng: Rng,
     pub batch_size: usize,
@@ -31,6 +34,7 @@ pub struct BatchGenerator<Rng> {
     rt_settings: RuntimeSettings,
 }
 
+/// One logical group of homogeneous operations that a worker can execute.
 pub enum Batch {
     UploadProgram(Vec<UploadProgramArgs>),
     UploadCode(Vec<UploadCodeArgs>),
@@ -61,12 +65,14 @@ impl_convert_for_batch![
     ClaimValueArgs ClaimValue,
 ];
 
+/// A generated batch together with the seed that produced it.
 pub struct BatchWithSeed {
     pub seed: Seed,
     pub batch: Batch,
 }
 
 impl BatchWithSeed {
+    /// Returns a stable human-readable name for logging and diagnostics.
     pub fn batch_str(&self) -> &'static str {
         match &self.batch {
             Batch::UploadProgram(_) => "upload_program",
@@ -98,6 +104,7 @@ impl From<BatchWithSeed> for (Seed, Batch) {
 }
 
 impl<Rng: CallGenRng> BatchGenerator<Rng> {
+    /// Creates a new batch generator for the provided loader seed.
     pub fn new(
         seed: Seed,
         batch_size: usize,
@@ -118,6 +125,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         }
     }
 
+    /// Produces the next batch using the current shared execution context.
     pub fn generate(&mut self, context: Context) -> BatchWithSeed {
         let seed = self.batch_gen_rng.next_u64();
         let batch_id = self.batch_gen_rng.gen_range(0..=5u8);
@@ -128,6 +136,11 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         (seed, batch).into()
     }
 
+    /// Selects a batch family and fills it with generated call arguments.
+    ///
+    /// When the chosen batch type needs existing programs, codes, or mailbox
+    /// entries and the context does not yet contain any, the generator falls
+    /// back to an upload batch so the system can make forward progress.
     fn generate_batch(
         &mut self,
         batch_id: u8,
@@ -194,6 +207,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         }
     }
 
+    /// Generates a homogeneous batch of call arguments from a deterministic seed.
     #[instrument(skip_all, fields(seed = seed, batch_type = T::name()))]
     fn gen_batch<
         T: CallArgs,
