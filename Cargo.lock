@@ -5088,6 +5088,7 @@ dependencies = [
  "gsigner",
  "log",
  "reqwest 0.12.28",
+ "serde_json",
  "thiserror 2.0.17",
  "tokio",
 ]
@@ -5290,6 +5291,7 @@ dependencies = [
  "ip_network",
  "itertools 0.13.0",
  "libp2p 0.56.0",
+ "libp2p-gossipsub",
  "libp2p-swarm-test",
  "log",
  "lru 0.16.3",
@@ -9873,9 +9875,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-gossipsub"
-version = "0.49.2"
+version = "0.49.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7f58e37d8d6848e5c4c9e3c35c6f61133235bff2960c9c00a663b0849301221"
+checksum = "a538e571cd38f504f761c61b8f79127489ea7a7d6f05c41ca15d31ffb5726326"
 dependencies = [
  "async-channel 2.5.0",
  "asynchronous-codec 0.7.0",
@@ -9892,6 +9894,7 @@ dependencies = [
  "libp2p-core 0.43.2",
  "libp2p-identity",
  "libp2p-swarm 0.47.0",
+ "prometheus-client 0.23.1",
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
  "rand 0.8.5",
