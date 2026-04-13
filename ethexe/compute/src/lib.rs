@@ -41,7 +41,7 @@
 //! ## Role in the stack and relation to other crates
 //!
 //! - `ethexe-processor` is the backend. Compute is generic over the
-//!   [`ProcessorExt`] trait defined here and has a blanket impl for
+//!   [`ProcessorExt`] trait defined here and has a direct impl for
 //!   [`Processor`]; the only other impl in the tree is a test mock
 //!   (`tests::MockProcessor`) that lets the sub-service tests run without
 //!   any real WASM execution.
@@ -87,13 +87,6 @@
 //! those codes (out of scope for this crate) and feed them back in through
 //! [`ComputeService::process_code`]; preparation resumes automatically as
 //! the missing codes arrive.
-//!
-//! Error conditions visible to the caller:
-//!
-//! - [`ComputeError::BlockNotSynced`] — the observer has not stored the
-//!   block yet.
-//! - [`ComputeError::ValidatorsCommittedForEarlierEra`] — the block
-//!   attempts to regress the validators era index relative to its parent.
 //!
 //! ## Announce computation pipeline (`compute` sub-service)
 //!

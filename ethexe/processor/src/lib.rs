@@ -18,179 +18,139 @@
 
 //! # Ethexe Processor
 //!
-//! Low-level execution engine that runs Gear programs inside the ethexe node.
-//! The crate drives a pre-compiled [ethexe runtime](ethexe_runtime) WASM artifact
-//! in [wasmtime], linking host functions that expose the database, lazy pages,
-//! sandboxed nested WASM, promise publishing, allocation and logging to the
-//! runtime. On top of that the crate implements all the plumbing needed to
-//! execute an ethexe block(announce):
-//! - routing ethereum block events [`BlockRequestEvent`] into program state mutations,
-//! - appending injected transactions [`InjectedTransaction`] to program queues,
-//! - running scheduled tasks,
-//! - draining program message queues through a
-//!   parallel chunked executor until gas or other limits are exhausted.
+//! Low-level execution engine that runs Gear programs inside the ethexe
+//! node. The crate embeds a pre-compiled [`ethexe_runtime`] WASM artifact
+//! and runs it in [`wasmtime`] with host functions that give the runtime
+//! access to the database, lazy pages, sandboxed nested WASM, promise
+//! publishing, allocation and logging. On top of that it exposes a small
+//! API to:
+//!
+//! - validate and instrument Gear WASM code blobs,
+//! - execute an ethexe block (announce) — routing [`BlockRequestEvent`]s
+//!   into program state mutations, appending [`InjectedTransaction`]s to
+//!   program queues, running scheduled tasks, and draining program
+//!   message queues until gas or other limits are exhausted,
+//! - simulate a single message against a copy-on-write view of the
+//!   database without committing anything, for RPC reply queries.
 //!
 //! ## Role in the stack and relation to other crates
 //!
-//! `ethexe-processor` is the bottom of the execution stack. It is consumed by:
+//! `ethexe-processor` is the bottom of the execution stack. It is
+//! consumed by:
 //!
 //! - `ethexe-compute` — calls [`Processor::process_programs`] and
-//!   [`Processor::process_code`] through its `ProcessorExt` trait (the trait
-//!   is defined in `ethexe-compute`, together with a blanket impl for
-//!   [`Processor`]). Compute is what the service layer talks to — the
-//!   processor itself is never polled as a stream and emits no events.
+//!   [`Processor::process_code`] through its `ProcessorExt` trait (the
+//!   trait is defined in `ethexe-compute`, together with a direct impl
+//!   for [`Processor`]). Compute is what the service layer talks to —
+//!   the processor itself is never polled as a stream and emits no
+//!   events.
 //! - `ethexe-rpc` — uses [`OverlaidProcessor`] (obtained via
-//!   [`Processor::overlaid`]) to simulate message execution against a
+//!   [`Processor::overlaid`]) to simulate message execution against an
 //!   overlaid database for read-only reply queries.
-//! - `ethexe-service` — constructs the `Processor` instance at startup and
-//!   hands it to `ComputeService`.
+//! - `ethexe-service` — constructs the `Processor` instance at startup
+//!   and hands it to `ComputeService`.
 //!
 //! ## Entry points
 //!
-//! The public API is intentionally small:
-//!
 //! | Method                                    | Purpose                                                                 |
 //! |-------------------------------------------|-------------------------------------------------------------------------|
-//! | [`Processor::process_code`]               | Validate + instrument a WASM blob. Synchronous, pure w.r.t. the DB.     |
+//! | [`Processor::process_code`]               | Validate + instrument a WASM blob. Synchronous, does not touch the DB.  |
 //! | [`Processor::process_programs`]           | Execute an ethexe block: events → tasks → queues. Main async workflow.  |
-//! | [`Processor::overlaid`]                   | Wrap `self` into an [`OverlaidProcessor`] with a COW view of the DB.    |
+//! | [`Processor::overlaid`]                   | Wrap `self` into an [`OverlaidProcessor`] backed by an overlaid DB.     |
 //! | [`OverlaidProcessor::execute_for_reply`]  | Simulate a single incoming message and return the reply.                |
 //!
-//! Everything else in the crate is an internal detail of those four entry
-//! points.
-//!
-//! ## `process_programs` pipeline
+//! ## `process_programs` contract
 //!
 //! Given an [`ExecutableData`] (block header, program states, schedule,
-//! injected transactions, block request events and optional gas allowance),
-//! [`Processor::process_programs`] runs three sequential stages over an
-//! `InBlockTransitions` accumulator:
+//! injected transactions, block request events, and optional gas
+//! allowance), [`Processor::process_programs`] runs three sequential
+//! stages and returns a [`FinalizedBlockTransitions`]:
 //!
-//! 1. **Handle injected transactions and block events** (`handling::events`).
-//!    User-injected transactions are appended to program injected queues;
-//!    router and mirror events are routed to the corresponding state
-//!    mutations (program creation, balance top-up, message queueing, value
-//!    claims, …). See `handling::ProcessingHandler`.
-//! 2. **Process scheduled tasks** ([`ScheduleHandler`]). Tasks that are due at
-//!    the current block height are popped from the schedule and executed
-//!    (e.g. mailbox expiry cleanup, reservation removal).
-//! 3. **Process queues** (`handling::run`). A `CommonRunContext` drains the
-//!    injected queue first, then — if limits allow — the canonical queue,
-//!    both through the chunked parallel executor described below. Promises
-//!    are collected only during the injected pass; before starting the
-//!    canonical pass `CommonRunContext::disable_promises` drops the
-//!    `promise_out_tx` sender, so any code that introduces new promise
-//!    emission points must make sure they are reached from the injected
-//!    queue.
+//! 1. Handle injected transactions and block events: injected transactions
+//!    are appended to program injected queues; router and mirror events
+//!    drive the corresponding state mutations (program creation, balance
+//!    top-up, message queueing, value claims, etc.).
+//! 2. Run scheduled tasks that are due at the current block height
+//!    (mailbox expiry cleanup, reservation removal, etc.).
+//! 3. Drain program message queues: the injected queue first, then the
+//!    canonical queue — unless a soft limit kicks in before that.
+//!    Promises are collected only during the injected pass; the
+//!    canonical pass runs with the promise sender dropped, so any code
+//!    that introduces new promise emission points must make sure they
+//!    are reached from the injected queue.
 //!
-//! The final [`ethexe_runtime_common::FinalizedBlockTransitions`] is returned
-//! to the caller.
-//!
-//! ## Chunked parallel execution
-//!
-//! Inside `handling::run` the non-empty program queues for a given queue type
-//! are partitioned into `ProcessorConfig::chunk_size` chunks (default
-//! [`DEFAULT_CHUNK_SIZE`]) by `chunks_splitting`. Within a chunk, every
-//! program runs in parallel: each one is submitted as a separate task to the
-//! `handling::thread_pool` worker pool, gets its own wasmtime `Store`
-//! (`host::InstanceWrapper`), and receives a copy of the chunk's gas
-//! allowance — see the `spawn_chunk_execution` comment on why they do not
-//! share a single counter. After all programs in a chunk finish, the executor
-//! collects their journals, applies the resulting side effects (outgoing
-//! dispatches, mailbox entries, value claims, promise emissions, new
-//! scheduled tasks), and charges the block gas allowance counter by the
-//! **maximum** gas spent across the chunk (not the sum — programs inside a
-//! chunk run simultaneously, so the wall-clock bottleneck is the slowest
-//! one). The loop repeats until:
-//!
-//! - all program queues are empty, or
-//! - the gas allowance is exhausted, or
-//! - one of the configured soft limits kicks in (outgoing messages count,
-//!   payload bytes, call replies, program modifications).
-//!
-//! ## Runtime hosting (`host` module)
-//!
-//! `host::InstanceCreator` owns the shared wasmtime `Engine` and a
-//! pre-compiled module of [`ethexe_runtime::WASM_BINARY_BLOATY`]. It registers
-//! host functions — allocator, database, lazy pages, logging, sandbox, promise
-//! — in a single `Linker`. Each program execution obtains an
-//! `host::InstanceWrapper`, which calls the runtime's two exports:
-//!
-//! - `instrument_code(code_ptr, code_len) -> i64` — runs the ethexe runtime
-//!   validation + instrumentation pipeline on a raw WASM blob (used by
-//!   [`Processor::process_code`]).
-//! - `run(ctx_ptr, ctx_len) -> i64` — executes one program's queue and
-//!   returns executions results (journals) and gas spent, see for more
-//!   `host::InstanceWrapper::run`.
-//!
-//! Per-execution state (the database handle, the current program state hash,
-//! the optional promise sender, lazy-pages caches) is threaded into host
-//! functions through the `host::threads::PARAMS` thread-local. State hashes
-//! are reported back from the runtime via the
-//! `ext_update_state_hash_version_1` host function and captured there; the
-//! host-side executor reads the final value from the thread-local after the
-//! `run` export returns.
-//!
-//! ### Lazy pages
-//!
-//! Program memory is not materialized up front. Pages are protected after
-//! instance setup and loaded from the database on the first SIGSEGV(on linux),
-//! via the [`gear_lazy_pages`] integration. See `host::threads::EthexeHostLazyPages`.
+//! The third stage uses a chunked parallel executor: non-empty program
+//! queues are partitioned by queue size into chunks of up to
+//! `ProcessorConfig::chunk_size` programs, and the programs inside a
+//! chunk run in parallel, each with its own wasmtime `Store`.
+//! Determinism-relevant property: because programs in a chunk run
+//! simultaneously, the block gas allowance counter is charged by the
+//! **maximum** gas spent in the chunk, not the sum. Execution stops when
+//! all queues are empty, the gas allowance is exhausted, or one of the
+//! configured soft limits (outgoing messages, payload bytes, call
+//! replies, program modifications) kicks in.
 //!
 //! ## Overlay execution
 //!
-//! [`OverlaidProcessor`] wraps a [`Processor`] whose database is swapped for a
-//! overlaid database [`Database::overlaid`]. Mutations are kept in memory
-//! and discarded when the overlay is dropped, so the underlying state is never
-//! touched. [`OverlaidProcessor::execute_for_reply`] synthesizes a single
-//! [`MessageQueueingRequestedEvent`] into the target program's canonical queue
-//! and runs inside an `handling::overlaid::OverlaidRunContext` which:
+//! [`OverlaidProcessor`] wraps a [`Processor`] whose database is swapped
+//! for an overlaid, copy-on-write view. Mutations are kept in memory and
+//! discarded when the overlay is dropped, so the underlying state is
+//! never touched. [`OverlaidProcessor::execute_for_reply`] synthesizes a
+//! single [`MessageQueueingRequestedEvent`] into the target program's
+//! canonical queue and runs against this overlay with the following
+//! simulation semantics:
 //!
-//! - trims the target program's canonical queue to only the synthetic
-//!   dispatch in the constructor
-//!   (`OverlaidRunContext::new`), so the simulation starts from a clean slate
+//! - the target program's canonical queue is trimmed to only the
+//!   synthetic dispatch, so the simulation starts from a clean slate
 //!   for the target;
-//! - when any other program is about to be scheduled and its queue has not
-//!   been touched yet, clears the queue and skips the scheduled run
-//!   (`OverlaidRunContext::check_task_no_run`) — non-target programs only
-//!   ever execute messages that originate from the current simulation;
-//! - when a journal emits `SendDispatch` to a receiver, clears that
-//!   receiver's queue first so it will process only the cascading message
-//!   (`OverlaidRunContext::nullify_receivers_queues`);
-//! - watches journals for a reply referencing the synthetic
-//!   [`MessageId::zero()`] and, as soon as it sees one, short-circuits the
-//!   executor without performing any further nullifications
-//!   (`OverlaidRunContext::nullify_or_break_early`).
+//! - every other program whose queue is about to be executed has that
+//!   queue cleared and its scheduled run skipped — non-target programs
+//!   only ever execute messages produced during the simulation;
+//! - when a journal emits a message to another program, the receiver's
+//!   queue is cleared first so only the cascading message is processed
+//!   there;
+//! - as soon as a reply to the synthetic message is seen, the
+//!   simulation short-circuits without performing further
+//!   queue-clearing work.
 //!
-//! ## Determinism notes
+//! ## Lazy pages
 //!
-//! - The chunking algorithm is a pure function of the program → queue-size map
-//!   and `chunk_size`, so every node executing the same block partitions the
-//!   work identically.
-//! - The host-side gas counter increments by max spending in chunk gas; WASM-side
-//!   state hashing runs inside the WASM runtime and does not depend on chunk layout.
-//! - WASM traps (out-of-bounds memory, `unreachable`, wasmtime errors) and
-//!   host-function panics that go through the `sp_wasm_interface`
-//!   `register_panic_error_message` hook are surfaced as
-//!   [`InstanceError::Wasmtime`] and propagated out of
-//!   [`Processor::process_programs`]. Raw Rust panics inside a chunk worker
-//!   are caught by `handling::thread_pool` with `catch_unwind` and re-raised
-//!   on the caller via `resume_unwind` — they unwind the async task, they do
+//! Program memory is not materialized up front. Pages are protected
+//! after instance setup and loaded from the database on first access
+//! (via a page fault on Linux / a signal-driven mechanism on other
+//! platforms), through the [`gear_lazy_pages`] integration.
+//!
+//! ## Determinism and error handling
+//!
+//! - The chunk partitioning is a deterministic function of the program
+//!   → queue-size map and `chunk_size`, so every node executing the
+//!   same block arrives at the same partitioning.
+//! - The host-side gas counter increments by the maximum gas spent in
+//!   the chunk; WASM-side state hashing runs inside the WASM runtime
+//!   and does not depend on chunk layout.
+//! - WASM traps (out-of-bounds memory, `unreachable`, wasmtime errors)
+//!   and host-function panics routed through the `sp_wasm_interface`
+//!   panic hook are surfaced as [`InstanceError::Wasmtime`] and
+//!   propagated out of [`Processor::process_programs`]. Raw Rust panics
+//!   inside a chunk worker are caught and re-raised on the caller via
+//!   `std::panic::resume_unwind` — they unwind the async task, they do
 //!   not become an `Err` variant.
 //!
 //! ## Configuration
 //!
-//! [`ProcessorConfig`] currently exposes a single knob, `chunk_size`, which
-//! controls the number of programs executed in parallel per pass. The default
-//! is [`DEFAULT_CHUNK_SIZE`] (16).
+//! [`ProcessorConfig`] currently exposes a single knob, `chunk_size`,
+//! which controls the number of programs executed in parallel per pass.
+//! The default is [`DEFAULT_CHUNK_SIZE`] (16).
 //!
 //! ## When modifying this crate
 //!
 //! - Processor must be deterministic.
-//! - Changing Processor logic may cause collisions in already deployed ethexe networks,
-//!   so be careful when modifying the processing pipeline,
-//!   and always check backwards compatibility with deployed networks.
-//! - Processor is designed to write only in CAS, it must NEVER modify key-value storage from Database.
+//! - Changing Processor logic may cause consensus mismatches in already
+//!   deployed ethexe networks, so be careful when modifying the
+//!   processing pipeline, and always check backwards compatibility with
+//!   deployed networks.
+//! - Processor is designed to write only in CAS, it must NEVER modify
+//!   key-value storage from Database.
 
 use core::num::NonZero;
 use ethexe_common::{

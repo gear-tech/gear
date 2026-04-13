@@ -100,13 +100,16 @@
 //!
 //! ## ConnectService behaviour
 //!
-//! `ConnectService` observes the chain. For each new Ethereum block it waits
-//! until the block is synced and prepared, resolves which validator is
-//! the producer for that block, and either validates the producer's
-//! announce if one has already been received or keeps waiting for it. Accepted announces turn into [`ConsensusEvent::ComputeAnnounce`]
-//! with [`PromisePolicy::Disabled`](ethexe_common::PromisePolicy) — observer
-//! nodes never collect promises. If any announce in the ancestor chain
-//! is missing locally, the service emits
+//! `ConnectService` observes the chain. For each new Ethereum block it
+//! waits until the block is synced and prepared, resolves which
+//! validator is the producer for that block, and either validates the
+//! producer's announce if one has already been received or keeps
+//! waiting for it.
+//!
+//! Accepted announces turn into [`ConsensusEvent::ComputeAnnounce`]
+//! with [`PromisePolicy::Disabled`](ethexe_common::PromisePolicy) —
+//! observer nodes never collect promises. If any announce in the
+//! ancestor chain is missing locally, the service emits
 //! [`ConsensusEvent::RequestAnnounces`] and waits for the network's
 //! response before proceeding.
 //!
@@ -133,8 +136,8 @@
 //! ```
 //!
 //! These state names appear in emitted [`ConsensusEvent::Warning`]
-//! messages and match the module layout under `validator/`, so they are
-//! the right handle when reading logs or tracing an issue.
+//! messages, so they are the right handle when reading logs or tracing
+//! an issue.
 //!
 //! Contract visible at the crate boundary:
 //!
@@ -150,9 +153,10 @@
 //!   and then submits the multi-signed batch through the injected
 //!   [`BatchCommitter`]. On success a [`ConsensusEvent::CommitmentSubmitted`]
 //!   is emitted.
-//! - When acting as participant, the service validates the incoming batch
-//!   against its local state and replies with a signed acceptance or
-//!   rejection over [`ConsensusEvent::PublishMessage`].
+//! - When acting as participant, the service validates the incoming
+//!   batch against its local state. On acceptance it publishes a signed
+//!   reply over [`ConsensusEvent::PublishMessage`]; on rejection it emits
+//!   a [`ConsensusEvent::Warning`] and sends nothing to the coordinator.
 //! - Unexpected or malformed inputs produce [`ConsensusEvent::Warning`]
 //!   rather than aborting the service.
 //!
