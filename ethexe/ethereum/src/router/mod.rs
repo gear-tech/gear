@@ -344,7 +344,8 @@ impl Router {
         let estimated_gas_limit = match estimate_gas_builder.estimate_gas().await {
             Ok(gas_limit) => gas_limit,
             Err(err) => {
-                let latest_block = Ethereum::_get_latest_block(self.instance.provider()).await?;
+                let latest_block =
+                    Ethereum::get_latest_block_inner(self.instance.provider()).await?;
                 let error = if let Some(router_error) =
                     err.as_decoded_interface_error::<IRouter::IRouterErrors>()
                 {

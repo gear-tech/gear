@@ -297,11 +297,13 @@ impl Ethereum {
         self.provider.get_chain_id().await.map_err(Into::into)
     }
 
-    pub(crate) async fn _get_latest_block(provider: &AlloyProvider) -> Result<SimpleBlockData> {
-        Self::_get_block(provider, BlockId::latest()).await
+    pub(crate) async fn get_latest_block_inner(
+        provider: &AlloyProvider,
+    ) -> Result<SimpleBlockData> {
+        Self::get_block_inner(provider, BlockId::latest()).await
     }
 
-    pub(crate) async fn _get_block(
+    pub(crate) async fn get_block_inner(
         provider: &AlloyProvider,
         block_id: impl IntoBlockId,
     ) -> Result<SimpleBlockData> {
@@ -327,11 +329,11 @@ impl Ethereum {
     }
 
     pub async fn get_latest_block(&self) -> Result<SimpleBlockData> {
-        Self::_get_latest_block(&self.provider()).await
+        Self::get_latest_block_inner(&self.provider()).await
     }
 
     pub async fn get_block(&self, block_id: impl IntoBlockId) -> Result<SimpleBlockData> {
-        Self::_get_block(&self.provider(), block_id).await
+        Self::get_block_inner(&self.provider(), block_id).await
     }
 
     pub fn mirror(&self, actor_id: ActorId) -> Mirror {
