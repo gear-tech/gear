@@ -104,6 +104,11 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(default, rename = "chain-deepness-threshold")]
     pub chain_deepness_threshold: Option<u32>,
+
+    /// Path to genesis state dump file (.blob or .json) for initial chain state.
+    #[arg(long)]
+    #[serde(default, rename = "genesis-state-dump")]
+    pub genesis_state_dump: Option<PathBuf>,
 }
 
 impl NodeParams {
@@ -147,6 +152,7 @@ impl NodeParams {
             chain_deepness_threshold: self
                 .chain_deepness_threshold
                 .unwrap_or(DEFAULT_CHAIN_DEEPNESS_THRESHOLD),
+            genesis_state_dump: self.genesis_state_dump,
         })
     }
 
@@ -223,6 +229,8 @@ impl MergeParams for NodeParams {
             chain_deepness_threshold: self
                 .chain_deepness_threshold
                 .or(with.chain_deepness_threshold),
+
+            genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
         }
     }
 }

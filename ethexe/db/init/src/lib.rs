@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Context as _;
-use ethexe_db::{Database, RawDatabase};
+use ethexe_db::{Database, RawDatabase, dump::StateDump};
+use futures::future::BoxFuture;
+use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gprimitives::CodeId;
 use gsigner::Address;
 
 mod version1;
@@ -25,10 +28,26 @@ mod version1;
 pub const DB_VERSION_0: u32 = 0;
 pub const DB_VERSION_1: u32 = 1;
 
+pub type CodeProcessingFuture =
+    BoxFuture<'static, anyhow::Result<Option<(InstrumentedCode, CodeMetadata)>>>;
+
+/// Plug-in that supplies a pre-computed state dump at genesis time and
+/// processes each contained code to produce its instrumented form + metadata.
+///
+/// Used for re-genesis: the chain is bootstrapped from a [`StateDump`] rather
+/// than from an empty state.
+pub trait GenesisInitializer {
+    fn get_genesis_data(&mut self) -> anyhow::Result<StateDump>;
+    fn process_code(&mut self, code_id: CodeId, code: Vec<u8>) -> CodeProcessingFuture;
+}
+
 pub struct InitConfig {
     pub ethereum_rpc: String,
     pub router_address: Address,
     pub slot_duration_secs: u64,
+    /// If present, the empty-database initialization path will bootstrap
+    /// programs, codes and schedule from the dump supplied by this initializer.
+    pub genesis_initializer: Option<Box<dyn GenesisInitializer>>,
 }
 
 pub async fn initialize_db(config: InitConfig, raw: RawDatabase) -> anyhow::Result<Database> {

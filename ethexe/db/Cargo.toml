@@ -15,13 +15,19 @@ gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
 dashmap.workspace = true
+flate2.workspace = true
+hex.workspace = true
+log.workspace = true
 parity-scale-codec.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 tracing.workspace = true
 paste.workspace = true
 derive_more.workspace = true
 auto_impl.workspace = true
 gear-workspace-hack.workspace = true
 delegate.workspace = true
+futures.workspace = true
 
 # TODO: remove when https://github.com/tikv/jemallocator/pull/99 merged
 [target.'cfg(target_env = "msvc")'.dependencies.rocksdb]

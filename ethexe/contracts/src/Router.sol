@@ -124,6 +124,14 @@ contract Router is
         // All protocol data must be removed - so leave it zeroed in new router.
     }
 
+    /// @dev Re-genesis: set a new genesis block and reset the latest committed batch.
+    /// All programs, codes, validators, and settings are preserved.
+    function reGenesis(Gear.GenesisBlockInfo memory newGenesis) public onlyOwner {
+        Storage storage router = _router();
+        router.genesisBlock = newGenesis;
+        router.latestCommittedBatch = Gear.CommittedBatchInfo({hash: bytes32(0), timestamp: 0});
+    }
+
     /**
      * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract.
      *      Called by {upgradeToAndCall}.

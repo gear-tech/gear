@@ -25,9 +25,9 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
-        TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
-        Wallets, init_logger,
+        AnnounceId, EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, Node,
+        NodeConfig, TestEnv, TestEnvConfig, TestingEvent, TestingNetworkEvent, TestingRpcEvent,
+        ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
     },
 };
 use alloy::{
@@ -44,16 +44,17 @@ use ethexe_common::{
         mirror::{MessageEvent, ReplyEvent, StateChangedEvent, ValueClaimedEvent},
         router::{AnnouncesCommittedEvent, ValidatorsCommittedForEraEvent},
     },
-    gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
+    gear::{BatchCommitment, CANONICAL_QUARANTINE, GenesisBlockInfo, MessageType},
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
     mock::*,
     network::ValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
-use ethexe_db::verifier::IntegrityVerifier;
+use ethexe_db::{Database, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
+use ethexe_processor::Processor;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, InjectedClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
@@ -102,6 +103,7 @@ async fn basics() {
         pre_funded_accounts: 10,
         fast_sync: false,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+        genesis_state_dump: None,
     };
 
     let eth_cfg = EthereumConfig {
@@ -3365,4 +3367,317 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     } else {
         unreachable!();
     }
+}
+
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn re_genesis_with_state_dump() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    log::info!("📗 Phase 1: start a node, deploy ping program, do ping-pong.");
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+    let ping_id = res.program_id;
+
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    log::info!("📗 Phase 2: collect state dump from the node's database.");
+    let latest_prepared_block_hash = node.db.globals().latest_prepared_block_hash;
+    log::info!("Collecting state dump for block {latest_prepared_block_hash:?}...");
+
+    let dump = StateDump::collect_from_storage(&node.db, latest_prepared_block_hash).unwrap();
+    log::info!(
+        "Dump: {} codes, {} programs, {} blobs",
+        dump.codes.len(),
+        dump.programs.len(),
+        dump.blobs.len(),
+    );
+    assert!(!dump.codes.is_empty());
+    assert!(!dump.programs.is_empty());
+
+    // Stop the node.
+    drop(node);
+
+    log::info!(
+        "📗 Phase 3: re-genesis the router with the dump block {} as new genesis",
+        dump.block_hash
+    );
+    let block = env.ethereum.get_block(dump.block_hash).await.unwrap();
+    let new_genesis = GenesisBlockInfo {
+        hash: block.hash,
+        number: block.header.height,
+        timestamp: block.header.timestamp,
+    };
+    env.ethereum.router().re_genesis(new_genesis).await.unwrap();
+    assert_eq!(
+        block.hash,
+        env.ethereum
+            .router()
+            .query()
+            .genesis_block_hash()
+            .await
+            .unwrap()
+            .0
+            .into()
+    );
+
+    log::info!("📗 Phase 4: create a new node with a fresh DB initialized from the state dump.");
+
+    let memory_db = Database::memory();
+    let processor = Processor::new(memory_db).unwrap();
+    let initializer = GenesisInitializerFromDump {
+        dump: Some(dump),
+        processor,
+    };
+
+    let new_db = ethexe_db_init::create_initialized_empty_memory_db(ethexe_db_init::InitConfig {
+        ethereum_rpc: env.eth_cfg.rpc.clone(),
+        router_address: env.eth_cfg.router_address,
+        slot_duration_secs: env.eth_cfg.block_time.as_secs(),
+        genesis_initializer: Some(Box::new(initializer)),
+    })
+    .await
+    .unwrap();
+
+    // Start node again with the new db.
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .db(new_db)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    log::info!("📗 Phase 5: verify ping still works after re-genesis.");
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.program_id, ping_id);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+}
+
+/// Test re-genesis with a program that has pending delayed messages in the dispatch stash.
+///
+/// WAT program: on `handle`, sends a delayed message (delay=5 blocks) to the source,
+/// then replies with "OK". After re-genesis, the delayed task should be restored
+/// in the scheduler from the dispatch stash in the program state.
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn re_genesis_delayed_message() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    // WAT program: on handle, sends a delayed message to source and replies.
+    //
+    // Memory layout:
+    //   0..32   : source ActorId (filled by gr_source)
+    //   32..48  : value u128 = 0 (for dest_with_value)
+    //   48..55  : payload "DELAYED"
+    //   64..100 : error(4) + message_id(32) result buffer
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_source" (func $gr_source (param i32)))
+            (import "env" "gr_send" (func $gr_send (param i32 i32 i32 i32 i32)))
+            (import "env" "gr_reply" (func $gr_reply (param i32 i32 i32 i32)))
+            (export "handle" (func $handle))
+            (data (i32.const 48) "DELAYED")
+            (func $handle
+                ;; Get source address into memory at offset 0.
+                (call $gr_source (i32.const 0))
+                ;; Send delayed message: dest_with_value=0, payload=48, len=7, delay=5, err_ptr=64
+                (call $gr_send (i32.const 0) (i32.const 48) (i32.const 7) (i32.const 5) (i32.const 64))
+                ;; Reply with "DE" via gr_reply: payload_ptr=48, len=2, value_ptr=32, err_ptr=64
+                (call $gr_reply (i32.const 48) (i32.const 2) (i32.const 32) (i32.const 64))
+            )
+        )
+    "#;
+
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse WAT module");
+
+    log::info!("📗 Phase 1: deploy program and trigger delayed send.");
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let program_id = res.program_id;
+
+    // First message initializes the program (calls `init`).
+    let res = env
+        .send_message(program_id, b"init")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    // Second message triggers handle with delayed send.
+    let res = env
+        .send_message(program_id, b"trigger")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(&res.payload, b"DE"); // first 2 bytes of "DELAYED"
+
+    // Wait for announce commit.
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    // Phase 2: collect dump.
+    log::info!("📗 Phase 2: collect state dump.");
+    let dump_block_hash = node.db.globals().latest_prepared_block_hash;
+    let dump = StateDump::collect_from_storage(&node.db, dump_block_hash).unwrap();
+    log::info!(
+        "Dump: {} codes, {} programs, {} blobs",
+        dump.codes.len(),
+        dump.programs.len(),
+        dump.blobs.len(),
+    );
+
+    // Verify the dispatch stash is non-empty (delayed message pending).
+    {
+        let (_code_id, state_hash) = dump.programs.values().next().unwrap();
+        let state = node.db.program_state(*state_hash).unwrap();
+        assert!(
+            !state.stash_hash.is_empty(),
+            "dispatch stash should contain the delayed message"
+        );
+    }
+
+    // Stop the node.
+    drop(node);
+
+    // Phase 3: re-genesis.
+    log::info!("📗 Phase 3: re-genesis.");
+    let block = env.ethereum.get_block(dump.block_hash).await.unwrap();
+    let new_genesis = GenesisBlockInfo {
+        hash: block.hash,
+        number: block.header.height,
+        timestamp: block.header.timestamp,
+    };
+    env.ethereum.router().re_genesis(new_genesis).await.unwrap();
+
+    // Phase 4: start new node with dump.
+    log::info!("📗 Phase 4: start new node with state dump.");
+    let memory_db = Database::memory();
+    let processor = Processor::new(memory_db).unwrap();
+    let initializer = GenesisInitializerFromDump {
+        dump: Some(dump),
+        processor,
+    };
+
+    let new_db = ethexe_db_init::create_initialized_empty_memory_db(ethexe_db_init::InitConfig {
+        ethereum_rpc: env.eth_cfg.rpc.clone(),
+        router_address: env.eth_cfg.router_address,
+        slot_duration_secs: env.eth_cfg.block_time.as_secs(),
+        genesis_initializer: Some(Box::new(initializer)),
+    })
+    .await
+    .unwrap();
+
+    // Verify schedule was restored with the delayed task.
+    {
+        let genesis_announce = new_db.config().genesis_announce_hash;
+        let schedule = new_db.announce_schedule(genesis_announce).unwrap();
+        let total_tasks: usize = schedule.values().map(|tasks| tasks.len()).sum();
+        log::info!(
+            "Restored schedule: {total_tasks} tasks across {} blocks",
+            schedule.len()
+        );
+        assert!(
+            total_tasks > 0,
+            "schedule must contain the delayed send task"
+        );
+    }
+
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .db(new_db)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    // skip 4 blocks to reach the delayed message execution slot
+    // delay=5 blocks, so execute at block N+5, but we are currently at N+1 after genesis.
+    env.skip_blocks(4).await;
+    env.new_observer_events()
+        .filter_map_block_synced()
+        .find_map(|event| match event {
+            BlockEvent::Mirror {
+                event: MirrorEvent::Message(event),
+                ..
+            } => Some(event),
+            _ => None,
+        })
+        .await
+        .tap(
+            |MessageEvent {
+                 destination,
+                 payload,
+                 value,
+                 ..
+             }| {
+                assert_eq!(*destination, env.sender_id);
+                assert_eq!(payload, b"DELAYED");
+                assert_eq!(*value, 0);
+            },
+        );
 }

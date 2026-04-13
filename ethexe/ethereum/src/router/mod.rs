@@ -38,8 +38,8 @@ use ethexe_common::{
     ecdsa::ContractSignature,
     events::router::CodeGotValidatedEvent,
     gear::{
-        AggregatedPublicKey, BatchCommitment, CodeState, ComputationSettings, SignatureType,
-        Timelines,
+        AggregatedPublicKey, BatchCommitment, CodeState, ComputationSettings, GenesisBlockInfo,
+        SignatureType, Timelines,
     },
 };
 use events::{
@@ -107,6 +107,16 @@ impl Router {
     pub async fn set_mirror_with_receipt(&self, new_mirror: Address) -> Result<TransactionReceipt> {
         let new_mirror = AlloyAddress::new(new_mirror.0);
         let builder = self.instance.setMirror(new_mirror);
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
+    }
+
+    pub async fn re_genesis(&self, genesis: GenesisBlockInfo) -> Result<TransactionReceipt> {
+        let builder = self.instance.reGenesis(genesis.into());
         let receipt = builder
             .send()
             .await?
