@@ -20,7 +20,7 @@ use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
-    ScheduledTask, SimpleBlockData,
+    PrivateKey, ScheduledTask, SignedMessage, SimpleBlockData,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
@@ -176,7 +176,7 @@ mod utils {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn ping_init() {
     init_logger();
 
@@ -313,7 +313,7 @@ fn handle_new_code_invalid() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn ping_pong() {
     init_logger();
 
@@ -387,7 +387,7 @@ async fn ping_pong() {
     assert_eq!(message.payload, b"PONG");
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn async_and_ping() {
     init_logger();
 
@@ -506,7 +506,7 @@ async fn async_and_ping() {
     assert_eq!(message.payload, wait_for_reply_to.into_bytes());
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn many_waits() {
     init_logger();
 
@@ -666,7 +666,7 @@ async fn many_waits() {
 }
 
 // Tests that when overlay execution is performed, it doesn't change the original state.
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn overlay_execution() {
     init_logger();
 
@@ -914,7 +914,7 @@ async fn overlay_execution() {
     assert_eq!(reply_info.payload, MessageId::zero().encode());
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn injected_ping_pong() {
     init_logger();
 
@@ -1022,7 +1022,7 @@ async fn injected_ping_pong() {
 }
 
 #[cfg(debug_assertions)] // FIXME: test fails in release mode
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn injected_prioritized_over_canonical() {
     const MSG_NUM: usize = 100;
 
@@ -1137,7 +1137,7 @@ async fn injected_prioritized_over_canonical() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn executable_balance_charged() {
     init_logger();
 
@@ -1216,7 +1216,7 @@ async fn executable_balance_charged() {
     assert!(exec_balance_after < exec_balance_before);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn executable_balance_injected_panic_not_charged() {
     // Testing special case when injected message causes panic in the program.
     // In this case executable balance should not be charged if gas burned during
@@ -1297,6 +1297,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .await
         .unwrap();
 
+    // Promises still returns for panic injected txs.
     let panic_promise = promise_receiver
         .recv()
         .await
@@ -1309,14 +1310,12 @@ async fn executable_balance_injected_panic_not_charged() {
             SimpleExecutionError::UserspacePanic
         ))
     );
+    assert_eq!(panic_promise.reply.payload, b"\xE0\x80\x80");
 
     let to_users = handler.transitions.current_messages();
-    assert_eq!(to_users.len(), 2);
 
-    let message = &to_users[1].1;
-    assert_eq!(message.destination, user_id);
-    // Check that panic indeed happened
-    assert_eq!(&message.payload[..3], b"\xE0\x80\x80");
+    // Only one message to user, because injected message panic and do not charge gas.
+    assert_eq!(to_users.len(), 1);
 
     // Check that executable balance is unchanged
     let exec_balance_after = handler.program_state(actor_id).executable_balance;
@@ -1346,12 +1345,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .unwrap();
 
     let to_users = transitions.current_messages();
-    assert_eq!(to_users.len(), 3);
-
-    let message = &to_users[2].1;
-    assert_eq!(message.destination, user_id);
-    // Check that panic indeed happened
-    assert_eq!(&message.payload[..3], b"\xE0\x80\x80");
+    assert_eq!(to_users.len(), 2);
 
     // Check that executable balance decreased on canonical message
     let exec_balance_after = ProcessingHandler::new(processor.db.clone(), transitions)
@@ -1360,7 +1354,7 @@ async fn executable_balance_injected_panic_not_charged() {
     assert!(exec_balance_after < init_balance);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn insufficient_executable_balance_still_charged() {
     // Just enough balance to charge for instrumentation and instantiation but not enough to process the message.
     const INSUFFICIENT_EXECUTABLE_BALANCE: u128 = 30_000_000_000;
@@ -1424,7 +1418,7 @@ async fn insufficient_executable_balance_still_charged() {
     assert!(exec_balance_after < INSUFFICIENT_EXECUTABLE_BALANCE);
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn call_gr_wait_is_forbidden() {
     init_logger();
 
@@ -1452,7 +1446,7 @@ async fn call_gr_wait_is_forbidden() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 async fn call_wake_with_delay_is_unsupported() {
     init_logger();
 
@@ -1502,7 +1496,255 @@ async fn call_wake_with_delay_is_unsupported() {
     assert_eq!(reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
 }
 
-#[tokio::test(flavor = "multi_thread")]
+/// Tests that process_programs phases execute in strict order:
+/// 1. Injected transactions + events (populate queues)
+/// 2. Scheduled tasks (e.g., WakeMessage moves dispatches back to queues)
+/// 3. Queue processing (injected queue first, then canonical queue)
+///
+/// Uses `process_programs` to exercise the full pipeline.
+#[tokio::test]
+async fn injected_and_events_then_tasks_then_queues() {
+    init_logger();
+
+    // Handle function:
+    // - First call: sets flag and waits for 1 block
+    // - Subsequent calls: replies with "DONE"
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (import "env" "gr_wait_for" (func $wait_for (param i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (if
+                    (i32.eqz (i32.load (i32.const 0x200)))
+                    (then
+                        (i32.store (i32.const 0x200) (i32.const 1))
+                        (call $wait_for (i32.const 1))
+                    )
+                    (else
+                        (call $reply (i32.const 0) (i32.const 4) (i32.const 0x400) (i32.const 0x600))
+                    )
+                )
+            )
+            (data (i32.const 0) "DONE")
+        )
+    "#;
+
+    let (_, code) = wat_to_wasm(wat);
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
+
+    let task_user = ActorId::from(10);
+    let injected_user_pk = PrivateKey::random();
+    let canonical_user = ActorId::from(30);
+    let actor_id = ActorId::from(0x10000);
+
+    // === Block 1: Create program, init, and send a message that will wait ===
+    let block1 = chain.blocks[1].to_simple();
+
+    let create_and_init_events = vec![
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        })),
+        BlockRequestEvent::Mirror {
+            actor_id,
+            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 500_000_000_000,
+                },
+            ),
+        },
+        BlockRequestEvent::Mirror {
+            actor_id,
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: task_user,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        },
+    ];
+
+    let executable = ExecutableData {
+        block: block1,
+        events: create_and_init_events,
+        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        ..Default::default()
+    };
+    let FinalizedBlockTransitions {
+        states,
+        schedule,
+        program_creations,
+        ..
+    } = processor.process_programs(executable, None).await.unwrap();
+    program_creations
+        .into_iter()
+        .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));
+
+    // === Block 2: Send handle message that triggers wait_for(1) ===
+    let block2 = chain.blocks[2].to_simple();
+
+    let wait_message_event = vec![BlockRequestEvent::Mirror {
+        actor_id,
+        event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+            id: MessageId::from(2),
+            source: task_user,
+            payload: vec![],
+            value: 0,
+            call_reply: false,
+        }),
+    }];
+
+    let executable = ExecutableData {
+        block: block2,
+        program_states: states,
+        schedule,
+        events: wait_message_event,
+        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        ..Default::default()
+    };
+    let FinalizedBlockTransitions {
+        states, schedule, ..
+    } = processor.process_programs(executable, None).await.unwrap();
+
+    // Verify WakeMessage is scheduled for block3
+    let wake_block_height = block2.header.height + 1;
+    assert!(
+        schedule.contains_key(&wake_block_height),
+        "WakeMessage must be scheduled for block {wake_block_height}"
+    );
+
+    // === Block 3: All three phases via process_programs ===
+    // - Phase 1 (injected + events): injected tx + canonical message populate queues
+    // - Phase 2 (tasks): WakeMessage moves waiting dispatch back to canonical queue
+    // - Phase 3 (queues): injected queue first, then canonical queue
+    let block3 = chain.blocks[3].to_simple();
+    assert_eq!(block3.header.height, wake_block_height);
+
+    let injected_tx = InjectedTransaction {
+        destination: actor_id,
+        payload: vec![].try_into().unwrap(),
+        value: 0,
+        reference_block: H256::random(),
+        salt: H256::random().0.to_vec().try_into().unwrap(),
+    };
+    let signed_injected = SignedMessage::create(injected_user_pk, injected_tx).unwrap();
+    let verified_injected = signed_injected.into_verified();
+    let injected_user: ActorId = verified_injected.address().into();
+
+    let canonical_event = vec![BlockRequestEvent::Mirror {
+        actor_id,
+        event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+            id: MessageId::from(3),
+            source: canonical_user,
+            payload: vec![],
+            value: 0,
+            call_reply: false,
+        }),
+    }];
+
+    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
+
+    let executable = ExecutableData {
+        block: block3,
+        program_states: states,
+        schedule,
+        injected_transactions: vec![verified_injected],
+        events: canonical_event,
+        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+    };
+    let FinalizedBlockTransitions { transitions, .. } = processor
+        .process_programs(executable, Some(promise_out_tx))
+        .await
+        .unwrap();
+
+    // === Verify three-phase ordering via process_programs output ===
+    //
+    // The single `process_programs` call runs three phases internally:
+    //   Phase 1: handle_injected_and_events — pushes injected tx to injected queue,
+    //            pushes canonical event message to canonical queue
+    //   Phase 2: process_tasks — WakeMessage moves waiting dispatch to canonical queue
+    //   Phase 3: process_queues — executes injected queue first, then canonical queue
+    //
+    // We prove ordering by observing the output:
+    //
+    // ASSERT: Injected+events ran BEFORE queues.
+    //   If queues ran first, no messages would be in queues → 0 replies.
+    //   We get 3 replies ⇒ events populated queues before they were processed.
+    //
+    // ASSERT: Tasks ran BEFORE queues.
+    //   If queues ran before tasks, the WakeMessage wouldn't have moved the waiting dispatch
+    //   back into the canonical queue → only 2 replies (injected + canonical event).
+    //   We get 3 replies ⇒ tasks ran before queue processing.
+    //
+    // ASSERT: Injected+events ran BEFORE tasks (canonical queue is FIFO).
+    //   The event message (phase 1) is queued to canonical queue before the woken dispatch
+    //   (phase 2). So in output, event reply appears before task-woken reply.
+    //   If tasks ran before events, the woken dispatch would be first in canonical queue,
+    //   and we'd see task_user reply before canonical_user reply.
+    //
+    // ASSERT: Injected queue processed BEFORE canonical queue.
+    //   Injected reply is first in output, before any canonical replies.
+
+    // Injected message must produce a promise (proves it was executed)
+    let promise = promise_receiver
+        .recv()
+        .await
+        .expect("promise must be sent for injected transaction");
+    assert_eq!(promise.reply.payload, b"DONE");
+    assert_eq!(
+        promise.reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+
+    // Collect all outgoing messages from the single process_programs call
+    let to_users: Vec<_> = transitions
+        .iter()
+        .flat_map(|t| t.messages.iter().map(|m| (&t.actor_id, m)))
+        .collect();
+
+    // --- ASSERT: All three sources produced replies ---
+    // This proves both injected+events AND tasks ran BEFORE queue processing.
+    // If queues ran before injected+events: 0 replies (nothing in queues).
+    // If queues ran before tasks: 2 replies (no woken dispatch in canonical queue).
+    assert_eq!(
+        to_users.len(),
+        3,
+        "All 3 sources (injected, canonical event, task-woken) must produce replies. \
+         Missing replies means queue processing ran before injected+events or tasks."
+    );
+
+    // --- ASSERT: Injected queue processed BEFORE canonical queue ---
+    // The injected reply must come first because process_queues runs
+    // injected queues before canonical queues.
+    assert_eq!(
+        to_users[0].1.destination, injected_user,
+        "Injected reply must come first: injected queue is processed before canonical queue"
+    );
+    assert_eq!(to_users[0].1.payload, b"DONE");
+
+    // --- ASSERT: Events (phase 1) ran BEFORE tasks (phase 2) ---
+    // Canonical queue is FIFO. The event message was queued in phase 1 and the woken
+    // dispatch was queued in phase 2. So the event reply MUST appear before the task reply.
+    // If tasks ran first, task_user reply would appear at position 1, not position 2.
+    assert_eq!(
+        to_users[1].1.destination, canonical_user,
+        "Canonical event reply must come before task-woken reply: \
+         events (phase 1) must populate canonical queue before tasks (phase 2) add woken dispatches"
+    );
+    assert_eq!(to_users[1].1.payload, b"DONE");
+
+    assert_eq!(
+        to_users[2].1.destination, task_user,
+        "Task-woken reply must come last in canonical queue: \
+         tasks (phase 2) enqueue woken dispatch after events (phase 1) already queued their messages"
+    );
+    assert_eq!(to_users[2].1.payload, b"DONE");
+}
+
+#[tokio::test]
 async fn call_wait_up_to_with_huge_duration() {
     init_logger();
 

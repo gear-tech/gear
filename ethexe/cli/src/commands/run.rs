@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Implementation of the `ethexe run` command.
+
 use crate::{
     Params,
     params::{MergeParams, NodeParams},
@@ -49,15 +51,20 @@ impl RunCommand {
         self
     }
 
-    /// Run the ethexe service (node).
+    /// Builds the final service config and starts the ethexe node.
+    ///
+    /// In development mode this command also provisions an Anvil-backed environment and
+    /// injects the generated validator key, session key, Router address, and RPC endpoints
+    /// into the effective configuration before the service starts.
     pub fn run(mut self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
         crate::enable_logging(default)?;
 
         let mut anvil_instance = None;
+        let is_dev_node = self.params.node.as_ref().map(|n| n.dev).unwrap_or_default();
 
         if let Some(node) = self.params.node.as_mut()
-            && node.dev
+            && is_dev_node
         {
             // set block time to 1 second if not set explicitly
             let block_time = Duration::from_secs(
@@ -99,10 +106,17 @@ impl RunCommand {
             anvil_instance = Some(anvil);
         }
 
-        let config = self
-            .params
-            .into_config()
-            .with_context(|| "invalid configuration")?;
+        let config = {
+            let mut config = self
+                .params
+                .into_config()
+                .with_context(|| "invalid configuration")?;
+
+            if is_dev_node && let Some(rpc_config) = config.rpc.as_mut() {
+                rpc_config.with_dev_api = true
+            }
+            config
+        };
 
         config.log_info();
 

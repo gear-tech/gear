@@ -20,11 +20,21 @@ use super::{InitConfig, v0};
 use crate::RawDatabase;
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result};
-use ethexe_common::ProtocolTimelines;
+use ethexe_common::{
+    ProtocolTimelines,
+    db::{DBConfig, DBGlobals},
+};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
 pub const VERSION: u32 = 1;
+
+const _: () = const {
+    assert!(
+        crate::VERSION == super::v3::VERSION,
+        "Check migration code for types changing in case of version change: DBConfig, DBGlobals, ProtocolTimelines"
+    );
+};
 
 pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<()> {
     // Changes from version 0 to version 1:
@@ -47,7 +57,7 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
         .map(|bytes| v0::LatestData::decode(&mut bytes.as_slice()))?
         .context("failed to decode LatestData during migration")?;
 
-    let globals = ethexe_common::db::DBGlobals {
+    let globals = DBGlobals {
         start_block_hash: latest_data.start_block_hash,
         start_announce_hash: latest_data.start_announce_hash,
         latest_synced_block: latest_data.synced_block,
@@ -62,7 +72,7 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
         .map(|bytes| v0::ProtocolTimelines::decode(&mut bytes.as_slice()))?
         .context("failed to decode ProtocolTimelines during migration")?;
 
-    let db_config = ethexe_common::db::DBConfig {
+    let db_config = DBConfig {
         version: VERSION,
         chain_id,
         router_address: config.router_address,
@@ -93,9 +103,9 @@ mod tests {
             "v0->v1",
             vec![
                 meta_type::<v0::LatestData>(),
-                meta_type::<ethexe_common::db::DBGlobals>(),
+                meta_type::<DBGlobals>(),
                 meta_type::<v0::ProtocolTimelines>(),
-                meta_type::<ethexe_common::db::DBConfig>(),
+                meta_type::<DBConfig>(),
             ],
             "68246d1aef14df71d8ba42d0a3b81f87c51c58c6ab24fe0348f1882e9c7d5a5a",
         );

@@ -28,7 +28,7 @@ use crate::args::FuzzParams;
 use alloy::{hex, primitives::Address, providers::Provider, rpc::types::Filter};
 use anyhow::Result;
 use demo_syscalls_ethexe::InitConfig;
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::{Ethereum, NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE};
 use ethexe_sdk::VaraEthApi;
 use gprimitives::MessageId;
 use parity_scale_codec::Encode;
@@ -39,18 +39,31 @@ use tracing::{debug, info, warn};
 /// How much VARA (ERC-20 with 12 decimals) to give the mega contract.
 const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
 
+/// Runs the syscall fuzzing workflow against a local `ethexe` deployment.
+///
+/// The function uploads the demo mega contract, creates and initializes a
+/// program instance, then repeatedly sends randomized command batches while
+/// classifying each iteration as success, trap, or transport error.
 pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     let router_addr = Address::from_str(&params.router_address)?;
 
     let (signer, address) = if let Some(ref pk) = params.sender_private_key {
-        crate::signer_from_private_key(pk)?
+        crate::utils::signer_from_private_key(pk)?
     } else {
-        crate::signer_from_private_key(crate::DEPLOYER_ACCOUNT.private_key)?
+        crate::utils::signer_from_private_key(crate::utils::DEPLOYER_ACCOUNT.private_key)?
     };
 
     info!("Fuzz deployer address: 0x{}", hex::encode(address.0));
 
-    let api = Ethereum::new(&params.node, router_addr.into(), signer.clone(), address).await?;
+    let api = Ethereum::new(
+        &params.node,
+        router_addr.into(),
+        signer.clone(),
+        address,
+        NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+        NO_BLOB_GAS_MULTIPLIER,
+    )
+    .await?;
     let vapi = VaraEthApi::new(&params.ethexe_node, api.clone()).await?;
 
     info!("Uploading mega syscall contract code...");
@@ -144,10 +157,12 @@ pub async fn run_fuzz(params: FuzzParams) -> Result<()> {
     Ok(())
 }
 
-/// Wait for a reply to `msg_id` by polling blocks from `start_block` up to
-/// `max_blocks` ahead. Sleeps up to 12 seconds between polls when waiting for
-/// new blocks to appear.
-/// Returns `Ok(None)` on success, `Ok(Some(err))` on error reply, `Err` on timeout.
+/// Waits for the terminal outcome of one message by polling future blocks.
+///
+/// The function scans mirror logs from `start_block` forward up to
+/// `max_blocks`, sleeping between polls while waiting for new blocks. It
+/// returns Ok(None) on a successful reply, Ok(Some(reason)) if the
+/// message fails or times out, and Err(_) on transport or RPC failures.
 async fn wait_for_reply(
     api: &Ethereum,
     msg_id: MessageId,

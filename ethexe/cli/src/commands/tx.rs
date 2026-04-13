@@ -18,6 +18,12 @@
 
 #![allow(clippy::redundant_closure_call)]
 
+//! Ethereum- and Vara.eth-facing transaction workflows.
+//!
+//! This command family is intentionally broad: it covers Router interactions such as code
+//! upload and program creation, Mirror operations such as top-ups and replies, and injected
+//! transactions that are submitted through the Vara.eth RPC instead of through Ethereum.
+
 use crate::{
     params::Params,
     utils::{
@@ -33,7 +39,10 @@ use ethexe_common::{
     gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
     injected::{AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE},
 };
-use ethexe_ethereum::{Ethereum, mirror::ClaimInfo, router::CodeValidationResult};
+use ethexe_ethereum::{
+    Ethereum, INCREASED_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE, mirror::ClaimInfo,
+    router::CodeValidationResult,
+};
 use ethexe_rpc::{InjectedClient, ProgramClient};
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
@@ -43,6 +52,7 @@ use serde_json::json;
 use sp_core::Bytes;
 use std::{env, fs, path::PathBuf};
 
+/// JSON-serializable result returned by `tx upload`.
 #[derive(Debug, Clone, Serialize)]
 struct UploadResultData {
     chain_id: u64,
@@ -62,6 +72,7 @@ struct UploadResultData {
     code_validation_result: Option<CodeValidationResult>,
 }
 
+/// JSON-serializable result returned by mirror creation commands.
 #[derive(Debug, Clone, Serialize)]
 struct CreateResultData {
     chain_id: u64,
@@ -79,6 +90,7 @@ struct CreateResultData {
     abi_interface: Option<Address>,
 }
 
+/// Snapshot returned by `tx query`.
 #[derive(Debug, Clone, Serialize)]
 struct MirrorState {
     router: Address,
@@ -93,6 +105,7 @@ struct MirrorState {
     formatted_executable_balance: String,
 }
 
+/// Common JSON result for the two balance top-up flows.
 #[derive(Debug, Clone, Serialize)]
 struct TopUpResult {
     chain_id: u64,
@@ -109,6 +122,7 @@ struct TopUpResult {
     formatted_value: String,
 }
 
+/// Shared payload metadata reported by both send-message modes.
 #[derive(Debug, Clone, Serialize)]
 struct SendMessagePayload {
     message_id: MessageId,
@@ -120,6 +134,10 @@ struct SendMessagePayload {
     reply_info: Option<ReplyInfo>,
 }
 
+/// Result returned by `tx send-message`.
+///
+/// The command can either send a normal Ethereum transaction or an injected transaction through
+/// the Vara.eth RPC, so the result mirrors those two execution paths.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 enum SendMessageResult {
@@ -146,6 +164,7 @@ enum SendMessageResult {
     },
 }
 
+/// JSON-serializable result returned by `tx send-reply`.
 #[derive(Debug, Clone, Serialize)]
 struct SendReplyResult {
     chain_id: u64,
@@ -166,6 +185,7 @@ struct SendReplyResult {
     claim_info: Option<ClaimInfo>,
 }
 
+/// JSON-serializable result returned by `tx claim-value`.
 #[derive(Debug, Clone, Serialize)]
 struct ClaimValueResult {
     chain_id: u64,
@@ -182,6 +202,7 @@ struct ClaimValueResult {
     claim_info: Option<ClaimInfo>,
 }
 
+/// JSON-serializable result returned by `tx transfer-locked-value-to-inheritor`.
 #[derive(Debug, Clone, Serialize)]
 struct TransferLockedValueToInheritorResult {
     chain_id: u64,
@@ -216,6 +237,14 @@ pub struct TxCommand {
     #[arg(long, alias = "eth-router")]
     pub ethereum_router: Option<Address>,
 
+    /// Ethereum EIP-1559 fee increase percentage (from "medium").
+    #[arg(long, alias = "eth-eip1559-fee-increase-percentage")]
+    pub eip1559_fee_increase_percentage: Option<u64>,
+
+    /// Ethereum blob gas multiplier.
+    #[arg(long, alias = "eth-blob-gas-multiplier")]
+    pub blob_gas_multiplier: Option<u128>,
+
     /// Sender address or public key to use. Must have a corresponding private key in the key store.
     #[arg(long)]
     pub sender: Option<Address>,
@@ -245,10 +274,23 @@ impl TxCommand {
             .take()
             .or_else(|| params.ethereum.as_ref().and_then(|p| p.ethereum_router));
 
+        self.eip1559_fee_increase_percentage =
+            self.eip1559_fee_increase_percentage.take().or_else(|| {
+                params
+                    .ethereum
+                    .as_ref()
+                    .and_then(|p| p.eip1559_fee_increase_percentage)
+            });
+
+        self.blob_gas_multiplier = self
+            .blob_gas_multiplier
+            .take()
+            .or_else(|| params.ethereum.as_ref().and_then(|p| p.blob_gas_multiplier));
+
         self
     }
 
-    /// Execute the command.
+    /// Executes the selected transaction workflow inside a Tokio runtime.
     pub fn exec(self) -> Result<()> {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -256,6 +298,10 @@ impl TxCommand {
             .block_on(self.exec_inner())
     }
 
+    /// Shared async implementation for all `tx` subcommands.
+    ///
+    /// The method resolves the signer, Router, and sender up front so each subcommand can focus
+    /// only on its specific workflow.
     async fn exec_inner(self) -> Result<()> {
         let key_store = self
             .key_store
@@ -274,9 +320,18 @@ impl TxCommand {
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
-        let ethereum = Ethereum::new(&rpc, router_addr, signer.clone(), sender)
-            .await
-            .with_context(|| "failed to create Ethereum client")?;
+        let ethereum = Ethereum::new(
+            &rpc,
+            router_addr,
+            signer.clone(),
+            sender,
+            self.eip1559_fee_increase_percentage
+                .unwrap_or(NO_EIP1559_FEE_INCREASE_PERCENTAGE),
+            self.blob_gas_multiplier
+                .unwrap_or(INCREASED_BLOB_GAS_MULTIPLIER),
+        )
+        .await
+        .with_context(|| "failed to create Ethereum client")?;
 
         eprintln!("RPC:      {rpc}");
         if let TxSubcommand::Query { rpc_url, .. }
@@ -1525,19 +1580,23 @@ impl TxCommand {
     }
 }
 
+/// Builds an explorer URL for a transaction hash when the chain is recognized.
 fn explorer_link(chain_id: u64, tx_hash: H256) -> Option<String> {
     explorer_base(chain_id).map(|base| format!("{base}/tx/{tx_hash:?}"))
 }
 
+/// Builds an explorer URL for an address when the chain is recognized.
 fn explorer_address_link(chain_id: u64, address: Address) -> Option<String> {
     explorer_base(chain_id).map(|base| format!("{base}/address/{address:?}"))
 }
 
+/// Resolves the explorer base URL for a known chain.
 fn explorer_base(chain_id: u64) -> Option<&'static str> {
     let named_chain: NamedChain = chain_id.try_into().ok()?;
     named_chain.etherscan_urls().map(|(_, base_url)| base_url)
 }
 
+/// Human-readable fee breakdown for a submitted Ethereum transaction.
 #[derive(Debug, Clone)]
 struct TxCostSummary {
     gas_used: u64,
@@ -1549,6 +1608,7 @@ struct TxCostSummary {
 }
 
 impl TxCostSummary {
+    /// Builds a fee summary from the receipt fields returned by the Ethereum client.
     fn new(
         gas_used: u64,
         effective_gas_price: u128,
@@ -1570,6 +1630,7 @@ impl TxCostSummary {
         }
     }
 
+    /// Prints a compact fee summary to stderr.
     fn print_human(&self) {
         let Self {
             gas_used,

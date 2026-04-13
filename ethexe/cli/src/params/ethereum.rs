@@ -16,10 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Ethereum connectivity and fee-tuning parameters.
+
 use super::MergeParams;
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use ethexe_common::Address;
+use ethexe_ethereum::{INCREASED_BLOB_GAS_MULTIPLIER, INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE};
 use ethexe_observer::EthereumConfig;
 use serde::Deserialize;
 use std::time::Duration;
@@ -47,6 +50,16 @@ pub struct EthereumParams {
     #[arg(long, alias = "eth-block-time")]
     #[serde(rename = "block-time")]
     pub block_time: Option<u64>,
+
+    /// EIP-1559 fee increase percentage (from "medium").
+    #[arg(long, alias = "eip1559-fee-increase-percentage")]
+    #[serde(rename = "eip1559-fee-increase-percentage")]
+    pub eip1559_fee_increase_percentage: Option<u64>,
+
+    /// Blob gas multiplier.
+    #[arg(long, alias = "blob-gas-multiplier")]
+    #[serde(rename = "blob-gas-multiplier")]
+    pub blob_gas_multiplier: Option<u128>,
 }
 
 impl EthereumParams {
@@ -59,7 +72,17 @@ impl EthereumParams {
     /// Default Ethereum Beacon RPC.
     pub const DEFAULT_ETHEREUM_BEACON_RPC: &str = "http://localhost:8545";
 
-    /// Convert self into a proper `EthereumConfig` object.
+    /// Default EIP-1559 fee increase percentage.
+    pub const DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE: u64 =
+        INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE;
+
+    /// Default blob gas multiplier.
+    pub const DEFAULT_BLOB_GAS_MULTIPLIER: u128 = INCREASED_BLOB_GAS_MULTIPLIER;
+
+    /// Converts Ethereum-facing CLI/TOML parameters into [`EthereumConfig`].
+    ///
+    /// The Router address is required because it anchors all on-chain operations. RPC
+    /// endpoints, block time, and fee-tuning values fall back to sensible local defaults.
     pub fn into_config(self) -> Result<EthereumConfig> {
         Ok(EthereumConfig {
             rpc: self
@@ -72,6 +95,12 @@ impl EthereumParams {
                 .ethereum_router
                 .ok_or_else(|| anyhow!("missing `ethereum-router`"))?,
             block_time: Duration::from_secs(self.block_time.unwrap_or(Self::BLOCK_TIME)),
+            eip1559_fee_increase_percentage: self
+                .eip1559_fee_increase_percentage
+                .unwrap_or(Self::DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE),
+            blob_gas_multiplier: self
+                .blob_gas_multiplier
+                .unwrap_or(Self::DEFAULT_BLOB_GAS_MULTIPLIER),
         })
     }
 }
@@ -83,6 +112,10 @@ impl MergeParams for EthereumParams {
             ethereum_beacon_rpc: self.ethereum_beacon_rpc.or(with.ethereum_beacon_rpc),
             ethereum_router: self.ethereum_router.or(with.ethereum_router),
             block_time: self.block_time.or(with.block_time),
+            eip1559_fee_increase_percentage: self
+                .eip1559_fee_increase_percentage
+                .or(with.eip1559_fee_increase_percentage),
+            blob_gas_multiplier: self.blob_gas_multiplier.or(with.blob_gas_multiplier),
         }
     }
 }

@@ -17,14 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
+use anyhow::Result;
 use dashmap::DashMap;
 use ethexe_common::{
-    HashOf,
+    Address, HashOf,
+    db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedPromise,
+        SignedInjectedTransaction, SignedPromise,
     },
 };
+use ethexe_db::Database;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
@@ -33,6 +36,8 @@ use jsonrpsee::{
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
+
+const MAX_TRANSACTION_IDS: usize = 100;
 
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
@@ -54,6 +59,13 @@ pub trait Injected {
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
+
+    /// Retrieves injected transactions by the provided IDs
+    #[method(name = "getTransactions")]
+    async fn get_transactions(
+        &self,
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>>;
 }
 
 type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
@@ -61,6 +73,8 @@ type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<S
 /// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    /// Node database instance.
+    db: Database,
     /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
@@ -113,11 +127,32 @@ impl InjectedServer for InjectedApi {
 
         Ok(())
     }
+
+    async fn get_transactions(
+        &self,
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>> {
+        tracing::trace!(?transaction_ids, "Called injected_getTransactions");
+
+        if transaction_ids.len() > MAX_TRANSACTION_IDS {
+            return Err(errors::invalid_params(format!(
+                "Too many transaction ids requested. Maximum is {MAX_TRANSACTION_IDS}.",
+            )));
+        }
+
+        let transactions = transaction_ids
+            .into_iter()
+            .map(|tx_id| self.db.injected_transaction(tx_id))
+            .collect::<Vec<Option<SignedInjectedTransaction>>>();
+
+        Ok(transactions)
+    }
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
+            db,
             rpc_sender,
             promise_waiters: PromiseWaiters::default(),
             metrics: InjectedApiMetrics::default(),
@@ -147,10 +182,10 @@ impl InjectedApi {
         self.promise_waiters.len()
     }
 
-    /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
+    /// This function forwards [`AddressedInjectedTransaction`] to main service and waits for its acceptance.
     async fn forward_transaction(
         &self,
-        transaction: AddressedInjectedTransaction,
+        mut transaction: AddressedInjectedTransaction,
     ) -> Result<InjectedTransactionAcceptance, ErrorObjectOwned> {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
@@ -167,6 +202,10 @@ impl InjectedApi {
             return Err(errors::bad_request(
                 "Injected transactions with non-zero value are not supported",
             ));
+        }
+
+        if transaction.recipient == Address::default() {
+            utils::route_transaction(&self.db, &mut transaction)?;
         }
 
         let event = RpcEvent::InjectedTransaction {
@@ -245,5 +284,208 @@ impl InjectedApi {
                 );
             }
         });
+    }
+}
+
+mod utils {
+    use super::*;
+    use anyhow::Context as _;
+    use ethexe_common::{
+        Address,
+        db::{ConfigStorageRO, OnChainStorageRO},
+    };
+    use std::time::{Duration, SystemTime, SystemTimeError};
+    use tracing::{error, trace};
+
+    pub(super) const NEXT_PRODUCER_THRESHOLD_MS: u64 = 50;
+
+    pub fn route_transaction(
+        db: &Database,
+        tx: &mut AddressedInjectedTransaction,
+    ) -> RpcResult<()> {
+        let now = now_since_unix_epoch().map_err(|err| {
+            error!("system clock error: {err}");
+            crate::errors::internal()
+        })?;
+
+        let next_producer = calculate_next_producer(db, now).map_err(|err| {
+            trace!("calculate next producer error: {err}");
+            crate::errors::internal()
+        })?;
+        tx.recipient = next_producer;
+
+        Ok(())
+    }
+
+    /// Calculates the producer address to route an injected transaction to.
+    pub(super) fn calculate_next_producer(db: &Database, now: Duration) -> Result<Address> {
+        let timelines = db.config().timelines;
+
+        // Calculate target timestamp, taking into account possible delays, so we append NEXT_PRODUCER_THRESHOLD_MS.
+        // The transaction should be included by the next producer, so we add `slot_duration` to the current time.
+        let target_timestamp = now
+            .checked_add(Duration::from_millis(NEXT_PRODUCER_THRESHOLD_MS))
+            .context("current time is too close to u64::MAX, cannot calculate next producer")?
+            .as_secs()
+            .checked_add(timelines.slot)
+            .context("current time is too close to u64::MAX, cannot calculate next producer")?;
+
+        let era = timelines.era_from_ts(target_timestamp);
+
+        let validators = db
+            .validators(era)
+            .with_context(|| format!("validators not found for era={era}"))?;
+
+        Ok(timelines.block_producer_at(&validators, target_timestamp))
+    }
+
+    /// Returns the current time since [SystemTime::UNIX_EPOCH].
+    fn now_since_unix_epoch() -> Result<Duration, SystemTimeError> {
+        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InjectedApi, InjectedServer, MAX_TRANSACTION_IDS, utils};
+    use ethexe_common::{
+        Address, ProtocolTimelines, ValidatorsVec,
+        db::{ConfigStorageRO, InjectedStorageRW, OnChainStorageRW, SetConfig},
+        ecdsa::PrivateKey,
+        injected::{InjectedTransaction, SignedInjectedTransaction},
+        mock::Mock,
+    };
+    use ethexe_db::Database;
+    use gear_core::pages::num_traits::ToPrimitive;
+    use std::{ops::Sub, time::Duration};
+    use tokio::sync::mpsc;
+
+    const SLOT: u64 = 10;
+    const ERA: u64 = 1000;
+
+    fn setup_db(db: &Database) -> ValidatorsVec {
+        let validators = ValidatorsVec::from_iter((0..10u64).map(Address::from));
+
+        let timelines = ProtocolTimelines {
+            slot: SLOT,
+            era: ERA,
+            ..Default::default()
+        };
+        db.set_validators(0, validators.clone());
+        let mut config = db.config().clone();
+        config.timelines = timelines;
+        db.set_config(config);
+        validators
+    }
+
+    #[test]
+    fn test_calculate_next_producer_return_next() {
+        let db = Database::memory();
+        let validators = setup_db(&db);
+
+        let now = Duration::from_secs(SLOT / 2);
+        let producer = utils::calculate_next_producer(&db, now).unwrap();
+
+        assert_eq!(validators[1], producer);
+    }
+
+    #[test]
+    fn test_calculate_next_producer_return_next_next() {
+        let db = Database::memory();
+        let validators = setup_db(&db);
+
+        let half_threshold = utils::NEXT_PRODUCER_THRESHOLD_MS.to_u64().unwrap();
+        let now = Duration::from_secs(SLOT).sub(Duration::from_millis(half_threshold));
+        let producer = utils::calculate_next_producer(&db, now).unwrap();
+
+        assert_eq!(validators[2], producer);
+    }
+
+    #[test]
+    fn test_calculate_next_producer_in_next_era() {
+        let db = Database::memory();
+        let validators = setup_db(&db);
+
+        // Prepare next era validators
+        let mut next_era_validators = validators.clone();
+        next_era_validators[0] = validators[9];
+        db.set_validators(1, next_era_validators.clone());
+
+        let now = Duration::from_secs(ERA).sub(Duration::from_secs(1));
+        let producer = utils::calculate_next_producer(&db, now).unwrap();
+
+        assert_eq!(next_era_validators[0], producer);
+    }
+
+    fn make_signed_tx() -> SignedInjectedTransaction {
+        SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))
+            .expect("creating signed injected transaction succeeds")
+    }
+
+    fn make_injected_api(db: Database) -> InjectedApi {
+        let (sender, _receiver) = mpsc::unbounded_channel();
+        InjectedApi::new(db, sender)
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_found() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx = make_signed_tx();
+        let tx_hash = tx.data().to_hash();
+        db.set_injected_transaction(tx.clone());
+
+        let result = api.get_transactions(vec![tx_hash]).await.unwrap();
+        assert_eq!(result, vec![Some(tx)]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_not_found() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx_hash = make_signed_tx().data().to_hash();
+        // Transaction not stored in DB.
+        let result = api.get_transactions(vec![tx_hash]).await.unwrap();
+        assert_eq!(result, vec![None]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_mixed() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx1 = make_signed_tx();
+        let tx2 = make_signed_tx();
+        let hash1 = tx1.data().to_hash();
+        let hash2 = tx2.data().to_hash();
+        db.set_injected_transaction(tx1.clone());
+        // tx2 not stored.
+
+        let result = api.get_transactions(vec![hash1, hash2]).await.unwrap();
+        assert_eq!(result, vec![Some(tx1), None]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_empty() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let result = api.get_transactions(vec![]).await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_exceeds_limit() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let ids = (0..=MAX_TRANSACTION_IDS)
+            .map(|_| make_signed_tx().data().to_hash())
+            .collect();
+
+        let result = api.get_transactions(ids).await;
+        assert!(result.is_err());
     }
 }

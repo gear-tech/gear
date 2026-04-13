@@ -3,7 +3,7 @@
 ethexe-pre-commit: ethexe-contracts-pre-commit ethexe-pre-commit-no-contracts
 
 .PHONY: ethexe-pre-commit-no-contracts
-ethexe-pre-commit-no-contracts: fmt clippy
+ethexe-pre-commit-no-contracts: fmt clippy-gear
 	@ echo " >>> Testing ethexe" && cargo nextest run -p "ethexe-*" --no-fail-fast
 
 # Building ethexe contracts
@@ -20,6 +20,7 @@ ethexe-contracts-pre-commit:
 	@ echo " > Copying ERC1967Proxy artifact" && cp ./ethexe/contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json ./ethexe/ethereum/abi
 	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
 	@ echo " > Copying BatchMulticall" && cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi
+	@ echo " > Copying DemoCaller" && cp ./ethexe/contracts/out/DemoCaller.sol/DemoCaller.json ./ethexe/ethereum/abi
 
 # Common section
 .PHONY: show

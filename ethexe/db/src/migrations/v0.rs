@@ -16,12 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{Announce, BlockHeader, HashOf, SimpleBlockData};
-use gprimitives::{CodeId, H256};
-use gsigner::Digest;
+use ethexe_common::{Announce, HashOf, SimpleBlockData};
+use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use std::collections::{BTreeSet, VecDeque};
 
 pub const VERSION: u32 = 0;
 
@@ -41,20 +39,4 @@ pub struct ProtocolTimelines {
     pub genesis_ts: u64,
     pub era: u64,
     pub election: u64,
-}
-
-#[derive(Encode, Decode, TypeInfo)]
-pub struct BlockMeta {
-    pub prepared: bool,
-    pub announces: Option<BTreeSet<HashOf<Announce>>>,
-    pub codes_queue: Option<VecDeque<CodeId>>,
-    pub last_committed_batch: Option<Digest>,
-    pub last_committed_announce: Option<HashOf<Announce>>,
-}
-
-#[derive(Encode, Decode, TypeInfo)]
-pub struct BlockSmallData {
-    pub block_header: Option<BlockHeader>,
-    pub block_is_synced: bool,
-    pub meta: BlockMeta,
 }

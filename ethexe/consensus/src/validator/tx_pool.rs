@@ -160,6 +160,14 @@ where
                         "tx sent to uninitialized actor, keeping in pool"
                     );
                 }
+                TxValidity::InsufficientBalanceForInjectedMessages => {
+                    // Keep in pool, in case destination actor balance increases later.
+                    tracing::trace!(
+                        tx_hash = ?tx_hash,
+                        tx = ?tx.data(),
+                        "tx destination actor has insufficient balance for injected messages, keeping in pool"
+                    );
+                }
                 TxValidity::NonZeroValue => {
                     tracing::trace!(
                         tx_hash = ?tx_hash,
@@ -181,6 +189,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::tx_validation::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES;
+
     use super::*;
     use ethexe_common::{
         StateHashWithQueueSize,
@@ -202,8 +212,11 @@ mod tests {
 
         let state_hash = db.write_program_state(
             // Make not required init message by setting terminated state.
-            ProgramState::zero()
-                .tap_mut(|s| s.program = Program::Terminated(ActorId::from([2; 32]))),
+            ProgramState {
+                program: Program::Terminated(ActorId::from([2; 32])),
+                executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
+                ..ProgramState::zero()
+            },
         );
         let program_id = ActorId::from([1; 32]);
 
@@ -303,6 +316,7 @@ mod tests {
                 memory_infix: MemoryInfix::new(0),
                 initialized: true,
             }),
+            executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
             ..ProgramState::zero()
         };
         let state_hash = db.write_program_state(state);

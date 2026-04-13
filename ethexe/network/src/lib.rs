@@ -16,12 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod custom_connection_limits;
 pub mod db_sync;
 mod gossipsub;
 mod injected;
 mod kad;
-mod metrics;
 pub mod peer_score;
 mod slots;
 mod utils;
@@ -35,7 +33,6 @@ pub use injected::Event as NetworkInjectedEvent;
 
 use crate::{
     db_sync::DbSyncDatabase,
-    metrics::Libp2pMetrics,
     utils::MultiaddrExt,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
@@ -75,8 +72,8 @@ pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 pub const PROTOCOL_VERSION: &str = "ethexe/0.1.0";
 pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
-const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
+// limit could be 1, but we want to prevent connection churn when both peers dial each other
+const MAX_ESTABLISHED_PER_PEER_CONNECTIONS: u32 = 2;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 500;
 const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
@@ -103,12 +100,6 @@ pub enum TransportType {
     #[default]
     Default,
     Test,
-}
-
-impl TransportType {
-    fn mdns_enabled(&self) -> bool {
-        matches!(self, Self::Default)
-    }
 }
 
 /// Config from CLI
@@ -163,6 +154,8 @@ pub struct NetworkRuntimeConfig {
     pub db: Database,
 }
 
+type Libp2pMetrics = (libp2p::metrics::Registry, Arc<libp2p::metrics::Metrics>);
+
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
@@ -170,7 +163,7 @@ pub struct NetworkService {
     bootstrap_peers: HashSet<PeerId>,
     validator_list: ValidatorList,
     validator_topic: ValidatorTopic,
-    metrics: Arc<Libp2pMetrics>,
+    metrics: Libp2pMetrics,
     allow_non_global_addresses: bool,
 }
 
@@ -230,7 +223,8 @@ impl NetworkService {
         } = runtime_config;
 
         let timelines = db.config().timelines;
-        let mut metrics = Libp2pMetrics::new();
+        let mut registry = libp2p::metrics::Registry::default();
+        let metrics = Arc::new(libp2p::metrics::Metrics::new(&mut registry));
 
         let (validator_list, validator_list_snapshot) = ValidatorList::new(
             ValidatorDatabase::clone_boxed(&db),
@@ -242,21 +236,20 @@ impl NetworkService {
 
         let keypair = Self::create_keypair(&network_signer, public_key)?;
 
-        let transport = Self::create_transport(&keypair, transport_type, &mut metrics)?;
-        let metrics = Arc::new(metrics);
+        let transport = Self::create_transport(&keypair, transport_type, &mut registry)?;
 
         let behaviour_config = BehaviourConfig {
             router_address,
             keypair: keypair.clone(),
             external_data_provider,
             db: DbSyncDatabase::clone_boxed(&db),
-            enable_mdns: transport_type.mdns_enabled(),
+            transport_type,
             validator_key,
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
             allow_non_global_addresses,
             max_chain_len_for_announces_response,
-            metrics: metrics.clone(),
+            metrics: (&mut registry, metrics.clone()),
         };
         let behaviour = Behaviour::new(behaviour_config)?;
 
@@ -306,7 +299,7 @@ impl NetworkService {
             bootstrap_peers,
             validator_list,
             validator_topic,
-            metrics,
+            metrics: (registry, metrics),
             allow_non_global_addresses,
         })
     }
@@ -322,7 +315,7 @@ impl NetworkService {
     fn create_transport(
         keypair: &identity::Keypair,
         transport_type: TransportType,
-        metrics: &mut Libp2pMetrics,
+        registry: &mut libp2p::metrics::Registry,
     ) -> anyhow::Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
         match transport_type {
             TransportType::Default => {
@@ -343,8 +336,7 @@ impl NetworkService {
                         });
                 let dns = libp2p::dns::tokio::Transport::system(quic_or_tcp)?;
 
-                let bandwidth = metrics
-                    .create_bandwidth_transport(dns)
+                let bandwidth = libp2p::metrics::BandwidthTransport::new(dns, registry)
                     .map(|(peer_id, conn), _| (peer_id, StreamMuxerBox::new(conn)));
 
                 Ok(bandwidth.boxed())
@@ -378,7 +370,7 @@ impl NetworkService {
     fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) -> Option<NetworkEvent> {
         log::trace!("new swarm event: {event:?}");
 
-        self.metrics.record(&event);
+        self.metrics.1.record(&event);
 
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
@@ -391,7 +383,6 @@ impl NetworkService {
 
     fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
-            BehaviourEvent::CustomConnectionLimits(event) => match event {},
             BehaviourEvent::ConnectionLimits(event) => match event {},
             BehaviourEvent::Slots(event) => match event {},
             BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
@@ -423,7 +414,7 @@ impl NetworkService {
     }
 
     fn handle_ping_event(&mut self, event: ping::Event) {
-        self.metrics.record(&event);
+        self.metrics.1.record(&event);
 
         let ping::Event {
             peer,
@@ -439,7 +430,7 @@ impl NetworkService {
     }
 
     fn handle_identify_event(&mut self, event: identify::Event) {
-        self.metrics.record(&event);
+        self.metrics.1.record(&event);
 
         match event {
             identify::Event::Received { peer_id, info, .. } => {
@@ -568,7 +559,9 @@ impl NetworkService {
     }
 
     pub fn render_libp2p_metrics(&self, writer: &mut impl Write) {
-        self.metrics.render(writer);
+        let (registry, _metrics) = &self.metrics;
+        prometheus_client::encoding::text::encode_registry(writer, registry)
+            .expect("failed to encode metrics");
     }
 
     pub fn score_handle(&self) -> peer_score::Handle {
@@ -633,24 +626,25 @@ impl NetworkService {
     }
 }
 
-struct BehaviourConfig {
+struct BehaviourConfig<'a> {
     router_address: Address,
     keypair: identity::Keypair,
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     db: Box<dyn DbSyncDatabase>,
-    enable_mdns: bool,
+    transport_type: TransportType,
     validator_key: Option<PublicKey>,
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
     allow_non_global_addresses: bool,
     max_chain_len_for_announces_response: NonZeroU32,
-    metrics: Arc<Libp2pMetrics>,
+    metrics: (
+        &'a mut libp2p::metrics::Registry,
+        Arc<libp2p::metrics::Metrics>,
+    ),
 }
 
 #[derive(NetworkBehaviour)]
 pub(crate) struct Behaviour {
-    // custom options to limit connections
-    pub custom_connection_limits: custom_connection_limits::Behaviour,
     // hard caps
     pub connection_limits: connection_limits::Behaviour,
     // peer amount manager
@@ -682,40 +676,30 @@ impl Behaviour {
             keypair,
             external_data_provider,
             db,
-            enable_mdns,
+            transport_type,
             validator_key,
             general_signer,
             validator_list_snapshot,
             allow_non_global_addresses,
             max_chain_len_for_announces_response,
-            metrics,
+            metrics: (registry, metrics),
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
 
-        // we use custom behaviour because
-        // `libp2p::connection_limits::Behaviour` limits inbound & outbound
-        // connections per peer in total, so protocols may fail to establish
-        // at least 1 inbound & 1 outbound connection in specific circumstances
-        // (for example, active VPN connection + communication with mDNS discovered peers)
-        let custom_connection_limits = custom_connection_limits::Limits::default()
-            .with_max_established_incoming_per_peer(Some(
-                MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS,
-            ))
-            .with_max_established_outbound_per_peer(Some(
-                MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS,
-            ));
-        let custom_connection_limits =
-            custom_connection_limits::Behaviour::new(custom_connection_limits);
-
         let connection_limits = connection_limits::ConnectionLimits::default()
+            .with_max_established_per_peer(Some(MAX_ESTABLISHED_PER_PEER_CONNECTIONS))
             .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS))
             .with_max_established_outgoing(Some(MAX_ESTABLISHED_OUTGOING_CONNECTIONS))
             .with_max_pending_incoming(Some(MAX_PENDING_INCOMING_CONNECTIONS))
             .with_max_pending_outgoing(Some(MAX_PENDING_OUTGOING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
 
-        let slots = slots::Behaviour::new(slots::Config::default());
+        let slots_config = match transport_type {
+            TransportType::Default => slots::Config::default(),
+            TransportType::Test => slots::Config::default().with_backoff_period(Duration::ZERO),
+        };
+        let slots = slots::Behaviour::new(slots_config);
 
         let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
         let peer_score_handle = peer_score.handle();
@@ -727,9 +711,13 @@ impl Behaviour {
         let identify = identify::Behaviour::new(identify_config);
 
         let mdns4 = Toggle::from(
-            enable_mdns
-                .then(|| mdns::Behaviour::new(mdns::Config::default(), peer_id))
-                .transpose()?,
+            match transport_type {
+                TransportType::Default => {
+                    Some(mdns::Behaviour::new(mdns::Config::default(), peer_id))
+                }
+                TransportType::Test => None,
+            }
+            .transpose()?,
         );
 
         let kad = kad::Behaviour::new(peer_id, peer_score_handle.clone(), metrics.clone());
@@ -739,6 +727,7 @@ impl Behaviour {
             keypair.clone(),
             peer_score_handle.clone(),
             router_address,
+            registry,
             metrics.clone(),
         )
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
@@ -766,7 +755,6 @@ impl Behaviour {
         let validator_discovery = validator::discovery::Behaviour::new(validator_discovery);
 
         Ok(Self {
-            custom_connection_limits,
             connection_limits,
             slots,
             peer_score,

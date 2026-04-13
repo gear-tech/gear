@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Parameters for the JSON-RPC server exposed by an ethexe node.
+
 use super::MergeParams;
 use clap::Parser;
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
@@ -50,6 +52,7 @@ pub struct RpcParams {
     #[serde(default, rename = "no-rpc")]
     pub no_rpc: bool,
 
+    /// Multiplier applied to the node block gas limit to derive RPC gas allowance.
     #[arg(long)]
     pub gas_limit_multiplier: Option<u64>,
 }
@@ -58,7 +61,10 @@ impl RpcParams {
     /// Default RPC port.
     pub const DEFAULT_RPC_PORT: u16 = 9944;
 
-    /// Convert self into a proper `RpcConfig` object, if RPC service is enabled.
+    /// Converts RPC parameters into an optional [`RpcConfig`].
+    ///
+    /// The resulting gas allowance is derived from the node's block gas limit so the RPC
+    /// layer stays in sync with the execution capacity of the local node.
     pub fn into_config(self, node_config: &NodeConfig) -> Option<RpcConfig> {
         if self.no_rpc {
             return None;
@@ -98,6 +104,7 @@ impl RpcParams {
                 .checked_mul(node_config.block_gas_limit)
                 .expect("RPC gas allowance overflow"),
             chunk_size: node_config.chunk_processing_threads,
+            with_dev_api: false,
         })
     }
 }
@@ -135,6 +142,7 @@ impl From<Cors> for Option<Vec<String>> {
 impl FromStr for Cors {
     type Err = anyhow::Error;
 
+    /// Parses either `"all"`/`"*"` or a comma-separated list of origins.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut is_all = false;
         let mut origins = Vec::new();
@@ -157,6 +165,11 @@ impl FromStr for Cors {
 }
 
 impl<'de> Deserialize<'de> for Cors {
+    /// Deserializes the TOML representation accepted by the config file.
+    ///
+    /// Supported forms are:
+    /// - `"all"` or `"*"` for unrestricted CORS
+    /// - an array of origin strings for an allow-list
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
