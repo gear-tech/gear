@@ -21,9 +21,9 @@
 pub(crate) mod utils;
 
 use crate::tests::utils::{
-    AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
-    TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets,
-    init_logger,
+    AnnounceId, EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, Node, NodeConfig,
+    TestEnv, TestEnvConfig, TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig,
+    WaitForReplyTo, Wallets, init_logger,
 };
 use alloy::{
     primitives::U256,
@@ -45,7 +45,7 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
-use ethexe_db::{Database, GenesisInitializer, dump::StateDump, verifier::IntegrityVerifier};
+use ethexe_db::{Database, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{
     TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
 };
@@ -3668,7 +3668,7 @@ async fn re_genesis_with_state_dump() {
     assert!(!dump.codes.is_empty());
     assert!(!dump.programs.is_empty());
 
-    // Stop the first node.
+    // Stop the node.
     drop(node);
 
     log::info!(
@@ -3695,36 +3695,6 @@ async fn re_genesis_with_state_dump() {
     );
 
     log::info!("📗 Phase 4: create a new node with a fresh DB initialized from the state dump.");
-    struct GenesisInitializerFromDump {
-        dump: Option<StateDump>,
-        processor: Processor,
-    }
-
-    impl GenesisInitializer for GenesisInitializerFromDump {
-        fn get_genesis_data(&mut self) -> anyhow::Result<StateDump> {
-            self.dump
-                .take()
-                .ok_or_else(|| anyhow::anyhow!("genesis data already consumed"))
-        }
-
-        fn process_code(
-            &mut self,
-            code_id: gprimitives::CodeId,
-            code: Vec<u8>,
-        ) -> ethexe_db::CodeProcessingFuture {
-            let mut cloned_processor = self.processor.clone();
-            let func = move || {
-                let info = cloned_processor
-                    .process_code(ethexe_common::CodeAndIdUnchecked { code_id, code })?;
-
-                let Some(valid) = info.valid else {
-                    return Ok(None);
-                };
-                Ok(Some((valid.instrumented_code, valid.code_metadata)))
-            };
-            Box::pin(async move { func() })
-        }
-    }
 
     let memory_db = Database::memory();
     let processor = Processor::new(memory_db).unwrap();
@@ -3742,14 +3712,15 @@ async fn re_genesis_with_state_dump() {
     .await
     .unwrap();
 
-    let mut node2 = env
+    // Start node again with the new db.
+    let mut node = env
         .new_node(
             NodeConfig::default()
                 .db(new_db)
                 .validator(env.validators[0]),
         )
         .await;
-    node2.start_service().await;
+    node.start_service().await;
 
     log::info!("📗 Phase 5: verify ping still works after re-genesis.");
     let res = env
@@ -3770,7 +3741,7 @@ async fn re_genesis_with_state_dump() {
 /// then replies with "OK". After re-genesis, the delayed task should be restored
 /// in the scheduler from the dispatch stash in the program state.
 #[tokio::test]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn re_genesis_preserves_dispatch_stash() {
     init_logger();
 
@@ -3789,10 +3760,8 @@ async fn re_genesis_preserves_dispatch_stash() {
             (import "env" "gr_source" (func $gr_source (param i32)))
             (import "env" "gr_send" (func $gr_send (param i32 i32 i32 i32 i32)))
             (import "env" "gr_reply" (func $gr_reply (param i32 i32 i32 i32)))
-            (export "init" (func $init))
             (export "handle" (func $handle))
             (data (i32.const 48) "DELAYED")
-            (func $init)
             (func $handle
                 ;; Get source address into memory at offset 0.
                 (call $gr_source (i32.const 0))
@@ -3877,6 +3846,7 @@ async fn re_genesis_preserves_dispatch_stash() {
         );
     }
 
+    // Stop the node.
     drop(node);
 
     // Phase 3: re-genesis.
@@ -3891,37 +3861,6 @@ async fn re_genesis_preserves_dispatch_stash() {
 
     // Phase 4: start new node with dump.
     log::info!("📗 Phase 4: start new node with state dump.");
-
-    struct GenesisInitializerFromDump {
-        dump: Option<StateDump>,
-        processor: Processor,
-    }
-
-    impl GenesisInitializer for GenesisInitializerFromDump {
-        fn get_genesis_data(&mut self) -> anyhow::Result<StateDump> {
-            self.dump
-                .take()
-                .ok_or_else(|| anyhow::anyhow!("genesis data already consumed"))
-        }
-
-        fn process_code(
-            &mut self,
-            code_id: gprimitives::CodeId,
-            code: Vec<u8>,
-        ) -> ethexe_db::CodeProcessingFuture {
-            let mut cloned_processor = self.processor.clone();
-            let func = move || {
-                let info = cloned_processor
-                    .process_code(ethexe_common::CodeAndIdUnchecked { code_id, code })?;
-                let Some(valid) = info.valid else {
-                    return Ok(None);
-                };
-                Ok(Some((valid.instrumented_code, valid.code_metadata)))
-            };
-            Box::pin(async move { func() })
-        }
-    }
-
     let memory_db = Database::memory();
     let processor = Processor::new(memory_db).unwrap();
     let initializer = GenesisInitializerFromDump {
@@ -3940,7 +3879,6 @@ async fn re_genesis_preserves_dispatch_stash() {
 
     // Verify schedule was restored with the delayed task.
     {
-        use ethexe_common::db::AnnounceStorageRO;
         let genesis_announce = new_db.config().genesis_announce_hash;
         let schedule = new_db.announce_schedule(genesis_announce).unwrap();
         let total_tasks: usize = schedule.values().map(|tasks| tasks.len()).sum();
@@ -3954,24 +3892,38 @@ async fn re_genesis_preserves_dispatch_stash() {
         );
     }
 
-    let mut node2 = env
+    let mut node = env
         .new_node(
             NodeConfig::default()
                 .db(new_db)
                 .validator(env.validators[0]),
         )
         .await;
-    node2.start_service().await;
+    node.start_service().await;
 
-    // Phase 5: verify program is responsive after re-genesis.
-    log::info!("📗 Phase 5: verify program is alive after re-genesis.");
-    let res = env
-        .send_message(program_id, b"trigger2")
+    // skip 4 blocks to reach the delayed message execution slot
+    // delay=5 blocks, so execute at block N+5, but we are currently at N+1 after genesis.
+    env.skip_blocks(4).await;
+    env.new_observer_events()
+        .filter_map_block_synced()
+        .find_map(|event| match event {
+            BlockEvent::Mirror {
+                event: MirrorEvent::Message(event),
+                ..
+            } => Some(event),
+            _ => None,
+        })
         .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-    log::info!("Program responsive and scheduler preserved after re-genesis.");
+        .tap(
+            |MessageEvent {
+                 destination,
+                 payload,
+                 value,
+                 ..
+             }| {
+                assert_eq!(*destination, env.sender_id);
+                assert_eq!(payload, b"DELAYED");
+                assert_eq!(*value, 0);
+            },
+        );
 }
