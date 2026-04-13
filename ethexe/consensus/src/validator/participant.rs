@@ -200,7 +200,7 @@ mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::{
-        Digest, ToDigest,
+        Announce, Digest, HashOf, ToDigest,
         db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRW},
         gear::CodeCommitment,
         mock::*,
@@ -210,7 +210,7 @@ mod tests {
     fn create() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::test();
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
 
@@ -225,27 +225,33 @@ mod tests {
         let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
-        let block = BlockChain::mock(2).setup(&ctx.core.db).blocks[2].to_simple();
+        let block = BlockChain::test(2).setup(&ctx.core.db).blocks[2].to_simple();
 
         // Validation request from alice - must be kept
         ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_verified_data(alice, ()),
+            ctx.core
+                .signer
+                .verified_data_for(alice, BatchCommitmentValidationRequest::test()),
         ));
 
         // Validation request from producer - must be removed and processed
         ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_verified_data(producer, ()),
+            ctx.core
+                .signer
+                .verified_data_for(producer, BatchCommitmentValidationRequest::test()),
         ));
 
         // Block from producer - must be kept
-        ctx.pending(PendingEvent::Announce(
-            ctx.core.signer.mock_verified_data(producer, ()),
-        ));
+        ctx.pending(PendingEvent::Announce(ctx.core.signer.verified_data_for(
+            producer,
+            Announce::test(block.hash, HashOf::random()),
+        )));
 
         // Block from alice - must be kept
-        ctx.pending(PendingEvent::Announce(
-            ctx.core.signer.mock_verified_data(alice, ()),
-        ));
+        ctx.pending(PendingEvent::Announce(ctx.core.signer.verified_data_for(
+            alice,
+            Announce::test(block.hash, HashOf::random()),
+        )));
 
         let (state, event) = Participant::create(ctx, block, producer.to_address())
             .unwrap()
@@ -309,8 +315,11 @@ mod tests {
     async fn process_validation_request_failure() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
-        let verified_request = ctx.core.signer.mock_verified_data(producer, ());
+        let block = SimpleBlockData::test();
+        let verified_request = ctx
+            .core
+            .signer
+            .verified_data_for(producer, BatchCommitmentValidationRequest::test());
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -331,7 +340,7 @@ mod tests {
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Add a code that's not in the waiting queue
-        let extra_code = CodeCommitment::mock(());
+        let extra_code = CodeCommitment::test(3);
         batch.code_commitments.push(extra_code);
 
         let request = BatchCommitmentValidationRequest::new(&batch);

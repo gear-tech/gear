@@ -282,18 +282,18 @@ mod tests {
         {
             // Valid case, two transitions in the chain, but only one must be included
             let db = Database::memory();
-            let chain = BlockChain::mock(10)
+            let chain = BlockChain::test(10)
                 .tap_mut(|chain| {
                     chain
                         .block_top_announce_mut(3)
                         .as_computed_mut()
                         .outcome
-                        .push(StateTransition::mock(()));
+                        .push(StateTransition::test(1));
                     chain
                         .block_top_announce_mut(5)
                         .as_computed_mut()
                         .outcome
-                        .push(StateTransition::mock(()));
+                        .push(StateTransition::test(2));
                     chain.blocks[10].as_prepared_mut().last_committed_announce =
                         chain.block_top_announce_hash(3);
                 })
@@ -319,7 +319,7 @@ mod tests {
         {
             // head announce not computed
             let db = Database::memory();
-            let chain = BlockChain::mock(3)
+            let chain = BlockChain::test(3)
                 .tap_mut(|chain| chain.block_top_announce_mut(3).computed = None)
                 .setup(&db);
             let block = chain.blocks[3].to_simple();
@@ -333,7 +333,7 @@ mod tests {
         {
             // announce in chain not computed
             let db = Database::memory();
-            let chain = BlockChain::mock(3)
+            let chain = BlockChain::test(3)
                 .tap_mut(|chain| chain.block_top_announce_mut(2).computed = None)
                 .setup(&db);
             let block = chain.blocks[3].to_simple();
@@ -347,7 +347,7 @@ mod tests {
         {
             // last committed announce missing in block meta
             let db = Database::memory();
-            let chain = BlockChain::mock(3)
+            let chain = BlockChain::test(3)
                 .tap_mut(|chain| chain.blocks[3].prepared = None)
                 .setup(&db);
             let block = chain.blocks[3].to_simple();
@@ -407,7 +407,7 @@ mod tests {
     fn test_batch_expiry_calculation() {
         {
             let db = Database::memory();
-            let chain = BlockChain::mock(1).setup(&db);
+            let chain = BlockChain::test(1).setup(&db);
             let block = chain.blocks[1].to_simple();
             let expiry =
                 calculate_batch_expiry(&db, &block, db.top_announce_hash(block.hash), 5).unwrap();
@@ -416,7 +416,7 @@ mod tests {
 
         {
             let db = Database::memory();
-            let chain = BlockChain::mock(10)
+            let chain = BlockChain::test(10)
                 .tap_mut(|c| {
                     c.block_top_announce_mut(10).announce.gas_allowance = Some(10);
                     c.blocks[10].as_prepared_mut().announces =

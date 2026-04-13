@@ -231,7 +231,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     fn mock_tx(reference_block: H256) -> SignedInjectedTransaction {
-        let mut tx = InjectedTransaction::mock(());
+        let mut tx = InjectedTransaction::test();
         tx.reference_block = reference_block;
         tx.destination = ActorId::zero();
 
@@ -247,7 +247,7 @@ mod tests {
         let announce = Announce {
             parent,
             injected_transactions: txs,
-            ..Announce::mock(())
+            ..Announce::test(H256::zero(), HashOf::zero())
         };
         let announce_hash = db.set_announce(announce);
 
@@ -276,7 +276,7 @@ mod tests {
     #[test]
     fn test_check_tx_validity() {
         let db = Database::memory();
-        let chain = BlockChain::mock(100).setup(&db);
+        let chain = BlockChain::test(100).setup(&db);
 
         let chain_head = chain.blocks[VALIDITY_WINDOW as usize].to_simple();
         let announce_hash = setup_announce(
@@ -300,7 +300,7 @@ mod tests {
     #[test]
     fn test_check_tx_duplicate() {
         let db = Database::memory();
-        let chain = BlockChain::mock(100).setup(&db);
+        let chain = BlockChain::test(100).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
         let tx = mock_tx(chain.blocks[5].hash);
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_check_tx_outdated() {
         let db = Database::memory();
-        let chain = BlockChain::mock(100).setup(&db);
+        let chain = BlockChain::test(100).setup(&db);
 
         let chain_head = chain.blocks[(VALIDITY_WINDOW * 2) as usize].to_simple();
         let announce_hash = setup_announce(
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_check_tx_not_on_current_branch() {
         let db = Database::memory();
-        let chain = BlockChain::mock(35).setup(&db);
+        let chain = BlockChain::test(35).setup(&db);
 
         let mut blocks_branch2 = vec![];
 
@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn test_check_injected_tx_can_not_initialize_actor() {
         let db = Database::memory();
-        let chain = BlockChain::mock(10).setup(&db);
+        let chain = BlockChain::test(10).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
         let tx = mock_tx(chain.blocks[5].hash);
@@ -403,10 +403,10 @@ mod tests {
     #[test]
     fn test_check_injected_transaction_non_zero_value() {
         let db = Database::memory();
-        let chain = BlockChain::mock(10).setup(&db);
+        let chain = BlockChain::test(10).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
-        let tx = InjectedTransaction::mock(()).tap_mut(|tx| {
+        let tx = InjectedTransaction::test().tap_mut(|tx| {
             tx.reference_block = chain.blocks[5].hash;
             tx.value = 100
         });
@@ -428,10 +428,10 @@ mod tests {
     #[test]
     fn test_rejecting_unknown_reference_block() {
         let db = Database::memory();
-        let chain = BlockChain::mock(10).setup(&db);
+        let chain = BlockChain::test(10).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
-        let tx = InjectedTransaction::mock(());
+        let tx = InjectedTransaction::test();
 
         let announce_hash = setup_announce(&db, vec![], true, chain.block_top_announce_hash(8));
         let tx_checker =
@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn test_reach_start_block_in_branch_check() {
         let db = Database::memory();
-        let chain = BlockChain::mock(10)
+        let chain = BlockChain::test(10)
             .tap_mut(|chain| {
                 // leave blocks: 0 (genesis), 8 (start), 9, 10 (head)
                 let blocks_head = chain.blocks.split_off(8);
@@ -463,7 +463,7 @@ mod tests {
 
         let chain_head = chain.blocks[3].to_simple();
         let tx =
-            InjectedTransaction::mock(()).tap_mut(|tx| tx.reference_block = chain.blocks[0].hash);
+            InjectedTransaction::test().tap_mut(|tx| tx.reference_block = chain.blocks[0].hash);
 
         let announce_hash = setup_announce(&db, vec![], true, chain.block_top_announce_hash(3));
         let tx_checker =

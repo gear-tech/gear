@@ -167,7 +167,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{ToDigest, ValidatorsVec, mock::*};
+    use ethexe_common::{ToDigest, ValidatorsVec};
     use gprimitives::H256;
     use nonempty::NonEmpty;
 
@@ -182,7 +182,7 @@ mod tests {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::test();
         let batch = BatchCommitment {
             block_hash: block.hash,
             ..Default::default()
@@ -203,7 +203,7 @@ mod tests {
         let validators =
             NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
         let mut batch = BatchCommitment::default();
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::test();
         batch.block_hash = block.hash;
 
         assert!(
@@ -219,7 +219,7 @@ mod tests {
         let validators =
             NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
         let mut batch = BatchCommitment::default();
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::test();
         batch.block_hash = block.hash;
 
         assert!(
@@ -235,7 +235,7 @@ mod tests {
         let validators =
             NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
 
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::test();
         let batch = BatchCommitment {
             block_hash: block.hash,
             ..Default::default()

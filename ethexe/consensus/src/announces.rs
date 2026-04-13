@@ -794,7 +794,7 @@ mod tests {
     };
 
     fn make_chain(last: usize, fnp: usize, wta: usize) -> BlockChain {
-        let mut chain = BlockChain::mock(last as u32);
+        let mut chain = BlockChain::test(last as u32);
         (fnp..=last).for_each(|i| {
             chain.blocks[i]
                 .as_prepared_mut()
@@ -1063,7 +1063,7 @@ mod tests {
         };
         let state_hash = db.write_program_state(state);
 
-        let chain = BlockChain::mock(10)
+        let chain = BlockChain::test(10)
             .tap_mut(|chain| {
                 chain.blocks[10].as_synced_mut().events =
                     (0..MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2 + 1)

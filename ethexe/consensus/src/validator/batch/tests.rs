@@ -103,7 +103,7 @@ async fn rejects_duplicate_code_ids() {
         .core
         .batch_manager
         .validate_batch_commitment(
-            SimpleBlockData::mock(()),
+            SimpleBlockData::test(),
             BatchCommitmentValidationRequest::new(&batch),
         )
         .await
@@ -152,7 +152,7 @@ async fn rejects_non_best_chain_head() {
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
     let best_head = batch.chain_commitment.clone().unwrap().head_announce;
-    let wrong_announce = Announce::mock(block.hash);
+    let wrong_announce = Announce::test(block.hash, HashOf::random());
     let wrong_head = ctx.core.db.set_announce(wrong_announce);
     ctx.core
         .db
@@ -247,7 +247,7 @@ async fn rejects_code_not_processed_yet() {
     let (ctx, _, _) = mock_validator_context();
     let code = b"1234";
     let code_id = CodeId::generate(code);
-    let chain = BlockChain::mock(10)
+    let chain = BlockChain::test(10)
         .tap_mut(|chain| {
             chain.blocks[10]
                 .as_prepared_mut()
@@ -305,12 +305,12 @@ async fn rejects_batch_commitment_size_limit_exceeded() {
     let (mut ctx, _, _) = mock_validator_context();
 
     // Preparing transitions for announces chain.
-    let mut blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32);
+    let mut blockchain = BlockChain::test(BLOCKCHAIN_LEN as u32);
     for i in 0..BLOCKCHAIN_LEN {
         blockchain.block_top_announce_mut(i).tap_mut(|announce| {
             let transitions = (0..5)
                 .flat_map(|_| {
-                    let commitment = ChainCommitment::mock(announce.announce.to_hash());
+                    let commitment = ChainCommitment::test(announce.announce.to_hash());
                     commitment.transitions
                 })
                 .collect::<Vec<_>>();
@@ -416,7 +416,7 @@ async fn test_aggregate_validators_commitment() {
     gear_utils::init_default_logger();
 
     let (ctx, _, eth) = mock_validator_context();
-    let chain = BlockChain::mock(20)
+    let chain = BlockChain::test(20)
         .tap_mut(|chain| {
             chain.config.timelines.era = 10 * chain.config.timelines.slot;
             chain.config.timelines.election = 5 * chain.config.timelines.slot;

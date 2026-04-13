@@ -223,6 +223,171 @@ fn limited_bytes_strategy<const N: usize>(
         .boxed()
 }
 
+fn seeded_h256(seed: u64) -> H256 {
+    H256::from_low_u64_be(seed).tap_mut(|hash| hash.0[0] = 0x10)
+}
+
+fn seeded_hash_of<T>(seed: u64) -> HashOf<T> {
+    unsafe { HashOf::new(seeded_h256(seed)) }
+}
+
+fn seeded_actor_id(seed: u64) -> ActorId {
+    seeded_h256(seed).into()
+}
+
+fn seeded_code_id(seed: u64) -> CodeId {
+    seeded_h256(seed).into()
+}
+
+fn seeded_message_id(seed: u64) -> MessageId {
+    seeded_h256(seed).into()
+}
+
+impl BlockHeader {
+    pub fn test(parent_hash: H256) -> Self {
+        Self {
+            height: 43,
+            timestamp: 120,
+            parent_hash,
+        }
+    }
+}
+
+impl SimpleBlockData {
+    pub fn test() -> Self {
+        Self {
+            hash: seeded_h256(1),
+            header: BlockHeader::test(seeded_h256(0)),
+        }
+    }
+}
+
+impl ProtocolTimelines {
+    pub fn test() -> Self {
+        Self {
+            genesis_ts: 0,
+            era: 1000,
+            election: 200,
+            slot: 10,
+        }
+    }
+}
+
+impl Announce {
+    pub fn test(block_hash: H256, parent: HashOf<Self>) -> Self {
+        Self {
+            block_hash,
+            parent,
+            gas_allowance: Some(100),
+            injected_transactions: vec![],
+        }
+    }
+}
+
+impl CodeCommitment {
+    pub fn test(seed: u64) -> Self {
+        Self {
+            id: seeded_code_id(seed),
+            valid: true,
+        }
+    }
+}
+
+impl StateTransition {
+    pub fn test(seed: u64) -> Self {
+        Self {
+            actor_id: seeded_actor_id(seed * 10 + 1),
+            new_state_hash: seeded_h256(seed * 10 + 2),
+            exited: false,
+            inheritor: seeded_actor_id(seed * 10 + 3),
+            value_to_receive: 123,
+            value_to_receive_negative_sign: false,
+            value_claims: vec![],
+            messages: vec![Message {
+                id: seeded_message_id(seed * 10 + 4),
+                destination: seeded_actor_id(seed * 10 + 5),
+                payload: b"Hello, World!".to_vec(),
+                value: 0,
+                reply_details: None,
+                call: false,
+            }],
+        }
+    }
+}
+
+impl ChainCommitment {
+    pub fn test(head_announce: HashOf<Announce>) -> Self {
+        Self {
+            transitions: vec![StateTransition::test(1), StateTransition::test(2)],
+            head_announce,
+        }
+    }
+}
+
+impl BatchCommitment {
+    pub fn test() -> Self {
+        Self {
+            block_hash: seeded_h256(1),
+            timestamp: 42,
+            previous_batch: Digest(seeded_h256(2).0),
+            expiry: 10,
+            chain_commitment: Some(ChainCommitment::test(seeded_hash_of(3))),
+            code_commitments: vec![CodeCommitment::test(1), CodeCommitment::test(2)],
+            validators_commitment: None,
+            rewards_commitment: None,
+        }
+    }
+}
+
+impl BatchCommitmentValidationRequest {
+    pub fn test() -> Self {
+        Self {
+            digest: Digest(seeded_h256(4).0),
+            head: Some(seeded_hash_of(5)),
+            codes: vec![seeded_code_id(1), seeded_code_id(2)],
+            validators: false,
+            rewards: false,
+        }
+    }
+}
+
+impl InjectedTransaction {
+    pub fn test() -> Self {
+        Self {
+            destination: Default::default(),
+            payload: LimitedVec::new(),
+            value: 0,
+            reference_block: Default::default(),
+            salt: LimitedVec::try_from(vec![1; 32]).expect("32 bytes must fit into limited vector"),
+        }
+    }
+}
+
+impl DBConfig {
+    pub fn test() -> Self {
+        Self {
+            version: 0,
+            chain_id: 0,
+            router_address: Address::default(),
+            timelines: ProtocolTimelines::test(),
+            genesis_block_hash: seeded_h256(1),
+            genesis_announce_hash: seeded_hash_of(1),
+        }
+    }
+}
+
+impl DBGlobals {
+    pub fn test() -> Self {
+        Self {
+            start_block_hash: seeded_h256(1),
+            start_announce_hash: seeded_hash_of(1),
+            latest_synced_block: SimpleBlockData::test(),
+            latest_prepared_block_hash: seeded_h256(2),
+            latest_computed_announce_hash: seeded_hash_of(2),
+        }
+    }
+}
+
 impl Arbitrary for SimpleBlockData {
     type Parameters = BlockHeaderParams;
     type Strategy = BoxedStrategy<Self>;
@@ -583,6 +748,10 @@ pub struct BlockChain {
 }
 
 impl BlockChain {
+    pub fn test(args: impl Into<BlockChainParams>) -> Self {
+        Self::with_params(args.into(), Address::default())
+    }
+
     #[track_caller]
     pub fn block_top_announce_hash(&self, block_index: usize) -> HashOf<Announce> {
         self.blocks

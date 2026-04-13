@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn create_with_chain_head_success() {
         let (ctx, _, _) = mock_validator_context();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let block = BlockChain::test(1).setup(&ctx.core.db).blocks[1].to_simple();
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
     }
@@ -291,7 +291,7 @@ mod tests {
         ]
         .into();
 
-        let chain = BlockChain::mock((2, validators)).setup(&ctx.core.db);
+        let chain = BlockChain::test((2, validators)).setup(&ctx.core.db);
         ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[2].to_simple();
 
@@ -317,7 +317,7 @@ mod tests {
         ]
         .into();
 
-        let chain = BlockChain::mock((1, validators)).setup(&ctx.core.db);
+        let chain = BlockChain::test((1, validators)).setup(&ctx.core.db);
         ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[1].to_simple();
         let state = Initial::create_with_chain_head(ctx, block).unwrap();
@@ -341,7 +341,7 @@ mod tests {
         let (mut ctx, _, _) = mock_validator_context();
         let last = 9;
 
-        let mut chain = BlockChain::mock(last as u32);
+        let mut chain = BlockChain::test(last as u32);
         chain.blocks[last].as_prepared_mut().announces = None;
 
         // create 2 missing announces from blocks last - 2 and last - 1
@@ -399,7 +399,7 @@ mod tests {
 
         let (mut ctx, _, _) = mock_validator_context();
         let last = 9;
-        let chain = BlockChain::mock(last as u32)
+        let chain = BlockChain::test(last as u32)
             .tap_mut(|chain| {
                 // remove announces from 5 latest blocks
                 (last - 4..=last).for_each(|idx| {
@@ -454,7 +454,7 @@ mod tests {
 
         let (mut ctx, _, _) = mock_validator_context();
         let last = 12;
-        let chain = BlockChain::mock(last as u32)
+        let chain = BlockChain::test(last as u32)
             .tap_mut(|chain| {
                 // remove announces from 10 latest blocks
                 (last - 9..=last).for_each(|idx| {
@@ -494,7 +494,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let (ctx, _, _) = mock_validator_context();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let block = BlockChain::test(1).setup(&ctx.core.db).blocks[1].to_simple();
 
         let initial = Initial::create(ctx)
             .unwrap()
@@ -524,7 +524,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let (ctx, _, _) = mock_validator_context();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let block = BlockChain::test(1).setup(&ctx.core.db).blocks[1].to_simple();
         let state = Initial::create_with_chain_head(ctx, block)
             .unwrap()
             .process_synced_block(block.hash)
@@ -544,7 +544,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let (ctx, _, _) = mock_validator_context();
-        let block = BlockChain::mock(1)
+        let block = BlockChain::test(1)
             .setup(&ctx.core.db)
             .tap_mut(|chain| {
                 chain.blocks[1].as_prepared_mut().announces = None;
@@ -589,7 +589,7 @@ mod tests {
 
         let (mut ctx, _, _) = mock_validator_context();
         let last = 10;
-        let mut chain = BlockChain::mock(last as u32);
+        let mut chain = BlockChain::test(last as u32);
 
         // create unknown announce for block last - 6
         let unknown_announce = Announce::with_default_gas(

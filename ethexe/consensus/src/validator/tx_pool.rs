@@ -220,7 +220,7 @@ mod tests {
         );
         let program_id = ActorId::from([1; 32]);
 
-        let chain = BlockChain::mock(10)
+        let chain = BlockChain::test(10)
             .tap_mut(|c| {
                 // set 2 last announces as not computed
                 c.block_top_announce_mut(10).computed = None;
@@ -250,7 +250,7 @@ mod tests {
         let tx = InjectedTransaction {
             reference_block: chain.blocks[9].hash,
             destination: program_id,
-            ..InjectedTransaction::mock(())
+            ..InjectedTransaction::test()
         };
         let tx_hash = tx.to_hash();
         let signed_tx = signer.signed_message(key, tx, None).unwrap();
@@ -270,7 +270,7 @@ mod tests {
                         reference_block: chain.blocks[9].hash,
                         value: 100,
                         destination: program_id,
-                        ..InjectedTransaction::mock(())
+                        ..InjectedTransaction::test()
                     },
                     None,
                 )
@@ -321,7 +321,7 @@ mod tests {
         };
         let state_hash = db.write_program_state(state);
 
-        let chain = BlockChain::mock(10)
+        let chain = BlockChain::test(10)
             .tap_mut(|chain| {
                 chain.blocks[10].as_synced_mut().events = (0..97)
                     .map(|i| BlockEvent::Mirror {
@@ -365,7 +365,7 @@ mod tests {
             let tx = InjectedTransaction {
                 reference_block: chain.blocks[9].hash,
                 destination: ActorId::from(i as u64),
-                ..InjectedTransaction::mock(())
+                ..InjectedTransaction::test()
             };
             let signed_tx = signer.signed_message(key, tx, None).unwrap();
             tx_pool.handle_tx(signed_tx);

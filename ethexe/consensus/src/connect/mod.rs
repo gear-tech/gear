@@ -375,7 +375,7 @@ mod tests {
         let validators = ValidatorsVec::try_from(vec![validator_address]).unwrap();
 
         let db = Database::memory();
-        let chain = BlockChain::mock((10, validators)).setup(&db);
+        let chain = BlockChain::test((10, validators)).setup(&db);
 
         let mut service = ConnectService::new(db, 10);
         service

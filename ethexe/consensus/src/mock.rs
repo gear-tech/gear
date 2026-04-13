@@ -50,10 +50,10 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
 /// last_committed_announce:  genesis     genesis     genesis     genesis
 /// ```
 pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
-    let mut chain = BlockChain::mock(3);
+    let mut chain = BlockChain::test(3);
 
-    let transitions1 = vec![StateTransition::mock(()), StateTransition::mock(())];
-    let transitions2 = vec![StateTransition::mock(()), StateTransition::mock(())];
+    let transitions1 = vec![StateTransition::test(1), StateTransition::test(2)];
+    let transitions2 = vec![StateTransition::test(3), StateTransition::test(4)];
 
     let announce1_hash = chain.block_top_announce_mutate(1, |data| {
         data.announce.gas_allowance = Some(19);
@@ -71,8 +71,8 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
         data.announce.parent = announce2_hash;
     });
 
-    let code_commitment1 = CodeCommitment::mock(());
-    let code_commitment2 = CodeCommitment::mock(());
+    let code_commitment1 = CodeCommitment::test(1);
+    let code_commitment2 = CodeCommitment::test(2);
     chain.blocks[3].prepared.as_mut().unwrap().codes_queue =
         [code_commitment1.id, code_commitment2.id].into();
 
@@ -101,18 +101,10 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
 }
 
 pub trait SignerMockExt {
-    fn mock_signed_data<T, M: Mock<T> + ToDigest>(
-        &self,
-        pub_key: PublicKey,
-        args: T,
-    ) -> SignedData<M>;
+    fn signed_data_for<M: ToDigest>(&self, pub_key: PublicKey, value: M) -> SignedData<M>;
 
-    fn mock_verified_data<T, M: Mock<T> + ToDigest>(
-        &self,
-        pub_key: PublicKey,
-        args: T,
-    ) -> VerifiedData<M> {
-        self.mock_signed_data(pub_key, args).into_verified()
+    fn verified_data_for<M: ToDigest>(&self, pub_key: PublicKey, value: M) -> VerifiedData<M> {
+        self.signed_data_for(pub_key, value).into_verified()
     }
 
     fn validation_reply(
@@ -124,12 +116,8 @@ pub trait SignerMockExt {
 }
 
 impl SignerMockExt for Signer {
-    fn mock_signed_data<T, M: Mock<T> + ToDigest>(
-        &self,
-        pub_key: PublicKey,
-        args: T,
-    ) -> SignedData<M> {
-        self.signed_data(pub_key, M::mock(args), None).unwrap()
+    fn signed_data_for<M: ToDigest>(&self, pub_key: PublicKey, value: M) -> SignedData<M> {
+        self.signed_data(pub_key, value, None).unwrap()
     }
 
     fn validation_reply(

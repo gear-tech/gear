@@ -259,7 +259,9 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{HashOf, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{
+        HashOf, consensus::BatchCommitmentValidationRequest, db::*, gear::CodeCommitment, mock::*,
+    };
     use futures::StreamExt;
     use nonempty::nonempty;
 
@@ -268,10 +270,12 @@ mod tests {
     async fn create() {
         let (mut ctx, keys, _) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(());
+        let block = SimpleBlockData::test();
 
         ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_verified_data(keys[0], ()),
+            ctx.core
+                .signer
+                .verified_data_for(keys[0], BatchCommitmentValidationRequest::test()),
         ));
 
         let producer = Producer::create(ctx, block, validators.into()).unwrap();
@@ -289,7 +293,7 @@ mod tests {
     async fn simple() {
         let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let block = BlockChain::test(1).setup(&ctx.core.db).blocks[1].to_simple();
 
         let (state, announce_hash) = Producer::create(ctx, block, validators)
             .unwrap()
@@ -419,10 +423,10 @@ mod tests {
 
         let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let block = BlockChain::test(1).setup(&ctx.core.db).blocks[1].to_simple();
 
-        let code1 = CodeCommitment::mock(());
-        let code2 = CodeCommitment::mock(());
+        let code1 = CodeCommitment::test(1);
+        let code2 = CodeCommitment::test(2);
         ctx.core.db.set_code_valid(code1.id, code1.valid);
         ctx.core.db.set_code_valid(code2.id, code2.valid);
         ctx.core.db.mutate_block_meta(block.hash, |meta| {
