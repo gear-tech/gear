@@ -3742,7 +3742,7 @@ async fn re_genesis_with_state_dump() {
 /// in the scheduler from the dispatch stash in the program state.
 #[tokio::test]
 #[ntest::timeout(60_000)]
-async fn re_genesis_preserves_dispatch_stash() {
+async fn re_genesis_delayed_message() {
     init_logger();
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();

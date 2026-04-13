@@ -25,12 +25,13 @@ use ethexe_common::{
     db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO},
 };
 use ethexe_runtime_common::state::{
-    Dispatch, DispatchStash, Mailbox, MailboxMessage, MemoryPages, MemoryPagesRegion, MessageQueue,
-    PayloadLookup, ProgramState, UserMailbox, Waitlist,
+    Dispatch, DispatchStash, Expiring, Mailbox, MailboxMessage, MemoryPages, MemoryPagesInner,
+    MemoryPagesRegionInner, MessageQueue, PayloadLookup, Program, ProgramState, UserMailbox,
+    Waitlist,
 };
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Decode;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 /// Collects all content-addressed blobs reachable from program states.
 struct BlobCollector<'a, S: ?Sized> {
@@ -79,18 +80,27 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
         Ok(())
     }
 
-    fn collect_dispatch(&mut self, dispatch: &Dispatch) -> Result<()> {
-        self.collect_payload(&dispatch.payload)
-    }
-
     fn collect_message_queue(&mut self, maybe: MaybeHashOf<MessageQueue>) -> Result<()> {
         let Some(queue) = self.collect_maybe_hash(maybe)? else {
             return Ok(());
         };
 
-        let dispatches: std::collections::VecDeque<Dispatch> = queue.into();
-        for dispatch in &dispatches {
-            self.collect_dispatch(dispatch)?;
+        for dispatch in VecDeque::from(queue) {
+            // All fields except payload data are already included
+            // in the message queue blob (see collect_maybe_hash above)
+            let Dispatch {
+                payload,
+                id: _,
+                kind: _,
+                source: _,
+                value: _,
+                details: _,
+                context: _,
+                message_type: _,
+                call: _,
+            } = dispatch;
+
+            self.collect_payload(&payload)?;
         }
 
         Ok(())
@@ -101,9 +111,28 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
             return Ok(());
         };
 
-        let inner: BTreeMap<_, _> = waitlist.into();
-        for expiring in inner.values() {
-            self.collect_dispatch(&expiring.value)?;
+        // `_message_id`, `expiry` and all fields of `Dispatch` except payload data are already included
+        // in the waitlist blob (see collect_maybe_hash above)
+        for (
+            _message_id,
+            Expiring {
+                value:
+                    Dispatch {
+                        payload,
+                        id: _,
+                        kind: _,
+                        source: _,
+                        value: _,
+                        details: _,
+                        context: _,
+                        message_type: _,
+                        call: _,
+                    },
+                expiry: _,
+            },
+        ) in BTreeMap::from(waitlist)
+        {
+            self.collect_payload(&payload)?;
         }
 
         Ok(())
@@ -114,16 +143,34 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
             return Ok(());
         };
 
-        let inner: BTreeMap<_, _> = stash.into();
-        for expiring in inner.values() {
-            self.collect_dispatch(&expiring.value.0)?;
+        // `_message_id`, `_maybe_actor`, `expiry` are already included
+        // in the stash blob (see collect_maybe_hash above)
+        for (
+            _message_id,
+            Expiring {
+                value: (dispatch, _maybe_actor),
+                expiry: _,
+            },
+        ) in BTreeMap::from(stash)
+        {
+            // All fields except payload data are already included
+            // in the dispatch stash blob (see collect_maybe_hash above)
+            let Dispatch {
+                payload,
+                id: _,
+                kind: _,
+                source: _,
+                value: _,
+                details: _,
+                context: _,
+                message_type: _,
+                call: _,
+            } = dispatch;
+
+            self.collect_payload(&payload)?;
         }
 
         Ok(())
-    }
-
-    fn collect_mailbox_message(&mut self, message: &MailboxMessage) -> Result<()> {
-        self.collect_payload(&message.payload)
     }
 
     fn collect_user_mailbox(&mut self, hash: HashOf<UserMailbox>) -> Result<()> {
@@ -131,9 +178,20 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
             return Ok(());
         };
 
-        let inner: BTreeMap<_, _> = user_mailbox.into();
-        for expiring in inner.values() {
-            self.collect_mailbox_message(&expiring.value)?;
+        // `_message_id` is already included in the user mailbox blob (see read_and_decode above)
+        for (_message_id, expiring) in BTreeMap::from(user_mailbox) {
+            // All fields except payload data are already included
+            // in the user mailbox blob (see read_and_decode above)
+            let Expiring {
+                value:
+                    MailboxMessage {
+                        payload,
+                        value: _,
+                        message_type: _,
+                    },
+                expiry: _,
+            } = expiring;
+            self.collect_payload(&payload)?;
         }
 
         Ok(())
@@ -144,9 +202,9 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
             return Ok(());
         };
 
-        let inner: BTreeMap<_, _> = mailbox.into();
-        for user_mailbox_hash in inner.values() {
-            self.collect_user_mailbox(*user_mailbox_hash)?;
+        // `_actor_id` is already included in the mailbox blob (see collect_maybe_hash above)
+        for (_actor_id, user_mailbox_hash) in BTreeMap::from(mailbox) {
+            self.collect_user_mailbox(user_mailbox_hash)?;
         }
 
         Ok(())
@@ -157,15 +215,14 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
             return Ok(());
         };
 
-        let regions: [MaybeHashOf<MemoryPagesRegion>; MemoryPages::REGIONS_AMOUNT] = pages.into();
-        for region_hash in regions {
+        for region_hash in MemoryPagesInner::from(pages) {
             let Some(region) = self.collect_maybe_hash(region_hash)? else {
                 continue;
             };
 
-            let inner: BTreeMap<_, _> = region.into();
-            for page_hash in inner.values() {
-                let _ = self.read_and_collect(page_hash.inner())?;
+            // `_page` is already included in the region blob (see collect_maybe_hash above)
+            for (_page, page_data_hash) in MemoryPagesRegionInner::from(region) {
+                let _ = self.read_and_collect(page_data_hash.inner())?;
             }
         }
 
@@ -173,28 +230,40 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
     }
 
     fn collect_program_state(&mut self, state_hash: H256) -> Result<()> {
-        let Some(state) = self.read_and_decode::<ProgramState>(state_hash)? else {
+        let Some(ProgramState {
+            program,
+            canonical_queue,
+            injected_queue,
+            waitlist_hash,
+            stash_hash,
+            mailbox_hash,
+            // balance and executable_balance are already included
+            // in the program state blob (see read_and_decode below)
+            balance: _,
+            executable_balance: _,
+        }) = self.read_and_decode::<ProgramState>(state_hash)?
+        else {
             return Ok(());
         };
 
         // Collect allocations and memory pages.
-        if let ethexe_runtime_common::state::Program::Active(active) = &state.program {
+        if let Program::Active(active) = &program {
             let _ = self.collect_maybe_hash(active.allocations_hash)?;
             self.collect_memory_pages(active.pages_hash)?;
         }
 
         // Collect message queues.
-        self.collect_message_queue(state.canonical_queue.hash)?;
-        self.collect_message_queue(state.injected_queue.hash)?;
+        self.collect_message_queue(canonical_queue.hash)?;
+        self.collect_message_queue(injected_queue.hash)?;
 
         // Collect waitlist.
-        self.collect_waitlist(state.waitlist_hash)?;
+        self.collect_waitlist(waitlist_hash)?;
 
         // Collect dispatch stash.
-        self.collect_dispatch_stash(state.stash_hash)?;
+        self.collect_dispatch_stash(stash_hash)?;
 
         // Collect mailbox.
-        self.collect_mailbox(state.mailbox_hash)?;
+        self.collect_mailbox(mailbox_hash)?;
 
         Ok(())
     }
