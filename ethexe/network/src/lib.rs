@@ -30,8 +30,8 @@
 //!
 //! [`NetworkService`] is the main integration point used by higher-level
 //! services. It owns the swarm, emits validated [`NetworkEvent`] items, and
-//! hands out protocol-specific handles such as [`db_sync::Handle`] and
-//! [`peer_score::Handle`].
+//! hands out protocol-specific handles such as [`db_sync::Handle`] for
+//! database synchronization and a peer-scoring handle for internal use.
 
 pub mod db_sync;
 mod gossipsub;
