@@ -30,7 +30,7 @@ use alloy::{
 };
 use anyhow::{Result, anyhow};
 use args::{Params, parse_cli_params};
-use ethexe_ethereum::{Ethereum, NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE};
+use ethexe_ethereum::{Ethereum, EthereumBuilder};
 use rand::rngs::SmallRng;
 use std::str::FromStr;
 use tokio::{sync::broadcast, task::JoinSet};
@@ -170,15 +170,13 @@ async fn create_deployer_api(params: &LoadParams, router_addr: Address) -> Resul
         "Configured send_message execution mode"
     );
 
-    Ethereum::new(
-        &params.node,
-        router_addr.into(),
-        deployer_signer,
-        deployer_address,
-        NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-        NO_BLOB_GAS_MULTIPLIER,
-    )
-    .await
+    EthereumBuilder::default()
+        .rpc_url(params.node.clone())
+        .router_address(router_addr.into())
+        .signer(deployer_signer.clone())
+        .sender_address(deployer_address)
+        .build()
+        .await
 }
 
 async fn deploy_multicall(deployer_api: &Ethereum) -> Result<Address> {
@@ -201,15 +199,13 @@ async fn initialize_worker_apis(params: &LoadParams, router_addr: Address) -> Re
         let router = router_addr;
 
         init_tasks.spawn(async move {
-            let api = Ethereum::new(
-                &node,
-                router.into(),
-                signer,
-                address,
-                NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-                NO_BLOB_GAS_MULTIPLIER,
-            )
-            .await?;
+            let api = EthereumBuilder::default()
+                .rpc_url(&node)
+                .router_address(router.into())
+                .signer(signer)
+                .sender_address(address)
+                .build()
+                .await?;
             Ok((worker_idx, account_index, address, api))
         });
     }
