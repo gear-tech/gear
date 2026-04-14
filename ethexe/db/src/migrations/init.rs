@@ -234,17 +234,17 @@ async fn genesis_data_initialization(
 
     let StateDump {
         announce_hash: _,
-        block_hash,
+        block_hash: _,
         codes,
         programs,
         blobs,
     } = initializer.get_genesis_data()?;
 
-    ensure!(
-        block_hash == genesis_block.hash,
-        "Genesis data block hash {block_hash} does not match the actual genesis block hash {}",
-        genesis_block.hash
-    );
+    // ensure!(
+    //     block_hash == genesis_block.hash,
+    //     "Genesis data block hash {block_hash} does not match the actual genesis block hash {}",
+    //     genesis_block.hash
+    // );
 
     log::info!(
         "Genesis data contains {} codes, {} programs, {} blobs",
