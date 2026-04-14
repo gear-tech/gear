@@ -44,7 +44,7 @@ use ethexe_common::{
         mirror::{MessageEvent, ReplyEvent, StateChangedEvent, ValueClaimedEvent},
         router::{AnnouncesCommittedEvent, ValidatorsCommittedForEraEvent},
     },
-    gear::{BatchCommitment, CANONICAL_QUARANTINE, GenesisBlockInfo, MessageType},
+    gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
     mock::*,
     network::ValidatorMessage,
@@ -3369,7 +3369,6 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     }
 }
 
-
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn re_genesis_with_state_dump() {
@@ -3414,45 +3413,41 @@ async fn re_genesis_with_state_dump() {
     let latest_block = env.latest_block().await.hash;
     node.events().find_announce_computed(latest_block).await;
 
-    log::info!("📗 Phase 2: collect state dump from the node's database.");
-    let latest_prepared_block_hash = node.db.globals().latest_prepared_block_hash;
-    log::info!("Collecting state dump for block {latest_prepared_block_hash:?}...");
+    log::info!(
+        "📗 Phase 2: re-genesis the router via reinitialize + lookupGenesisHash. \
+         New genesis is the block where the reinitialize tx is mined."
+    );
+    env.ethereum.router().reinitialize().await.unwrap();
+    env.ethereum.router().lookup_genesis_hash().await.unwrap();
 
-    let dump = StateDump::collect_from_storage(&node.db, latest_prepared_block_hash).unwrap();
+    let new_genesis_hash: H256 = env
+        .ethereum
+        .router()
+        .query()
+        .genesis_block_hash()
+        .await
+        .unwrap()
+        .0
+        .into();
+    log::info!("New genesis block hash: {new_genesis_hash:?}");
+
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    log::info!("📗 Phase 3: collect state dump at the new genesis block.");
+    let dump = StateDump::collect_from_storage(&node.db, new_genesis_hash).unwrap();
     log::info!(
         "Dump: {} codes, {} programs, {} blobs",
         dump.codes.len(),
         dump.programs.len(),
         dump.blobs.len(),
     );
+    assert_eq!(dump.block_hash, new_genesis_hash);
     assert!(!dump.codes.is_empty());
     assert!(!dump.programs.is_empty());
 
     // Stop the node.
     drop(node);
-
-    log::info!(
-        "📗 Phase 3: re-genesis the router with the dump block {} as new genesis",
-        dump.block_hash
-    );
-    let block = env.ethereum.get_block(dump.block_hash).await.unwrap();
-    let new_genesis = GenesisBlockInfo {
-        hash: block.hash,
-        number: block.header.height,
-        timestamp: block.header.timestamp,
-    };
-    env.ethereum.router().re_genesis(new_genesis).await.unwrap();
-    assert_eq!(
-        block.hash,
-        env.ethereum
-            .router()
-            .query()
-            .genesis_block_hash()
-            .await
-            .unwrap()
-            .0
-            .into()
-    );
 
     log::info!("📗 Phase 4: create a new node with a fresh DB initialized from the state dump.");
 
@@ -3581,16 +3576,39 @@ async fn re_genesis_delayed_message() {
     let latest_block = env.latest_block().await.hash;
     node.events().find_announce_computed(latest_block).await;
 
-    // Phase 2: collect dump.
-    log::info!("📗 Phase 2: collect state dump.");
-    let dump_block_hash = node.db.globals().latest_prepared_block_hash;
-    let dump = StateDump::collect_from_storage(&node.db, dump_block_hash).unwrap();
+    // Phase 2: re-genesis via reinitialize + lookupGenesisHash; the new genesis
+    // is the block where the reinitialize tx was mined.
+    log::info!("📗 Phase 2: re-genesis the router.");
+    env.ethereum.router().reinitialize().await.unwrap();
+    env.ethereum.router().lookup_genesis_hash().await.unwrap();
+
+    let new_genesis_hash: H256 = env
+        .ethereum
+        .router()
+        .query()
+        .genesis_block_hash()
+        .await
+        .unwrap()
+        .0
+        .into();
+    log::info!("New genesis block hash: {new_genesis_hash:?}");
+
+    // Wait until the node commits the new genesis block before dumping from its DB.
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    // Phase 3: collect dump at the new genesis block; it should still carry the
+    // pending delayed send in the dispatch stash because the 5-block delay
+    // hasn't elapsed yet.
+    log::info!("📗 Phase 3: collect state dump at the new genesis block.");
+    let dump = StateDump::collect_from_storage(&node.db, new_genesis_hash).unwrap();
     log::info!(
         "Dump: {} codes, {} programs, {} blobs",
         dump.codes.len(),
         dump.programs.len(),
         dump.blobs.len(),
     );
+    assert_eq!(dump.block_hash, new_genesis_hash);
 
     // Verify the dispatch stash is non-empty (delayed message pending).
     {
@@ -3604,16 +3622,6 @@ async fn re_genesis_delayed_message() {
 
     // Stop the node.
     drop(node);
-
-    // Phase 3: re-genesis.
-    log::info!("📗 Phase 3: re-genesis.");
-    let block = env.ethereum.get_block(dump.block_hash).await.unwrap();
-    let new_genesis = GenesisBlockInfo {
-        hash: block.hash,
-        number: block.header.height,
-        timestamp: block.header.timestamp,
-    };
-    env.ethereum.router().re_genesis(new_genesis).await.unwrap();
 
     // Phase 4: start new node with dump.
     log::info!("📗 Phase 4: start new node with state dump.");
@@ -3655,9 +3663,9 @@ async fn re_genesis_delayed_message() {
     );
     node.start_service().await;
 
-    // skip 4 blocks to reach the delayed message execution slot
-    // delay=5 blocks, so execute at block N+5, but we are currently at N+1 after genesis.
-    env.skip_blocks(4).await;
+    // skip 3 blocks to reach the delayed message execution slot
+    // delay=5 blocks, so execute at block N+5, but we are currently at N+2 after genesis.
+    env.skip_blocks(3).await;
     env.new_observer_events()
         .filter_map_block_synced()
         .find_map(|event| match event {
