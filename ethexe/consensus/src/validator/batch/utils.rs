@@ -204,21 +204,21 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
             )
         })?;
 
-    // Amount of announces which we should check to determine if there are not-base announces in the commitment.
-    let Some(announces_to_check_amount) = commitment_delay_limit.checked_sub(head_delay) else {
+    // Number of blocks worth of announces to check for not-base announces in the commitment.
+    let Some(blocks_to_check) = commitment_delay_limit.checked_sub(head_delay) else {
         // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
         return Ok(None);
     };
 
-    if announces_to_check_amount == 0 {
+    if blocks_to_check == 0 {
         // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
         return Ok(None);
     }
 
-    let mut oldest_not_base_announce_depth = (!head_announce.is_base()).then_some(0);
+    let mut oldest_not_base_announce_depth = (!head_announce.is_base()).then_some(0u32);
     let mut current_announce_hash = head_announce.parent;
 
-    if announces_to_check_amount == 1 {
+    if blocks_to_check == 1 {
         // If head announce is not base and older than commitment delay limit - 1, then expiry is only 1.
         return Ok(oldest_not_base_announce_depth.map(|_| 1));
     }
@@ -228,8 +228,12 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
         .last_committed_announce
         .ok_or_else(|| anyhow!("last committed announce not found for block {}", block.hash))?;
 
-    // from 1 because we have already checked head announce (note announces_to_check_amount > 1)
-    for i in 1..announces_to_check_amount {
+    // Walk backwards counting block transitions (not announce hops) because
+    // mini-announces chain within the same block. CDL is defined in blocks per S1.
+    let mut blocks_seen = 1u32; // already counted head announce's block
+    let mut prev_block_hash = Some(head_announce.block_hash);
+
+    loop {
         if current_announce_hash == last_committed_announce {
             break;
         }
@@ -238,15 +242,24 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
             .announce(current_announce_hash)
             .ok_or_else(|| anyhow!("Cannot get announce by {current_announce_hash}",))?;
 
+        let is_new_block = prev_block_hash != Some(current_announce.block_hash);
+        if is_new_block {
+            blocks_seen += 1;
+            prev_block_hash = Some(current_announce.block_hash);
+            if blocks_seen >= blocks_to_check {
+                break;
+            }
+        }
+
         if !current_announce.is_base() {
-            oldest_not_base_announce_depth = Some(i);
+            oldest_not_base_announce_depth = Some(blocks_seen);
         }
 
         current_announce_hash = current_announce.parent;
     }
 
     Ok(oldest_not_base_announce_depth
-        .map(|depth| announces_to_check_amount - depth)
+        .map(|depth| blocks_to_check - depth)
         .map(TryInto::try_into)
         .transpose()?)
 }
