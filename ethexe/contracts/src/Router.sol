@@ -255,7 +255,7 @@ contract Router is
     }
 
     // # Calls.
-    function lookupGenesisHash() external whenNotPaused {
+    function lookupGenesisHash() external {
         Storage storage router = _router();
 
         require(router.genesisBlock.hash == bytes32(0), GenesisHashAlreadySet());
