@@ -39,8 +39,8 @@ use ethexe_common::{
     ecdsa::ContractSignature,
     events::router::CodeGotValidatedEvent,
     gear::{
-        AggregatedPublicKey, BatchCommitment, CodeState, ComputationSettings, GenesisBlockInfo,
-        SignatureType, Timelines,
+        AggregatedPublicKey, BatchCommitment, CodeState, ComputationSettings, SignatureType,
+        Timelines,
     },
 };
 use events::{
@@ -117,8 +117,8 @@ impl Router {
         Ok(receipt)
     }
 
-    pub async fn re_genesis(&self, genesis: GenesisBlockInfo) -> Result<TransactionReceipt> {
-        let builder = self.instance.reGenesis(genesis.into());
+    pub async fn reinitialize(&self) -> Result<TransactionReceipt> {
+        let builder = self.instance.reinitialize();
         let receipt = builder
             .send()
             .await?

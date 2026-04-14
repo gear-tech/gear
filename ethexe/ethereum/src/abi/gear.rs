@@ -210,16 +210,6 @@ impl From<Gear::GenesisBlockInfo> for GenesisBlockInfo {
     }
 }
 
-impl From<GenesisBlockInfo> for Gear::GenesisBlockInfo {
-    fn from(value: GenesisBlockInfo) -> Self {
-        Self {
-            hash: h256_to_bytes32(value.hash),
-            number: value.number,
-            timestamp: u64_to_uint48_lossy(value.timestamp),
-        }
-    }
-}
-
 impl From<Gear::ComputationSettings> for ComputationSettings {
     fn from(value: Gear::ComputationSettings) -> Self {
         Self {
