@@ -1462,26 +1462,26 @@ async fn multiple_validators() {
     }
 
     log::info!("📗 Stop validator 1 and check, that ethexe is not working after");
-    // validators[1].stop_service().await;
+    validators[1].stop_service().await;
 
-    // while env.next_block_producer_index().await != 2 {
-    //     log::info!("📗 Skip one block to be sure validator 2 is a producer for next block");
-    //     env.skip_blocks(1).await;
-    // }
+    while env.next_block_producer_index().await != 2 {
+        log::info!("📗 Skip one block to be sure validator 2 is a producer for next block");
+        env.skip_blocks(1).await;
+    }
 
     let wait_for_reply_to = env
         .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap();
 
-    // tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
-    //     .await
-    //     .expect_err("Timeout expected");
+    tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
+        .await
+        .expect_err("Timeout expected");
 
-    // log::info!(
-    //     "📗 Re-start validator 0 and check, that now ethexe is working, validator 1 is still stopped"
-    // );
-    // validators[0].start_service().await;
+    log::info!(
+        "📗 Re-start validator 0 and check, that now ethexe is working, validator 1 is still stopped"
+    );
+    validators[0].start_service().await;
 
     // IMPORTANT: mine some blocks
     // to force validator 0 and validator 2 to have the same announces chain.

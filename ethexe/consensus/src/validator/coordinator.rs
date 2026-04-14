@@ -58,9 +58,16 @@ impl StateHandler for Coordinator {
     }
 
     fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
-        // Buffer the new head instead of dying. Process it after submission.
-        self.next_block = Some(block);
-        Ok(self.into())
+        if self.next_block.is_some() {
+            // Second new head while still waiting for signatures — give up on this batch.
+            // Not enough validators responded within one block window.
+            tracing::warn!("Coordinator received second new head, abandoning batch");
+            Initial::create(self.ctx)?.process_new_head(block)
+        } else {
+            // Buffer the first new head. Process it after submission.
+            self.next_block = Some(block);
+            Ok(self.into())
+        }
     }
 
     fn process_validation_reply(
