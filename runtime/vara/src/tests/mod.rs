@@ -246,9 +246,9 @@ fn instruction_weights_heuristics_test() {
         i64shl: 1_000,
         i32shl: 200,
         i64shrs: 1_000,
-        i32shrs: 0, // SUSPECTED
+        i32shrs: 330,
         i64shru: 1_000,
-        i32shru: 60, // SUSPECTED
+        i32shru: 400,
         i64rotl: 750,
         i32rotl: 400,
         i64rotr: 1_000,
