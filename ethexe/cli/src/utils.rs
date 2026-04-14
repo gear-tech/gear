@@ -16,13 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Small formatting helpers shared by CLI commands.
+
 use core::{fmt, marker::PhantomData, str};
 
+/// Trait implemented by currencies that can be rendered and parsed by the CLI.
 pub trait Currency {
+    /// Human-readable ticker used in formatted values.
     const SYMBOL: &'static str;
+    /// Number of decimal places in the smallest unit representation.
     const DECIMALS: u32;
 }
 
+/// Marker type for Ethereum-denominated amounts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ethereum;
 
@@ -31,6 +37,7 @@ impl Currency for Ethereum {
     const DECIMALS: u32 = 18;
 }
 
+/// Marker type for Wrapped Vara-denominated amounts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WrappedVara;
 
@@ -41,6 +48,7 @@ impl Currency for WrappedVara {
 
 const TEN: u128 = 10;
 
+/// Renders a smallest-unit integer as a human-readable currency amount.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FormattedValue<C: Currency> {
     value: u128,
@@ -49,6 +57,7 @@ pub struct FormattedValue<C: Currency> {
 
 impl<C: Currency> FormattedValue<C> {
     #[inline]
+    /// Creates a new typed amount from its raw smallest-unit representation.
     pub const fn new(value: u128) -> Self {
         FormattedValue {
             value,
@@ -57,6 +66,7 @@ impl<C: Currency> FormattedValue<C> {
     }
 
     #[inline]
+    /// Returns the raw integer amount.
     pub const fn into_inner(self) -> u128 {
         self.value
     }
@@ -84,6 +94,7 @@ impl<C: Currency> fmt::Display for FormattedValue<C> {
     }
 }
 
+/// Errors returned when parsing [`FormattedValue`] from text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ParseFormattedValueError {
     #[error("Expected number and currency symbol \"{expected_currency}\", separated by space")]
@@ -151,13 +162,17 @@ impl<C: Currency> str::FromStr for FormattedValue<C> {
     }
 }
 
+/// Accepts either a raw integer or a formatted value with a currency suffix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RawOrFormattedValue<C: Currency> {
+    /// Value expressed directly in the smallest unit.
     Raw(u128),
+    /// Value expressed with the currency suffix, such as `1 ETH`.
     Formatted(FormattedValue<C>),
 }
 
 impl<C: Currency> RawOrFormattedValue<C> {
+    /// Returns the raw smallest-unit amount regardless of the input representation.
     pub fn into_inner(self) -> u128 {
         match self {
             Self::Raw(value) => value,
@@ -175,6 +190,7 @@ impl<C: Currency> fmt::Display for RawOrFormattedValue<C> {
     }
 }
 
+/// Errors returned when parsing [`RawOrFormattedValue`] from text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ParseRawOrFormattedValue {
     #[error("Invalid format")]

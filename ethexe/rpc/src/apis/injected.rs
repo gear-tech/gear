@@ -21,10 +21,10 @@ use anyhow::Result;
 use dashmap::DashMap;
 use ethexe_common::{
     Address, HashOf,
-    consensus::block_producer_for,
+    db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedPromise,
+        SignedInjectedTransaction, SignedPromise,
     },
 };
 use ethexe_db::Database;
@@ -36,6 +36,8 @@ use jsonrpsee::{
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
+
+const MAX_TRANSACTION_IDS: usize = 100;
 
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
@@ -57,6 +59,13 @@ pub trait Injected {
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
+
+    /// Retrieves injected transactions by the provided IDs
+    #[method(name = "getTransactions")]
+    async fn get_transactions(
+        &self,
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>>;
 }
 
 type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
@@ -117,6 +126,26 @@ impl InjectedServer for InjectedApi {
         self.spawn_promise_waiter(subscription_sink, promise_receiver, tx_hash);
 
         Ok(())
+    }
+
+    async fn get_transactions(
+        &self,
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>> {
+        tracing::trace!(?transaction_ids, "Called injected_getTransactions");
+
+        if transaction_ids.len() > MAX_TRANSACTION_IDS {
+            return Err(errors::invalid_params(format!(
+                "Too many transaction ids requested. Maximum is {MAX_TRANSACTION_IDS}.",
+            )));
+        }
+
+        let transactions = transaction_ids
+            .into_iter()
+            .map(|tx_id| self.db.injected_transaction(tx_id))
+            .collect::<Vec<Option<SignedInjectedTransaction>>>();
+
+        Ok(transactions)
     }
 }
 
@@ -260,6 +289,7 @@ impl InjectedApi {
 
 mod utils {
     use super::*;
+    use anyhow::Context as _;
     use ethexe_common::{
         Address,
         db::{ConfigStorageRO, OnChainStorageRO},
@@ -267,7 +297,7 @@ mod utils {
     use std::time::{Duration, SystemTime, SystemTimeError};
     use tracing::{error, trace};
 
-    pub(super) const NEXT_PRODUCER_THRESHOLD_MS: u128 = 50;
+    pub(super) const NEXT_PRODUCER_THRESHOLD_MS: u64 = 50;
 
     pub fn route_transaction(
         db: &Database,
@@ -291,28 +321,22 @@ mod utils {
     pub(super) fn calculate_next_producer(db: &Database, now: Duration) -> Result<Address> {
         let timelines = db.config().timelines;
 
-        // Compute the remaining time in the current slot.
-        // If the slot is close to ending transaction will be sent to next-next producer.
-        // That avoids sending the transaction to a validator that probably will not receive it in time.
-        let slot_ms = Duration::from_secs(timelines.slot).as_millis();
-        let remaining_time = slot_ms - (now.as_millis() % slot_ms);
-
-        let target_timestamp = match remaining_time > NEXT_PRODUCER_THRESHOLD_MS {
-            true => now.as_secs() + timelines.slot,
-            false => now.as_secs() + 2 * timelines.slot,
-        };
+        // Calculate target timestamp, taking into account possible delays, so we append NEXT_PRODUCER_THRESHOLD_MS.
+        // The transaction should be included by the next producer, so we add `slot_duration` to the current time.
+        let target_timestamp = now
+            .checked_add(Duration::from_millis(NEXT_PRODUCER_THRESHOLD_MS))
+            .context("current time is too close to u64::MAX, cannot calculate next producer")?
+            .as_secs()
+            .checked_add(timelines.slot)
+            .context("current time is too close to u64::MAX, cannot calculate next producer")?;
 
         let era = timelines.era_from_ts(target_timestamp);
 
         let validators = db
             .validators(era)
-            .ok_or_else(|| anyhow::anyhow!("validators not found for era={era}"))?;
+            .with_context(|| format!("validators not found for era={era}"))?;
 
-        Ok(block_producer_for(
-            &validators,
-            target_timestamp,
-            timelines.slot,
-        ))
+        Ok(timelines.block_producer_at(&validators, target_timestamp))
     }
 
     /// Returns the current time since [SystemTime::UNIX_EPOCH].
@@ -323,14 +347,18 @@ mod utils {
 
 #[cfg(test)]
 mod tests {
-    use super::utils;
+    use super::{InjectedApi, InjectedServer, MAX_TRANSACTION_IDS, utils};
     use ethexe_common::{
         Address, ProtocolTimelines, ValidatorsVec,
-        db::{ConfigStorageRO, OnChainStorageRW, SetConfig},
+        db::{ConfigStorageRO, InjectedStorageRW, OnChainStorageRW, SetConfig},
+        ecdsa::PrivateKey,
+        injected::{InjectedTransaction, SignedInjectedTransaction},
+        mock::Mock,
     };
     use ethexe_db::Database;
     use gear_core::pages::num_traits::ToPrimitive;
     use std::{ops::Sub, time::Duration};
+    use tokio::sync::mpsc;
 
     const SLOT: u64 = 10;
     const ERA: u64 = 1000;
@@ -387,5 +415,77 @@ mod tests {
         let producer = utils::calculate_next_producer(&db, now).unwrap();
 
         assert_eq!(next_era_validators[0], producer);
+    }
+
+    fn make_signed_tx() -> SignedInjectedTransaction {
+        SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))
+            .expect("creating signed injected transaction succeeds")
+    }
+
+    fn make_injected_api(db: Database) -> InjectedApi {
+        let (sender, _receiver) = mpsc::unbounded_channel();
+        InjectedApi::new(db, sender)
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_found() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx = make_signed_tx();
+        let tx_hash = tx.data().to_hash();
+        db.set_injected_transaction(tx.clone());
+
+        let result = api.get_transactions(vec![tx_hash]).await.unwrap();
+        assert_eq!(result, vec![Some(tx)]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_not_found() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx_hash = make_signed_tx().data().to_hash();
+        // Transaction not stored in DB.
+        let result = api.get_transactions(vec![tx_hash]).await.unwrap();
+        assert_eq!(result, vec![None]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_mixed() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx1 = make_signed_tx();
+        let tx2 = make_signed_tx();
+        let hash1 = tx1.data().to_hash();
+        let hash2 = tx2.data().to_hash();
+        db.set_injected_transaction(tx1.clone());
+        // tx2 not stored.
+
+        let result = api.get_transactions(vec![hash1, hash2]).await.unwrap();
+        assert_eq!(result, vec![Some(tx1), None]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_empty() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let result = api.get_transactions(vec![]).await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_exceeds_limit() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let ids = (0..=MAX_TRANSACTION_IDS)
+            .map(|_| make_signed_tx().data().to_hash())
+            .collect();
+
+        let result = api.get_transactions(ids).await;
+        assert!(result.is_err());
     }
 }

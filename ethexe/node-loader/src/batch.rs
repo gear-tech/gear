@@ -1,3 +1,13 @@
+//! Batch execution engine for load mode.
+//!
+//! This module owns the long-running worker pool used by `ethexe-node-loader
+//! load`. It is responsible for:
+//!
+//! - generating batches from the current execution context,
+//! - executing them through Ethereum and ethexe RPC clients,
+//! - observing block-by-block outcomes,
+//! - folding the observed state back into the shared context.
+
 use alloy::{
     consensus::Transaction,
     eips::BlockId,
@@ -71,11 +81,14 @@ const INJECTED_TX_RATIO_NUM: u8 = 7;
 const INJECTED_TX_RATIO_DEN: u8 = 10;
 const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
 
+/// Biases message traffic toward injected transactions while keeping some
+/// regular on-chain sends in circulation.
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
     (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
 }
 
+/// Produces a fuzzed message value used for init, send, and reply operations.
 fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
     // 60% zero value
     if rng.next_u32() % 10 < 6 {
@@ -88,6 +101,8 @@ fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
     random_value % max_value
 }
 
+/// Converts an arbitrary salt buffer into the fixed 32-byte form expected by
+/// Ethereum ABI bindings.
 pub(crate) fn salt_to_h256(salt: &[u8]) -> H256 {
     let mut out = [0u8; 32];
     let take = salt.len().min(out.len());
@@ -106,6 +121,7 @@ pub struct Event {
 }
 
 impl<Rng: CallGenRng> BatchPool<Rng> {
+    /// Creates a batch pool with one dedicated ethexe RPC pool per worker.
     pub fn new(
         apis: Vec<Ethereum>,
         ethexe_rpc_urls: Vec<String>,
@@ -138,6 +154,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         })
     }
 
+    /// Starts the batch pool until one of its background tasks returns.
     pub async fn run(mut self, params: LoadParams, _rx: Receiver<Header>) -> Result<()> {
         let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
 
@@ -148,6 +165,8 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         run_result
     }
 
+    /// Continuously schedules one batch per worker and replaces each completed
+    /// batch with a newly generated one.
     pub async fn run_pool_loop(
         &mut self,
         loader_seed: Option<u64>,
@@ -221,11 +240,14 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         unreachable!()
     }
 
+    /// Applies the state changes produced by a completed batch.
     fn process_run_report(&mut self, report: BatchRunReport) {
         self.task_context.update(report.context_update);
     }
 }
 
+/// Runs a generated batch to completion and reattaches the originating RPC pool
+/// to the result so the caller can reuse the connections.
 async fn run_batch(
     api: Ethereum,
     mut rpc_pool: EthexeRpcPool,
@@ -259,6 +281,7 @@ async fn run_batch(
     (rpc_pool, result)
 }
 
+/// Small wrapper that preserves the worker index alongside a batch result.
 #[allow(clippy::too_many_arguments)]
 async fn run_batch_for_worker(
     worker_idx: usize,
@@ -288,6 +311,8 @@ async fn run_batch_for_worker(
     (worker_idx, rpc_pool, result)
 }
 
+/// Executes one generated batch and converts chain observations into a
+/// [`Report`] that can update shared generator state.
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 async fn run_batch_impl(
@@ -570,6 +595,11 @@ async fn run_batch_impl(
     }
 }
 
+/// Sends a batch of `send_message` calls through the multicall helper.
+///
+/// Calls are automatically chunked so the encoded calldata stays under
+/// [`MAX_MULTICALL_CALLDATA_BYTES`]. The returned `usize` is the number of
+/// Ethereum transactions used to submit the whole batch.
 async fn send_message_batch_via_multicall(
     api: &Ethereum,
     multicall_address: Address,
@@ -856,12 +886,15 @@ async fn create_program_batch_via_multicall(
     Ok((mapped, tx_count))
 }
 
+/// Estimates how many future blocks should be scanned for outcomes of a batch.
 fn blocks_window(action_count: usize, blocks_per_action: usize, headroom_blocks: usize) -> usize {
     action_count
         .saturating_mul(blocks_per_action)
         .saturating_add(headroom_blocks)
 }
 
+/// Parses `Router.commitBatch` transactions for the given block and extracts
+/// mailbox, exit, and reply outcome information relevant to the tracked batch.
 #[allow(clippy::too_many_arguments)]
 async fn parse_router_transitions(
     api: &Ethereum,
@@ -981,6 +1014,8 @@ async fn parse_router_transitions(
     Ok(())
 }
 
+/// Parses mirror contract logs for one block and updates the message-to-program
+/// map used by reply and claim handling.
 async fn parse_mirror_logs(
     api: &Ethereum,
     current_bn: FixedBytes<32>,
@@ -1032,6 +1067,8 @@ async fn parse_mirror_logs(
     Ok(())
 }
 
+/// Receives the next header from the broadcast channel, transparently skipping
+/// over lagged items.
 async fn recv_next_header<T: Clone>(rx: &mut Receiver<T>) -> Result<T> {
     loop {
         match rx.recv().await {
@@ -1050,6 +1087,9 @@ async fn recv_next_header<T: Clone>(rx: &mut Receiver<T>) -> Result<T> {
 /// Wait for the new events since provided `block_number`.
 /// For injected transactions with promises, uses the promise data directly.
 /// For regular transactions, parses Router and Mirror events.
+///
+/// The resulting [`Report`] captures new codes, programs, mailbox mutations,
+/// exits, and reply outcomes for the batch that was just submitted.
 async fn process_events(
     api: Ethereum,
     mut messages: BTreeMap<MessageId, (ActorId, usize)>,
