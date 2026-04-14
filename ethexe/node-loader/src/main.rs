@@ -115,10 +115,7 @@ async fn load_node(params: LoadParams) -> Result<()> {
         .provider()
         .clone();
 
-    // proportionally increase the channel size to workers and batch size
-    // so that we can keep up with the load.
-    // Also, code validation is quite slow and can create backpressure, so we want to be able to queue up a large number of batches if that happens.
-    let (tx, rx) = broadcast::channel(params.batch_size * params.workers * 512);
+    let (tx, rx) = broadcast::channel(4096);
 
     let batch_pool = BatchPool::<SmallRng>::new(
         apis,

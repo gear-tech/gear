@@ -330,7 +330,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
         while !batches.is_empty() {
             let (worker_idx, rpc_pool, report) = tokio::select! {
-                result = batches.next() => result.expect("batches should not be empty while waiting"),
+                Some(result) = batches.next() => result,
                 changed = shutdown.changed(), if !shutting_down => {
                     match changed {
                         Ok(()) if *shutdown.borrow() => {
@@ -789,7 +789,7 @@ async fn run_batch_impl(
             for (call_id, program_id, message_id) in created {
                 mid_map.write().await.insert(message_id, program_id);
                 messages.insert(message_id, (program_id, call_id));
-                created_programs.push((program_id, message_id));
+                created_programs.push((call_id, program_id, message_id));
                 tracing::trace!(call_id, %program_id, %message_id, "Program created");
             }
 
@@ -805,15 +805,14 @@ async fn run_batch_impl(
             )
             .await?;
 
-            for ((_, code_id, ..), (program_id, message_id)) in
-                upload_calls.iter().zip(created_programs.iter())
-            {
+            for (call_id, program_id, message_id) in created_programs {
+                let code_id = upload_calls[call_id].1;
                 report
                     .context_update
-                    .set_program_code_id(*program_id, *code_id);
+                    .set_program_code_id(program_id, code_id);
                 report
                     .context_update
-                    .upsert_message_owner(*message_id, *program_id);
+                    .upsert_message_owner(message_id, program_id);
             }
 
             Ok(report)

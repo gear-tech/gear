@@ -125,8 +125,10 @@ pub async fn listen_blocks(
             tokio::select! {
                 maybe_block = sub.next() => match maybe_block {
                     Some(block) => {
-                        tx.send(block)
-                            .expect("Failed to send block through channel");
+                        if tx.send(block).is_err() {
+                            // all receivers dropped — pool has shut down
+                            return Ok(());
+                        }
                     }
                     None => break,
                 },
