@@ -16,24 +16,62 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{InitConfig, RawDatabase, database::BlockSmallData};
-use anyhow::{Context, Result};
+use crate::{
+    InitConfig, RawDatabase,
+    database::BlockSmallData,
+    migrations::{v2, v3::keys::LATEST_ERA_VALIDATORS_COMMITTED_KEY_PREF},
+};
+use anyhow::{Context, Result, bail};
 use ethexe_common::db::{BlockMeta, DBConfig};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use tracing::{info, warn};
 
 pub const VERSION: u32 = 3;
 
-pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
-    // Changes from v1 to v2:
-    // - Block announces are moved from `BlockMeta` to `BlockAnnounces` key.
-    // - `LatestEraValidators` key is merged into `BlockMeta`.
+/// Historical key prefixes for `v3` migration.
+mod keys {
+    pub const BLOCK_SMALL_DATA_KEY_PREF: u64 = 0;
+    pub const LATEST_ERA_VALIDATORS_COMMITTED_KEY_PREF: u64 = 16;
+    pub const BLOCK_ANNOUNCES_KEY_PREF: u64 = 18;
+}
 
-    let block_small_data_prefix = H256::from_low_u64_be(0);
-    let block_announces_prefix = H256::from_low_u64_be(13);
-    let latest_era_prefix = H256::from_low_u64_be(16);
+/// Changes from **v2** to **v3**:
+/// 1. Block announces are moved from [BlockMeta] to [`ethexe_common::db::AnnounceStorageRO`], and
+///    stores now by key `BlockAnnounces`
+/// 2. `LatestEraValidators` key is merged into `BlockMeta`.
+pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
+    info!("🚧 Database migration v2->v3 starting...");
+    let config = db.kv.config().context("Database config not found")?;
+
+    if config.version != v2::VERSION {
+        bail!(
+            "Inconsistent database version: expected_version={}, found_version={}",
+            v2::VERSION,
+            config.version
+        )
+    }
+
+    let block_small_data_prefix = H256::from_low_u64_be(keys::BLOCK_SMALL_DATA_KEY_PREF);
+    let block_announces_prefix = H256::from_low_u64_be(keys::BLOCK_ANNOUNCES_KEY_PREF);
+    let latest_era_prefix = H256::from_low_u64_be(LATEST_ERA_VALIDATORS_COMMITTED_KEY_PREF);
+
+    let mut block_announces_copy = Vec::new();
+    let mut block_small_data_copy = Vec::new();
 
     for (key, value) in db.kv.iter_prefix(block_small_data_prefix.as_bytes()) {
+        if key.len() != 2 * std::mem::size_of::<H256>() {
+            warn!(
+                "⚠️ Found invalid BlockSmallData key: expected key len - {}, found key len - {}",
+                2 * std::mem::size_of::<H256>(),
+                key.len()
+            );
+            continue;
+        }
+
+        let block_small_data = v3_migrated_types::BlockSmallData::decode(&mut value.as_slice())
+            .context("Failed to decode `v3_migrated_types::BlockSmallData` from database")?;
+
         let v3_migrated_types::BlockSmallData {
             block_header,
             block_is_synced,
@@ -45,54 +83,62 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
                     last_committed_batch,
                     last_committed_announce,
                 },
-        } = v3_migrated_types::BlockSmallData::decode(&mut value.as_slice())?;
+        } = block_small_data;
 
-        let block_hash = &key[32..];
+        let block_hash = H256::from_slice(&key[std::mem::size_of::<H256>()..]);
+        let latest_era_key = [latest_era_prefix.as_bytes(), block_hash.as_bytes()].concat();
 
-        let announces_key = [block_announces_prefix.as_bytes(), block_hash].concat();
-        let latest_era_key = [latest_era_prefix.as_bytes(), block_hash].concat();
-
+        // TODO: this assumes every stored v2 block already has a `LatestEraValidators` entry.
+        // That is not guaranteed if the node stopped after sync persisted the block
+        // but before compute prepared it. Decide whether migration should tolerate
+        // synced-but-not-prepared blocks or intentionally reject such databases.
         let latest_era_validators_committed = db
             .kv
             .get(&latest_era_key)
             .context("`LatestEraValidators` is not found for block")
             .and_then(|bytes| Ok(u64::decode(&mut bytes.as_slice())?))?;
 
-        db.kv.put(&announces_key, announces.encode());
+        let new_block_small_data = BlockSmallData {
+            block_header,
+            block_is_synced,
+            meta: BlockMeta {
+                prepared,
+                codes_queue,
+                last_committed_batch,
+                last_committed_announce,
+                latest_era_validators_committed,
+            },
+        };
 
-        db.kv.put(
-            &key,
-            BlockSmallData {
-                block_header,
-                block_is_synced,
-                meta: BlockMeta {
-                    prepared,
-                    codes_queue,
-                    last_committed_batch,
-                    last_committed_announce,
-                    latest_era_validators_committed,
-                },
-            }
-            .encode(),
-        );
+        // Put new BlockSmallData by the same key.
+        block_small_data_copy.push((key, new_block_small_data));
+        // Put announces only if it contains some.
+        if let Some(announces) = announces {
+            block_announces_copy.push((block_hash, announces));
+        }
     }
 
-    let config_key = [H256::from_low_u64_be(15).0.as_slice(), &[0u8; 8]].concat();
+    info!("⏳ All migratable data successfully collected");
 
-    let old_config = db
-        .kv
-        .get(&config_key)
-        .context("Database config are guaranteed for version 1, but not found")
-        .and_then(|bytes| Ok(DBConfig::decode(&mut bytes.as_slice())?))?;
+    for (block_hash, announces) in block_announces_copy {
+        let block_announces_key =
+            [block_announces_prefix.as_bytes(), block_hash.as_bytes()].concat();
+        db.kv.put(&block_announces_key, announces.encode());
+    }
 
-    db.kv.put(
-        &config_key,
-        DBConfig {
-            version: VERSION,
-            ..old_config
-        }
-        .encode(),
-    );
+    for (key, block_small_data) in block_small_data_copy {
+        db.kv.put(&key, block_small_data.encode());
+    }
+
+    info!("⏳ All migrated data updated in database");
+
+    db.kv.set_config(DBConfig {
+        version: VERSION,
+        ..config
+    });
+
+    info!("✅ Database config updated. Migration v2->v3 successfully finished.");
+
     Ok(())
 }
 

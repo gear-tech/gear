@@ -60,7 +60,6 @@ enum Key {
     // TODO (kuzmindev): use `HashOf<T>` here
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
-    BlockAnnounces(H256) = 13,
 
     ValidatorSet(u64) = 2,
 
@@ -81,6 +80,7 @@ enum Key {
     Config = 15,
 
     Announces(HashOf<Announce>) = 17,
+    BlockAnnounces(H256) = 18,
 }
 
 impl Key {
