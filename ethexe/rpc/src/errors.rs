@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use jsonrpsee::types::{ErrorObject, error::INVALID_PARAMS_CODE};
+use jsonrpsee::types::{
+    ErrorObject,
+    error::{INVALID_PARAMS_CODE, INVALID_REQUEST_CODE},
+};
+use serde::Serialize;
 
 // TODO #4364: https://github.com/gear-tech/gear/issues/4364
 
@@ -28,8 +32,12 @@ pub fn runtime(err: impl ToString) -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Runtime error", Some(err.to_string()))
 }
 
-pub fn bad_request(err: impl ToString) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Bad request", Some(err.to_string()))
+pub fn bad_request<M, D>(message: M, data: Option<D>) -> ErrorObject<'static>
+where
+    M: Into<String>,
+    D: Serialize,
+{
+    ErrorObject::owned(INVALID_REQUEST_CODE, message, data)
 }
 
 pub fn internal() -> ErrorObject<'static> {

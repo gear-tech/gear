@@ -118,7 +118,7 @@ impl InjectedApi {
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
             Ok(subscriber) => subscriber,
             Err(err) => {
-                return Err(errors::bad_request(err).into());
+                return Err(errors::bad_request(err.to_string(), Some(tx_hash)).into());
             }
         };
 

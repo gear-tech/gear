@@ -53,6 +53,7 @@ impl TransactionsRelayer {
             );
             return Err(errors::bad_request(
                 "Injected transactions with non-zero value are not supported",
+                None::<&str>,
             ));
         }
 

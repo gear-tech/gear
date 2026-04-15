@@ -47,8 +47,8 @@ pub struct PromiseSubscriptionManager {
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum RegisterSubscriberError {
-    #[error("Subscriber for this transaction already exists, tx_hash={0}")]
-    AlreadyRegistered(HashOf<InjectedTransaction>),
+    #[error("Subscriber for the transaction already exists")]
+    AlreadyRegistered,
 }
 
 type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedPromise>>;
@@ -92,7 +92,7 @@ impl PromiseSubscriptionManager {
         tx_hash: HashOf<InjectedTransaction>,
     ) -> Result<PendingSubscriber, RegisterSubscriberError> {
         match self.subscribers.entry(tx_hash) {
-            Entry::Occupied(_) => Err(RegisterSubscriberError::AlreadyRegistered(tx_hash)),
+            Entry::Occupied(_) => Err(RegisterSubscriberError::AlreadyRegistered),
             Entry::Vacant(entry) => {
                 let (sender, receiver) = oneshot::channel();
                 entry.insert(sender);
