@@ -4,88 +4,166 @@ pragma solidity ^0.8.33;
 import {Gear} from "./libraries/Gear.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
-/// @title Gear.exe Middleware Interface
-/// @notice The Middleware contract is responsible for managing the interaction between the Router (Gear.exe) and the Symbiotic Ecosystem.
-/// @dev The Middleware contract is designed to reduce the complexity of the Router contract.
+/**
+ * @dev Interface for the Middleware contract.
+ * @notice The Middleware contract is responsible for managing interaction between Router and Symbiotic Ecosystem.
+ * @dev The Middleware contract is designed to reduce complexity of Router contract.
+ */
 interface IMiddleware {
-    // # Errors.
+    /* # Errors */
 
-    /// @dev Emitted when trying to register the vault from unknown factory.
+    /**
+     * @dev Emitted when trying to register the vault from unknown factory.
+     */
     error NonFactoryVault();
-    /// @dev Emitted when trying to register the vault with `epochDuration` less than `minVaultEpochDuration`.
+    /**
+     * @dev Emitted when trying to register the vault with `epochDuration` less than `minVaultEpochDuration`.
+     */
     error VaultWrongEpochDuration();
-    /// @dev Emitted when trying to distribute rewards with collateral that is not equal to the one in the Middleware.
+    /**
+     * @dev Emitted when trying to distribute rewards with collateral that is not equal to the one in the Middleware.
+     */
     error UnknownCollateral();
-    /// @dev Emitted when trying to unregister the operator earlier then `operatorGracePeriod`.
+    /**
+     * @dev Emitted when trying to unregister the operator earlier then `operatorGracePeriod`.
+     */
     error OperatorGracePeriodNotPassed();
-    /// @dev Emitted when trying to unregister the vault earlier then `vaultGracePeriod`.
+    /**
+     * @dev Emitted when trying to unregister the vault earlier then `vaultGracePeriod`.
+     */
     error VaultGracePeriodNotPassed();
-    /// @dev Emitted when `msg.sender` is no the owner.
+    /**
+     * @dev Emitted when `msg.sender` is no the owner.
+     */
     error NotVaultOwner();
-    /// @dev Emitted when requested timestamp is in the future.
+    /**
+     * @dev Emitted when requested timestamp is in the future.
+     */
     error IncorrectTimestamp();
-    /// @dev Emitted when the operator is not registered in the OperatorRegistry.
+    /**
+     * @dev Emitted when the operator is not registered in the OperatorRegistry.
+     */
     error OperatorDoesNotExist();
-    /// @dev Emitted when the operator is not opted-in to the Middleware.
+    /**
+     * @dev Emitted when the operator is not opted-in to the Middleware.
+     */
     error OperatorDoesNotOptIn();
-    /// @dev Emitted when the delegator's hook is not equal to `address(0)`.
+    /**
+     * @dev Emitted when the delegator's hook is not equal to `address(0)`.
+     */
     error UnsupportedDelegatorHook();
-    /// @dev Emitted when vault's burner is equal to `address(0)`.
+    /**
+     * @dev Emitted when vault's burner is equal to `address(0)`.
+     */
     error UnsupportedBurner();
-    /// @dev Emitted in `registerVault` when vault's delegator is not initialized.
+    /**
+     * @dev Emitted in `registerVault` when vault's delegator is not initialized.
+     */
     error DelegatorNotInitialized();
-    /// @dev Emitted in `registerVault` when vault's slasher is not initialized.
+    /**
+     * @dev Emitted in `registerVault` when vault's slasher is not initialized.
+     */
     error SlasherNotInitialized();
-    /// @dev Emitted in `registerVault` when the vaults' slasher type is not supported.
+    /**
+     * @dev Emitted in `registerVault` when the vaults' slasher type is not supported.
+     */
     error IncompatibleSlasherType();
-    /// @dev Emitted when vault's slasher has a burner hook.
+    /**
+     * @dev Emitted when vault's slasher has a burner hook.
+     */
     error BurnerHookNotSupported();
-    /// @dev Emitted when the vault's slasher has a `vetoDuration` less than `minVetoDuration`.
+    /**
+     * @dev Emitted when the vault's slasher has a `vetoDuration` less than `minVetoDuration`.
+     */
     error VetoDurationTooShort();
-    /// @dev Emitted when the vault's slasher has a `vetoDuration` + `minShashExecutionDelay` is greater than vaultEpochDuration.
+    /**
+     * @dev Emitted when the vault's slasher has a `vetoDuration` + `minShashExecutionDelay` is greater than vaultEpochDuration.
+     */
     error VetoDurationTooLong();
-    /// @dev Emitted when the vault has incompatible version.
-    /// @notice The version of the vault is a index of the whitelisted versions in VaultFactory.
+    /**
+     * @dev Emitted when the vault has incompatible version.
+     * @notice The version of the vault is a index of the whitelisted versions in VaultFactory.
+     */
     error IncompatibleVaultVersion();
-    /// @dev Emitted when rewards contract has incompatible version.
-    /// @notice The version of the rewards contract is a index of the whitelisted versions in StakerRewardsFactory.
+    /**
+     * @dev Emitted when rewards contract has incompatible version.
+     * @notice The version of the rewards contract is a index of the whitelisted versions in StakerRewardsFactory.
+     */
     error IncompatibleStakerRewardsVersion();
-    /// @dev Emitted when the vault is not registered in the Middleware.
+    /**
+     * @dev Emitted when the vault is not registered in the Middleware.
+     */
     error NotRegisteredVault();
-    /// @dev Emitted when `SlashData` contains the operator that is not registered in the Middleware.
+    /**
+     * @dev Emitted when `SlashData` contains the operator that is not registered in the Middleware.
+     */
     error NotRegisteredOperator();
-    /// @dev Emitted when slasher's veto resolver is not the same as in the Middleware.
+    /**
+     * @dev Emitted when slasher's veto resolver is not the same as in the Middleware.
+     */
     error ResolverMismatch();
-    /// @dev Emitted when the slasher's delay to update the resolver is greater than the one in the Middleware.
+    /**
+     * @dev Emitted when the slasher's delay to update the resolver is greater than the one in the Middleware.
+     */
     error ResolverSetDelayTooLong();
-    /// @dev Emitted when the `msg.sender` is not the Router contract.
+    /**
+     * @dev Emitted when the `msg.sender` is not the Router contract.
+     */
     error NotRouter();
-    /// @dev Emitted when the `msg.sender` has not the role of slash requester.
+    /**
+     * @dev Emitted when the `msg.sender` has not the role of slash requester.
+     */
     error NotSlashRequester();
-    /// @dev Emitted when the `msg.sender` has not the role of slash executor.
+    /**
+     * @dev Emitted when the `msg.sender` has not the role of slash executor.
+     */
     error NotSlashExecutor();
-    /// @dev Emitted when rewards contract was not created by the StakerRewardsFactory.
+    /**
+     * @dev Emitted when rewards contract was not created by the StakerRewardsFactory.
+     */
     error NonFactoryStakerRewards();
-    /// @dev Emitted in `registerVault` when the vault in rewards contract is not the same as in the function parameter.
+    /**
+     * @dev Emitted in `registerVault` when the vault in rewards contract is not the same as in the function parameter.
+     */
     error InvalidStakerRewardsVault();
-    /// @dev Emitted when `maxValidators` is equal to zero.
+    /**
+     * @dev Emitted when `maxValidators` is equal to zero.
+     */
     error MaxValidatorsMustBeGreaterThanZero();
-    /// @dev Emitted when `eraDuration` is equal to zero.
+    /**
+     * @dev Emitted when `eraDuration` is equal to zero.
+     */
     error EraDurationMustBeGreaterThanZero();
-    /// @dev Emitted when `minVaultEpochDuration` is less than `2 * eraDuration`.
+    /**
+     * @dev Emitted when `minVaultEpochDuration` is less than `2 * eraDuration`.
+     */
     error MinVaultEpochDurationLessThanTwoEras();
-    /// @dev Emitted when `operatorGracePeriod` is less than `minVaultEpochDuration`.
+    /**
+     * @dev Emitted when `operatorGracePeriod` is less than `minVaultEpochDuration`.
+     */
     error OperatorGracePeriodLessThanMinVaultEpochDuration();
-    /// @dev Emitted when `vaultGracePeriod` is less than `minVaultEpochDuration`.
+    /**
+     * @dev Emitted when `vaultGracePeriod` is less than `minVaultEpochDuration`.
+     */
     error VaultGracePeriodLessThanMinVaultEpochDuration();
-    /// @dev Emitted when `minVetoDuration` is equal to zero.
+    /**
+     * @dev Emitted when `minVetoDuration` is equal to zero.
+     */
     error MinVetoDurationMustBeGreaterThanZero();
-    /// @dev Emitted when `minSlashExecutionDelay` is equal to zero.
+    /**
+     * @dev Emitted when `minSlashExecutionDelay` is equal to zero.
+     */
     error MinSlashExecutionDelayMustBeGreaterThanZero();
-    /// @dev Emitted when `minVetoDuration + minSlashExecutionDelay` is greater than `minVaultEpochDuration`.
+    /**
+     * @dev Emitted when `minVetoDuration + minSlashExecutionDelay` is greater than `minVaultEpochDuration`.
+     */
     error MinVetoAndSlashDelayTooLongForVaultEpoch();
-    /// @dev Emitted when `maxResolverSetEpochsDelay` is less than `3`.
+    /**
+     * @dev Emitted when `maxResolverSetEpochsDelay` is less than `3`.
+     */
     error ResolverSetDelayMustBeAtLeastThree();
+
+    /* # Structs */
 
     struct InitParams {
         address owner;
@@ -104,7 +182,9 @@ interface IMiddleware {
         Gear.SymbioticContracts symbiotic;
     }
 
-    /// @custom:storage-location erc7201:middleware.storage.Middleware.
+    /**
+     * @custom:storage-location erc7201:middleware.storage.MiddlewareV1
+     */
     struct Storage {
         uint48 eraDuration;
         uint48 minVaultEpochDuration;
@@ -119,8 +199,10 @@ interface IMiddleware {
         uint256 maxAdminFee;
         address collateral;
         address router;
-        /// @notice Stores the addresses for Symbiotic Ecosystem contracts.
-        /// @dev These addresses was taken from official documentation (https://docs.symbiotic.fi/deployments/mainnet).
+        /**
+         * @notice Stores the addresses for Symbiotic Ecosystem contracts.
+         * @dev These addresses was taken from official documentation (https://docs.symbiotic.fi/deployments/mainnet).
+         */
         Gear.SymbioticContracts symbiotic;
         EnumerableMap.AddressToUintMap operators;
         EnumerableMap.AddressToUintMap vaults;
@@ -142,7 +224,8 @@ interface IMiddleware {
         uint256 index;
     }
 
-    // # Views.
+    /* # Views */
+
     function eraDuration() external view returns (uint48);
     function minVaultEpochDuration() external view returns (uint48);
     function operatorGracePeriod() external view returns (uint48);
@@ -158,15 +241,20 @@ interface IMiddleware {
     function router() external view returns (address);
     function symbioticContracts() external view returns (Gear.SymbioticContracts memory);
 
-    // # Calls.
+    /* # Calls */
+
     function changeSlashRequester(address newRole) external;
 
     function changeSlashExecutor(address newRole) external;
 
-    /// @dev This function returns the list of validators that are will be responsible for block production in the next era.
+    /**
+     * @dev This function returns the list of validators that are will be responsible for block production in the next era.
+     */
     function makeElectionAt(uint48 ts, uint256 maxValidators) external view returns (address[] memory);
 
-    /// @return stake The total stake of the operator in all vaults that was active at the given timestamp.
+    /**
+     * @return stake The total stake of the operator in all vaults that was active at the given timestamp.
+     */
     function getOperatorStakeAt(address operator, uint48 ts) external view returns (uint256 stake);
 
     function requestSlash(SlashData[] calldata data) external;
@@ -175,39 +263,59 @@ interface IMiddleware {
 
     /* Operators managing */
 
-    /// @notice This function can be called only be operator themselves.
-    /// @dev Operator must be registered in operator registry.
+    /**
+     * @notice This function can be called only be operator themselves.
+     * @dev Operator must be registered in operator registry.
+     */
     function registerOperator() external;
 
-    /// @notice This function can be called only be operator themselves.
+    /**
+     * @notice This function can be called only be operator themselves.
+     */
     function disableOperator() external;
 
-    /// @notice This function can be called only be operator themselves.
+    /**
+     * @notice This function can be called only be operator themselves.
+     */
     function enableOperator() external;
 
-    /// @notice This function can be called only be operator themselves.
+    /**
+     * @notice This function can be called only be operator themselves.
+     */
     function unregisterOperator(address operator) external;
 
     /* Vaults managing */
 
-    /// @notice This function can be called only by the vault owner.
+    /**
+     * @notice This function can be called only by the vault owner.
+     */
     function registerVault(address vault, address rewards) external;
 
-    /// @notice This function can be called only by the vault owner.
+    /**
+     * @notice This function can be called only by the vault owner.
+     */
     function unregisterVault(address vault) external;
 
-    /// @notice This function can be called only by the vault owner.
+    /**
+     * @notice This function can be called only by the vault owner.
+     */
     function disableVault(address vault) external;
 
-    /// @notice This function can be called only by the vault owner.
+    /**
+     * @notice This function can be called only by the vault owner.
+     */
     function enableVault(address vault) external;
 
     /* Rewards distribution */
 
-    /// @notice The function can be called only by the Router contract.
+    /**
+     * @notice The function can be called only by the Router contract.
+     */
     function distributeOperatorRewards(address token, uint256 amount, bytes32 root) external returns (bytes32);
 
-    /// @notice The function can be called only by the Router contract.
+    /**
+     * @notice The function can be called only by the Router contract.
+     */
     function distributeStakerRewards(Gear.StakerRewardsCommitment memory _rewards, uint48 timestamp)
         external
         returns (bytes32);
