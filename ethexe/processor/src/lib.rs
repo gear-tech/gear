@@ -33,7 +33,7 @@ use ethexe_runtime_common::{
     state::Storage,
 };
 use gear_core::{
-    code::{CodeMetadata, InstrumentationStatus, InstrumentedCode},
+    code::{CodeMetadata, InstrumentedCode},
     ids::prelude::CodeIdExt,
     rpc::ReplyInfo,
 };
