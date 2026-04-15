@@ -21,6 +21,7 @@ ethexe-contracts-pre-commit:
 	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
 	@ echo " > Copying BatchMulticall" && cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi
 	@ echo " > Copying DemoCaller" && cp ./ethexe/contracts/out/DemoCaller.sol/DemoCaller.json ./ethexe/ethereum/abi
+	@ echo " > Copying Gear" && cp ./ethexe/contracts/out/Gear.sol/Gear.json ./ethexe/ethereum/abi
 
 # Common section
 .PHONY: show

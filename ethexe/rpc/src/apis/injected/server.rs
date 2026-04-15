@@ -39,6 +39,8 @@ use std::ops::Deref;
 use tokio::sync::mpsc;
 use tracing::trace;
 
+const MAX_TRANSACTION_IDS: usize = 100;
+
 #[derive(Clone)]
 pub struct InjectedApi {
     db: Database,
@@ -71,11 +73,11 @@ impl InjectedServer for InjectedApi {
         self.get_transaction_promise(tx_hash).await
     }
 
-    async fn get_transaction(
+    async fn get_transactions(
         &self,
-        tx_hash: HashOf<InjectedTransaction>,
-    ) -> RpcResult<SignedInjectedTransaction> {
-        self.get_transaction(tx_hash).await
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>> {
+        self.get_transactions(transaction_ids).await
     }
 }
 
@@ -172,14 +174,101 @@ impl InjectedApi {
         }
     }
 
-    async fn get_transaction(
+    async fn get_transactions(
         &self,
-        tx_hash: HashOf<InjectedTransaction>,
-    ) -> RpcResult<SignedInjectedTransaction> {
-        let Some(tx) = self.db.injected_transaction(tx_hash) else {
-            return Err(errors::not_found());
-        };
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>> {
+        tracing::trace!(?transaction_ids, "Called injected_getTransactions");
 
-        Ok(tx)
+        if transaction_ids.len() > MAX_TRANSACTION_IDS {
+            return Err(errors::invalid_params(format!(
+                "Too many transaction ids requested. Maximum is {MAX_TRANSACTION_IDS}.",
+            )));
+        }
+
+        let transactions = transaction_ids
+            .into_iter()
+            .map(|tx_id| self.db.injected_transaction(tx_id))
+            .collect::<Vec<Option<SignedInjectedTransaction>>>();
+
+        Ok(transactions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{PrivateKey, db::InjectedStorageRW, mock::Mock};
+
+    fn make_signed_tx() -> SignedInjectedTransaction {
+        SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))
+            .expect("creating signed injected transaction succeeds")
+    }
+
+    fn make_injected_api(db: Database) -> InjectedApi {
+        let (sender, _receiver) = mpsc::unbounded_channel();
+        InjectedApi::new(db, sender)
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_found() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx = make_signed_tx();
+        let tx_hash = tx.data().to_hash();
+        db.set_injected_transaction(tx.clone());
+
+        let result = api.get_transactions(vec![tx_hash]).await.unwrap();
+        assert_eq!(result, vec![Some(tx)]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_not_found() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx_hash = make_signed_tx().data().to_hash();
+        // Transaction not stored in DB.
+        let result = api.get_transactions(vec![tx_hash]).await.unwrap();
+        assert_eq!(result, vec![None]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_mixed() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let tx1 = make_signed_tx();
+        let tx2 = make_signed_tx();
+        let hash1 = tx1.data().to_hash();
+        let hash2 = tx2.data().to_hash();
+        db.set_injected_transaction(tx1.clone());
+        // tx2 not stored.
+
+        let result = api.get_transactions(vec![hash1, hash2]).await.unwrap();
+        assert_eq!(result, vec![Some(tx1), None]);
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_empty() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let result = api.get_transactions(vec![]).await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_transactions_exceeds_limit() {
+        let db = Database::memory();
+        let api = make_injected_api(db.clone());
+
+        let ids = (0..=MAX_TRANSACTION_IDS)
+            .map(|_| make_signed_tx().data().to_hash())
+            .collect();
+
+        let result = api.get_transactions(ids).await;
+        assert!(result.is_err());
     }
 }

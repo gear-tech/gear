@@ -55,9 +55,10 @@ pub trait Injected {
         tx_hash: HashOf<InjectedTransaction>,
     ) -> RpcResult<Option<SignedPromise>>;
 
-    #[method(name = "getTransaction")]
-    async fn get_transaction(
+    /// Retrieves injected transactions by the provided IDs
+    #[method(name = "getTransactions")]
+    async fn get_transactions(
         &self,
-        tx_hash: HashOf<InjectedTransaction>,
-    ) -> RpcResult<SignedInjectedTransaction>;
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>>;
 }
