@@ -3,9 +3,14 @@
 // Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+use core::ops::Range;
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
-use sp_wasm_interface_common::{Pointer, WordSize, util::checked_range};
 use wasmtime::{AsContextMut, Caller, Memory, Table};
+
+fn checked_range(offset: usize, len: usize, max: usize) -> Option<Range<usize>> {
+    let end = offset.checked_add(len)?;
+    (end <= max).then(|| offset..end)
+}
 
 pub(crate) struct HostState {
     pub(crate) allocator: Option<FreeingBumpHeapAllocator>,
@@ -83,13 +88,13 @@ impl<C: AsContextMut> sp_allocator::Memory for MemoryWrapper<'_, C> {
 
 pub(crate) fn write_memory_from(
     mut ctx: impl AsContextMut<Data = StoreData>,
-    address: Pointer<u8>,
+    address: u32,
     data: &[u8],
 ) -> Result<(), String> {
     let memory = ctx.as_context().data().memory();
     let memory = memory.data_mut(&mut ctx);
 
-    let range = checked_range(address.into(), data.len(), memory.len())
+    let range = checked_range(address as usize, data.len(), memory.len())
         .ok_or_else(|| String::from("memory write is out of bounds"))?;
     memory[range].copy_from_slice(data);
     Ok(())
@@ -104,8 +109,8 @@ fn host_state_mut<'a>(caller: &'a mut Caller<'_, StoreData>) -> &'a mut HostStat
 
 pub(crate) fn allocate_memory(
     caller: &mut Caller<'_, StoreData>,
-    size: WordSize,
-) -> Result<Pointer<u8>, String> {
+    size: u32,
+) -> Result<u32, String> {
     let mut allocator = host_state_mut(caller)
         .allocator
         .take()
@@ -117,6 +122,7 @@ pub(crate) fn allocate_memory(
             &mut MemoryWrapper::from((&memory, &mut caller.as_context_mut())),
             size,
         )
+        .map(u32::from)
         .map_err(|err| err.to_string());
 
     host_state_mut(caller).allocator = Some(allocator);
@@ -126,7 +132,7 @@ pub(crate) fn allocate_memory(
 
 pub(crate) fn deallocate_memory(
     caller: &mut Caller<'_, StoreData>,
-    ptr: Pointer<u8>,
+    ptr: u32,
 ) -> Result<(), String> {
     let mut allocator = host_state_mut(caller)
         .allocator
@@ -134,6 +140,7 @@ pub(crate) fn deallocate_memory(
         .expect("allocator is available during wasm calls; qed");
 
     let memory = caller.data().memory();
+    let ptr = ptr.into();
     let res = allocator
         .deallocate(
             &mut MemoryWrapper::from((&memory, &mut caller.as_context_mut())),

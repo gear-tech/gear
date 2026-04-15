@@ -234,7 +234,8 @@ impl InstanceWrapper {
                 .map_err(Into::into)
         })?;
 
-        write_memory_from(&mut self.store, ptr, bytes).map_err(InstanceError::CallInputWrite)?;
+        write_memory_from(&mut self.store, ptr.into(), bytes)
+            .map_err(InstanceError::CallInputWrite)?;
 
         let ptr: u32 = ptr.into();
 

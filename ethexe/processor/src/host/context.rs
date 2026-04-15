@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{StoreData, store};
-use sp_wasm_interface_common::{Pointer, WordSize};
 use wasmtime::Caller;
 
 pub(crate) struct HostContext<'a> {
@@ -25,11 +24,11 @@ pub(crate) struct HostContext<'a> {
 }
 
 impl HostContext<'_> {
-    pub(crate) fn allocate_memory(&mut self, size: WordSize) -> Result<Pointer<u8>, String> {
+    pub(crate) fn allocate_memory(&mut self, size: u32) -> Result<u32, String> {
         store::allocate_memory(&mut self.caller, size)
     }
 
-    pub(crate) fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> Result<(), String> {
+    pub(crate) fn deallocate_memory(&mut self, ptr: u32) -> Result<(), String> {
         store::deallocate_memory(&mut self.caller, ptr)
     }
 

@@ -107,7 +107,7 @@ pub fn allocate_and_write_raw(
 
     let mut host_context = HostContext { caller };
 
-    let ptr: u32 = host_context.allocate_memory(len as u32).unwrap().into();
+    let ptr: u32 = host_context.allocate_memory(len as u32).unwrap();
 
     let mut caller = host_context.caller;
 
