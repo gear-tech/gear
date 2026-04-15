@@ -1356,7 +1356,6 @@ pub(crate) mod tests {
         right_db.mutate_block_announces(H256::zero(), |announces| {
             announces.insert(announce_hash);
         });
-        right_db.mutate_block_meta(H256::zero(), |_meta| {});
 
         right_db.set_announce_program_states(
             announce_hash,
