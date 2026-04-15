@@ -47,8 +47,7 @@ use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
-    Ethereum, INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE, NO_BLOB_GAS_MULTIPLIER,
-    NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+    Ethereum, EthereumBuilder,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
     middleware::MockElectionProvider,
     router::RouterQuery,
@@ -209,15 +208,14 @@ impl TestEnv {
 
         let ethereum = if let Some(router_address) = router_address {
             log::info!("📗 Connecting to existing router at {router_address}");
-            Ethereum::new(
-                &ws_rpc_url,
-                router_address.parse().unwrap(),
-                signer.clone(),
-                sender_address,
-                INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE,
-                NO_BLOB_GAS_MULTIPLIER,
-            )
-            .await?
+            EthereumBuilder::default()
+                .rpc_url(&ws_rpc_url)
+                .router_address(router_address.parse().unwrap())
+                .signer(signer.clone())
+                .sender_address(sender_address)
+                .with_eip1559_increased_fee()
+                .build()
+                .await?
         } else {
             log::info!("📗 Deploying new router");
             let validators_addresses: Vec<Address> =
@@ -240,6 +238,7 @@ impl TestEnv {
             ethereum_rpc: ws_rpc_url.clone(),
             router_address,
             slot_duration_secs: block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await?;
 
@@ -248,8 +247,8 @@ impl TestEnv {
             beacon_rpc: http_rpc_url.clone(),
             router_address,
             block_time: config.block_time,
-            eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-            blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
+            eip1559_fee_increase_percentage: Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            blob_gas_multiplier: Ethereum::NO_BLOB_GAS_MULTIPLIER,
         };
         let mut observer = ObserverService::new(
             db.clone(),
@@ -436,6 +435,7 @@ impl TestEnv {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
             router_address: self.eth_cfg.router_address,
             slot_duration_secs: self.eth_cfg.block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await
         .unwrap()
@@ -834,7 +834,6 @@ impl NodeConfig {
         }
     }
 
-    #[allow(unused)]
     pub fn db(mut self, db: Database) -> Self {
         self.db = Some(db);
         self
@@ -974,18 +973,20 @@ impl Node {
                 let committer = if let Some(custom_committer) = self.custom_committer.take() {
                     custom_committer
                 } else {
-                    Ethereum::new(
-                        &self.eth_cfg.rpc,
-                        self.eth_cfg.router_address,
-                        self.signer.clone(),
-                        config.public_key.to_address(),
-                        self.eth_cfg.eip1559_fee_increase_percentage,
-                        self.eth_cfg.blob_gas_multiplier,
-                    )
-                    .await
-                    .unwrap()
-                    .router()
-                    .into()
+                    EthereumBuilder::default()
+                        .rpc_url(&self.eth_cfg.rpc)
+                        .router_address(self.eth_cfg.router_address)
+                        .signer(self.signer.clone())
+                        .sender_address(config.public_key.to_address())
+                        .eip1559_fee_increase_percentage(
+                            self.eth_cfg.eip1559_fee_increase_percentage,
+                        )
+                        .blob_gas_multiplier(self.eth_cfg.blob_gas_multiplier)
+                        .build()
+                        .await
+                        .unwrap()
+                        .router()
+                        .into()
                 };
 
                 Box::pin(
