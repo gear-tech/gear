@@ -53,9 +53,11 @@ pub enum DumpSubcommand {
         #[arg(long, short)]
         output: PathBuf,
     },
-    /// Read a state dump from a .blob file and print it as JSON to stdout.
+    /// Read a state dump from a file (`.blob` or `.json`) and print it as JSON
+    /// to stdout. Useful for re-inspecting an exported dump.
     Json {
-        /// Dump file path (.blob).
+        /// Dump file path. Format is detected from the extension
+        /// (`.blob` for binary, `.json` for JSON).
         #[arg(long, short)]
         file: PathBuf,
     },
@@ -112,7 +114,11 @@ impl DumpCommand {
     }
 
     fn exec_json(file: &Path) -> Result<()> {
-        let dump = StateDump::read_from_blob(file).context("failed to read .blob dump file")?;
+        // Auto-detect the format from the file extension so passing either a
+        // `.blob` or a previously-exported `.json` produces a clear error
+        // instead of a raw deflate/SCALE decode failure.
+        let dump = StateDump::read_from_file(file)
+            .with_context(|| format!("failed to read dump file {}", file.display()))?;
         let json = serde_json::to_string_pretty(&dump)?;
         println!("{json}");
         Ok(())
