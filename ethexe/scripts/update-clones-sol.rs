@@ -49,11 +49,32 @@ pragma solidity ^0.8.33;
 
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 
+/**
+ * @dev ERC-1167 (Minimal Proxy Contract) is a standard for
+ *      deploying minimal proxy contracts, also known as "clones":
+ *      https://eips.ethereum.org/EIPS/eip-1167.
+ *
+ *      > To simply and cheaply clone contract functionality in an immutable way, this standard specifies
+ *      > a minimal bytecode implementation that delegates all calls to a known, fixed address.
+ *
+ *      The library includes functions to deploy a proxy using `create2` (salted deterministic deployment).
+ *
+ *      However, it's worth noting that this is custom ERC-1167 implementation. All this library does is deploy
+ *      `MirrorProxy` smart contract, see its code for details.
+ * @dev https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/Clones.sol
+ */
 library Clones {
+    /**
+     * @dev Deploys and returns the address of clone that has the `MirrorProxy` behavior.
+     */
     function cloneDeterministic(address router, bytes32 salt) internal returns (address instance) {
         return cloneDeterministic(router, salt, 0);
     }
 
+    /**
+     * @dev Same as `cloneDeterministic(address router, bytes32 salt)`, but with
+     * `value` parameter to send native currency to the new contract.
+     */
     function cloneDeterministic(address router, bytes32 salt, uint256 value) internal returns (address instance) {
 "#;
 
@@ -108,7 +129,9 @@ fn generate_to_file(mut file: File, bytecode: Vec<u8>) -> Result<()> {
         INDENTATION
     ))?;
 
-    file.write(b"        /// @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r \".bytecode.object\"`\n")?;
+    let _ = file.write(b"        /**\n");
+    let _ = file.write(b"         * @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r \".bytecode.object\"`\n")?;
+    let _ = file.write(b"         */\n");
 
     for (i, chunk) in bytecode.chunks(CHUNK_SIZE).enumerate() {
         let offset = i * 32;
