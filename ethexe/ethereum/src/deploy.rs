@@ -17,8 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyProvider, Ethereum, NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-    TryGetReceipt,
+    Ethereum, EthereumBuilder, TryGetReceipt,
     abi::{
         IERC1967Proxy,
         IMiddleware::{
@@ -31,7 +30,6 @@ use crate::{
         middleware_abi::Gear::SymbioticContracts,
         symbiotic_abi::*,
     },
-    create_provider,
 };
 use alloy::{
     primitives::{Address, Bytes, U256, Uint},
@@ -60,7 +58,7 @@ const MIDDLEWARE_DEPLOYMENT_NONCE_OFFSET: u64 = 16;
 /// [`EthereumDeployer`] is a builder for deploying smart contracts on Ethereum for testing purposes.
 pub struct EthereumDeployer {
     // Required parameters
-    provider: AlloyProvider,
+    ethereum: Ethereum,
 
     // Customizable parameters
     /// Validators`s addresses. If not provided, will use as vec with one element.
@@ -101,18 +99,27 @@ impl Default for ContractsDeploymentParams {
 
 // Public methods
 impl EthereumDeployer {
+    /// Hack to pre-compute router address before deployment and improve architecture.
+    /// This is used to create [`Ethereum`] instance with correct router address.
+    const ROUTER_ADDRESS_OFFSET: u64 = 3;
+
     /// Creates a new deployer from necessary arguments.
     pub async fn new(rpc: &str, signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
-        let provider = create_provider(
-            rpc,
-            signer,
-            sender_address,
-            NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-            NO_BLOB_GAS_MULTIPLIER,
-        )
-        .await?;
+        let alloy_sender_address: Address = sender_address.into();
+        let ethereum = EthereumBuilder::default()
+            .rpc_url(rpc)
+            .router_address(
+                alloy_sender_address
+                    .create(Self::ROUTER_ADDRESS_OFFSET)
+                    .into(),
+            )
+            .signer(signer)
+            .sender_address(sender_address)
+            .without_initializing_addresses()
+            .build()
+            .await?;
         Ok(EthereumDeployer {
-            provider,
+            ethereum,
             validators: nonempty::nonempty![LocalAddress([1u8; 20])].into(),
             params: Default::default(),
             verifiable_secret_sharing_commitment: None,
@@ -152,9 +159,10 @@ impl EthereumDeployer {
         self
     }
 
-    pub async fn deploy(self) -> Result<Ethereum> {
-        let router = self.deploy_contracts().await?;
-        Ethereum::from_provider(self.provider.clone(), router).await
+    pub async fn deploy(mut self) -> Result<Ethereum> {
+        self.deploy_contracts().await?;
+        self.ethereum.initialize_addresses().await?;
+        Ok(self.ethereum)
     }
 }
 
@@ -162,12 +170,13 @@ impl EthereumDeployer {
 impl EthereumDeployer {
     /// Deploy all contracts and return the router address.
     async fn deploy_contracts(&self) -> Result<Address> {
-        let deployer = self.provider.default_signer_address();
-        let wrapped_vara = deploy_wrapped_vara(deployer, self.provider.clone()).await?;
+        let provider = self.ethereum.provider().clone();
+        let deployer = provider.default_signer_address();
+        let wrapped_vara = deploy_wrapped_vara(deployer, provider.clone()).await?;
 
         // NOTE: The order of deployment is important here because of the future addresses calculation
         // inside `deploy_router`.
-        let nonce = self.provider.get_transaction_count(deployer).await?;
+        let nonce = provider.get_transaction_count(deployer).await?;
 
         let router = deploy_router(
             deployer,
@@ -179,25 +188,30 @@ impl EthereumDeployer {
                 .map(Into::into)
                 .collect(),
             self.params,
-            self.provider.clone(),
+            provider.clone(),
         )
         .await?;
 
-        let mirror = IMirror::deploy(self.provider.clone(), *router.address()).await?;
+        let mirror = IMirror::deploy(provider.clone(), *router.address()).await?;
         log::debug!("Mirror impl has been deployed at {}", mirror.address());
 
         debug_assert_eq!(
-            self.provider.get_transaction_count(deployer).await?,
+            self.ethereum
+                .provider()
+                .get_transaction_count(deployer)
+                .await?,
             nonce + MIRROR_DEPLOYMENT_NONCE_OFFSET + 1,
             "Nonce mismatch. Check the tx count and deployment order in deploy_router()."
         );
 
         if self.params.with_middleware {
-            let _ =
-                deploy_middleware(deployer, &router, &wrapped_vara, self.provider.clone()).await?;
+            let _ = deploy_middleware(deployer, &router, &wrapped_vara, provider.clone()).await?;
 
             debug_assert_eq!(
-                self.provider.get_transaction_count(deployer).await?,
+                self.ethereum
+                    .provider()
+                    .get_transaction_count(deployer)
+                    .await?,
                 nonce + MIDDLEWARE_DEPLOYMENT_NONCE_OFFSET + 1,
                 "Nonce mismatch. Check the tx count and deployment order in deploy_middleware()."
             );

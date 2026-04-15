@@ -26,11 +26,13 @@ use anyhow::Result;
 use clap::Subcommand;
 
 mod check;
+mod dump;
 mod key;
 mod run;
 mod tx;
 
 pub use check::CheckCommand;
+pub use dump::DumpCommand;
 pub use key::KeyCommand;
 pub use run::RunCommand;
 pub use tx::TxCommand;
@@ -48,6 +50,8 @@ pub enum Command {
     /// By default start all checks.
     /// By default, progress bar is enabled, use `--verbose` to enable debug logging and disable progress bar.
     Check(CheckCommand),
+    /// State dump operations for re-genesis.
+    Dump(DumpCommand),
 }
 
 impl Command {
@@ -58,6 +62,7 @@ impl Command {
             Self::Run(run_cmd) => Self::Run(run_cmd.with_params(file_params)),
             Self::Tx(tx_cmd) => Self::Tx(tx_cmd.with_params(file_params)),
             Self::Check(check_cmd) => Self::Check(check_cmd.with_params(file_params)),
+            Self::Dump(dump_cmd) => Self::Dump(dump_cmd.with_params(file_params)),
         }
     }
 
@@ -70,6 +75,7 @@ impl Command {
             Command::Tx(tx_cmd) => tx_cmd.exec(),
             Command::Run(run_cmd) => run_cmd.run(),
             Command::Check(check_cmd) => check_cmd.exec(),
+            Command::Dump(dump_cmd) => dump_cmd.exec(),
         }
     }
 }
