@@ -35,11 +35,27 @@ contract Router is
 
     uint256 public constant CODE_COMMITMENT_GAS = 13_551;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
+    /**
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
     constructor() {
         _disableInitializers();
     }
 
+    /**
+     * @dev Initializes the `Router` with the given parameters.
+     * @param _owner The address of the owner of the `Router`. Owner can perform `onlyOwner` actions.
+     * @param _mirror The address of the mirror contract. It's recommended to pre-compute the mirror address and set it here.
+     * @param _wrappedVara The address of the `WrappedVara` (WVARA) ERC20 token contract.
+     * @param _middleware The address of the middleware contract.
+     * @param _eraDuration The duration of an era in seconds.
+     * @param _electionDuration The duration of an election in seconds.
+     * @param _validationDelay The delay before validators can start validating in seconds.
+     * @param _aggregatedPublicKey The aggregated public key of the initial validators. Will be used in future.
+     * @param _verifiableSecretSharingCommitment The verifiable secret sharing commitment of the initial validators. Will be used in future.
+     * @param _validators The list of initial validators' addresses. Currently `Router` batch commitments uses ECDSA signatures,
+     *                    so the list of validators is used for signature verification.
+     */
     function initialize(
         address _owner,
         address _mirror,
@@ -84,46 +100,60 @@ contract Router is
         );
     }
 
-    /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public onlyOwner reinitializer(2) {
-        __Ownable_init(owner());
+    /**
+     * @dev Reinitializes the `Router` to set up new storage layout.
+     *      This function is intended to be called during an upgrade/wipe and can contain any logic.
+     *      NOTE: Don't forget to bump `reinitializer(version)` in modifier!
+     * @custom:oz-upgrades-validate-as-initializer
+     */
+    function reinitialize() public onlyOwner reinitializer(5) {
+        /* Example of wipe and reinitialize */
 
-        Storage storage oldRouter = _router();
+        // __Ownable_init(owner());
 
-        _setStorageSlot("router.storage.RouterV2");
-        Storage storage newRouter = _router();
+        // Storage storage oldRouter = _router();
+
+        // _setStorageSlot("router.storage.RouterV2");
+        // Storage storage newRouter = _router();
 
         // Set current block as genesis.
-        newRouter.genesisBlock = Gear.newGenesis();
+        // newRouter.genesisBlock = Gear.newGenesis();
 
         // New router latestCommittedBlock is already zeroed.
 
         // Copy impl addresses from the old router.
-        newRouter.implAddresses = oldRouter.implAddresses;
+        // newRouter.implAddresses = oldRouter.implAddresses;
 
         // Copy signing threshold fraction from the old router.
-        newRouter.validationSettings.thresholdNumerator = oldRouter.validationSettings.thresholdNumerator;
-        newRouter.validationSettings.thresholdDenominator = oldRouter.validationSettings.thresholdDenominator;
+        // newRouter.validationSettings.thresholdNumerator = oldRouter.validationSettings.thresholdNumerator;
+        // newRouter.validationSettings.thresholdDenominator = oldRouter.validationSettings.thresholdDenominator;
 
         // Copy validators from the old router.
         // TODO #4557: consider what to do. Maybe we should start reelection process.
         // Skipping validators1 copying - means we forget election results
         // if an election is already done for the next era.
-        _resetValidators(
-            newRouter.validationSettings.validators0,
-            Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
-            SSTORE2.read(Gear.currentEraValidators(oldRouter).verifiableSecretSharingCommitmentPointer),
-            Gear.currentEraValidators(oldRouter).list,
-            block.timestamp
-        );
+        // _resetValidators(
+        //     newRouter.validationSettings.validators0,
+        //     Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
+        //     SSTORE2.read(Gear.currentEraValidators(oldRouter).verifiableSecretSharingCommitmentPointer),
+        //     Gear.currentEraValidators(oldRouter).list,
+        //     block.timestamp
+        // );
 
         // Copy computation settings from the old router.
-        newRouter.computeSettings = oldRouter.computeSettings;
+        // newRouter.computeSettings = oldRouter.computeSettings;
 
         // Copy timelines from the old router.
-        newRouter.timelines = oldRouter.timelines;
+        // newRouter.timelines = oldRouter.timelines;
 
         // All protocol data must be removed - so leave it zeroed in new router.
+
+        /* Example of re-genesis without wipe */
+        __Ownable_init(owner());
+
+        Storage storage router = _router();
+        router.genesisBlock = Gear.newGenesis();
+        router.latestCommittedBatch = Gear.CommittedBatchInfo({hash: bytes32(0), timestamp: 0});
     }
 
     /**
@@ -132,9 +162,12 @@ contract Router is
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    // # Views.
+    /* # Views */
 
-    /// @dev Returns the storage view of the contract storage.
+    /**
+     * @dev Returns the storage view of the contract storage.
+     * @return storageView The storage view of the contract storage.
+     */
     function storageView() public view returns (StorageView memory) {
         Storage storage router = _router();
         Gear.ValidationSettingsView memory validationSettings = Gear.toView(router.validationSettings);
@@ -151,42 +184,84 @@ contract Router is
         });
     }
 
+    /**
+     * @dev Returns the hash of the genesis block.
+     * @return genesisBlockHash The hash of the genesis block.
+     */
     function genesisBlockHash() public view returns (bytes32) {
         return _router().genesisBlock.hash;
     }
 
+    /**
+     * @dev Returns the timestamp of the genesis block.
+     * @return genesisTimestamp The timestamp of the genesis block.
+     */
     function genesisTimestamp() public view returns (uint48) {
         return _router().genesisBlock.timestamp;
     }
 
+    /**
+     * @dev Returns the hash of the latest committed batch.
+     * @return latestCommittedBatchHash The hash of the latest committed batch.
+     */
     function latestCommittedBatchHash() public view returns (bytes32) {
         return _router().latestCommittedBatch.hash;
     }
 
+    /**
+     * @dev Returns the timestamp of the latest committed batch.
+     * @return latestCommittedBatchTimestamp The timestamp of the latest committed batch.
+     */
     function latestCommittedBatchTimestamp() public view returns (uint48) {
         return _router().latestCommittedBatch.timestamp;
     }
 
+    /**
+     * @dev Returns the address of the mirror implementation.
+     * @return mirrorImpl The address of the mirror implementation.
+     */
     function mirrorImpl() public view returns (address) {
         return _router().implAddresses.mirror;
     }
 
+    /**
+     * @dev Returns the address of the wrapped Vara implementation.
+     * @return wrappedVara The address of the wrapped Vara implementation.
+     */
     function wrappedVara() public view returns (address) {
         return _router().implAddresses.wrappedVara;
     }
 
+    /**
+     * @dev Returns the address of the middleware implementation.
+     * @return middleware The address of the middleware implementation.
+     */
     function middleware() public view returns (address) {
         return _router().implAddresses.middleware;
     }
 
+    /**
+     * @dev Returns the aggregated public key of the current validators.
+     * @return validatorsAggregatedPublicKey The aggregated public key of the current validators.
+     */
     function validatorsAggregatedPublicKey() public view returns (Gear.AggregatedPublicKey memory) {
         return Gear.currentEraValidators(_router()).aggregatedPublicKey;
     }
 
+    /**
+     * @dev Returns the verifiable secret sharing commitment of the current validators.
+     *      This is serialized `frost_core::keys::VerifiableSecretSharingCommitment` struct.
+     *      See https://docs.rs/frost-core/latest/frost_core/keys/struct.VerifiableSecretSharingCommitment.html#method.serialize_whole.
+     * @return validatorsVerifiableSecretSharingCommitment The verifiable secret sharing commitment of the current validators.
+     */
     function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory) {
         return SSTORE2.read(Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer);
     }
 
+    /**
+     * @dev Checks if the given addresses are all validators.
+     * @return areValidators `true` if all addresses are validators, `false` otherwise.
+     */
     function areValidators(address[] calldata _validators) public view returns (bool) {
         Gear.Validators storage _currentValidators = Gear.currentEraValidators(_router());
 
@@ -199,23 +274,44 @@ contract Router is
         return true;
     }
 
+    /**
+     * @dev Checks if the given address is a validator.
+     * @return isValidator `true` if the address is a validator, `false` otherwise.
+     */
     function isValidator(address _validator) public view returns (bool) {
         return Gear.currentEraValidators(_router()).map[_validator];
     }
 
-    function signingThresholdFraction() public view returns (uint128, uint128) {
+    /**
+     * @dev Returns the signing threshold fraction.
+     * @return thresholdNumerator The numerator of the signing threshold fraction.
+     * @return thresholdDenominator The denominator of the signing threshold fraction.
+     */
+    function signingThresholdFraction() public view returns (uint128 thresholdNumerator, uint128 thresholdDenominator) {
         IRouter.Storage storage router = _router();
         return (router.validationSettings.thresholdNumerator, router.validationSettings.thresholdDenominator);
     }
 
+    /**
+     * @dev Returns the list of current validators.
+     * @return validators The list of current validators.
+     */
     function validators() public view returns (address[] memory) {
         return Gear.currentEraValidators(_router()).list;
     }
 
+    /**
+     * @dev Returns the count of current validators.
+     * @return validatorsCount The count of current validators.
+     */
     function validatorsCount() public view returns (uint256) {
         return Gear.currentEraValidators(_router()).list.length;
     }
 
+    /**
+     * @dev Returns the threshold number of validators required for a valid signature.
+     * @return threshold The threshold number of validators required for a valid signature.
+     */
     function validatorsThreshold() public view returns (uint256) {
         IRouter.Storage storage router = _router();
         return Gear.validatorsThreshold(
@@ -225,18 +321,34 @@ contract Router is
         );
     }
 
+    /**
+     * @dev Returns true if the contract is paused, and false otherwise.
+     * @return isPaused `true` if the contract is paused, `false` otherwise.
+     */
     function paused() public view override(IRouter, PausableUpgradeable) returns (bool) {
         return super.paused();
     }
 
+    /**
+     * @dev Returns the computation settings.
+     * @return computeSettings The computation settings.
+     */
     function computeSettings() public view returns (Gear.ComputationSettings memory) {
         return _router().computeSettings;
     }
 
+    /**
+     * @dev Returns the state of code.
+     * @return codeState The state of the code.
+     */
     function codeState(bytes32 _codeId) public view returns (Gear.CodeState) {
         return _router().protocolData.codes[_codeId];
     }
 
+    /**
+     * @dev Returns the states of multiple codes.
+     * @return codesStates The states of the codes.
+     */
     function codesStates(bytes32[] calldata _codesIds) public view returns (Gear.CodeState[] memory) {
         Storage storage router = _router();
 
@@ -249,10 +361,18 @@ contract Router is
         return res;
     }
 
+    /**
+     * @dev Returns the code ID of the given program.
+     * @return codeId The code ID of the program.
+     */
     function programCodeId(address _programId) public view returns (bytes32) {
         return _router().protocolData.programs[_programId];
     }
 
+    /**
+     * @dev Returns the code IDs of the given programs.
+     * @return codesIds The code IDs of the programs.
+     */
     function programsCodeIds(address[] calldata _programsIds) public view returns (bytes32[] memory) {
         Storage storage router = _router();
 
@@ -265,35 +385,66 @@ contract Router is
         return res;
     }
 
+    /**
+     * @dev Returns the count of programs.
+     * @return programsCount The count of programs.
+     */
     function programsCount() public view returns (uint256) {
         return _router().protocolData.programsCount;
     }
 
+    /**
+     * @dev Returns the count of validated codes.
+     * @return validatedCodesCount The count of validated codes.
+     */
     function validatedCodesCount() public view returns (uint256) {
         return _router().protocolData.validatedCodesCount;
     }
 
+    /**
+     * @dev Returns the latest gas price in Ethereum network.
+     * @return latestGasPrice The latest gas price.
+     */
     function latestGasPrice() public view returns (uint256) {
         return _router().protocolData.latestGasPrice;
     }
 
+    /**
+     * @dev Returns the timelines.
+     * @return timelines The timelines.
+     */
     function timelines() public view returns (Gear.Timelines memory) {
         return _router().timelines;
     }
 
-    // Owner calls.
+    /* # Owner calls */
+
+    /**
+     * @dev Sets the `Mirror` implementation address.
+     * @param newMirror The new mirror implementation address.
+     */
     function setMirror(address newMirror) external onlyOwner {
         _router().implAddresses.mirror = newMirror;
     }
 
+    /**
+     * @dev Pauses the contract.
+     */
     function pause() public onlyOwner {
         _pause();
     }
 
+    /**
+     * @dev Unpauses the contract.
+     */
     function unpause() public onlyOwner {
         _unpause();
     }
 
+    /**
+     * @dev Withdraws the executable balance in WVARA ERC20 token.
+     *      Throws `WithdrawExecutableBalanceFailed` if the transfer fails.
+     */
     function withdrawExecutableBalance() external onlyOwner {
         IERC20 _wrappedVara = IERC20(wrappedVara());
 
@@ -304,8 +455,12 @@ contract Router is
         require(success, WithdrawExecutableBalanceFailed());
     }
 
-    // # Calls.
-    function lookupGenesisHash() external whenNotPaused {
+    /* # Calls */
+
+    /**
+     * @dev Looks up the genesis hash from previous blocks.
+     */
+    function lookupGenesisHash() external {
         Storage storage router = _router();
 
         require(router.genesisBlock.hash == bytes32(0), GenesisHashAlreadySet());
@@ -318,6 +473,15 @@ contract Router is
         router.protocolData.latestGasPrice = tx.gasprice;
     }
 
+    /**
+     * @dev Requests code validation for the given code ID.
+     *      This method is expected to be called within EIP-7594 transaction and will have sidecar
+     *      attached to it containing WASM bytecode. On EVM, we can only verify that there was
+     *      at least 1 blobhash in a transaction.
+     *      Note: `msg.value` must be `Router.CODE_COMMITMENT_GAS() * Router.latestGasPrice()` to cover validation costs.
+     * @param _codeId The expected code ID for which the validation is requested.
+     *                It's calculated as `gprimitives::CodeId::generate(wasm_code)` (blake2b hash).
+     */
     function requestCodeValidation(bytes32 _codeId) external payable whenNotPaused {
         require(blobhash(0) != 0, BlobNotFound());
 
@@ -336,6 +500,19 @@ contract Router is
         emit CodeValidationRequested(_codeId);
     }
 
+    /**
+     * @dev Creates new program (`Mirror`) with the given code ID, salt, and initializer.
+     *      Note that the program creation is deterministic, so if you try to create program with the same code ID and salt,
+     *      you will get the same program address.
+     *      Also note that the `Mirror` will be created with `isSmall = true` without "Solidity ABI Interface" support,
+     *      so it will be more gas efficient, but services like Etherscan won't be able to encode some calls and decode some events.
+     *      As result of execution, the `ProgramCreated` event will be emitted.
+     * @param _codeId The code ID of the program to create. Must be in `CodeState.Validated` state.
+     * @param _salt The salt for the program creation.
+     * @param _overrideInitializer The initializer address for the program that can send the first (init) message to the program.
+     *                             If set to `address(0)`, `msg.sender` will be used as the initializer.
+     * @return mirror The address of the created program (`Mirror`).
+     */
     function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer)
         external
         whenNotPaused
@@ -349,6 +526,20 @@ contract Router is
         return mirror;
     }
 
+    /**
+     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer and ABI interface.
+     *      Note that the program creation is deterministic, so if you try to create program with the same code ID and salt,
+     *      you will get the same program address.
+     *      Also note that the `Mirror` will be created with `isSmall = false` WITH "Solidity ABI Interface" support,
+     *      so it will be less gas efficient, but services like Etherscan will be able to encode some calls and decode some events.
+     *      As result of execution, the `ProgramCreated` event will be emitted.
+     * @param _codeId The code ID of the program to create. Must be in `CodeState.Validated` state.
+     * @param _salt The salt for the program creation.
+     * @param _overrideInitializer The initializer address for the program that can send the first (init) message to the program.
+     *                             If set to `address(0)`, `msg.sender` will be used as the initializer.
+     * @param _abiInterface The ABI interface address for the program.
+     * @return mirror The address of the created program (`Mirror`).
+     */
     function createProgramWithAbiInterface(
         bytes32 _codeId,
         bytes32 _salt,
@@ -363,6 +554,14 @@ contract Router is
         return mirror;
     }
 
+    /**
+     * @dev Commits new batch of changes to `Router` state.
+     *      `CodeGotValidated` event is emitted for each code in commitment.
+     *      `AnnouncesCommitted` event is emitted on success. Triggers multiple events for each corresponding `Mirror` instances.
+     * @param _batch The batch commitment data.
+     * @param _signatureType The type of signature to validate.
+     * @param _signatures The signatures for the batch commitment.
+     */
     function commitBatch(
         Gear.BatchCommitment calldata _batch,
         Gear.SignatureType _signatureType,
@@ -416,7 +615,7 @@ contract Router is
         );
     }
 
-    /* Helper private functions */
+    /* # Helper private functions */
 
     function _createProgram(bytes32 _codeId, bytes32 _salt, bool _isSmall) private returns (address) {
         Storage storage router = _router();
@@ -443,7 +642,9 @@ contract Router is
         require(_batch.chainCommitment.length <= 1, TooManyChainCommitments());
 
         if (_batch.chainCommitment.length == 0) {
-            /// forge-lint: disable-next-line(asm-keccak256)
+            /**
+             * forge-lint: disable-next-item(asm-keccak256)
+             */
             return keccak256("");
         }
 
@@ -495,7 +696,9 @@ contract Router is
         require(_batch.rewardsCommitment.length <= 1, TooManyRewardsCommitments());
 
         if (_batch.rewardsCommitment.length == 0) {
-            /// forge-lint: disable-next-line(asm-keccak256)
+            /**
+             * forge-lint: disable-next-item(asm-keccak256)
+             */
             return keccak256("");
         }
 
@@ -525,12 +728,16 @@ contract Router is
         return Gear.rewardsCommitmentHash(_operatorRewardsHash, _stakerRewardsHash, _commitment.timestamp);
     }
 
-    /// @dev Set validators for the next era.
+    /**
+     * @dev Set validators for the next era.
+     */
     function _commitValidators(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
         require(_batch.validatorsCommitment.length <= 1, TooManyValidatorsCommitments());
 
         if (_batch.validatorsCommitment.length == 0) {
-            /// forge-lint: disable-next-line(asm-keccak256)
+            /**
+             * forge-lint: disable-next-item(asm-keccak256)
+             */
             return keccak256("");
         }
 
@@ -641,6 +848,10 @@ contract Router is
         emit StorageSlotChanged(slot);
     }
 
+    /**
+     * @dev Receives Ether from the `Mirror` instances when they
+     *      perform state transitions with `valueToReceive`.
+     */
     receive() external payable whenNotPaused {
         Storage storage router = _router();
         require(router.genesisBlock.hash != bytes32(0), RouterGenesisHashNotInitialized());

@@ -16,6 +16,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Vara.eth RPC client and server APIs.
+//!
+//! The crate provide both client and server APIs for the Vara.eth node.
+//!
+//! ## Crate modules
+//! The crate has the following structure:
+//! - `apis` - provides the RPC available APIs
+//!     - `block` - Ethereum blocks API
+//!     - `code` - WASM codes API
+//!     - `injected` - API for communication with node via [`ethexe_common::injected::InjectedTransaction`]
+//!     - `program` - WASM programs API (state, queue, mailbox, reply calculations)
+//!     - `dev` - the development API (available only in development builds)
+//! - `errors` - provides helpers function for building the [`jsonrpsee::types::ErrorObject`]
+//! - `metrics` - provides metrics for the RPC server
+//!
+//! ## Design notes
+//! By design the RPC server has no write access to the node database. So it must be just
+//! a read-only proxy for the external users.
+//!
+//! ## Features
+//! The following features are available:
+//! - `client` - enables the client APIs generate from [`jsonrpsee::proc_macros::rpc`] macro.
+//!
+//! ### RPC server configuration details
+//! The RPC server is configured from [`RpcConfig`]. It provides the following configuration:
+//! - [`RpcConfig::listen_addr`] - the address of RPC server running on
+//! - [`RpcConfig::cors`] - the list of allowed CORS origins
+//! - [`RpcConfig::gas_allowance`] - the gas allowace for program reply calculation
+//! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
+//! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
+
 #[cfg(feature = "client")]
 pub use crate::apis::{
     BlockClient, CodeClient, DevClient, FullProgramState, InjectedClient, ProgramClient,
@@ -119,7 +150,7 @@ impl RpcServer {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
-            injected: InjectedApi::new(rpc_sender),
+            injected: InjectedApi::new(self.db.clone(), rpc_sender),
             dev: self
                 .config
                 .with_dev_api

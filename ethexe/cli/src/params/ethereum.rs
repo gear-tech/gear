@@ -16,11 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Ethereum connectivity and fee-tuning parameters.
+
 use super::MergeParams;
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use ethexe_common::Address;
-use ethexe_ethereum::{INCREASED_BLOB_GAS_MULTIPLIER, INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE};
+use ethexe_ethereum::Ethereum;
 use ethexe_observer::EthereumConfig;
 use serde::Deserialize;
 use std::time::Duration;
@@ -65,19 +67,22 @@ impl EthereumParams {
     pub const BLOCK_TIME: u64 = 12;
 
     /// Default Ethereum RPC.
-    pub const DEFAULT_ETHEREUM_RPC: &str = "ws://localhost:8545";
+    pub const DEFAULT_ETHEREUM_RPC: &str = Ethereum::DEFAULT_ETHEREUM_RPC;
 
     /// Default Ethereum Beacon RPC.
     pub const DEFAULT_ETHEREUM_BEACON_RPC: &str = "http://localhost:8545";
 
     /// Default EIP-1559 fee increase percentage.
     pub const DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE: u64 =
-        INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE;
+        Ethereum::INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE;
 
     /// Default blob gas multiplier.
-    pub const DEFAULT_BLOB_GAS_MULTIPLIER: u128 = INCREASED_BLOB_GAS_MULTIPLIER;
+    pub const DEFAULT_BLOB_GAS_MULTIPLIER: u128 = Ethereum::INCREASED_BLOB_GAS_MULTIPLIER;
 
-    /// Convert self into a proper `EthereumConfig` object.
+    /// Converts Ethereum-facing CLI/TOML parameters into [`EthereumConfig`].
+    ///
+    /// The Router address is required because it anchors all on-chain operations. RPC
+    /// endpoints, block time, and fee-tuning values fall back to sensible local defaults.
     pub fn into_config(self) -> Result<EthereumConfig> {
         Ok(EthereumConfig {
             rpc: self

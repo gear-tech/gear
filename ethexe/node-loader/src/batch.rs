@@ -1,3 +1,13 @@
+//! Batch execution engine for load mode.
+//!
+//! This module owns the long-running worker pool used by `ethexe-node-loader
+//! load`. It is responsible for:
+//!
+//! - generating batches from the current execution context,
+//! - executing them through Ethereum and ethexe RPC clients,
+//! - observing block-by-block outcomes,
+//! - folding the observed state back into the shared context.
+
 use alloy::{
     consensus::Transaction,
     eips::BlockId,
@@ -14,7 +24,7 @@ use ethexe_ethereum::{
     abi::{IMirror, IRouter::commitBatchCall},
     mirror::events::try_extract_event,
 };
-use futures::{StreamExt, stream::FuturesUnordered};
+use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::{
     ids::prelude::{CodeIdExt, MessageIdExt},
@@ -30,16 +40,20 @@ use std::{
 use tokio::sync::{
     RwLock,
     broadcast::{Receiver, error::RecvError},
+    watch,
 };
 use tracing::instrument;
 
 use crate::{
     abi::BatchMulticall,
-    args::{LoadParams, SeedVariant},
+    args::SeedVariant,
     batch::{
-        context::Context,
+        context::{Context, ContextUpdate},
         generator::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings},
-        report::{BatchRunReport, MailboxReport, Report},
+        report::{
+            BatchExecutionStats, BatchReport, BatchRunReport, LoadRunMetadata, LoadRunReport,
+            RunEndedBy,
+        },
     },
     utils,
 };
@@ -57,12 +71,24 @@ pub struct BatchPool<Rng: CallGenRng> {
     pool_size: usize,
     batch_size: usize,
     send_message_multicall: Address,
-    task_context: Context,
+    use_send_message_multicall: bool,
+    context: Context,
+    batch_stats: BatchExecutionStats,
     rx: Receiver<Header>,
     _marker: PhantomData<Rng>,
 }
 
+#[derive(Debug, Clone)]
+pub struct LoadRunConfig {
+    pub loader_seed: Option<u64>,
+    pub code_seed_type: Option<SeedVariant>,
+    pub workers: usize,
+    pub batch_size: usize,
+}
+
 type MidMap = Arc<RwLock<BTreeMap<MessageId, ActorId>>>;
+type WorkerBatchFuture =
+    futures::future::BoxFuture<'static, (usize, EthexeRpcPool, Result<BatchRunReport>)>;
 
 /// Amount of wVARA (12 decimals) to top up each program's executable balance.
 const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
@@ -71,11 +97,14 @@ const INJECTED_TX_RATIO_NUM: u8 = 7;
 const INJECTED_TX_RATIO_DEN: u8 = 10;
 const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
 
+/// Biases message traffic toward injected transactions while keeping some
+/// regular on-chain sends in circulation.
 fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     // Make injected txs common, but still keep some on-chain `send_message` calls.
     (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
 }
 
+/// Produces a fuzzed message value used for init, send, and reply operations.
 fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
     // 60% zero value
     if rng.next_u32() % 10 < 6 {
@@ -88,6 +117,8 @@ fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
     random_value % max_value
 }
 
+/// Converts an arbitrary salt buffer into the fixed 32-byte form expected by
+/// Ethereum ABI bindings.
 pub(crate) fn salt_to_h256(salt: &[u8]) -> H256 {
     let mut out = [0u8; 32];
     let take = salt.len().min(out.len());
@@ -101,17 +132,130 @@ pub(crate) fn salt_to_h256(salt: &[u8]) -> H256 {
 pub struct Event {
     pub event: MirrorEvent,
     /// Actor id of the program whose mirror emitted the event.
-    #[allow(dead_code)]
     pub actor_id: ActorId,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TransitionedMessage {
+    id: MessageId,
+    destination_is_mailbox: bool,
+    replied_to: Option<MessageId>,
+}
+
+fn apply_mirror_event_update(context_update: &mut ContextUpdate, event: &Event) {
+    let actor_id = event.actor_id;
+    match &event.event {
+        MirrorEvent::OwnedBalanceTopUpRequested(_) => {
+            context_update.stats_mut(actor_id).increment_owned_topups();
+        }
+        MirrorEvent::ExecutableBalanceTopUpRequested(_) => {
+            context_update
+                .stats_mut(actor_id)
+                .increment_executable_topups();
+        }
+        MirrorEvent::Message(ev) => {
+            context_update.upsert_message_owner(ev.id, actor_id);
+            context_update.stats_mut(actor_id).increment_messages();
+        }
+        MirrorEvent::MessageCallFailed(ev) => {
+            context_update.upsert_message_owner(ev.id, actor_id);
+            let stats = context_update.stats_mut(actor_id);
+            stats.increment_messages();
+            stats.increment_failures();
+        }
+        MirrorEvent::MessageQueueingRequested(ev) => {
+            context_update.upsert_message_owner(ev.id, actor_id);
+        }
+        MirrorEvent::Reply(ev) => {
+            context_update.upsert_message_owner(ev.reply_to, actor_id);
+            context_update.upsert_message_owner(MessageId::generate_reply(ev.reply_to), actor_id);
+            context_update.stats_mut(actor_id).increment_replies();
+        }
+        MirrorEvent::ReplyCallFailed(ev) => {
+            context_update.upsert_message_owner(ev.reply_to, actor_id);
+            context_update.upsert_message_owner(MessageId::generate_reply(ev.reply_to), actor_id);
+            let stats = context_update.stats_mut(actor_id);
+            stats.increment_replies();
+            stats.increment_failures();
+        }
+        MirrorEvent::ReplyQueueingRequested(ev) => {
+            context_update.upsert_message_owner(ev.replied_to, actor_id);
+            context_update.upsert_message_owner(MessageId::generate_reply(ev.replied_to), actor_id);
+            context_update.stats_mut(actor_id).increment_replies();
+        }
+        MirrorEvent::StateChanged(ev) => {
+            context_update.set_program_last_state_hash(actor_id, ev.state_hash);
+            context_update.stats_mut(actor_id).increment_state_changes();
+        }
+        MirrorEvent::ValueClaimed(ev) => {
+            context_update.upsert_message_owner(ev.claimed_id, actor_id);
+            context_update.remove_mailbox_message(actor_id, ev.claimed_id);
+            context_update.remove_pending_value_claim(actor_id, ev.claimed_id);
+            context_update
+                .stats_mut(actor_id)
+                .increment_claims_succeeded();
+        }
+        MirrorEvent::ValueClaimingRequested(ev) => {
+            context_update.upsert_message_owner(ev.claimed_id, actor_id);
+            context_update.add_pending_value_claim(actor_id, ev.claimed_id);
+            context_update
+                .stats_mut(actor_id)
+                .increment_claims_requested();
+        }
+        MirrorEvent::TransferLockedValueToInheritorFailed(_)
+        | MirrorEvent::ReplyTransferFailed(_) => {
+            context_update.stats_mut(actor_id).increment_failures();
+        }
+        MirrorEvent::ValueClaimFailed(ev) => {
+            context_update.upsert_message_owner(ev.claimed_id, actor_id);
+            context_update.remove_pending_value_claim(actor_id, ev.claimed_id);
+            let stats = context_update.stats_mut(actor_id);
+            stats.increment_claims_failed();
+            stats.increment_failures();
+        }
+    }
+}
+
+fn apply_router_transition_update(
+    context_update: &mut ContextUpdate,
+    actor_id: ActorId,
+    exited: bool,
+    value_claims: impl IntoIterator<Item = MessageId>,
+    messages: impl IntoIterator<Item = TransitionedMessage>,
+) {
+    if exited {
+        context_update.set_program_exited(actor_id, true);
+    }
+
+    for message_id in value_claims {
+        context_update.upsert_message_owner(message_id, actor_id);
+    }
+
+    for message in messages {
+        context_update.upsert_message_owner(message.id, actor_id);
+        if message.destination_is_mailbox {
+            context_update.add_mailbox_message(actor_id, message.id);
+            context_update
+                .stats_mut(actor_id)
+                .increment_mailbox_additions();
+        }
+
+        if let Some(replied_to) = message.replied_to {
+            context_update.upsert_message_owner(replied_to, actor_id);
+            context_update.upsert_message_owner(MessageId::generate_reply(replied_to), actor_id);
+        }
+    }
+}
+
 impl<Rng: CallGenRng> BatchPool<Rng> {
+    /// Creates a batch pool with one dedicated ethexe RPC pool per worker.
     pub fn new(
         apis: Vec<Ethereum>,
         ethexe_rpc_urls: Vec<String>,
         pool_size: usize,
         batch_size: usize,
         send_message_multicall: Address,
+        use_send_message_multicall: bool,
         rx: Receiver<Header>,
     ) -> Result<Self> {
         let rpc_pools = (0..pool_size)
@@ -132,31 +276,35 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             pool_size,
             batch_size,
             send_message_multicall,
-            task_context: Context::new(),
+            use_send_message_multicall,
+            context: Context::new(),
+            batch_stats: BatchExecutionStats::default(),
             rx,
             _marker: PhantomData,
         })
     }
 
-    pub async fn run(mut self, params: LoadParams, _rx: Receiver<Header>) -> Result<()> {
-        let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
-
-        let run_result = tokio::select! {
-            r = run_pool_task => r,
-        };
-
-        run_result
+    /// Starts the batch pool and returns a summary once in-flight work drains.
+    pub async fn run(
+        mut self,
+        config: LoadRunConfig,
+        shutdown: watch::Receiver<bool>,
+    ) -> Result<LoadRunReport> {
+        self.run_pool_loop(config, shutdown).await
     }
 
+    /// Continuously schedules one batch per worker and replaces each completed
+    /// batch with a newly generated one.
     pub async fn run_pool_loop(
         &mut self,
-        loader_seed: Option<u64>,
-        code_seed_type: Option<SeedVariant>,
-    ) -> Result<()> {
-        let mut batches = FuturesUnordered::new();
+        config: LoadRunConfig,
+        mut shutdown: watch::Receiver<bool>,
+    ) -> Result<LoadRunReport> {
+        let mut batches = FuturesUnordered::<WorkerBatchFuture>::new();
         let mid_map = MidMap::default();
-        let seed = loader_seed.unwrap_or_else(gear_utils::now_millis);
+        let seed = config.loader_seed.unwrap_or_else(gear_utils::now_millis);
         let mut rpc_rng = SmallRng::seed_from_u64(seed ^ 0xA17E_7E11);
+        let mut shutting_down = *shutdown.borrow();
         tracing::info!(
             message = "Running task pool with params",
             seed,
@@ -166,72 +314,124 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
         let rt_settings = RuntimeSettings::new()?;
         let mut batch_gen =
-            BatchGenerator::<Rng>::new(seed, self.batch_size, code_seed_type, rt_settings);
+            BatchGenerator::<Rng>::new(seed, self.batch_size, config.code_seed_type, rt_settings);
 
-        for worker_idx in 0..self.pool_size {
-            let batch_with_seed = batch_gen.generate(self.task_context.clone());
-            let api = self.apis[worker_idx].clone();
-            let rpc_pool = self.rpc_pools[worker_idx]
-                .take()
-                .expect("rpc pool must be present for worker");
-            let endpoint_idx = rpc_pool.random_endpoint_index(&mut rpc_rng);
-            batches.push(run_batch_for_worker(
-                worker_idx,
-                api,
-                rpc_pool,
-                endpoint_idx,
-                batch_with_seed,
-                self.send_message_multicall,
-                self.rx.resubscribe(),
-                mid_map.clone(),
-            ));
+        if !shutting_down {
+            for worker_idx in 0..self.pool_size {
+                self.schedule_batch(
+                    &mut batches,
+                    &mut batch_gen,
+                    &mid_map,
+                    &mut rpc_rng,
+                    worker_idx,
+                );
+            }
         }
 
-        while let Some((worker_idx, rpc_pool, report)) = batches.next().await {
+        while !batches.is_empty() {
+            let (worker_idx, rpc_pool, report) = tokio::select! {
+                Some(result) = batches.next() => result,
+                changed = shutdown.changed(), if !shutting_down => {
+                    match changed {
+                        Ok(()) if *shutdown.borrow() => {
+                            shutting_down = true;
+                            tracing::info!("Shutdown requested; draining in-flight batches");
+                        }
+                        Ok(()) => {}
+                        Err(_) => {
+                            shutting_down = true;
+                        }
+                    }
+                    continue;
+                }
+            };
+
             self.rpc_pools[worker_idx] = Some(rpc_pool);
             match report {
                 Ok(report) => self.process_run_report(report),
                 Err(err) => {
+                    self.batch_stats.record_failed();
                     tracing::error!(
                         worker_idx,
                         error = %err,
-                        "Batch failed, scheduling next batch for worker"
+                        "Batch failed"
                     );
                 }
             }
 
-            let batch_with_seed = batch_gen.generate(self.task_context.clone());
-            let api = self.apis[worker_idx].clone();
-            let rpc_pool = self.rpc_pools[worker_idx]
-                .take()
-                .expect("rpc pool must be present for worker");
-            let endpoint_idx = rpc_pool.random_endpoint_index(&mut rpc_rng);
-            batches.push(run_batch_for_worker(
+            if !shutting_down {
+                self.schedule_batch(
+                    &mut batches,
+                    &mut batch_gen,
+                    &mid_map,
+                    &mut rpc_rng,
+                    worker_idx,
+                );
+            }
+        }
+
+        Ok(LoadRunReport {
+            metadata: LoadRunMetadata {
+                seed,
+                workers: config.workers,
+                batch_size: config.batch_size,
+            },
+            ended_by: if *shutdown.borrow() {
+                RunEndedBy::Interrupted
+            } else {
+                RunEndedBy::Completed
+            },
+            context: std::mem::take(&mut self.context),
+            batch_stats: std::mem::take(&mut self.batch_stats),
+        })
+    }
+
+    fn process_run_report(&mut self, report: BatchRunReport) {
+        let BatchRunReport { seed, batch } = report;
+        tracing::debug!(seed, "Processed batch report");
+        self.batch_stats.record_completed();
+        self.context.update(batch.context_update);
+    }
+
+    fn schedule_batch(
+        &mut self,
+        batches: &mut FuturesUnordered<WorkerBatchFuture>,
+        batch_gen: &mut BatchGenerator<Rng>,
+        mid_map: &MidMap,
+        rpc_rng: &mut SmallRng,
+        worker_idx: usize,
+    ) {
+        let batch_with_seed = batch_gen.generate(self.context.clone());
+        let api = self.apis[worker_idx].clone();
+        let rpc_pool = self.rpc_pools[worker_idx]
+            .take()
+            .expect("rpc pool must be present for worker");
+        let endpoint_idx = rpc_pool.random_endpoint_index(rpc_rng);
+        batches.push(
+            run_batch_for_worker(
                 worker_idx,
                 api,
                 rpc_pool,
                 endpoint_idx,
                 batch_with_seed,
                 self.send_message_multicall,
+                self.use_send_message_multicall,
                 self.rx.resubscribe(),
                 mid_map.clone(),
-            ));
-        }
-
-        unreachable!()
-    }
-
-    fn process_run_report(&mut self, report: BatchRunReport) {
-        self.task_context.update(report.context_update);
+            )
+            .boxed(),
+        );
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_batch(
     api: Ethereum,
     mut rpc_pool: EthexeRpcPool,
     endpoint_idx: usize,
     batch: BatchWithSeed,
     send_message_multicall: Address,
+    use_send_message_multicall: bool,
     rx: Receiver<Header>,
     mid_map: MidMap,
 ) -> (EthexeRpcPool, Result<BatchRunReport>) {
@@ -244,6 +444,7 @@ async fn run_batch(
         endpoint_idx,
         batch,
         send_message_multicall,
+        use_send_message_multicall,
         rx,
         mid_map,
         &mut rng,
@@ -259,6 +460,7 @@ async fn run_batch(
     (rpc_pool, result)
 }
 
+/// Small wrapper that preserves the worker index alongside a batch result.
 #[allow(clippy::too_many_arguments)]
 async fn run_batch_for_worker(
     worker_idx: usize,
@@ -267,6 +469,7 @@ async fn run_batch_for_worker(
     endpoint_idx: usize,
     batch: BatchWithSeed,
     send_message_multicall: Address,
+    use_send_message_multicall: bool,
     rx: Receiver<Header>,
     mid_map: MidMap,
 ) -> (usize, EthexeRpcPool, Result<BatchRunReport>) {
@@ -281,6 +484,7 @@ async fn run_batch_for_worker(
         endpoint_idx,
         batch,
         send_message_multicall,
+        use_send_message_multicall,
         rx,
         mid_map,
     )
@@ -288,6 +492,8 @@ async fn run_batch_for_worker(
     (worker_idx, rpc_pool, result)
 }
 
+/// Executes one generated batch and converts chain observations into a
+/// [`BatchReport`] that can update shared generator state.
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 async fn run_batch_impl(
@@ -296,10 +502,11 @@ async fn run_batch_impl(
     endpoint_idx: usize,
     batch: Batch,
     send_message_multicall: Address,
+    use_send_message_multicall: bool,
     rx: Receiver<Header>,
     mid_map: MidMap,
     rng: &mut SmallRng,
-) -> Result<Report> {
+) -> Result<BatchReport> {
     match batch {
         Batch::UploadProgram(args) => {
             tracing::info!(programs = args.len(), "Uploading programs");
@@ -323,7 +530,6 @@ async fn run_batch_impl(
                 code_ids.push(code_id);
             }
 
-            let mut program_ids = BTreeSet::new();
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
 
@@ -345,10 +551,11 @@ async fn run_batch_impl(
                 create_program_batch_via_multicall(&api, send_message_multicall, &upload_calls)
                     .await?;
 
+            let mut created_programs = Vec::with_capacity(upload_calls.len());
             for (call_id, program_id, message_id) in created {
-                program_ids.insert(program_id);
                 mid_map.write().await.insert(message_id, program_id);
                 messages.insert(message_id, (program_id, call_id));
+                created_programs.push((call_id, program_id, message_id));
                 tracing::trace!(
                     call_id,
                     %program_id,
@@ -358,7 +565,7 @@ async fn run_batch_impl(
             }
 
             let wait_for_event_blocks = blocks_window(tx_count, 2, 6);
-            process_events(
+            let mut report = process_events(
                 api,
                 messages,
                 rx,
@@ -367,7 +574,22 @@ async fn run_batch_impl(
                 wait_for_event_blocks,
                 BTreeMap::new(),
             )
-            .await
+            .await?;
+
+            for (_, code_id, ..) in &upload_calls {
+                report.context_update.add_code(*code_id);
+            }
+            for (call_id, program_id, message_id) in created_programs {
+                let code_id = upload_calls[call_id].1;
+                report
+                    .context_update
+                    .set_program_code_id(program_id, code_id);
+                report
+                    .context_update
+                    .upsert_message_owner(message_id, program_id);
+            }
+
+            Ok(report)
         }
 
         Batch::UploadCode(args) => {
@@ -377,7 +599,7 @@ async fn run_batch_impl(
 
             for arg in args.iter() {
                 let expected_code_id = CodeId::generate(&arg.0);
-                tracing::trace!(
+                tracing::debug!(
                     code_id = %expected_code_id,
                     bytes = arg.0.len(),
                     "Requesting code validation"
@@ -389,7 +611,7 @@ async fn run_batch_impl(
                 rpc_pool
                     .wait_for_code_validation(endpoint_idx, &api, code_id)
                     .await?;
-                tracing::trace!(code_id = %code_id, "Code validated");
+                tracing::debug!(code_id = %code_id, "Code validated");
                 code_ids.push(code_id);
             }
 
@@ -399,10 +621,12 @@ async fn run_batch_impl(
                 "Codes validated"
             );
 
-            Ok(Report {
-                codes: code_ids.into_iter().collect(),
-                ..Default::default()
-            })
+            let mut context_update = ContextUpdate::default();
+            for code_id in code_ids {
+                context_update.add_code(code_id);
+            }
+
+            Ok(BatchReport { context_update })
         }
 
         Batch::SendMessage(args) => {
@@ -412,7 +636,7 @@ async fn run_batch_impl(
             let block_number = api.provider().get_block_number().await?;
             let mut regular_calls = Vec::new();
             let mut injected_tx_count = 0usize;
-            let mut multicall_tx_count = 0usize;
+            let mut regular_tx_count = 0usize;
 
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
@@ -432,10 +656,13 @@ async fn run_batch_impl(
             }
 
             if !regular_calls.is_empty() {
-                let (sent, tx_count) =
+                let (sent, tx_count) = if use_send_message_multicall {
                     send_message_batch_via_multicall(&api, send_message_multicall, &regular_calls)
-                        .await?;
-                multicall_tx_count = tx_count;
+                        .await?
+                } else {
+                    send_message_batch_direct(&api, &regular_calls).await?
+                };
+                regular_tx_count = tx_count;
 
                 for (call_id, to, message_id) in sent {
                     messages.insert(message_id, (to, call_id));
@@ -444,8 +671,9 @@ async fn run_batch_impl(
                 }
             }
 
-            let dispatched_txs = injected_tx_count.saturating_add(multicall_tx_count);
-            let wait_for_event_blocks = blocks_window(dispatched_txs, 1, 6);
+            let dispatched_txs = injected_tx_count.saturating_add(regular_tx_count);
+            let wait_for_event_blocks =
+                send_message_wait_window(dispatched_txs, use_send_message_multicall);
             process_events(
                 api,
                 messages,
@@ -473,13 +701,18 @@ async fn run_batch_impl(
                 tracing::trace!(call_id, %mid, "Value claimed");
             }
 
-            Ok(Report {
-                mailbox_data: MailboxReport {
-                    removed: BTreeSet::from_iter(removed_from_mailbox),
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
+            let mut context_update = ContextUpdate::default();
+            for mid in removed_from_mailbox {
+                if let Some(actor_id) = mid_map.read().await.get(&mid).copied() {
+                    context_update.remove_mailbox_message(actor_id, mid);
+                    context_update.remove_pending_value_claim(actor_id, mid);
+                    context_update
+                        .stats_mut(actor_id)
+                        .increment_claims_succeeded();
+                }
+            }
+
+            Ok(BatchReport { context_update })
         }
 
         Batch::SendReply(args) => {
@@ -507,25 +740,29 @@ async fn run_batch_impl(
 
             let blocks_per_action = 1;
             let wait_for_event_blocks = blocks_window(args.len(), blocks_per_action, 6);
-            process_events(
+            let event_mid_map = mid_map.clone();
+            let mut report = process_events(
                 api,
                 messages,
                 rx,
                 block_number,
-                mid_map,
+                event_mid_map,
                 wait_for_event_blocks,
                 BTreeMap::new(),
             )
-            .await
-            .map(|mut report| {
-                report.mailbox_data.append_removed(removed_from_mailbox);
-                report
-            })
+            .await?;
+
+            for mid in removed_from_mailbox {
+                if let Some(actor_id) = mid_map.read().await.get(&mid).copied() {
+                    report.context_update.remove_mailbox_message(actor_id, mid);
+                }
+            }
+
+            Ok(report)
         }
 
         Batch::CreateProgram(args) => {
             tracing::info!(programs = args.len(), "Creating programs");
-            let mut programs = BTreeSet::new();
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
 
@@ -548,15 +785,16 @@ async fn run_batch_impl(
                 create_program_batch_via_multicall(&api, send_message_multicall, &upload_calls)
                     .await?;
 
+            let mut created_programs = Vec::with_capacity(upload_calls.len());
             for (call_id, program_id, message_id) in created {
-                programs.insert(program_id);
                 mid_map.write().await.insert(message_id, program_id);
                 messages.insert(message_id, (program_id, call_id));
+                created_programs.push((call_id, program_id, message_id));
                 tracing::trace!(call_id, %program_id, %message_id, "Program created");
             }
 
             let wait_for_event_blocks = blocks_window(tx_count, 1, 6);
-            process_events(
+            let mut report = process_events(
                 api,
                 messages,
                 rx,
@@ -565,11 +803,28 @@ async fn run_batch_impl(
                 wait_for_event_blocks,
                 BTreeMap::new(),
             )
-            .await
+            .await?;
+
+            for (call_id, program_id, message_id) in created_programs {
+                let code_id = upload_calls[call_id].1;
+                report
+                    .context_update
+                    .set_program_code_id(program_id, code_id);
+                report
+                    .context_update
+                    .upsert_message_owner(message_id, program_id);
+            }
+
+            Ok(report)
         }
     }
 }
 
+/// Sends a batch of `send_message` calls through the multicall helper.
+///
+/// Calls are automatically chunked so the encoded calldata stays under
+/// [`MAX_MULTICALL_CALLDATA_BYTES`]. The returned `usize` is the number of
+/// Ethereum transactions used to submit the whole batch.
 async fn send_message_batch_via_multicall(
     api: &Ethereum,
     multicall_address: Address,
@@ -701,6 +956,26 @@ async fn send_message_batch_via_multicall(
     );
 
     Ok((mapped, tx_count))
+}
+
+async fn send_message_batch_direct(
+    api: &Ethereum,
+    calls: &[(usize, ActorId, Vec<u8>, u128)],
+) -> Result<(Vec<(usize, ActorId, MessageId)>, usize)> {
+    let mut mapped = Vec::with_capacity(calls.len());
+
+    for (call_id, to, payload, value) in calls {
+        let (_, message_id) = api.mirror(*to).send_message(payload, *value).await?;
+        mapped.push((*call_id, *to, message_id));
+    }
+
+    tracing::info!(
+        calls = calls.len(),
+        txs = calls.len(),
+        "send_message direct send complete"
+    );
+
+    Ok((mapped, calls.len()))
 }
 
 type Call = (usize, CodeId, H256, Vec<u8>, u128, u128);
@@ -856,21 +1131,31 @@ async fn create_program_batch_via_multicall(
     Ok((mapped, tx_count))
 }
 
+/// Estimates how many future blocks should be scanned for outcomes of a batch.
 fn blocks_window(action_count: usize, blocks_per_action: usize, headroom_blocks: usize) -> usize {
     action_count
         .saturating_mul(blocks_per_action)
         .saturating_add(headroom_blocks)
 }
 
+fn send_message_wait_window(action_count: usize, use_send_message_multicall: bool) -> usize {
+    if use_send_message_multicall {
+        blocks_window(action_count, 1, 6)
+    } else {
+        blocks_window(action_count, 2, 12)
+    }
+}
+
+/// Parses `Router.commitBatch` transactions for the given block and extracts
+/// mailbox, exit, and reply outcome information relevant to the tracked batch.
 #[allow(clippy::too_many_arguments)]
 async fn parse_router_transitions(
     api: &Ethereum,
     current_bn: FixedBytes<32>,
     to: Address,
     sent_message_ids: &BTreeSet<MessageId>,
+    context_update: &mut ContextUpdate,
     mid_map: &MidMap,
-    mailbox_added: &mut BTreeSet<MessageId>,
-    exited_programs: &mut BTreeSet<ActorId>,
     transition_outcomes: &mut BTreeMap<MessageId, Option<String>>,
 ) -> Result<()> {
     let full_block = api
@@ -896,39 +1181,61 @@ async fn parse_router_transitions(
                         for commitment in batch.chainCommitment.iter() {
                             for tr in commitment.transitions.iter() {
                                 let actor_id: ActorId = EthexeAddress::from(tr.actorId).into();
-
-                                if tr.exited && exited_programs.insert(actor_id) {
+                                if tr.exited {
                                     tracing::debug!(program = %actor_id, "Program exited");
                                 }
 
+                                let value_claim_ids: Vec<_> = tr
+                                    .valueClaims
+                                    .iter()
+                                    .map(|vc| MessageId::new(vc.messageId.0))
+                                    .collect();
+
+                                let transitioned_messages: Vec<_> = tr
+                                    .messages
+                                    .iter()
+                                    .map(|msg| {
+                                        let msg_id = MessageId::new(msg.id.0);
+                                        let replied_to = (msg.replyDetails.to.0 != [0u8; 32])
+                                            .then(|| MessageId::new(msg.replyDetails.to.0));
+
+                                        TransitionedMessage {
+                                            id: msg_id,
+                                            destination_is_mailbox: msg.destination == to,
+                                            replied_to,
+                                        }
+                                    })
+                                    .collect();
+
                                 {
                                     let mut lock = mid_map.write().await;
-                                    for vc in tr.valueClaims.iter() {
-                                        lock.insert(MessageId::new(vc.messageId.0), actor_id);
+                                    for message_id in value_claim_ids.iter().copied() {
+                                        lock.insert(message_id, actor_id);
                                     }
-                                }
-
-                                for msg in tr.messages.iter() {
-                                    let msg_id = MessageId::new(msg.id.0);
-
-                                    mid_map.write().await.insert(msg_id, actor_id);
-
-                                    let is_reply = msg.replyDetails.to.0 != [0u8; 32];
-                                    if msg.destination == to {
-                                        mailbox_added.insert(msg_id);
-                                    }
-
-                                    if is_reply {
-                                        let replied_to = MessageId::new(msg.replyDetails.to.0);
-
-                                        {
-                                            let mut lock = mid_map.write().await;
+                                    for message in &transitioned_messages {
+                                        lock.insert(message.id, actor_id);
+                                        if let Some(replied_to) = message.replied_to {
                                             lock.insert(replied_to, actor_id);
                                             lock.insert(
                                                 MessageId::generate_reply(replied_to),
                                                 actor_id,
                                             );
                                         }
+                                    }
+                                }
+
+                                apply_router_transition_update(
+                                    context_update,
+                                    actor_id,
+                                    tr.exited,
+                                    value_claim_ids,
+                                    transitioned_messages.iter().cloned(),
+                                );
+
+                                for msg in tr.messages.iter() {
+                                    let is_reply = msg.replyDetails.to.0 != [0u8; 32];
+                                    if is_reply {
+                                        let replied_to = MessageId::new(msg.replyDetails.to.0);
 
                                         if sent_message_ids.contains(&replied_to) {
                                             let reply_code =
@@ -981,11 +1288,14 @@ async fn parse_router_transitions(
     Ok(())
 }
 
+/// Parses mirror contract logs for one block and updates the message-to-program
+/// map used by reply and claim handling.
 async fn parse_mirror_logs(
     api: &Ethereum,
     current_bn: FixedBytes<32>,
     mid_map: &MidMap,
     events: &mut Vec<Event>,
+    context_update: &mut ContextUpdate,
 ) -> Result<()> {
     let logs = api
         .provider()
@@ -1025,6 +1335,7 @@ async fn parse_mirror_logs(
                 }
             }
 
+            apply_mirror_event_update(context_update, &event);
             events.push(event);
         }
     }
@@ -1032,6 +1343,8 @@ async fn parse_mirror_logs(
     Ok(())
 }
 
+/// Receives the next header from the broadcast channel, transparently skipping
+/// over lagged items.
 async fn recv_next_header<T: Clone>(rx: &mut Receiver<T>) -> Result<T> {
     loop {
         match rx.recv().await {
@@ -1050,6 +1363,9 @@ async fn recv_next_header<T: Clone>(rx: &mut Receiver<T>) -> Result<T> {
 /// Wait for the new events since provided `block_number`.
 /// For injected transactions with promises, uses the promise data directly.
 /// For regular transactions, parses Router and Mirror events.
+///
+/// The resulting [`BatchReport`] captures new codes, programs, mailbox mutations,
+/// exits, and reply outcomes for the batch that was just submitted.
 async fn process_events(
     api: Ethereum,
     mut messages: BTreeMap<MessageId, (ActorId, usize)>,
@@ -1058,9 +1374,8 @@ async fn process_events(
     mid_map: MidMap,
     wait_for_event_blocks: usize,
     injected_promises: BTreeMap<MessageId, Promise>,
-) -> Result<Report> {
-    let mut mailbox_added = BTreeSet::new();
-    let mut exited_programs = BTreeSet::new();
+) -> Result<BatchReport> {
+    let mut context_update = ContextUpdate::default();
     let initial_messages_len = messages.len();
     let injected_count = injected_promises.len();
 
@@ -1074,6 +1389,10 @@ async fn process_events(
             Some(String::from_utf8_lossy(&promise.reply.payload).to_string())
         };
         results.insert(mid, status);
+
+        if let Some((actor_id, _)) = messages.get(&mid).copied() {
+            context_update.upsert_message_owner(mid, actor_id);
+        }
         messages.remove(&mid);
     }
 
@@ -1102,14 +1421,13 @@ async fn process_events(
                 current_bn,
                 to,
                 &sent_message_ids,
+                &mut context_update,
                 &mid_map,
-                &mut mailbox_added,
-                &mut exited_programs,
                 &mut transition_outcomes,
             )
             .await?;
 
-            parse_mirror_logs(&api, current_bn, &mid_map, &mut v).await?;
+            parse_mirror_logs(&api, current_bn, &mid_map, &mut v, &mut context_update).await?;
 
             block = recv_next_header(&mut rx).await?;
             current_bn = block.hash();
@@ -1150,16 +1468,19 @@ async fn process_events(
         }
     }
 
-    let mut program_ids = BTreeSet::new();
     for (mid, maybe_err) in &results {
         if let Some((pid, call_id)) = messages.remove(mid) {
+            context_update.upsert_message_owner(*mid, pid);
             if let Some(expl) = maybe_err {
                 tracing::debug!(call_id, %pid, %mid, error = %expl, "Call failed");
             } else {
                 tracing::debug!(call_id, %pid, %mid, "Call succeeded");
-                program_ids.insert(pid);
             }
         }
+    }
+
+    for (mid, (pid, _)) in &messages {
+        context_update.upsert_message_owner(*mid, *pid);
     }
 
     if !messages.is_empty() {
@@ -1175,10 +1496,189 @@ async fn process_events(
         "Batch results"
     );
 
-    Ok(Report {
-        program_ids,
-        mailbox_data: mailbox_added.into(),
-        exited_programs,
-        ..Default::default()
-    })
+    Ok(BatchReport { context_update })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Event, TransitionedMessage, apply_mirror_event_update, apply_router_transition_update,
+        send_message_wait_window,
+    };
+    use crate::batch::context::ContextUpdate;
+    use ethexe_common::events::{
+        MirrorEvent,
+        mirror::{
+            ExecutableBalanceTopUpRequestedEvent, OwnedBalanceTopUpRequestedEvent,
+            ReplyCallFailedEvent, ReplyEvent, StateChangedEvent, ValueClaimFailedEvent,
+            ValueClaimedEvent, ValueClaimingRequestedEvent,
+        },
+    };
+    use gear_core::{ids::prelude::MessageIdExt, message::ReplyCode};
+    use gprimitives::{ActorId, H256, MessageId};
+
+    fn actor(seed: u8) -> ActorId {
+        ActorId::from([seed; 32])
+    }
+
+    fn message(seed: u8) -> MessageId {
+        MessageId::from([seed; 32])
+    }
+
+    fn hash(seed: u8) -> H256 {
+        H256::from([seed; 32])
+    }
+
+    #[test]
+    fn mirror_event_updates_mailbox_claims_and_state() {
+        let actor_id = actor(1);
+        let mid = message(2);
+
+        let mut update = ContextUpdate::default();
+
+        apply_mirror_event_update(
+            &mut update,
+            &Event {
+                actor_id,
+                event: MirrorEvent::ValueClaimingRequested(ValueClaimingRequestedEvent {
+                    claimed_id: mid,
+                    source: actor(9),
+                }),
+            },
+        );
+        apply_mirror_event_update(
+            &mut update,
+            &Event {
+                actor_id,
+                event: MirrorEvent::ValueClaimed(ValueClaimedEvent {
+                    claimed_id: mid,
+                    value: 0,
+                }),
+            },
+        );
+        apply_mirror_event_update(
+            &mut update,
+            &Event {
+                actor_id,
+                event: MirrorEvent::StateChanged(StateChangedEvent {
+                    state_hash: hash(3),
+                }),
+            },
+        );
+        apply_mirror_event_update(
+            &mut update,
+            &Event {
+                actor_id,
+                event: MirrorEvent::ExecutableBalanceTopUpRequested(
+                    ExecutableBalanceTopUpRequestedEvent { value: 10 },
+                ),
+            },
+        );
+        apply_mirror_event_update(
+            &mut update,
+            &Event {
+                actor_id,
+                event: MirrorEvent::OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequestedEvent {
+                    value: 11,
+                }),
+            },
+        );
+        apply_mirror_event_update(
+            &mut update,
+            &Event {
+                actor_id,
+                event: MirrorEvent::ValueClaimFailed(ValueClaimFailedEvent {
+                    claimed_id: mid,
+                    value: 0,
+                }),
+            },
+        );
+
+        let program = update.programs.get(&actor_id).expect("program update");
+        assert!(program.pending_value_claims_removed.contains(&mid));
+        assert_eq!(program.last_state_hash, Some(hash(3)));
+        assert_eq!(program.stats_delta.claims_requested, 1);
+        assert_eq!(program.stats_delta.claims_succeeded, 1);
+        assert_eq!(program.stats_delta.claims_failed, 1);
+        assert_eq!(program.stats_delta.state_changes, 1);
+        assert_eq!(program.stats_delta.executable_topups, 1);
+        assert_eq!(program.stats_delta.owned_topups, 1);
+    }
+
+    #[test]
+    fn mirror_reply_events_register_message_owners_and_failures() {
+        let actor_id = actor(4);
+        let replied_to = message(5);
+
+        let mut update = ContextUpdate::default();
+        apply_mirror_event_update(
+            &mut update,
+            &Event {
+                actor_id,
+                event: MirrorEvent::Reply(ReplyEvent {
+                    payload: b"ok".to_vec(),
+                    value: 0,
+                    reply_to: replied_to,
+                    reply_code: ReplyCode::Unsupported,
+                }),
+            },
+        );
+        apply_mirror_event_update(
+            &mut update,
+            &Event {
+                actor_id,
+                event: MirrorEvent::ReplyCallFailed(ReplyCallFailedEvent {
+                    value: 0,
+                    reply_to: replied_to,
+                    reply_code: ReplyCode::Unsupported,
+                }),
+            },
+        );
+
+        assert_eq!(update.message_owners.get(&replied_to), Some(&actor_id));
+        assert_eq!(
+            update
+                .message_owners
+                .get(&MessageId::generate_reply(replied_to)),
+            Some(&actor_id)
+        );
+        let stats = &update.programs.get(&actor_id).expect("stats").stats_delta;
+        assert_eq!(stats.replies, 2);
+        assert_eq!(stats.failures, 1);
+    }
+
+    #[test]
+    fn router_transition_marks_exit_and_mailbox_entries() {
+        let actor_id = actor(6);
+        let mailbox_mid = message(7);
+        let claim_mid = message(8);
+        let replied_to = message(9);
+
+        let mut update = ContextUpdate::default();
+        apply_router_transition_update(
+            &mut update,
+            actor_id,
+            true,
+            [claim_mid],
+            [TransitionedMessage {
+                id: mailbox_mid,
+                destination_is_mailbox: true,
+                replied_to: Some(replied_to),
+            }],
+        );
+
+        let program = update.programs.get(&actor_id).expect("program update");
+        assert_eq!(program.exited, Some(true));
+        assert!(program.mailbox_added.contains(&mailbox_mid));
+        assert_eq!(program.stats_delta.mailbox_additions, 1);
+        assert_eq!(update.message_owners.get(&claim_mid), Some(&actor_id));
+        assert_eq!(update.message_owners.get(&mailbox_mid), Some(&actor_id));
+        assert_eq!(update.message_owners.get(&replied_to), Some(&actor_id));
+    }
+
+    #[test]
+    fn direct_send_mode_waits_longer_for_events() {
+        assert_eq!(send_message_wait_window(3, true), 9);
+        assert_eq!(send_message_wait_window(3, false), 18);
+    }
 }

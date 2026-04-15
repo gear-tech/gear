@@ -31,180 +31,432 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     limited::LimitedVec,
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
 use itertools::Itertools;
+use proptest::{
+    arbitrary::Arbitrary,
+    collection,
+    prelude::{BoxedStrategy, Strategy, any},
+    strategy::{Just, ValueTree},
+    test_runner::TestRunner,
+};
 use std::collections::{BTreeSet, VecDeque};
 pub use tap::Tap;
 
-// TODO #4881: use `proptest::Arbitrary` instead
+fn arbitrary_value<T>(args: T::Parameters) -> T
+where
+    T: Arbitrary + 'static,
+{
+    T::arbitrary_with(args)
+        .new_tree(&mut TestRunner::default())
+        .expect("mock strategy must produce a value")
+        .current()
+}
+
 pub trait Mock<Args = ()> {
     fn mock(args: Args) -> Self;
 }
 
-impl Mock<H256> for SimpleBlockData {
-    fn mock(parent_hash: H256) -> Self {
-        SimpleBlockData {
-            hash: H256::random(),
-            header: BlockHeader::mock(parent_hash),
+impl<T, Args> Mock<Args> for T
+where
+    T: Arbitrary + 'static,
+    Args: Into<T::Parameters>,
+{
+    fn mock(args: Args) -> Self {
+        arbitrary_value::<T>(args.into())
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct BlockHeaderParams {
+    parent_hash: Option<H256>,
+}
+
+impl From<()> for BlockHeaderParams {
+    fn from((): ()) -> Self {
+        Self::default()
+    }
+}
+
+impl From<H256> for BlockHeaderParams {
+    fn from(parent_hash: H256) -> Self {
+        Self {
+            parent_hash: Some(parent_hash),
         }
     }
 }
 
-impl Mock<()> for SimpleBlockData {
-    fn mock(_args: ()) -> Self {
-        SimpleBlockData::mock(H256::random())
+#[derive(Debug, Clone, Copy, Default)]
+pub struct AnnounceParams {
+    block_hash: Option<H256>,
+    parent: Option<HashOf<Announce>>,
+}
+
+impl From<()> for AnnounceParams {
+    fn from((): ()) -> Self {
+        Self::default()
     }
 }
 
-impl Mock<H256> for BlockHeader {
-    fn mock(parent_hash: H256) -> Self {
+impl From<H256> for AnnounceParams {
+    fn from(block_hash: H256) -> Self {
         Self {
-            height: 43,
-            timestamp: 120,
-            parent_hash,
+            block_hash: Some(block_hash),
+            parent: None,
         }
     }
 }
 
-impl Mock<()> for BlockHeader {
-    fn mock(_args: ()) -> Self {
-        Self::mock(H256::random())
+impl From<(H256, HashOf<Announce>)> for AnnounceParams {
+    fn from((block_hash, parent): (H256, HashOf<Announce>)) -> Self {
+        Self {
+            block_hash: Some(block_hash),
+            parent: Some(parent),
+        }
     }
 }
 
-impl Mock<()> for ProtocolTimelines {
-    fn mock(_args: ()) -> Self {
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ChainCommitmentParams {
+    head_announce: Option<HashOf<Announce>>,
+}
+
+impl From<()> for ChainCommitmentParams {
+    fn from((): ()) -> Self {
+        Self::default()
+    }
+}
+
+impl From<HashOf<Announce>> for ChainCommitmentParams {
+    fn from(head_announce: HashOf<Announce>) -> Self {
         Self {
+            head_announce: Some(head_announce),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BlockChainParams {
+    len: u32,
+    validators: ValidatorsVec,
+}
+
+impl From<u32> for BlockChainParams {
+    fn from(len: u32) -> Self {
+        Self {
+            len,
+            validators: Default::default(),
+        }
+    }
+}
+
+impl From<(u32, ValidatorsVec)> for BlockChainParams {
+    fn from((len, validators): (u32, ValidatorsVec)) -> Self {
+        Self { len, validators }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AddressedInjectedTransactionParams {
+    signer: Option<PrivateKey>,
+}
+
+impl From<()> for AddressedInjectedTransactionParams {
+    fn from((): ()) -> Self {
+        Self::default()
+    }
+}
+
+impl From<PrivateKey> for AddressedInjectedTransactionParams {
+    fn from(signer: PrivateKey) -> Self {
+        Self {
+            signer: Some(signer),
+        }
+    }
+}
+
+fn h256_strategy() -> BoxedStrategy<H256> {
+    any::<[u8; 32]>().prop_map(Into::into).boxed()
+}
+
+fn digest_strategy() -> BoxedStrategy<Digest> {
+    any::<[u8; 32]>().prop_map(Digest).boxed()
+}
+
+fn address_strategy() -> BoxedStrategy<Address> {
+    any::<[u8; 20]>().prop_map(Address).boxed()
+}
+
+fn actor_id_strategy() -> BoxedStrategy<ActorId> {
+    h256_strategy().prop_map(Into::into).boxed()
+}
+
+fn code_id_strategy() -> BoxedStrategy<CodeId> {
+    h256_strategy().prop_map(Into::into).boxed()
+}
+
+fn message_id_strategy() -> BoxedStrategy<MessageId> {
+    h256_strategy().prop_map(Into::into).boxed()
+}
+
+fn hash_of_strategy<T: 'static>() -> BoxedStrategy<HashOf<T>> {
+    h256_strategy()
+        .prop_map(|hash| unsafe { HashOf::new(hash) })
+        .boxed()
+}
+
+fn private_key_strategy() -> BoxedStrategy<PrivateKey> {
+    any::<[u8; 32]>()
+        .prop_filter_map("valid secp256k1 private key", |seed| {
+            PrivateKey::from_seed(seed).ok()
+        })
+        .boxed()
+}
+
+fn limited_bytes_strategy<const N: usize>(
+    range: impl Into<collection::SizeRange>,
+) -> BoxedStrategy<LimitedVec<u8, N>> {
+    collection::vec(any::<u8>(), range)
+        .prop_map(|bytes| {
+            LimitedVec::try_from(bytes).expect("strategy range must fit within LimitedVec bound")
+        })
+        .boxed()
+}
+
+impl Arbitrary for SimpleBlockData {
+    type Parameters = BlockHeaderParams;
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
+        (h256_strategy(), BlockHeader::arbitrary_with(args))
+            .prop_map(|(hash, header)| Self { hash, header })
+            .boxed()
+    }
+}
+
+impl Arbitrary for BlockHeader {
+    type Parameters = BlockHeaderParams;
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
+        let parent_hash = match args.parent_hash {
+            Some(parent_hash) => Just(parent_hash).boxed(),
+            None => h256_strategy(),
+        };
+
+        parent_hash
+            .prop_map(|parent_hash| Self {
+                height: 43,
+                timestamp: 120,
+                parent_hash,
+            })
+            .boxed()
+    }
+}
+
+impl Arbitrary for ProtocolTimelines {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        Just(Self {
             genesis_ts: 0,
             era: 1000,
             election: 200,
             slot: 10,
-        }
+        })
+        .boxed()
     }
 }
 
-impl Mock<(H256, HashOf<Announce>)> for Announce {
-    fn mock((block_hash, parent): (H256, HashOf<Announce>)) -> Self {
-        Announce {
-            block_hash,
-            parent,
-            gas_allowance: Some(100),
-            injected_transactions: vec![],
-        }
+impl Arbitrary for Announce {
+    type Parameters = AnnounceParams;
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
+        let block_hash = match args.block_hash {
+            Some(block_hash) => Just(block_hash).boxed(),
+            None => h256_strategy(),
+        };
+        let parent = match args.parent {
+            Some(parent) => Just(parent).boxed(),
+            None => hash_of_strategy(),
+        };
+
+        (block_hash, parent)
+            .prop_map(|(block_hash, parent)| Self {
+                block_hash,
+                parent,
+                gas_allowance: Some(100),
+                injected_transactions: vec![],
+            })
+            .boxed()
     }
 }
 
-impl Mock<H256> for Announce {
-    fn mock(block_hash: H256) -> Self {
-        Announce::mock((block_hash, HashOf::random()))
+impl Arbitrary for CodeCommitment {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        code_id_strategy()
+            .prop_map(|id| Self { id, valid: true })
+            .boxed()
     }
 }
 
-impl Mock<()> for Announce {
-    fn mock(_args: ()) -> Self {
-        Announce::mock(H256::random())
-    }
-}
+impl Arbitrary for ChainCommitment {
+    type Parameters = ChainCommitmentParams;
+    type Strategy = BoxedStrategy<Self>;
 
-impl Mock<()> for CodeCommitment {
-    fn mock(_args: ()) -> Self {
-        CodeCommitment {
-            id: H256::random().into(),
-            valid: true,
-        }
-    }
-}
+    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
+        let head_announce = match args.head_announce {
+            Some(head_announce) => Just(head_announce).boxed(),
+            None => hash_of_strategy(),
+        };
 
-impl Mock<HashOf<Announce>> for ChainCommitment {
-    fn mock(head_announce: HashOf<Announce>) -> Self {
-        ChainCommitment {
-            transitions: vec![StateTransition::mock(()), StateTransition::mock(())],
+        (
+            StateTransition::arbitrary_with(()),
+            StateTransition::arbitrary_with(()),
             head_announce,
-        }
+        )
+            .prop_map(|(first, second, head_announce)| Self {
+                transitions: vec![first, second],
+                head_announce,
+            })
+            .boxed()
     }
 }
 
-impl Mock<()> for ChainCommitment {
-    fn mock(_args: ()) -> Self {
-        ChainCommitment::mock(HashOf::random())
+impl Arbitrary for BatchCommitment {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (
+            h256_strategy(),
+            digest_strategy(),
+            ChainCommitment::arbitrary_with(().into()),
+            CodeCommitment::arbitrary_with(()),
+            CodeCommitment::arbitrary_with(()),
+        )
+            .prop_map(
+                |(
+                    block_hash,
+                    previous_batch,
+                    chain_commitment,
+                    code_commitment_1,
+                    code_commitment_2,
+                )| Self {
+                    block_hash,
+                    timestamp: 42,
+                    previous_batch,
+                    expiry: 10,
+                    chain_commitment: Some(chain_commitment),
+                    code_commitments: vec![code_commitment_1, code_commitment_2],
+                    validators_commitment: None,
+                    rewards_commitment: None,
+                },
+            )
+            .boxed()
     }
 }
 
-impl Mock<()> for BatchCommitment {
-    fn mock(_args: ()) -> Self {
-        BatchCommitment {
-            block_hash: H256::random(),
-            timestamp: 42,
-            previous_batch: Digest::random(),
-            expiry: 10,
-            chain_commitment: Some(ChainCommitment::mock(HashOf::random())),
-            code_commitments: vec![CodeCommitment::mock(()), CodeCommitment::mock(())],
-            validators_commitment: None,
-            rewards_commitment: None,
-        }
+impl Arbitrary for BatchCommitmentValidationRequest {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (
+            digest_strategy(),
+            hash_of_strategy::<Announce>(),
+            code_id_strategy(),
+            code_id_strategy(),
+        )
+            .prop_map(|(digest, head, code_1, code_2)| Self {
+                digest,
+                head: Some(head),
+                codes: vec![code_1, code_2],
+                validators: false,
+                rewards: false,
+            })
+            .boxed()
     }
 }
 
-impl Mock<()> for BatchCommitmentValidationRequest {
-    fn mock(_args: ()) -> Self {
-        BatchCommitmentValidationRequest {
-            digest: H256::random().0.into(),
-            head: Some(HashOf::random()),
-            codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
-            validators: false,
-            rewards: false,
-        }
+impl Arbitrary for StateTransition {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (
+            actor_id_strategy(),
+            h256_strategy(),
+            actor_id_strategy(),
+            message_id_strategy(),
+            actor_id_strategy(),
+        )
+            .prop_map(
+                |(actor_id, new_state_hash, inheritor, message_id, destination)| Self {
+                    actor_id,
+                    new_state_hash,
+                    exited: false,
+                    inheritor,
+                    value_to_receive: 123,
+                    value_to_receive_negative_sign: false,
+                    value_claims: vec![],
+                    messages: vec![Message {
+                        id: message_id,
+                        destination,
+                        payload: b"Hello, World!".to_vec(),
+                        value: 0,
+                        reply_details: None,
+                        call: false,
+                    }],
+                },
+            )
+            .boxed()
     }
 }
 
-impl Mock<()> for StateTransition {
-    fn mock(_args: ()) -> Self {
-        StateTransition {
-            actor_id: H256::random().into(),
-            new_state_hash: H256::random(),
-            inheritor: H256::random().into(),
-            value_to_receive: 123,
-            value_to_receive_negative_sign: false,
-            value_claims: vec![],
-            messages: vec![Message {
-                id: H256::random().into(),
-                destination: H256::random().into(),
-                payload: b"Hello, World!".to_vec(),
+impl Arbitrary for InjectedTransaction {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        limited_bytes_strategy::<32>(32..=32)
+            .prop_map(|salt| Self {
+                destination: Default::default(),
+                payload: LimitedVec::new(),
                 value: 0,
-                reply_details: None,
-                call: false,
-            }],
-            exited: false,
-        }
+                reference_block: Default::default(),
+                salt,
+            })
+            .boxed()
     }
 }
 
-impl Mock<()> for InjectedTransaction {
-    fn mock((): ()) -> Self {
-        Self {
-            destination: Default::default(),
-            payload: LimitedVec::new(),
-            value: 0,
-            reference_block: Default::default(),
-            salt: LimitedVec::try_from(H256::random().as_bytes())
-                .expect("`H256` is small enough for a salt"),
-        }
-    }
-}
+impl Arbitrary for AddressedInjectedTransaction {
+    type Parameters = AddressedInjectedTransactionParams;
+    type Strategy = BoxedStrategy<Self>;
 
-impl Mock<PrivateKey> for AddressedInjectedTransaction {
-    fn mock(pk: PrivateKey) -> Self {
-        AddressedInjectedTransaction {
-            recipient: Default::default(),
-            tx: SignedMessage::create(pk, InjectedTransaction::mock(()))
-                .expect("Signing injected transaction will succeed"),
-        }
-    }
-}
+    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
+        let signer = match args.signer {
+            Some(signer) => Just(signer).boxed(),
+            None => private_key_strategy(),
+        };
 
-impl Mock<()> for AddressedInjectedTransaction {
-    fn mock(_args: ()) -> Self {
-        AddressedInjectedTransaction::mock(PrivateKey::random())
+        (
+            address_strategy(),
+            signer,
+            InjectedTransaction::arbitrary_with(()),
+        )
+            .prop_map(|(recipient, signer, tx)| Self {
+                recipient,
+                tx: SignedMessage::create(signer, tx)
+                    .expect("signing injected transaction must succeed"),
+            })
+            .boxed()
     }
 }
 
@@ -476,11 +728,9 @@ impl BlockChain {
 
         self
     }
-}
 
-impl Mock<(u32, ValidatorsVec)> for BlockChain {
-    /// `len` - length of chain not counting genesis block
-    fn mock((len, validators): (u32, ValidatorsVec)) -> Self {
+    fn with_params(params: BlockChainParams, router_address: Address) -> Self {
+        let BlockChainParams { len, validators } = params;
         let slot = 10;
         let genesis_height = 1_000_000;
         let genesis_ts = 1_000_000;
@@ -559,7 +809,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
         let config = DBConfig {
             version: 0,
             chain_id: 0,
-            router_address: Address(<[u8; 20]>::try_from(&H256::random()[..20]).unwrap()),
+            router_address,
             timelines: ProtocolTimelines {
                 genesis_ts: genesis_ts as u64,
                 era: slot * 100,
@@ -578,7 +828,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             latest_computed_announce_hash: parent_announce_hash,
         };
 
-        BlockChain {
+        Self {
             blocks,
             announces,
             codes: Default::default(),
@@ -589,10 +839,14 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
     }
 }
 
-impl Mock<u32> for BlockChain {
-    /// `len` - length of chain not counting genesis block
-    fn mock(len: u32) -> Self {
-        BlockChain::mock((len, Default::default()))
+impl Arbitrary for BlockChain {
+    type Parameters = BlockChainParams;
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
+        address_strategy()
+            .prop_map(move |router_address| Self::with_params(args.clone(), router_address))
+            .boxed()
     }
 }
 
@@ -657,27 +911,71 @@ impl BlockData {
     }
 }
 
-impl Mock<()> for DBConfig {
-    fn mock(_args: ()) -> Self {
-        DBConfig {
-            version: 0,
-            chain_id: 0,
-            router_address: Address::default(),
-            timelines: ProtocolTimelines::mock(()),
-            genesis_block_hash: H256::random(),
-            genesis_announce_hash: HashOf::random(),
-        }
+impl Arbitrary for DBConfig {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (
+            ProtocolTimelines::arbitrary_with(()),
+            h256_strategy(),
+            hash_of_strategy::<Announce>(),
+        )
+            .prop_map(
+                |(timelines, genesis_block_hash, genesis_announce_hash)| Self {
+                    version: 0,
+                    chain_id: 0,
+                    router_address: Address::default(),
+                    timelines,
+                    genesis_block_hash,
+                    genesis_announce_hash,
+                },
+            )
+            .boxed()
     }
 }
 
-impl Mock<()> for DBGlobals {
-    fn mock(_args: ()) -> Self {
-        DBGlobals {
-            start_block_hash: H256::random(),
-            start_announce_hash: HashOf::random(),
-            latest_synced_block: SimpleBlockData::mock(()),
-            latest_prepared_block_hash: H256::random(),
-            latest_computed_announce_hash: HashOf::random(),
-        }
+impl Arbitrary for DBGlobals {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (
+            h256_strategy(),
+            hash_of_strategy::<Announce>(),
+            SimpleBlockData::arbitrary_with(().into()),
+            h256_strategy(),
+            hash_of_strategy::<Announce>(),
+        )
+            .prop_map(
+                |(
+                    start_block_hash,
+                    start_announce_hash,
+                    latest_synced_block,
+                    latest_prepared_block_hash,
+                    latest_computed_announce_hash,
+                )| Self {
+                    start_block_hash,
+                    start_announce_hash,
+                    latest_synced_block,
+                    latest_prepared_block_hash,
+                    latest_computed_announce_hash,
+                },
+            )
+            .boxed()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn addressed_injected_transaction_mock_produces_distinct_hashes() {
+        let tx_hashes: std::collections::BTreeSet<_> = (0..8)
+            .map(|_| AddressedInjectedTransaction::mock(()).tx.data().to_hash())
+            .collect();
+
+        assert_eq!(tx_hashes.len(), 8);
     }
 }
