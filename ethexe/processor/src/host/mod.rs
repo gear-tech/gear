@@ -173,27 +173,24 @@ impl InstanceWrapper {
         ctx: ProcessQueueContext,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<(ProgramJournals, H256, u64)> {
-        threads::set(db, ctx.state_root, promise_out_tx.clone());
+        threads::set(db, ctx.state_root);
+        self.with_promise_out_tx(promise_out_tx, |instance_wrapper| {
+            // Pieces of resulting journal. Hack to avoid single allocation limit.
+            let (ptr_lens, gas_spent): (Vec<i64>, i64) =
+                instance_wrapper.call("run", ctx.encode())?;
 
-        // Cleanup the `promise_out_tx` from thread-local to signal receiver that channel is closed.
-        let _cleanup = scopeguard::guard((), |()| {
-            threads::clear_promise_out_tx();
-        });
+            let mut mega_journal = Vec::with_capacity(ptr_lens.len());
 
-        // Pieces of resulting journal. Hack to avoid single allocation limit.
-        let (ptr_lens, gas_spent): (Vec<i64>, i64) = self.call("run", ctx.encode())?;
+            for ptr_len in ptr_lens {
+                let journal_and_message_type: (Vec<JournalNote>, MessageType, bool) =
+                    instance_wrapper.get_call_output(ptr_len)?;
+                mega_journal.push(journal_and_message_type);
+            }
 
-        let mut mega_journal = Vec::with_capacity(ptr_lens.len());
+            let new_state_hash = threads::with_params(|params| params.state_hash);
 
-        for ptr_len in ptr_lens {
-            let journal_and_message_type: (Vec<JournalNote>, MessageType, bool) =
-                self.get_call_output(ptr_len)?;
-            mega_journal.push(journal_and_message_type);
-        }
-
-        let new_state_hash = threads::with_params(|params| params.state_hash);
-
-        Ok((mega_journal, new_state_hash, gas_spent as u64))
+            Ok((mega_journal, new_state_hash, gas_spent as u64))
+        })
     }
 
     /// Low-level call to exported from the wasm module `name` function.
@@ -217,6 +214,17 @@ impl InstanceWrapper {
         self.set_host_state()?;
         let res = f(self);
         let _allocation_stats = self.reset_host_state()?;
+        res
+    }
+
+    fn with_promise_out_tx<T>(
+        &mut self,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        f: impl FnOnce(&mut Self) -> Result<T>,
+    ) -> Result<T> {
+        self.data_mut().promise_out_tx = promise_out_tx;
+        let res = f(self);
+        let _ = self.data_mut().promise_out_tx.take();
         res
     }
 

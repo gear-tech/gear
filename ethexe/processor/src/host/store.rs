@@ -4,7 +4,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use core::ops::Range;
+use ethexe_common::injected::Promise;
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
+use tokio::sync::mpsc;
 use wasmtime::{AsContextMut, Caller, Memory, Table};
 
 fn checked_range(offset: usize, len: usize, max: usize) -> Option<Range<usize>> {
@@ -37,6 +39,7 @@ impl HostState {
 pub(crate) struct StoreData {
     pub(crate) host_state: Option<HostState>,
     pub(crate) memory: Option<Memory>,
+    pub(crate) promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     pub(crate) table: Option<Table>,
 }
 
