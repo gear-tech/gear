@@ -475,20 +475,21 @@ async fn accepts_matching_request_with_mixed_sign_squash() {
         .unwrap();
 
     let chain_commitment = batch.chain_commitment.as_ref().expect("chain commitment");
-    // Squashing preserves first-seen actor order, then re-sorts so non-negative
-    // transitions execute before negative ones on-chain.
+    // Squashing preserves first-seen actor order, then re-sorts so negative
+    // transitions execute before positive ones on-chain. The router must pull
+    // value back from senders before it can fund receivers in the same batch.
     assert_eq!(
         chain_commitment
             .transitions
             .iter()
             .map(|transition| transition.actor_id)
             .collect::<Vec<_>>(),
-        vec![actor_positive, actor_negative]
+        vec![actor_negative, actor_positive]
     );
-    assert_eq!(chain_commitment.transitions[0].value_to_receive, 40);
-    assert!(!chain_commitment.transitions[0].value_to_receive_negative_sign);
-    assert_eq!(chain_commitment.transitions[1].value_to_receive, 50);
-    assert!(chain_commitment.transitions[1].value_to_receive_negative_sign);
+    assert_eq!(chain_commitment.transitions[0].value_to_receive, 50);
+    assert!(chain_commitment.transitions[0].value_to_receive_negative_sign);
+    assert_eq!(chain_commitment.transitions[1].value_to_receive, 40);
+    assert!(!chain_commitment.transitions[1].value_to_receive_negative_sign);
 
     let request = BatchCommitmentValidationRequest::new(&batch);
     let expected_digest = request.digest;

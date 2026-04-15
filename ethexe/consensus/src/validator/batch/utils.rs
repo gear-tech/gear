@@ -260,8 +260,9 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
 /// `new_state_hash`. Messages, value claims, and `value_to_receive` are accumulated
 /// from all transitions. If any transition marks the actor as exited, the resulting
 /// inheritor is taken from the newest exit transition. The returned transitions are
-/// stably re-sorted so non-negative `value_to_receive` entries stay ahead of negative
-/// ones during on-chain execution.
+/// stably re-sorted so negative `value_to_receive` entries run before non-negative
+/// ones during on-chain execution, allowing the router to collect outgoing value
+/// before funding receivers in the same batch.
 pub fn squash_transitions_by_actor(transitions: Vec<StateTransition>) -> Vec<StateTransition> {
     let mut positions = HashMap::new();
     let mut aggregations = Vec::new();
@@ -397,9 +398,9 @@ impl SignedMagnitude {
 }
 
 pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition]) {
-    // `false < true`, so transitions that receive value from the router stay
-    // ahead of transitions that send value back to it.
-    transitions.sort_by_key(|transition| transition.value_to_receive_negative_sign);
+    // `false < true`, so invert the key to keep transitions that return value to
+    // the router ahead of transitions that receive value from it.
+    transitions.sort_by_key(|transition| !transition.value_to_receive_negative_sign);
 }
 
 #[cfg(test)]
