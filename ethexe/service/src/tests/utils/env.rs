@@ -26,7 +26,7 @@ use crate::{
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
-    rpc::types::anvil::MineOptions,
+    rpc::types::anvil::{Metadata, MineOptions},
 };
 use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
@@ -162,13 +162,19 @@ impl TestEnv {
 
                 let anvil = anvil.spawn();
 
+                let provider: RootProvider = ProviderBuilder::default()
+                    .connect(anvil.ws_endpoint().as_str())
+                    .await
+                    .expect("failed to connect to anvil");
+
+                let Metadata {
+                    client_commit_sha, ..
+                } = provider.anvil_metadata().await?;
+
+                Service::check_foundry_toolchain_version(client_commit_sha)?;
+
                 // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
                 if !continuous_block_generation {
-                    let provider: RootProvider = ProviderBuilder::default()
-                        .connect(anvil.ws_endpoint().as_str())
-                        .await
-                        .expect("failed to connect to anvil");
-
                     provider
                         .anvil_set_block_timestamp_interval(block_time.as_secs())
                         .await
