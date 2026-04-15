@@ -195,7 +195,7 @@ impl StateHandler for Initial {
                     missing_announces,
                 )?;
 
-                // Save transacions in database after announce propagation
+                // Save transactions in database after announce propagation
                 transactions.into_iter().flatten().for_each(|tx| {
                     self.ctx.core.db.set_injected_transaction(tx);
                 });
