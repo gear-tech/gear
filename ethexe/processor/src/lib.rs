@@ -152,32 +152,27 @@ impl Processor {
             });
         }
 
-        let res = thread_pool::spawn({
-            let mut instance = self.creator.instantiate()?;
-            let code = code.clone();
-            move || instance.instrument(code)
-        })
-        .await?;
-        let Some((instrumented_code, code_metadata)) = res else {
-            return Ok(ProcessedCodeInfo {
-                code_id,
-                valid: None,
-            });
-        };
-
-        let InstrumentationStatus::Instrumented { .. } = code_metadata.instrumentation_status()
-        else {
-            panic!("Instrumented code returned, but instrumentation status is not Instrumented");
-        };
-
-        Ok(ProcessedCodeInfo {
-            code_id,
-            valid: Some(ValidCodeInfo {
+        let mut instance = self.creator.instantiate()?;
+        let valid = thread_pool::spawn(move || -> Result<_> {
+            let instrumented_code = instance.instrument(&code)?;
+            let info = instrumented_code.map(|(instrumented_code, code_metadata)| ValidCodeInfo {
                 code,
                 instrumented_code,
                 code_metadata,
-            }),
+            });
+            Ok(info)
         })
+        .await?;
+
+        if let Some(valid) = &valid {
+            let status = valid.code_metadata.instrumentation_status();
+            assert!(
+                status.is_instrumented(),
+                "Instrumented code returned, but instrumentation status is not Instrumented: {status:?}"
+            );
+        }
+
+        Ok(ProcessedCodeInfo { code_id, valid })
     }
 
     pub async fn process_programs(
