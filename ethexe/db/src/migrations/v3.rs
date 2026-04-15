@@ -25,7 +25,7 @@ use anyhow::{Context, Result, bail};
 use ethexe_common::db::{BlockMeta, DBConfig};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 pub const VERSION: u32 = 3;
 
@@ -86,17 +86,17 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         } = block_small_data;
 
         let block_hash = H256::from_slice(&key[std::mem::size_of::<H256>()..]);
-        let latest_era_key = [latest_era_prefix.as_bytes(), block_hash.as_bytes()].concat();
 
-        // TODO: this assumes every stored v2 block already has a `LatestEraValidators` entry.
-        // That is not guaranteed if the node stopped after sync persisted the block
-        // but before compute prepared it. Decide whether migration should tolerate
-        // synced-but-not-prepared blocks or intentionally reject such databases.
-        let latest_era_validators_committed = db
-            .kv
-            .get(&latest_era_key)
-            .context("`LatestEraValidators` is not found for block")
-            .and_then(|bytes| Ok(u64::decode(&mut bytes.as_slice())?))?;
+        let latest_era_key = [latest_era_prefix.as_bytes(), block_hash.as_bytes()].concat();
+        let Some(latest_era_raw) = db.kv.get(&latest_era_key) else {
+            // Put the debug data in log, not in error message
+            debug!(block_hash=%block_hash, block_small_data_key=?key, latest_era_key=?latest_era_key, "Latest era validators not found for block");
+
+            bail!("`Latest era validators committed` not found for block={block_hash}")
+        };
+
+        let latest_era_validators_committed = u64::decode(&mut latest_era_raw.as_slice())
+            .context("Failed to decode era number (u64)")?;
 
         let new_block_small_data = BlockSmallData {
             block_header,
