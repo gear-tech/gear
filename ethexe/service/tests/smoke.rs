@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD};
-use ethexe_ethereum::{NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE};
+use ethexe_ethereum::Ethereum;
 use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
@@ -66,8 +66,8 @@ async fn constructor() {
             .parse()
             .expect("infallible"),
         block_time: Duration::from_secs(12),
-        eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-        blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
+        eip1559_fee_increase_percentage: Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+        blob_gas_multiplier: Ethereum::NO_BLOB_GAS_MULTIPLIER,
     };
 
     let mut config = Config {
