@@ -215,3 +215,10 @@ impl<T> From<HashOf<T>> for MaybeHashOf<T> {
         Self(Some(value))
     }
 }
+
+/// Hash of data with the data itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WithHashOf<T: 'static> {
+    pub hash: HashOf<T>,
+    pub data: T,
+}

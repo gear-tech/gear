@@ -515,7 +515,7 @@ impl DefaultProcessing {
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected announce from producer: {announce:?}, saved for later."
+            "unexpected announce from producer: {announce}, saved for later."
         ));
         s.context_mut().pending(announce);
         Ok(s)

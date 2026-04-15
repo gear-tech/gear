@@ -286,6 +286,19 @@ impl TestingEventReceiver {
         .await
     }
 
+    pub async fn find_block_computation_complete(&mut self, block_hash: H256) {
+        log::info!("📗 waiting for block computation complete: {block_hash:?}");
+        self.find(|event| {
+            matches!(
+                event,
+                TestingEvent::Consensus(ConsensusEvent::BlockComputationComplete(h))
+                    if *h == block_hash
+            )
+        })
+        .await;
+    }
+
+    #[allow(unused)]
     pub async fn find_announce_rejected(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
         let id = id.into();
         log::info!("📗 waiting for announce rejected: {id:?}");

@@ -91,7 +91,7 @@
 use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
-    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData,
+    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData, WithHashOf,
     db::{
         AnnounceStorageRW, BlockMetaStorageRW, GlobalsStorageRO, InjectedStorageRW,
         OnChainStorageRO,
@@ -128,6 +128,13 @@ pub trait DBAnnouncesExt:
         &self,
         announces: impl IntoIterator<Item = HashOf<Announce>>,
     ) -> Result<BTreeSet<HashOf<Announce>>>;
+
+    /// Find block announce satisfying provided predicate.
+    fn find_block_announce(
+        &self,
+        block_hash: H256,
+        pred: impl Fn(&WithHashOf<Announce>) -> bool,
+    ) -> Result<Option<WithHashOf<Announce>>>;
 }
 
 impl<
@@ -207,6 +214,34 @@ impl<
                     .ok_or_else(|| anyhow!("Announce {announce_hash:?} not found"))
             })
             .collect()
+    }
+
+    fn find_block_announce(
+        &self,
+        block_hash: H256,
+        pred: impl Fn(&WithHashOf<Announce>) -> bool,
+    ) -> Result<Option<WithHashOf<Announce>>> {
+        let announces = self
+            .block_meta(block_hash)
+            .announces
+            .ok_or_else(|| anyhow!("announces not found for block({block_hash})"))?;
+
+        for announce_hash in announces {
+            let announce = self
+                .announce(announce_hash)
+                .ok_or_else(|| anyhow!("announce({announce_hash}) not found"))?;
+
+            let with_hash = WithHashOf {
+                hash: announce_hash,
+                data: announce,
+            };
+
+            if pred(&with_hash) {
+                return Ok(Some(with_hash));
+            }
+        }
+
+        Ok(None)
     }
 }
 
@@ -601,21 +636,63 @@ pub fn best_parent_announce(
     block_hash: H256,
     commitment_delay_limit: u32,
 ) -> Result<HashOf<Announce>> {
+    let announces = db
+        .block_meta(block_hash)
+        .announces
+        .ok_or_else(|| anyhow!("announces not found for block {block_hash}"))?;
+
     // We do not take announces directly from parent block,
     // because some of them may be expired at `block_hash`,
     // so we take parents of all announces from `block_hash`,
     // to be sure that we take only not expired parent announces.
-    let parent_announces =
-        db.announces_parents(db.block_meta(block_hash).announces.into_iter().flatten())?;
+    let candidates = db.announces_parents(announces)?;
 
-    best_announce(db, parent_announces, commitment_delay_limit)
+    best_announce(
+        db,
+        candidates,
+        commitment_delay_limit
+            .checked_sub(1)
+            .expect("commitment_delay_limit must be > 0"),
+    )
+}
+
+/// Returns best announce for `block_hash`.
+pub fn block_best_announce(
+    db: &impl DBAnnouncesExt,
+    block_hash: H256,
+    commitment_delay_limit: u32,
+) -> Result<HashOf<Announce>> {
+    let best_parent = best_parent_announce(db, block_hash, commitment_delay_limit)?;
+
+    let not_base_announce_hash = db.find_block_announce(block_hash, |announce| {
+        announce.data.parent == best_parent && !announce.data.is_base()
+    })?;
+    let base_announce_hash = db.find_block_announce(block_hash, |announce| {
+        announce.data.parent == best_parent && announce.data.is_base()
+    })?;
+
+    match (not_base_announce_hash, base_announce_hash) {
+        (Some(not_base), Some(base)) => {
+            if announces_have_equal_outcomes(db, base.hash, not_base.hash) {
+                // if base announce has the same outcome as not-base announce, then better to use base
+                Ok(base.hash)
+            } else {
+                Ok(not_base.hash)
+            }
+        }
+        (Some(not_base), None) => Ok(not_base.hash),
+        (None, Some(base)) => Ok(base.hash),
+        (None, None) => Err(anyhow!(
+            "No announces with parent {best_parent} found for block {block_hash}"
+        )),
+    }
 }
 
 /// Returns announce hash, which is supposed to be best among provided announces.
-pub fn best_announce(
+fn best_announce(
     db: &impl DBAnnouncesExt,
     announces: impl IntoIterator<Item = HashOf<Announce>>,
-    commitment_delay_limit: u32,
+    ancestor_depth_limit: u32,
 ) -> Result<HashOf<Announce>> {
     let mut announces = announces.into_iter();
     let Some(first) = announces.next() else {
@@ -626,7 +703,7 @@ pub fn best_announce(
 
     let announce_points = |mut announce_hash| -> Result<u32> {
         let mut points = 0;
-        for _ in 0..commitment_delay_limit {
+        for _ in 0..ancestor_depth_limit {
             let announce = db
                 .announce(announce_hash)
                 .ok_or_else(|| anyhow!("Announce {announce_hash} not found in db"))?;
@@ -656,7 +733,38 @@ pub fn best_announce(
         }
     }
 
-    Ok(best_announce_hash)
+    let best_announce = db
+        .announce(best_announce_hash)
+        .ok_or_else(|| anyhow!("Best announce {best_announce_hash} not found in db"))?;
+
+    if best_announce.is_base() {
+        // we can return it without checking siblings
+        return Ok(best_announce_hash);
+    }
+
+    let Some(base_announce) = db.find_block_announce(best_announce.block_hash, |announce| {
+        announce.data.is_base() && announce.data.parent == best_announce.parent
+    })?
+    else {
+        return Ok(best_announce_hash);
+    };
+
+    if announces_have_equal_outcomes(db, base_announce.hash, best_announce_hash) {
+        // if base announce has the same outcome as best announce, then better to use base
+        Ok(base_announce.hash)
+    } else {
+        Ok(best_announce_hash)
+    }
+}
+
+pub fn announces_have_equal_outcomes(
+    db: &impl DBAnnouncesExt,
+    announce1_hash: HashOf<Announce>,
+    announce2_hash: HashOf<Announce>,
+) -> bool {
+    let outcome1 = db.announce_outcome(announce1_hash);
+    let outcome2 = db.announce_outcome(announce2_hash);
+    outcome1.is_some() && outcome1 == outcome2
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -678,7 +786,7 @@ pub enum AnnounceRejectionReason {
 pub enum AnnounceStatus {
     #[display("Announce {_0} accepted")]
     Accepted(HashOf<Announce>),
-    #[display("Announce {announce:?} rejected: {reason:?}")]
+    #[display("Announce {announce} rejected: {reason:?}")]
     Rejected {
         announce: Announce,
         reason: AnnounceRejectionReason,
@@ -779,6 +887,7 @@ mod tests {
         StateHashWithQueueSize,
         db::*,
         events::{BlockEvent, MirrorEvent, mirror::MessageQueueingRequestedEvent},
+        gear::StateTransition,
         injected::InjectedTransaction,
         mock::*,
     };
@@ -1125,6 +1234,141 @@ mod tests {
         assert_eq!(
             reason,
             AnnounceRejectionReason::TooManyTouchedPrograms(MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 1)
+        );
+    }
+
+    #[test]
+    fn best_announce_prefers_base_sibling_with_same_outcome() {
+        let db = Database::memory();
+
+        let mut chain = BlockChain::mock(5);
+
+        // Block 3 already has a base announce. Add a not-base sibling with the same parent.
+        let base_hash = chain.block_top_announce_hash(3);
+        let base_announce = &chain.block_top_announce(3).announce;
+        let parent = base_announce.parent;
+        let block_hash = base_announce.block_hash;
+
+        let not_base_announce = Announce::with_default_gas(block_hash, parent);
+        let not_base_hash = not_base_announce.to_hash();
+
+        chain.blocks[3]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .unwrap()
+            .insert(not_base_hash);
+
+        // Both announces computed with the same (empty) outcome
+        chain.announces.insert(
+            not_base_hash,
+            AnnounceData {
+                announce: not_base_announce,
+                computed: Some(MockComputedAnnounceData::default()),
+            },
+        );
+
+        let chain = chain.setup(&db);
+
+        // Not-base has more points (1 vs 0), but base sibling has the same outcome,
+        // so best_announce should prefer the base one.
+        let result = best_announce(&db, [not_base_hash, base_hash], 3).unwrap();
+        assert_eq!(
+            result, base_hash,
+            "Should prefer base announce when sibling outcomes are the same"
+        );
+
+        // Also verify via best_parent_announce: block 4 should pick base at block 3 as best parent
+        let best_parent_hash = best_parent_announce(&db, chain.blocks[4].hash, 3).unwrap();
+        assert_eq!(
+            best_parent_hash, base_hash,
+            "best_parent_announce should prefer base parent with same outcome"
+        );
+    }
+
+    #[test]
+    fn best_announce_keeps_not_base_when_outcomes_differ() {
+        let db = Database::memory();
+
+        let mut chain = BlockChain::mock(5);
+
+        let base_hash = chain.block_top_announce_hash(3);
+        let base_announce = &chain.block_top_announce(3).announce;
+        let parent = base_announce.parent;
+        let block_hash = base_announce.block_hash;
+
+        let not_base_announce = Announce::with_default_gas(block_hash, parent);
+        let not_base_hash = not_base_announce.to_hash();
+
+        chain.blocks[3]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .unwrap()
+            .insert(not_base_hash);
+
+        // Not-base announce has a different outcome (non-empty)
+        chain.announces.insert(
+            not_base_hash,
+            AnnounceData {
+                announce: not_base_announce,
+                computed: Some(MockComputedAnnounceData {
+                    outcome: vec![StateTransition {
+                        actor_id: ActorId::from(1u64),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }),
+            },
+        );
+
+        let _chain = chain.setup(&db);
+
+        // Not-base has more points AND different outcome, so it wins.
+        let result = best_announce(&db, [not_base_hash, base_hash], 3).unwrap();
+        assert_eq!(
+            result, not_base_hash,
+            "Should keep not-base announce when outcomes differ"
+        );
+    }
+
+    #[test]
+    fn best_announce_not_computed_keeps_not_base() {
+        let db = Database::memory();
+
+        let mut chain = BlockChain::mock(5);
+
+        let base_hash = chain.block_top_announce_hash(3);
+        let base_announce = &chain.block_top_announce(3).announce;
+        let parent = base_announce.parent;
+        let block_hash = base_announce.block_hash;
+
+        let not_base_announce = Announce::with_default_gas(block_hash, parent);
+        let not_base_hash = not_base_announce.to_hash();
+
+        chain.blocks[3]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .unwrap()
+            .insert(not_base_hash);
+
+        // Not-base announce is NOT computed (computed: None)
+        chain.announces.insert(
+            not_base_hash,
+            AnnounceData {
+                announce: not_base_announce,
+                computed: None,
+            },
+        );
+
+        let _chain = chain.setup(&db);
+
+        // Not-base has more points; sibling check returns NotComputed, so not-base wins.
+        let result = best_announce(&db, [not_base_hash, base_hash], 3).unwrap();
+        assert_eq!(
+            result, not_base_hash,
+            "Should keep not-base announce when sibling is not computed"
         );
     }
 }

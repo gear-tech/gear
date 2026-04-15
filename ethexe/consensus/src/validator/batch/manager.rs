@@ -200,15 +200,11 @@ impl BatchCommitmentManager {
                 });
             }
 
-            let candidates = self
-                .db
-                .block_meta(block.hash)
-                .announces
-                .into_iter()
-                .flatten();
-
-            let best_announce_hash =
-                announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
+            let best_announce_hash = announces::block_best_announce(
+                &self.db,
+                block.hash,
+                self.limits.commitment_delay_limit,
+            )?;
 
             let Some(last_committed_announce) =
                 self.db.block_meta(block.hash).last_committed_announce

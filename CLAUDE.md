@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Personal Rules
+
+If the file `~/.config/claude/gear-rules.md` exists, read it at the start of each session and follow the instructions there. It contains developer-specific preferences that override or supplement the rules below.
+
 ## Project Overview
 
 Gear Protocol — a Substrate-based platform for running WebAssembly smart contracts (programs) with an actor-model message-passing architecture. The main network is **Vara**. The repo also contains **ethexe**, a layer that runs Gear programs on Ethereum.

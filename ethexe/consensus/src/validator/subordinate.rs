@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{
     ConsensusEvent,
-    announces::{self, AnnounceStatus},
+    announces::{self, AnnounceStatus, DBAnnouncesExt},
     validator::participant::Participant,
 };
 use anyhow::Result;
@@ -54,7 +54,10 @@ pub struct Subordinate {
 #[derive(Debug, PartialEq, Eq)]
 enum State {
     WaitingForAnnounce,
-    WaitingAnnounceComputed { announce_hash: HashOf<Announce> },
+    WaitingAnnounceComputed {
+        announce_hash: Option<HashOf<Announce>>,
+        base_announce_hash: Option<HashOf<Announce>>,
+    },
 }
 
 impl StateHandler for Subordinate {
@@ -71,20 +74,41 @@ impl StateHandler for Subordinate {
     }
 
     fn process_computed_announce(
-        self,
+        mut self,
         computed_announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
-        match &self.state {
-            State::WaitingAnnounceComputed { announce_hash }
-                if *announce_hash == computed_announce_hash =>
-            {
+        if let State::WaitingAnnounceComputed {
+            mut announce_hash,
+            mut base_announce_hash,
+        } = self.state
+        {
+            if announce_hash == Some(computed_announce_hash) {
+                announce_hash = None;
+            } else if base_announce_hash == Some(computed_announce_hash) {
+                base_announce_hash = None;
+            } else {
+                return DefaultProcessing::computed_announce(self, computed_announce_hash);
+            }
+
+            if announce_hash.is_none() && base_announce_hash.is_none() {
+                self.ctx
+                    .output(ConsensusEvent::BlockComputationComplete(self.block.hash));
+
                 if self.is_validator {
-                    Participant::create(self.ctx, self.block, self.producer)
+                    return Participant::create(self.ctx, self.block, self.producer);
                 } else {
-                    Initial::create(self.ctx)
+                    return Initial::create(self.ctx);
                 }
             }
-            _ => DefaultProcessing::computed_announce(self, computed_announce_hash),
+
+            self.state = State::WaitingAnnounceComputed {
+                announce_hash,
+                base_announce_hash,
+            };
+
+            Ok(self.into())
+        } else {
+            DefaultProcessing::computed_announce(self, computed_announce_hash)
         }
     }
 
@@ -95,7 +119,7 @@ impl StateHandler for Subordinate {
                     && verified_announce.data().block_hash == self.block.hash =>
             {
                 let (announce, _pub_key) = verified_announce.into_parts();
-                self.send_announce_for_computation(announce)
+                self.send_announces_for_computation(announce)
             }
             _ => DefaultProcessing::announce_from_producer(self, verified_announce),
         }
@@ -162,22 +186,45 @@ impl Subordinate {
         };
 
         if let Some(announce) = earlier_announce {
-            state.send_announce_for_computation(announce)
+            state.send_announces_for_computation(announce)
         } else {
             Ok(state.into())
         }
     }
 
-    fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
+    fn send_announces_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
         match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx
                     .output(ConsensusEvent::AnnounceAccepted(announce_hash));
+
+                let base_announce_hash = if !announce.is_base() {
+                    self.ctx
+                        .core
+                        .db
+                        .find_block_announce(announce.block_hash, |candidate| {
+                            candidate.data.is_base() && candidate.data.parent == announce.parent
+                        })?
+                        .map(|announce| {
+                            self.ctx.output(ConsensusEvent::ComputeAnnounce(
+                                announce.data,
+                                PromisePolicy::Disabled,
+                            ));
+                            announce.hash
+                        })
+                } else {
+                    None
+                };
+
                 self.ctx.output(ConsensusEvent::ComputeAnnounce(
                     announce,
                     PromisePolicy::Disabled,
                 ));
-                self.state = State::WaitingAnnounceComputed { announce_hash };
+
+                self.state = State::WaitingAnnounceComputed {
+                    announce_hash: Some(announce_hash),
+                    base_announce_hash,
+                };
 
                 Ok(self.into())
             }
@@ -185,7 +232,7 @@ impl Subordinate {
                 self.ctx
                     .output(ConsensusEvent::AnnounceRejected(announce.to_hash()));
                 self.warning(format!(
-                    "Received announce {announce:?} is rejected: {reason:?}"
+                    "Received announce {announce} is rejected: {reason:?}"
                 ));
 
                 Initial::create(self.ctx)
@@ -219,6 +266,7 @@ mod tests {
         let chain = BlockChain::mock(1).setup(&ctx.core.db);
         let block = chain.blocks[1].to_simple();
         let parent_announce_hash = chain.block_top_announce_hash(0);
+        let base_announce = chain.block_top_announce(1).announce.clone();
         let announce1 = ctx
             .core
             .signer
@@ -237,6 +285,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce1.data().to_hash()),
+                ConsensusEvent::ComputeAnnounce(base_announce, PromisePolicy::Disabled),
                 ConsensusEvent::ComputeAnnounce(announce1.data().clone(), PromisePolicy::Disabled)
             ]
         );
@@ -276,6 +325,7 @@ mod tests {
         let alice = keys[1];
         let chain = BlockChain::mock(1).setup(&ctx.core.db);
         let block = chain.blocks[1].to_simple();
+        let base_announce = chain.block_top_announce(1).announce.clone();
         let announce: VerifiedAnnounce = ctx
             .core
             .signer
@@ -297,6 +347,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                ConsensusEvent::ComputeAnnounce(base_announce, PromisePolicy::Disabled),
                 ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
             ]
         );
@@ -319,6 +370,8 @@ mod tests {
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(s.context().output, vec![]);
 
+        let base_announce = chain.block_top_announce(1).announce.clone();
+
         // After receiving valid announce - subordinate sends it to computation.
         let s = s.process_announce(announce.clone()).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
@@ -326,11 +379,15 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                ConsensusEvent::ComputeAnnounce(base_announce.clone(), PromisePolicy::Disabled),
                 ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
             ]
         );
 
-        // After announce is computed, subordinate switches to participant state.
+        // After announces are computed, subordinate switches to participant state.
+        let s = s
+            .process_computed_announce(base_announce.to_hash())
+            .unwrap();
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();
@@ -339,7 +396,9 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
+                ConsensusEvent::ComputeAnnounce(base_announce.clone(), PromisePolicy::Disabled),
+                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled),
+                ConsensusEvent::BlockComputationComplete(block.hash),
             ]
         );
     }
@@ -351,6 +410,7 @@ mod tests {
         let chain = BlockChain::mock(1).setup(&ctx.core.db);
         let block = chain.blocks[1].to_simple();
         let parent_announce_hash = chain.block_top_announce_hash(0);
+        let base_announce = chain.block_top_announce(1).announce.clone();
         let announce = ctx
             .core
             .signer
@@ -368,11 +428,15 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                ConsensusEvent::ComputeAnnounce(base_announce.clone(), PromisePolicy::Disabled),
                 ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
             ]
         );
 
-        // After announce is computed, not-validator subordinate switches to initial state.
+        // After both announces are computed, not-validator subordinate switches to initial state.
+        let s = s
+            .process_computed_announce(base_announce.to_hash())
+            .unwrap();
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();
@@ -384,8 +448,10 @@ mod tests {
         let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
         let parent_announce_hash = ctx.core.db.top_announce_hash(block.header.parent_hash);
+        let base_announce = chain.block_top_announce(1).announce.clone();
         let producer_announce = ctx
             .core
             .signer
@@ -403,6 +469,7 @@ mod tests {
             s.context().output,
             vec![
                 ConsensusEvent::AnnounceAccepted(producer_announce.data().to_hash()),
+                ConsensusEvent::ComputeAnnounce(base_announce, PromisePolicy::Disabled),
                 ConsensusEvent::ComputeAnnounce(
                     producer_announce.data().clone(),
                     PromisePolicy::Disabled

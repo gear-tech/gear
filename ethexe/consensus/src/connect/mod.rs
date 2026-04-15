@@ -64,12 +64,15 @@ const MAX_PENDING_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 ///   └─ receive_announces_response ─► process_after_propagation
 ///
 /// process_after_propagation (propagation done )
-///   ├─ announce from producer already received ─► emit ComputeAnnounce ─► WaitingForBlock
+///   ├─ announce from producer already received ─► emit ComputeAnnounce ─► WaitingForAnnounceComputed
 ///   └─ no already received announce ─► WaitingForAnnounce
 ///
 /// WaitingForAnnounce (waiting for announce from producer)
-///   ├─ expected and accepted ─► emit ComputeAnnounce and AcceptAnnounce ─► WaitingForBlock
+///   ├─ expected and accepted ─► emit ComputeAnnounce and AcceptAnnounce ─► WaitingForAnnounceComputed
 ///   └─ unexpected ─► cached in pending_announces
+///
+/// WaitingForAnnounceComputed (waiting for announce computation to complete)
+///   └─ receive_computed_announce ─► emit BlockComputationComplete ─► WaitingForBlock
 /// ```
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
@@ -91,6 +94,10 @@ enum State {
         producer: Address,
         chain: VecDeque<SimpleBlockData>,
         waiting_request: AnnouncesRequest,
+    },
+    WaitingForAnnounceComputed {
+        block_hash: H256,
+        announce_hash: HashOf<Announce>,
     },
 }
 
@@ -133,7 +140,6 @@ impl ConnectService {
     ) -> Result<()> {
         if let Some(announce) = self.pending_announces.pop(&(producer, block.hash)) {
             self.process_announce_from_producer(announce, producer)?;
-            self.state = State::WaitingForBlock;
         } else {
             self.state = State::WaitingForAnnounce { block, producer };
         }
@@ -156,14 +162,19 @@ impl ConnectService {
 
                 self.output
                     .push_back(ConsensusEvent::AnnounceRejected(announce.to_hash()));
+                self.state = State::WaitingForBlock;
             }
             AnnounceStatus::Accepted(announce_hash) => {
                 self.output
                     .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
                 self.output.push_back(ConsensusEvent::ComputeAnnounce(
-                    announce,
+                    announce.clone(),
                     PromisePolicy::Disabled,
                 ));
+                self.state = State::WaitingForAnnounceComputed {
+                    block_hash: announce.block_hash,
+                    announce_hash,
+                };
             }
         }
 
@@ -257,7 +268,17 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_computed_announce(&mut self, _announce_hash: HashOf<Announce>) -> Result<()> {
+    fn receive_computed_announce(&mut self, announce_hash: HashOf<Announce>) -> Result<()> {
+        if let State::WaitingForAnnounceComputed {
+            block_hash,
+            announce_hash: expected,
+        } = self.state
+            && expected == announce_hash
+        {
+            self.output
+                .push_back(ConsensusEvent::BlockComputationComplete(block_hash));
+            self.state = State::WaitingForBlock;
+        }
         Ok(())
     }
 
@@ -270,9 +291,8 @@ impl ConsensusService for ConnectService {
             && announce.block_hash == block.hash
         {
             self.process_announce_from_producer(announce, *producer)?;
-            self.state = State::WaitingForBlock;
         } else {
-            tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
+            tracing::warn!("Receive unexpected {announce}, save to pending announces");
             self.pending_announces
                 .push((sender, announce.block_hash), announce);
         }
