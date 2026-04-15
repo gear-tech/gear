@@ -233,25 +233,29 @@ async fn genesis_data_initialization(
     log::info!("Start genesis {genesis_block} data initialization...");
 
     let StateDump {
-        announce_hash: _,
-        block_hash: _,
+        announce_hash,
+        block_hash,
         codes,
         programs,
         blobs,
     } = initializer.get_genesis_data()?;
 
-    // ensure!(
-    //     block_hash == genesis_block.hash,
-    //     "Genesis data block hash {block_hash} does not match the actual genesis block hash {}",
-    //     genesis_block.hash
-    // );
+    if block_hash != genesis_block.hash {
+        log::warn!(
+            "Genesis data block hash {block_hash} does not match the actual genesis block hash {}",
+            genesis_block.hash
+        );
+    }
 
     log::info!(
-        "Genesis data contains {} codes, {} programs, {} blobs",
+        "Genesis data for announce {announce_hash} and block {block_hash} \
+         contains {} codes, {} programs, {} blobs",
         codes.len(),
         programs.len(),
         blobs.len()
     );
+
+    let (_, _) = (announce_hash, block_hash); // to avoid unused variable warning if log is disabled
 
     let mut code_bytes = BTreeMap::<CodeId, Vec<u8>>::new();
     for blob in blobs {
