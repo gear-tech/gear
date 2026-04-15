@@ -20,16 +20,17 @@ mod events;
 mod gear;
 
 use alloy::sol;
-pub use middleware_abi::*;
-pub use mirror_abi::*;
+pub use gear_abi::Gear as GearLib;
+pub use middleware_abi::IMiddleware;
+pub use mirror_abi::IMirror;
+pub use router_abi::{Gear, IRouter};
 
-// TODO (breathx): remove this dummy hack to avoid reentrancy issues with
-// the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
-mod mirror_abi {
+pub mod gear_abi {
     alloy::sol!(
         #[sol(rpc)]
-        IMirror,
-        "abi/Mirror.json"
+        #[derive(Debug)]
+        Gear,
+        "abi/Gear.json"
     );
 }
 
@@ -41,12 +42,25 @@ pub mod middleware_abi {
     );
 }
 
-sol!(
-    #[allow(clippy::too_many_arguments)]
-    #[sol(rpc)]
-    IRouter,
-    "abi/Router.json"
-);
+// TODO (breathx): remove this dummy hack to avoid reentrancy issues with
+// the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
+mod mirror_abi {
+    alloy::sol!(
+        #[sol(rpc)]
+        IMirror,
+        "abi/Mirror.json"
+    );
+}
+
+mod router_abi {
+    alloy::sol!(
+        #[allow(clippy::too_many_arguments)]
+        #[sol(rpc)]
+        #[derive(Debug)]
+        IRouter,
+        "abi/Router.json"
+    );
+}
 
 sol!(
     #[sol(rpc)]

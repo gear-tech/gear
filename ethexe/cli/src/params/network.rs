@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Parameters controlling the optional libp2p networking service.
+
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -72,7 +74,10 @@ impl NetworkParams {
     /// Default network port.
     pub const DEFAULT_NETWORK_PORT: u16 = 20333;
 
-    /// Convert self into a proper `NetworkConfig` object, if network is enabled.
+    /// Converts networking parameters into an optional [`NetworkConfig`].
+    ///
+    /// When networking is enabled, the method either parses an explicit network key or
+    /// resolves one from the `net/` key store, generating it on first use.
     pub fn into_config(
         self,
         config_dir: PathBuf,

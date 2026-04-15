@@ -20,7 +20,6 @@ pub(crate) use libp2p::gossipsub::*;
 
 use crate::{
     db_sync::{Multiaddr, PeerId},
-    metrics::Libp2pMetrics,
     peer_score,
 };
 use anyhow::anyhow;
@@ -114,7 +113,7 @@ pub(crate) struct Behaviour {
     message_queue: VecDeque<Message>,
     commitments_topic: IdentTopic,
     promises_topic: IdentTopic,
-    metrics: Arc<Libp2pMetrics>,
+    metrics: Arc<libp2p::metrics::Metrics>,
 }
 
 impl Behaviour {
@@ -122,7 +121,8 @@ impl Behaviour {
         keypair: Keypair,
         peer_score: peer_score::Handle,
         router_address: Address,
-        metrics: Arc<Libp2pMetrics>,
+        registry: &mut libp2p::metrics::Registry,
+        metrics: Arc<libp2p::metrics::Metrics>,
     ) -> anyhow::Result<Self> {
         let commitments_topic = Self::topic_with_router("commitments", router_address);
         let promises_topic = Self::topic_with_router("promises", router_address);
@@ -139,10 +139,15 @@ impl Behaviour {
             .build()
             .map_err(|e| anyhow!("`gossipsub::ConfigBuilder::build()` error: {e}"))?;
         let mut inner = gossipsub::Behaviour::new(MessageAuthenticity::Signed(keypair), inner)
-            .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
+            .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?
+            .with_metrics(
+                registry.sub_registry_with_prefix("libp2p_gossipsub"),
+                MetricsConfig::default(),
+            );
         inner
             .with_peer_score(PeerScoreParams::default(), PeerScoreThresholds::default())
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
+
         inner.subscribe(&commitments_topic)?;
         inner.subscribe(&promises_topic)?;
 
