@@ -636,6 +636,10 @@ debug = true
 alloy = { version = "1.8", git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation" }
 gear-workspace-hack = { path = "utils/gear-workspace-hack" }
 
+# core2 0.4.0 was yanked on crates.io; pin upstream git so cargo metadata doesn't fail on yanked lookup.
+# Needed by cid -> sc-network transitive; triggers during wasm-builder sub-project resolve.
+core2 = { version = "0.4.0", git = "https://github.com/bbqsrc/core2", rev = "545e84bcb0f235b12e21351e0c69767958efe2a7" }
+
 # these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }

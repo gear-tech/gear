@@ -33,6 +33,7 @@ thiserror.workspace = true
 # mock deps
 itertools = { workspace = true, optional = true }
 tap = { workspace = true, optional = true }
+proptest = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
@@ -55,4 +56,4 @@ std = [
     "gsigner/std",
     "gsigner/keyring",
 ]
-mock = ["std", "itertools/use_std", "tap"]
+mock = ["std", "itertools/use_std", "tap", "proptest"]
