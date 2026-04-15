@@ -20,6 +20,7 @@ pub use env::*;
 use ethexe_db::{GenesisInitializer, dump::StateDump};
 use ethexe_processor::Processor;
 pub use events::*;
+use futures::FutureExt;
 
 mod env;
 mod events;
@@ -51,15 +52,16 @@ impl GenesisInitializer for GenesisInitializerFromDump {
         code: Vec<u8>,
     ) -> ethexe_db::CodeProcessingFuture {
         let mut cloned_processor = self.processor.clone();
-        let func = move || {
+        async move {
             let info = cloned_processor
-                .process_code(ethexe_common::CodeAndIdUnchecked { code_id, code })?;
+                .process_code(ethexe_common::CodeAndIdUnchecked { code_id, code })
+                .await?;
 
             let Some(valid) = info.valid else {
                 return Ok(None);
             };
             Ok(Some((valid.instrumented_code, valid.code_metadata)))
-        };
-        Box::pin(async move { func() })
+        }
+        .boxed()
     }
 }
