@@ -18,15 +18,20 @@
 
 //! Small custom thread pool interface, because `rayon` is too smart
 //! and `threadpool` is not smart enough.
+//!
+//! The global pool in this module is shared across the processor crate for all
+//! CPU-bound work, including code instrumentation and chunk execution.
+//! `ETHEXE_PROCESSOR_NUM_THREADS` can be used to override the worker count, and
+//! because the pool is initialized lazily, the value is captured on first use.
 
 use std::{env, num::NonZero, panic::AssertUnwindSafe, sync::LazyLock, thread};
 
+// Shared across the processor crate for all CPU-bound work.
 static DEFAULT_THREAD_POOL: LazyLock<ThreadPool> = LazyLock::new(ThreadPool::new);
 
 /// Spawns a given task.
 ///
-/// Returns `Ok(result)` if a worker successfully
-/// processed the task and `Err(panic_info)` if the worker panicked.
+/// Returns the task result once a worker finishes executing it.
 ///
 /// # Panics
 ///
