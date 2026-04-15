@@ -66,6 +66,7 @@ pub struct NodeConfig {
     pub pre_funded_accounts: u32,
     pub fast_sync: bool,
     pub chain_deepness_threshold: u32,
+    pub genesis_state_dump: Option<PathBuf>,
 }
 
 impl NodeConfig {

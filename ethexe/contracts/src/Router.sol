@@ -83,45 +83,12 @@ contract Router is
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public onlyOwner reinitializer(2) {
+    function reinitialize() public onlyOwner reinitializer(4) {
         __Ownable_init(owner());
 
-        Storage storage oldRouter = _router();
-
-        _setStorageSlot("router.storage.RouterV2");
-        Storage storage newRouter = _router();
-
-        // Set current block as genesis.
-        newRouter.genesisBlock = Gear.newGenesis();
-
-        // New router latestCommittedBlock is already zeroed.
-
-        // Copy impl addresses from the old router.
-        newRouter.implAddresses = oldRouter.implAddresses;
-
-        // Copy signing threshold fraction from the old router.
-        newRouter.validationSettings.thresholdNumerator = oldRouter.validationSettings.thresholdNumerator;
-        newRouter.validationSettings.thresholdDenominator = oldRouter.validationSettings.thresholdDenominator;
-
-        // Copy validators from the old router.
-        // TODO #4557: consider what to do. Maybe we should start reelection process.
-        // Skipping validators1 copying - means we forget election results
-        // if an election is already done for the next era.
-        _resetValidators(
-            newRouter.validationSettings.validators0,
-            Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
-            SSTORE2.read(Gear.currentEraValidators(oldRouter).verifiableSecretSharingCommitmentPointer),
-            Gear.currentEraValidators(oldRouter).list,
-            block.timestamp
-        );
-
-        // Copy computation settings from the old router.
-        newRouter.computeSettings = oldRouter.computeSettings;
-
-        // Copy timelines from the old router.
-        newRouter.timelines = oldRouter.timelines;
-
-        // All protocol data must be removed - so leave it zeroed in new router.
+        Storage storage router = _router();
+        router.genesisBlock = Gear.newGenesis();
+        router.latestCommittedBatch = Gear.CommittedBatchInfo({hash: bytes32(0), timestamp: 0});
     }
 
     /**
@@ -288,7 +255,7 @@ contract Router is
     }
 
     // # Calls.
-    function lookupGenesisHash() external whenNotPaused {
+    function lookupGenesisHash() external {
         Storage storage router = _router();
 
         require(router.genesisBlock.hash == bytes32(0), GenesisHashAlreadySet());
