@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MemoryWrap;
+use crate::host::StoreData;
 use log::Level;
-use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {

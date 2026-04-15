@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::context::HostContext;
+use crate::host::StoreData;
 use ethexe_runtime_common::{pack_u32_to_i64, unpack_i64_to_u32};
 use parity_scale_codec::{Decode, Encode};
-use sp_wasm_interface::{FunctionContext as _, IntoValue as _, StoreData};
 use wasmtime::{Caller, Memory, StoreContext, StoreContextMut};
 
 pub mod allocator;
@@ -27,13 +27,12 @@ pub mod database;
 pub mod lazy_pages;
 pub mod logging;
 pub mod promise;
-pub mod sandbox;
 
 pub struct MemoryWrap(Memory);
 
 // TODO: return results for mem accesses.
 impl MemoryWrap {
-    pub fn decode_by_val<'a, T: 'a, D: Decode>(
+    pub fn decode_by_val<'a, T: 'a + 'static, D: Decode>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
         ptr_len: i64,
@@ -44,7 +43,7 @@ impl MemoryWrap {
     }
 
     #[allow(unused)]
-    pub fn decode<'a, T: 'a, D: Decode>(
+    pub fn decode<'a, T: 'a + 'static, D: Decode>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
         ptr: usize,
@@ -55,7 +54,7 @@ impl MemoryWrap {
         D::decode(&mut slice).unwrap()
     }
 
-    pub fn slice_by_val<'a, T: 'a>(
+    pub fn slice_by_val<'a, T: 'a + 'static>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
         ptr_len: i64,
@@ -65,7 +64,7 @@ impl MemoryWrap {
         self.slice(store, ptr as usize, len as usize)
     }
 
-    pub fn slice<'a, T: 'a>(
+    pub fn slice<'a, T: 'a + 'static>(
         &self,
         store: impl Into<StoreContext<'a, T>>,
         ptr: usize,
@@ -78,7 +77,7 @@ impl MemoryWrap {
             .unwrap()
     }
 
-    pub fn slice_mut<'a, T: 'a>(
+    pub fn slice_mut<'a, T: 'a + 'static>(
         &self,
         store: impl Into<StoreContextMut<'a, T>>,
         ptr: usize,
@@ -108,12 +107,7 @@ pub fn allocate_and_write_raw(
 
     let mut host_context = HostContext { caller };
 
-    let ptr = host_context
-        .allocate_memory(len as u32)
-        .unwrap()
-        .into_value()
-        .as_i32()
-        .expect("always i32");
+    let ptr: u32 = host_context.allocate_memory(len as u32).unwrap().into();
 
     let mut caller = host_context.caller;
 
@@ -121,7 +115,7 @@ pub fn allocate_and_write_raw(
 
     memory.write(&mut caller, ptr as usize, data).unwrap();
 
-    let res = pack_u32_to_i64(ptr as u32, len as u32);
+    let res = pack_u32_to_i64(ptr, len as u32);
 
     (caller, res)
 }

@@ -14,18 +14,18 @@ ethexe-runtime-common = { workspace = true, features = ["std"] }
 ethexe-runtime = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
-gear-runtime-interface = { workspace = true, features = ["std"] }
+gear-runtime-interface = { workspace = true, default-features = false, features = ["std-no-sandbox"] }
 gear-lazy-pages.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
 core-processor.workspace = true
 
 futures.workspace = true
 thiserror.workspace = true
-wasmtime.workspace = true
+wasmtime = "43.0.1"
 log.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 sp-allocator = { workspace = true, features = ["std"] }
-sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
+sp-wasm-interface-common.workspace = true
 tokio = { workspace = true, features = ["full"] }
 crossbeam = { workspace = true, features = ["crossbeam-channel"] }
 itertools = { workspace = true, features = ["use_std"] }

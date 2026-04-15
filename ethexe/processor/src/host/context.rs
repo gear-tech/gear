@@ -16,50 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sp_wasm_interface::{FunctionContextToken, Pointer, StoreData, WordSize};
+use super::{StoreData, store};
+use sp_wasm_interface_common::{Pointer, WordSize};
 use wasmtime::Caller;
 
 pub(crate) struct HostContext<'a> {
     pub(crate) caller: Caller<'a, StoreData>,
 }
 
-impl sp_wasm_interface::FunctionContext for HostContext<'_> {
-    fn read_memory_into(
-        &self,
-        address: Pointer<u8>,
-        dest: &mut [u8],
-    ) -> sp_wasm_interface::Result<()> {
-        sp_wasm_interface::util::read_memory_into(&self.caller, address, dest)
-            .map_err(|e| e.to_string())
+impl HostContext<'_> {
+    pub(crate) fn allocate_memory(&mut self, size: WordSize) -> Result<Pointer<u8>, String> {
+        store::allocate_memory(&mut self.caller, size)
     }
 
-    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> sp_wasm_interface::Result<()> {
-        sp_wasm_interface::util::write_memory_from(&mut self.caller, address, data)
-            .map_err(|e| e.to_string())
+    pub(crate) fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> Result<(), String> {
+        store::deallocate_memory(&mut self.caller, ptr)
     }
 
-    fn allocate_memory(&mut self, size: WordSize) -> sp_wasm_interface::Result<Pointer<u8>> {
-        sp_wasm_interface::util::allocate_memory(&mut self.caller, size)
-    }
-
-    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> sp_wasm_interface::Result<()> {
-        sp_wasm_interface::util::deallocate_memory(&mut self.caller, ptr)
-    }
-
-    fn register_panic_error_message(&mut self, message: &str) {
+    #[allow(unused)]
+    pub(crate) fn register_panic_error_message(&mut self, message: &str) {
         self.caller
             .data_mut()
             .host_state_mut()
-            .expect("host state is not empty when calling a function in wasm; qed")
+            .expect("host state is initialized before wasm calls; qed")
             .panic_message = Some(message.to_owned());
-    }
-
-    fn with_caller_mut_impl(
-        &mut self,
-        _: FunctionContextToken,
-        context: *mut (),
-        callback: fn(*mut (), &mut Caller<StoreData>),
-    ) {
-        callback(context, &mut self.caller)
     }
 }

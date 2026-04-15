@@ -24,7 +24,6 @@ use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
-use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -32,7 +31,10 @@ pub mod api;
 pub mod runtime;
 
 mod context;
+mod store;
 mod threads;
+
+pub(crate) use store::{HostState, MemoryWrapper, StoreData, write_memory_from};
 
 #[derive(thiserror::Error, Debug)]
 pub enum InstanceError {
@@ -99,8 +101,7 @@ impl InstanceCreator {
     /// A wasm runtime modules is expected to use some runtime interface,
     /// which calls linked host functions.
     pub fn new(runtime: Vec<u8>) -> Result<Self> {
-        let mut config = wasmtime::Config::new();
-        config.cache_config_load_default()?;
+        let config = wasmtime::Config::new();
         let engine = wasmtime::Engine::new(&config)?;
 
         let module = wasmtime::Module::new(&engine, runtime)?;
@@ -110,7 +111,6 @@ impl InstanceCreator {
         api::database::link(&mut linker)?;
         api::lazy_pages::link(&mut linker)?;
         api::logging::link(&mut linker)?;
-        api::sandbox::link(&mut linker)?;
         api::promise::link(&mut linker)?;
 
         let instance_pre = linker.instantiate_pre(&module)?;
@@ -234,12 +234,11 @@ impl InstanceWrapper {
                 .map_err(Into::into)
         })?;
 
-        sp_wasm_interface::util::write_memory_from(&mut self.store, ptr, bytes)
-            .map_err(InstanceError::CallInputWrite)?;
+        write_memory_from(&mut self.store, ptr, bytes).map_err(InstanceError::CallInputWrite)?;
 
-        let ptr = ptr.into_value().as_i32().expect("must be i32");
+        let ptr: u32 = ptr.into();
 
-        Ok((ptr, len as i32))
+        Ok((ptr as i32, len as i32))
     }
 
     fn get_call_output<D: Decode>(&mut self, ptr_len: i64) -> Result<D> {

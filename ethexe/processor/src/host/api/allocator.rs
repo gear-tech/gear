@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::context::HostContext;
-use sp_wasm_interface::{FunctionContext, IntoValue, Pointer, StoreData};
+use crate::host::{StoreData, context::HostContext};
+use sp_wasm_interface_common::Pointer;
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -38,10 +38,7 @@ fn free(caller: Caller<'_, StoreData>, ptr: i32) {
 fn malloc(caller: Caller<'_, StoreData>, size: i32) -> i32 {
     let mut host_context = HostContext { caller };
 
-    host_context
-        .allocate_memory(size as _)
-        .unwrap()
-        .into_value()
-        .as_i32()
-        .unwrap()
+    let ptr: u32 = host_context.allocate_memory(size as _).unwrap().into();
+
+    ptr as i32
 }

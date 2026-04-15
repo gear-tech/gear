@@ -28,7 +28,7 @@ default = ["std"]
 std = [
 	"gear-core/std",
 	"gear-lazy-pages",
-	"gear-sandbox-interface/std",
+	"sandbox",
 
 	"sp-io/std",
 	"sp-std/std",
@@ -38,3 +38,16 @@ std = [
 
 	"builtins-common/bls12-381-std",
 ]
+std-no-sandbox = [
+	"gear-core/std",
+	"gear-lazy-pages",
+
+	"sp-io/std",
+	"sp-std/std",
+	"sp-runtime-interface/std",
+	"parity-scale-codec/std",
+	"log",
+
+	"builtins-common/bls12-381-std",
+]
+sandbox = ["gear-sandbox-interface/std"]

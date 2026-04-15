@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{api::MemoryWrap, threads};
+use crate::host::{StoreData, api::MemoryWrap, threads};
 use gprimitives::H256;
-use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {

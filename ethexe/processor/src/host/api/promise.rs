@@ -16,10 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
-use crate::host::{api::MemoryWrap, threads};
+use crate::host::{StoreData, api::MemoryWrap, threads};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     linker.func_wrap("env", "ext_publish_promise", publish_promise)?;
