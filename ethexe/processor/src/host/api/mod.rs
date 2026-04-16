@@ -27,6 +27,7 @@ pub mod database;
 pub mod lazy_pages;
 pub mod logging;
 pub mod promise;
+pub mod sandbox;
 
 pub struct MemoryWrap(Memory);
 

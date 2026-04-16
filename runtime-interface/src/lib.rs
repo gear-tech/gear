@@ -44,7 +44,7 @@ use {
 
 #[cfg(feature = "sandbox")]
 pub use gear_sandbox_interface::sandbox;
-#[cfg(all(feature = "std", feature = "sandbox"))]
+#[cfg(feature = "sandbox")]
 pub use gear_sandbox_interface::{
     Instantiate, SandboxBackend, detail as sandbox_detail, init as sandbox_init,
 };

@@ -112,6 +112,7 @@ impl InstanceCreator {
         api::lazy_pages::link(&mut linker)?;
         api::logging::link(&mut linker)?;
         api::promise::link(&mut linker)?;
+        api::sandbox::link(&mut linker)?;
 
         let instance_pre = linker.instantiate_pre(&module)?;
         let instance_pre = Arc::new(instance_pre);

@@ -5395,6 +5395,7 @@ dependencies = [
  "gear-core-processor",
  "gear-lazy-pages",
  "gear-runtime-interface",
+ "gear-sandbox-interface",
  "gear-wasm-instrument",
  "gear-workspace-hack",
  "gprimitives",
@@ -7112,6 +7113,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-runtime-interface",
  "sp-wasm-interface",
+ "sp-wasm-interface-common",
 ]
 
 [[package]]

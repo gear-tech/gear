@@ -24,11 +24,10 @@ log = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "sandbox"]
 std = [
 	"gear-core/std",
 	"gear-lazy-pages",
-	"sandbox",
 
 	"sp-io/std",
 	"sp-std/std",
@@ -38,16 +37,4 @@ std = [
 
 	"builtins-common/bls12-381-std",
 ]
-std-no-sandbox = [
-	"gear-core/std",
-	"gear-lazy-pages",
-
-	"sp-io/std",
-	"sp-std/std",
-	"sp-runtime-interface/std",
-	"parity-scale-codec/std",
-	"log",
-
-	"builtins-common/bls12-381-std",
-]
-sandbox = ["gear-sandbox-interface/std"]
+sandbox = ["std", "gear-sandbox-interface/std"]

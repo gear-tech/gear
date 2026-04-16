@@ -376,8 +376,8 @@ impl GuestEnvironment {
     /// Decodes an environment definition from the given raw bytes.
     ///
     /// Returns `Err` if the definition cannot be decoded.
-    pub fn decode<DT>(
-        store: &SandboxComponents<DT>,
+    pub fn decode(
+        store: &SandboxComponents,
         raw_env_def: &[u8],
     ) -> std::result::Result<Self, InstantiationError> {
         let (imports, guest_to_supervisor_mapping) =
@@ -399,9 +399,9 @@ pub struct UnregisteredInstance {
 
 impl UnregisteredInstance {
     /// Finalizes instantiation of this module.
-    pub fn register<DT>(self, store: &mut SandboxComponents<DT>, dispatch_thunk: DT) -> u32 {
+    pub fn register(self, store: &mut SandboxComponents, dispatch_thunk_id: u32) -> u32 {
         // At last, register the instance.
-        store.register_sandbox_instance(self.sandbox_instance, dispatch_thunk)
+        store.register_sandbox_instance(self.sandbox_instance, dispatch_thunk_id)
     }
 }
 
@@ -516,19 +516,17 @@ impl BackendContext {
 }
 
 /// This struct keeps track of all sandboxed components.
-///
-/// This is generic over a supervisor function reference type.
-pub struct SandboxComponents<DT> {
+pub struct SandboxComponents {
     /// Stores the instance and the dispatch thunk associated to per instance.
     ///
     /// Instances are `Some` until torn down.
-    instances: Vec<Option<(Pin<Rc<SandboxInstance>>, DT)>>,
+    instances: Vec<Option<(Pin<Rc<SandboxInstance>>, u32)>>,
     /// Memories are `Some` until torn down.
     memories: Vec<Option<Memory>>,
     backend_context: BackendContext,
 }
 
-impl<DT: Clone> SandboxComponents<DT> {
+impl SandboxComponents {
     /// Create a new empty sandbox store.
     pub fn new(backend: SandboxBackend) -> Self {
         SandboxComponents {
@@ -607,13 +605,13 @@ impl<DT: Clone> SandboxComponents<DT> {
     /// Returns `Err` If `instance_idx` isn't a valid index of an instance or
     /// instance is already torndown.
     #[allow(clippy::useless_asref)]
-    pub fn dispatch_thunk(&self, instance_idx: u32) -> Result<DT> {
+    pub fn dispatch_thunk_id(&self, instance_idx: u32) -> Result<u32> {
         self.instances
             .get(instance_idx as usize)
             .as_ref()
             .ok_or("Trying to access a non-existent instance")?
             .as_ref()
-            .map(|v| v.1.clone())
+            .map(|v| v.1)
             .ok_or_else(|| "Trying to access a torndown instance".into())
     }
 
@@ -696,15 +694,15 @@ impl<DT: Clone> SandboxComponents<DT> {
 }
 
 // Private routines
-impl<DT> SandboxComponents<DT> {
+impl SandboxComponents {
     fn register_sandbox_instance(
         &mut self,
         sandbox_instance: SandboxInstance,
-        dispatch_thunk: DT,
+        dispatch_thunk_id: u32,
     ) -> u32 {
         let instance_idx = self.instances.len();
         self.instances
-            .push(Some((Rc::pin(sandbox_instance), dispatch_thunk)));
+            .push(Some((Rc::pin(sandbox_instance), dispatch_thunk_id)));
         instance_idx as u32
     }
 }

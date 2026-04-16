@@ -25,6 +25,9 @@ pub use gear_sandbox_host::sandbox::{SandboxBackend, env::Instantiate};
 use sp_runtime_interface::{Pointer, runtime_interface};
 use sp_wasm_interface::HostPointer;
 
+#[cfg(feature = "host")]
+pub mod host;
+
 #[cfg(feature = "std")]
 pub mod detail;
 
