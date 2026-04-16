@@ -5176,6 +5176,7 @@ dependencies = [
  "metrics",
  "metrics-derive",
  "ntest",
+ "proptest",
  "thiserror 2.0.17",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",

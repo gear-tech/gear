@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::service::SubService;
 use ethexe_common::{
     CodeBlobInfo, PromisePolicy,
     db::*,
@@ -24,17 +25,63 @@ use ethexe_common::{
         BlockEvent, RouterEvent,
         router::{CodeGotValidatedEvent, CodeValidationRequestedEvent},
     },
-    mock::*,
+    mock::{BlockChain, BlockChainParams, CodeData, DBMockExt},
 };
 use ethexe_db::Database;
 use ethexe_processor::ValidCodeInfo;
-use futures::StreamExt;
+use futures::{Future, StreamExt};
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
+use gprimitives::{CodeId, H256};
+use proptest::{collection, prelude::*};
 use std::time::Duration;
-use tokio::{sync::mpsc, time::timeout};
+use tokio::{runtime::Builder, sync::mpsc, time::timeout};
+
+pub(crate) const ASYNC_EVENT_TIMEOUT: Duration = Duration::from_millis(500);
+
+pub(crate) fn block_chain_strategy(len: u32) -> BoxedStrategy<BlockChain> {
+    any_with::<BlockChain>(BlockChainParams::from(len)).boxed()
+}
+
+pub(crate) fn distinct_code_ids(count: usize) -> BoxedStrategy<Vec<CodeId>> {
+    collection::btree_set(any::<[u8; 32]>().prop_map(CodeId::from), count)
+        .prop_map(|ids| ids.into_iter().collect())
+        .boxed()
+}
+
+pub(crate) fn run_async_test<F: Future>(future: F) -> F::Output {
+    Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("failed to build tokio runtime")
+        .block_on(future)
+}
+
+pub(crate) async fn next_compute_event<P: ProcessorExt>(
+    compute: &mut ComputeService<P>,
+) -> ComputeEvent {
+    timeout(ASYNC_EVENT_TIMEOUT, compute.next())
+        .await
+        .expect("timed out waiting for compute event")
+        .expect("compute stream ended")
+        .expect("compute service returned error")
+}
+
+pub(crate) async fn next_subservice_event<S: SubService>(service: &mut S) -> S::Output {
+    timeout(ASYNC_EVENT_TIMEOUT, service.next())
+        .await
+        .expect("timed out waiting for sub-service event")
+        .expect("sub-service returned error")
+}
+
+pub(crate) async fn assert_no_compute_event<P: ProcessorExt>(compute: &mut ComputeService<P>) {
+    assert!(
+        timeout(ASYNC_EVENT_TIMEOUT, compute.next()).await.is_err(),
+        "unexpected follow-up compute event"
+    );
+}
 
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
 #[derive(Clone, Default)]
@@ -165,11 +212,9 @@ struct TestEnv {
 }
 
 impl TestEnv {
-    // Setup the chain and compute service.
-    fn new(chain_len: u32, events_in_block: u32) -> TestEnv {
+    fn new(mut chain: BlockChain, events_in_block: u32) -> TestEnv {
         let db = Database::memory();
 
-        let mut chain = BlockChain::mock(chain_len);
         insert_code_events(&mut chain, events_in_block);
         mark_as_not_prepared(&mut chain);
         chain = chain.setup(&db);
@@ -182,45 +227,36 @@ impl TestEnv {
     async fn prepare_and_assert_block(&mut self, block: H256) {
         self.compute.prepare_block(block);
 
-        let event = self
-            .compute
-            .next()
-            .await
-            .unwrap()
-            .expect("expect compute service request codes to load");
-        let codes_to_load = event.unwrap_request_load_codes();
+        match next_compute_event(&mut self.compute).await {
+            ComputeEvent::RequestLoadCodes(codes_to_load) => {
+                for code_id in codes_to_load {
+                    let Some(CodeData {
+                        original_bytes: code,
+                        ..
+                    }) = self.chain.codes.remove(&code_id)
+                    else {
+                        continue;
+                    };
 
-        for code_id in codes_to_load {
-            let Some(CodeData {
-                original_bytes: code,
-                ..
-            }) = self.chain.codes.remove(&code_id)
-            else {
-                continue;
-            };
+                    self.compute
+                        .process_code(CodeAndIdUnchecked { code, code_id });
 
-            self.compute
-                .process_code(CodeAndIdUnchecked { code, code_id });
+                    let processed_code_id = next_compute_event(&mut self.compute)
+                        .await
+                        .unwrap_code_processed();
+                    assert_eq!(processed_code_id, code_id);
+                }
 
-            let event = self
-                .compute
-                .next()
-                .await
-                .unwrap()
-                .expect("expect code will be processing");
-            let processed_code_id = event.unwrap_code_processed();
-
-            assert_eq!(processed_code_id, code_id);
+                let prepared_block = next_compute_event(&mut self.compute)
+                    .await
+                    .unwrap_block_prepared();
+                assert_eq!(prepared_block, block);
+            }
+            ComputeEvent::BlockPrepared(prepared_block) => {
+                assert_eq!(prepared_block, block);
+            }
+            event => panic!("unexpected compute event while preparing block: {event:?}"),
         }
-
-        let event = self
-            .compute
-            .next()
-            .await
-            .unwrap()
-            .expect("expect block prepared after processing all codes");
-        let prepared_block = event.unwrap_block_prepared();
-        assert_eq!(prepared_block, block);
     }
 
     async fn compute_and_assert_announce(&mut self, announce: Announce) {
@@ -228,14 +264,9 @@ impl TestEnv {
         self.compute
             .compute_announce(announce.clone(), PromisePolicy::Disabled);
 
-        let event = self
-            .compute
-            .next()
+        let computed_announce = next_compute_event(&mut self.compute)
             .await
-            .unwrap()
-            .expect("expect block will be processing");
-
-        let computed_announce = event.unwrap_announce_computed();
+            .unwrap_announce_computed();
         assert_eq!(computed_announce, announce_hash);
 
         self.db.mutate_block_meta(announce.block_hash, |meta| {
@@ -256,250 +287,253 @@ fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> 
     }
 }
 
-#[tokio::test]
-async fn block_computation_basic() -> Result<()> {
-    gear_utils::init_default_logger();
-
-    let mut env = TestEnv::new(1, 3);
-
-    for block in env.chain.blocks.clone().iter().skip(1) {
-        env.prepare_and_assert_block(block.hash).await;
-
-        let announce = new_announce(&env.db, block.hash, Some(100));
-        env.compute_and_assert_announce(announce).await;
-    }
-
-    Ok(())
+fn chain_with_event_count_strategy() -> BoxedStrategy<(BlockChain, u32)> {
+    (1u32..=6, 0u32..=4)
+        .prop_flat_map(|(chain_len, events_in_block)| {
+            block_chain_strategy(chain_len).prop_map(move |chain| (chain, events_in_block))
+        })
+        .boxed()
 }
 
-#[tokio::test]
-async fn multiple_preparation_and_one_processing() -> Result<()> {
-    gear_utils::init_default_logger();
+fn single_block_chain_with_event_count_strategy() -> BoxedStrategy<(BlockChain, u32)> {
+    (0u32..=4)
+        .prop_flat_map(|events_in_block| {
+            block_chain_strategy(1).prop_map(move |chain| (chain, events_in_block))
+        })
+        .boxed()
+}
 
-    let mut env = TestEnv::new(3, 3);
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
 
-    for block in env.chain.blocks.clone().iter().skip(1) {
-        env.prepare_and_assert_block(block.hash).await;
-    }
+    #[test]
+    fn block_computation_basic((chain, events_in_block) in chain_with_event_count_strategy()) {
+        gear_utils::init_default_logger();
 
-    // append announces to prepared blocks, except the last one, so that it can be computed
-    for i in 1..3 {
-        let announce = new_announce(&env.db, env.chain.blocks[i].hash, Some(100));
-        env.db.mutate_block_meta(announce.block_hash, |meta| {
-            meta.announces
-                .get_or_insert_default()
-                .insert(announce.to_hash());
+        run_async_test(async move {
+            let mut env = TestEnv::new(chain, events_in_block);
+            let block_hashes = env
+                .chain
+                .blocks
+                .iter()
+                .skip(1)
+                .map(|block| block.hash)
+                .collect::<Vec<_>>();
+
+            for block_hash in block_hashes {
+                env.prepare_and_assert_block(block_hash).await;
+
+                let announce = new_announce(&env.db, block_hash, Some(100));
+                env.compute_and_assert_announce(announce).await;
+            }
         });
-        env.db.set_announce(announce);
     }
 
-    let announce = new_announce(&env.db, env.chain.blocks[3].hash, Some(100));
-    env.compute_and_assert_announce(announce).await;
+    #[test]
+    fn multiple_preparation_and_one_processing(
+        (chain, events_in_block) in chain_with_event_count_strategy()
+    ) {
+        gear_utils::init_default_logger();
 
-    Ok(())
-}
+        run_async_test(async move {
+            let mut env = TestEnv::new(chain, events_in_block);
+            let block_hashes = env
+                .chain
+                .blocks
+                .iter()
+                .skip(1)
+                .map(|block| block.hash)
+                .collect::<Vec<_>>();
 
-#[tokio::test]
-async fn one_preparation_and_multiple_processing() -> Result<()> {
-    gear_utils::init_default_logger();
+            for block_hash in block_hashes {
+                env.prepare_and_assert_block(block_hash).await;
+            }
 
-    let mut env = TestEnv::new(3, 3);
+            let last_index = env.chain.blocks.len() - 1;
+            for i in 1..last_index {
+                let announce = new_announce(&env.db, env.chain.blocks[i].hash, Some(100));
+                env.db.mutate_block_meta(announce.block_hash, |meta| {
+                    meta.announces
+                        .get_or_insert_default()
+                        .insert(announce.to_hash());
+                });
+                env.db.set_announce(announce);
+            }
 
-    env.prepare_and_assert_block(env.chain.blocks[3].hash).await;
-
-    for block in env.chain.blocks.clone().iter().skip(1) {
-        let announce = new_announce(&env.db, block.hash, Some(100));
-        env.compute_and_assert_announce(announce).await;
+            let announce = new_announce(&env.db, env.chain.blocks[last_index].hash, Some(100));
+            env.compute_and_assert_announce(announce).await;
+        });
     }
 
-    Ok(())
-}
+    #[test]
+    fn one_preparation_and_multiple_processing(
+        (chain, events_in_block) in chain_with_event_count_strategy()
+    ) {
+        gear_utils::init_default_logger();
 
-#[tokio::test]
-async fn code_validation_request_does_not_block_preparation() -> Result<()> {
-    gear_utils::init_default_logger();
+        run_async_test(async move {
+            let mut env = TestEnv::new(chain, events_in_block);
+            let last_block_hash = env.chain.blocks.back().unwrap().hash;
+            env.prepare_and_assert_block(last_block_hash).await;
 
-    let mut env = TestEnv::new(1, 3);
+            let block_hashes = env
+                .chain
+                .blocks
+                .iter()
+                .skip(1)
+                .map(|block| block.hash)
+                .collect::<Vec<_>>();
 
-    let mut block_events = env.chain.blocks[1].as_synced().events.clone();
+            for block_hash in block_hashes {
+                let announce = new_announce(&env.db, block_hash, Some(100));
+                env.compute_and_assert_announce(announce).await;
+            }
+        });
+    }
 
-    // add invalid event which shouldn't stop block prepare
-    block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
-        CodeValidationRequestedEvent {
-            code_id: CodeId::zero(),
-            timestamp: 0u64,
-            tx_hash: H256::random(),
-        },
-    )));
-    env.db
-        .set_block_events(env.chain.blocks[1].hash, &block_events);
-    env.prepare_and_assert_block(env.chain.blocks[1].hash).await;
+    #[test]
+    fn code_validation_request_does_not_block_preparation(
+        (chain, events_in_block) in single_block_chain_with_event_count_strategy()
+    ) {
+        gear_utils::init_default_logger();
 
-    let announce = new_announce(&env.db, env.chain.blocks[1].hash, Some(100));
-    env.compute_and_assert_announce(announce.clone()).await;
-    env.compute_and_assert_announce(announce.clone()).await;
+        run_async_test(async move {
+            let mut env = TestEnv::new(chain, events_in_block);
+            let block_hash = env.chain.blocks[1].hash;
+            let mut block_events = env.chain.blocks[1].as_synced().events.clone();
 
-    Ok(())
-}
+            block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                CodeValidationRequestedEvent {
+                    code_id: CodeId::zero(),
+                    timestamp: 0u64,
+                    tx_hash: H256::random(),
+                },
+            )));
 
-#[tokio::test]
-async fn code_validation_request_for_already_processed_code_does_not_request_loading() -> Result<()>
-{
-    gear_utils::init_default_logger();
+            env.db.set_block_events(block_hash, &block_events);
+            env.prepare_and_assert_block(block_hash).await;
 
-    let db = Database::memory();
-    let processor = MockProcessor::default();
-    let mut compute = ComputeService::new(
-        ComputeConfig::without_quarantine(),
-        db.clone(),
-        processor.clone(),
-    );
+            let announce = new_announce(&env.db, block_hash, Some(100));
+            env.compute_and_assert_announce(announce.clone()).await;
+            env.compute_and_assert_announce(announce).await;
+        });
+    }
 
-    let code = create_new_code(1);
-    let code_id = db.set_original_code(&code);
-    db.set_code_valid(code_id, true);
+    #[test]
+    fn code_validation_request_for_already_processed_code_does_not_request_loading(
+        chain in block_chain_strategy(1)
+    ) {
+        gear_utils::init_default_logger();
 
-    // Setup chain and mark blocks as not prepared
-    let mut chain = BlockChain::mock(1);
-    mark_as_not_prepared(&mut chain);
-    let chain = chain.setup(&db);
-    let block_hash = chain.blocks[1].hash;
+        run_async_test(async move {
+            let db = Database::memory();
+            let processor = MockProcessor::default();
+            let mut compute = ComputeService::new(
+                ComputeConfig::without_quarantine(),
+                db.clone(),
+                processor.clone(),
+            );
 
-    // Add CodeValidationRequested event for the already-validated code
-    let events = db.block_events(block_hash).unwrap_or_default();
-    let mut new_events = events.clone();
-    new_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
-        CodeValidationRequestedEvent {
-            code_id,
-            timestamp: 0u64,
-            tx_hash: H256::random(),
-        },
-    )));
-    db.set_block_events(block_hash, &new_events);
+            let code = create_new_code(1);
+            let code_id = db.set_original_code(&code);
+            db.set_code_valid(code_id, true);
 
-    compute.prepare_block(block_hash);
+            let mut chain = chain;
+            mark_as_not_prepared(&mut chain);
+            let chain = chain.setup(&db);
+            let block_hash = chain.blocks[1].hash;
 
-    // The first event should be BlockPrepared, NOT RequestCodes
-    // because the code is already validated
-    let event = compute
-        .next()
-        .await
-        .unwrap()
-        .expect("expect compute service to produce an event");
+            let mut new_events = db.block_events(block_hash).unwrap_or_default();
+            new_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                CodeValidationRequestedEvent {
+                    code_id,
+                    timestamp: 0u64,
+                    tx_hash: H256::random(),
+                },
+            )));
+            db.set_block_events(block_hash, &new_events);
 
-    // Verify block was prepared without requesting code loading
-    let prepared_block = event.unwrap_block_prepared();
-    assert_eq!(prepared_block, block_hash);
+            compute.prepare_block(block_hash);
 
-    // Verify that no follow-up events are produced (no RequestCodes)
-    let no_follow_up_event = timeout(Duration::from_millis(100), compute.next()).await;
-    assert!(
-        no_follow_up_event.is_err(),
-        "unexpected follow-up compute event after block preparation: {no_follow_up_event:?}"
-    );
+            let prepared_block = next_compute_event(&mut compute).await.unwrap_block_prepared();
+            assert_eq!(prepared_block, block_hash);
+            assert_no_compute_event(&mut compute).await;
+            assert_eq!(processor.process_code_call_count(), 0);
+        });
+    }
 
-    // Verify that the processor was NOT called
-    assert_eq!(
-        processor.process_code_call_count(),
-        0,
-        "Processor should not be called for already-validated code"
-    );
+    #[test]
+    fn code_validation_request_for_non_validated_code_requests_loading(
+        chain in block_chain_strategy(1)
+    ) {
+        gear_utils::init_default_logger();
 
-    Ok(())
-}
+        run_async_test(async move {
+            let db = Database::memory();
+            let processor = MockProcessor::default();
+            let mut compute = ComputeService::new(
+                ComputeConfig::without_quarantine(),
+                db.clone(),
+                processor.clone(),
+            );
 
-#[tokio::test]
-async fn code_validation_request_for_non_validated_code_requests_loading() -> Result<()> {
-    gear_utils::init_default_logger();
+            let code = create_new_code(1);
+            let code_id = db.set_original_code(&code);
 
-    let db = Database::memory();
-    let processor = MockProcessor::default();
-    let mut compute = ComputeService::new(
-        ComputeConfig::without_quarantine(),
-        db.clone(),
-        processor.clone(),
-    );
+            let mut chain = chain;
+            mark_as_not_prepared(&mut chain);
+            let chain = chain.setup(&db);
+            let block_hash = chain.blocks[1].hash;
 
-    let code = create_new_code(1);
-    let code_id = db.set_original_code(&code);
-    // Note: code is NOT marked as valid (db.code_valid(code_id) is None)
+            let mut new_events = db.block_events(block_hash).unwrap_or_default();
+            new_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                CodeValidationRequestedEvent {
+                    code_id,
+                    timestamp: 0u64,
+                    tx_hash: H256::random(),
+                },
+            )));
+            db.set_block_events(block_hash, &new_events);
 
-    // Setup chain and mark blocks as not prepared
-    let mut chain = BlockChain::mock(1);
-    mark_as_not_prepared(&mut chain);
-    let chain = chain.setup(&db);
-    let block_hash = chain.blocks[1].hash;
+            compute.prepare_block(block_hash);
 
-    // Add CodeValidationRequested event for the non-validated code
-    let events = db.block_events(block_hash).unwrap_or_default();
-    let mut new_events = events.clone();
-    new_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
-        CodeValidationRequestedEvent {
-            code_id,
-            timestamp: 0u64,
-            tx_hash: H256::random(),
-        },
-    )));
-    db.set_block_events(block_hash, &new_events);
+            let codes_to_load = next_compute_event(&mut compute)
+                .await
+                .unwrap_request_load_codes();
+            assert!(codes_to_load.contains(&code_id));
+        });
+    }
 
-    compute.prepare_block(block_hash);
+    #[test]
+    fn process_code_for_already_processed_valid_code_emits_code_processed(nonce in any::<u32>()) {
+        gear_utils::init_default_logger();
 
-    // The first event should be RequestCodes because the code is NOT validated
-    let event = compute
-        .next()
-        .await
-        .unwrap()
-        .expect("expect compute service to produce an event");
+        run_async_test(async move {
+            let db = Database::memory();
+            let processor = MockProcessor::default();
+            let mut compute = ComputeService::new(
+                ComputeConfig::without_quarantine(),
+                db.clone(),
+                processor.clone(),
+            );
 
-    // Verify that RequestCodes is emitted for non-validated code
-    let codes_to_load = event.unwrap_request_load_codes();
-    assert!(
-        codes_to_load.contains(&code_id),
-        "CodeId should be requested for loading when not validated"
-    );
+            let code = create_new_code(nonce);
+            let code_id = db.set_original_code(&code);
 
-    Ok(())
-}
+            db.set_instrumented_code(
+                ethexe_runtime_common::VERSION,
+                code_id,
+                InstrumentedCode::new(vec![0], InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
+            );
+            db.set_code_valid(code_id, true);
 
-#[tokio::test]
-async fn process_code_for_already_processed_valid_code_emits_code_processed() -> Result<()> {
-    gear_utils::init_default_logger();
+            compute.process_code(CodeAndIdUnchecked { code_id, code });
 
-    let db = Database::memory();
-    let processor = MockProcessor::default();
-    let mut compute = ComputeService::new(
-        ComputeConfig::without_quarantine(),
-        db.clone(),
-        processor.clone(),
-    );
-
-    let code = create_new_code(2);
-    let code_id = db.set_original_code(&code);
-
-    db.set_instrumented_code(
-        ethexe_runtime_common::VERSION,
-        code_id,
-        InstrumentedCode::new(vec![0], InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),
-    );
-    db.set_code_valid(code_id, true);
-
-    compute.process_code(CodeAndIdUnchecked { code_id, code });
-
-    let event = compute
-        .next()
-        .await
-        .unwrap()
-        .expect("expect already processed code to produce CodeProcessed event");
-    let processed_code_id = event.unwrap_code_processed();
-    assert_eq!(processed_code_id, code_id);
-
-    // Verify that the processor was NOT called for already-validated code
-    // The CodesSubService should short-circuit and emit CodeProcessed without calling the processor
-    assert_eq!(
-        processor.process_code_call_count(),
-        0,
-        "Processor should not be called for already-validated code"
-    );
-
-    Ok(())
+            let processed_code_id = next_compute_event(&mut compute)
+                .await
+                .unwrap_code_processed();
+            assert_eq!(processed_code_id, code_id);
+            assert_eq!(processor.process_code_call_count(), 0);
+        });
+    }
 }
