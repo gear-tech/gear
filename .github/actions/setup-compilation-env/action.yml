@@ -45,6 +45,9 @@ runs:
         sudo dpkg -l | grep ii
         sudo apt-cache policy libllvm20
 
+        echo -e "Package: *\nPin: origin \"apt.llvm.org\"\nPin-Priority: 1001" | sudo tee /etc/apt/preferences.d/llvm
+        sudo apt update
+
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 20 || sudo apt-cache policy libllvm20
