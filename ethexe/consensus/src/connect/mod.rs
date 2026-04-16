@@ -371,7 +371,8 @@ impl FusedStream for ConnectService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{HashOf, ValidatorsVec, mock::*};
+    use crate::mock::*;
+    use ethexe_common::{HashOf, ValidatorsVec};
     use ethexe_db::Database;
     use gsigner::{PrivateKey, PublicKey, SignedData};
 
@@ -382,7 +383,7 @@ mod tests {
         let validators = ValidatorsVec::try_from(vec![validator_address]).unwrap();
 
         let db = Database::memory();
-        let chain = BlockChain::mock((10, validators)).setup(&db);
+        let chain = test_block_chain_with_validators(10, validators).setup(&db);
 
         let mut service = ConnectService::new(db, 10);
         service
