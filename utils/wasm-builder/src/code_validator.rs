@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, ensure};
 use gear_core::{
     code::{Code, CodeError, ExportError, ImportError},
     gas_metering::Schedule,
@@ -265,6 +265,12 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
     }
 }
 
+#[derive(Debug)]
+pub enum CodeKind {
+    Original,
+    Instrumented,
+}
+
 #[derive(Error, Debug)]
 #[error("code check failed: ")]
 pub enum CodeErrorWithContext {
@@ -273,8 +279,13 @@ pub enum CodeErrorWithContext {
     #[error("Import error: {0}")]
     Import(#[from] ImportErrorWithContext),
     Code(#[from] CodeError),
-    #[error("Code exceeds the limit specified in the current schedule")]
-    CodeTooLarge,
+    #[error(
+        "Code exceeds the limit {limit} bytes specified in the current schedule, code kind: {kind:?}"
+    )]
+    CodeTooLarge {
+        limit: u32,
+        kind: CodeKind,
+    },
 }
 
 impl CodeErrorWithContext {
@@ -301,9 +312,12 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
     let module = Module::new(&code)?;
     let schedule = Schedule::default();
 
-    anyhow::ensure!(
+    ensure!(
         (code.len() as u32) <= schedule.limits.code_len,
-        CodeErrorWithContext::CodeTooLarge
+        CodeErrorWithContext::CodeTooLarge {
+            limit: schedule.limits.code_len,
+            kind: CodeKind::Original
+        }
     );
 
     let code = Code::try_new(
@@ -316,10 +330,13 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
         schedule.limits.parameters.into(),
     );
 
-    anyhow::ensure!(
+    ensure!(
         (code.as_ref().unwrap().instrumented_code().bytes().len() as u32)
             <= schedule.limits.code_len,
-        CodeErrorWithContext::CodeTooLarge
+        CodeErrorWithContext::CodeTooLarge {
+            limit: schedule.limits.code_len,
+            kind: CodeKind::Instrumented
+        }
     );
 
     match code {
