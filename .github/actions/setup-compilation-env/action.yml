@@ -44,13 +44,15 @@ runs:
     - name: "Install: LLVM on Linux"
       if: ${{ runner.os == 'Linux' }}
       run: |
+        sudo apt purge libllvm20:amd64 libllvm20:i386 || true
+
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 20
-        
+
         sudo apt-fast update
         sudo apt-fast install -y libclang-20-dev clang-tools-20
-        
+
         sudo update-alternatives --install /usr/bin/clang-cl clang-cl /usr/bin/clang-cl-20 100
         sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
         sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
