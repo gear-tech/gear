@@ -200,17 +200,37 @@ mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::{
-        Digest, ToDigest,
+        Announce, Digest, HashOf, ToDigest,
+        consensus::VerifiedAnnounce,
         db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRW},
-        gear::CodeCommitment,
+        gear::BatchCommitment,
         mock::*,
     };
+    use gprimitives::H256;
+    use gsigner::PublicKey;
+
+    fn verified_request(
+        signer: &gsigner::secp256k1::Signer,
+        pub_key: PublicKey,
+        batch: &BatchCommitment,
+    ) -> VerifiedValidationRequest {
+        signer.verified_test_data(pub_key, BatchCommitmentValidationRequest::new(batch))
+    }
+
+    fn verified_announce(
+        signer: &gsigner::secp256k1::Signer,
+        pub_key: PublicKey,
+        block_hash: H256,
+        parent: HashOf<Announce>,
+    ) -> VerifiedAnnounce {
+        signer.verified_test_data(pub_key, test_announce(block_hash, parent))
+    }
 
     #[test]
     fn create() {
-        let (ctx, pub_keys, _) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
+        let block = test_simple_block_data(1);
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
 
@@ -222,30 +242,41 @@ mod tests {
     async fn create_with_pending_events() {
         gear_utils::init_default_logger();
 
-        let (mut ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = keys[0];
         let alice = keys[1];
-        let block = BlockChain::mock(2).setup(&ctx.core.db).blocks[2].to_simple();
+        let block = test_block_chain(2).setup(&ctx.core.db).blocks[2].to_simple();
+        let request_batch = test_batch_commitment(block.hash, 1);
 
         // Validation request from alice - must be kept
-        ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_verified_data(alice, ()),
-        ));
+        ctx.pending(PendingEvent::ValidationRequest(verified_request(
+            &ctx.core.signer,
+            alice,
+            &request_batch,
+        )));
 
         // Validation request from producer - must be removed and processed
-        ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_verified_data(producer, ()),
-        ));
+        ctx.pending(PendingEvent::ValidationRequest(verified_request(
+            &ctx.core.signer,
+            producer,
+            &request_batch,
+        )));
 
         // Block from producer - must be kept
-        ctx.pending(PendingEvent::Announce(
-            ctx.core.signer.mock_verified_data(producer, ()),
-        ));
+        ctx.pending(PendingEvent::Announce(verified_announce(
+            &ctx.core.signer,
+            producer,
+            block.hash,
+            HashOf::zero(),
+        )));
 
         // Block from alice - must be kept
-        ctx.pending(PendingEvent::Announce(
-            ctx.core.signer.mock_verified_data(alice, ()),
-        ));
+        ctx.pending(PendingEvent::Announce(verified_announce(
+            &ctx.core.signer,
+            alice,
+            block.hash,
+            HashOf::zero(),
+        )));
 
         let (state, event) = Participant::create(ctx, block, producer.to_address())
             .unwrap()
@@ -266,21 +297,12 @@ mod tests {
 
     #[tokio::test]
     async fn process_validation_request_success() {
-        let (ctx, pub_keys, _) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-        let verified_request = ctx
-            .core
-            .signer
-            .signed_data(
-                producer,
-                BatchCommitmentValidationRequest::new(&batch),
-                None,
-            )
-            .unwrap()
-            .into_verified();
+        let verified_request = verified_request(&ctx.core.signer, producer, &batch);
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -307,10 +329,14 @@ mod tests {
 
     #[tokio::test]
     async fn process_validation_request_failure() {
-        let (ctx, pub_keys, _) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(());
-        let verified_request = ctx.core.signer.mock_verified_data(producer, ());
+        let block = test_simple_block_data(2);
+        let verified_request = verified_request(
+            &ctx.core.signer,
+            producer,
+            &test_batch_commitment(block.hash, 2),
+        );
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -325,13 +351,13 @@ mod tests {
 
     #[tokio::test]
     async fn codes_not_waiting_for_commitment_error() {
-        let (ctx, pub_keys, _) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
         let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Add a code that's not in the waiting queue
-        let extra_code = CodeCommitment::mock(());
+        let extra_code = test_code_commitment(99);
         batch.code_commitments.push(extra_code);
 
         let request = BatchCommitmentValidationRequest::new(&batch);
@@ -357,7 +383,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_batch_error() {
-        let (ctx, pub_keys, _) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let producer = pub_keys[0];
         let block = ctx.core.db.simple_block_data(batch.block_hash);
@@ -400,7 +426,7 @@ mod tests {
 
     #[tokio::test]
     async fn duplicate_codes_warning() {
-        let (ctx, pub_keys, _) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
@@ -434,7 +460,7 @@ mod tests {
 
     #[tokio::test]
     async fn digest_mismatch_warning() {
-        let (ctx, pub_keys, _) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);

@@ -768,7 +768,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tx_validation::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES;
+    use crate::{mock::*, tx_validation::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES};
     use ethexe_common::{
         StateHashWithQueueSize,
         db::*,
@@ -788,10 +788,10 @@ mod tests {
     };
 
     fn make_chain(last: usize, fnp: usize, wta: usize) -> BlockChain {
-        let mut chain = BlockChain::mock(last as u32);
+        let mut chain = test_block_chain(last as u32);
         (fnp..=last).for_each(|i| {
             chain.blocks[i]
-                .assert_prepared_mut()
+                .as_prepared_mut()
                 .announces
                 .take()
                 .iter()
@@ -808,7 +808,7 @@ mod tests {
         );
         let announce_hash = announce.to_hash();
         chain.blocks[wta]
-            .assert_prepared_mut()
+            .as_prepared_mut()
             .announces
             .as_mut()
             .unwrap()
@@ -923,7 +923,7 @@ mod tests {
             let mut chain = make_chain(last, fnp, wta);
 
             (fnp..=last).for_each(|i| {
-                chain.blocks[i].assert_prepared_mut().last_committed_announce =
+                chain.blocks[i].as_prepared_mut().last_committed_announce =
                     chain.block_top_announce_hash(wta);
             });
 
@@ -963,7 +963,7 @@ mod tests {
             let committed_announce_hash = chain.block_top_announce(wta).announce.to_hash();
 
             for i in committed_at..=last {
-                chain.blocks[i].assert_prepared_mut().last_committed_announce = committed_announce_hash;
+                chain.blocks[i].as_prepared_mut().last_committed_announce = committed_announce_hash;
             }
 
             let chain = chain.setup(&db);
@@ -995,15 +995,16 @@ mod tests {
             let mut chain = make_chain(last, fnp, wta);
 
             let missing_announce = Announce {
-                block_hash: chain.blocks[created_at].hash,
-                parent: chain.block_top_announce(created_at).announce.parent,
                 gas_allowance: Some(43),
-                injected_transactions: Default::default()
+                ..test_announce(
+                    chain.blocks[created_at].hash,
+                    chain.block_top_announce(created_at).announce.parent,
+                )
             };
             let missing_announce_hash = missing_announce.to_hash();
 
             (committed_at..=last).for_each(|i| {
-                chain.blocks[i].assert_prepared_mut().last_committed_announce = missing_announce_hash;
+                chain.blocks[i].as_prepared_mut().last_committed_announce = missing_announce_hash;
             });
 
             let chain = chain.setup(&db);
@@ -1056,7 +1057,7 @@ mod tests {
         };
         let state_hash = db.write_program_state(state);
 
-        let chain = BlockChain::mock(10)
+        let chain = test_block_chain(10)
             .tap_mut(|chain| {
                 chain.blocks[10].synced.events = (0..MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2 + 1)
                     .map(|i| BlockEvent::Mirror {

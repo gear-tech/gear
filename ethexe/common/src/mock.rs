@@ -483,12 +483,12 @@ pub struct BlockFullData {
 
 impl BlockFullData {
     #[track_caller]
-    pub fn assert_prepared(&self) -> &PreparedBlockData {
+    pub fn as_prepared(&self) -> &PreparedBlockData {
         self.prepared.as_ref().expect("block is not prepared")
     }
 
     #[track_caller]
-    pub fn assert_prepared_mut(&mut self) -> &mut PreparedBlockData {
+    pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
         self.prepared.as_mut().expect("block is not prepared")
     }
 
@@ -578,7 +578,7 @@ impl BlockChain {
         self.blocks
             .get(block_index)
             .expect("block index overflow")
-            .assert_prepared()
+            .as_prepared()
             .announces
             .iter()
             .flatten()
@@ -627,7 +627,7 @@ impl BlockChain {
         self.announces.insert(new_announce_hash, announce_data);
 
         self.blocks[block_index]
-            .assert_prepared_mut()
+            .as_prepared_mut()
             .announces
             .as_mut()
             .expect("block announces not found")

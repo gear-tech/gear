@@ -499,7 +499,7 @@ mod tests {
 
         let chain = BlockChain::mock(1)
             .tap_mut(|chain| {
-                chain.blocks[1].assert_prepared_mut().codes_queue =
+                chain.blocks[1].as_prepared_mut().codes_queue =
                     [parent_block_code_id, parent_block_loaded_code_id].into();
                 chain.codes.insert(
                     parent_block_loaded_code_id,

@@ -18,15 +18,28 @@
 
 use crate::BatchCommitmentValidationReply;
 use ethexe_common::{
-    Address, Digest, ToDigest,
+    Address, Announce, BlockHeader, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest,
+    ValidatorsVec,
     db::*,
     ecdsa::{PrivateKey, PublicKey, SignedData, VerifiedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment, StateTransition},
-    mock::*,
+    gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
+    injected::InjectedTransaction,
+    mock::{
+        AnnounceData, BlockChain, BlockFullData, DBMockExt, MockComputedAnnounceData,
+        PreparedBlockData as MockPreparedBlockData, SyncedBlockData, Tap,
+    },
 };
 use ethexe_db::Database;
+use gear_core::limited::LimitedVec;
+use gprimitives::{ActorId, H256, MessageId};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
-use std::vec;
+use std::{collections::VecDeque, vec};
+
+const TEST_ROUTER_ADDRESS: Address = Address([0x42; 20]);
+const TEST_GENESIS_HASH: H256 = H256([u8::MAX; 32]);
+const TEST_GENESIS_HEIGHT: u32 = 1_000_000;
+const TEST_GENESIS_TIMESTAMP: u64 = 1_000_000;
+const TEST_SLOT: u64 = 10;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
     let signer = Signer::memory();
@@ -41,6 +54,198 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
     (signer, private_keys, public_keys)
 }
 
+pub fn test_protocol_timelines() -> ProtocolTimelines {
+    ProtocolTimelines {
+        genesis_ts: TEST_GENESIS_TIMESTAMP,
+        era: TEST_SLOT * 100,
+        election: TEST_SLOT * 20,
+        slot: TEST_SLOT,
+    }
+}
+
+pub fn test_protocol_timelines_with_slot(slot: u64) -> ProtocolTimelines {
+    ProtocolTimelines {
+        slot,
+        ..test_protocol_timelines()
+    }
+}
+
+pub fn test_block_hash(index: u64) -> H256 {
+    H256::from_low_u64_be(index).tap_mut(|hash| hash.0[0] = 0x10)
+}
+
+pub fn test_simple_block_data(index: u64) -> SimpleBlockData {
+    let hash = test_block_hash(index);
+    let parent_hash = index
+        .checked_sub(1)
+        .map(test_block_hash)
+        .unwrap_or(TEST_GENESIS_HASH);
+
+    SimpleBlockData {
+        hash,
+        header: BlockHeader {
+            height: TEST_GENESIS_HEIGHT + index as u32,
+            timestamp: TEST_GENESIS_TIMESTAMP + index * TEST_SLOT,
+            parent_hash,
+        },
+    }
+}
+
+pub fn test_announce(block_hash: H256, parent: HashOf<Announce>) -> Announce {
+    Announce {
+        block_hash,
+        parent,
+        gas_allowance: Some(100),
+        injected_transactions: vec![],
+    }
+}
+
+pub fn test_code_commitment(seed: u64) -> CodeCommitment {
+    CodeCommitment {
+        id: test_block_hash(seed).into(),
+        valid: true,
+    }
+}
+
+pub fn test_state_transition(seed: u64) -> StateTransition {
+    StateTransition {
+        actor_id: ActorId::from(test_block_hash(seed)),
+        new_state_hash: test_block_hash(seed + 1),
+        exited: false,
+        inheritor: ActorId::from(test_block_hash(seed + 2)),
+        value_to_receive: 123,
+        value_to_receive_negative_sign: false,
+        value_claims: vec![],
+        messages: vec![Message {
+            id: MessageId::from(test_block_hash(seed + 3)),
+            destination: ActorId::from(test_block_hash(seed + 4)),
+            payload: format!("message-{seed}").into_bytes(),
+            value: 0,
+            reply_details: None,
+            call: false,
+        }],
+    }
+}
+
+pub fn test_chain_commitment(head_announce: HashOf<Announce>, seed: u64) -> ChainCommitment {
+    ChainCommitment {
+        transitions: vec![
+            test_state_transition(seed),
+            test_state_transition(seed + 10),
+        ],
+        head_announce,
+    }
+}
+
+pub fn test_batch_commitment(block_hash: H256, seed: u64) -> BatchCommitment {
+    BatchCommitment {
+        block_hash,
+        timestamp: TEST_GENESIS_TIMESTAMP + seed,
+        previous_batch: Digest::zero(),
+        expiry: 10,
+        chain_commitment: Some(test_chain_commitment(HashOf::zero(), seed)),
+        code_commitments: vec![
+            test_code_commitment(seed + 100),
+            test_code_commitment(seed + 200),
+        ],
+        validators_commitment: None,
+        rewards_commitment: None,
+    }
+}
+
+pub fn test_injected_transaction(
+    reference_block: H256,
+    destination: ActorId,
+) -> InjectedTransaction {
+    InjectedTransaction {
+        destination,
+        payload: LimitedVec::new(),
+        value: 0,
+        reference_block,
+        salt: LimitedVec::try_from(vec![reference_block.to_low_u64_be() as u8; 32])
+            .expect("fixed salt length fits"),
+    }
+}
+
+pub fn test_block_chain(len: u32) -> BlockChain {
+    test_block_chain_with_validators(len, Default::default())
+}
+
+pub fn test_block_chain_with_validators(len: u32, validators: ValidatorsVec) -> BlockChain {
+    let mut blocks: VecDeque<_> = (0..=len)
+        .map(|index| {
+            let block = test_simple_block_data(index as u64);
+            BlockFullData {
+                hash: block.hash,
+                synced: SyncedBlockData {
+                    header: block.header,
+                    events: Default::default(),
+                },
+                prepared: Some(MockPreparedBlockData {
+                    codes_queue: Default::default(),
+                    announces: Some(Default::default()),
+                    last_committed_batch: Digest::zero(),
+                    last_committed_announce: HashOf::zero(),
+                }),
+            }
+        })
+        .collect();
+
+    let mut genesis_announce_hash = None;
+    let mut parent_announce_hash = HashOf::zero();
+    let announces = blocks
+        .iter_mut()
+        .map(|block| {
+            let announce = Announce::base(block.hash, parent_announce_hash);
+            let announce_hash = announce.to_hash();
+            let genesis_announce_hash = genesis_announce_hash.get_or_insert(announce_hash);
+
+            block
+                .as_prepared_mut()
+                .announces
+                .as_mut()
+                .expect("block announces exist")
+                .insert(announce_hash);
+            block.as_prepared_mut().last_committed_announce = *genesis_announce_hash;
+            parent_announce_hash = announce_hash;
+
+            (
+                announce_hash,
+                AnnounceData {
+                    announce,
+                    computed: Some(MockComputedAnnounceData::default()),
+                },
+            )
+        })
+        .collect();
+
+    let config = DBConfig {
+        version: 0,
+        chain_id: 0,
+        router_address: TEST_ROUTER_ADDRESS,
+        timelines: test_protocol_timelines(),
+        genesis_block_hash: blocks[0].hash,
+        genesis_announce_hash: genesis_announce_hash.expect("genesis announce exists"),
+    };
+
+    let globals = DBGlobals {
+        start_block_hash: blocks[0].hash,
+        start_announce_hash: genesis_announce_hash.expect("genesis announce exists"),
+        latest_synced_block: blocks.back().expect("chain has blocks").to_simple(),
+        latest_prepared_block_hash: blocks.back().expect("chain has blocks").hash,
+        latest_computed_announce_hash: parent_announce_hash,
+    };
+
+    BlockChain {
+        blocks,
+        announces,
+        codes: Default::default(),
+        validators,
+        config,
+        globals,
+    }
+}
+
 /// Prepare chain with case:
 /// ```txt
 /// chain:                  [genesis] <- [block1] <- [block2] <- [block3]
@@ -50,10 +255,10 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
 /// last_committed_announce:  genesis     genesis     genesis     genesis
 /// ```
 pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
-    let mut chain = BlockChain::mock(3);
+    let mut chain = test_block_chain(3);
 
-    let transitions1 = vec![StateTransition::mock(()), StateTransition::mock(())];
-    let transitions2 = vec![StateTransition::mock(()), StateTransition::mock(())];
+    let transitions1 = vec![test_state_transition(10), test_state_transition(20)];
+    let transitions2 = vec![test_state_transition(30), test_state_transition(40)];
 
     let announce1_hash = chain.block_top_announce_mutate(1, |data| {
         data.announce.gas_allowance = Some(19);
@@ -71,8 +276,8 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
         data.announce.parent = announce2_hash;
     });
 
-    let code_commitment1 = CodeCommitment::mock(());
-    let code_commitment2 = CodeCommitment::mock(());
+    let code_commitment1 = test_code_commitment(100);
+    let code_commitment2 = test_code_commitment(200);
     chain.blocks[3].prepared.as_mut().unwrap().codes_queue =
         [code_commitment1.id, code_commitment2.id].into();
 
@@ -101,18 +306,10 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
 }
 
 pub trait SignerMockExt {
-    fn mock_signed_data<T, M: Mock<T> + ToDigest>(
-        &self,
-        pub_key: PublicKey,
-        args: T,
-    ) -> SignedData<M>;
+    fn signed_test_data<M: ToDigest>(&self, pub_key: PublicKey, message: M) -> SignedData<M>;
 
-    fn mock_verified_data<T, M: Mock<T> + ToDigest>(
-        &self,
-        pub_key: PublicKey,
-        args: T,
-    ) -> VerifiedData<M> {
-        self.mock_signed_data(pub_key, args).into_verified()
+    fn verified_test_data<M: ToDigest>(&self, pub_key: PublicKey, message: M) -> VerifiedData<M> {
+        self.signed_test_data(pub_key, message).into_verified()
     }
 
     fn validation_reply(
@@ -124,12 +321,8 @@ pub trait SignerMockExt {
 }
 
 impl SignerMockExt for Signer {
-    fn mock_signed_data<T, M: Mock<T> + ToDigest>(
-        &self,
-        pub_key: PublicKey,
-        args: T,
-    ) -> SignedData<M> {
-        self.signed_data(pub_key, M::mock(args), None).unwrap()
+    fn signed_test_data<M: ToDigest>(&self, pub_key: PublicKey, message: M) -> SignedData<M> {
+        self.signed_data(pub_key, message, None).unwrap()
     }
 
     fn validation_reply(

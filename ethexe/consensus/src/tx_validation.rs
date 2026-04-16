@@ -217,6 +217,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO + Storage> TxVa
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mock::*;
     use ethexe_common::{
         MaybeHashOf, SimpleBlockData, StateHashWithQueueSize,
         db::{AnnounceStorageRW, OnChainStorageRW},
@@ -230,12 +231,12 @@ mod tests {
     use gprimitives::ActorId;
     use std::collections::BTreeMap;
 
-    fn mock_tx(reference_block: H256) -> SignedInjectedTransaction {
-        let mut tx = InjectedTransaction::mock(());
-        tx.reference_block = reference_block;
-        tx.destination = ActorId::zero();
-
+    fn signed_tx(tx: InjectedTransaction) -> SignedInjectedTransaction {
         SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap()
+    }
+
+    fn mock_tx(reference_block: H256) -> SignedInjectedTransaction {
+        signed_tx(test_injected_transaction(reference_block, ActorId::zero()))
     }
 
     fn setup_announce(
@@ -245,9 +246,8 @@ mod tests {
         parent: HashOf<Announce>,
     ) -> HashOf<Announce> {
         let announce = Announce {
-            parent,
             injected_transactions: txs,
-            ..Announce::mock(())
+            ..test_announce(H256::zero(), parent)
         };
         let announce_hash = db.set_announce(announce);
 
@@ -276,7 +276,7 @@ mod tests {
     #[test]
     fn test_check_tx_validity() {
         let db = Database::memory();
-        let chain = BlockChain::mock(100).setup(&db);
+        let chain = test_block_chain(100).setup(&db);
 
         let chain_head = chain.blocks[VALIDITY_WINDOW as usize].to_simple();
         let announce_hash = setup_announce(
@@ -300,7 +300,7 @@ mod tests {
     #[test]
     fn test_check_tx_duplicate() {
         let db = Database::memory();
-        let chain = BlockChain::mock(100).setup(&db);
+        let chain = test_block_chain(100).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
         let tx = mock_tx(chain.blocks[5].hash);
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_check_tx_outdated() {
         let db = Database::memory();
-        let chain = BlockChain::mock(100).setup(&db);
+        let chain = test_block_chain(100).setup(&db);
 
         let chain_head = chain.blocks[(VALIDITY_WINDOW * 2) as usize].to_simple();
         let announce_hash = setup_announce(
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_check_tx_not_on_current_branch() {
         let db = Database::memory();
-        let chain = BlockChain::mock(35).setup(&db);
+        let chain = test_block_chain(35).setup(&db);
 
         let mut blocks_branch2 = vec![];
 
@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn test_check_injected_tx_can_not_initialize_actor() {
         let db = Database::memory();
-        let chain = BlockChain::mock(10).setup(&db);
+        let chain = test_block_chain(10).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
         let tx = mock_tx(chain.blocks[5].hash);
@@ -403,13 +403,11 @@ mod tests {
     #[test]
     fn test_check_injected_transaction_non_zero_value() {
         let db = Database::memory();
-        let chain = BlockChain::mock(10).setup(&db);
+        let chain = test_block_chain(10).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
-        let tx = InjectedTransaction::mock(()).tap_mut(|tx| {
-            tx.reference_block = chain.blocks[5].hash;
-            tx.value = 100
-        });
+        let tx = test_injected_transaction(chain.blocks[5].hash, ActorId::zero())
+            .tap_mut(|tx| tx.value = 100);
 
         let announce_hash = setup_announce(&db, vec![], true, chain.block_top_announce_hash(8));
         let tx_checker =
@@ -417,21 +415,17 @@ mod tests {
 
         assert_eq!(
             TxValidity::NonZeroValue,
-            tx_checker
-                .check_tx_validity(
-                    &SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap()
-                )
-                .unwrap()
+            tx_checker.check_tx_validity(&signed_tx(tx)).unwrap()
         );
     }
 
     #[test]
     fn test_rejecting_unknown_reference_block() {
         let db = Database::memory();
-        let chain = BlockChain::mock(10).setup(&db);
+        let chain = test_block_chain(10).setup(&db);
 
         let chain_head = chain.blocks[9].to_simple();
-        let tx = InjectedTransaction::mock(());
+        let tx = test_injected_transaction(H256::zero(), ActorId::zero());
 
         let announce_hash = setup_announce(&db, vec![], true, chain.block_top_announce_hash(8));
         let tx_checker =
@@ -439,18 +433,14 @@ mod tests {
 
         assert_eq!(
             TxValidity::Outdated,
-            tx_checker
-                .check_tx_validity(
-                    &SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap()
-                )
-                .unwrap()
+            tx_checker.check_tx_validity(&signed_tx(tx)).unwrap()
         );
     }
 
     #[test]
     fn test_reach_start_block_in_branch_check() {
         let db = Database::memory();
-        let chain = BlockChain::mock(10)
+        let chain = test_block_chain(10)
             .tap_mut(|chain| {
                 // leave blocks: 0 (genesis), 8 (start), 9, 10 (head)
                 let blocks_head = chain.blocks.split_off(8);
@@ -462,8 +452,7 @@ mod tests {
             .setup(&db);
 
         let chain_head = chain.blocks[3].to_simple();
-        let tx =
-            InjectedTransaction::mock(()).tap_mut(|tx| tx.reference_block = chain.blocks[0].hash);
+        let tx = test_injected_transaction(chain.blocks[0].hash, ActorId::zero());
 
         let announce_hash = setup_announce(&db, vec![], true, chain.block_top_announce_hash(3));
         let tx_checker =
@@ -471,11 +460,7 @@ mod tests {
 
         assert_eq!(
             TxValidity::NotOnCurrentBranch,
-            tx_checker
-                .check_tx_validity(
-                    &SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap()
-                )
-                .unwrap()
+            tx_checker.check_tx_validity(&signed_tx(tx)).unwrap()
         );
     }
 }
