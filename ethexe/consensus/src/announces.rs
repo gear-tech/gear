@@ -1136,4 +1136,76 @@ mod tests {
             AnnounceRejectionReason::TooManyTouchedPrograms(MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE + 1)
         );
     }
+
+    #[test]
+    fn accept_announce_lenient_for_unknown_destination() {
+        let db = Database::memory();
+        let chain = BlockChain::mock(10).setup(&db);
+
+        // Create a TX targeting a program NOT in the parent announce's ProgramStates.
+        // This simulates a TX for a program created in the current block's canonical events.
+        let unknown_program = ActorId::from([42u8; 32]);
+        let tx = SignedMessage::create(
+            PrivateKey::random(),
+            InjectedTransaction {
+                destination: unknown_program,
+                reference_block: chain.blocks[9].hash,
+                value: 0,
+                ..InjectedTransaction::mock(())
+            },
+        )
+        .unwrap();
+
+        let announce = Announce {
+            block_hash: chain.blocks[10].hash,
+            parent: chain.block_top_announce_hash(9),
+            gas_allowance: Some(42),
+            injected_transactions: vec![tx],
+        };
+
+        // accept_announce must accept this — the producer validated against
+        // post-canonical states where the program exists.
+        let status = accept_announce(&db, announce).unwrap();
+        assert!(
+            matches!(status, AnnounceStatus::Accepted(_)),
+            "Announce with UnknownDestination TX should be accepted (state-dependent leniency), got {status:?}"
+        );
+    }
+
+    #[test]
+    fn accept_announce_rejects_structural_invalidity() {
+        let db = Database::memory();
+        let chain = BlockChain::mock(10).setup(&db);
+
+        // Create a TX with non-zero value — structural violation.
+        let tx = SignedMessage::create(
+            PrivateKey::random(),
+            InjectedTransaction {
+                destination: ActorId::zero(),
+                reference_block: chain.blocks[9].hash,
+                value: 100,
+                ..InjectedTransaction::mock(())
+            },
+        )
+        .unwrap();
+
+        let announce = Announce {
+            block_hash: chain.blocks[10].hash,
+            parent: chain.block_top_announce_hash(9),
+            gas_allowance: Some(42),
+            injected_transactions: vec![tx],
+        };
+
+        let status = accept_announce(&db, announce).unwrap();
+        assert!(
+            matches!(
+                status,
+                AnnounceStatus::Rejected {
+                    reason: AnnounceRejectionReason::TxValidity(TxValidity::NonZeroValue),
+                    ..
+                }
+            ),
+            "Announce with NonZeroValue TX must be rejected, got {status:?}"
+        );
+    }
 }

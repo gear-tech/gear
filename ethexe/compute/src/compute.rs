@@ -250,6 +250,12 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
     type Output = ComputeEvent;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
+        // NOTE: Canonical computation and announce computation use separate future slots
+        // and can run concurrently. This is by design — they are sequential in the producer
+        // state machine (canonical finishes before announce starts), but the compute layer
+        // doesn't enforce ordering. Two processor clones may be alive simultaneously,
+        // doubling WASM runtime memory briefly.
+
         // Poll canonical-only computation (if active).
         if let Some(ref mut computation) = self.canonical_computation
             && let Poll::Ready(result) = computation.poll_unpin(cx)
@@ -260,7 +266,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
             }));
         }
 
-        // Start new canonical computation if idle.
+        // Start new canonical computation if idle, then immediately poll it.
         if self.canonical_computation.is_none()
             && let Some((block_hash, parent_announce, gas_allowance)) =
                 self.canonical_input.take()
@@ -276,6 +282,16 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                 )
                 .boxed(),
             );
+
+            // Poll immediately — the future may already be ready (e.g., in tests with MockProcessor).
+            if let Some(ref mut computation) = self.canonical_computation
+                && let Poll::Ready(result) = computation.poll_unpin(cx)
+            {
+                self.canonical_computation = None;
+                return Poll::Ready(result.map(|(block_hash, program_states)| {
+                    ComputeEvent::CanonicalEventsComputed(block_hash, program_states)
+                }));
+            }
         }
 
         if self.computation.is_none()

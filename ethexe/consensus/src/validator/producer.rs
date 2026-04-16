@@ -184,13 +184,16 @@ impl StateHandler for Producer {
             State::ReadyForTxCollection { poll_timer, .. } => {
                 if poll_timer.poll_unpin(cx).is_ready() {
                     // Timer fired — collect TXs and build announce.
+                    // We use mem::replace to move ProgramStates out of self.state.
+                    // The Delay { timer: None } placeholder is a dead state (never fires).
+                    // If build_announce_with_states errors, the `?` propagates and the
+                    // producer is dropped, so the placeholder is never observed.
                     let State::ReadyForTxCollection {
                         parent_announce,
                         program_states,
                         ..
                     } = std::mem::replace(
                         &mut self.state,
-                        // Temporary placeholder, will be overwritten by build_announce_with_states
                         State::Delay { timer: None },
                     )
                     else {
@@ -546,6 +549,62 @@ mod tests {
     }
 
     // TODO: test that zero timer works as expected
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn new_head_during_canonical_compute() {
+        let (ctx, keys, _) = mock_validator_context();
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+
+        let state = Producer::create(ctx, block, validators).unwrap();
+
+        // Wait for timer to fire → ComputeCanonicalEvents
+        let (state, event) = state.wait_for_event().await.unwrap();
+        assert!(event.is_compute_canonical_events());
+
+        // Now in WaitingCanonicalComputed. Send a new head.
+        let new_block = SimpleBlockData::mock(());
+        let state = state.process_new_head(new_block).unwrap();
+
+        // Should transition to Initial (canonical compute discarded)
+        assert!(
+            state.is_initial(),
+            "new_head during WaitingCanonicalComputed must go to Initial, got {state}"
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn new_head_during_tx_collection() {
+        let (ctx, keys, _) = mock_validator_context();
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+
+        let state = Producer::create(ctx, block, validators).unwrap();
+
+        // Wait for timer to fire → ComputeCanonicalEvents
+        let (state, event) = state.wait_for_event().await.unwrap();
+        let (block_hash, _, _) = event.unwrap_compute_canonical_events();
+
+        // Deliver canonical events → enters ReadyForTxCollection
+        let state = state
+            .process_canonical_events_computed(block_hash, ethexe_common::ProgramStates::new())
+            .unwrap();
+        assert!(state.is_producer());
+
+        // Now in ReadyForTxCollection. Send a new head before the poll timer fires.
+        let new_block = SimpleBlockData::mock(());
+        let state = state.process_new_head(new_block).unwrap();
+
+        // Should transition to Initial (TX collection discarded)
+        assert!(
+            state.is_initial(),
+            "new_head during ReadyForTxCollection must go to Initial, got {state}"
+        );
+    }
 
     #[async_trait]
     trait ProducerExt: Sized {

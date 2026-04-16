@@ -150,11 +150,60 @@ pub(crate) trait SubService: Unpin + Send + 'static {
 mod tests {
 
     use super::*;
-    use ethexe_common::{CodeAndIdUnchecked, db::*, mock::*};
+    use ethexe_common::{Announce, CodeAndIdUnchecked, db::*, mock::*};
     use ethexe_db::Database as DB;
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::CodeId;
+
+    /// Test canonical-only computation returns ProgramStates without announce metadata writes.
+    #[tokio::test]
+    #[ntest::timeout(10000)]
+    async fn compute_canonical_events() {
+        gear_utils::init_default_logger();
+
+        let db = DB::memory();
+        let mut service = ComputeService::new_mock_processor(db.clone());
+
+        // Setup: chain of 2 blocks. Block 1 has a computed announce.
+        // We'll prepare block 2 and run canonical compute on it.
+        let chain = BlockChain::mock(2).setup(&db);
+        let block = chain.blocks[2].to_simple();
+
+        // Block 2 is already prepared by BlockChain::mock().setup()
+        assert!(db.block_meta(block.hash).prepared, "block must be prepared");
+
+        let parent_announce_hash = chain.block_top_announce_hash(1);
+        assert!(
+            db.announce_meta(parent_announce_hash).computed,
+            "parent announce must be computed"
+        );
+
+        // Request canonical-only computation
+        service.compute_canonical_events(block.hash, parent_announce_hash, 42);
+
+        // Poll service — should get CanonicalEventsComputed
+        let event = service.next().await.unwrap().unwrap();
+        match event {
+            ComputeEvent::CanonicalEventsComputed(hash, _states) => {
+                assert_eq!(hash, block.hash);
+            }
+            other => panic!("Expected CanonicalEventsComputed, got {other:?}"),
+        }
+
+        // Verify NO announce metadata was written for the synthetic announce.
+        let synthetic = Announce {
+            block_hash: block.hash,
+            parent: parent_announce_hash,
+            gas_allowance: Some(42),
+            injected_transactions: vec![],
+        };
+        let synthetic_hash = synthetic.to_hash();
+        assert!(
+            !db.announce_meta(synthetic_hash).computed,
+            "Synthetic announce must NOT be marked as computed in DB"
+        );
+    }
 
     /// Test ComputeService block preparation functionality
     #[tokio::test]
