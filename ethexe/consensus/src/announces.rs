@@ -98,8 +98,8 @@ use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData,
     db::{
-        AnnounceStorageRW, BlockMetaStorageRW, GlobalsStorageRO, InjectedStorageRW,
-        OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRW, GlobalsStorageRO,
+        InjectedStorageRW, OnChainStorageRO,
     },
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
@@ -447,6 +447,76 @@ fn leaf_announces(
         .collect())
 }
 
+/// Walks an announce chain backwards, tracking block transitions.
+///
+/// CDL is defined in blocks (not announce hops) per S1. This walker centralizes
+/// the block-transition counting logic so each call site only specifies its own
+/// termination condition and business logic.
+pub(crate) struct AnnounceChainWalker {
+    next: Option<HashOf<Announce>>,
+    /// Number of distinct blocks seen so far. Incremented on each block transition.
+    pub blocks_seen: u32,
+    prev_block_hash: Option<H256>,
+}
+
+pub(crate) struct AnnounceStep {
+    pub hash: HashOf<Announce>,
+    pub announce: Announce,
+    /// True when this announce belongs to a different block than the previous one.
+    pub is_new_block: bool,
+}
+
+impl AnnounceChainWalker {
+    pub fn new(start: HashOf<Announce>) -> Self {
+        Self {
+            next: Some(start),
+            blocks_seen: 0,
+            prev_block_hash: None,
+        }
+    }
+
+    /// Create a walker with pre-seeded block tracking state.
+    /// Used when the starting announce's block has already been counted.
+    pub fn with_seed(start: HashOf<Announce>, blocks_seen: u32, block_hash: H256) -> Self {
+        Self {
+            next: Some(start),
+            blocks_seen,
+            prev_block_hash: Some(block_hash),
+        }
+    }
+
+    /// The hash that the next `step()` call will fetch, or `None` if exhausted.
+    pub fn peek(&self) -> Option<HashOf<Announce>> {
+        self.next
+    }
+
+    /// Fetch the current announce, update block-transition tracking, and advance
+    /// the cursor to the announce's parent. Returns `None` when exhausted.
+    pub fn step(&mut self, db: &impl AnnounceStorageRO) -> Result<Option<AnnounceStep>> {
+        let Some(hash) = self.next.take() else {
+            return Ok(None);
+        };
+
+        let announce = db
+            .announce(hash)
+            .ok_or_else(|| anyhow!("Announce {hash} not found in db"))?;
+
+        let is_new_block = self.prev_block_hash != Some(announce.block_hash);
+        if is_new_block {
+            self.blocks_seen += 1;
+            self.prev_block_hash = Some(announce.block_hash);
+        }
+
+        self.next = Some(announce.parent);
+
+        Ok(Some(AnnounceStep {
+            hash,
+            announce,
+            is_new_block,
+        }))
+    }
+}
+
 /// Create a new base announce from provided parent announce hash,
 /// if it's not break the rules defined in S3.
 fn propagate_one_base_announce(
@@ -467,36 +537,19 @@ fn propagate_one_base_announce(
     // The branch is expired if:
     // 1. It does not include last committed announce
     // 2. It includes a not-committed, not-base announce older than commitment_delay_limit blocks.
-    //
-    // We count block transitions (not announce hops) because mini-announces chain
-    // within the same block, and CDL is defined in blocks per S1.
-    let mut current_announce_hash = parent_announce_hash;
-    let mut blocks_seen = 0u32;
-    let mut prev_block_hash = None;
+    let mut walker = AnnounceChainWalker::new(parent_announce_hash);
 
     loop {
-        if current_announce_hash == last_committed_announce_hash {
-            // We found last committed announce in the branch, within commitment delay limit
-            // that means this branch is still not expired.
+        if walker.peek() == Some(last_committed_announce_hash) {
+            // Found last committed announce in the branch — not expired.
             break;
         }
 
-        let current_announce = db
-            .announce(current_announce_hash)
-            .ok_or_else(|| anyhow!("announce({current_announce_hash}) not found"))?;
+        let Some(step) = walker.step(db)? else { break };
 
-        let is_new_block = prev_block_hash != Some(current_announce.block_hash);
-        if is_new_block {
-            blocks_seen += 1;
-            prev_block_hash = Some(current_announce.block_hash);
-        }
-
-        if blocks_seen > commitment_delay_limit && !current_announce.is_base() {
-            // We reached a not-base announce older than commitment_delay_limit blocks.
-            // This announce cannot be committed any more,
-            // so this branch is expired and we have to skip propagation from `parent`.
+        if walker.blocks_seen > commitment_delay_limit && !step.announce.is_base() {
             tracing::trace!(
-                predecessor = %current_announce_hash,
+                predecessor = %step.hash,
                 parent_announce = %parent_announce_hash,
                 "predecessor is too old and not-base, so parent announce branch is expired",
             );
@@ -505,20 +558,18 @@ fn propagate_one_base_announce(
 
         // Check neighbor announces to be last committed announce
         if db
-            .block_meta(current_announce.block_hash)
+            .block_meta(step.announce.block_hash)
             .announces
             .ok_or_else(|| {
                 anyhow!(
                     "announces are missing for block({})",
-                    current_announce.block_hash
+                    step.announce.block_hash
                 )
             })?
             .contains(&last_committed_announce_hash)
         {
-            // We found last committed announce in the neighbor branch, within commitment delay limit
-            // that means this branch is already expired.
             tracing::trace!(
-                predecessor = %current_announce_hash,
+                predecessor = %step.hash,
                 parent_announce = %parent_announce_hash,
                 last_committed_announce = %last_committed_announce_hash,
                 "neighbor announce branch contains last committed announce, so parent announce branch is expired",
@@ -526,15 +577,8 @@ fn propagate_one_base_announce(
             return Ok(None);
         };
 
-        current_announce_hash = current_announce.parent;
-
-        // Safety bound: the expiry check above only fires on non-base announces,
-        // so a chain of all-base announces would loop indefinitely without this guard.
-        // In practice, the loop always terminates via last_committed or start_announce,
-        // but we cap at 2x CDL as a defensive bound. The factor of 2 is conservative:
-        // CDL blocks of base announces (no expiry trigger) is the worst case, and we
-        // double it to accommodate any intra-block mini-announce hops within those blocks.
-        if blocks_seen > commitment_delay_limit * 2 {
+        // Safety bound: cap at 2x CDL to prevent infinite loops on all-base chains.
+        if walker.blocks_seen > commitment_delay_limit * 2 {
             break;
         }
     }
@@ -716,36 +760,26 @@ pub fn best_announce(
     let start_announce_hash = db.globals().start_announce_hash;
 
     // Score announces by counting not-base announces within commitment_delay_limit blocks.
-    // We count block transitions (not announce hops) because mini-announces chain
-    // within the same block and CDL is defined in blocks per S1.
-    let announce_points = |mut announce_hash: HashOf<Announce>| -> Result<u32> {
+    let announce_points = |start: HashOf<Announce>| -> Result<u32> {
         let mut points = 0;
-        let mut blocks_seen = 0u32;
-        let mut prev_block_hash = None;
+        let mut walker = AnnounceChainWalker::new(start);
 
         loop {
-            let announce = db
-                .announce(announce_hash)
-                .ok_or_else(|| anyhow!("Announce {announce_hash} not found in db"))?;
+            let Some(step) = walker.step(db)? else { break };
 
-            let is_new_block = prev_block_hash != Some(announce.block_hash);
-            if is_new_block {
-                if blocks_seen >= commitment_delay_limit {
-                    break;
-                }
-                blocks_seen += 1;
-                prev_block_hash = Some(announce.block_hash);
-            }
-
-            // Base announce gives 0 points, not-base - 1 point,
-            // in order to prefer not-base announces, when select best chain.
-            points += if announce.is_base() { 0 } else { 1 };
-
-            if announce_hash == start_announce_hash {
+            // Stop before entering the (CDL+1)th block.
+            // walker.blocks_seen is already incremented, so `>` here is equivalent
+            // to the original `>= CDL` check before increment.
+            if step.is_new_block && walker.blocks_seen > commitment_delay_limit {
                 break;
             }
 
-            announce_hash = announce.parent;
+            // Base announce gives 0 points, not-base - 1 point.
+            points += if step.announce.is_base() { 0 } else { 1 };
+
+            if step.hash == start_announce_hash {
+                break;
+            }
         }
 
         Ok(points)

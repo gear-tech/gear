@@ -104,13 +104,7 @@ impl StateHandler for Subordinate {
                 let (announce, _pub_key) = verified_announce.clone().into_parts();
                 match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
                     AnnounceStatus::Accepted(announce_hash) => {
-                        self.ctx
-                            .output(ConsensusEvent::AnnounceAccepted(announce_hash));
-                        self.ctx.output(ConsensusEvent::ComputeAnnounce(
-                            announce,
-                            PromisePolicy::Disabled,
-                        ));
-                        self.state = State::WaitingAnnounceComputed { announce_hash };
+                        self.transition_to_computing(announce_hash, announce);
                         Ok(self.into())
                     }
                     AnnounceStatus::Rejected {
@@ -150,7 +144,9 @@ impl StateHandler for Subordinate {
         request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         match &self.state {
-            State::WaitingForAnnounce if request.address() == self.producer && self.is_validator => {
+            State::WaitingForAnnounce
+                if request.address() == self.producer && self.is_validator =>
+            {
                 // Check if VR's head announce is already computed.
                 let head_computed = request
                     .data()
@@ -164,9 +160,7 @@ impl StateHandler for Subordinate {
                 } else {
                     // VR arrived before its head announce was computed.
                     // Save to pending — will be retried after next announce computes.
-                    tracing::trace!(
-                        "VR head announce not yet computed, deferring to pending"
-                    );
+                    tracing::trace!("VR head announce not yet computed, deferring to pending");
                     self.ctx.pending(request);
                     Ok(self.into())
                 }
@@ -257,17 +251,20 @@ impl Subordinate {
         Ok(state)
     }
 
+    fn transition_to_computing(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
+        self.ctx
+            .output(ConsensusEvent::AnnounceAccepted(announce_hash));
+        self.ctx.output(ConsensusEvent::ComputeAnnounce(
+            announce,
+            PromisePolicy::Disabled,
+        ));
+        self.state = State::WaitingAnnounceComputed { announce_hash };
+    }
+
     fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
         match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
             AnnounceStatus::Accepted(announce_hash) => {
-                self.ctx
-                    .output(ConsensusEvent::AnnounceAccepted(announce_hash));
-                self.ctx.output(ConsensusEvent::ComputeAnnounce(
-                    announce,
-                    PromisePolicy::Disabled,
-                ));
-                self.state = State::WaitingAnnounceComputed { announce_hash };
-
+                self.transition_to_computing(announce_hash, announce);
                 Ok(self.into())
             }
             AnnounceStatus::Rejected { announce, reason } => {

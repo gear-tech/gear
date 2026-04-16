@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::validator::batch::{filler::BatchFiller, types::BatchParts};
+use crate::{
+    announces::AnnounceChainWalker,
+    validator::batch::{filler::BatchFiller, types::BatchParts},
+};
 
 use super::types::CodeNotValidatedError;
 
@@ -216,7 +219,7 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
     }
 
     let mut oldest_not_base_announce_depth = (!head_announce.is_base()).then_some(0u32);
-    let mut current_announce_hash = head_announce.parent;
+    let current_announce_hash = head_announce.parent;
 
     if blocks_to_check == 1 {
         // If head announce is not base and older than commitment delay limit - 1, then expiry is only 1.
@@ -228,37 +231,27 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
         .last_committed_announce
         .ok_or_else(|| anyhow!("last committed announce not found for block {}", block.hash))?;
 
-    // Walk backwards counting block transitions (not announce hops) because
-    // mini-announces chain within the same block. CDL is defined in blocks per S1.
-    let mut blocks_seen = 1u32; // already counted head announce's block
-    let mut prev_block_hash = Some(head_announce.block_hash);
+    // Walk backwards using the block-aware chain walker. blocks_seen starts at 1
+    // because the head announce's block is already counted.
+    let mut walker =
+        AnnounceChainWalker::with_seed(current_announce_hash, 1, head_announce.block_hash);
 
     loop {
-        if current_announce_hash == last_committed_announce {
+        if walker.peek() == Some(last_committed_announce) {
             break;
         }
 
-        let current_announce = db
-            .announce(current_announce_hash)
-            .ok_or_else(|| anyhow!("Cannot get announce by {current_announce_hash}",))?;
-
-        let is_new_block = prev_block_hash != Some(current_announce.block_hash);
-        if is_new_block {
-            blocks_seen += 1;
-            prev_block_hash = Some(current_announce.block_hash);
-        }
+        let Some(step) = walker.step(db)? else { break };
 
         // Check is_base BEFORE the boundary break so we examine
         // the announce at the CDL boundary, not skip it.
-        if !current_announce.is_base() {
-            oldest_not_base_announce_depth = Some(blocks_seen);
+        if !step.announce.is_base() {
+            oldest_not_base_announce_depth = Some(walker.blocks_seen);
         }
 
-        if is_new_block && blocks_seen >= blocks_to_check {
+        if step.is_new_block && walker.blocks_seen >= blocks_to_check {
             break;
         }
-
-        current_announce_hash = current_announce.parent;
     }
 
     Ok(oldest_not_base_announce_depth

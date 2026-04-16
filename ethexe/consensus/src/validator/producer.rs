@@ -296,39 +296,11 @@ impl Producer {
             injected_transactions,
         };
 
-        let (announce_hash, newly_included) =
-            self.ctx.core.db.include_announce(announce.clone())?;
-        if !newly_included {
-            self.warning(format!(
-                "Announce created {announce:?} is already included at {}",
-                self.block.hash
-            ));
-
+        let Some(announce_hash) = self.finalize_announce(announce)? else {
+            self.warning(format!("Announce already included at {}", self.block.hash));
             return Initial::create(self.ctx);
-        }
-
-        let era_index = self
-            .ctx
-            .core
-            .timelines
-            .era_from_ts(self.block.header.timestamp);
-        let message = ValidatorMessage {
-            era_index,
-            payload: announce.clone(),
         };
-        let message = self
-            .ctx
-            .core
-            .signer
-            .signed_data(self.ctx.core.pub_key, message, None)?;
-
-        self.state = State::WaitingAnnounceComputed(announce_hash);
-        self.ctx
-            .output(ConsensusEvent::PublishMessage(message.into()));
-        self.ctx.output(ConsensusEvent::ComputeAnnounce(
-            announce,
-            PromisePolicy::Enabled,
-        ));
+        let _ = announce_hash;
 
         Ok(self.into())
     }
@@ -352,10 +324,19 @@ impl Producer {
             injected_transactions,
         };
 
+        self.finalize_announce(announce)?;
+
+        Ok(self.into())
+    }
+
+    /// Include announce in DB, sign and publish it, emit ComputeAnnounce,
+    /// and transition to `WaitingAnnounceComputed`.
+    /// Returns `None` if the announce was already included.
+    fn finalize_announce(&mut self, announce: Announce) -> Result<Option<HashOf<Announce>>> {
         let (announce_hash, newly_included) =
             self.ctx.core.db.include_announce(announce.clone())?;
         if !newly_included {
-            return Ok(self.into());
+            return Ok(None);
         }
 
         let era_index = self
@@ -381,7 +362,7 @@ impl Producer {
             PromisePolicy::Enabled,
         ));
 
-        Ok(self.into())
+        Ok(Some(announce_hash))
     }
 }
 
