@@ -352,9 +352,7 @@ mod tests {
         let announce1 =
             Announce::with_default_gas(chain.blocks[last - 1].hash, announce2.to_hash());
 
-        chain.blocks[last]
-            .as_prepared_mut()
-            .last_committed_announce = announce1.to_hash();
+        chain.blocks[last].as_prepared_mut().last_committed_announce = announce1.to_hash();
         let chain = chain.setup(&ctx.core.db);
         ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[last].to_simple();
@@ -549,9 +547,7 @@ mod tests {
         let block = test_block_chain(1)
             .tap_mut(|chain| {
                 chain.blocks[1].as_prepared_mut().announces = None;
-                chain.blocks[1]
-                    .as_prepared_mut()
-                    .last_committed_announce = HashOf::random();
+                chain.blocks[1].as_prepared_mut().last_committed_announce = HashOf::random();
             })
             .setup(&ctx.core.db)
             .blocks[1]
@@ -614,9 +610,7 @@ mod tests {
             chain.blocks[idx].as_prepared_mut().announces = None;
 
             // set unknown_announce as last committed announce
-            chain.blocks[idx]
-                .as_prepared_mut()
-                .last_committed_announce = unknown_announce_hash;
+            chain.blocks[idx].as_prepared_mut().last_committed_announce = unknown_announce_hash;
         }
 
         let chain = chain.setup(&ctx.core.db);
