@@ -72,6 +72,8 @@ where
     }
 
     /// Returns the injected transactions that are valid and can be included to announce.
+    /// Used by accept_announce validation and tests. The producer uses select_for_announce_with_states.
+    #[allow(dead_code)]
     pub fn select_for_announce(
         &mut self,
         block: SimpleBlockData,
