@@ -136,7 +136,7 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrations::{test::assert_migration_types_hash, v3::v3_migrated_types};
+    use crate::migrations::{migration::test::assert_migration_types_hash, v3::v3_migrated_types};
     use scale_info::meta_type;
 
     #[test]

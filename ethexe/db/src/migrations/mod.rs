@@ -17,14 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use self::migration::Migration;
-use gsigner::Address;
-pub use init::initialize_db;
-
+use crate::dump::StateDump;
 #[cfg(feature = "mock")]
 use crate::{Database, MemDb, RawDatabase};
+use futures::future::BoxFuture;
+use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gprimitives::CodeId;
+use gsigner::Address;
 
-#[cfg(test)]
-use migration::test;
+pub use init::initialize_db;
 
 mod init;
 mod migration;
@@ -47,10 +48,19 @@ const _: () = assert!(
     "Wrong number of migrations available"
 );
 
+pub type CodeProcessingFuture =
+    BoxFuture<'static, anyhow::Result<Option<(InstrumentedCode, CodeMetadata)>>>;
+
+pub trait GenesisInitializer {
+    fn get_genesis_data(&mut self) -> anyhow::Result<StateDump>;
+    fn process_code(&mut self, code_id: CodeId, code: Vec<u8>) -> CodeProcessingFuture;
+}
+
 pub struct InitConfig {
     pub ethereum_rpc: String,
     pub router_address: Address,
     pub slot_duration_secs: u64,
+    pub genesis_initializer: Option<Box<dyn GenesisInitializer>>,
 }
 
 #[cfg(feature = "mock")]

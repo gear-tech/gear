@@ -1,7 +1,7 @@
 //! CLI args for the `ethexe-node-loader`
 
 use anyhow::{Error, anyhow};
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use std::str::FromStr;
 
 #[derive(Debug, Parser)]
@@ -60,6 +60,9 @@ pub struct LoadParams {
     pub workers: usize,
     #[arg(long, short, default_value = "1")]
     pub batch_size: usize,
+    /// Whether to batch regular `send_message` calls through the multicall contract.
+    #[arg(long, default_value_t = true, action = ArgAction::Set)]
+    pub use_send_message_multicall: bool,
 }
 
 /// Parses CLI arguments for the binary and returns the selected subcommand.

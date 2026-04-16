@@ -175,7 +175,7 @@ pub mod v3_migrated_types {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrations::test::assert_migration_types_hash;
+    use crate::migrations::migration::test::assert_migration_types_hash;
     use ethexe_common::db::DBConfig;
     use scale_info::meta_type;
 
