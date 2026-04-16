@@ -1,0 +1,6 @@
+# Project Overview
+- Purpose: Gear Protocol (Substrate-based) providing actor-model smart contract platform and Vara node runtime; workspace hosts runtime, pallets, SDK/tooling, and examples.
+- Tech stack: Rust 2024 edition; Cargo workspace with many crates (node CLI/service, pallets in `pallets/`, runtime specs in `runtime/*`, core libraries `gcore`, `gstd`, `gclient`, `gcli`, `gtest`, `gsdk`, etc.); WASM targets; Substrate framework; Foundry-based Solidity contracts in `ethexe/contracts`; scripts in Bash.
+- Key layout: `node/` (CLI/service/authorship/testing), `pallets/` (Substrate pallets incl. gear), `runtime/` (runtime definitions), `core*` directories (processor/backend/errors), `common/` libs/codegen, `examples/` smart-contract samples, `utils/` tooling (fuzzers, gear-wasmer-cache), `scripts/` helpers (`gear.sh`), `Makefile` targets, `g*` crates (alloc, primitives, std, sdk, etc.), `docker/`, `ansible/`, `terraform/`, `ethexe/` alt node/contracts.
+- Tooling: main entry via `./scripts/gear.sh <command> <subcommand> [...]` (build/check/clippy/format/run/test/etc.) with Makefile wrappers; uses cargo-hack and cargo-nextest (auto-installed by gear.sh init); rust-toolchain pinned; rustfmt config in `rustfmt.toml`.
+- Docs: `README.md` describes protocol vision; `DEVELOPMENT.md` notes `[skip-ci]` for CI skipping syntax.

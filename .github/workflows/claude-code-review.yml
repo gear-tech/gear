@@ -72,7 +72,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
+          claude_args: '--model claude-opus-4-6 --thinking-budget high --mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
           prompt: |
             Review PR #${{ github.event.pull_request.number }} in gear (114-crate Rust monorepo, Solidity contracts in ethexe/).
 
@@ -213,7 +213,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
+          claude_args: '--model claude-opus-4-6 --thinking-budget high --mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
           prompt: |
             Delta review of new commits on PR #${{ steps.pr.outputs.number }} in gear (114-crate Rust monorepo).
             Diff: ${{ steps.last-review.outputs.sha }}..${{ steps.pr.outputs.head_sha }}. Do NOT re-review old code.

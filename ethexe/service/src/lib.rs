@@ -54,13 +54,17 @@ use alloy::{
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
-use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
+use ethexe_common::{
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, gear::CodeState, network::VerifiedValidatorMessage,
+};
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_db::{Database, InitConfig, RawDatabase, RocksDatabase};
-use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_db::{
+    Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
+};
+use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
@@ -69,7 +73,7 @@ use ethexe_observer::{
     ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
-use ethexe_processor::{Processor, ProcessorConfig};
+use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
@@ -250,11 +254,21 @@ impl Service {
         )
         .with_context(|| "failed to open database")?;
 
+        let genesis_initializer: Option<Box<dyn GenesisInitializer>> =
+            match &config.node.genesis_state_dump {
+                Some(path) => {
+                    log::info!("Using genesis state dump: {}", path.display());
+                    Some(Box::new(GenesisInitializerFromFile::new(path.clone())?))
+                }
+                None => None,
+            };
+
         let db = ethexe_db::initialize_db(
             InitConfig {
                 ethereum_rpc: config.ethereum.rpc.clone(),
                 router_address: config.ethereum.router_address,
                 slot_duration_secs: config.ethereum.block_time.as_secs(),
+                genesis_initializer,
             },
             RawDatabase::from_one(&rocks_db),
         )
@@ -342,15 +356,17 @@ impl Service {
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(pub_key) = validator_pub_key {
-                let ethereum = Ethereum::new(
-                    &config.ethereum.rpc,
-                    config.ethereum.router_address,
-                    signer.clone(),
-                    pub_key.to_address(),
-                    config.ethereum.eip1559_fee_increase_percentage,
-                    config.ethereum.blob_gas_multiplier,
-                )
-                .await?;
+                let ethereum = EthereumBuilder::default()
+                    .rpc_url(&config.ethereum.rpc)
+                    .router_address(config.ethereum.router_address)
+                    .signer(signer.clone())
+                    .sender_address(pub_key.to_address())
+                    .eip1559_fee_increase_percentage(
+                        config.ethereum.eip1559_fee_increase_percentage,
+                    )
+                    .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
+                    .build()
+                    .await?;
                 Box::pin(ValidatorService::new(
                     signer.clone(),
                     ethereum.middleware().query(),
@@ -760,5 +776,53 @@ impl Service {
                 }
             }
         }
+    }
+}
+
+struct GenesisInitializerFromFile {
+    state_path: PathBuf,
+    processor: Processor,
+}
+
+impl GenesisInitializerFromFile {
+    pub fn new(genesis_state_path: PathBuf) -> Result<Self> {
+        // Safety: in context of GenesisInitializerFromFile, processor doesn't access the database,
+        // it's only used for code processing, so it's safe to create it with an empty database.
+        #[allow(unused_unsafe)]
+        let db = unsafe { Database::memory() };
+        let processor = Processor::new(db)?;
+
+        Ok(Self {
+            state_path: genesis_state_path,
+            processor,
+        })
+    }
+}
+
+impl GenesisInitializer for GenesisInitializerFromFile {
+    fn get_genesis_data(&mut self) -> anyhow::Result<ethexe_db::dump::StateDump> {
+        StateDump::read_from_file(&self.state_path)
+    }
+
+    fn process_code(&mut self, code_id: CodeId, code: Vec<u8>) -> ethexe_db::CodeProcessingFuture {
+        let mut cloned_processor = self.processor.clone();
+        let func = move || {
+            let ProcessedCodeInfo {
+                code_id: _,
+                valid: info,
+            } = cloned_processor.process_code(CodeAndIdUnchecked { code_id, code })?;
+
+            let Some(ValidCodeInfo {
+                code: _,
+                instrumented_code,
+                code_metadata,
+            }) = info
+            else {
+                return Ok(None);
+            };
+
+            Ok(Some((instrumented_code, code_metadata)))
+        };
+        Box::pin(async move { func() })
     }
 }

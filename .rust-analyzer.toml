@@ -1,0 +1,54 @@
+[workspace]
+# Keep analysis limited to the main workspace crates.
+symbol.search.scope = "workspace"
+
+[workspace.files]
+# Avoid watching build output to keep the language server responsive.
+watcher = "notify"
+exclude = [
+    "target",
+    "*/target",
+    "node/runtime/wasm",
+    "npins",
+    "examples",
+    "*/examples",
+    "demos",
+    "*/demos",
+    "*/proc-macro",
+    "pallets/gear/proc-macro",
+]
+
+[workspace.cargo]
+# Reuse a lightweight target directory dedicated to rust-analyzer.
+targetDir = "target/rust-analyzer"
+# Skip benches/examples/tests to reduce the amount of metadata cargo emits.
+allTargets = false
+# Build scripts in this workspace are heavy; turning them off keeps the server light.
+buildScripts.enable = false
+# Only enable the `std` feature flag for most crates to keep dependencies lean.
+features = ["std"]
+# Some crates rely on defaults, so we keep them.
+noDefaultFeatures = false
+# Provide an isolated set of environment variables so rust-analyzer does not inherit
+# project-specific overrides that would trigger additional builds.
+extraEnv = {
+    "RUSTFLAGS" = "",
+    "SKIP_WASM_BUILD" = "1",
+}
+
+[workspace.procMacro]
+# Disable proc-macro expansion; it is expensive in this workspace and seldom needed
+# for lightweight navigation/autocomplete.
+enable = false
+
+# Disable automatic check on save to prevent building demo crates
+checkOnSave = false
+
+[workspace.check]
+# Make `cargo check` a manual command (not on save) and keep it light if triggered.
+command = "check"
+extraArgs = [
+    "--workspace",
+    "--all-features",
+    "--lib",
+]

@@ -20,9 +20,9 @@ use super::{core::*, *};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
+    COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ValidatorsVec,
     consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::*, ecdsa::ContractSignature,
-    gear::BatchCommitment, mock::*,
+    gear::BatchCommitment,
 };
 use hashbrown::HashMap;
 use std::sync::Arc;
@@ -144,12 +144,10 @@ impl WaitFor for ValidatorState {
     }
 }
 
-// TODO: #5138 restructure - pass db as parameter
-pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
+pub fn mock_validator_context(db: Database) -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
     let ethereum = MockEthereum::default();
-    let db = Database::memory();
-    let timelines = ProtocolTimelines::mock(()).tap_mut(|tl| tl.slot = 1);
+    let timelines = crate::mock::test_protocol_timelines_with_slot(1);
 
     let limits = BatchLimits::default();
     let middleware = MiddlewareWrapper::from_inner(ethereum.clone());
@@ -178,8 +176,12 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
     };
 
     ctx.core.db.set_config(DBConfig {
+        version: 0,
+        chain_id: 0,
+        router_address: ctx.core.router_address,
         timelines,
-        ..DBConfig::mock(())
+        genesis_block_hash: H256::zero(),
+        genesis_announce_hash: HashOf::zero(),
     });
 
     (ctx, keys, ethereum)

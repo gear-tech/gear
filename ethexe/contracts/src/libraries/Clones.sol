@@ -3,16 +3,39 @@ pragma solidity ^0.8.33;
 
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 
+/**
+ * @dev ERC-1167 (Minimal Proxy Contract) is a standard for
+ *      deploying minimal proxy contracts, also known as "clones":
+ *      https://eips.ethereum.org/EIPS/eip-1167.
+ *
+ *      > To simply and cheaply clone contract functionality in an immutable way, this standard specifies
+ *      > a minimal bytecode implementation that delegates all calls to a known, fixed address.
+ *
+ *      The library includes functions to deploy a proxy using `create2` (salted deterministic deployment).
+ *
+ *      However, it's worth noting that this is custom ERC-1167 implementation. All this library does is deploy
+ *      `MirrorProxy` smart contract, see its code for details.
+ * @dev https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/Clones.sol
+ */
 library Clones {
+    /**
+     * @dev Deploys and returns the address of clone that has the `MirrorProxy` behavior.
+     */
     function cloneDeterministic(address router, bytes32 salt) internal returns (address instance) {
         return cloneDeterministic(router, salt, 0);
     }
 
+    /**
+     * @dev Same as `cloneDeterministic(address router, bytes32 salt)`, but with
+     * `value` parameter to send native currency to the new contract.
+     */
     function cloneDeterministic(address router, bytes32 salt, uint256 value) internal returns (address instance) {
         uint256 size = 0x02b0;
         uint256 memPtr = Memory.allocate(size);
 
-        /// @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r ".bytecode.object"`
+        /**
+         * @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r ".bytecode.object"`
+         */
         Memory.writeWord(memPtr, 0x0000, 0x60808060405261029e90816100128239f3fe608060405260043610610254575f);
         Memory.writeWord(memPtr, 0x0020, 0x3560e01c806336a52a18146100ab57806342129d00146100a65780635ce6c327);
         Memory.writeWord(memPtr, 0x0040, 0x146100a1578063701da98e1461009c578063704ed542146100975780637a8e0c);
