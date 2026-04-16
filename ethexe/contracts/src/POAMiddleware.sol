@@ -12,8 +12,6 @@ import {
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
-import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 
 contract POAMiddleware is
     IMiddleware,
@@ -22,23 +20,14 @@ contract POAMiddleware is
     ReentrancyGuardTransientUpgradeable,
     UUPSUpgradeable
 {
-    using EnumerableMap for EnumerableMap.AddressToUintMap;
-    using MapWithTimeData for EnumerableMap.AddressToUintMap;
-
-    using EnumerableMap for EnumerableMap.AddressToAddressMap;
-    using MapWithTimeData for EnumerableMap.AddressToAddressMap;
-
-    using Subnetwork for address;
-
     // keccak256(abi.encode(uint256(keccak256("middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant SLOT_STORAGE = 0x0b8c56af6cc9ad401ad225bfe96df77f3049ba17eadac1cb95ee89df1e69d100;
     // keccak256(abi.encode(uint256(keccak256("poa_middleware.storage.Slot")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant POA_SLOT_STORAGE = 0x8499392b3fbaf2916a419b541ace4def77aa70073e569284ec9a96534994f700;
 
-    bytes32 private constant DEFAULT_ADMIN_ROLE = 0x00;
-    uint8 private constant NETWORK_IDENTIFIER = 0;
-
-    /// @custom:oz-upgrades-unsafe-allow constructor
+    /**
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
     constructor() {
         _disableInitializers();
     }
@@ -53,7 +42,9 @@ contract POAMiddleware is
         $.router = _params.router;
     }
 
-    /// @custom:oz-upgrades-validate-as-initializer
+    /**
+     * @custom:oz-upgrades-validate-as-initializer
+     */
     function reinitialize() public onlyOwner reinitializer(2) {
         __Ownable_init(owner());
 
@@ -73,7 +64,10 @@ contract POAMiddleware is
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /// @dev IPOAMiddleware call
+    /**
+     * @dev Sets validators for POA middleware.
+     * @param validators The addresses of validators to set.
+     */
     function setValidators(address[] memory validators) external onlyOwner {
         _poaStorage().operators = validators;
     }
@@ -90,7 +84,8 @@ contract POAMiddleware is
     //         NOT IMPLEMENTED CALLS
     ///////////////////////////////////////////
 
-    // # Views
+    /* # Views */
+
     function eraDuration() public pure returns (uint48) {
         revert("not implemented");
     }
