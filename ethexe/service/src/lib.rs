@@ -611,8 +611,7 @@ impl Service {
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                     ComputeEvent::CanonicalEventsComputed(block_hash, program_states) => {
-                        consensus
-                            .receive_canonical_events_computed(block_hash, program_states)?;
+                        consensus.receive_canonical_events_computed(block_hash, program_states)?;
                     }
                 },
                 Event::Network(event) => {
@@ -750,11 +749,7 @@ impl Service {
                         parent_announce,
                         gas_allowance,
                     ) => {
-                        compute.compute_canonical_events(
-                            block_hash,
-                            parent_announce,
-                            gas_allowance,
-                        )
+                        compute.compute_canonical_events(block_hash, parent_announce, gas_allowance)
                     }
                 },
                 Event::Prometheus(event) => match event {
