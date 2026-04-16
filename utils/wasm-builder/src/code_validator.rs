@@ -273,6 +273,8 @@ pub enum CodeErrorWithContext {
     #[error("Import error: {0}")]
     Import(#[from] ImportErrorWithContext),
     Code(#[from] CodeError),
+    #[error("Code exceeds the limit specified in the current schedule")]
+    CodeTooLarge,
 }
 
 impl CodeErrorWithContext {
@@ -298,7 +300,13 @@ impl CodeErrorWithContext {
 pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
     let module = Module::new(&code)?;
     let schedule = Schedule::default();
-    match Code::try_new(
+
+    anyhow::ensure!(
+        (code.len() as u32) <= schedule.limits.code_len,
+        CodeErrorWithContext::CodeTooLarge
+    );
+
+    let code = Code::try_new(
         code,
         schedule.instruction_weights.version,
         |module| schedule.rules(module),
@@ -306,7 +314,15 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
         schedule.limits.data_segments_amount.into(),
         schedule.limits.type_section_len.into(),
         schedule.limits.parameters.into(),
-    ) {
+    );
+
+    anyhow::ensure!(
+        (code.as_ref().unwrap().instrumented_code().bytes().len() as u32)
+            <= schedule.limits.code_len,
+        CodeErrorWithContext::CodeTooLarge
+    );
+
+    match code {
         Ok(_) => Ok(()),
         Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
     }
