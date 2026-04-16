@@ -211,7 +211,8 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     }
 
     /// Compute canonical events only, returning ProgramStates without announce metadata writes.
-    /// PRECONDITION: parent_announce must already be computed.
+    /// If the parent announce is not yet computed, computes predecessors first (those ARE
+    /// real announces that get full DB writes). Only the synthetic announce is ephemeral.
     async fn compute_canonical_only(
         db: Database,
         config: ComputeConfig,
@@ -224,10 +225,6 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             return Err(ComputeError::BlockNotPrepared(block_hash));
         }
 
-        if !db.announce_meta(parent_announce).computed {
-            return Err(ComputeError::AnnounceNotFound(parent_announce));
-        }
-
         // Build synthetic announce with empty TXs — never stored in DB
         let synthetic = Announce {
             block_hash,
@@ -236,8 +233,22 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             injected_transactions: vec![],
         };
 
-        // Run through processor. CAS/state blobs are written (idempotent),
-        // but we skip announce-level metadata writes.
+        // Compute any uncomputed predecessors. These are real announces that need
+        // full DB writes (announce_outcome, announce_program_states, etc.).
+        // On a fast chain, the parent announce may still be computing when we start.
+        let predecessors = utils::collect_not_computed_predecessors(&synthetic, &db)?;
+        if !predecessors.is_empty() {
+            log::trace!(
+                "compute-canonical: {} uncomputed predecessor(s) for parent {parent_announce}",
+                predecessors.len(),
+            );
+            for (hash, announce) in predecessors {
+                Self::compute_one(&db, &mut processor, config, hash, announce, None).await?;
+            }
+        }
+
+        // Run canonical events through processor. CAS/state blobs are written (idempotent),
+        // but we skip announce-level metadata writes for the synthetic announce.
         let executable =
             utils::prepare_executable_for_announce(&db, synthetic, config.canonical_quarantine())?;
         let result = processor.process_programs(executable, None).await?;

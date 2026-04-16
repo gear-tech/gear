@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{
     ConsensusEvent,
-    announces::{self, AnnounceStatus, DBAnnouncesExt},
+    announces::{self, AnnounceRejectionReason, AnnounceStatus},
     validator::participant::Participant,
 };
 use anyhow::Result;
@@ -94,19 +94,41 @@ impl StateHandler for Subordinate {
                 if verified_announce.address() == self.producer
                     && verified_announce.data().block_hash == self.block.hash =>
             {
-                // Guard against gossip reordering: if the announce's parent isn't
-                // in DB yet (e.g., squashed arrived before base), defer instead of
-                // rejecting — accept_announce would reject with UnknownParent and
-                // the announce would be permanently lost.
-                if !self.ctx.core.db.is_announce_included(verified_announce.data().parent) {
-                    tracing::trace!(
-                        "Announce parent not yet included, deferring to pending"
-                    );
-                    self.ctx.pending(verified_announce);
-                    return Ok(self.into());
+                let (announce, _pub_key) = verified_announce.clone().into_parts();
+                match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
+                    AnnounceStatus::Accepted(announce_hash) => {
+                        self.ctx
+                            .output(ConsensusEvent::AnnounceAccepted(announce_hash));
+                        self.ctx.output(ConsensusEvent::ComputeAnnounce(
+                            announce,
+                            PromisePolicy::Disabled,
+                        ));
+                        self.state = State::WaitingAnnounceComputed { announce_hash };
+                        Ok(self.into())
+                    }
+                    AnnounceStatus::Rejected {
+                        reason: AnnounceRejectionReason::UnknownParent { .. },
+                        ..
+                    } => {
+                        // Parent not yet included — defer to pending instead of rejecting.
+                        // Gossip reordering can cause the child to arrive before the parent.
+                        // The announce will be retried when Subordinate::create runs next block,
+                        // or recovered via collect_not_committed_predecessors.
+                        tracing::trace!(
+                            "Announce parent not yet included, deferring to pending"
+                        );
+                        self.ctx.pending(verified_announce);
+                        Ok(self.into())
+                    }
+                    AnnounceStatus::Rejected { announce, reason } => {
+                        self.ctx
+                            .output(ConsensusEvent::AnnounceRejected(announce.to_hash()));
+                        self.warning(format!(
+                            "Received announce {announce:?} is rejected: {reason:?}"
+                        ));
+                        Initial::create(self.ctx)
+                    }
                 }
-                let (announce, _pub_key) = verified_announce.into_parts();
-                self.send_announce_for_computation(announce)
             }
             _ => DefaultProcessing::announce_from_producer(self, verified_announce),
         }

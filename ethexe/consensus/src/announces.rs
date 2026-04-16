@@ -719,6 +719,9 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
     // Verify for parent announce, because of the current is not processed.
     let tx_checker = TxValidityChecker::new_for_announce(db, block, announce.parent)?;
 
+    // Validate TXs but defer DB persistence until after full acceptance.
+    // This prevents a malicious producer from forcing peers to store junk TXs
+    // in announces that will be rejected by later checks (touched-programs limit, etc.).
     for tx in announce.injected_transactions.iter() {
         let validity_status = tx_checker.check_tx_validity(tx)?;
 
@@ -731,9 +734,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
             TxValidity::Valid
             | TxValidity::UnknownDestination
             | TxValidity::UninitializedDestination
-            | TxValidity::InsufficientBalanceForInjectedMessages => {
-                db.set_injected_transaction(tx.clone());
-            }
+            | TxValidity::InsufficientBalanceForInjectedMessages => {}
 
             // Structural violations that cannot resolve after canonical execution.
             validity => {
@@ -775,6 +776,11 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
             announce,
             reason: AnnounceRejectionReason::TooManyTouchedPrograms(touched_programs.len() as u32),
         });
+    }
+
+    // All checks passed — now persist TXs to DB.
+    for tx in announce.injected_transactions.iter() {
+        db.set_injected_transaction(tx.clone());
     }
 
     Ok(AnnounceStatus::Accepted(announce_hash))
