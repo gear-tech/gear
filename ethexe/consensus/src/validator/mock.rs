@@ -20,9 +20,9 @@ use super::{core::*, *};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ValidatorsVec,
+    COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
     consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::*, ecdsa::ContractSignature,
-    gear::BatchCommitment,
+    gear::BatchCommitment, mock::*,
 };
 use hashbrown::HashMap;
 use std::{num::NonZeroU64, sync::Arc};
