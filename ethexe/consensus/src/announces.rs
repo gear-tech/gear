@@ -723,14 +723,23 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
         let validity_status = tx_checker.check_tx_validity(tx)?;
 
         match validity_status {
-            TxValidity::Valid => {
+            // Valid TX or state-dependent conditions that may resolve after canonical
+            // events are computed. The producer validates against post-canonical states
+            // (two-phase compute), but accept_announce validates against parent states.
+            // Programs created in the current block appear as UnknownDestination here
+            // but become valid after canonical execution.
+            TxValidity::Valid
+            | TxValidity::UnknownDestination
+            | TxValidity::UninitializedDestination
+            | TxValidity::InsufficientBalanceForInjectedMessages => {
                 db.set_injected_transaction(tx.clone());
             }
 
+            // Structural violations that cannot resolve after canonical execution.
             validity => {
                 tracing::trace!(
                     announce = ?announce.to_hash(),
-                    "announce contains invalid transition with status {validity_status:?}, rejecting announce."
+                    "announce contains structurally invalid tx: {validity_status:?}, rejecting announce."
                 );
 
                 return Ok(AnnounceStatus::Rejected {

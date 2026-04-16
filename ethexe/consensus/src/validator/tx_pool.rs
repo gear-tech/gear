@@ -19,7 +19,7 @@
 use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::Result;
 use ethexe_common::{
-    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData,
+    Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, ProgramStates, SimpleBlockData,
     db::{
         AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
     },
@@ -81,7 +81,32 @@ where
 
         let tx_checker =
             TxValidityChecker::new_for_announce(self.db.clone(), block, parent_announce)?;
+        self.select_with_checker(block, &tx_checker)
+    }
 
+    /// Returns injected transactions validated against provided ProgramStates (from canonical compute).
+    pub fn select_for_announce_with_states(
+        &mut self,
+        block: SimpleBlockData,
+        parent_announce: HashOf<Announce>,
+        program_states: &ProgramStates,
+    ) -> Result<Vec<SignedInjectedTransaction>> {
+        tracing::trace!(block = ?block.hash, "start collecting injected transactions with post-canonical states");
+
+        let tx_checker = TxValidityChecker::new_with_states(
+            self.db.clone(),
+            block,
+            parent_announce,
+            program_states.clone(),
+        )?;
+        self.select_with_checker(block, &tx_checker)
+    }
+
+    fn select_with_checker(
+        &mut self,
+        block: SimpleBlockData,
+        tx_checker: &TxValidityChecker<DB>,
+    ) -> Result<Vec<SignedInjectedTransaction>> {
         let mut touched_programs = crate::utils::block_touched_programs(&self.db, block.hash)?;
         if touched_programs.len() > MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize {
             tracing::error!(

@@ -27,11 +27,13 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, injected::Promise, network::ValidatorMessage,
+    Announce, HashOf, ProgramStates, PromisePolicy, SimpleBlockData, ValidatorsVec,
+    db::BlockMetaStorageRO, gear::BatchCommitment, injected::Promise,
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
+use gprimitives::H256;
 use gsigner::secp256k1::Secp256k1SignerExt;
 use std::task::{Context, Poll};
 
@@ -52,6 +54,19 @@ enum State {
     Delay {
         #[debug(skip)]
         timer: Option<Timer>,
+    },
+    /// Waiting for canonical-only compute to return ProgramStates.
+    WaitingCanonicalComputed {
+        parent_announce: HashOf<Announce>,
+    },
+    /// Collecting TXs against post-canonical ProgramStates.
+    /// Poll timer gives TXs time to arrive before building the announce.
+    ReadyForTxCollection {
+        parent_announce: HashOf<Announce>,
+        #[debug(skip)]
+        program_states: ProgramStates,
+        #[debug(skip)]
+        poll_timer: Timer,
     },
     WaitingAnnounceComputed(HashOf<Announce>),
     AggregateBatchCommitment {
@@ -129,11 +144,61 @@ impl StateHandler for Producer {
         }
     }
 
+    fn process_canonical_events_computed(
+        mut self,
+        block_hash: H256,
+        program_states: ProgramStates,
+    ) -> Result<ValidatorState> {
+        match &self.state {
+            State::WaitingCanonicalComputed { parent_announce }
+                if block_hash == self.block.hash =>
+            {
+                let parent = *parent_announce;
+
+                // Enter TX collection window. The poll timer gives TXs
+                // time to arrive before building the announce.
+                let mut poll_timer =
+                    Timer::new("tx-collection poll", self.ctx.core.producer_delay);
+                poll_timer.start(());
+
+                self.state = State::ReadyForTxCollection {
+                    parent_announce: parent,
+                    program_states,
+                    poll_timer,
+                };
+
+                Ok(self.into())
+            }
+            _ => DefaultProcessing::canonical_events_computed(self, block_hash, program_states),
+        }
+    }
+
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         match &mut self.state {
             State::Delay { timer: Some(timer) } => {
                 if timer.poll_unpin(cx).is_ready() {
                     let state = self.produce_announce()?;
+                    return Ok((Poll::Ready(()), state));
+                }
+            }
+            State::ReadyForTxCollection { poll_timer, .. } => {
+                if poll_timer.poll_unpin(cx).is_ready() {
+                    // Timer fired — collect TXs and build announce.
+                    let State::ReadyForTxCollection {
+                        parent_announce,
+                        program_states,
+                        ..
+                    } = std::mem::replace(
+                        &mut self.state,
+                        // Temporary placeholder, will be overwritten by build_announce_with_states
+                        State::Delay { timer: None },
+                    )
+                    else {
+                        unreachable!()
+                    };
+
+                    let state =
+                        self.build_announce_with_states(parent_announce, &program_states)?;
                     return Ok((Poll::Ready(()), state));
                 }
             }
@@ -184,6 +249,7 @@ impl Producer {
         .into())
     }
 
+    /// Phase 1: Request canonical-only compute to get fresh ProgramStates for TX validation.
     fn produce_announce(mut self) -> Result<ValidatorState> {
         if !self.ctx.core.db.block_meta(self.block.hash).prepared {
             return Err(anyhow!(
@@ -197,11 +263,32 @@ impl Producer {
             self.ctx.core.commitment_delay_limit,
         )?;
 
+        // Phase 1: ask compute to run canonical events only (no TXs).
+        // The result (ProgramStates) arrives via process_canonical_events_computed.
+        self.ctx
+            .output(ConsensusEvent::ComputeCanonicalEvents(
+                self.block.hash,
+                parent,
+                self.ctx.core.block_gas_limit,
+            ));
+        self.state = State::WaitingCanonicalComputed {
+            parent_announce: parent,
+        };
+
+        Ok(self.into())
+    }
+
+    /// Phase 2: Select TXs using post-canonical ProgramStates, build and gossip announce.
+    fn build_announce_with_states(
+        mut self,
+        parent: HashOf<Announce>,
+        program_states: &ProgramStates,
+    ) -> Result<ValidatorState> {
         let injected_transactions = self
             .ctx
             .core
             .injected_pool
-            .select_for_announce(self.block, parent)?;
+            .select_for_announce_with_states(self.block, parent, program_states)?;
 
         let announce = Announce {
             block_hash: self.block.hash,
@@ -213,14 +300,10 @@ impl Producer {
         let (announce_hash, newly_included) =
             self.ctx.core.db.include_announce(announce.clone())?;
         if !newly_included {
-            // This can happen in case of abuse from rpc - the same eth block is announced multiple times,
-            // then the same announce is created multiple times, and include_announce would return already included.
-            // In this case we just go to initial state, without publishing anything and computing announce again.
             self.warning(format!(
                 "Announce created {announce:?} is already included at {}",
                 self.block.hash
             ));
-
             return Initial::create(self.ctx);
         }
 
@@ -466,6 +549,9 @@ mod tests {
 
     #[async_trait]
     trait ProducerExt: Sized {
+        /// Skip the delay timer and complete two-phase flow:
+        /// 1. Timer fires → ComputeCanonicalEvents
+        /// 2. process_canonical_events_computed → PublishMessage + ComputeAnnounce
         async fn skip_timer(self) -> Result<(Self, HashOf<Announce>)>;
     }
 
@@ -487,13 +573,32 @@ mod tests {
 
             let state = ValidatorState::from(producer);
 
+            // Phase 1: timer fires → ComputeCanonicalEvents
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer(), "Expected producer state, got {state}");
-            assert!(event.is_publish_message());
+            assert!(
+                event.is_compute_canonical_events(),
+                "Expected ComputeCanonicalEvents, got {event:?}"
+            );
+
+            // Extract block_hash from the event before consuming state
+            let (block_hash, _, _) = event.unwrap_compute_canonical_events();
+
+            // Phase 2: deliver empty ProgramStates → enters ReadyForTxCollection
+            let state = state.process_canonical_events_computed(
+                block_hash,
+                ethexe_common::ProgramStates::new(),
+            )?;
+            assert!(state.is_producer(), "Expected producer state, got {state}");
+
+            // Phase 3: poll timer fires → builds announce → PublishMessage + ComputeAnnounce
+            let (state, event) = state.wait_for_event().await?;
+            assert!(state.is_producer(), "Expected producer state, got {state}");
+            assert!(event.is_publish_message(), "Expected PublishMessage, got {event:?}");
 
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer(), "Expected producer state, got {state}");
-            assert!(event.is_compute_announce());
+            assert!(event.is_compute_announce(), "Expected ComputeAnnounce, got {event:?}");
 
             Ok((state, event.unwrap_compute_announce().0.to_hash()))
         }

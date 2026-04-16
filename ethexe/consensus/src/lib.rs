@@ -34,7 +34,7 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Announce, Digest, HashOf, PromisePolicy, SimpleBlockData,
+    Announce, Digest, HashOf, ProgramStates, PromisePolicy, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{Promise, SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
@@ -93,6 +93,13 @@ pub trait ConsensusService:
 
     /// Process a received injected transaction from network
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
+
+    /// Process computed canonical events (ephemeral ProgramStates for TX validation)
+    fn receive_canonical_events_computed(
+        &mut self,
+        block_hash: H256,
+        program_states: ProgramStates,
+    ) -> Result<()>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -127,6 +134,10 @@ pub enum ConsensusEvent {
     /// Informational event: commitment was successfully submitted
     #[from]
     CommitmentSubmitted(CommitmentSubmitted),
+    /// Outer service must compute canonical events only (no announce metadata writes).
+    /// CAS/state blob writes still occur during process_programs execution.
+    /// Contains (block_hash, parent_announce, gas_allowance).
+    ComputeCanonicalEvents(H256, HashOf<Announce>, u64),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }

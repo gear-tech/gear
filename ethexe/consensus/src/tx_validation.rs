@@ -95,6 +95,24 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO + Storage> TxVa
         })
     }
 
+    /// Create checker with externally-provided ProgramStates (from canonical compute).
+    /// `parent_announce` is used only for duplicate TX detection, not for state lookup.
+    pub fn new_with_states(
+        db: DB,
+        chain_head: SimpleBlockData,
+        parent_announce: HashOf<Announce>,
+        program_states: ProgramStates,
+    ) -> Result<Self> {
+        let start_block_hash = db.globals().start_block_hash;
+        Ok(Self {
+            recent_included_txs: Self::collect_recent_included_txs(&db, parent_announce)?,
+            latest_states: program_states,
+            db,
+            chain_head,
+            start_block_hash,
+        })
+    }
+
     /// Determine [`TxValidity`] status for injected transaction, based on current:
     /// - `chain_head` - Ethereum chain header
     /// - `latest_included_transactions` - see [`Self::collect_recent_included_txs`].

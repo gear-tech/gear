@@ -610,6 +610,10 @@ impl Service {
                     ComputeEvent::Promise(promise, announce_hash) => {
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
+                    ComputeEvent::CanonicalEventsComputed(block_hash, program_states) => {
+                        consensus
+                            .receive_canonical_events_computed(block_hash, program_states)?;
+                    }
                 },
                 Event::Network(event) => {
                     let Some(_) = network.as_mut() else {
@@ -740,6 +744,17 @@ impl Service {
                     }
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
+                    }
+                    ConsensusEvent::ComputeCanonicalEvents(
+                        block_hash,
+                        parent_announce,
+                        gas_allowance,
+                    ) => {
+                        compute.compute_canonical_events(
+                            block_hash,
+                            parent_announce,
+                            gas_allowance,
+                        )
                     }
                 },
                 Event::Prometheus(event) => match event {

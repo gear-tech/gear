@@ -26,7 +26,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, HashOf, PromisePolicy, ProtocolTimelines, SimpleBlockData,
+    Address, Announce, HashOf, ProgramStates, PromisePolicy, ProtocolTimelines, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::{ConfigStorageRO, OnChainStorageRO},
     injected::{Promise, SignedInjectedTransaction},
@@ -307,6 +307,15 @@ impl ConsensusService for ConnectService {
     }
 
     fn receive_validation_reply(&mut self, _reply: BatchCommitmentValidationReply) -> Result<()> {
+        Ok(())
+    }
+
+    fn receive_canonical_events_computed(
+        &mut self,
+        _block_hash: H256,
+        _program_states: ProgramStates,
+    ) -> Result<()> {
+        // Connect node does not produce announces, so canonical events are irrelevant.
         Ok(())
     }
 

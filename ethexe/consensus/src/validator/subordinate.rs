@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{
     ConsensusEvent,
-    announces::{self, AnnounceStatus},
+    announces::{self, AnnounceStatus, DBAnnouncesExt},
     validator::participant::Participant,
 };
 use anyhow::Result;
@@ -94,6 +94,17 @@ impl StateHandler for Subordinate {
                 if verified_announce.address() == self.producer
                     && verified_announce.data().block_hash == self.block.hash =>
             {
+                // Guard against gossip reordering: if the announce's parent isn't
+                // in DB yet (e.g., squashed arrived before base), defer instead of
+                // rejecting — accept_announce would reject with UnknownParent and
+                // the announce would be permanently lost.
+                if !self.ctx.core.db.is_announce_included(verified_announce.data().parent) {
+                    tracing::trace!(
+                        "Announce parent not yet included, deferring to pending"
+                    );
+                    self.ctx.pending(verified_announce);
+                    return Ok(self.into());
+                }
                 let (announce, _pub_key) = verified_announce.into_parts();
                 self.send_announce_for_computation(announce)
             }
@@ -443,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn reject_announce_from_producer() {
+    fn defer_announce_with_unknown_parent() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let chain = BlockChain::mock(1).setup(&ctx.core.db);
@@ -455,18 +466,15 @@ mod tests {
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(s.context().output, vec![]);
 
-        // After receiving invalid announce - subordinate rejects it and switches to initial state.
-        let s = s.process_announce(announce.clone()).unwrap();
-        assert!(s.is_initial(), "got {s:?}");
-        assert_eq!(s.context().output.len(), 2);
+        // Announce with unknown parent is deferred to pending (not rejected),
+        // supporting gossip reordering where a child arrives before its parent.
+        let s = s.process_announce(announce).unwrap();
+        assert!(s.is_subordinate(), "got {s:?}");
+        assert_eq!(s.context().output.len(), 0);
         assert_eq!(
-            s.context().output[0],
-            ConsensusEvent::AnnounceRejected(announce.data().to_hash())
-        );
-        assert!(
-            s.context().output[1].is_warning(),
-            "got {:?}",
-            s.context().output[1]
+            s.context().pending_events.len(),
+            1,
+            "Announce should be saved to pending for later replay"
         );
     }
 }

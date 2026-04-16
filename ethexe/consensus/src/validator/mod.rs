@@ -55,7 +55,7 @@ use anyhow::Result;
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, ProgramStates, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::ConfigStorageRO,
     ecdsa::PublicKey,
@@ -249,6 +249,16 @@ impl ConsensusService for ValidatorService {
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
         self.update_inner(|inner| inner.process_injected_transaction(tx))
     }
+
+    fn receive_canonical_events_computed(
+        &mut self,
+        block_hash: H256,
+        program_states: ProgramStates,
+    ) -> Result<()> {
+        self.update_inner(|inner| {
+            inner.process_canonical_events_computed(block_hash, program_states)
+        })
+    }
 }
 
 impl Stream for ValidatorService {
@@ -368,6 +378,14 @@ where
         DefaultProcessing::injected_transaction(self, tx)
     }
 
+    fn process_canonical_events_computed(
+        self,
+        block_hash: H256,
+        program_states: ProgramStates,
+    ) -> Result<ValidatorState> {
+        DefaultProcessing::canonical_events_computed(self, block_hash, program_states)
+    }
+
     fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         Ok((Poll::Pending, self.into()))
     }
@@ -467,6 +485,14 @@ impl StateHandler for ValidatorState {
     fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
         delegate_call!(self => process_injected_transaction(tx))
     }
+
+    fn process_canonical_events_computed(
+        self,
+        block_hash: H256,
+        program_states: ProgramStates,
+    ) -> Result<ValidatorState> {
+        delegate_call!(self => process_canonical_events_computed(block_hash, program_states))
+    }
 }
 
 struct DefaultProcessing;
@@ -494,6 +520,18 @@ impl DefaultProcessing {
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!("unexpected computed announce: {}", announce_hash));
+        Ok(s)
+    }
+
+    fn canonical_events_computed(
+        s: impl Into<ValidatorState>,
+        block_hash: H256,
+        _program_states: ProgramStates,
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
+        s.warning(format!(
+            "unexpected canonical events computed for block: {block_hash}"
+        ));
         Ok(s)
     }
 

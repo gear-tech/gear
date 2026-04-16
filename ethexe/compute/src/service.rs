@@ -24,7 +24,7 @@ use crate::{
     compute::{ComputeConfig, ComputeSubService},
     prepare::PrepareSubService,
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked, PromisePolicy};
+use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, PromisePolicy};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
@@ -86,6 +86,18 @@ impl<P: ProcessorExt> ComputeService<P> {
     pub fn compute_announce(&mut self, announce: Announce, promise_policy: PromisePolicy) {
         self.compute_sub_service
             .receive_announce_to_compute(announce, promise_policy);
+    }
+
+    /// Request canonical-only computation for a block.
+    /// Returns ProgramStates without writing announce metadata to DB.
+    pub fn compute_canonical_events(
+        &mut self,
+        block_hash: H256,
+        parent_announce: HashOf<Announce>,
+        gas_allowance: u64,
+    ) {
+        self.compute_sub_service
+            .receive_canonical_to_compute(block_hash, parent_announce, gas_allowance);
     }
 }
 

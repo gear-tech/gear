@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce, HashOf, PromisePolicy, SimpleBlockData,
+    Announce, HashOf, ProgramStates, PromisePolicy, SimpleBlockData,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW, ConfigStorageRO,
         GlobalsStorageRW, OnChainStorageRO,
@@ -87,6 +87,11 @@ pub struct ComputeSubService<P: ProcessorExt> {
     computation: Option<ComputationFuture>,
     promises_stream: Option<utils::AnnouncePromisesStream>,
     pending_event: Option<Result<ComputeEvent>>,
+
+    /// Input for canonical-only computation (block_hash, parent_announce, gas_allowance).
+    canonical_input: Option<(H256, HashOf<Announce>, u64)>,
+    /// Active canonical-only computation future.
+    canonical_computation: Option<BoxFuture<'static, Result<(H256, ProgramStates)>>>,
 }
 
 impl<P: ProcessorExt> ComputeSubService<P> {
@@ -100,6 +105,8 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             computation: None,
             promises_stream: None,
             pending_event: None,
+            canonical_input: None,
+            canonical_computation: None,
         }
     }
 
@@ -109,6 +116,17 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         promise_policy: PromisePolicy,
     ) {
         self.input.push_back((announce, promise_policy));
+    }
+
+    /// Request canonical-only computation. Cancels any stale canonical computation.
+    pub fn receive_canonical_to_compute(
+        &mut self,
+        block_hash: H256,
+        parent_announce: HashOf<Announce>,
+        gas_allowance: u64,
+    ) {
+        self.canonical_computation = None;
+        self.canonical_input = Some((block_hash, parent_announce, gas_allowance));
     }
 
     async fn compute(
@@ -191,12 +209,75 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 
         Ok(announce_hash)
     }
+
+    /// Compute canonical events only, returning ProgramStates without announce metadata writes.
+    /// PRECONDITION: parent_announce must already be computed.
+    async fn compute_canonical_only(
+        db: Database,
+        config: ComputeConfig,
+        mut processor: P,
+        block_hash: H256,
+        parent_announce: HashOf<Announce>,
+        gas_allowance: u64,
+    ) -> Result<(H256, ProgramStates)> {
+        if !db.block_meta(block_hash).prepared {
+            return Err(ComputeError::BlockNotPrepared(block_hash));
+        }
+
+        if !db.announce_meta(parent_announce).computed {
+            return Err(ComputeError::AnnounceNotFound(parent_announce));
+        }
+
+        // Build synthetic announce with empty TXs — never stored in DB
+        let synthetic = Announce {
+            block_hash,
+            parent: parent_announce,
+            gas_allowance: Some(gas_allowance),
+            injected_transactions: vec![],
+        };
+
+        // Run through processor. CAS/state blobs are written (idempotent),
+        // but we skip announce-level metadata writes.
+        let executable =
+            utils::prepare_executable_for_announce(&db, synthetic, config.canonical_quarantine())?;
+        let result = processor.process_programs(executable, None).await?;
+
+        Ok((block_hash, result.states))
+    }
 }
 
 impl<P: ProcessorExt> SubService for ComputeSubService<P> {
     type Output = ComputeEvent;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
+        // Poll canonical-only computation (if active).
+        if let Some(ref mut computation) = self.canonical_computation
+            && let Poll::Ready(result) = computation.poll_unpin(cx)
+        {
+            self.canonical_computation = None;
+            return Poll::Ready(result.map(|(block_hash, program_states)| {
+                ComputeEvent::CanonicalEventsComputed(block_hash, program_states)
+            }));
+        }
+
+        // Start new canonical computation if idle.
+        if self.canonical_computation.is_none()
+            && let Some((block_hash, parent_announce, gas_allowance)) =
+                self.canonical_input.take()
+        {
+            self.canonical_computation = Some(
+                Self::compute_canonical_only(
+                    self.db.clone(),
+                    self.config,
+                    self.processor.clone(),
+                    block_hash,
+                    parent_announce,
+                    gas_allowance,
+                )
+                .boxed(),
+            );
+        }
+
         if self.computation.is_none()
             && self.promises_stream.is_none()
             && let Some((announce, promise_policy)) = self.input.pop_front()

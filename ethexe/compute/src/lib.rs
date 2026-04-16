@@ -20,7 +20,7 @@ pub use compute::{
     ComputeConfig, ComputeSubService,
     utils::{find_canonical_events_post_quarantine, prepare_executable_for_announce},
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, injected::Promise};
+use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, ProgramStates, injected::Promise};
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
@@ -47,6 +47,9 @@ pub enum ComputeEvent {
     CodeProcessed(CodeId),
     BlockPrepared(H256),
     AnnounceComputed(HashOf<Announce>),
+    /// Canonical events computed for a block. Contains (block_hash, program_states).
+    /// The program_states are ephemeral — not stored in DB as an announce.
+    CanonicalEventsComputed(H256, ProgramStates),
     Promise(Promise, HashOf<Announce>),
 }
 
