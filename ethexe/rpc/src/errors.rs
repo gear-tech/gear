@@ -16,26 +16,41 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use jsonrpsee::types::{ErrorObject, error::INVALID_PARAMS_CODE};
+use jsonrpsee::types::{
+    ErrorObject,
+    error::{
+        CALL_EXECUTION_FAILED_CODE, INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG, INVALID_PARAMS_CODE,
+        INVALID_PARAMS_MSG, INVALID_REQUEST_CODE, INVALID_REQUEST_MSG,
+    },
+};
+use serde::Serialize;
 
-// TODO #4364: https://github.com/gear-tech/gear/issues/4364
-
+// TODO: db errors are cause when we do not found some data in data, so maybe rename it to `not_found`.
 pub fn db(err: &'static str) -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Database error", Some(err))
 }
 
 pub fn runtime(err: impl ToString) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Runtime error", Some(err.to_string()))
+    ErrorObject::owned(
+        CALL_EXECUTION_FAILED_CODE,
+        "Runtime error",
+        Some(err.to_string()),
+    )
 }
 
-pub fn bad_request(err: impl ToString) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Bad request", Some(err.to_string()))
+pub fn bad_request<D: Serialize>(data: Option<D>) -> ErrorObject<'static> {
+    ErrorObject::owned(INVALID_REQUEST_CODE, INVALID_REQUEST_MSG, data)
 }
 
 pub fn internal() -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Internal error", None::<&str>)
+    ErrorObject::owned(INTERNAL_ERROR_CODE, INTERNAL_ERROR_MSG, None::<&str>)
 }
 
-pub fn invalid_params(err: impl ToString) -> ErrorObject<'static> {
-    ErrorObject::owned(INVALID_PARAMS_CODE, "Invalid params", Some(err.to_string()))
+#[allow(unused)]
+pub fn invalid_params() -> ErrorObject<'static> {
+    ErrorObject::owned(INVALID_PARAMS_CODE, INVALID_PARAMS_MSG, None::<&str>)
+}
+
+pub fn invalid_params_with<D: Serialize>(data: D) -> ErrorObject<'static> {
+    ErrorObject::owned(INVALID_PARAMS_CODE, INVALID_PARAMS_MSG, Some(data))
 }

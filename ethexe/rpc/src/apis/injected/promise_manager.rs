@@ -26,6 +26,7 @@ use ethexe_common::{
     },
 };
 use ethexe_db::Database;
+use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 use tracing::trace;
@@ -45,7 +46,7 @@ pub struct PromiseSubscriptionManager {
     waiting_for_compute: PromisesComputationWaiting,
 }
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, Serialize, Deserialize)]
 pub enum RegisterSubscriberError {
     #[error("Subscriber for this transaction already exists, tx_hash={0}")]
     AlreadyRegistered(HashOf<InjectedTransaction>),

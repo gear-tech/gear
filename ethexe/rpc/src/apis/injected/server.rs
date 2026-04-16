@@ -118,7 +118,7 @@ impl InjectedApi {
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
             Ok(subscriber) => subscriber,
             Err(err) => {
-                return Err(errors::bad_request(err).into());
+                return Err(errors::bad_request(Some(err)).into());
             }
         };
 
@@ -181,7 +181,7 @@ impl InjectedApi {
         tracing::trace!(?transaction_ids, "Called injected_getTransactions");
 
         if transaction_ids.len() > MAX_TRANSACTION_IDS {
-            return Err(errors::invalid_params(format!(
+            return Err(errors::invalid_params_with(format!(
                 "Too many transaction ids requested. Maximum is {MAX_TRANSACTION_IDS}.",
             )));
         }

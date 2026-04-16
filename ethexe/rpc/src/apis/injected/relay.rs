@@ -51,7 +51,7 @@ impl TransactionsRelayer {
                 value = transaction.tx.data().value,
                 "Injected transaction with non-zero value is not supported"
             );
-            return Err(errors::bad_request(
+            return Err(errors::invalid_params_with(
                 "Injected transactions with non-zero value are not supported",
             ));
         }
