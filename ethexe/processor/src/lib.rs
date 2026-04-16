@@ -217,24 +217,32 @@ impl Processor {
     ) -> Result<InBlockTransitions> {
         let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
 
-        // Process canonical events FIRST: ProgramCreated, ExecutableBalanceTopUp, etc.
-        // must establish program state before injected TXs can target those programs.
+        // Split events: Router events (ProgramCreated, CodeValidated, etc.) register
+        // programs and must run before injected TXs can reference them.
+        // Mirror events (MessageQueueingRequested, etc.) enqueue canonical messages
+        // and run after injected TXs to preserve injected priority.
+        let mut mirror_events = Vec::new();
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
                     handler.handle_router_event(event)?;
                 }
                 BlockRequestEvent::Mirror { actor_id, event } => {
-                    handler.handle_mirror_event(actor_id, event)?;
+                    mirror_events.push((actor_id, event));
                 }
             }
         }
 
-        // Then process injected TXs against the post-canonical state.
+        // Injected TXs second — they have execution priority over canonical messages.
         for tx in injected_transactions {
             let source = tx.address().into();
             let tx = tx.into_parts().0;
             handler.handle_injected_transaction(source, tx)?;
+        }
+
+        // Mirror events last — canonical messages enqueued after injected.
+        for (actor_id, event) in mirror_events {
+            handler.handle_mirror_event(actor_id, event)?;
         }
 
         Ok(handler.into_transitions())

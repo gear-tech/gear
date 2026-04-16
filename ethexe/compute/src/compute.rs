@@ -267,42 +267,36 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
         // doesn't enforce ordering. Two processor clones may be alive simultaneously,
         // doubling WASM runtime memory briefly.
 
-        // Poll canonical-only computation (if active).
-        if let Some(ref mut computation) = self.canonical_computation
-            && let Poll::Ready(result) = computation.poll_unpin(cx)
-        {
-            self.canonical_computation = None;
-            return Poll::Ready(result.map(|(block_hash, program_states)| {
-                ComputeEvent::CanonicalEventsComputed(block_hash, program_states)
-            }));
-        }
-
-        // Start new canonical computation if idle, then immediately poll it.
-        if self.canonical_computation.is_none()
-            && let Some((block_hash, parent_announce, gas_allowance)) =
-                self.canonical_input.take()
-        {
-            self.canonical_computation = Some(
-                Self::compute_canonical_only(
-                    self.db.clone(),
-                    self.config,
-                    self.processor.clone(),
-                    block_hash,
-                    parent_announce,
-                    gas_allowance,
-                )
-                .boxed(),
-            );
-
-            // Poll immediately — the future may already be ready (e.g., in tests with MockProcessor).
-            if let Some(ref mut computation) = self.canonical_computation
-                && let Poll::Ready(result) = computation.poll_unpin(cx)
-            {
-                self.canonical_computation = None;
-                return Poll::Ready(result.map(|(block_hash, program_states)| {
-                    ComputeEvent::CanonicalEventsComputed(block_hash, program_states)
-                }));
+        // Poll canonical computation: start if idle, then poll until pending.
+        loop {
+            if let Some(ref mut computation) = self.canonical_computation {
+                if let Poll::Ready(result) = computation.poll_unpin(cx) {
+                    self.canonical_computation = None;
+                    return Poll::Ready(result.map(|(block_hash, program_states)| {
+                        ComputeEvent::CanonicalEventsComputed(block_hash, program_states)
+                    }));
+                }
+                break;
             }
+
+            if let Some((block_hash, parent_announce, gas_allowance)) =
+                self.canonical_input.take()
+            {
+                self.canonical_computation = Some(
+                    Self::compute_canonical_only(
+                        self.db.clone(),
+                        self.config,
+                        self.processor.clone(),
+                        block_hash,
+                        parent_announce,
+                        gas_allowance,
+                    )
+                    .boxed(),
+                );
+                continue;
+            }
+
+            break;
         }
 
         if self.computation.is_none()
