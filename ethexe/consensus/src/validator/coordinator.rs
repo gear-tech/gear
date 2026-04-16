@@ -167,13 +167,13 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{ToDigest, ValidatorsVec, mock::*};
+    use ethexe_common::{ToDigest, ValidatorsVec};
     use gprimitives::H256;
     use nonempty::NonEmpty;
 
     #[test]
     fn coordinator_create_success() {
-        let (mut ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         ctx.core.signatures_threshold = 2;
         let validators: ValidatorsVec = keys
             .iter()
@@ -182,11 +182,8 @@ mod tests {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-        let block = SimpleBlockData::mock(());
-        let batch = BatchCommitment {
-            block_hash: block.hash,
-            ..Default::default()
-        };
+        let block = test_simple_block_data(1);
+        let batch = test_batch_commitment(block.hash, 1);
 
         let coordinator = Coordinator::create(ctx, validators, batch, block).unwrap();
         assert!(coordinator.is_coordinator());
@@ -198,13 +195,12 @@ mod tests {
 
     #[test]
     fn coordinator_create_insufficient_validators() {
-        let (mut ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
-        let mut batch = BatchCommitment::default();
-        let block = SimpleBlockData::mock(());
-        batch.block_hash = block.hash;
+        let block = test_simple_block_data(2);
+        let batch = test_batch_commitment(block.hash, 2);
 
         assert!(
             Coordinator::create(ctx, validators.into(), batch, block).is_err(),
@@ -214,13 +210,12 @@ mod tests {
 
     #[test]
     fn coordinator_create_zero_threshold() {
-        let (mut ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         ctx.core.signatures_threshold = 0;
         let validators =
             NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
-        let mut batch = BatchCommitment::default();
-        let block = SimpleBlockData::mock(());
-        batch.block_hash = block.hash;
+        let block = test_simple_block_data(3);
+        let batch = test_batch_commitment(block.hash, 3);
 
         assert!(
             Coordinator::create(ctx, validators.into(), batch, block).is_err(),
@@ -230,16 +225,13 @@ mod tests {
 
     #[test]
     fn process_validation_reply() {
-        let (mut ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
 
-        let block = SimpleBlockData::mock(());
-        let batch = BatchCommitment {
-            block_hash: block.hash,
-            ..Default::default()
-        };
+        let block = test_simple_block_data(4);
+        let batch = test_batch_commitment(block.hash, 4);
         let digest = batch.to_digest();
 
         let reply1 = ctx
