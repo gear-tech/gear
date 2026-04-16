@@ -52,7 +52,7 @@ runs:
         chmod +x llvm.sh
         sudo ./llvm.sh 20 || sudo apt-cache policy libllvm20
 
-        sudo apt install aptitude
+        sudo apt install -y aptitude
         sudo aptitude why libllvm20
 
         sudo apt-fast update
