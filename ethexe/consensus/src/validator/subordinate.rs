@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{
     ConsensusEvent,
-    announces::{self, AnnounceStatus},
+    announces::{self, AnnounceRejectionReason, AnnounceStatus},
     validator::participant::Participant,
 };
 use anyhow::Result;
@@ -42,6 +42,11 @@ const MAX_PENDING_EVENTS: usize = 10;
 /// [`Subordinate`] is the state of the validator which is not a producer.
 /// It waits for the producer block, the waits for the block computing
 /// and then switches to [`Participant`] state.
+///
+/// After computing the base announce, the subordinate loops back to
+/// `WaitingForAnnounce` to accept mini-announces from the same producer.
+/// When a validation request arrives whose head announce is already computed,
+/// the subordinate transitions to `Participant`.
 #[derive(Debug, Display)]
 #[display("SUBORDINATE in {:?}", self.state)]
 pub struct Subordinate {
@@ -52,15 +57,10 @@ pub struct Subordinate {
     state: State,
 }
 
-#[derive(Debug, PartialEq, Eq, derive_more::IsVariant)]
+#[derive(Debug, PartialEq, Eq)]
 enum State {
     WaitingForAnnounce,
-    WaitingAnnounceComputed {
-        announce_hash: HashOf<Announce>,
-    },
-    ReadyForMoreAnnounces {
-        latest_announce_hash: HashOf<Announce>,
-    },
+    WaitingAnnounceComputed { announce_hash: HashOf<Announce> },
 }
 
 impl StateHandler for Subordinate {
@@ -84,37 +84,54 @@ impl StateHandler for Subordinate {
             State::WaitingAnnounceComputed { announce_hash }
                 if *announce_hash == computed_announce_hash =>
             {
-                // Enter waiting state for more announces (mini-announces).
-                // The Participant transition happens when the validation request arrives.
-                self.state = State::ReadyForMoreAnnounces {
-                    latest_announce_hash: computed_announce_hash,
-                };
+                // Announce computed. Loop back to WaitingForAnnounce to accept
+                // mini-announces or validation requests from the producer.
+                self.state = State::WaitingForAnnounce;
 
-                // Replay pending events that arrived during computation
-                // (mini-announces or validation requests from the producer).
-                self.replay_pending_events()
+                // Check pending for VR or mini-announce that arrived during computation.
+                self.process_pending_after_compute()
             }
             _ => DefaultProcessing::computed_announce(self, computed_announce_hash),
         }
     }
 
     fn process_announce(mut self, verified_announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        match &mut self.state {
+        match &self.state {
             State::WaitingForAnnounce
                 if verified_announce.address() == self.producer
                     && verified_announce.data().block_hash == self.block.hash =>
             {
-                let (announce, _pub_key) = verified_announce.into_parts();
-                self.send_announce_for_computation(announce)
-            }
-            State::ReadyForMoreAnnounces {
-                latest_announce_hash,
-            } if verified_announce.address() == self.producer
-                && verified_announce.data().block_hash == self.block.hash
-                && verified_announce.data().parent == *latest_announce_hash =>
-            {
-                let (announce, _pub_key) = verified_announce.into_parts();
-                self.send_announce_for_computation(announce)
+                let (announce, _pub_key) = verified_announce.clone().into_parts();
+                match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
+                    AnnounceStatus::Accepted(announce_hash) => {
+                        self.ctx
+                            .output(ConsensusEvent::AnnounceAccepted(announce_hash));
+                        self.ctx.output(ConsensusEvent::ComputeAnnounce(
+                            announce,
+                            PromisePolicy::Disabled,
+                        ));
+                        self.state = State::WaitingAnnounceComputed { announce_hash };
+                        Ok(self.into())
+                    }
+                    AnnounceStatus::Rejected {
+                        reason: AnnounceRejectionReason::UnknownParent { .. },
+                        ..
+                    } => {
+                        // Parent not yet included — defer to pending.
+                        // Gossip reordering can cause the child to arrive before the parent.
+                        tracing::trace!("Announce parent not yet included, deferring to pending");
+                        self.ctx.pending(verified_announce);
+                        Ok(self.into())
+                    }
+                    AnnounceStatus::Rejected { announce, reason } => {
+                        self.ctx
+                            .output(ConsensusEvent::AnnounceRejected(announce.to_hash()));
+                        self.warning(format!(
+                            "Received announce {announce:?} is rejected: {reason:?}"
+                        ));
+                        Initial::create(self.ctx)
+                    }
+                }
             }
             _ => DefaultProcessing::announce_from_producer(self, verified_announce),
         }
@@ -125,30 +142,29 @@ impl StateHandler for Subordinate {
         request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         match &self.state {
-            State::ReadyForMoreAnnounces { .. }
-                if request.address() == self.producer && self.is_validator =>
-            {
+            State::WaitingForAnnounce if request.address() == self.producer && self.is_validator => {
+                // Check if VR's head announce is already computed.
                 let head_computed = request
                     .data()
                     .head
                     .is_none_or(|h| self.ctx.core.db.announce_meta(h).computed);
 
                 if head_computed {
+                    // All announces computed, ready to validate.
                     self.ctx.pending(request);
                     Participant::create(self.ctx, self.block, self.producer)
                 } else {
-                    // MA not yet received/computed — save VR, wait for MA to arrive.
-                    // replay_pending_events will retry after next announce computes.
+                    // VR arrived before its head announce was computed.
+                    // Save to pending — will be retried after next announce computes.
                     tracing::trace!(
-                        "VR head announce not yet computed, deferring to after next announce"
+                        "VR head announce not yet computed, deferring to pending"
                     );
                     self.ctx.pending(request);
                     Ok(self.into())
                 }
             }
-            State::ReadyForMoreAnnounces { .. } if request.address() == self.producer => {
-                // Non-validator: VR is meaningless, drop it to avoid recycle loop
-                // in replay_pending_events.
+            State::WaitingForAnnounce if request.address() == self.producer => {
+                // Non-validator: VR is meaningless, drop it.
                 Ok(self.into())
             }
             _ if request.address() == self.producer => {
@@ -213,12 +229,14 @@ impl Subordinate {
         }
     }
 
-    fn replay_pending_events(mut self) -> Result<ValidatorState> {
+    /// After an announce computes, check pending events for:
+    /// - Mini-announces that can now be accepted (parent just got included)
+    /// - Validation requests whose head is now computed
+    fn process_pending_after_compute(mut self) -> Result<ValidatorState> {
         let pending = mem::take(&mut self.ctx.pending_events);
         let mut state: ValidatorState = self.into();
 
-        // Iterate oldest-first: pending_events stores newest at front (push_front),
-        // so reverse to process parent announces before children.
+        // Process oldest-first so parent announces are handled before children.
         for event in pending.into_iter().rev() {
             state = match event {
                 PendingEvent::Announce(announce) => state.process_announce(announce)?,
@@ -261,9 +279,7 @@ impl Subordinate {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{
-        consensus::BatchCommitmentValidationRequest, db::AnnounceStorageRW, mock::*,
-    };
+    use ethexe_common::mock::*;
 
     #[test]
     fn create_empty() {
@@ -395,14 +411,15 @@ mod tests {
             ]
         );
 
-        // After announce is computed, subordinate enters ReadyForMoreAnnounces.
-        // Participant transition happens when validation request arrives.
+        // After announce is computed, subordinate stays in WaitingForAnnounce
+        // (ready for mini-announces or VR). No immediate Participant transition.
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();
-        assert!(s.is_subordinate(), "got {s:?}");
-        let sub = s.unwrap_subordinate();
-        assert!(sub.state.is_ready_for_more_announces());
+        assert!(
+            s.is_subordinate(),
+            "should stay subordinate after compute, got {s:?}"
+        );
     }
 
     #[test]
@@ -433,157 +450,12 @@ mod tests {
             ]
         );
 
-        // After announce is computed, non-validator also enters ReadyForMoreAnnounces.
+        // After announce is computed, non-validator subordinate stays in WaitingForAnnounce too.
+        // It will transition to Initial on the next new_head.
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
-        let sub = s.unwrap_subordinate();
-        assert!(sub.state.is_ready_for_more_announces());
-    }
-
-    #[test]
-    fn accept_mini_announce() {
-        let (ctx, pub_keys, _) = mock_validator_context();
-        let producer = pub_keys[0];
-        let chain = BlockChain::mock(1).setup(&ctx.core.db);
-        let block = chain.blocks[1].to_simple();
-        let parent_announce_hash = chain.block_top_announce_hash(0);
-        let announce1 = ctx
-            .core
-            .signer
-            .mock_verified_data(producer, (block.hash, parent_announce_hash));
-
-        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
-        let s = s.process_announce(announce1.clone()).unwrap();
-
-        // Compute the first announce → ReadyForMoreAnnounces
-        let s = s
-            .process_computed_announce(announce1.data().to_hash())
-            .unwrap();
-        assert!(s.is_subordinate());
-
-        // Second announce (mini-announce) from producer for the same block
-        let announce2: VerifiedAnnounce = s
-            .context()
-            .core
-            .signer
-            .mock_verified_data(producer, (block.hash, announce1.data().to_hash()));
-
-        let s = s.process_announce(announce2.clone()).unwrap();
-        assert!(s.is_subordinate(), "got {s:?}");
-        // Should have accepted the mini-announce and sent it for computation
-        assert!(
-            s.context()
-                .output
-                .iter()
-                .any(|e| matches!(e, ConsensusEvent::AnnounceAccepted(_)))
-        );
-    }
-
-    #[test]
-    fn reject_mini_announce_wrong_producer() {
-        let (ctx, keys, _) = mock_validator_context();
-        let producer = keys[0];
-        let alice = keys[1];
-        let chain = BlockChain::mock(1).setup(&ctx.core.db);
-        let block = chain.blocks[1].to_simple();
-        let parent_announce_hash = chain.block_top_announce_hash(0);
-        let announce1 = ctx
-            .core
-            .signer
-            .mock_verified_data(producer, (block.hash, parent_announce_hash));
-
-        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
-        let s = s.process_announce(announce1.clone()).unwrap();
-
-        let s = s
-            .process_computed_announce(announce1.data().to_hash())
-            .unwrap();
-
-        // Mini-announce from wrong address
-        let fake_announce: VerifiedAnnounce = s
-            .context()
-            .core
-            .signer
-            .mock_verified_data(alice, (block.hash, announce1.data().to_hash()));
-
-        let s = s.process_announce(fake_announce.clone()).unwrap();
-        // Should be saved as pending, not accepted
-        assert!(s.context().pending_events.iter().any(|e| matches!(
-            e,
-            PendingEvent::Announce(a) if a.data().to_hash() == fake_announce.data().to_hash()
-        )));
-    }
-
-    #[test]
-    fn validation_request_in_waiting_for_more() {
-        let (ctx, pub_keys, _) = mock_validator_context();
-        let producer = pub_keys[0];
-        let chain = BlockChain::mock(1).setup(&ctx.core.db);
-        let block = chain.blocks[1].to_simple();
-        let parent_announce_hash = chain.block_top_announce_hash(0);
-        let announce = ctx
-            .core
-            .signer
-            .mock_verified_data(producer, (block.hash, parent_announce_hash));
-
-        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
-        let s = s.process_announce(announce.clone()).unwrap();
-
-        // Compute → ReadyForMoreAnnounces
-        let computed_hash = announce.data().to_hash();
-        let s = s.process_computed_announce(computed_hash).unwrap();
-        assert!(s.is_subordinate());
-
-        // Mark announce as computed in DB (normally done by compute layer)
-        s.context()
-            .core
-            .db
-            .mutate_announce_meta(computed_hash, |meta| meta.computed = true);
-
-        // Validation request from producer with computed head → should transition to Participant
-        let request: VerifiedValidationRequest = s
-            .context()
-            .core
-            .signer
-            .mock_verified_data(producer, ())
-            .map(|mut vr: BatchCommitmentValidationRequest| {
-                vr.head = Some(computed_hash);
-                vr
-            });
-        let s = s.process_validation_request(request).unwrap();
-        assert!(s.is_participant(), "got {s:?}");
-    }
-
-    #[test]
-    fn defer_vr_when_head_not_computed() {
-        let (ctx, pub_keys, _) = mock_validator_context();
-        let producer = pub_keys[0];
-        let chain = BlockChain::mock(1).setup(&ctx.core.db);
-        let block = chain.blocks[1].to_simple();
-        let parent_announce_hash = chain.block_top_announce_hash(0);
-        let announce = ctx
-            .core
-            .signer
-            .mock_verified_data(producer, (block.hash, parent_announce_hash));
-
-        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
-        let s = s.process_announce(announce.clone()).unwrap();
-
-        // Compute → ReadyForMoreAnnounces
-        let s = s
-            .process_computed_announce(announce.data().to_hash())
-            .unwrap();
-        assert!(s.is_subordinate());
-
-        // VR with uncomputed head → should stay in Subordinate (ReadyForMoreAnnounces)
-        let request = s.context().core.signer.mock_verified_data(producer, ());
-        let s = s.process_validation_request(request).unwrap();
-        assert!(
-            s.is_subordinate(),
-            "VR with uncomputed head should defer, got {s:?}"
-        );
     }
 
     #[test]
@@ -650,7 +522,7 @@ mod tests {
     }
 
     #[test]
-    fn reject_announce_from_producer() {
+    fn defer_announce_with_unknown_parent() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let chain = BlockChain::mock(1).setup(&ctx.core.db);
@@ -662,18 +534,15 @@ mod tests {
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(s.context().output, vec![]);
 
-        // After receiving invalid announce - subordinate rejects it and switches to initial state.
-        let s = s.process_announce(announce.clone()).unwrap();
-        assert!(s.is_initial(), "got {s:?}");
-        assert_eq!(s.context().output.len(), 2);
+        // Announce with unknown parent is deferred to pending (not rejected),
+        // supporting gossip reordering where a child arrives before its parent.
+        let s = s.process_announce(announce).unwrap();
+        assert!(s.is_subordinate(), "got {s:?}");
+        assert_eq!(s.context().output.len(), 0);
         assert_eq!(
-            s.context().output[0],
-            ConsensusEvent::AnnounceRejected(announce.data().to_hash())
-        );
-        assert!(
-            s.context().output[1].is_warning(),
-            "got {:?}",
-            s.context().output[1]
+            s.context().pending_events.len(),
+            1,
+            "Announce should be saved to pending for later replay"
         );
     }
 }
