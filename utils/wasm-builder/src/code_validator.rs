@@ -330,17 +330,18 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
         schedule.limits.parameters.into(),
     );
 
-    ensure!(
-        (code.as_ref().unwrap().instrumented_code().bytes().len() as u32)
-            <= schedule.limits.code_len,
-        CodeErrorWithContext::CodeTooLarge {
-            limit: schedule.limits.code_len,
-            kind: CodeKind::Instrumented
-        }
-    );
-
     match code {
-        Ok(_) => Ok(()),
+        Ok(code) => {
+            ensure!(
+                (code.instrumented_code().bytes().len() as u32) <= schedule.limits.code_len,
+                CodeErrorWithContext::CodeTooLarge {
+                    limit: schedule.limits.code_len,
+                    kind: CodeKind::Instrumented
+                }
+            );
+
+            Ok(())
+        }
         Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
     }
 }
