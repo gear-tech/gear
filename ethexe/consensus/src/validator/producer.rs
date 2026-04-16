@@ -266,19 +266,22 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{HashOf, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{HashOf, consensus::BatchCommitmentValidationRequest, db::*, mock::*};
     use futures::StreamExt;
     use nonempty::nonempty;
 
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn create() {
-        let (mut ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
-        let block = SimpleBlockData::mock(());
+        let block = test_simple_block_data(1);
 
         ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_verified_data(keys[0], ()),
+            ctx.core.signer.verified_test_data(
+                keys[0],
+                BatchCommitmentValidationRequest::new(&test_batch_commitment(block.hash, 1)),
+            ),
         ));
 
         let producer = Producer::create(ctx, block, validators.into()).unwrap();
@@ -294,9 +297,9 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn simple() {
-        let (ctx, keys, eth) = mock_validator_context();
+        let (ctx, keys, eth) = mock_validator_context(ethexe_db::Database::memory());
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let block = test_block_chain(1).setup(&ctx.core.db).blocks[1].to_simple();
 
         let (state, announce_hash) = Producer::create(ctx, block, validators)
             .unwrap()
@@ -329,7 +332,7 @@ mod tests {
     async fn threshold_one() {
         gear_utils::init_default_logger();
 
-        let (ctx, keys, eth) = mock_validator_context();
+        let (ctx, keys, eth) = mock_validator_context(ethexe_db::Database::memory());
         let validators: ValidatorsVec =
             nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
@@ -384,7 +387,7 @@ mod tests {
     async fn threshold_two() {
         gear_utils::init_default_logger();
 
-        let (mut ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         ctx.core.signatures_threshold = 2;
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
@@ -424,12 +427,12 @@ mod tests {
     async fn code_commitments_only() {
         gear_utils::init_default_logger();
 
-        let (ctx, keys, eth) = mock_validator_context();
+        let (ctx, keys, eth) = mock_validator_context(ethexe_db::Database::memory());
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let block = test_block_chain(1).setup(&ctx.core.db).blocks[1].to_simple();
 
-        let code1 = CodeCommitment::mock(());
-        let code2 = CodeCommitment::mock(());
+        let code1 = test_code_commitment(1);
+        let code2 = test_code_commitment(2);
         ctx.core.db.set_code_valid(code1.id, code1.valid);
         ctx.core.db.set_code_valid(code2.id, code2.valid);
         ctx.core.db.mutate_block_meta(block.hash, |meta| {
