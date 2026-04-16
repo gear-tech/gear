@@ -52,6 +52,9 @@ runs:
         chmod +x llvm.sh
         sudo ./llvm.sh 20 || sudo apt-cache policy libllvm20
 
+        sudo apt install aptitude
+        sudo aptitude why libllvm20
+
         sudo apt-fast update
         sudo apt-fast install -y libclang-20-dev clang-tools-20
 
