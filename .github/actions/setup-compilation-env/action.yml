@@ -38,6 +38,9 @@ runs:
         sudo apt-fast install -y protobuf-compiler binaryen
       shell: bash
 
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+
     - name: "Install: LLVM on Linux"
       if: ${{ runner.os == 'Linux' }}
       run: |
