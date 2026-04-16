@@ -25,11 +25,13 @@ use crate::{
     announces::{self, AnnounceStatus},
     validator::participant::Participant,
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Announce, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    db::AnnounceStorageRO,
+    network::NetworkAnnounce,
 };
 use std::mem;
 
@@ -168,11 +170,17 @@ impl Subordinate {
         }
     }
 
-    fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
-        match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
+    fn send_announce_for_computation(
+        mut self,
+        network_announce: NetworkAnnounce,
+    ) -> Result<ValidatorState> {
+        match announces::accept_announce(&self.ctx.core.db, network_announce)? {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx
                     .output(ConsensusEvent::AnnounceAccepted(announce_hash));
+                let announce = self.ctx.core.db.announce(announce_hash).ok_or_else(|| {
+                    anyhow!("accepted announce {announce_hash} is missing from database")
+                })?;
                 self.ctx.output(ConsensusEvent::ComputeAnnounce(
                     announce,
                     PromisePolicy::Disabled,
@@ -236,8 +244,11 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce1.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce1.data().clone(), PromisePolicy::Disabled)
+                ConsensusEvent::AnnounceAccepted(announce1.data().to_announce().to_hash()),
+                ConsensusEvent::ComputeAnnounce(
+                    Announce::from(announce1.data()),
+                    PromisePolicy::Disabled
+                )
             ]
         );
         // announce2 must stay in pending events, because it's not from current producer.
@@ -296,8 +307,11 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
+                ConsensusEvent::AnnounceAccepted(announce.data().to_announce().to_hash()),
+                ConsensusEvent::ComputeAnnounce(
+                    Announce::from(announce.data()),
+                    PromisePolicy::Disabled
+                )
             ]
         );
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
@@ -325,21 +339,27 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
+                ConsensusEvent::AnnounceAccepted(announce.data().to_announce().to_hash()),
+                ConsensusEvent::ComputeAnnounce(
+                    Announce::from(announce.data()),
+                    PromisePolicy::Disabled
+                )
             ]
         );
 
         // After announce is computed, subordinate switches to participant state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(announce.data().to_announce().to_hash())
             .unwrap();
         assert!(s.is_participant(), "got {s:?}");
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
+                ConsensusEvent::AnnounceAccepted(announce.data().to_announce().to_hash()),
+                ConsensusEvent::ComputeAnnounce(
+                    Announce::from(announce.data()),
+                    PromisePolicy::Disabled
+                )
             ]
         );
     }
@@ -367,14 +387,17 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
+                ConsensusEvent::AnnounceAccepted(announce.data().to_announce().to_hash()),
+                ConsensusEvent::ComputeAnnounce(
+                    Announce::from(announce.data()),
+                    PromisePolicy::Disabled
+                )
             ]
         );
 
         // After announce is computed, not-validator subordinate switches to initial state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(announce.data().to_announce().to_hash())
             .unwrap();
         assert!(s.is_initial(), "got {s:?}");
     }
@@ -402,9 +425,9 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(producer_announce.data().to_hash()),
+                ConsensusEvent::AnnounceAccepted(producer_announce.data().to_announce().to_hash()),
                 ConsensusEvent::ComputeAnnounce(
-                    producer_announce.data().clone(),
+                    Announce::from(producer_announce.data()),
                     PromisePolicy::Disabled
                 )
             ]
@@ -461,7 +484,7 @@ mod tests {
         assert_eq!(s.context().output.len(), 2);
         assert_eq!(
             s.context().output[0],
-            ConsensusEvent::AnnounceRejected(announce.data().to_hash())
+            ConsensusEvent::AnnounceRejected(announce.data().to_announce().to_hash())
         );
         assert!(
             s.context().output[1].is_warning(),

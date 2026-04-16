@@ -36,13 +36,12 @@ pub(crate) use crate::{
 use crate::{db_sync::requests::OngoingRequests, peer_score, utils::AlternateCollectionFmt};
 use async_trait::async_trait;
 use ethexe_common::{
-    Announce,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO,
-        HashStorageRO,
+        HashStorageRO, InjectedStorageRO,
     },
     gear::CodeState,
-    network::{AnnouncesRequest, AnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesResponse, NetworkAnnounce},
 };
 use ethexe_db::Database;
 use futures::FutureExt;
@@ -391,7 +390,7 @@ pub(crate) struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 /// Must contain all announces for the requested range.
 /// Must be sorted from predecessors to successors.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
-pub(crate) struct InnerAnnouncesResponse(Vec<Announce>);
+pub(crate) struct InnerAnnouncesResponse(Vec<NetworkAnnounce>);
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]
@@ -413,6 +412,7 @@ pub trait DbSyncDatabase:
     + CodesStorageRO
     + ConfigStorageRO
     + GlobalsStorageRO
+    + InjectedStorageRO
 {
     /// Clone the database as a trait object.
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;

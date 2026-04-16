@@ -126,7 +126,7 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_synced(&self, block_hash: H256);
 }
 
-#[auto_impl::auto_impl(&)]
+#[auto_impl::auto_impl(&, Box)]
 pub trait InjectedStorageRO {
     /// Returns the transactions by its hash.
     fn injected_transaction(
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "d27a8b20ef1490fd5a73fd7a04780b373d42d73c4444fea555d10985ce203125";
+            "d6afd104446d5e9527fe390730751141a08f8c689ff9c09c041ae18a4a15b107";
 
         let types = [
             meta_type::<BlockMeta>(),

@@ -25,8 +25,11 @@ use crate::{
 };
 use ethexe_common::{
     Announce, HashOf,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO},
-    network::{AnnouncesRequest, AnnouncesRequestUntil},
+    db::{
+        AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO, InjectedStorageRO,
+    },
+    injected::InjectedTransaction,
+    network::{AnnouncesRequest, AnnouncesRequestUntil, NetworkAnnounce, NetworkAnnounceError},
 };
 use libp2p::request_response;
 use std::{
@@ -113,7 +116,10 @@ impl OngoingResponses {
         }
     }
 
-    fn process_announce_request<DB: AnnounceStorageRO + GlobalsStorageRO + ConfigStorageRO>(
+    #[allow(clippy::result_large_err)]
+    fn process_announce_request<
+        DB: AnnounceStorageRO + GlobalsStorageRO + ConfigStorageRO + InjectedStorageRO,
+    >(
         db: &DB,
         request: AnnouncesRequest,
         max_chain_len_for_announces_response: NonZeroU32,
@@ -162,13 +168,45 @@ impl OngoingResponses {
                 }
             }
 
-            let Some(announce) = db.announce(announce_hash) else {
+            let current_announce_hash = announce_hash;
+            let Some(announce) = db.announce(current_announce_hash) else {
                 return Err(ProcessAnnounceError::AnnounceMissing {
-                    hash: announce_hash,
+                    hash: current_announce_hash,
                 });
             };
-            announce_hash = announce.parent;
-            announces.push_front(announce);
+            let Announce {
+                block_hash,
+                parent,
+                gas_allowance,
+                injected_transactions: announce_injected_transactions,
+            } = announce;
+            announce_hash = parent;
+
+            let injected_transactions = announce_injected_transactions
+                .iter()
+                .map(|tx| {
+                    db.injected_transaction(tx.tx_hash()).ok_or(
+                        ProcessAnnounceError::InjectedTransactionMissing { hash: tx.tx_hash() },
+                    )
+                })
+                .collect::<Result<_, _>>()?;
+
+            let announce = Announce {
+                block_hash,
+                parent,
+                gas_allowance,
+                injected_transactions: announce_injected_transactions,
+            };
+
+            let network_announce =
+                NetworkAnnounce::new(announce, injected_transactions).map_err(|source| {
+                    ProcessAnnounceError::AnnounceInjectedTransactionsMismatch {
+                        hash: current_announce_hash,
+                        source,
+                    }
+                })?;
+
+            announces.push_front(network_announce);
         }
 
         // TODO #4874: use peer score to punish the peer for such requests
@@ -234,6 +272,14 @@ enum ProcessAnnounceError {
     },
     #[error("announce {hash} not found in database")]
     AnnounceMissing { hash: HashOf<Announce> },
+    #[error("injected transaction {hash} not found in database")]
+    InjectedTransactionMissing { hash: HashOf<InjectedTransaction> },
+    #[error("announce {hash} injected transactions mismatch: {source}")]
+    AnnounceInjectedTransactionsMismatch {
+        hash: HashOf<Announce>,
+        #[source]
+        source: NetworkAnnounceError,
+    },
     #[error("reached genesis announce {genesis}")]
     ReachedGenesis { genesis: HashOf<Announce> },
     #[error("reached start announce {start}")]
@@ -256,6 +302,11 @@ mod tests {
 
     fn make_announce(block: u64, parent: HashOf<Announce>) -> Announce {
         Announce::base(H256::from_low_u64_be(block), parent)
+    }
+
+    fn make_network_announce(block: u64, parent: HashOf<Announce>) -> NetworkAnnounce {
+        let announce = make_announce(block, parent);
+        NetworkAnnounce::new(announce, vec![]).unwrap()
     }
 
     fn set_db_data(db: &Database, genesis: HashOf<Announce>, start: HashOf<Announce>) {
@@ -423,10 +474,10 @@ mod tests {
 
         let tail = make_announce(10, HashOf::random());
         let tail_hash = db.set_announce(tail.clone());
-        let middle = make_announce(11, tail_hash);
-        let middle_hash = db.set_announce(middle.clone());
-        let head = make_announce(12, middle_hash);
-        let head_hash = db.set_announce(head.clone());
+        let middle = make_network_announce(11, tail_hash);
+        let middle_hash = db.set_announce(middle.clone().into());
+        let head = make_network_announce(12, middle_hash);
+        let head_hash = db.set_announce(head.clone().into());
 
         let genesis = HashOf::random();
         let start = HashOf::random();
@@ -453,10 +504,10 @@ mod tests {
 
         let tail = make_announce(10, HashOf::random());
         let tail_hash = db.set_announce(tail.clone());
-        let middle = make_announce(11, tail_hash);
-        let middle_hash = db.set_announce(middle.clone());
-        let head = make_announce(12, middle_hash);
-        let head_hash = db.set_announce(head.clone());
+        let middle = make_network_announce(11, tail_hash);
+        let middle_hash = db.set_announce(Announce::from(middle.clone()));
+        let head = make_network_announce(12, middle_hash);
+        let head_hash = db.set_announce(Announce::from(head.clone()));
 
         let genesis = HashOf::random();
         let start = HashOf::random();

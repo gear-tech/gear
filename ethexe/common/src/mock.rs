@@ -25,6 +25,7 @@ use crate::{
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
     injected::{AddressedInjectedTransaction, InjectedTransaction},
+    network::NetworkAnnounce,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -323,6 +324,32 @@ impl Arbitrary for ChainCommitment {
             .prop_map(|(first, second, head_announce)| Self {
                 transitions: vec![first, second],
                 head_announce,
+            })
+            .boxed()
+    }
+}
+
+impl Arbitrary for NetworkAnnounce {
+    // Reuse general announce params, because they are the same
+    type Parameters = AnnounceParams;
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
+        let block_hash = match args.block_hash {
+            Some(block_hash) => Just(block_hash).boxed(),
+            None => h256_strategy(),
+        };
+        let parent = match args.parent {
+            Some(parent) => Just(parent).boxed(),
+            None => hash_of_strategy(),
+        };
+
+        (block_hash, parent)
+            .prop_map(|(block_hash, parent)| Self {
+                block_hash,
+                parent,
+                gas_allowance: Some(100),
+                injected_transactions: vec![],
             })
             .boxed()
     }

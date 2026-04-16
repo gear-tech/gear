@@ -32,7 +32,7 @@ use hashbrown::HashSet;
 pub const MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES: u128 =
     INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD as u128 * 100 * 2;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::IsVariant)]
 pub enum TxValidity {
     /// Transaction is valid and can be include into announce.
     Valid,
@@ -206,7 +206,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO + Storage> TxVa
                 announce
                     .injected_transactions
                     .into_iter()
-                    .map(|tx| tx.data().to_hash()),
+                    .map(|tx| tx.tx_hash()),
             );
         }
 
@@ -219,9 +219,9 @@ mod tests {
     use super::*;
     use ethexe_common::{
         MaybeHashOf, SimpleBlockData, StateHashWithQueueSize,
-        db::{AnnounceStorageRW, OnChainStorageRW},
+        db::{AnnounceStorageRW, InjectedStorageRW, OnChainStorageRW},
         ecdsa::PrivateKey,
-        injected::VALIDITY_WINDOW,
+        injected::{AnnounceInjectedTransaction, VALIDITY_WINDOW},
         mock::*,
     };
     use ethexe_db::Database;
@@ -246,9 +246,15 @@ mod tests {
     ) -> HashOf<Announce> {
         let announce = Announce {
             parent,
-            injected_transactions: txs,
+            injected_transactions: txs
+                .iter()
+                .map(AnnounceInjectedTransaction::from_signed_tx)
+                .collect(),
             ..Announce::mock(())
         };
+
+        txs.into_iter()
+            .for_each(|tx| db.set_injected_transaction(tx));
         let announce_hash = db.set_announce(announce);
 
         let mut state = ProgramState::zero();

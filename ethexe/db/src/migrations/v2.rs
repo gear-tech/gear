@@ -34,7 +34,7 @@ pub const VERSION: u32 = 2;
 
 const _: () = const {
     assert!(
-        crate::VERSION == VERSION,
+        crate::VERSION == super::v3::VERSION,
         "Check migration code for types changing in case of version change: DBConfig, DBGlobals, Announce, BlockSmallData. \
          Also check AnnounceStorageRW, KVDatabase, dyn KVDatabase implementations"
     );
@@ -145,7 +145,7 @@ mod tests {
                 meta_type::<Announce>(),
                 meta_type::<BlockSmallData>(),
             ],
-            "81abd3c542f8e52406a3f590c9baffdbd9bd6f983ca1410f536c3967544f069e",
+            "61d2f4af11e2d43d53a83822d3b076837ac470bec11c5be0bff81d49fb768e42",
         );
     }
 }

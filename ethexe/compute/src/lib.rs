@@ -20,7 +20,10 @@ pub use compute::{
     ComputeConfig, ComputeSubService,
     utils::{find_canonical_events_post_quarantine, prepare_executable_for_announce},
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, injected::Promise};
+use ethexe_common::{
+    Announce, CodeAndIdUnchecked, HashOf,
+    injected::{InjectedTransaction, Promise},
+};
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
@@ -85,6 +88,10 @@ pub enum ComputeError {
     ProgramStatesNotFound(HashOf<Announce>),
     #[error("Schedule not found for computed Announce {0:?}")]
     ScheduleNotFound(HashOf<Announce>),
+    #[error("Injected transaction not found for hash {0:?}")]
+    InjectedTransactionNotFound(HashOf<InjectedTransaction>),
+    #[error("Injected transaction signature mismatch for hash {0:?}")]
+    InjectedTransactionSignatureMismatch(HashOf<InjectedTransaction>),
     #[error("Promise sender dropped")]
     PromiseSenderDropped,
 

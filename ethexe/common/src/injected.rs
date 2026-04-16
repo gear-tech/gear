@@ -21,6 +21,7 @@ use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
+use gsigner::Signature;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
@@ -124,6 +125,37 @@ impl InjectedTransaction {
     /// Creates [`MessageId`] from [`InjectedTransaction`].
     pub fn to_message_id(&self) -> MessageId {
         MessageId::new(self.to_hash().inner().0)
+    }
+}
+
+/// Announce injected transaction representation. Contains the signature
+/// over [InjectedTransaction] and its hash.
+///
+/// NOTE: can be constructed only from [`SignedInjectedTransaction`].
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, TypeInfo, Hash)]
+pub struct AnnounceInjectedTransaction {
+    signature: Signature,
+    hash: HashOf<InjectedTransaction>,
+}
+
+impl AnnounceInjectedTransaction {
+    pub fn from_signed_tx(signed_tx: &SignedInjectedTransaction) -> Self {
+        Self {
+            signature: *signed_tx.signature(),
+            hash: signed_tx.data().to_hash(),
+        }
+    }
+
+    pub fn into_parts(&self) -> (Signature, HashOf<InjectedTransaction>) {
+        (self.signature, self.hash)
+    }
+
+    pub fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+        self.hash
     }
 }
 

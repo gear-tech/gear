@@ -21,7 +21,7 @@ use ethexe_common::{
     Announce, HashOf, PromisePolicy, SimpleBlockData,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW, ConfigStorageRO,
-        GlobalsStorageRW, OnChainStorageRO,
+        GlobalsStorageRW, InjectedStorageRO, OnChainStorageRO,
     },
     events::BlockEvent,
     injected::Promise,
@@ -317,6 +317,23 @@ pub(crate) mod utils {
             .into_iter()
             .filter_map(|event| event.to_request())
             .collect();
+        let injected_transactions = announce
+            .injected_transactions
+            .iter()
+            .map(|tx| {
+                db.injected_transaction(tx.tx_hash())
+                    .ok_or_else(|| ComputeError::InjectedTransactionNotFound(tx.tx_hash()))
+                    .and_then(|signed_tx| {
+                        if *signed_tx.signature() != *tx.signature() {
+                            return Err(ComputeError::InjectedTransactionSignatureMismatch(
+                                tx.tx_hash(),
+                            ));
+                        }
+
+                        Ok(signed_tx.into_verified())
+                    })
+            })
+            .collect::<Result<_>>()?;
 
         Ok(ExecutableData {
             block: SimpleBlockData {
@@ -331,11 +348,7 @@ pub(crate) mod utils {
             schedule: db
                 .announce_schedule(announce.parent)
                 .ok_or(ComputeError::ScheduleNotFound(announce.parent))?,
-            injected_transactions: announce
-                .injected_transactions
-                .into_iter()
-                .map(|tx| tx.into_verified())
-                .collect(),
+            injected_transactions,
             gas_allowance: announce.gas_allowance,
             events,
         })
@@ -405,12 +418,13 @@ mod tests {
     use super::*;
     use crate::{ComputeService, tests::MockProcessor};
     use ethexe_common::{
-        DEFAULT_BLOCK_GAS_LIMIT,
-        db::{GlobalsStorageRO, OnChainStorageRW},
+        DEFAULT_BLOCK_GAS_LIMIT, PrivateKey,
+        db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRW},
         events::{
             RouterEvent, mirror::ExecutableBalanceTopUpRequestedEvent, router::ProgramCreatedEvent,
         },
         gear::StateTransition,
+        injected::AnnounceInjectedTransaction,
         mock::*,
     };
     use ethexe_processor::Processor;
@@ -611,7 +625,9 @@ mod tests {
 
                     let block = announce.block_hash;
                     let txs = if i != 1 {
-                        vec![test_utils::injected_tx(ping_id, b"PING".into(), block)]
+                        let tx = test_utils::injected_tx(ping_id, b"PING".into(), block);
+                        db.set_injected_transaction(tx.clone());
+                        vec![AnnounceInjectedTransaction::from_signed_tx(&tx)]
                     } else {
                         Default::default()
                     };
@@ -663,9 +679,8 @@ mod tests {
             .iter()
             .map(|hash| {
                 let announce = db.announce(*hash).unwrap();
-                let tx = announce.injected_transactions[0].clone().into_data();
                 Promise {
-                    tx_hash: tx.to_hash(),
+                    tx_hash: announce.injected_transactions[0].tx_hash(),
                     reply: ReplyInfo {
                         payload: b"PONG".into(),
                         value: 0,
@@ -725,7 +740,11 @@ mod tests {
 
             let ref_block = announce.block_hash;
             let txs = (0..300)
-                .map(|_| test_utils::injected_tx(ping_id, b"PING".into(), ref_block))
+                .map(|_| {
+                    let tx = test_utils::injected_tx(ping_id, b"PING".into(), ref_block);
+                    db.set_injected_transaction(tx.clone());
+                    AnnounceInjectedTransaction::from_signed_tx(&tx)
+                })
                 .collect::<Vec<_>>();
             announce.injected_transactions = txs;
             let hash = db.set_announce(announce.clone());
@@ -781,5 +800,45 @@ mod tests {
             not_computed_announces.len()
         );
         assert_eq!(expected_not_computed_announces, not_computed_announces);
+    }
+
+    #[test]
+    fn prepare_executable_for_announce_rejects_signature_mismatch() {
+        let db = Database::memory();
+        let blockchain = BlockChain::mock(1).setup(&db);
+        let parent = blockchain.block_top_announce_hash(0);
+        db.set_announce_program_states(parent, Default::default());
+        db.set_announce_schedule(parent, Default::default());
+
+        let tx = ethexe_common::injected::InjectedTransaction {
+            destination: ActorId::from(0x10000),
+            payload: b"PING".to_vec().try_into().unwrap(),
+            value: 0,
+            reference_block: blockchain.blocks[1].hash,
+            salt: H256::random().0.to_vec().try_into().unwrap(),
+        };
+
+        let announce_tx = ethexe_common::SignedMessage::create(PrivateKey::random(), tx.clone())
+            .expect("signing announced tx should succeed");
+        let db_tx = ethexe_common::SignedMessage::create(PrivateKey::random(), tx)
+            .expect("signing stored tx should succeed");
+
+        db.set_injected_transaction(db_tx.clone());
+
+        let announce = Announce {
+            block_hash: blockchain.blocks[1].hash,
+            parent,
+            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+            injected_transactions: vec![AnnounceInjectedTransaction::from_signed_tx(&announce_tx)],
+        };
+
+        let err = utils::prepare_executable_for_announce(&db, announce, 0)
+            .expect_err("must reject mismatched signature");
+
+        let ComputeError::InjectedTransactionSignatureMismatch(hash) = err else {
+            panic!("unexpected error type");
+        };
+
+        assert_eq!(announce_tx.data().to_hash(), hash);
     }
 }

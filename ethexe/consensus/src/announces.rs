@@ -96,11 +96,11 @@ use ethexe_common::{
         AnnounceStorageRW, BlockMetaStorageRW, GlobalsStorageRO, InjectedStorageRW,
         OnChainStorageRO,
     },
-    network::{AnnouncesRequest, AnnouncesRequestUntil},
+    network::{AnnouncesRequest, AnnouncesRequestUntil, NetworkAnnounce},
 };
-use ethexe_ethereum::primitives::map::HashMap;
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
+use hashbrown::HashMap;
 use std::collections::{BTreeSet, VecDeque};
 
 pub trait DBAnnouncesExt:
@@ -692,7 +692,12 @@ pub enum AnnounceStatus {
 ///
 /// Guarantee:
 /// - caller must guaranty that announce block is known prepared block
-pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<AnnounceStatus> {
+pub fn accept_announce(
+    db: &impl DBAnnouncesExt,
+    network_announce: NetworkAnnounce,
+) -> Result<AnnounceStatus> {
+    let (announce, injected_transactions) = network_announce.into_parts();
+
     let announce_hash = announce.to_hash();
     let parent_announce_hash = announce.parent;
     if !db.is_announce_included(parent_announce_hash) {
@@ -718,35 +723,19 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
 
     // Verify for parent announce, because of the current is not processed.
     let tx_checker = TxValidityChecker::new_for_announce(db, block, announce.parent)?;
-
-    for tx in announce.injected_transactions.iter() {
+    for tx in injected_transactions.iter() {
         let validity_status = tx_checker.check_tx_validity(tx)?;
+        if !validity_status.is_valid() {
+            tracing::trace!(
+                announce = ?announce_hash,
+                "announce contains invalid transition with status {validity_status:?}, rejecting announce."
+            );
 
-        match validity_status {
-            TxValidity::Valid => {
-                db.set_injected_transaction(tx.clone());
-            }
-
-            validity => {
-                tracing::trace!(
-                    announce = ?announce.to_hash(),
-                    "announce contains invalid transition with status {validity_status:?}, rejecting announce."
-                );
-
-                return Ok(AnnounceStatus::Rejected {
-                    announce,
-                    reason: AnnounceRejectionReason::TxValidity(validity),
-                });
-            }
+            return Ok(AnnounceStatus::Rejected {
+                announce,
+                reason: AnnounceRejectionReason::TxValidity(validity_status),
+            });
         }
-    }
-
-    let (announce_hash, newly_included) = db.include_announce(announce.clone())?;
-    if !newly_included {
-        return Ok(AnnounceStatus::Rejected {
-            announce,
-            reason: AnnounceRejectionReason::AlreadyIncluded(announce_hash),
-        });
     }
 
     let mut touched_programs = crate::utils::block_touched_programs(db, announce.block_hash)?;
@@ -757,7 +746,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
         .len()
         .max(MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize);
 
-    for tx in announce.injected_transactions.iter() {
+    for tx in injected_transactions.iter() {
         touched_programs.insert(tx.data().destination);
     }
 
@@ -767,6 +756,21 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
             reason: AnnounceRejectionReason::TooManyTouchedPrograms(touched_programs.len() as u32),
         });
     }
+
+    // Include announce after all transactions validation path - validity check and touched programs count.
+    let (announce_hash, newly_included) = db.include_announce(announce.clone())?;
+    if !newly_included {
+        return Ok(AnnounceStatus::Rejected {
+            announce,
+            reason: AnnounceRejectionReason::AlreadyIncluded(announce_hash),
+        });
+    }
+
+    // Set transactions to database only when announce fully validated and included.
+    // In previous step we make sure, that all received transactions are valid.
+    injected_transactions.into_iter().for_each(|tx| {
+        db.set_injected_transaction(tx);
+    });
 
     Ok(AnnounceStatus::Accepted(announce_hash))
 }
@@ -1101,7 +1105,7 @@ mod tests {
             })
             .setup(&db);
 
-        let announce = Announce {
+        let announce = NetworkAnnounce {
             block_hash: chain.blocks[10].hash,
             parent: chain.block_top_announce_hash(9),
             gas_allowance: Some(43),

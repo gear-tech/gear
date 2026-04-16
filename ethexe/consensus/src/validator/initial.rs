@@ -27,10 +27,11 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     SimpleBlockData,
-    db::OnChainStorageRO,
+    db::{InjectedStorageRW, OnChainStorageRO},
     network::{AnnouncesRequest, AnnouncesResponse},
 };
 use gprimitives::H256;
+use hashbrown::HashMap;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -177,12 +178,15 @@ impl StateHandler for Initial {
             } if announces == *response.request() => {
                 tracing::debug!(block = %block.hash, "Received missing announces response");
 
-                let missing_announces = response
+                let (missing_announces, transactions) = response
                     .into_parts()
                     .1
                     .into_iter()
-                    .map(|a| (a.to_hash(), a))
-                    .collect();
+                    .map(|network_announce| {
+                        let (announce, transactions) = network_announce.into_parts();
+                        ((announce.to_hash(), announce), transactions)
+                    })
+                    .collect::<(HashMap<_, _>, Vec<_>)>();
 
                 announces::propagate_announces(
                     &self.ctx.core.db,
@@ -190,6 +194,11 @@ impl StateHandler for Initial {
                     self.ctx.core.commitment_delay_limit,
                     missing_announces,
                 )?;
+
+                // Save transactions in database after announce propagation
+                transactions.into_iter().flatten().for_each(|tx| {
+                    self.ctx.core.db.set_injected_transaction(tx);
+                });
 
                 self.ctx.switch_to_producer_or_subordinate(block)
             }
@@ -259,7 +268,10 @@ mod tests {
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
     use ethexe_common::{
-        Announce, HashOf, ValidatorsVec, db::*, mock::*, network::AnnouncesResponse,
+        Announce, HashOf, ValidatorsVec,
+        db::*,
+        mock::*,
+        network::{AnnouncesResponse, NetworkAnnounce},
     };
     use gprimitives::H256;
     use nonempty::nonempty;
@@ -372,18 +384,19 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
+        let announce3 = chain
+            .announces
+            .get(&chain.block_top_announce_hash(last - 3))
+            .unwrap()
+            .announce
+            .clone();
         let response = unsafe {
             AnnouncesResponse::from_parts(
                 expected_request,
                 vec![
-                    chain
-                        .announces
-                        .get(&chain.block_top_announce_hash(last - 3))
-                        .unwrap()
-                        .announce
-                        .clone(),
-                    announce2.clone(),
-                    announce1.clone(),
+                    NetworkAnnounce::new(announce3, vec![]).unwrap(),
+                    NetworkAnnounce::new(announce2.clone(), vec![]).unwrap(),
+                    NetworkAnnounce::new(announce1.clone(), vec![]).unwrap(),
                 ],
             )
         };
@@ -563,7 +576,7 @@ mod tests {
                     head: invalid_announce_hash,
                     until: NonZeroU32::new(1).unwrap().into(),
                 },
-                vec![invalid_announce],
+                vec![NetworkAnnounce::new(invalid_announce, vec![]).unwrap()],
             )
         };
 
@@ -633,17 +646,18 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
+        let announce = chain
+            .announces
+            .get(&chain.block_top_announce_hash(last - 7))
+            .unwrap()
+            .announce
+            .clone();
         let response = unsafe {
             AnnouncesResponse::from_parts(
                 expected_request,
                 vec![
-                    chain
-                        .announces
-                        .get(&chain.block_top_announce_hash(last - 7))
-                        .unwrap()
-                        .announce
-                        .clone(),
-                    unknown_announce,
+                    NetworkAnnounce::new(announce, vec![]).unwrap(),
+                    NetworkAnnounce::new(unknown_announce, vec![]).unwrap(),
                 ],
             )
         };
