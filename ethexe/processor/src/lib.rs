@@ -217,12 +217,8 @@ impl Processor {
     ) -> Result<InBlockTransitions> {
         let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
 
-        for tx in injected_transactions {
-            let source = tx.address().into();
-            let tx = tx.into_parts().0;
-            handler.handle_injected_transaction(source, tx)?;
-        }
-
+        // Process canonical events FIRST: ProgramCreated, ExecutableBalanceTopUp, etc.
+        // must establish program state before injected TXs can target those programs.
         for event in events {
             match event {
                 BlockRequestEvent::Router(event) => {
@@ -232,6 +228,13 @@ impl Processor {
                     handler.handle_mirror_event(actor_id, event)?;
                 }
             }
+        }
+
+        // Then process injected TXs against the post-canonical state.
+        for tx in injected_transactions {
+            let source = tx.address().into();
+            let tx = tx.into_parts().0;
+            handler.handle_injected_transaction(source, tx)?;
         }
 
         Ok(handler.into_transitions())
