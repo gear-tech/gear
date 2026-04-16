@@ -119,8 +119,16 @@ impl StateHandler for Subordinate {
                     } => {
                         // Parent not yet included — defer to pending.
                         // Gossip reordering can cause the child to arrive before the parent.
-                        tracing::trace!("Announce parent not yet included, deferring to pending");
-                        self.ctx.pending(verified_announce);
+                        if self.ctx.pending_events.len() < MAX_PENDING_EVENTS {
+                            tracing::trace!(
+                                "Announce parent not yet included, deferring to pending"
+                            );
+                            self.ctx.pending(verified_announce);
+                        } else {
+                            tracing::trace!(
+                                "Announce parent not yet included but pending queue full, dropping"
+                            );
+                        }
                         Ok(self.into())
                     }
                     AnnounceStatus::Rejected { announce, reason } => {
