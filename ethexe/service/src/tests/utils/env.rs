@@ -244,6 +244,7 @@ impl TestEnv {
             ethereum_rpc: ws_rpc_url.clone(),
             router_address,
             slot_duration_secs: block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await?;
 
@@ -440,6 +441,7 @@ impl TestEnv {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
             router_address: self.eth_cfg.router_address,
             slot_duration_secs: self.eth_cfg.block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await
         .unwrap()
@@ -838,7 +840,6 @@ impl NodeConfig {
         }
     }
 
-    #[allow(unused)]
     pub fn db(mut self, db: Database) -> Self {
         self.db = Some(db);
         self
