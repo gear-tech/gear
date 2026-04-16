@@ -730,7 +730,7 @@ pub fn best_announce(
 
             let is_new_block = prev_block_hash != Some(announce.block_hash);
             if is_new_block {
-                if blocks_seen > commitment_delay_limit {
+                if blocks_seen >= commitment_delay_limit {
                     break;
                 }
                 blocks_seen += 1;

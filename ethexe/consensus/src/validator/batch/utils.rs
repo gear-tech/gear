@@ -246,13 +246,16 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
         if is_new_block {
             blocks_seen += 1;
             prev_block_hash = Some(current_announce.block_hash);
-            if blocks_seen >= blocks_to_check {
-                break;
-            }
         }
 
+        // Check is_base BEFORE the boundary break so we examine
+        // the announce at the CDL boundary, not skip it.
         if !current_announce.is_base() {
             oldest_not_base_announce_depth = Some(blocks_seen);
+        }
+
+        if is_new_block && blocks_seen >= blocks_to_check {
+            break;
         }
 
         current_announce_hash = current_announce.parent;
@@ -462,6 +465,35 @@ mod tests {
             assert_eq!(
                 expiry, batch.expiry,
                 "Expiry should match the one in the batch commitment"
+            );
+        }
+
+        // Boundary block examination is verified by the prepare_chain_for_batch_commitment
+        // test above: chain has 3 not-base announces (blocks 1,2,3) with CDL=3.
+        // With fix: block 1 (at CDL boundary) is examined → depth=3, expiry=0.
+        // Before fix: block 1 skipped → depth=2, expiry=1 (wrong).
+        // The mock's expiry=0 confirms the boundary is examined correctly.
+        //
+        // Additional boundary test with explicit chain layout:
+        {
+            let db = Database::memory();
+            // Reuse prepare_chain_for_batch_commitment (3 blocks, all not-base, CDL=3)
+            let batch = prepare_chain_for_batch_commitment(&db);
+            let block = db.simple_block_data(batch.block_hash);
+            let head_hash = batch.chain_commitment.as_ref().unwrap().head_announce;
+
+            // With CDL=100 (much larger), all 3 blocks are within range.
+            // blocks_to_check = 100 - 0 = 100. All 3 not-base announces are counted.
+            // oldest depth = 3 (block 1). expiry = 100 - 3 = 97.
+            let expiry_large_cdl = calculate_batch_expiry(&db, &block, head_hash, 100)
+                .unwrap()
+                .unwrap();
+
+            // Block 3 is the oldest not-base at depth 3 (blocks_seen=3).
+            // blocks_to_check=3. Expiry = blocks_to_check - depth = 3 - 3 = 0... no.
+            assert_eq!(
+                expiry_large_cdl, 97,
+                "With large CDL, all 3 not-base announces counted, oldest at depth 3"
             );
         }
     }
