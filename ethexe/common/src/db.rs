@@ -137,6 +137,7 @@ pub trait InjectedStorageRO {
     /// Returns the promise by its transaction hash.
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 
+    /// Returns the compact promise by its transaction hash.
     fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<CompactSignedPromise>;
 }
 

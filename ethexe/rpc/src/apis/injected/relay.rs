@@ -92,7 +92,6 @@ mod utils {
         db::{ConfigStorageRO, OnChainStorageRO},
     };
     use std::time::{Duration, SystemTime, SystemTimeError};
-    use tracing::{error, trace};
 
     pub(super) const NEXT_PRODUCER_THRESHOLD_MS: u64 = 50;
 
@@ -106,7 +105,7 @@ mod utils {
         })?;
 
         let next_producer = calculate_next_producer(db, now).map_err(|err| {
-            trace!("calculate next producer error: {err}");
+            warn!(transaction=?tx, "calculate next producer error: {err}");
             crate::errors::internal()
         })?;
         tx.recipient = next_producer;

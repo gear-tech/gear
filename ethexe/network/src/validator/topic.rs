@@ -681,7 +681,6 @@ mod tests {
         assert_eq!(promise, None);
     }
 
-    #[ignore = "TODO"]
     #[tokio::test]
     async fn verify_promise_ok() {
         let (pubkey, signer) = signer_with_pubkey();
