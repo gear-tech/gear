@@ -29,12 +29,14 @@ use crate::{
 };
 
 use ethexe_common::{
-    Address, Announce, Digest, HashOf, SimpleBlockData, ValidatorsVec,
+    Address, Digest, HashOf, ValidatorsVec,
     consensus::{BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT},
     db::*,
     gear::{ChainCommitment, CodeCommitment, StateTransition},
     mock::*,
 };
+use ethexe_db::Database;
+
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::ToDigest;
@@ -56,7 +58,7 @@ fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
 async fn rejects_empty_batch_request() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, _) = mock_validator_context();
+    let (ctx, _, _) = mock_validator_context(Database::memory());
     let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
@@ -94,7 +96,7 @@ async fn rejects_empty_batch_request() {
 async fn rejects_duplicate_code_ids() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, _) = mock_validator_context();
+    let (ctx, _, _) = mock_validator_context(Database::memory());
     let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let duplicate = batch.code_commitments[0].clone();
     batch.code_commitments.push(duplicate);
@@ -103,7 +105,7 @@ async fn rejects_duplicate_code_ids() {
         .core
         .batch_manager
         .validate_batch_commitment(
-            SimpleBlockData::mock(()),
+            ctx.core.db.simple_block_data(batch.block_hash),
             BatchCommitmentValidationRequest::new(&batch),
         )
         .await
@@ -120,7 +122,7 @@ async fn rejects_duplicate_code_ids() {
 async fn rejects_not_waiting_code_ids() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, _) = mock_validator_context();
+    let (ctx, _, _) = mock_validator_context(Database::memory());
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
@@ -147,12 +149,12 @@ async fn rejects_not_waiting_code_ids() {
 async fn rejects_non_best_chain_head() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, _) = mock_validator_context();
+    let (ctx, _, _) = mock_validator_context(Database::memory());
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
     let best_head = batch.chain_commitment.clone().unwrap().head_announce;
-    let wrong_announce = Announce::mock(block.hash);
+    let wrong_announce = test_announce(block.hash, HashOf::zero());
     let wrong_head = ctx.core.db.set_announce(wrong_announce);
     ctx.core
         .db
@@ -182,7 +184,7 @@ async fn rejects_non_best_chain_head() {
 async fn rejects_when_best_head_chain_is_invalid() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, _) = mock_validator_context();
+    let (ctx, _, _) = mock_validator_context(Database::memory());
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
@@ -211,7 +213,7 @@ async fn rejects_when_best_head_chain_is_invalid() {
 async fn rejects_digest_mismatch() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, _) = mock_validator_context();
+    let (ctx, _, _) = mock_validator_context(Database::memory());
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
@@ -244,10 +246,10 @@ async fn rejects_digest_mismatch() {
 async fn rejects_code_not_processed_yet() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, _) = mock_validator_context();
+    let (ctx, _, _) = mock_validator_context(Database::memory());
     let code = b"1234";
     let code_id = CodeId::generate(code);
-    let chain = BlockChain::mock(10)
+    let chain = test_block_chain(10)
         .tap_mut(|chain| {
             chain.blocks[10]
                 .as_prepared_mut()
@@ -302,15 +304,15 @@ async fn rejects_batch_commitment_size_limit_exceeded() {
     gear_utils::init_default_logger();
     const BLOCKCHAIN_LEN: usize = 30;
 
-    let (mut ctx, _, _) = mock_validator_context();
+    let (mut ctx, _, _) = mock_validator_context(Database::memory());
 
     // Preparing transitions for announces chain.
-    let mut blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32);
+    let mut blockchain = test_block_chain(BLOCKCHAIN_LEN as u32);
     for i in 0..BLOCKCHAIN_LEN {
         blockchain.block_top_announce_mut(i).tap_mut(|announce| {
             let transitions = (0..5)
                 .flat_map(|_| {
-                    let commitment = ChainCommitment::mock(announce.announce.to_hash());
+                    let commitment = test_chain_commitment(announce.announce.to_hash(), i as u64);
                     commitment.transitions
                 })
                 .collect::<Vec<_>>();
@@ -388,7 +390,7 @@ async fn rejects_batch_commitment_size_limit_exceeded() {
 async fn accepts_matching_request() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, _) = mock_validator_context();
+    let (ctx, _, _) = mock_validator_context(Database::memory());
     let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
     let block = ctx.core.db.simple_block_data(batch.block_hash);
 
@@ -513,8 +515,8 @@ async fn accepts_matching_request_with_mixed_sign_squash() {
 async fn test_aggregate_validators_commitment() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, eth) = mock_validator_context();
-    let chain = BlockChain::mock(20)
+    let (ctx, _, eth) = mock_validator_context(Database::memory());
+    let chain = test_block_chain(20)
         .tap_mut(|chain| {
             chain.config.timelines.era = 10 * chain.config.timelines.slot;
             chain.config.timelines.election = 5 * chain.config.timelines.slot;
