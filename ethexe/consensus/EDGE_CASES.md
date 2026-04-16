@@ -1,102 +1,137 @@
-# Ethexe Consensus Edge Case Checklist
+# Ethexe Consensus Edge Cases & Constraints
 
-Use this checklist when developing new features or protocol changes that touch the validator state machine, announce processing, or network gossip.
+Verified constraints for the validator state machine, announce processing, processor execution,
+and mini-announces. Based on code tracing, test results, and cross-model review (Claude, Codex gpt-5.4).
 
-Validated by 3 independent AI models (Claude structured, Claude adversarial, Codex gpt-5.4). Last updated 2026-04-16.
+Last updated 2026-04-16.
 
-## Network Event Ordering (Gossip Reordering)
+## Hard Constraints (System Invariants)
 
-- [ ] **Child announce arrives before parent** — Gossipsub doesn't guarantee order. If announce B (parent=A) arrives before A, the subordinate must defer B to pending (not reject). Rejection permanently loses the announce since gossipsub won't redeliver. *Depth-2: fixed via WaitingForAnnounce guard (is_announce_included check). Depth-1: N/A, only 1 announce per block, parent always from prev block.*
-- [ ] **VR arrives before announce** — The VR's `head` hash may reference an announce the subordinate hasn't received yet. Must defer VR (save to pending), not reject. Handled by `head_computed` check + pending replay. *Applies to both depth-1 and depth-2.*
-- [ ] **VR arrives between base and mini** — *Depth-2 only.* Base is computed, mini hasn't arrived. VR.head = mini_hash. Must defer until mini computes. Handled by `announce_meta(h).computed` check. *Depth-1: N/A.*
-- [ ] **Announces from stale/wrong block** — `block_hash` mismatch → falls to DefaultProcessing → saved to pending. *Applies to both.*
-- [ ] **Announces from wrong producer** — Address mismatch → DefaultProcessing → saved or dropped. *Applies to both.*
-- [ ] **Duplicate announce delivery** — `accept_announce` checks `newly_included`. Duplicate returns `AlreadyIncluded`. *Applies to both.*
+### Program Lifecycle
+- Programs ONLY initialize via Ethereum canonical events (Router::ProgramCreated + Mirror init message)
+- Until a program is initialized via canonical execution, injected TXs targeting it will fail
+- Injected TXs cannot trigger program initialization. Period.
+- `requires_init_message()` returns false if ANY queue is non-empty (canonical or injected)
 
-## Gossip Loss (Message Never Arrives)
+### Processor Event Ordering
+- `handle_injected_and_events` processes: injected TXs first, then canonical events
+- This is correct. Injected TXs have execution priority over canonical messages
+- `process_queues` (the actual execution) also runs injected queue first, then canonical
+- DO NOT reorder. Changing registration order changes which messages get queued first
+- Router events (ProgramCreated, CodeValidated) only register programs, they don't enqueue messages
+- Mirror events (MessageQueueingRequested) enqueue canonical messages
 
-- [ ] **Announce lost** — Subordinate stuck in WaitingForAnnounce until next ETH block (12s max). VR is deferred. Block has reduced validator participation. Recovers on next block. *Applies to both. Depth-2: squashed announce loss leaves subordinate in ReadyForMoreAnnounces.*
-- [ ] **Base announce lost (depth-2 only)** — Subordinate stays in WaitingForAnnounce. Mini (if it arrives) is deferred to pending (parent unknown). Both lost if base never comes. Recovers on next block.
-- [ ] **VR lost** — Subordinate never transitions to Participant. OK, batch commitment proceeds with fewer signatures if threshold is met. *Applies to both.*
-- [ ] **All gossip lost** — Subordinate sits idle. Recovers on next ETH block. No permanent damage. *Applies to both.*
+### CDL (Commitment Delay Limit)
+- CDL is defined in BLOCKS, not announce hops (S1 in announces.rs theory)
+- With mini-announces (depth-2), one block can have 2 announces (base + mini)
+- All CDL-bounded loops MUST count block transitions: track `prev_block_hash`, increment `blocks_seen` only when `block_hash` changes
+- Boundary condition: use `>=` not `>` when checking `blocks_seen` against CDL. The announce AT the boundary must be examined before breaking.
+- Off-by-one here causes expired branches to win parent selection or batch expiry to be wrong by 1 block
 
-## Producer Lifecycle Edge Cases
+### Announce Chain
+- Base announces cross block boundaries (parent is from previous block)
+- Mini-announces chain within the same block (parent is base or previous mini)
+- `leaf_announces()` filters to chain tips. For {base, mini} blocks, the leaf is the mini
+- `best_parent_announce()` must prefer base announces for cross-block parent selection
 
-- [ ] **Producer crash after base gossip, before mini (depth-2)** — Subordinate has base, no mini, no VR. Waits until next block. *Depth-1: N/A.*
-- [ ] **Producer crash after canonical compute, before announce (depth-1)** — Ephemeral canonical state lost. TXs stay in pool. Next block restarts cleanly. No orphaned DB state.
-- [ ] **Producer crash during announce compute** — Announce in DB uncomputed. TXs removed from in-memory pool. Pool is volatile by design (repopulated from network gossip on restart). Pre-existing issue for any announce type. *Applies to both.*
-- [ ] **New ETH head during ReadyForMiniAnnounce (depth-2)** — process_new_head → AggregateBatchCommitment with last_announce_hash. Saves next_block. *Depth-1: N/A.*
-- [ ] **New ETH head during ReadyForTxCollection (depth-1)** — Build announce with collected TXs immediately (if any), or AggregateBatchCommitment with no announce. Save next_block.
-- [ ] **New ETH head during WaitingCanonicalComputed (depth-1)** — DefaultProcessing → Initial. Canonical result discarded (ephemeral). TXs stay in pool.
-- [ ] **New ETH head during WaitingAnnounceComputed** — Falls to DefaultProcessing → Initial. Batch commitment for this block skipped. Announces recovered by next block's `collect_not_committed_predecessors`. Pre-existing, TODO exists. *Applies to both.*
-- [ ] **Compute event lost (service crash)** — Any WaitingComputed state escapes to Initial on next new_head. Announce (if written to DB) recovered by next block. Pool TXs lost (volatile). *Applies to both.*
-- [ ] **Second new head during Coordinator** — Coordinator gives up and transitions to Initial. Batch for that block lost. codes_queue, validator/reward commitments for that specific block can be missed. Pre-existing, confirmed by all 3 models. *Applies to both.*
-- [ ] **Batch commitment loss is permanent** — Unlike announce chains (recovered by `collect_not_committed_predecessors`), per-block code/validator/reward commitments have no recovery path. Confirmed by all 3 models. Pre-existing issue widened by time spent in compute states. *Applies to both.*
+## Producer State Machine
 
-## TX Pool Edge Cases
+### Mini-Announces Flow
+```
+Delay → produce_announce (base, no TXs) → WaitingAnnounceComputed
+  → base computed → ReadyForMiniAnnounce (poll timer)
+  → timer fires:
+      pool empty → AggregateBatchCommitment
+      TXs found → produce_mini_announce → WaitingAnnounceComputed
+        → mini computed → AggregateBatchCommitment (cap at 1 mini)
+  → AggregateBatchCommitment → Coordinator → Initial
+```
 
-- [ ] **producer_delay=0** — *Depth-2 (cap-at-1):* tick 1 produces mini, tick 2 batches. Max 1 mini. *Depth-1:* canonical compute fires immediately, poll fires immediately, selects all TXs, builds announce. 1 announce, no loop. Both fixed.
-- [ ] **TXs arrive during canonical compute (depth-1)** — Stay in pool. Selected after canonical computes (in ReadyForTxCollection). Not lost.
-- [ ] **TXs arrive during announce compute** — Stay in pool. Picked up next block. Not lost. *Applies to both.*
-- [ ] **TXs targeting programs created by current block** — *Depth-2:* These programs exist after base computes. `select_for_announce(block, base_hash)` validates against post-base state. Works. *Depth-1 Option A (pre-canonical):* REJECTED as UnknownDestination. Wait 1 block. *Depth-1 Option B (two-phase):* WORKS — canonical compute establishes program state before TX selection.
-- [ ] **Cumulative TX size/program limits** — *Depth-2:* Accumulated TXs stay in pool, re-counted by select_for_announce each tick. Dedup filter strips. *Depth-1:* Single select call. Natural limits.
-- [ ] **Base announce already includes TXs** — `collect_recent_included_txs` marks them as Duplicate in subsequent calls. No double-counting. *Depth-2 only (depth-1 has no base/mini split).*
-- [ ] **Pool volatile on crash** — `InjectedTxPool::new()` starts empty. No restart scan from DB. TXs lost on crash repopulated from network gossip. By design, confirmed by Codex. *Applies to both.*
-- [ ] **select_for_announce iteration order** — Pool uses HashSet (unordered). Size/program limits applied in iteration order. Non-deterministic which TXs are included when pool exceeds limits. Deterministic announce hash requires deterministic TX selection. *Applies to both. Verify HashSet iteration is consistent within a single call.*
+### Edge Cases
+- **new_head during ReadyForMiniAnnounce**: Creates batch commitment with last_announce_hash, saves next_block. Correct.
+- **new_head during AggregateBatchCommitment**: Buffers next_block. Second new_head → abandons batch. Pre-existing issue.
+- **new_head during WaitingAnnounceComputed (mini)**: Falls to DefaultProcessing → Initial. TODO: block-specific code/validator/reward commitments are lost. Chain commitment recovered by next block's collect_not_committed_predecessors. PRE-EXISTING on master too.
+- **producer_delay=0**: Timer fires immediately. One poll, no TXs → batch. TXs found → one mini, then batch. Cap at 1 mini prevents tight loop.
+- **mini_produced flag**: Caps depth at 2 (base + 1 mini). After mini computes, goes to AggregateBatchCommitment, not back to ReadyForMiniAnnounce.
 
-## Subordinate State Machine Edge Cases
+## Subordinate State Machine
 
-- [ ] **Multiple announces in pending (depth-2)** — `replay_pending_events` processes oldest-first (reverses the deque). Base must be processed before mini. *Depth-1: simpler — only 1 announce + VR in pending.*
-- [ ] **replay_pending_events state escape** — If an event causes transition to Initial (e.g., rejected announce), remaining pending events are processed by Initial's handlers, not Subordinate's. Harmless (events saved or dropped by DefaultProcessing) but logically imprecise. *Applies to both (depth-2 has more pending events).*
-- [ ] **Pending queue unbounded after create** — `MAX_PENDING_EVENTS=10` only enforced in `Subordinate::create()`. After creation, `pending()` has no cap. Byzantine producer can flood orphan announces. Mitigated by gossipsub signature validation (only real validators send announces) and 12s block reset. PRE-EXISTING: TODO #4641. *Depth-1: less exposure (no mini-announce flood vector).*
-- [ ] **Non-validator receives VR** — *Depth-2:* Dropped silently in ReadyForMoreAnnounces to avoid recycle loop. *Depth-1:* Standard DefaultProcessing handles it.
-- [ ] **Non-validator stuck in ReadyForMoreAnnounces (depth-2)** — Computes every mini-announce but has no validation role. Exits only on next new_head. Unnecessary work but not harmful. *Depth-1: N/A — no ReadyForMoreAnnounces state.*
+### Simplified Flow (2 states, not 3)
+```
+WaitingForAnnounce → receive announce → accept_announce → WaitingAnnounceComputed
+  → computed → back to WaitingForAnnounce (loop for mini-announces)
+  → receive VR in WaitingForAnnounce:
+      head_computed? → Participant
+      head not computed? → defer to pending
+  → process_pending_after_compute replays deferred events oldest-first
+```
 
-## Announce Chain Invariants
+### Edge Cases
+- **Child arrives before parent (gossip reorder)**: accept_announce returns UnknownParent → defer to pending (if queue not full, else drop). Replayed after next announce computes.
+- **VR arrives before mini computes**: VR deferred to pending. After mini computes, process_pending_after_compute retries it.
+- **VR arrives in WaitingAnnounceComputed**: Saved to pending via DefaultProcessing. Replayed after compute finishes.
+- **Pending queue overflow**: MAX_PENDING_EVENTS=10 enforced during create() AND during UnknownParent deferral. Byzantine producer cannot grow queue unbounded.
+- **Non-validator receives VR**: Dropped silently in WaitingForAnnounce. Prevents recycle loop in pending replay.
 
-- [ ] **Depth per block** — *Depth-2 (cap-at-1):* max 2 (base + 1 mini). *Depth-1:* exactly 1. Always.
-- [ ] **CDL counting** — *Depth-2:* Must count BLOCK transitions, not announce hops. Block-aware CDL in 5 functions. *Depth-1:* Hop counting = block counting. No patches needed. Revert to simple loops. KEEP the off-by-one fix (`>` vs `>=`).
-- [ ] **CDL safety bound** — `propagate_one_base_announce` has `blocks_seen > CDL*2` guard. If hit, breaks and propagates anyway. May be too permissive. *Depth-1: revert to simple loop, this guard becomes unnecessary.*
-- [ ] **is_same_block** — *Depth-2:* Compute must skip canonical events for same-block announces. Mini's parent is base (same block). *Depth-1:* N/A — parent always from different block. Remove check.
-- [ ] **leaf_announces** — *Depth-2:* Filters announce set to chain tips. Returns mini (not base) for {base, mini} blocks. *Depth-1:* N/A — 1 announce per block, always the leaf. Remove function.
-- [ ] **best_parent_announce** — *Depth-2:* Prefers base announces for parent selection. Falls back to leaf_announces. *Depth-1:* Simple — no base-filter needed, all announces are "base."
-- [ ] **gas_allowance in mini/squashed announce** — Set to full `block_gas_limit`. Base already consumed gas for canonical events. Compute layer handles gas budget per-announce, not cumulative. *Depth-1: N/A — single announce gets full budget.*
+## Compute Layer
 
-## Consensus Safety
+### is_same_block Check
+- When computing a mini-announce, its parent is from the SAME block
+- Canonical events were already processed by the parent (base) announce
+- The compute layer MUST skip canonical events for same-block announces
+- Without this: events fire twice, program state corrupted, execution results wrong
 
-- [ ] **Deterministic announce hashes** — Producer and subordinate must produce identical announce hashes for the same content. Announce hashed deterministically from fields. *Applies to both.*
-- [ ] **Canonical compute determinism (depth-1 specific)** — NEW RISK. Two-phase compute must produce identical ProgramStates on all validators. Since it uses the same inputs (block events + parent state) and the same compute layer, it should be deterministic. But this is a new code path. Test with multiple validators.
-- [ ] **Ephemeral canonical state (depth-1 specific)** — The canonical compute result is NOT stored in DB. If the producer crashes between phases, it's lost. No orphaned state. TXs stay in pool. Clean restart.
-- [ ] **Batch commitment integrity** — `create_batch_commitment` uses the latest announce hash. *Depth-2:* squashed/mini hash. *Depth-1:* the single announce hash. Same mechanism.
-- [ ] **Signature threshold** — Batch requires N-of-M signatures. Reduced participation (lost gossip) may prevent threshold. System waits and retries next block. *Applies to both.*
-- [ ] **Era boundaries** — Announce era_index comes from block timestamp. Ensure era transitions don't split a block's announces across eras. *Depth-2: could happen if base and mini span an era boundary. Depth-1: N/A — single announce, single era.*
+### Announce Computation
+- `prepare_executable_for_announce` reads parent announce's ProgramStates from DB
+- Parent must be computed (has announce_program_states in DB)
+- `collect_not_computed_predecessors` computes any missing predecessors first
+- CAS/state blob writes are idempotent (content-addressed)
+- Announce metadata writes (set_announce_outcome, set_announce_program_states, etc.) mark the announce as computed
 
-## Deployment & Config
+## Batch Commitment
 
-- [ ] **genesis-state-dump removal** — `NodeParams` uses `deny_unknown_fields`. Any config file with the removed `genesis-state-dump` field will fail to parse on upgrade. From master merge, not mini-announces branch. *Applies to both.*
-- [ ] **producer_delay config** — Production uses `Duration::ZERO`. *Depth-2 (cap-at-1):* safe (1 mini max). *Depth-1:* safe (poll fires immediately, selects all TXs, builds 1 announce).
+### What's in a Batch
+- `chain_commitment`: announce chain transitions (RECOVERABLE via collect_not_committed_predecessors)
+- `code_commitments`: validated codes from block's codes_queue (PER-BLOCK, NOT recoverable)
+- `validators_commitment`: era validator set changes (PER-BLOCK, NOT recoverable)
+- `rewards_commitment`: (PER-BLOCK, NOT recoverable)
 
-## Depth-1 Specific: Two-Phase Compute
+### Loss Scenarios
+- If batch commitment is never created for a block (new_head during WaitingAnnounceComputed), per-block commitments are permanently lost
+- Chain transitions are recovered by the next block's batch (collect_not_committed_predecessors)
+- This is a pre-existing issue on master, not introduced by mini-announces
 
-- [ ] **Canonical compute returns wrong states** — Would cause TX validation against incorrect state. TXs might be incorrectly included or excluded. Test: verify ProgramStates match what a full announce compute would produce.
-- [ ] **Canonical compute takes too long** — New head arrives during WaitingCanonicalComputed. DefaultProcessing → Initial. Block's TXs deferred. Acceptable (same as current WaitingAnnounceComputed behavior).
-- [ ] **TX pool changes between phases** — TXs may arrive or become invalid between canonical compute and TX selection. Not a problem — select_for_announce re-validates each time.
-- [ ] **Two compute calls per block** — Performance concern. Phase 1 (canonical only) is lightweight (~100ms, few events). Phase 2 (full announce) processes TXs. Total ~500ms. Current depth-2 also does 2 computes (base + mini). No regression.
-- [ ] **Canonical compute + announce compute must produce same final state** — The announce includes the same canonical events that were pre-computed. The compute layer processes them again during ComputeAnnounce. The final state must be identical. This is guaranteed if compute is deterministic (same inputs → same outputs). Test explicitly.
-- [ ] **select_for_announce_with_states correctness** — New code path using provided ProgramStates instead of DB lookup. Must produce identical results to select_for_announce(block, announce_hash) when given the same states. Unit test this equivalence.
+### Expiry Calculation
+- `calculate_batch_expiry`: walks announce chain counting block transitions
+- Must examine the announce at the CDL boundary BEFORE breaking (check is_base, then break)
+- `blocks_seen` starts at 1 (head announce's block)
+- `expiry = blocks_to_check - oldest_not_base_depth`
 
-## Findings From Multi-Model Review (carry forward to depth-1)
+## Network & Gossip
 
-These were found by Claude structured review, Claude adversarial, and Codex (gpt-5.4) during the depth-2 PR review. Issues marked "pre-existing" affect depth-1 equally.
+### Gossip Guarantees
+- Gossipsub does NOT guarantee delivery order
+- Gossipsub does NOT guarantee delivery at all (messages can be lost)
+- Peer scoring provides some DoS resistance but Byzantine producers can still send valid-looking garbage
+- The 12s ETH block interval is the recovery boundary. Any missed block is retried on the next one.
 
-| Finding | Source | Severity | Depth-1 Status |
-|---------|--------|----------|----------------|
-| Batch commitment loss on new_head during compute | All 3 models | HIGH | Pre-existing. Same risk. |
-| Pending queue unbounded after create (TODO #4641) | All 3 models | MEDIUM | Less exposure (no mini flood) |
-| Pool volatile, TXs lost on crash | Codex | HIGH | Same. By design. |
-| Coordinator second new_head kills batch | Codex | HIGH | Same. Pre-existing. |
-| replay_pending_events state escape | Claude adversarial | MEDIUM | Simpler (fewer pending events) |
-| Non-validator stuck computing | Claude adversarial | MEDIUM | Eliminated (no ReadyForMoreAnnounces) |
-| CDL safety bound too permissive | Claude adversarial | LOW | Eliminated (no CDL patches) |
-| gas_allowance fresh budget for mini | Claude adversarial | LOW | Eliminated (single announce) |
-| genesis-state-dump config break | Codex | MEDIUM | Same. From master merge. |
+### TX Pool
+- `InjectedTxPool` is volatile (starts empty on restart, repopulated from gossip)
+- `HashSet` iteration is non-deterministic. Under TX pool overflow with limits, different validators may select different TX subsets. This is acceptable because the announce hash is deterministic from the selected set.
+- TX validity is checked by `TxValidityChecker` against the parent announce's ProgramStates
+- `select_for_announce` runs against the last computed predecessor's states
+
+## Coordinator
+
+### next_block Buffering
+- First new_head during Coordinator: buffer it, continue waiting for signatures
+- Second new_head: abandon batch, transition to Initial
+- This is defensive. The batch is lost but the next block recovers chain commitments.
+
+## Known TODOs (Pre-existing)
+
+- #5342: Batch commitment lost when new_head arrives during WaitingAnnounceComputed
+- #5343: Synced/prepared events lost when consensus state is not Initial
+- #4641: Pending queue abuse (Byzantine producer floods fake events)
+- Volatile TX pool: TXs lost on crash, repopulated from network gossip (by design)
+- Non-deterministic TX selection order under overflow (HashSet iteration)
