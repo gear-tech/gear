@@ -42,6 +42,7 @@ runs:
       if: ${{ runner.os == 'Linux' }}
       run: |
         sudo apt purge libllvm20:amd64 libllvm20:i386 || true
+        sudo dpkg -l | grep ii
 
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
