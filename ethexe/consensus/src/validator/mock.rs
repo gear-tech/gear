@@ -20,9 +20,9 @@ use super::{core::*, *};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ValidatorsVec,
+    COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
     consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::*, ecdsa::ContractSignature,
-    gear::BatchCommitment,
+    gear::BatchCommitment, mock::*,
 };
 use hashbrown::HashMap;
 use std::{num::NonZeroU64, sync::Arc};
@@ -146,7 +146,6 @@ impl WaitFor for ValidatorState {
 pub fn mock_validator_context(db: Database) -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
     let ethereum = MockEthereum::default();
-    let db = Database::memory();
     let timelines = ProtocolTimelines::mock(()).tap_mut(|tl| tl.slot = NonZeroU64::new(1).unwrap());
 
     let limits = BatchLimits::default();
