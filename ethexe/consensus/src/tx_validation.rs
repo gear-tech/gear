@@ -26,6 +26,7 @@ use ethexe_common::{
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use hashbrown::HashSet;
+use std::borrow::Cow;
 
 /// Minimum executable balance for a program to receive injected transactions.
 /// 100 - is value per gas
@@ -54,15 +55,17 @@ pub enum TxValidity {
     InsufficientBalanceForInjectedMessages,
 }
 
-pub struct TxValidityChecker<DB> {
+pub struct TxValidityChecker<'a, DB> {
     db: DB,
     chain_head: SimpleBlockData,
     start_block_hash: H256,
     recent_included_txs: HashSet<HashOf<InjectedTransaction>>,
-    latest_states: ProgramStates,
+    latest_states: Cow<'a, ProgramStates>,
 }
 
-impl<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO + Storage> TxValidityChecker<DB> {
+impl<'a, DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO + Storage>
+    TxValidityChecker<'a, DB>
+{
     pub fn new_for_announce(
         db: DB,
         chain_head: SimpleBlockData,
@@ -82,31 +85,32 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO + Storage> TxVa
         let start_block_hash = db.globals().start_block_hash;
         Ok(Self {
             recent_included_txs: Self::collect_recent_included_txs(&db, announce)?,
-            latest_states: db
-                .announce_program_states(last_computed_predecessor)
-                .ok_or_else(|| {
-                    anyhow!(
-                        "Cannot find computed announce {last_computed_predecessor} programs states in db"
-                    )
-                })?,
+            latest_states: Cow::Owned(
+                db.announce_program_states(last_computed_predecessor)
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "Cannot find computed announce {last_computed_predecessor} programs states in db"
+                        )
+                    })?,
+            ),
             db,
             chain_head,
             start_block_hash,
         })
     }
 
-    /// Create checker with externally-provided ProgramStates (from canonical compute).
-    /// `parent_announce` is used only for duplicate TX detection, not for state lookup.
+    /// Create checker with borrowed ProgramStates (from canonical compute).
+    /// Avoids cloning the BTreeMap. `parent_announce` is used only for duplicate TX detection.
     pub fn new_with_states(
         db: DB,
         chain_head: SimpleBlockData,
         parent_announce: HashOf<Announce>,
-        program_states: ProgramStates,
+        program_states: &'a ProgramStates,
     ) -> Result<Self> {
         let start_block_hash = db.globals().start_block_hash;
         Ok(Self {
             recent_included_txs: Self::collect_recent_included_txs(&db, parent_announce)?,
-            latest_states: program_states,
+            latest_states: Cow::Borrowed(program_states),
             db,
             chain_head,
             start_block_hash,

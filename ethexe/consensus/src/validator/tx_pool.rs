@@ -97,7 +97,7 @@ where
             self.db.clone(),
             block,
             parent_announce,
-            program_states.clone(),
+            program_states,
         )?;
         self.select_with_checker(block, &tx_checker)
     }
@@ -105,7 +105,7 @@ where
     fn select_with_checker(
         &mut self,
         block: SimpleBlockData,
-        tx_checker: &TxValidityChecker<DB>,
+        tx_checker: &TxValidityChecker<'_, DB>,
     ) -> Result<Vec<SignedInjectedTransaction>> {
         let mut touched_programs = crate::utils::block_touched_programs(&self.db, block.hash)?;
         if touched_programs.len() > MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize {
