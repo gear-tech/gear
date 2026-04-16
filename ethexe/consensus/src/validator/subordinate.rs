@@ -114,9 +114,7 @@ impl StateHandler for Subordinate {
                         // Gossip reordering can cause the child to arrive before the parent.
                         // The announce will be retried when Subordinate::create runs next block,
                         // or recovered via collect_not_committed_predecessors.
-                        tracing::trace!(
-                            "Announce parent not yet included, deferring to pending"
-                        );
+                        tracing::trace!("Announce parent not yet included, deferring to pending");
                         self.ctx.pending(verified_announce);
                         Ok(self.into())
                     }

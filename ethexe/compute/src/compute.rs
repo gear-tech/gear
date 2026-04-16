@@ -279,8 +279,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                 break;
             }
 
-            if let Some((block_hash, parent_announce, gas_allowance)) =
-                self.canonical_input.take()
+            if let Some((block_hash, parent_announce, gas_allowance)) = self.canonical_input.take()
             {
                 self.canonical_computation = Some(
                     Self::compute_canonical_only(

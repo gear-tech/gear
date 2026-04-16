@@ -28,8 +28,7 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Announce, HashOf, ProgramStates, PromisePolicy, SimpleBlockData, ValidatorsVec,
-    db::BlockMetaStorageRO, gear::BatchCommitment, injected::Promise,
-    network::ValidatorMessage,
+    db::BlockMetaStorageRO, gear::BatchCommitment, injected::Promise, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -157,8 +156,7 @@ impl StateHandler for Producer {
 
                 // Enter TX collection window. The poll timer gives TXs
                 // time to arrive before building the announce.
-                let mut poll_timer =
-                    Timer::new("tx-collection poll", self.ctx.core.producer_delay);
+                let mut poll_timer = Timer::new("tx-collection poll", self.ctx.core.producer_delay);
                 poll_timer.start(());
 
                 self.state = State::ReadyForTxCollection {
@@ -192,10 +190,7 @@ impl StateHandler for Producer {
                         parent_announce,
                         program_states,
                         ..
-                    } = std::mem::replace(
-                        &mut self.state,
-                        State::Delay { timer: None },
-                    )
+                    } = std::mem::replace(&mut self.state, State::Delay { timer: None })
                     else {
                         unreachable!()
                     };
@@ -268,12 +263,11 @@ impl Producer {
 
         // Phase 1: ask compute to run canonical events only (no TXs).
         // The result (ProgramStates) arrives via process_canonical_events_computed.
-        self.ctx
-            .output(ConsensusEvent::ComputeCanonicalEvents(
-                self.block.hash,
-                parent,
-                self.ctx.core.block_gas_limit,
-            ));
+        self.ctx.output(ConsensusEvent::ComputeCanonicalEvents(
+            self.block.hash,
+            parent,
+            self.ctx.core.block_gas_limit,
+        ));
         self.state = State::WaitingCanonicalComputed {
             parent_announce: parent,
         };
@@ -608,9 +602,11 @@ mod tests {
 
     #[async_trait]
     trait ProducerExt: Sized {
-        /// Skip the delay timer and complete two-phase flow:
-        /// 1. Timer fires → ComputeCanonicalEvents
-        /// 2. process_canonical_events_computed → PublishMessage + ComputeAnnounce
+        /// Skip the initial producer delay and complete the full two-phase announce production flow:
+        /// 1. produce_announce is triggered, emitting ComputeCanonicalEvents.
+        /// 2. process_canonical_events_computed is called, transitioning to ReadyForTxCollection.
+        /// 3. The poll timer fires, triggering build_announce_with_states,
+        ///    which emits PublishMessage and ComputeAnnounce.
         async fn skip_timer(self) -> Result<(Self, HashOf<Announce>)>;
     }
 
@@ -653,11 +649,17 @@ mod tests {
             // Phase 3: poll timer fires → builds announce → PublishMessage + ComputeAnnounce
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer(), "Expected producer state, got {state}");
-            assert!(event.is_publish_message(), "Expected PublishMessage, got {event:?}");
+            assert!(
+                event.is_publish_message(),
+                "Expected PublishMessage, got {event:?}"
+            );
 
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer(), "Expected producer state, got {state}");
-            assert!(event.is_compute_announce(), "Expected ComputeAnnounce, got {event:?}");
+            assert!(
+                event.is_compute_announce(),
+                "Expected ComputeAnnounce, got {event:?}"
+            );
 
             Ok((state, event.unwrap_compute_announce().0.to_hash()))
         }

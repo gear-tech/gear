@@ -96,8 +96,11 @@ impl<P: ProcessorExt> ComputeService<P> {
         parent_announce: HashOf<Announce>,
         gas_allowance: u64,
     ) {
-        self.compute_sub_service
-            .receive_canonical_to_compute(block_hash, parent_announce, gas_allowance);
+        self.compute_sub_service.receive_canonical_to_compute(
+            block_hash,
+            parent_announce,
+            gas_allowance,
+        );
     }
 }
 
