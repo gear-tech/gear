@@ -39,7 +39,16 @@ use proptest::{collection, prelude::*};
 use std::time::Duration;
 use tokio::{runtime::Builder, sync::mpsc, time::timeout};
 
-pub(crate) const ASYNC_EVENT_TIMEOUT: Duration = Duration::from_millis(500);
+thread_local! {
+    // Reuse one current-thread runtime per test thread to avoid rebuilding it for every proptest case.
+    static TEST_RUNTIME: tokio::runtime::Runtime = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("failed to build tokio runtime");
+}
+
+pub(crate) const ASYNC_EVENT_TIMEOUT: Duration = Duration::from_secs(3);
+const NO_EVENT_TIMEOUT: Duration = Duration::from_millis(500);
 
 pub(crate) fn block_chain_strategy(len: u32) -> BoxedStrategy<BlockChain> {
     any_with::<BlockChain>(BlockChainParams::from(len)).boxed()
@@ -52,11 +61,7 @@ pub(crate) fn distinct_code_ids(count: usize) -> BoxedStrategy<Vec<CodeId>> {
 }
 
 pub(crate) fn run_async_test<F: Future>(future: F) -> F::Output {
-    Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("failed to build tokio runtime")
-        .block_on(future)
+    TEST_RUNTIME.with(|runtime| runtime.block_on(future))
 }
 
 pub(crate) async fn next_compute_event<P: ProcessorExt>(
@@ -78,7 +83,7 @@ pub(crate) async fn next_subservice_event<S: SubService>(service: &mut S) -> S::
 
 pub(crate) async fn assert_no_compute_event<P: ProcessorExt>(compute: &mut ComputeService<P>) {
     assert!(
-        timeout(ASYNC_EVENT_TIMEOUT, compute.next()).await.is_err(),
+        timeout(NO_EVENT_TIMEOUT, compute.next()).await.is_err(),
         "unexpected follow-up compute event"
     );
 }

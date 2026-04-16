@@ -524,10 +524,10 @@ mod tests {
     }
 
     fn promise_test_inputs_strategy() -> BoxedStrategy<(BlockChain, Vec<usize>)> {
-        (4usize..=8)
+        (4usize..=16)
             .prop_flat_map(|blockchain_len| {
                 let requestable_indexes = (2..blockchain_len).collect::<Vec<_>>();
-                let max_selected = requestable_indexes.len().min(3);
+                let max_selected = requestable_indexes.len();
 
                 block_chain_strategy(blockchain_len as u32).prop_flat_map(move |chain| {
                     prop::sample::subsequence(requestable_indexes.clone(), 1..=max_selected)
@@ -607,7 +607,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(16))]
+        #![proptest_config(ProptestConfig::with_cases(64))]
 
         #[test]
         fn test_compute_with_promises(
