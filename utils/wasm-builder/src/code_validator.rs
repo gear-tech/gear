@@ -308,17 +308,19 @@ impl CodeErrorWithContext {
 
 /// Validates wasm code in the same way as
 /// `pallet_gear::pallet::Pallet::upload_program(...)`.
-pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
+pub fn validate_program(code: Vec<u8>, check_len: bool) -> anyhow::Result<()> {
     let module = Module::new(&code)?;
     let schedule = Schedule::default();
 
-    ensure!(
-        (code.len() as u32) <= schedule.limits.code_len,
-        CodeErrorWithContext::CodeTooLarge {
-            limit: schedule.limits.code_len,
-            kind: CodeKind::Original
-        }
-    );
+    if check_len {
+        ensure!(
+            (code.len() as u32) <= schedule.limits.code_len,
+            CodeErrorWithContext::CodeTooLarge {
+                limit: schedule.limits.code_len,
+                kind: CodeKind::Original
+            }
+        );
+    }
 
     let code = Code::try_new(
         code,
@@ -332,13 +334,15 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
 
     match code {
         Ok(code) => {
-            ensure!(
-                (code.instrumented_code().bytes().len() as u32) <= schedule.limits.code_len,
-                CodeErrorWithContext::CodeTooLarge {
-                    limit: schedule.limits.code_len,
-                    kind: CodeKind::Instrumented
-                }
-            );
+            if check_len {
+                ensure!(
+                    (code.instrumented_code().bytes().len() as u32) <= schedule.limits.code_len,
+                    CodeErrorWithContext::CodeTooLarge {
+                        limit: schedule.limits.code_len,
+                        kind: CodeKind::Instrumented
+                    }
+                );
+            }
 
             Ok(())
         }
