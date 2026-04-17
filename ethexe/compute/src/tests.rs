@@ -121,7 +121,7 @@ fn create_new_code(nonce: u32) -> Vec<u8> {
 // Return a map with `CodeId` and corresponding code bytes
 fn insert_code_events(chain: &mut BlockChain, events_in_block: u32) {
     let mut nonce = 0;
-    for data in chain.blocks.iter_mut().map(|data| data.as_synced_mut()) {
+    for BlockFullData { synced: data, .. } in &mut chain.blocks {
         data.events = (0..events_in_block)
             .map(|_| {
                 nonce += 1;
@@ -238,9 +238,10 @@ impl TestEnv {
         let computed_announce = event.unwrap_announce_computed();
         assert_eq!(computed_announce, announce_hash);
 
-        self.db.mutate_block_meta(announce.block_hash, |meta| {
-            meta.announces.get_or_insert_default().insert(announce_hash);
-        });
+        self.db
+            .mutate_block_announces(announce.block_hash, |announces| {
+                announces.insert(announce_hash);
+            });
     }
 }
 
@@ -285,11 +286,10 @@ async fn multiple_preparation_and_one_processing() -> Result<()> {
     // append announces to prepared blocks, except the last one, so that it can be computed
     for i in 1..3 {
         let announce = new_announce(&env.db, env.chain.blocks[i].hash, Some(100));
-        env.db.mutate_block_meta(announce.block_hash, |meta| {
-            meta.announces
-                .get_or_insert_default()
-                .insert(announce.to_hash());
-        });
+        env.db
+            .mutate_block_announces(announce.block_hash, |announces| {
+                announces.insert(announce.to_hash());
+            });
         env.db.set_announce(announce);
     }
 
@@ -321,7 +321,7 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
 
     let mut env = TestEnv::new(1, 3);
 
-    let mut block_events = env.chain.blocks[1].as_synced().events.clone();
+    let mut block_events = env.chain.blocks[1].synced.events.clone();
 
     // add invalid event which shouldn't stop block prepare
     block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(

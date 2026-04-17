@@ -43,27 +43,14 @@ pub struct BlockMeta {
     /// Block has been prepared, meaning:
     /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
-    // TODO: #4945 remove announces from here
-    /// Set of announces included in the block.
-    pub announces: Option<BTreeSet<HashOf<Announce>>>,
     /// Queue of code ids waiting for validation status commitment on-chain.
     pub codes_queue: Option<VecDeque<CodeId>>,
     /// Last committed on-chain batch hash.
     pub last_committed_batch: Option<Digest>,
     /// Last committed on-chain announce hash.
     pub last_committed_announce: Option<HashOf<Announce>>,
-}
-
-impl BlockMeta {
-    pub fn default_prepared() -> Self {
-        Self {
-            prepared: true,
-            announces: Some(Default::default()),
-            codes_queue: Some(Default::default()),
-            last_committed_batch: Some(Default::default()),
-            last_committed_announce: Some(Default::default()),
-        }
-    }
+    /// Latest era with committed validators.
+    pub latest_era_validators_committed: u64,
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -112,8 +99,6 @@ pub trait OnChainStorageRO {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
-    // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -122,7 +107,6 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
-    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64);
     fn set_block_synced(&self, block_hash: H256);
 }
 
@@ -152,11 +136,13 @@ pub trait AnnounceStorageRO {
     fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
     fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
     fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
+    fn block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait AnnounceStorageRW: AnnounceStorageRO {
     fn set_announce(&self, announce: Announce) -> HashOf<Announce>;
+    fn set_block_announces(&self, block_hash: H256, announces: BTreeSet<HashOf<Announce>>);
     fn set_announce_program_states(
         &self,
         announce_hash: HashOf<Announce>,
@@ -169,6 +155,11 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
         &self,
         announce_hash: HashOf<Announce>,
         f: impl FnOnce(&mut AnnounceMeta),
+    );
+    fn mutate_block_announces(
+        &self,
+        block_hash: H256,
+        f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
     );
 }
 
@@ -260,7 +251,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "d27a8b20ef1490fd5a73fd7a04780b373d42d73c4444fea555d10985ce203125";
+            "7cda0e8b9fe62acd3dc32937ef0b56c64736858542fe4dc0ac3fc81ec175d0ea";
 
         let types = [
             meta_type::<BlockMeta>(),

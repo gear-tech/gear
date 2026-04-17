@@ -110,26 +110,51 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-consensus 1.7.3",
+ "alloy-contract 1.7.3",
+ "alloy-core",
+ "alloy-eips 1.7.3",
+ "alloy-genesis 1.7.3",
+ "alloy-network 1.7.3",
+ "alloy-node-bindings 1.7.3",
+ "alloy-provider 1.7.3",
+ "alloy-pubsub 1.7.3",
+ "alloy-rpc-client 1.7.3",
+ "alloy-rpc-types 1.7.3",
+ "alloy-serde 1.7.3",
+ "alloy-signer 1.7.3",
+ "alloy-signer-local 1.7.3",
+ "alloy-transport 1.7.3",
+ "alloy-transport-http 1.7.3",
+ "alloy-transport-ws 1.7.3",
+ "alloy-trie",
+]
+
+[[package]]
+name = "alloy"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-consensus",
- "alloy-contract",
+ "alloy-consensus 1.8.3",
+ "alloy-contract 1.8.3",
  "alloy-core",
- "alloy-eips",
- "alloy-genesis",
- "alloy-network",
- "alloy-node-bindings",
- "alloy-provider",
- "alloy-pubsub",
- "alloy-rpc-client",
- "alloy-rpc-types",
- "alloy-serde",
- "alloy-signer",
- "alloy-signer-local",
- "alloy-transport",
- "alloy-transport-http",
- "alloy-transport-ws",
+ "alloy-eips 1.8.3",
+ "alloy-genesis 1.8.3",
+ "alloy-network 1.8.3",
+ "alloy-node-bindings 1.8.3",
+ "alloy-provider 1.8.3",
+ "alloy-pubsub 1.8.3",
+ "alloy-rpc-client 1.8.3",
+ "alloy-rpc-types 1.8.3",
+ "alloy-serde 1.8.3",
+ "alloy-signer 1.8.3",
+ "alloy-signer-local 1.8.3",
+ "alloy-transport 1.8.3",
+ "alloy-transport-http 1.8.3",
+ "alloy-transport-ws 1.8.3",
  "alloy-trie",
 ]
 
@@ -147,15 +172,41 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-eips 1.7.3",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-serde 1.7.3",
+ "alloy-trie",
+ "alloy-tx-macros 1.7.3",
+ "auto_impl",
+ "borsh",
+ "c-kzg",
+ "derive_more 2.1.1",
+ "either",
+ "k256",
+ "once_cell",
+ "rand 0.8.5",
+ "secp256k1 0.30.0",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "alloy-consensus"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-eips",
+ "alloy-eips 1.8.3",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3",
  "alloy-trie",
- "alloy-tx-macros",
+ "alloy-tx-macros 1.8.3",
  "auto_impl",
  "borsh",
  "c-kzg",
@@ -173,15 +224,50 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus-any"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-consensus 1.7.3",
+ "alloy-eips 1.7.3",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-serde 1.7.3",
+ "serde",
+]
+
+[[package]]
+name = "alloy-consensus-any"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-consensus",
- "alloy-eips",
+ "alloy-consensus 1.8.3",
+ "alloy-eips 1.8.3",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3",
  "serde",
+]
+
+[[package]]
+name = "alloy-contract"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-consensus 1.7.3",
+ "alloy-dyn-abi",
+ "alloy-json-abi",
+ "alloy-network 1.7.3",
+ "alloy-network-primitives 1.7.3",
+ "alloy-primitives",
+ "alloy-provider 1.7.3",
+ "alloy-pubsub 1.7.3",
+ "alloy-rpc-types-eth 1.7.3",
+ "alloy-sol-types",
+ "alloy-transport 1.7.3",
+ "futures",
+ "futures-util",
+ "serde_json",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -189,17 +275,17 @@ name = "alloy-contract"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-consensus",
+ "alloy-consensus 1.8.3",
  "alloy-dyn-abi",
  "alloy-json-abi",
- "alloy-network",
- "alloy-network-primitives",
+ "alloy-network 1.8.3",
+ "alloy-network-primitives 1.8.3",
  "alloy-primitives",
- "alloy-provider",
- "alloy-pubsub",
- "alloy-rpc-types-eth",
+ "alloy-provider 1.8.3",
+ "alloy-pubsub 1.8.3",
+ "alloy-rpc-types-eth 1.8.3",
  "alloy-sol-types",
- "alloy-transport",
+ "alloy-transport 1.8.3",
  "futures",
  "futures-util",
  "serde_json",
@@ -288,6 +374,29 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-eip2124",
+ "alloy-eip2930",
+ "alloy-eip7702",
+ "alloy-eip7928",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-serde 1.7.3",
+ "auto_impl",
+ "borsh",
+ "c-kzg",
+ "derive_more 2.1.1",
+ "either",
+ "serde",
+ "serde_with",
+ "sha2 0.10.9",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "alloy-eips"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
@@ -297,7 +406,7 @@ dependencies = [
  "alloy-eip7928",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3",
  "auto_impl",
  "borsh",
  "c-kzg",
@@ -310,12 +419,26 @@ dependencies = [
 
 [[package]]
 name = "alloy-genesis"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-eips 1.7.3",
+ "alloy-primitives",
+ "alloy-serde 1.7.3",
+ "alloy-trie",
+ "borsh",
+ "serde",
+ "serde_with",
+]
+
+[[package]]
+name = "alloy-genesis"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-eips",
+ "alloy-eips 1.8.3",
  "alloy-primitives",
- "alloy-serde",
+ "alloy-serde 1.8.3",
  "alloy-trie",
  "borsh",
  "serde",
@@ -349,6 +472,20 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-rpc"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
+ "http 1.4.0",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tracing",
+]
+
+[[package]]
+name = "alloy-json-rpc"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
@@ -363,19 +500,44 @@ dependencies = [
 
 [[package]]
 name = "alloy-network"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-consensus 1.7.3",
+ "alloy-consensus-any 1.7.3",
+ "alloy-eips 1.7.3",
+ "alloy-json-rpc 1.7.3",
+ "alloy-network-primitives 1.7.3",
+ "alloy-primitives",
+ "alloy-rpc-types-any 1.7.3",
+ "alloy-rpc-types-eth 1.7.3",
+ "alloy-serde 1.7.3",
+ "alloy-signer 1.7.3",
+ "alloy-sol-types",
+ "async-trait",
+ "auto_impl",
+ "derive_more 2.1.1",
+ "futures-utils-wasm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "alloy-network"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-consensus",
- "alloy-consensus-any",
- "alloy-eips",
- "alloy-json-rpc",
- "alloy-network-primitives",
+ "alloy-consensus 1.8.3",
+ "alloy-consensus-any 1.8.3",
+ "alloy-eips 1.8.3",
+ "alloy-json-rpc 1.8.3",
+ "alloy-network-primitives 1.8.3",
  "alloy-primitives",
- "alloy-rpc-types-any",
- "alloy-rpc-types-eth",
- "alloy-serde",
- "alloy-signer",
+ "alloy-rpc-types-any 1.8.3",
+ "alloy-rpc-types-eth 1.8.3",
+ "alloy-serde 1.8.3",
+ "alloy-signer 1.8.3",
  "alloy-sol-types",
  "async-trait",
  "auto_impl",
@@ -388,14 +550,47 @@ dependencies = [
 
 [[package]]
 name = "alloy-network-primitives"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-consensus 1.7.3",
+ "alloy-eips 1.7.3",
+ "alloy-primitives",
+ "alloy-serde 1.7.3",
+ "serde",
+]
+
+[[package]]
+name = "alloy-network-primitives"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-consensus",
- "alloy-eips",
+ "alloy-consensus 1.8.3",
+ "alloy-eips 1.8.3",
  "alloy-primitives",
- "alloy-serde",
+ "alloy-serde 1.8.3",
  "serde",
+]
+
+[[package]]
+name = "alloy-node-bindings"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-genesis 1.7.3",
+ "alloy-hardforks",
+ "alloy-network 1.7.3",
+ "alloy-primitives",
+ "alloy-signer 1.7.3",
+ "alloy-signer-local 1.7.3",
+ "k256",
+ "libc",
+ "rand 0.8.5",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tracing",
+ "url",
 ]
 
 [[package]]
@@ -403,12 +598,12 @@ name = "alloy-node-bindings"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-genesis",
+ "alloy-genesis 1.8.3",
  "alloy-hardforks",
- "alloy-network",
+ "alloy-network 1.8.3",
  "alloy-primitives",
- "alloy-signer",
- "alloy-signer-local",
+ "alloy-signer 1.8.3",
+ "alloy-signer-local 1.8.3",
  "k256",
  "libc",
  "rand 0.8.5",
@@ -448,26 +643,68 @@ dependencies = [
 
 [[package]]
 name = "alloy-provider"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-chains",
+ "alloy-consensus 1.7.3",
+ "alloy-eips 1.7.3",
+ "alloy-json-rpc 1.7.3",
+ "alloy-network 1.7.3",
+ "alloy-network-primitives 1.7.3",
+ "alloy-node-bindings 1.7.3",
+ "alloy-primitives",
+ "alloy-pubsub 1.7.3",
+ "alloy-rpc-client 1.7.3",
+ "alloy-rpc-types-anvil 1.7.3",
+ "alloy-rpc-types-eth 1.7.3",
+ "alloy-signer 1.7.3",
+ "alloy-sol-types",
+ "alloy-transport 1.7.3",
+ "alloy-transport-http 1.7.3",
+ "alloy-transport-ws 1.7.3",
+ "async-stream",
+ "async-trait",
+ "auto_impl",
+ "dashmap 6.1.0",
+ "either",
+ "futures",
+ "futures-utils-wasm",
+ "lru 0.16.3",
+ "parking_lot 0.12.5",
+ "pin-project",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "url",
+ "wasmtimer",
+]
+
+[[package]]
+name = "alloy-provider"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-chains",
- "alloy-consensus",
- "alloy-eips",
- "alloy-json-rpc",
- "alloy-network",
- "alloy-network-primitives",
- "alloy-node-bindings",
+ "alloy-consensus 1.8.3",
+ "alloy-eips 1.8.3",
+ "alloy-json-rpc 1.8.3",
+ "alloy-network 1.8.3",
+ "alloy-network-primitives 1.8.3",
+ "alloy-node-bindings 1.8.3",
  "alloy-primitives",
- "alloy-pubsub",
- "alloy-rpc-client",
- "alloy-rpc-types-anvil",
- "alloy-rpc-types-eth",
- "alloy-signer",
+ "alloy-pubsub 1.8.3",
+ "alloy-rpc-client 1.8.3",
+ "alloy-rpc-types-anvil 1.8.3",
+ "alloy-rpc-types-eth 1.8.3",
+ "alloy-signer 1.8.3",
  "alloy-sol-types",
- "alloy-transport",
- "alloy-transport-http",
- "alloy-transport-ws",
+ "alloy-transport 1.8.3",
+ "alloy-transport-http 1.8.3",
+ "alloy-transport-ws 1.8.3",
  "async-stream",
  "async-trait",
  "auto_impl",
@@ -490,12 +727,33 @@ dependencies = [
 
 [[package]]
 name = "alloy-pubsub"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-json-rpc 1.7.3",
+ "alloy-primitives",
+ "alloy-transport 1.7.3",
+ "auto_impl",
+ "bimap",
+ "futures",
+ "parking_lot 0.12.5",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "tower 0.5.2",
+ "tracing",
+ "wasmtimer",
+]
+
+[[package]]
+name = "alloy-pubsub"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-json-rpc",
+ "alloy-json-rpc 1.8.3",
  "alloy-primitives",
- "alloy-transport",
+ "alloy-transport 1.8.3",
  "auto_impl",
  "bimap",
  "futures",
@@ -533,15 +791,39 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-client"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-json-rpc 1.7.3",
+ "alloy-primitives",
+ "alloy-pubsub 1.7.3",
+ "alloy-transport 1.7.3",
+ "alloy-transport-http 1.7.3",
+ "alloy-transport-ws 1.7.3",
+ "futures",
+ "pin-project",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "tower 0.5.2",
+ "tracing",
+ "url",
+ "wasmtimer",
+]
+
+[[package]]
+name = "alloy-rpc-client"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-json-rpc",
+ "alloy-json-rpc 1.8.3",
  "alloy-primitives",
- "alloy-pubsub",
- "alloy-transport",
- "alloy-transport-http",
- "alloy-transport-ws",
+ "alloy-pubsub 1.8.3",
+ "alloy-transport 1.8.3",
+ "alloy-transport-http 1.8.3",
+ "alloy-transport-ws 1.8.3",
  "futures",
  "pin-project",
  "reqwest 0.13.2",
@@ -557,15 +839,40 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types-anvil 1.7.3",
+ "alloy-rpc-types-beacon 1.7.3",
+ "alloy-rpc-types-engine 1.7.3",
+ "alloy-rpc-types-eth 1.7.3",
+ "alloy-serde 1.7.3",
+ "serde",
+]
+
+[[package]]
+name = "alloy-rpc-types"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-primitives",
- "alloy-rpc-types-anvil",
- "alloy-rpc-types-beacon",
- "alloy-rpc-types-engine",
- "alloy-rpc-types-eth",
- "alloy-serde",
+ "alloy-rpc-types-anvil 1.8.3",
+ "alloy-rpc-types-beacon 1.8.3",
+ "alloy-rpc-types-engine 1.8.3",
+ "alloy-rpc-types-eth 1.8.3",
+ "alloy-serde 1.8.3",
+ "serde",
+]
+
+[[package]]
+name = "alloy-rpc-types-anvil"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types-eth 1.7.3",
+ "alloy-serde 1.7.3",
  "serde",
 ]
 
@@ -575,9 +882,19 @@ version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-primitives",
- "alloy-rpc-types-eth",
- "alloy-serde",
+ "alloy-rpc-types-eth 1.8.3",
+ "alloy-serde 1.8.3",
  "serde",
+]
+
+[[package]]
+name = "alloy-rpc-types-any"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-consensus-any 1.7.3",
+ "alloy-rpc-types-eth 1.7.3",
+ "alloy-serde 1.7.3",
 ]
 
 [[package]]
@@ -585,9 +902,24 @@ name = "alloy-rpc-types-any"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-consensus-any",
- "alloy-rpc-types-eth",
- "alloy-serde",
+ "alloy-consensus-any 1.8.3",
+ "alloy-rpc-types-eth 1.8.3",
+ "alloy-serde 1.8.3",
+]
+
+[[package]]
+name = "alloy-rpc-types-beacon"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-eips 1.7.3",
+ "alloy-primitives",
+ "alloy-rpc-types-engine 1.7.3",
+ "derive_more 2.1.1",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -595,9 +927,9 @@ name = "alloy-rpc-types-beacon"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-eips",
+ "alloy-eips 1.8.3",
  "alloy-primitives",
- "alloy-rpc-types-engine",
+ "alloy-rpc-types-engine 1.8.3",
  "derive_more 2.1.1",
  "serde",
  "serde_json",
@@ -607,14 +939,30 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-engine"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-consensus 1.7.3",
+ "alloy-eips 1.7.3",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-serde 1.7.3",
+ "derive_more 2.1.1",
+ "rand 0.8.5",
+ "serde",
+ "strum 0.27.2",
+]
+
+[[package]]
+name = "alloy-rpc-types-engine"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-consensus",
- "alloy-eips",
+ "alloy-consensus 1.8.3",
+ "alloy-eips 1.8.3",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3",
  "derive_more 2.1.1",
  "rand 0.8.5",
  "serde",
@@ -623,16 +971,36 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-eth"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-consensus 1.7.3",
+ "alloy-consensus-any 1.7.3",
+ "alloy-eips 1.7.3",
+ "alloy-network-primitives 1.7.3",
+ "alloy-primitives",
+ "alloy-rlp",
+ "alloy-serde 1.7.3",
+ "alloy-sol-types",
+ "itertools 0.13.0",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "alloy-rpc-types-eth"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-consensus",
- "alloy-consensus-any",
- "alloy-eips",
- "alloy-network-primitives",
+ "alloy-consensus 1.8.3",
+ "alloy-consensus-any 1.8.3",
+ "alloy-eips 1.8.3",
+ "alloy-network-primitives 1.8.3",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde",
+ "alloy-serde 1.8.3",
  "alloy-sol-types",
  "itertools 0.14.0",
  "serde",
@@ -643,12 +1011,36 @@ dependencies = [
 
 [[package]]
 name = "alloy-serde"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-primitives",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "alloy-serde"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
  "alloy-primitives",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "alloy-signer"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-primitives",
+ "async-trait",
+ "auto_impl",
+ "either",
+ "elliptic-curve",
+ "k256",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -667,13 +1059,31 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer-local"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-consensus 1.7.3",
+ "alloy-network 1.7.3",
+ "alloy-primitives",
+ "alloy-signer 1.7.3",
+ "async-trait",
+ "coins-bip32",
+ "coins-bip39",
+ "k256",
+ "rand 0.8.5",
+ "thiserror 2.0.17",
+ "zeroize",
+]
+
+[[package]]
+name = "alloy-signer-local"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-consensus",
- "alloy-network",
+ "alloy-consensus 1.8.3",
+ "alloy-network 1.8.3",
  "alloy-primitives",
- "alloy-signer",
+ "alloy-signer 1.8.3",
  "async-trait",
  "coins-bip32",
  "coins-bip39",
@@ -758,10 +1168,32 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-json-rpc 1.7.3",
+ "auto_impl",
+ "base64 0.22.1",
+ "derive_more 2.1.1",
+ "futures",
+ "futures-utils-wasm",
+ "parking_lot 0.12.5",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tower 0.5.2",
+ "tracing",
+ "url",
+ "wasmtimer",
+]
+
+[[package]]
+name = "alloy-transport"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-json-rpc",
+ "alloy-json-rpc 1.8.3",
  "auto_impl",
  "base64 0.22.1",
  "derive_more 2.1.1",
@@ -780,11 +1212,26 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-http"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-json-rpc 1.7.3",
+ "alloy-transport 1.7.3",
+ "itertools 0.13.0",
+ "reqwest 0.12.28",
+ "serde_json",
+ "tower 0.5.2",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "alloy-transport-http"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-json-rpc",
- "alloy-transport",
+ "alloy-json-rpc 1.8.3",
+ "alloy-transport 1.8.3",
  "itertools 0.14.0",
  "reqwest 0.13.2",
  "serde_json",
@@ -795,11 +1242,28 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-ws"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "alloy-pubsub 1.7.3",
+ "alloy-transport 1.7.3",
+ "futures",
+ "http 1.4.0",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.26.2",
+ "tracing",
+ "url",
+ "ws_stream_wasm",
+]
+
+[[package]]
+name = "alloy-transport-ws"
 version = "1.8.3"
 source = "git+https://github.com/gear-tech/alloy.git?branch=better-gas-estimation#42d2d5cfb91ed188e227108ed2b7819035dea693"
 dependencies = [
- "alloy-pubsub",
- "alloy-transport",
+ "alloy-pubsub 1.8.3",
+ "alloy-transport 1.8.3",
  "futures",
  "http 1.4.0",
  "rustls 0.23.36",
@@ -825,6 +1289,17 @@ dependencies = [
  "serde",
  "smallvec",
  "tracing",
+]
+
+[[package]]
+name = "alloy-tx-macros"
+version = "1.7.3"
+source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
+dependencies = [
+ "darling 0.21.3",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -3532,6 +4007,7 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
+ "serde",
  "strsim 0.11.1",
  "syn 2.0.114",
 ]
@@ -5078,7 +5554,7 @@ checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 name = "ethexe-blob-loader"
 version = "1.10.0"
 dependencies = [
- "alloy",
+ "alloy 1.8.3",
  "ethexe-common",
  "ethexe-ethereum",
  "futures",
@@ -5186,7 +5662,7 @@ dependencies = [
 name = "ethexe-consensus"
 version = "1.10.0"
 dependencies = [
- "alloy",
+ "alloy 1.8.3",
  "anyhow",
  "async-trait",
  "derive_more 2.1.1",
@@ -5220,7 +5696,7 @@ dependencies = [
 name = "ethexe-db"
 version = "1.10.0"
 dependencies = [
- "alloy",
+ "alloy 1.8.3",
  "anyhow",
  "auto_impl",
  "dashmap 5.5.3",
@@ -5254,7 +5730,7 @@ dependencies = [
 name = "ethexe-ethereum"
 version = "1.10.0"
 dependencies = [
- "alloy",
+ "alloy 1.8.3",
  "anyhow",
  "async-trait",
  "ethexe-common",
@@ -5313,7 +5789,7 @@ dependencies = [
 name = "ethexe-node-loader"
 version = "1.10.0"
 dependencies = [
- "alloy",
+ "alloy 1.8.3",
  "anyhow",
  "clap 4.5.54",
  "demo-syscalls-ethexe",
@@ -5354,7 +5830,7 @@ dependencies = [
 name = "ethexe-observer"
 version = "1.10.0"
 dependencies = [
- "alloy",
+ "alloy 1.8.3",
  "anyhow",
  "derive_more 2.1.1",
  "ethexe-common",
@@ -5500,7 +5976,7 @@ dependencies = [
 name = "ethexe-sdk"
 version = "1.10.0"
 dependencies = [
- "alloy",
+ "alloy 1.8.3",
  "anyhow",
  "ethexe-common",
  "ethexe-ethereum",
@@ -5518,7 +5994,7 @@ dependencies = [
 name = "ethexe-service"
 version = "1.10.0"
 dependencies = [
- "alloy",
+ "alloy 1.8.3",
  "anyhow",
  "async-broadcast",
  "async-trait",
@@ -7368,17 +7844,17 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "ahash",
- "alloy",
+ "alloy 1.7.3",
  "alloy-chains",
- "alloy-consensus",
- "alloy-contract",
- "alloy-eips",
+ "alloy-consensus 1.7.3",
+ "alloy-contract 1.7.3",
+ "alloy-eips 1.7.3",
  "alloy-json-abi",
  "alloy-primitives",
- "alloy-provider",
- "alloy-rpc-client",
- "alloy-rpc-types",
- "alloy-signer-local",
+ "alloy-provider 1.7.3",
+ "alloy-rpc-client 1.7.3",
+ "alloy-rpc-types 1.7.3",
+ "alloy-signer-local 1.7.3",
  "alloy-sol-macro",
  "alloy-sol-macro-expander",
  "alloy-sol-macro-input",
@@ -7447,6 +7923,7 @@ dependencies = [
  "event-listener-strategy",
  "finality-grandpa",
  "fixed-hash",
+ "foldhash 0.2.0",
  "form_urlencoded",
  "frame-executive",
  "frame-metadata 16.0.0",
@@ -7586,6 +8063,7 @@ dependencies = [
  "rustc-hash 2.1.1",
  "rustc-hex",
  "rustix 0.36.17",
+ "rustix 0.38.44",
  "rustix 1.1.3",
  "rustls 0.23.36",
  "rustls-webpki 0.103.8",
@@ -7603,7 +8081,6 @@ dependencies = [
  "sec1",
  "secp256k1 0.28.2",
  "secrecy",
- "security-framework 3.5.1",
  "security-framework-sys",
  "semver 1.0.27",
  "serde",
@@ -19073,6 +19550,22 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a9daff607c6d2bf6c16fd681ccb7eecc83e4e2cdc1ca067ffaadfca5de7f084"
+dependencies = [
+ "futures-util",
+ "log",
+ "rustls 0.23.36",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls 0.26.4",
+ "tungstenite 0.26.2",
+ "webpki-roots 0.26.11",
+]
+
+[[package]]
+name = "tokio-tungstenite"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
@@ -19515,6 +20008,25 @@ dependencies = [
  "sha1",
  "thiserror 1.0.69",
  "url",
+ "utf-8",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4793cb5e56680ecbb1d843515b23b6de9a75eb04b66643e256a396d43be33c13"
+dependencies = [
+ "bytes",
+ "data-encoding",
+ "http 1.4.0",
+ "httparse",
+ "log",
+ "rand 0.9.2",
+ "rustls 0.23.36",
+ "rustls-pki-types",
+ "sha1",
+ "thiserror 2.0.17",
  "utf-8",
 ]
 

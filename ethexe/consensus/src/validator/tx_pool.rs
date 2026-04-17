@@ -315,7 +315,7 @@ mod tests {
 
         let chain = test_block_chain(10)
             .tap_mut(|chain| {
-                chain.blocks[10].as_synced_mut().events = (0..97)
+                chain.blocks[10].synced.events = (0..97)
                     .map(|i| BlockEvent::Mirror {
                         actor_id: ActorId::from(i),
                         event: MirrorEvent::MessageQueueingRequested(

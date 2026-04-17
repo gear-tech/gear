@@ -177,10 +177,10 @@ pub fn test_block_chain_with_validators(len: u32, validators: ValidatorsVec) -> 
             let block = test_simple_block_data(index as u64);
             BlockFullData {
                 hash: block.hash,
-                synced: Some(SyncedBlockData {
+                synced: SyncedBlockData {
                     header: block.header,
                     events: Default::default(),
-                }),
+                },
                 prepared: Some(MockPreparedBlockData {
                     codes_queue: Default::default(),
                     announces: Some(Default::default()),

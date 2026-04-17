@@ -472,9 +472,9 @@ async fn test_aggregate_validators_commitment() {
     assert_eq!(commitment.era_index, 1);
 
     // Inside election period validators already committed
-    ctx.core
-        .db
-        .set_block_validators_committed_for_era(chain.blocks[7].hash, 1);
+    ctx.core.db.mutate_block_meta(chain.blocks[7].hash, |meta| {
+        meta.latest_era_validators_committed = 1;
+    });
     let commitment = ctx
         .core
         .batch_manager
@@ -486,7 +486,9 @@ async fn test_aggregate_validators_commitment() {
     // Election for era 2 but validators are not committed for era 1
     ctx.core
         .db
-        .set_block_validators_committed_for_era(chain.blocks[15].hash, 0);
+        .mutate_block_meta(chain.blocks[15].hash, |meta| {
+            meta.latest_era_validators_committed = 0;
+        });
     let commitment = ctx
         .core
         .batch_manager
@@ -500,7 +502,9 @@ async fn test_aggregate_validators_commitment() {
     // Election for era 2 but validators for era 3 are already committed
     ctx.core
         .db
-        .set_block_validators_committed_for_era(chain.blocks[15].hash, 3);
+        .mutate_block_meta(chain.blocks[15].hash, |meta| {
+            meta.latest_era_validators_committed = 3;
+        });
     ctx.core
         .batch_manager
         .aggregate_validators_commitment(&chain.blocks[15].to_simple())
