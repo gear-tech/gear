@@ -369,198 +369,238 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{Announce, Digest, HashOf, events::BlockEvent, mock::*};
+    use crate::tests::{
+        block_chain_strategy, distinct_code_ids_sorted, next_subservice_event, proptest_config,
+        run_async_test,
+    };
+    use ethexe_common::{
+        Announce, Digest, HashOf,
+        events::BlockEvent,
+        mock::{BlockChain, CodeData, Tap},
+    };
     use ethexe_db::Database;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::H256;
+    use proptest::{collection, prelude::*};
 
-    #[test]
-    fn test_prepare_one_block() {
-        gear_utils::init_default_logger();
-
-        let db = Database::memory();
-        let chain = BlockChain::mock(1).setup(&db);
-
-        let code1_id = CodeId::from([1u8; 32]);
-        let code2_id = CodeId::from([2u8; 32]);
-        let batch_committed = Digest::random();
-
-        let block1_announce_hash = HashOf::<Announce>::random();
-
-        let block = chain.blocks[1].to_simple().next_block();
-        let block = BlockData {
-            hash: block.hash,
-            header: block.header,
-            events: vec![
-                BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
-                    digest: batch_committed,
-                })),
-                BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
-                    block1_announce_hash,
-                ))),
-                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
-                    code_id: code1_id,
-                    valid: true,
-                })),
-                BlockEvent::Router(RouterEvent::CodeValidationRequested(
-                    CodeValidationRequestedEvent {
-                        code_id: code2_id,
-                        timestamp: 1000,
-                        tx_hash: H256::random(),
-                    },
-                )),
-            ],
-        }
-        .setup(&db);
-
-        prepare_one_block(&db, block.clone()).unwrap();
-
-        let meta = db.block_meta(block.hash);
-        assert!(meta.prepared);
-        assert_eq!(meta.codes_queue, Some(vec![code2_id].into()),);
-        assert_eq!(meta.last_committed_batch, Some(batch_committed),);
-        assert_eq!(meta.last_committed_announce, Some(block1_announce_hash));
+    fn announce_hash_strategy() -> BoxedStrategy<HashOf<Announce>> {
+        any::<[u8; 32]>()
+            .prop_map(H256::from)
+            .prop_map(|hash| unsafe { HashOf::new(hash) })
+            .boxed()
     }
 
-    #[tokio::test]
-    #[ntest::timeout(3000)]
-    async fn test_prepare_no_codes() {
-        gear_utils::init_default_logger();
-
-        let db = Database::memory();
-        let mut service = PrepareSubService::new(db.clone());
-        let chain = BlockChain::mock(1).setup(&db);
-        let block = chain.blocks[1].to_simple().next_block().setup(&db);
-
-        service.receive_block_to_prepare(block.hash);
-
-        assert_eq!(
-            service.next().await.unwrap(),
-            Event::BlockPrepared(block.hash),
-        );
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(3000)]
-    async fn test_prepare_with_codes() {
-        gear_utils::init_default_logger();
-
-        let db = Database::memory();
-        let mut service = PrepareSubService::new(db.clone());
-        let chain = BlockChain::mock(1).setup(&db);
-
-        let code1_id = CodeId::from([1u8; 32]);
-        let code2_id = CodeId::from([2u8; 32]);
-
-        let block = chain.blocks[1].to_simple().next_block();
-        let block = BlockData {
-            hash: block.hash,
-            header: block.header,
-            events: vec![
-                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
-                    code_id: code1_id,
-                    valid: true,
-                })),
-                BlockEvent::Router(RouterEvent::CodeValidationRequested(
-                    CodeValidationRequestedEvent {
-                        code_id: code2_id,
-                        timestamp: 1000,
-                        tx_hash: H256::random(),
-                    },
-                )),
-            ],
-        }
-        .setup(&db);
-
-        service.receive_block_to_prepare(block.hash);
-        assert_eq!(
-            service.next().await.unwrap(),
-            Event::RequestCodes([code1_id, code2_id].into())
-        );
-
-        service.receive_processed_code(code1_id);
-        assert_eq!(
-            service.next().await.unwrap(),
-            Event::BlockPrepared(block.hash),
-        );
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(3000)]
-    async fn test_sub_service_start_with_codes() {
-        gear_utils::init_default_logger();
-
-        let db = Database::memory();
-        let mut service = PrepareSubService::new(db.clone());
-
-        let validated_code_id = CodeId::from([1u8; 32]);
-        let requested_code_id = CodeId::from([2u8; 32]);
-        let parent_block_code_id = CodeId::from([3u8; 32]);
-
-        let code = b"1234";
-        let parent_block_loaded_code_id = CodeId::generate(code);
-
-        let chain = BlockChain::mock(1)
-            .tap_mut(|chain| {
-                chain.blocks[1].as_prepared_mut().codes_queue =
-                    [parent_block_code_id, parent_block_loaded_code_id].into();
-                chain.codes.insert(
-                    parent_block_loaded_code_id,
-                    CodeData {
-                        original_bytes: code.to_vec(),
-                        blob_info: Default::default(),
-                        instrumented: None,
-                    },
-                );
+    fn start_with_codes_strategy() -> BoxedStrategy<(BlockChain, Vec<CodeId>, Vec<u8>)> {
+        block_chain_strategy(1)
+            .prop_flat_map(|chain| {
+                collection::vec(any::<u8>(), 1..=16).prop_flat_map(move |code| {
+                    let loaded_code_id = CodeId::generate(&code);
+                    let chain = chain.clone();
+                    distinct_code_ids_sorted(3)
+                        .prop_filter(
+                            "extra code ids must differ from the preloaded parent code id",
+                            move |ids| !ids.contains(&loaded_code_id),
+                        )
+                        .prop_map(move |ids| (chain.clone(), ids, code.clone()))
+                })
             })
+            .boxed()
+    }
+
+    proptest! {
+        #![proptest_config(proptest_config(128))]
+
+        #[test]
+        fn test_prepare_one_block(
+            chain in block_chain_strategy(1),
+            code_ids in distinct_code_ids_sorted(2),
+            batch_committed in any::<[u8; 32]>().prop_map(Digest),
+            block1_announce_hash in announce_hash_strategy(),
+        ) {
+            gear_utils::init_default_logger();
+
+            let db = Database::memory();
+            let chain = chain.setup(&db);
+            let [code1_id, code2_id] = <[CodeId; 2]>::try_from(code_ids).unwrap();
+
+            let block = chain.blocks[1].to_simple().next_block();
+            let block = BlockData {
+                hash: block.hash,
+                header: block.header,
+                events: vec![
+                    BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
+                        digest: batch_committed,
+                    })),
+                    BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
+                        block1_announce_hash,
+                    ))),
+                    BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                        code_id: code1_id,
+                        valid: true,
+                    })),
+                    BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                        CodeValidationRequestedEvent {
+                            code_id: code2_id,
+                            timestamp: 1000,
+                            tx_hash: H256::random(),
+                        },
+                    )),
+                ],
+            }
             .setup(&db);
 
-        let block2 = chain.blocks[1].to_simple().next_block();
-        let block3 = block2.next_block();
+            prepare_one_block(&db, block.clone()).unwrap();
 
-        BlockData {
-            hash: block2.hash,
-            header: block2.header,
-            events: vec![BlockEvent::Router(RouterEvent::CodeGotValidated(
-                CodeGotValidatedEvent {
-                    code_id: validated_code_id,
-                    valid: true,
-                },
-            ))],
+            let meta = db.block_meta(block.hash);
+            prop_assert!(meta.prepared);
+            prop_assert_eq!(meta.codes_queue, Some(vec![code2_id].into()));
+            prop_assert_eq!(meta.last_committed_batch, Some(batch_committed));
+            prop_assert_eq!(meta.last_committed_announce, Some(block1_announce_hash));
         }
-        .setup(&db);
+    }
 
-        BlockData {
-            hash: block3.hash,
-            header: block3.header,
-            events: vec![BlockEvent::Router(RouterEvent::CodeValidationRequested(
-                CodeValidationRequestedEvent {
-                    code_id: requested_code_id,
-                    timestamp: 1000,
-                    tx_hash: H256::random(),
-                },
-            ))],
+    proptest! {
+        #![proptest_config(proptest_config(64))]
+
+        #[test]
+        fn test_prepare_no_codes(chain in block_chain_strategy(1)) {
+            gear_utils::init_default_logger();
+
+            run_async_test(async move {
+                let db = Database::memory();
+                let mut service = PrepareSubService::new(db.clone());
+                let chain = chain.setup(&db);
+                let block = chain.blocks[1].to_simple().next_block().setup(&db);
+
+                service.receive_block_to_prepare(block.hash);
+
+                assert_eq!(
+                    next_subservice_event(&mut service).await,
+                    Event::BlockPrepared(block.hash),
+                );
+            });
         }
-        .setup(&db);
 
-        service.receive_block_to_prepare(block3.hash);
-        assert_eq!(
-            service.next().await.unwrap(),
-            Event::RequestCodes(
-                [
-                    parent_block_code_id,
-                    parent_block_loaded_code_id,
-                    validated_code_id,
-                    requested_code_id
-                ]
-                .into()
-            )
-        );
+        #[test]
+        fn test_prepare_with_codes(chain in block_chain_strategy(1), code_ids in distinct_code_ids_sorted(2)) {
+            gear_utils::init_default_logger();
 
-        service.receive_processed_code(validated_code_id);
-        assert_eq!(
-            service.next().await.unwrap(),
-            Event::BlockPrepared(block3.hash),
-        );
+            run_async_test(async move {
+                let db = Database::memory();
+                let mut service = PrepareSubService::new(db.clone());
+                let chain = chain.setup(&db);
+                let [code1_id, code2_id] = <[CodeId; 2]>::try_from(code_ids).unwrap();
+
+                let block = chain.blocks[1].to_simple().next_block();
+                let block = BlockData {
+                    hash: block.hash,
+                    header: block.header,
+                    events: vec![
+                        BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                            code_id: code1_id,
+                            valid: true,
+                        })),
+                        BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                            CodeValidationRequestedEvent {
+                                code_id: code2_id,
+                                timestamp: 1000,
+                                tx_hash: H256::random(),
+                            },
+                        )),
+                    ],
+                }
+                .setup(&db);
+
+                service.receive_block_to_prepare(block.hash);
+                assert_eq!(
+                    next_subservice_event(&mut service).await,
+                    Event::RequestCodes([code1_id, code2_id].into())
+                );
+
+                service.receive_processed_code(code1_id);
+                assert_eq!(
+                    next_subservice_event(&mut service).await,
+                    Event::BlockPrepared(block.hash),
+                );
+            });
+        }
+
+        #[test]
+        fn test_sub_service_start_with_codes(
+            (chain, code_ids, code) in start_with_codes_strategy()
+        ) {
+            gear_utils::init_default_logger();
+
+            run_async_test(async move {
+                let db = Database::memory();
+                let mut service = PrepareSubService::new(db.clone());
+                let [validated_code_id, requested_code_id, parent_block_code_id] =
+                    <[CodeId; 3]>::try_from(code_ids).unwrap();
+                let parent_block_loaded_code_id = CodeId::generate(&code);
+
+                let chain = chain
+                    .tap_mut(|chain| {
+                        chain.blocks[1].as_prepared_mut().codes_queue =
+                            [parent_block_code_id, parent_block_loaded_code_id].into();
+                        chain.codes.insert(
+                            parent_block_loaded_code_id,
+                            CodeData {
+                                original_bytes: code.clone(),
+                                blob_info: Default::default(),
+                                instrumented: None,
+                            },
+                        );
+                    })
+                    .setup(&db);
+
+                let block2 = chain.blocks[1].to_simple().next_block();
+                let block3 = block2.next_block();
+
+                BlockData {
+                    hash: block2.hash,
+                    header: block2.header,
+                    events: vec![BlockEvent::Router(RouterEvent::CodeGotValidated(
+                        CodeGotValidatedEvent {
+                            code_id: validated_code_id,
+                            valid: true,
+                        },
+                    ))],
+                }
+                .setup(&db);
+
+                BlockData {
+                    hash: block3.hash,
+                    header: block3.header,
+                    events: vec![BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                        CodeValidationRequestedEvent {
+                            code_id: requested_code_id,
+                            timestamp: 1000,
+                            tx_hash: H256::random(),
+                        },
+                    ))],
+                }
+                .setup(&db);
+
+                service.receive_block_to_prepare(block3.hash);
+                assert_eq!(
+                    next_subservice_event(&mut service).await,
+                    Event::RequestCodes(
+                        [
+                            parent_block_code_id,
+                            parent_block_loaded_code_id,
+                            validated_code_id,
+                            requested_code_id
+                        ]
+                        .into()
+                    )
+                );
+
+                service.receive_processed_code(validated_code_id);
+                assert_eq!(
+                    next_subservice_event(&mut service).await,
+                    Event::BlockPrepared(block3.hash),
+                );
+            });
+        }
     }
 }
