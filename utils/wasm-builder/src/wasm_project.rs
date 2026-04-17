@@ -411,7 +411,8 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
         for (wasm_path, _) in &wasm_files {
             let code = fs::read(wasm_path)?;
 
-            validate_program(code)?;
+            let is_release = self.profile != "debug";
+            validate_program(code, is_release)?;
         }
 
         if env::var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING").as_deref() != Ok("1") {

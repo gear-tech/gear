@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, ensure};
 use gear_core::{
     code::{Code, CodeError, ExportError, ImportError},
     gas_metering::Schedule,
@@ -265,6 +265,12 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
     }
 }
 
+#[derive(Debug)]
+pub enum CodeKind {
+    Original,
+    Instrumented,
+}
+
 #[derive(Error, Debug)]
 #[error("code check failed: ")]
 pub enum CodeErrorWithContext {
@@ -273,6 +279,13 @@ pub enum CodeErrorWithContext {
     #[error("Import error: {0}")]
     Import(#[from] ImportErrorWithContext),
     Code(#[from] CodeError),
+    #[error(
+        "Code exceeds the limit {limit} bytes specified in the current schedule, code kind: {kind:?}"
+    )]
+    CodeTooLarge {
+        limit: u32,
+        kind: CodeKind,
+    },
 }
 
 impl CodeErrorWithContext {
@@ -295,10 +308,21 @@ impl CodeErrorWithContext {
 
 /// Validates wasm code in the same way as
 /// `pallet_gear::pallet::Pallet::upload_program(...)`.
-pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
+pub fn validate_program(code: Vec<u8>, check_len: bool) -> anyhow::Result<()> {
     let module = Module::new(&code)?;
     let schedule = Schedule::default();
-    match Code::try_new(
+
+    if check_len {
+        ensure!(
+            (code.len() as u32) <= schedule.limits.code_len,
+            CodeErrorWithContext::CodeTooLarge {
+                limit: schedule.limits.code_len,
+                kind: CodeKind::Original
+            }
+        );
+    }
+
+    let code = Code::try_new(
         code,
         schedule.instruction_weights.version,
         |module| schedule.rules(module),
@@ -306,8 +330,22 @@ pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
         schedule.limits.data_segments_amount.into(),
         schedule.limits.type_section_len.into(),
         schedule.limits.parameters.into(),
-    ) {
-        Ok(_) => Ok(()),
+    );
+
+    match code {
+        Ok(code) => {
+            if check_len {
+                ensure!(
+                    (code.instrumented_code().bytes().len() as u32) <= schedule.limits.code_len,
+                    CodeErrorWithContext::CodeTooLarge {
+                        limit: schedule.limits.code_len,
+                        kind: CodeKind::Instrumented
+                    }
+                );
+            }
+
+            Ok(())
+        }
         Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
     }
 }
