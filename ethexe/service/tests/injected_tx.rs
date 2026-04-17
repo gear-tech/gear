@@ -41,9 +41,7 @@ async fn send_injected_tx_join_us() {
     const VALIDATOR_RPC_URL: &str = "wss://validator-3-eth.vara.network";
     const DESTINATION: &str = "0x6286a1f8ebbd8b7d2ab75321f3f00b507d5ecc01";
     // SCALE-encoded payload: OneOfUs::JoinUs
-    const PAYLOAD: &[u8] = &[
-        0x1c, 0x4f, 0x6e, 0x65, 0x4f, 0x66, 0x55, 0x73, 0x18, 0x4a, 0x6f, 0x69, 0x6e, 0x55, 0x73,
-    ];
+    const PAYLOAD: &[u8] = "\u{1c}OneOfUs\u{18}JoinUs".as_bytes();
     const END_OF_SLOT_DELAY: u64 = 1;
 
     let client = WsClientBuilder::new()
@@ -101,7 +99,7 @@ async fn send_injected_tx_join_us() {
         .await
         .unwrap();
 
-    println!("Waiting for promise time({:?}) ...", start.elapsed());
+    println!("Waiting for promise (elapsed: {:?}) ...", start.elapsed());
 
     let promise = subscription
         .next()
