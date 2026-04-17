@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::validator::batch::{filler::BatchFiller, types::BatchParts};
+use crate::{
+    announces::AnnounceChainWalker,
+    validator::batch::{filler::BatchFiller, types::BatchParts},
+};
 
 use super::types::CodeNotValidatedError;
 
@@ -204,21 +207,21 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
             )
         })?;
 
-    // Amount of announces which we should check to determine if there are not-base announces in the commitment.
-    let Some(announces_to_check_amount) = commitment_delay_limit.checked_sub(head_delay) else {
+    // Number of blocks worth of announces to check for not-base announces in the commitment.
+    let Some(blocks_to_check) = commitment_delay_limit.checked_sub(head_delay) else {
         // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
         return Ok(None);
     };
 
-    if announces_to_check_amount == 0 {
+    if blocks_to_check == 0 {
         // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
         return Ok(None);
     }
 
-    let mut oldest_not_base_announce_depth = (!head_announce.is_base()).then_some(0);
-    let mut current_announce_hash = head_announce.parent;
+    let mut oldest_not_base_announce_depth = (!head_announce.is_base()).then_some(0u32);
+    let current_announce_hash = head_announce.parent;
 
-    if announces_to_check_amount == 1 {
+    if blocks_to_check == 1 {
         // If head announce is not base and older than commitment delay limit - 1, then expiry is only 1.
         return Ok(oldest_not_base_announce_depth.map(|_| 1));
     }
@@ -228,25 +231,31 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
         .last_committed_announce
         .ok_or_else(|| anyhow!("last committed announce not found for block {}", block.hash))?;
 
-    // from 1 because we have already checked head announce (note announces_to_check_amount > 1)
-    for i in 1..announces_to_check_amount {
-        if current_announce_hash == last_committed_announce {
+    // Walk backwards using the block-aware chain walker. blocks_seen starts at 1
+    // because the head announce's block is already counted.
+    let mut walker =
+        AnnounceChainWalker::with_seed(current_announce_hash, 1, head_announce.block_hash);
+
+    loop {
+        if walker.peek() == Some(last_committed_announce) {
             break;
         }
 
-        let current_announce = db
-            .announce(current_announce_hash)
-            .ok_or_else(|| anyhow!("Cannot get announce by {current_announce_hash}",))?;
+        let Some(step) = walker.step(db)? else { break };
 
-        if !current_announce.is_base() {
-            oldest_not_base_announce_depth = Some(i);
+        // Check is_base BEFORE the boundary break so we examine
+        // the announce at the CDL boundary, not skip it.
+        if !step.announce.is_base() {
+            oldest_not_base_announce_depth = Some(walker.blocks_seen);
         }
 
-        current_announce_hash = current_announce.parent;
+        if step.is_new_block && walker.blocks_seen >= blocks_to_check {
+            break;
+        }
     }
 
     Ok(oldest_not_base_announce_depth
-        .map(|depth| announces_to_check_amount - depth)
+        .map(|depth| blocks_to_check - depth)
         .map(TryInto::try_into)
         .transpose()?)
 }
@@ -449,6 +458,35 @@ mod tests {
             assert_eq!(
                 expiry, batch.expiry,
                 "Expiry should match the one in the batch commitment"
+            );
+        }
+
+        // Boundary block examination is verified by the prepare_chain_for_batch_commitment
+        // test above: chain has 3 not-base announces (blocks 1,2,3) with CDL=3.
+        // With fix: block 1 (at CDL boundary) is examined → depth=3, expiry=0.
+        // Before fix: block 1 skipped → depth=2, expiry=1 (wrong).
+        // The mock's expiry=0 confirms the boundary is examined correctly.
+        //
+        // Additional boundary test with explicit chain layout:
+        {
+            let db = Database::memory();
+            // Reuse prepare_chain_for_batch_commitment (3 blocks, all not-base, CDL=3)
+            let batch = prepare_chain_for_batch_commitment(&db);
+            let block = db.simple_block_data(batch.block_hash);
+            let head_hash = batch.chain_commitment.as_ref().unwrap().head_announce;
+
+            // With CDL=100 (much larger), all 3 blocks are within range.
+            // blocks_to_check = 100 - 0 = 100. All 3 not-base announces are counted.
+            // oldest depth = 3 (block 1). expiry = 100 - 3 = 97.
+            let expiry_large_cdl = calculate_batch_expiry(&db, &block, head_hash, 100)
+                .unwrap()
+                .unwrap();
+
+            // Block 3 is the oldest not-base at depth 3 (blocks_seen=3).
+            // blocks_to_check=3. Expiry = blocks_to_check - depth = 3 - 3 = 0... no.
+            assert_eq!(
+                expiry_large_cdl, 97,
+                "With large CDL, all 3 not-base announces counted, oldest at depth 3"
             );
         }
     }

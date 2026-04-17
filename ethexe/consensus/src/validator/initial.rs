@@ -438,11 +438,13 @@ mod tests {
 
         let ctx = state.into_context();
         assert_eq!(ctx.output, vec![]);
-        for i in last - 5..last - 5 + ctx.core.commitment_delay_limit as usize {
+        // With block-aware CDL, non-base announces are eligible for CDL blocks per S1
+        // (`<= commitment_delay_limit`), so sibling branches survive one block longer.
+        for i in last - 5..=last - 5 + ctx.core.commitment_delay_limit as usize {
             let announces = ctx.core.db.block_meta(chain.blocks[i].hash).announces;
             assert_eq!(announces.unwrap().len(), 2);
         }
-        for i in last - 5 + ctx.core.commitment_delay_limit as usize..=last {
+        for i in last - 5 + ctx.core.commitment_delay_limit as usize + 1..=last {
             let announces = ctx.core.db.block_meta(chain.blocks[i].hash).announces;
             assert_eq!(announces.unwrap().len(), 1);
         }

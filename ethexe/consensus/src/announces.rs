@@ -57,11 +57,16 @@
 //! ### STATEMENT3 (S3)
 //! About local announces propagation. For correctness, strict rules must be followed to propagate announces.
 //! If we have `block1` and `block2`, where `block2.parent == block1`, then
-//! for any announce from `block2.announces` next statements must be true:
+//! for any **base** announce from `block2.announces` next statements must be true:
 //! 1) `block1.announces.contains(announce.parent)`
 //! 2) `announce.chain.contains(block2.last_committed_announce)`
 //! 3) Any not-base announce1 from `announce.chain` is committed before `commitment_delay_limit`, except
-//!    maybe `commitment_delay_limit` newest announces in the `announce.chain`.
+//!    maybe `commitment_delay_limit` newest **blocks** in the `announce.chain`.
+//!
+//! Note: not-base announces (mini-announces) may have their parent in the **same** block's
+//! announce set rather than in `block1.announces`. This is because mini-announces chain
+//! within a single block (e.g., `base → mini2 → mini3` all for the same block).
+//! Only base announces are guaranteed to have their parent in the parent block.
 //!
 //! ## Theorem and Consequences
 //!
@@ -93,8 +98,8 @@ use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData,
     db::{
-        AnnounceStorageRW, BlockMetaStorageRW, GlobalsStorageRO, InjectedStorageRW,
-        OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRW, GlobalsStorageRO,
+        InjectedStorageRW, OnChainStorageRO,
     },
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
@@ -248,8 +253,7 @@ pub fn propagate_announces(
             &mut missing_announces,
         )?;
 
-        let mut new_base_announces = BTreeSet::new();
-        for parent_announce_hash in db
+        let parent_block_announces = db
             .block_meta(block.header.parent_hash)
             .announces
             .ok_or_else(|| {
@@ -257,8 +261,11 @@ pub fn propagate_announces(
                     "Parent block({}) announces are missing",
                     block.header.parent_hash
                 )
-            })?
-        {
+            })?;
+        let parent_leaf_announces = leaf_announces(db, &parent_block_announces)?;
+
+        let mut new_base_announces = BTreeSet::new();
+        for parent_announce_hash in parent_leaf_announces {
             if let Some(new_base_announce) = propagate_one_base_announce(
                 db,
                 block.hash,
@@ -321,12 +328,16 @@ fn recover_announces_chain_if_needed(
     // but later we receive event from ethereum that parent announce was committed,
     // than node should use previously rejected announce to recover the chain.
 
-    // Recover backwards the chain of committed announces till last included one
-    // According to T1, this chain must not be longer than commitment_delay_limit
+    // Recover backwards the chain of committed announces till last included one.
+    // According to T1, this chain must not span more than commitment_delay_limit blocks.
+    // Note: with mini-announces, multiple announce hops may occur within a single block,
+    // so we count block transitions rather than announce hops.
     let mut last_committed_announce_block_hash = None;
     let mut current_announce_hash = last_committed_announce_hash;
-    let mut count = 0;
-    while count < commitment_delay_limit && !db.is_announce_included(current_announce_hash) {
+    let mut blocks_seen = 0u32;
+    let mut prev_block_hash = None;
+
+    while !db.is_announce_included(current_announce_hash) {
         tracing::debug!(announce = %current_announce_hash, "Committed announces was not included yet, try to recover...");
 
         let announce = missing_announces.remove(&current_announce_hash).ok_or_else(|| {
@@ -335,10 +346,20 @@ fn recover_announces_chain_if_needed(
             )
         })?;
 
+        let is_new_block = prev_block_hash != Some(announce.block_hash);
+        if is_new_block {
+            blocks_seen += 1;
+            prev_block_hash = Some(announce.block_hash);
+            ensure!(
+                blocks_seen <= commitment_delay_limit,
+                "{current_announce_hash} is not included after checking \
+                 {commitment_delay_limit} blocks of announces",
+            );
+        }
+
         last_committed_announce_block_hash.get_or_insert(announce.block_hash);
 
         current_announce_hash = announce.parent;
-        count += 1;
 
         let (announce_hash, newly_included) = db.include_announce(announce)?;
         debug_assert!(
@@ -355,7 +376,7 @@ fn recover_announces_chain_if_needed(
     // If error: DB is corrupted, or incorrect commitment detected (have not-base announce committed after commitment delay limit)
     ensure!(
         db.is_announce_included(current_announce_hash),
-        "{current_announce_hash} is not included after checking {commitment_delay_limit} announces",
+        "{current_announce_hash} is not included after recovery across {blocks_seen} blocks",
     );
 
     // Recover forward the chain filling with base announces
@@ -398,6 +419,104 @@ fn recover_announces_chain_if_needed(
     Ok(())
 }
 
+/// Filter a set of announces to only include "leaves" — announces that are not
+/// the `.parent` of any other announce in the same set.
+///
+/// With mini-announces, a block may contain chained announces (e.g., `base → mini2 → mini3`).
+/// This function returns only the chain tips, preventing propagation from intermediate announces
+/// and ensuring set operations move strictly across block boundaries.
+fn leaf_announces(
+    db: &impl DBAnnouncesExt,
+    announces: &BTreeSet<HashOf<Announce>>,
+) -> Result<BTreeSet<HashOf<Announce>>> {
+    let parents_in_set: BTreeSet<HashOf<Announce>> = announces
+        .iter()
+        .map(|&h| {
+            db.announce(h)
+                .map(|a| a.parent)
+                .ok_or_else(|| anyhow!("Announce {h:?} not found"))
+        })
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .filter(|p| announces.contains(p))
+        .collect();
+    Ok(announces
+        .iter()
+        .filter(|h| !parents_in_set.contains(h))
+        .copied()
+        .collect())
+}
+
+/// Walks an announce chain backwards, tracking block transitions.
+///
+/// CDL is defined in blocks (not announce hops) per S1. This walker centralizes
+/// the block-transition counting logic so each call site only specifies its own
+/// termination condition and business logic.
+pub(crate) struct AnnounceChainWalker {
+    next: Option<HashOf<Announce>>,
+    /// Number of distinct blocks seen so far. Incremented on each block transition.
+    pub blocks_seen: u32,
+    prev_block_hash: Option<H256>,
+}
+
+pub(crate) struct AnnounceStep {
+    pub hash: HashOf<Announce>,
+    pub announce: Announce,
+    /// True when this announce belongs to a different block than the previous one.
+    pub is_new_block: bool,
+}
+
+impl AnnounceChainWalker {
+    pub fn new(start: HashOf<Announce>) -> Self {
+        Self {
+            next: Some(start),
+            blocks_seen: 0,
+            prev_block_hash: None,
+        }
+    }
+
+    /// Create a walker with pre-seeded block tracking state.
+    /// Used when the starting announce's block has already been counted.
+    pub fn with_seed(start: HashOf<Announce>, blocks_seen: u32, block_hash: H256) -> Self {
+        Self {
+            next: Some(start),
+            blocks_seen,
+            prev_block_hash: Some(block_hash),
+        }
+    }
+
+    /// The hash that the next `step()` call will fetch, or `None` if exhausted.
+    pub fn peek(&self) -> Option<HashOf<Announce>> {
+        self.next
+    }
+
+    /// Fetch the current announce, update block-transition tracking, and advance
+    /// the cursor to the announce's parent. Returns `None` when exhausted.
+    pub fn step(&mut self, db: &impl AnnounceStorageRO) -> Result<Option<AnnounceStep>> {
+        let Some(hash) = self.next.take() else {
+            return Ok(None);
+        };
+
+        let announce = db
+            .announce(hash)
+            .ok_or_else(|| anyhow!("Announce {hash} not found in db"))?;
+
+        let is_new_block = self.prev_block_hash != Some(announce.block_hash);
+        if is_new_block {
+            self.blocks_seen += 1;
+            self.prev_block_hash = Some(announce.block_hash);
+        }
+
+        self.next = Some(announce.parent);
+
+        Ok(Some(AnnounceStep {
+            hash,
+            announce,
+            is_new_block,
+        }))
+    }
+}
+
 /// Create a new base announce from provided parent announce hash,
 /// if it's not break the rules defined in S3.
 fn propagate_one_base_announce(
@@ -414,30 +533,23 @@ fn propagate_one_base_announce(
         "Trying propagating new base announce from parent announce",
     );
 
-    // Check that parent announce branch is not expired
+    // Check that parent announce branch is not expired.
     // The branch is expired if:
-    // 1. It does not includes last committed announce
-    // 2. If it includes not committed and not-base announce, which is older than commitment delay limit.
-    //
-    // We check here till commitment delay limit, because T1 guaranties that enough.
-    let mut current_announce_hash = parent_announce_hash;
-    for i in 0..commitment_delay_limit {
-        if current_announce_hash == last_committed_announce_hash {
-            // We found last committed announce in the branch, until commitment delay limit
-            // that means this branch is still not expired.
+    // 1. It does not include last committed announce
+    // 2. It includes a not-committed, not-base announce older than commitment_delay_limit blocks.
+    let mut walker = AnnounceChainWalker::new(parent_announce_hash);
+
+    loop {
+        if walker.peek() == Some(last_committed_announce_hash) {
+            // Found last committed announce in the branch — not expired.
             break;
         }
 
-        let current_announce = db
-            .announce(current_announce_hash)
-            .ok_or_else(|| anyhow!("announce({current_announce_hash}) not found"))?;
+        let Some(step) = walker.step(db)? else { break };
 
-        if i == commitment_delay_limit - 1 && !current_announce.is_base() {
-            // We reached the oldest announce in commitment delay limit which is not committed yet.
-            // This announce cannot be committed any more if it is not-base announce,
-            // so this branch is expired and we have to skip propagation from `parent`.
+        if walker.blocks_seen > commitment_delay_limit && !step.announce.is_base() {
             tracing::trace!(
-                predecessor = %current_announce_hash,
+                predecessor = %step.hash,
                 parent_announce = %parent_announce_hash,
                 "predecessor is too old and not-base, so parent announce branch is expired",
             );
@@ -446,20 +558,18 @@ fn propagate_one_base_announce(
 
         // Check neighbor announces to be last committed announce
         if db
-            .block_meta(current_announce.block_hash)
+            .block_meta(step.announce.block_hash)
             .announces
             .ok_or_else(|| {
                 anyhow!(
                     "announces are missing for block({})",
-                    current_announce.block_hash
+                    step.announce.block_hash
                 )
             })?
             .contains(&last_committed_announce_hash)
         {
-            // We found last committed announce in the neighbor branch, until commitment delay limit
-            // that means this branch is already expired.
             tracing::trace!(
-                predecessor = %current_announce_hash,
+                predecessor = %step.hash,
                 parent_announce = %parent_announce_hash,
                 last_committed_announce = %last_committed_announce_hash,
                 "neighbor announce branch contains last committed announce, so parent announce branch is expired",
@@ -467,7 +577,10 @@ fn propagate_one_base_announce(
             return Ok(None);
         };
 
-        current_announce_hash = current_announce.parent;
+        // Safety bound: cap at 2x CDL to prevent infinite loops on all-base chains.
+        if walker.blocks_seen > commitment_delay_limit * 2 {
+            break;
+        }
     }
 
     let new_base_announce = Announce::base(block_hash, parent_announce_hash);
@@ -553,7 +666,10 @@ pub fn check_for_missing_announces(
     }
 }
 
-/// Returns hash of announce from T1S2 or start_announce
+/// Returns hash of announce from T1S2 or start_announce.
+///
+/// Uses leaf filtering to collapse intra-block mini-announce chains before each step,
+/// ensuring each iteration moves to a strictly earlier block. Counts blocks, not announce hops.
 fn find_announces_common_predecessor(
     db: &impl DBAnnouncesExt,
     block_hash: H256,
@@ -561,10 +677,11 @@ fn find_announces_common_predecessor(
 ) -> Result<HashOf<Announce>> {
     let start_announce_hash = db.globals().start_announce_hash;
 
-    let mut announces = db
+    let all_announces = db
         .block_meta(block_hash)
         .announces
         .ok_or_else(|| anyhow!("announces not found for block {block_hash}"))?;
+    let mut announces = leaf_announces(db, &all_announces)?;
 
     for _ in 0..commitment_delay_limit {
         if announces.contains(&start_announce_hash) {
@@ -576,7 +693,8 @@ fn find_announces_common_predecessor(
             return Ok(start_announce_hash);
         }
 
-        announces = db.announces_parents(announces)?;
+        let parents = db.announces_parents(announces)?;
+        announces = leaf_announces(db, &parents)?;
     }
 
     if let Some(announce) = announces.iter().next()
@@ -601,12 +719,29 @@ pub fn best_parent_announce(
     block_hash: H256,
     commitment_delay_limit: u32,
 ) -> Result<HashOf<Announce>> {
-    // We do not take announces directly from parent block,
-    // because some of them may be expired at `block_hash`,
-    // so we take parents of all announces from `block_hash`,
-    // to be sure that we take only not expired parent announces.
-    let parent_announces =
-        db.announces_parents(db.block_meta(block_hash).announces.into_iter().flatten())?;
+    // We take parents of only base announces from `block_hash` when possible.
+    // Base announces are created by propagation and always point to the parent block.
+    // Mini-announces (not-base) may point within the same block, so their parents
+    // would be intra-block announces and should not be candidates.
+    // If no base announces exist (edge case, e.g., in test mocks), fall back to
+    // leaf announces which are the chain tips of the announce set.
+    let all_announces: BTreeSet<_> = db
+        .block_meta(block_hash)
+        .announces
+        .into_iter()
+        .flatten()
+        .collect();
+    let base_announces: BTreeSet<_> = all_announces
+        .iter()
+        .filter(|&&h| db.announce(h).is_some_and(|a| a.is_base()))
+        .copied()
+        .collect();
+    let candidates = if base_announces.is_empty() {
+        leaf_announces(db, &all_announces)?
+    } else {
+        base_announces
+    };
+    let parent_announces = db.announces_parents(candidates)?;
 
     best_announce(db, parent_announces, commitment_delay_limit)
 }
@@ -624,22 +759,27 @@ pub fn best_announce(
 
     let start_announce_hash = db.globals().start_announce_hash;
 
-    let announce_points = |mut announce_hash| -> Result<u32> {
+    // Score announces by counting not-base announces within commitment_delay_limit blocks.
+    let announce_points = |start: HashOf<Announce>| -> Result<u32> {
         let mut points = 0;
-        for _ in 0..commitment_delay_limit {
-            let announce = db
-                .announce(announce_hash)
-                .ok_or_else(|| anyhow!("Announce {announce_hash} not found in db"))?;
+        let mut walker = AnnounceChainWalker::new(start);
 
-            // Base announce gives 0 points, not-base - 1 point,
-            // in order to prefer not-base announces, when select best chain.
-            points += if announce.is_base() { 0 } else { 1 };
+        loop {
+            let Some(step) = walker.step(db)? else { break };
 
-            if announce_hash == start_announce_hash {
+            // Stop before entering the (CDL+1)th block.
+            // walker.blocks_seen is already incremented, so `>` here is equivalent
+            // to the original `>= CDL` check before increment.
+            if step.is_new_block && walker.blocks_seen > commitment_delay_limit {
                 break;
             }
 
-            announce_hash = announce.parent;
+            // Base announce gives 0 points, not-base - 1 point.
+            points += if step.announce.is_base() { 0 } else { 1 };
+
+            if step.hash == start_announce_hash {
+                break;
+            }
         }
 
         Ok(points)
@@ -914,7 +1054,10 @@ mod tests {
 
                 if i < wta {
                     assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
-                } else if i >= wta && i < wta + cdl {
+                } else if i >= wta && i <= wta + cdl {
+                    // With block-aware CDL, non-base announces are eligible for CDL blocks
+                    // per S1 (`<= commitment_delay_limit`), so sibling branches survive
+                    // one block longer than with the old announce-hop counting.
                     assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
                 } else {
                     assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
@@ -1044,6 +1187,190 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Creates a chain like `make_chain`, but instead of a sibling announce at `wta`,
+    /// creates chained mini-announces: `base → mini2 → mini3` (parent-child within same block).
+    fn make_chain_with_chained_announces(last: usize, fnp: usize, wta: usize) -> BlockChain {
+        let mut chain = BlockChain::mock(last as u32);
+        (fnp..=last).for_each(|i| {
+            chain.blocks[i]
+                .as_prepared_mut()
+                .announces
+                .take()
+                .iter()
+                .flatten()
+                .for_each(|announce_hash| {
+                    chain.announces.remove(announce_hash);
+                });
+        });
+
+        // The base announce at `wta` is already in the chain from BlockChain::mock.
+        let base_hash = chain.block_top_announce_hash(wta);
+
+        // mini2: parent = base (same block)
+        let mini2 = Announce::with_default_gas(chain.blocks[wta].hash, base_hash);
+        let mini2_hash = mini2.to_hash();
+        chain.blocks[wta]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .unwrap()
+            .insert(mini2_hash);
+        chain.announces.insert(
+            mini2_hash,
+            AnnounceData {
+                announce: mini2,
+                computed: None,
+            },
+        );
+
+        // mini3: parent = mini2 (same block)
+        let mini3 = Announce::with_default_gas(chain.blocks[wta].hash, mini2_hash);
+        let mini3_hash = mini3.to_hash();
+        chain.blocks[wta]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .unwrap()
+            .insert(mini3_hash);
+        chain.announces.insert(
+            mini3_hash,
+            AnnounceData {
+                announce: mini3,
+                computed: None,
+            },
+        );
+
+        chain
+    }
+
+    #[test]
+    fn leaf_announces_chained() {
+        let db = Database::memory();
+        let chain = BlockChain::mock(5).setup(&db);
+
+        let block_hash = chain.blocks[3].hash;
+        let base_hash = db.top_announce_hash(block_hash);
+
+        // Add mini2 (parent = base) to same block
+        let mini2 = Announce::with_default_gas(block_hash, base_hash);
+        let mini2_hash = mini2.to_hash();
+        db.include_announce(mini2).unwrap();
+
+        // Add mini3 (parent = mini2) to same block
+        let mini3 = Announce::with_default_gas(block_hash, mini2_hash);
+        let mini3_hash = mini3.to_hash();
+        db.include_announce(mini3).unwrap();
+
+        let all = db.block_meta(block_hash).announces.unwrap();
+        assert_eq!(all.len(), 3); // base, mini2, mini3
+
+        let leaves = leaf_announces(&db, &all).unwrap();
+        assert_eq!(leaves.len(), 1, "Only the chain tip should be a leaf");
+        assert!(leaves.contains(&mini3_hash));
+    }
+
+    #[test]
+    fn leaf_announces_siblings() {
+        let db = Database::memory();
+        // make_chain creates sibling announces (same parent, independent chains)
+        let chain = make_chain(5, 4, 3).setup(&db);
+
+        let block_hash = chain.blocks[3].hash;
+        let all = db.block_meta(block_hash).announces.unwrap();
+        assert_eq!(all.len(), 2);
+
+        let leaves = leaf_announces(&db, &all).unwrap();
+        // Both siblings are leaves (neither is the parent of the other)
+        assert_eq!(leaves.len(), 2, "Siblings should both be leaves");
+    }
+
+    #[test]
+    fn leaf_announces_single() {
+        let db = Database::memory();
+        let chain = BlockChain::mock(3).setup(&db);
+
+        let block_hash = chain.blocks[2].hash;
+        let all = db.block_meta(block_hash).announces.unwrap();
+        assert_eq!(all.len(), 1);
+
+        let leaves = leaf_announces(&db, &all).unwrap();
+        assert_eq!(leaves.len(), 1, "Single announce should be its own leaf");
+    }
+
+    #[test]
+    fn propagation_chained_no_growth() {
+        // With chained mini-announces (base → mini2 → mini3) at parent block,
+        // the next block should get exactly 1 base announce (from leaf mini3), not 3.
+        let db = Database::memory();
+        let chain = make_chain_with_chained_announces(6, 4, 3).setup(&db);
+
+        let blocks = db
+            .collect_blocks_without_announces(chain.blocks[6].hash)
+            .unwrap();
+        propagate_announces(&db, blocks, 10, Default::default()).unwrap();
+
+        // Block 3 has 3 announces (base + mini2 + mini3)
+        let (_, count_wta) = block_hash_and_announces_amount(&db, &chain, 3);
+        assert_eq!(count_wta, 3, "Block wta should have 3 announces");
+
+        // Block 4 should have exactly 1 announce (propagated from leaf mini3 only)
+        let (_, count_next) = block_hash_and_announces_amount(&db, &chain, 4);
+        assert_eq!(
+            count_next, 1,
+            "Next block should have 1 announce, not 3 (leaf filter)"
+        );
+    }
+
+    #[test]
+    fn best_announce_scores_across_blocks() {
+        // With CDL=5 and a block with 3 chained mini-announces,
+        // best_announce should score into ancestor blocks, not get stuck at 1 block.
+        let db = Database::memory();
+
+        // Create chain with chained minis at block 5, propagate blocks 6-10
+        let chain = make_chain_with_chained_announces(10, 6, 5).setup(&db);
+
+        let blocks = db
+            .collect_blocks_without_announces(chain.blocks[10].hash)
+            .unwrap();
+        propagate_announces(&db, blocks, 5, Default::default()).unwrap();
+
+        // Now test scoring on an announce from a later block
+        let block_10_announces = db.block_meta(chain.blocks[10].hash).announces.unwrap();
+        let announce_hash = *block_10_announces.iter().next().unwrap();
+
+        // Score should not error — the function should walk past the mini-announce block
+        let result = best_announce(&db, [announce_hash], 5);
+        assert!(
+            result.is_ok(),
+            "best_announce should handle chained mini-announces"
+        );
+    }
+
+    #[test]
+    fn best_parent_announce_returns_previous_block_parents() {
+        // After propagation, best_parent_announce should return an announce
+        // whose block_hash is different from the input block.
+        let db = Database::memory();
+        let chain = make_chain_with_chained_announces(8, 6, 5).setup(&db);
+
+        let blocks = db
+            .collect_blocks_without_announces(chain.blocks[8].hash)
+            .unwrap();
+        propagate_announces(&db, blocks, 10, Default::default()).unwrap();
+
+        let result = best_parent_announce(&db, chain.blocks[7].hash, 10);
+        assert!(result.is_ok());
+        let parent_hash = result.unwrap();
+
+        // The parent announce should be from a previous block, not block 7
+        let parent_announce = db.announce(parent_hash).unwrap();
+        assert_ne!(
+            parent_announce.block_hash, chain.blocks[7].hash,
+            "best_parent_announce should return an announce from a previous block"
+        );
     }
 
     #[test]

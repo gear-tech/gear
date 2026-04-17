@@ -1,3 +1,6 @@
+# claude code
+.claude/worktrees/
+
 # misc
 .binpath
 log/

@@ -1,0 +1,8 @@
+{
+  "track_id": "ethexe_version_20260123",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-23T12:00:00Z",
+  "updated_at": "2026-01-23T12:00:00Z",
+  "description": "implement --version arg for ethexe-cli to output version string like 0.1.0-123abcd"
+}

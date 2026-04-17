@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{
     ConsensusEvent,
-    announces::{self, AnnounceStatus},
+    announces::{self, AnnounceRejectionReason, AnnounceStatus},
     validator::participant::Participant,
 };
 use anyhow::Result;
@@ -30,6 +30,7 @@ use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Announce, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    db::AnnounceStorageRO,
 };
 use std::mem;
 
@@ -41,6 +42,11 @@ const MAX_PENDING_EVENTS: usize = 10;
 /// [`Subordinate`] is the state of the validator which is not a producer.
 /// It waits for the producer block, the waits for the block computing
 /// and then switches to [`Participant`] state.
+///
+/// After computing the base announce, the subordinate loops back to
+/// `WaitingForAnnounce` to accept mini-announces from the same producer.
+/// When a validation request arrives whose head announce is already computed,
+/// the subordinate transitions to `Participant`.
 #[derive(Debug, Display)]
 #[display("SUBORDINATE in {:?}", self.state)]
 pub struct Subordinate {
@@ -71,31 +77,63 @@ impl StateHandler for Subordinate {
     }
 
     fn process_computed_announce(
-        self,
+        mut self,
         computed_announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed { announce_hash }
                 if *announce_hash == computed_announce_hash =>
             {
-                if self.is_validator {
-                    Participant::create(self.ctx, self.block, self.producer)
-                } else {
-                    Initial::create(self.ctx)
-                }
+                // Announce computed. Loop back to WaitingForAnnounce to accept
+                // mini-announces or validation requests from the producer.
+                self.state = State::WaitingForAnnounce;
+
+                // Check pending for VR or mini-announce that arrived during computation.
+                self.process_pending_after_compute()
             }
             _ => DefaultProcessing::computed_announce(self, computed_announce_hash),
         }
     }
 
     fn process_announce(mut self, verified_announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        match &mut self.state {
+        match &self.state {
             State::WaitingForAnnounce
                 if verified_announce.address() == self.producer
                     && verified_announce.data().block_hash == self.block.hash =>
             {
-                let (announce, _pub_key) = verified_announce.into_parts();
-                self.send_announce_for_computation(announce)
+                let (announce, _pub_key) = verified_announce.clone().into_parts();
+                match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
+                    AnnounceStatus::Accepted(announce_hash) => {
+                        self.transition_to_computing(announce_hash, announce);
+                        Ok(self.into())
+                    }
+                    AnnounceStatus::Rejected {
+                        reason: AnnounceRejectionReason::UnknownParent { .. },
+                        ..
+                    } => {
+                        // Parent not yet included — defer to pending.
+                        // Gossip reordering can cause the child to arrive before the parent.
+                        if self.ctx.pending_events.len() < MAX_PENDING_EVENTS {
+                            tracing::trace!(
+                                "Announce parent not yet included, deferring to pending"
+                            );
+                            self.ctx.pending(verified_announce);
+                        } else {
+                            tracing::trace!(
+                                "Announce parent not yet included but pending queue full, dropping"
+                            );
+                        }
+                        Ok(self.into())
+                    }
+                    AnnounceStatus::Rejected { announce, reason } => {
+                        self.ctx
+                            .output(ConsensusEvent::AnnounceRejected(announce.to_hash()));
+                        self.warning(format!(
+                            "Received announce {announce:?} is rejected: {reason:?}"
+                        ));
+                        Initial::create(self.ctx)
+                    }
+                }
             }
             _ => DefaultProcessing::announce_from_producer(self, verified_announce),
         }
@@ -105,15 +143,40 @@ impl StateHandler for Subordinate {
         mut self,
         request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
-        if request.address() == self.producer {
-            tracing::trace!(
-                "Receive validation request from producer: {request:?}, saved for later."
-            );
-            self.ctx.pending(request);
+        match &self.state {
+            State::WaitingForAnnounce
+                if request.address() == self.producer && self.is_validator =>
+            {
+                // Check if VR's head announce is already computed.
+                let head_computed = request
+                    .data()
+                    .head
+                    .is_none_or(|h| self.ctx.core.db.announce_meta(h).computed);
 
-            Ok(self.into())
-        } else {
-            DefaultProcessing::validation_request(self, request)
+                if head_computed {
+                    // All announces computed, ready to validate.
+                    self.ctx.pending(request);
+                    Participant::create(self.ctx, self.block, self.producer)
+                } else {
+                    // VR arrived before its head announce was computed.
+                    // Save to pending — will be retried after next announce computes.
+                    tracing::trace!("VR head announce not yet computed, deferring to pending");
+                    self.ctx.pending(request);
+                    Ok(self.into())
+                }
+            }
+            State::WaitingForAnnounce if request.address() == self.producer => {
+                // Non-validator: VR is meaningless, drop it.
+                Ok(self.into())
+            }
+            _ if request.address() == self.producer => {
+                tracing::trace!(
+                    "Receive validation request from producer: {request:?}, saved for later."
+                );
+                self.ctx.pending(request);
+                Ok(self.into())
+            }
+            _ => DefaultProcessing::validation_request(self, request),
         }
     }
 }
@@ -168,17 +231,40 @@ impl Subordinate {
         }
     }
 
+    /// After an announce computes, check pending events for:
+    /// - Mini-announces that can now be accepted (parent just got included)
+    /// - Validation requests whose head is now computed
+    fn process_pending_after_compute(mut self) -> Result<ValidatorState> {
+        let pending = mem::take(&mut self.ctx.pending_events);
+        let mut state: ValidatorState = self.into();
+
+        // Process oldest-first so parent announces are handled before children.
+        for event in pending.into_iter().rev() {
+            state = match event {
+                PendingEvent::Announce(announce) => state.process_announce(announce)?,
+                PendingEvent::ValidationRequest(request) => {
+                    state.process_validation_request(request)?
+                }
+            };
+        }
+
+        Ok(state)
+    }
+
+    fn transition_to_computing(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
+        self.ctx
+            .output(ConsensusEvent::AnnounceAccepted(announce_hash));
+        self.ctx.output(ConsensusEvent::ComputeAnnounce(
+            announce,
+            PromisePolicy::Disabled,
+        ));
+        self.state = State::WaitingAnnounceComputed { announce_hash };
+    }
+
     fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
         match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
             AnnounceStatus::Accepted(announce_hash) => {
-                self.ctx
-                    .output(ConsensusEvent::AnnounceAccepted(announce_hash));
-                self.ctx.output(ConsensusEvent::ComputeAnnounce(
-                    announce,
-                    PromisePolicy::Disabled,
-                ));
-                self.state = State::WaitingAnnounceComputed { announce_hash };
-
+                self.transition_to_computing(announce_hash, announce);
                 Ok(self.into())
             }
             AnnounceStatus::Rejected { announce, reason } => {
@@ -357,17 +443,14 @@ mod tests {
             ]
         );
 
-        // After announce is computed, subordinate switches to participant state.
+        // After announce is computed, subordinate stays in WaitingForAnnounce
+        // (ready for mini-announces or VR). No immediate Participant transition.
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();
-        assert!(s.is_participant(), "got {s:?}");
-        assert_eq!(
-            s.context().output,
-            vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone(), PromisePolicy::Disabled)
-            ]
+        assert!(
+            s.is_subordinate(),
+            "should stay subordinate after compute, got {s:?}"
         );
     }
 
@@ -397,11 +480,12 @@ mod tests {
             ]
         );
 
-        // After announce is computed, not-validator subordinate switches to initial state.
+        // After announce is computed, non-validator subordinate stays in WaitingForAnnounce too.
+        // It will transition to Initial on the next new_head.
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();
-        assert!(s.is_initial(), "got {s:?}");
+        assert!(s.is_subordinate(), "got {s:?}");
     }
 
     #[test]
@@ -465,33 +549,35 @@ mod tests {
     }
 
     #[test]
-    fn reject_announce_from_producer() {
+    fn defer_announce_with_unknown_parent() {
         let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
         let chain = test_block_chain(1).setup(&ctx.core.db);
         let block = chain.blocks[1].to_simple();
+
+        // Create an announce whose parent is NOT in DB (simulates gossip reordering).
+        let announce_with_unknown_parent = Announce {
+            block_hash: block.hash,
+            parent: HashOf::random(),
+            gas_allowance: Some(42),
+            injected_transactions: vec![],
+        };
         let announce = ctx
             .core
             .signer
-            .verified_test_data(producer, chain.block_top_announce(1).announce.clone());
+            .verified_test_data(producer, announce_with_unknown_parent);
 
-        // Subordinate waits for block prepared and announce after creation.
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
-        assert_eq!(s.context().output, vec![]);
 
-        // After receiving invalid announce - subordinate rejects it and switches to initial state.
-        let s = s.process_announce(announce.clone()).unwrap();
-        assert!(s.is_initial(), "got {s:?}");
-        assert_eq!(s.context().output.len(), 2);
+        // Announce with unknown parent is deferred to pending (not rejected).
+        let s = s.process_announce(announce).unwrap();
+        assert!(s.is_subordinate(), "got {s:?}");
+        assert_eq!(s.context().output.len(), 0);
         assert_eq!(
-            s.context().output[0],
-            ConsensusEvent::AnnounceRejected(announce.data().to_hash())
-        );
-        assert!(
-            s.context().output[1].is_warning(),
-            "got {:?}",
-            s.context().output[1]
+            s.context().pending_events.len(),
+            1,
+            "Announce should be saved to pending for later replay"
         );
     }
 }

@@ -310,13 +310,21 @@ pub(crate) mod utils {
     ) -> Result<ExecutableData> {
         let block_hash = announce.block_hash;
 
-        let matured_events =
-            find_canonical_events_post_quarantine(db, block_hash, canonical_quarantine)?;
-
-        let events = matured_events
-            .into_iter()
-            .filter_map(|event| event.to_request())
-            .collect();
+        // Check if parent announce is for the same block (mini-announce case).
+        // If so, canonical events were already processed by the parent — skip them.
+        let is_same_block = db
+            .announce(announce.parent)
+            .is_some_and(|parent| parent.block_hash == block_hash);
+        let events = if is_same_block {
+            vec![]
+        } else {
+            let matured_events =
+                find_canonical_events_post_quarantine(db, block_hash, canonical_quarantine)?;
+            matured_events
+                .into_iter()
+                .filter_map(|event| event.to_request())
+                .collect()
+        };
 
         Ok(ExecutableData {
             block: SimpleBlockData {

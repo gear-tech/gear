@@ -294,7 +294,7 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
         block_hash: block3.hash,
         timestamp: block3.header.timestamp,
         previous_batch: Digest::zero(),
-        expiry: 1,
+        expiry: 0,
         chain_commitment: Some(ChainCommitment {
             transitions: [transitions1, transitions2].concat(),
             head_announce: db.top_announce_hash(block3.hash),
