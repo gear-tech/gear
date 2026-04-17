@@ -22,6 +22,8 @@ use ethexe_common::gear::{
     ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
 };
 
+// TODO: Squash transitions before charging size so repeated actors are counted
+// against the actual committed payload rather than the pre-squash input.
 /// Stateful helper used by [`BatchCommitmentManager`](super::manager::BatchCommitmentManager)
 /// to assemble a candidate batch commitment under protocol size and deepness limits.
 ///

@@ -274,7 +274,7 @@ pub fn squash_transitions_by_actor(transitions: Vec<StateTransition>) -> Vec<Sta
                 aggregations.push(ActorAggregation::new(transition));
             }
             Entry::Occupied(entry) => {
-                aggregations[*entry.get()].absorb(transition);
+                aggregations[*entry.get()].join(transition);
             }
         }
     }
@@ -313,7 +313,7 @@ impl ActorAggregation {
         }
     }
 
-    fn absorb(&mut self, mut transition: StateTransition) {
+    fn join(&mut self, mut transition: StateTransition) {
         let actor_id = transition.actor_id;
         self.messages.append(&mut transition.messages);
         self.value_claims.append(&mut transition.value_claims);
