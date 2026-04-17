@@ -29,7 +29,7 @@ use alloy::sol_types::SolValue;
 use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ToDigest,
-    consensus::{BatchCommitmentValidationRequest, MAX_BATCH_SIZE_LIMIT},
+    consensus::BatchCommitmentValidationRequest,
     db::{AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, OnChainStorageRO},
     gear::{BatchCommitment, ChainCommitment, RewardsCommitment, ValidatorsCommitment},
 };
@@ -297,7 +297,7 @@ impl BatchCommitmentManager {
         }
 
         let batch_encoded_size = Gear::BatchCommitment::from(batch).abi_encoded_size() as u64;
-        if batch_encoded_size > MAX_BATCH_SIZE_LIMIT {
+        if batch_encoded_size > self.limits.batch_size_limit {
             return Ok(ValidationStatus::Rejected {
                 request,
                 reason: ValidationRejectReason::BatchSizeLimitExceeded,
