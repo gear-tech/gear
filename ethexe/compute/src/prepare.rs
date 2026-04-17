@@ -370,7 +370,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
 mod tests {
     use super::*;
     use crate::tests::{
-        block_chain_strategy, distinct_code_ids_sorted, next_subservice_event, run_async_test,
+        block_chain_strategy, distinct_code_ids_sorted, next_subservice_event, proptest_config,
+        run_async_test,
     };
     use ethexe_common::{
         Announce, Digest, HashOf,
@@ -407,7 +408,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(128))]
+        #![proptest_config(proptest_config(128))]
 
         #[test]
         fn test_prepare_one_block(
@@ -459,7 +460,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(64))]
+        #![proptest_config(proptest_config(64))]
 
         #[test]
         fn test_prepare_no_codes(chain in block_chain_strategy(1)) {

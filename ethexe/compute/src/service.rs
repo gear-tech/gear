@@ -137,7 +137,9 @@ pub(crate) trait SubService: Unpin + Send + 'static {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{MockProcessor, block_chain_strategy, next_compute_event, run_async_test};
+    use crate::tests::{
+        MockProcessor, block_chain_strategy, next_compute_event, proptest_config, run_async_test,
+    };
     use ethexe_common::{
         CodeAndIdUnchecked,
         db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO},
@@ -149,7 +151,7 @@ mod tests {
     use proptest::{collection, prelude::*};
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(64))]
+        #![proptest_config(proptest_config(64))]
 
         #[test]
         fn prepare_block(chain in block_chain_strategy(1)) {

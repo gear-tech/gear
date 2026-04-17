@@ -49,6 +49,7 @@ thread_local! {
 
 pub(crate) const ASYNC_EVENT_TIMEOUT: Duration = Duration::from_secs(3);
 const NO_EVENT_TIMEOUT: Duration = Duration::from_millis(500);
+const PROPTEST_TIMEOUT_MS: u32 = 60_000;
 
 pub(crate) fn block_chain_strategy(len: u32) -> BoxedStrategy<BlockChain> {
     any_with::<BlockChain>(BlockChainParams::from(len)).boxed()
@@ -86,6 +87,14 @@ pub(crate) async fn assert_no_compute_event<P: ProcessorExt>(compute: &mut Compu
         timeout(NO_EVENT_TIMEOUT, compute.next()).await.is_err(),
         "unexpected follow-up compute event"
     );
+}
+
+pub(crate) fn proptest_config(cases: u32) -> ProptestConfig {
+    ProptestConfig {
+        cases,
+        timeout: PROPTEST_TIMEOUT_MS,
+        ..ProptestConfig::default()
+    }
 }
 
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
@@ -309,7 +318,7 @@ fn single_block_chain_with_event_count_strategy() -> BoxedStrategy<(BlockChain, 
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(64))]
+    #![proptest_config(proptest_config(64))]
 
     #[test]
     fn block_computation_basic((chain, events_in_block) in chain_with_event_count_strategy()) {

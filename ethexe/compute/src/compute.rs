@@ -407,7 +407,7 @@ mod tests {
         ComputeService,
         tests::{
             MockProcessor, block_chain_strategy, next_compute_event, next_subservice_event,
-            run_async_test,
+            proptest_config, run_async_test,
         },
     };
     use ethexe_common::{
@@ -555,7 +555,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(32))]
+        #![proptest_config(proptest_config(32))]
 
         #[test]
         fn test_compute(
@@ -602,7 +602,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(64))]
+        #![proptest_config(proptest_config(64))]
 
         #[test]
         fn test_compute_with_promises(
@@ -762,7 +762,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(128))]
+        #![proptest_config(proptest_config(128))]
 
         #[test]
         fn collect_not_computed_predecessors_work_correctly(
