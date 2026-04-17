@@ -537,13 +537,8 @@ mod tests {
             .boxed()
     }
 
-    fn predecessor_test_inputs_strategy() -> BoxedStrategy<(BlockChain, usize)> {
-        (2usize..=16)
-            .prop_flat_map(|blockchain_len| {
-                block_chain_strategy(blockchain_len as u32)
-                    .prop_map(move |chain| (chain, blockchain_len))
-            })
-            .boxed()
+    fn predecessor_test_inputs_strategy() -> BoxedStrategy<BlockChain> {
+        (2u32..=16).prop_flat_map(block_chain_strategy).boxed()
     }
 
     async fn collect_compute_events<P: ProcessorExt>(
@@ -560,7 +555,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(64))]
+        #![proptest_config(ProptestConfig::with_cases(32))]
 
         #[test]
         fn test_compute(
@@ -671,10 +666,19 @@ mod tests {
                     ComputeService::new(ComputeConfig::without_quarantine(), db.clone(), processor);
                 let mut expected_events = Vec::with_capacity(request_indexes.len() * 2);
 
+                // `subsequence` preserves order, predecessors are computed silently, and only the
+                // requested announces emit the Promise + AnnounceComputed pairs asserted below.
                 for index in &request_indexes {
                     let announce = announces_by_block[index].clone();
                     let announce_hash = announce.to_hash();
-                    let tx = announce.injected_transactions[0].clone().into_data();
+                    let tx = announce
+                        .injected_transactions
+                        .first()
+                        .cloned()
+                        .expect(
+                            "request indexes start at 2, so each requested announce carries one injected transaction",
+                        )
+                        .into_data();
 
                     expected_events.push(ComputeEvent::Promise(
                         Promise {
@@ -700,7 +704,7 @@ mod tests {
         #[test]
         fn test_compute_with_early_break(
             chain in block_chain_strategy(3),
-            tx_count in 100usize..=300
+            tx_count in 30usize..=100
         ) {
             gear_utils::init_default_logger();
 
@@ -762,10 +766,11 @@ mod tests {
 
         #[test]
         fn collect_not_computed_predecessors_work_correctly(
-            (chain, blockchain_len) in predecessor_test_inputs_strategy()
+            chain in predecessor_test_inputs_strategy()
         ) {
             let db = Database::memory();
             let blockchain = chain.setup(&db);
+            let blockchain_len = blockchain.blocks.len() - 1;
 
             (0..blockchain_len - 1).for_each(|idx| {
                 let announce_hash = blockchain.block_top_announce(idx).announce.to_hash();

@@ -54,7 +54,7 @@ pub(crate) fn block_chain_strategy(len: u32) -> BoxedStrategy<BlockChain> {
     any_with::<BlockChain>(BlockChainParams::from(len)).boxed()
 }
 
-pub(crate) fn distinct_code_ids(count: usize) -> BoxedStrategy<Vec<CodeId>> {
+pub(crate) fn distinct_code_ids_sorted(count: usize) -> BoxedStrategy<Vec<CodeId>> {
     collection::btree_set(any::<[u8; 32]>().prop_map(CodeId::from), count)
         .prop_map(|ids| ids.into_iter().collect())
         .boxed()
@@ -197,7 +197,7 @@ fn insert_code_events(chain: &mut BlockChain, events_in_block: u32) {
     }
 }
 
-fn mark_as_not_prepared(chain: &mut BlockChain) {
+fn reset_to_unprepared(chain: &mut BlockChain) {
     // skip genesis
     for block in chain.blocks.iter_mut().skip(1) {
         block.prepared = None;
@@ -221,7 +221,7 @@ impl TestEnv {
         let db = Database::memory();
 
         insert_code_events(&mut chain, events_in_block);
-        mark_as_not_prepared(&mut chain);
+        reset_to_unprepared(&mut chain);
         chain = chain.setup(&db);
 
         let compute = ComputeService::new_with_defaults(db.clone());
@@ -444,7 +444,7 @@ proptest! {
             db.set_code_valid(code_id, true);
 
             let mut chain = chain;
-            mark_as_not_prepared(&mut chain);
+            reset_to_unprepared(&mut chain);
             let chain = chain.setup(&db);
             let block_hash = chain.blocks[1].hash;
 
@@ -486,7 +486,7 @@ proptest! {
             let code_id = db.set_original_code(&code);
 
             let mut chain = chain;
-            mark_as_not_prepared(&mut chain);
+            reset_to_unprepared(&mut chain);
             let chain = chain.setup(&db);
             let block_hash = chain.blocks[1].hash;
 

@@ -370,7 +370,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
 mod tests {
     use super::*;
     use crate::tests::{
-        block_chain_strategy, distinct_code_ids, next_subservice_event, run_async_test,
+        block_chain_strategy, distinct_code_ids_sorted, next_subservice_event, run_async_test,
     };
     use ethexe_common::{
         Announce, Digest, HashOf,
@@ -395,7 +395,7 @@ mod tests {
                 collection::vec(any::<u8>(), 1..=16).prop_flat_map(move |code| {
                     let loaded_code_id = CodeId::generate(&code);
                     let chain = chain.clone();
-                    distinct_code_ids(3)
+                    distinct_code_ids_sorted(3)
                         .prop_filter(
                             "extra code ids must differ from the preloaded parent code id",
                             move |ids| !ids.contains(&loaded_code_id),
@@ -412,7 +412,7 @@ mod tests {
         #[test]
         fn test_prepare_one_block(
             chain in block_chain_strategy(1),
-            code_ids in distinct_code_ids(2),
+            code_ids in distinct_code_ids_sorted(2),
             batch_committed in any::<[u8; 32]>().prop_map(Digest),
             block1_announce_hash in announce_hash_strategy(),
         ) {
@@ -481,7 +481,7 @@ mod tests {
         }
 
         #[test]
-        fn test_prepare_with_codes(chain in block_chain_strategy(1), code_ids in distinct_code_ids(2)) {
+        fn test_prepare_with_codes(chain in block_chain_strategy(1), code_ids in distinct_code_ids_sorted(2)) {
             gear_utils::init_default_logger();
 
             run_async_test(async move {
