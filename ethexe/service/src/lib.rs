@@ -78,7 +78,7 @@ use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeI
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use futures::{StreamExt, stream::FuturesUnordered};
+use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
 use std::{
@@ -828,11 +828,13 @@ impl GenesisInitializer for GenesisInitializerFromFile {
 
     fn process_code(&mut self, code_id: CodeId, code: Vec<u8>) -> ethexe_db::CodeProcessingFuture {
         let mut cloned_processor = self.processor.clone();
-        let func = move || {
+        async move {
             let ProcessedCodeInfo {
                 code_id: _,
                 valid: info,
-            } = cloned_processor.process_code(CodeAndIdUnchecked { code_id, code })?;
+            } = cloned_processor
+                .process_code(CodeAndIdUnchecked { code_id, code })
+                .await?;
 
             let Some(ValidCodeInfo {
                 code: _,
@@ -844,7 +846,7 @@ impl GenesisInitializer for GenesisInitializerFromFile {
             };
 
             Ok(Some((instrumented_code, code_metadata)))
-        };
-        Box::pin(async move { func() })
+        }
+        .boxed()
     }
 }
