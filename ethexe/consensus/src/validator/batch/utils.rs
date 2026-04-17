@@ -152,7 +152,9 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
     let max_depth = pending.len() as u32;
 
     for (depth, announce_hash) in pending.into_iter().enumerate() {
-        let transitions = super::utils::announce_transitions(&db, announce_hash)?;
+        let Some(transitions) = db.announce_outcome(announce_hash) else {
+            anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
+        };
         let commitment = ChainCommitment {
             head_announce: announce_hash,
             transitions,
@@ -166,18 +168,6 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
         }
     }
     Ok((final_announce, max_depth))
-}
-
-pub fn announce_transitions<DB: AnnounceStorageRO>(
-    db: &DB,
-    announce_hash: HashOf<Announce>,
-) -> Result<Vec<StateTransition>> {
-    let Some(mut announce_transitions) = db.announce_outcome(announce_hash) else {
-        anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
-    };
-
-    sort_transitions_by_value_to_receive(&mut announce_transitions);
-    Ok(announce_transitions)
 }
 
 pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
@@ -259,10 +249,9 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
 /// For each actor, the newest transition (last in chronological order) provides the
 /// `new_state_hash`. Messages, value claims, and `value_to_receive` are accumulated
 /// from all transitions. If any transition marks the actor as exited, the resulting
-/// inheritor is taken from the newest exit transition. The returned transitions are
-/// stably re-sorted so negative `value_to_receive` entries run before non-negative
-/// ones during on-chain execution, allowing the router to collect outgoing value
-/// before funding receivers in the same batch.
+/// inheritor is taken from the newest exit transition. The returned transitions
+/// preserve the order in which each actor first appeared; callers apply any
+/// later ordering required for commitment encoding or execution.
 pub fn squash_transitions_by_actor(transitions: Vec<StateTransition>) -> Vec<StateTransition> {
     let mut positions = HashMap::new();
     let mut aggregations = Vec::new();
@@ -279,12 +268,10 @@ pub fn squash_transitions_by_actor(transitions: Vec<StateTransition>) -> Vec<Sta
         }
     }
 
-    let mut squashed = aggregations
+    aggregations
         .into_iter()
         .map(|aggregation| aggregation.finish())
-        .collect::<Vec<_>>();
-    sort_transitions_by_value_to_receive(&mut squashed);
-    squashed
+        .collect()
 }
 
 struct ActorAggregation {
@@ -315,6 +302,7 @@ impl ActorAggregation {
 
     fn join(&mut self, mut transition: StateTransition) {
         let actor_id = transition.actor_id;
+        debug_assert_eq!(self.newest.actor_id, actor_id);
         self.messages.append(&mut transition.messages);
         self.value_claims.append(&mut transition.value_claims);
         self.value_to_receive.add_assign(
@@ -725,6 +713,53 @@ mod tests {
         let st_b = squashed.iter().find(|t| t.actor_id == actor_b).unwrap();
         assert_eq!(st_b.new_state_hash, H256::from([20; 32]));
         assert_eq!(st_b.value_to_receive, 10);
+    }
+
+    #[test]
+    fn test_squash_preserves_first_seen_actor_order() {
+        let actor_a = ActorId::from([0xA1; 32]);
+        let actor_b = ActorId::from([0xB2; 32]);
+
+        let squashed = squash_transitions_by_actor(vec![
+            StateTransition {
+                actor_id: actor_a,
+                new_state_hash: H256::from([1; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 10,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor_b,
+                new_state_hash: H256::from([2; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 5,
+                value_to_receive_negative_sign: true,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor_a,
+                new_state_hash: H256::from([3; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 1,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+        ]);
+
+        assert_eq!(
+            squashed
+                .iter()
+                .map(|transition| transition.actor_id)
+                .collect::<Vec<_>>(),
+            vec![actor_a, actor_b]
+        );
     }
 
     #[test]

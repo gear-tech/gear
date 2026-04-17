@@ -256,7 +256,9 @@ impl BatchCommitmentManager {
                 head_announce: announce,
             };
             for announce_hash in not_committed_announces.into_iter() {
-                let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
+                let Some(transitions) = self.db.announce_outcome(announce_hash) else {
+                    anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
+                };
                 chain_commitment.transitions.extend(transitions);
                 if announce_hash == announce {
                     break;
@@ -265,6 +267,7 @@ impl BatchCommitmentManager {
             chain_commitment.transitions = super::utils::squash_transitions_by_actor(
                 std::mem::take(&mut chain_commitment.transitions),
             );
+            super::utils::sort_transitions_by_value_to_receive(&mut chain_commitment.transitions);
             batch_parts.chain_commitment = Some(chain_commitment);
         }
 
