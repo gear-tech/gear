@@ -32,7 +32,7 @@ use ethexe_common::{
     Address, Digest, HashOf, ValidatorsVec,
     consensus::{BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT},
     db::*,
-    gear::{ChainCommitment, CodeCommitment, StateTransition},
+    gear::{CodeCommitment, StateTransition},
     mock::*,
 };
 use ethexe_db::Database;
