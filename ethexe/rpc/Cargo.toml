@@ -33,7 +33,6 @@ metrics-derive.workspace = true
 gear-workspace-hack.workspace = true
 thiserror.workspace = true
 scopeguard.workspace = true
-alloy.workspace = true
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }

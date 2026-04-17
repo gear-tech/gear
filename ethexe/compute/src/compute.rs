@@ -125,10 +125,23 @@ impl<P: ProcessorExt> ComputeSubService<P> {
                 not_computed_announces.len(),
             );
 
+            let promise_tx = match config.promises_mode() {
+                // If AlwaysEmit promises mode - we pass promises tx also for not computed chain.
+                PromiseEmissionMode::AlwaysEmit => promise_out_tx.clone(),
+                // Set the promise_out_tx = None, because in this case we want to receive promises only from target announce.
+                PromiseEmissionMode::ConsensusDriven => None,
+            };
+
             for (announce_hash, announce) in not_computed_announces {
-                // Set the promise_out_tx = None, because we want to receive the promises only from target announce.
-                Self::compute_one(&db, &mut processor, config, announce_hash, announce, None)
-                    .await?;
+                Self::compute_one(
+                    &db,
+                    &mut processor,
+                    config,
+                    announce_hash,
+                    announce,
+                    promise_tx.clone(),
+                )
+                .await?;
             }
         }
 
