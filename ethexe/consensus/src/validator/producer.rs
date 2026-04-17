@@ -344,7 +344,7 @@ mod tests {
 
         // change head announce in the batch
         if let Some(c) = batch.chain_commitment.as_mut() {
-            c.head_announce = announce_hash
+            c.head_announce = announce_hash;
         }
 
         // compute announce
