@@ -894,11 +894,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig {
-            cases: 1000,
-            timeout: 60_000,
-            ..ProptestConfig::default()
-        })]
+        #![proptest_config(ProptestConfig::with_cases(1000))]
 
         #[test]
         fn proptest_propagation(p in base_params()) {
