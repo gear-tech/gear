@@ -16,13 +16,16 @@ workspace = true
 [dependencies]
 sp-runtime-interface.workspace = true
 sp-wasm-interface.workspace = true
-gear-sandbox-host.workspace = true
+
+gear-sandbox-host = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
+
 gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]
 std = [
+  "gear-sandbox-host",
   "log",
 
   "sp-runtime-interface/std",

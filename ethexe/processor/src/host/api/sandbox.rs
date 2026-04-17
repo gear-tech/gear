@@ -148,11 +148,16 @@ impl sandbox_detail::ContextOps for ProcessorOps {
         caller: &mut Self::Caller<'_>,
         size: WordSize,
     ) -> Result<Pointer<u8>, String> {
-        store::allocate_memory(caller, size).map(Pointer::new)
+        store::allocator(caller)
+            .allocate(size)
+            .map(Pointer::new)
+            .map_err(|err| err.to_string())
     }
 
     fn deallocate_memory(caller: &mut Self::Caller<'_>, ptr: Pointer<u8>) -> Result<(), String> {
-        store::deallocate_memory(caller, u32::from(ptr))
+        store::allocator(caller)
+            .deallocate(ptr.into())
+            .map_err(|err| err.to_string())
     }
 }
 
@@ -183,7 +188,7 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
     let res = res.encode();
     let res_len = res.len() as u32;
 
-    let ptr = store::allocate_memory(&mut caller, res_len).unwrap();
+    let ptr = store::allocator(&mut caller).allocate(res_len).unwrap();
     caller
         .data()
         .memory()

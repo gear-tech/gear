@@ -105,7 +105,7 @@ pub fn allocate_and_write_raw(
     let data = data.as_ref();
     let len = data.len();
 
-    let ptr: u32 = store::allocate_memory(&mut caller, len as u32).unwrap();
+    let ptr: u32 = store::allocator(&mut caller).allocate(len as u32).unwrap();
     let memory = caller.data().memory();
     memory.write(&mut caller, ptr as usize, data).unwrap();
 

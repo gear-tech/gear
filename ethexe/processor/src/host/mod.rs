@@ -33,14 +33,12 @@ pub mod runtime;
 mod store;
 mod threads;
 
-pub(crate) use store::{HostState, MemoryWrapper, StoreData, write_memory_from};
+pub(crate) use store::{StoreData, write_memory_from};
 
 #[derive(thiserror::Error, Debug)]
 pub enum InstanceError {
     #[error("failed to write call input: {0}")]
     CallInputWrite(String),
-    #[error("host state should be set before call and reset after")]
-    HostStateNotSet,
     #[error("couldn't find 'memory' export")]
     MemoryExportNotFound,
     #[error("'memory' export is not a wasm memory")]
@@ -112,8 +110,8 @@ impl InstanceCreator {
         api::database::link(&mut linker)?;
         api::lazy_pages::link(&mut linker)?;
         api::logging::link(&mut linker)?;
-        api::promise::link(&mut linker)?;
         api::sandbox::link(&mut linker)?;
+        api::promise::link(&mut linker)?;
 
         let instance_pre = linker.instantiate_pre(&module)?;
         let instance_pre = Arc::new(instance_pre);
@@ -213,9 +211,9 @@ impl InstanceWrapper {
     }
 
     fn with_host_state<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
-        self.set_host_state()?;
+        self.set_allocator()?;
         let res = f(self);
-        let _allocation_stats = self.reset_host_state()?;
+        let _allocation_stats = self.unset_allocator()?;
         res
     }
 
@@ -231,23 +229,11 @@ impl InstanceWrapper {
     }
 
     fn set_call_input(&mut self, bytes: &[u8]) -> Result<(i32, i32)> {
-        let memory = self.memory()?;
-
         let len = bytes.len() as u32; // TODO: check len.
 
-        let ptr = self.with_allocator(|instance_wrapper, allocator| {
-            allocator
-                .allocate(
-                    &mut MemoryWrapper::from((&memory, &mut instance_wrapper.store)),
-                    len,
-                )
-                .map_err(Into::into)
-        })?;
+        let ptr = store::allocator(&mut self.store).allocate(len)?;
 
-        write_memory_from(&mut self.store, ptr.into(), bytes)
-            .map_err(InstanceError::CallInputWrite)?;
-
-        let ptr: u32 = ptr.into();
+        write_memory_from(&mut self.store, ptr, bytes).map_err(InstanceError::CallInputWrite)?;
 
         Ok((ptr as i32, len as i32))
     }
@@ -264,48 +250,22 @@ impl InstanceWrapper {
         Ok(res)
     }
 
-    fn set_host_state(&mut self) -> Result<()> {
+    fn set_allocator(&mut self) -> Result<()> {
         let heap_base = self.heap_base()?;
-
         let allocator = FreeingBumpHeapAllocator::new(heap_base);
-
-        let host_state = HostState::new(allocator);
-
-        self.data_mut().host_state = Some(host_state);
+        self.data_mut().allocator = Some(allocator);
 
         Ok(())
     }
 
-    fn reset_host_state(&mut self) -> Result<AllocationStats> {
-        let host_state = self
+    fn unset_allocator(&mut self) -> Result<AllocationStats> {
+        let allocator = self
             .data_mut()
-            .host_state
+            .allocator
             .take()
-            .ok_or(InstanceError::HostStateNotSet)?;
-
-        Ok(host_state.allocation_stats())
-    }
-
-    fn with_allocator<T>(
-        &mut self,
-        f: impl FnOnce(&mut Self, &mut FreeingBumpHeapAllocator) -> Result<T>,
-    ) -> Result<T> {
-        let mut allocator = self
-            .data_mut()
-            .host_state
-            .as_mut()
-            .and_then(|s| s.allocator.take())
             .ok_or(InstanceError::AllocatorNotSet)?;
 
-        let res = f(self, &mut allocator);
-
-        self.data_mut()
-            .host_state
-            .as_mut()
-            .expect("checked above")
-            .allocator = Some(allocator);
-
-        res
+        Ok(allocator.stats())
     }
 
     fn memory(&mut self) -> Result<wasmtime::Memory> {

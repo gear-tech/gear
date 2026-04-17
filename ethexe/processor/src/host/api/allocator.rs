@@ -26,13 +26,10 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     Ok(())
 }
 
-fn free(caller: Caller<'_, StoreData>, ptr: i32) {
-    let mut caller = caller;
-    store::deallocate_memory(&mut caller, ptr as u32).unwrap();
+fn free(caller: Caller<'_, StoreData>, ptr: u32) {
+    store::allocator(caller).deallocate(ptr).unwrap()
 }
 
-fn malloc(caller: Caller<'_, StoreData>, size: i32) -> i32 {
-    let mut caller = caller;
-    let ptr = store::allocate_memory(&mut caller, size as _).unwrap();
-    ptr as i32
+fn malloc(caller: Caller<'_, StoreData>, size: u32) -> u32 {
+    store::allocator(caller).allocate(size).unwrap()
 }
