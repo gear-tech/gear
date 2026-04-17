@@ -16,25 +16,14 @@ workspace = true
 [dependencies]
 sp-runtime-interface.workspace = true
 sp-wasm-interface.workspace = true
-sp-wasm-interface-common.workspace = true
-
-parity-scale-codec.workspace = true
-gear-sandbox-host = { workspace = true, optional = true }
+gear-sandbox-host.workspace = true
 log = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]
-host = [
-  "gear-sandbox-host",
-
-  "parity-scale-codec/std",
-  "log",
-
-  "sp-wasm-interface-common/std",
-]
 std = [
-  "host",
+  "log",
 
   "sp-runtime-interface/std",
   "sp-wasm-interface/std",

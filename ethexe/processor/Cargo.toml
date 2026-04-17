@@ -15,7 +15,7 @@ ethexe-runtime = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, default-features = false, features = ["std"] }
-gear-sandbox-interface = { workspace = true, default-features = false, features = ["host"] }
+gear-sandbox-host.workspace = true
 gear-lazy-pages.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
 core-processor.workspace = true

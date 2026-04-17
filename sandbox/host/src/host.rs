@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(missing_docs)]
+
 use core::{
     cell::RefCell,
     marker::PhantomData,
@@ -23,10 +25,11 @@ use core::{
 };
 use std::panic::{self, AssertUnwindSafe};
 
-use gear_sandbox_host::sandbox::{self as sandbox_env, SupervisorContext as _};
 use parity_scale_codec::{Decode, Encode};
 
-pub use gear_sandbox_host::{
+use crate::sandbox::{self as sandbox_env, SupervisorContext as _};
+
+pub use crate::{
     error::Result as HostResult,
     sandbox::{SandboxBackend, SupervisorFuncIndex, env::Instantiate},
 };
@@ -205,7 +208,7 @@ pub fn get_buff<O: ContextOps + 'static>(
     caller: &mut O::Caller<'_>,
     memory_idx: u32,
 ) -> HostPointer {
-    use gear_sandbox_host::util::MemoryTransfer;
+    use crate::util::MemoryTransfer;
 
     O::trace("get_buff", caller);
 
@@ -376,7 +379,7 @@ pub fn memory_get<O: ContextOps + 'static>(
     buf_ptr: Pointer<u8>,
     buf_len: u32,
 ) -> u32 {
-    use gear_sandbox_host::util::MemoryTransfer;
+    use crate::util::MemoryTransfer;
 
     O::trace("memory_get", caller);
 
@@ -404,7 +407,7 @@ pub fn memory_grow<O: ContextOps + 'static>(
     memory_idx: u32,
     size: u32,
 ) -> u32 {
-    use gear_sandbox_host::util::MemoryTransfer;
+    use crate::util::MemoryTransfer;
 
     O::trace("memory_grow", caller);
 
@@ -444,7 +447,7 @@ pub fn memory_set<O: ContextOps + 'static>(
     val_ptr: Pointer<u8>,
     val_len: u32,
 ) -> u32 {
-    use gear_sandbox_host::util::MemoryTransfer;
+    use crate::util::MemoryTransfer;
 
     O::trace("memory_set", caller);
 
@@ -467,7 +470,7 @@ pub fn memory_set<O: ContextOps + 'static>(
 }
 
 pub fn memory_size<O: ContextOps + 'static>(caller: &mut O::Caller<'_>, memory_idx: u32) -> u32 {
-    use gear_sandbox_host::util::MemoryTransfer;
+    use crate::util::MemoryTransfer;
 
     O::trace("memory_size", caller);
 

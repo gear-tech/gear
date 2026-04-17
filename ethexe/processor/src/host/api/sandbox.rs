@@ -18,7 +18,7 @@
 
 use crate::host::{StoreData, api::MemoryWrap, context::HostContext, store};
 use ethexe_runtime_common::pack_u32_to_i64;
-use gear_sandbox_interface::host::{
+use gear_sandbox_host::host::{
     self as sandbox_detail, HostResult, Instantiate, Pointer, SupervisorFuncIndex, Value, WordSize,
 };
 use parity_scale_codec::{Decode, Encode};

@@ -21,6 +21,8 @@
 #![warn(missing_docs)]
 
 pub mod error;
+/// Shared host-side sandbox glue for different supervisor embeddings.
+pub mod host;
 pub mod sandbox;
 pub mod util;
 
