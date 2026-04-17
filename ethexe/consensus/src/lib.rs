@@ -36,7 +36,7 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, Digest, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    injected::{Promise, SignedInjectedTransaction, SignedPromise},
+    injected::{Promise, SignedCompactPromise, SignedInjectedTransaction},
     network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
@@ -120,7 +120,7 @@ pub enum ConsensusEvent {
     #[from]
     PublishMessage(SignedValidatorMessage),
     #[from]
-    PublishPromise(SignedPromise),
+    PublishPromise(SignedCompactPromise),
     /// Outer service have to request announces
     #[from]
     RequestAnnounces(AnnouncesRequest),

@@ -55,7 +55,8 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, gear::CodeState, network::VerifiedValidatorMessage,
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, PromiseEmissionMode, gear::CodeState,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -291,6 +292,11 @@ impl Service {
             None
         };
 
+        let rpc = config
+            .rpc
+            .clone()
+            .map(|config| RpcServer::new(config, db.clone()));
+
         let observer = ObserverService::new(
             db.clone(),
             ObserverConfig {
@@ -424,12 +430,15 @@ impl Service {
             None
         };
 
-        let rpc = config
-            .rpc
-            .as_ref()
-            .map(|config| RpcServer::new(config.clone(), db.clone()));
-
-        let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
+        // RPC-node always requires promises
+        let promises_mode = match rpc.is_some() {
+            true => PromiseEmissionMode::AlwaysEmit,
+            false => PromiseEmissionMode::ConsensusDriven,
+        };
+        let compute_config = ComputeConfig::builder()
+            .canonical_quarantine(config.node.canonical_quarantine)
+            .promises_mode(promises_mode)
+            .build();
         let processor_config = ProcessorConfig {
             chunk_size: config.node.chunk_processing_threads,
         };
@@ -608,6 +617,10 @@ impl Service {
                         // Nothing
                     }
                     ComputeEvent::Promise(promise, announce_hash) => {
+                        if let Some(ref rpc) = rpc {
+                            rpc.receive_computed_promise(promise.clone());
+                        }
+
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },
@@ -655,9 +668,9 @@ impl Service {
                                 let _res = response_sender.send(acceptance);
                             }
                         },
-                        NetworkEvent::PromiseMessage(promise) => {
+                        NetworkEvent::PromiseMessage(compact_promise) => {
                             if let Some(rpc) = &rpc {
-                                rpc.provide_promise(promise);
+                                rpc.receive_compact_promise(compact_promise);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
@@ -705,17 +718,17 @@ impl Service {
                     ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
                         compute.compute_announce(announce, promise_policy)
                     }
-                    ConsensusEvent::PublishPromise(signed_promise) => {
+                    ConsensusEvent::PublishPromise(compact_promise) => {
                         if rpc.is_none() && network.is_none() {
                             panic!("Promise without network or rpc");
                         }
 
                         if let Some(rpc) = &rpc {
-                            rpc.provide_promise(signed_promise.clone());
+                            rpc.receive_compact_promise(compact_promise.clone());
                         }
 
                         if let Some(network) = &mut network {
-                            network.publish_promise(signed_promise);
+                            network.publish_promise(compact_promise);
                         }
                     }
                     ConsensusEvent::PublishMessage(message) => {

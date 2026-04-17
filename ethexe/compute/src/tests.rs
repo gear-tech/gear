@@ -349,11 +349,7 @@ async fn code_validation_request_for_already_processed_code_does_not_request_loa
 
     let db = Database::memory();
     let processor = MockProcessor::default();
-    let mut compute = ComputeService::new(
-        ComputeConfig::without_quarantine(),
-        db.clone(),
-        processor.clone(),
-    );
+    let mut compute = ComputeService::new(ComputeConfig::default(), db.clone(), processor.clone());
 
     let code = create_new_code(1);
     let code_id = db.set_original_code(&code);
@@ -414,11 +410,7 @@ async fn code_validation_request_for_non_validated_code_requests_loading() -> Re
 
     let db = Database::memory();
     let processor = MockProcessor::default();
-    let mut compute = ComputeService::new(
-        ComputeConfig::without_quarantine(),
-        db.clone(),
-        processor.clone(),
-    );
+    let mut compute = ComputeService::new(ComputeConfig::default(), db.clone(), processor.clone());
 
     let code = create_new_code(1);
     let code_id = db.set_original_code(&code);
@@ -467,11 +459,7 @@ async fn process_code_for_already_processed_valid_code_emits_code_processed() ->
 
     let db = Database::memory();
     let processor = MockProcessor::default();
-    let mut compute = ComputeService::new(
-        ComputeConfig::without_quarantine(),
-        db.clone(),
-        processor.clone(),
-    );
+    let mut compute = ComputeService::new(ComputeConfig::default(), db.clone(), processor.clone());
 
     let code = create_new_code(2);
     let code_id = db.set_original_code(&code);

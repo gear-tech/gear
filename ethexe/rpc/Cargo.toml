@@ -31,6 +31,8 @@ dashmap.workspace = true
 metrics.workspace = true
 metrics-derive.workspace = true
 gear-workspace-hack.workspace = true
+thiserror.workspace = true
+scopeguard.workspace = true
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }

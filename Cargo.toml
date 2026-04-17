@@ -228,6 +228,7 @@ tap = "1.0.1"
 ntest = "0.9.3"
 dashmap = "5.5.3"
 delegate = "0.13.5"
+bon = "3.9.1"
 
 # metrics
 metrics = "0.24.0"

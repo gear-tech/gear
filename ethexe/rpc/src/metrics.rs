@@ -22,6 +22,8 @@ use metrics::{Counter, Gauge};
 
 // TODO kuzmindev: add metrics for all RPC apis, e.g number of calls, latency, errors, etc.
 
+// TODO: remove this unused
+#[allow(unused)]
 /// Metrics for the Injected RPC API.
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_rpc_injected_api")]
