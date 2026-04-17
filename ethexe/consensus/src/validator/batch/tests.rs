@@ -417,7 +417,7 @@ async fn accepts_matching_request() {
 async fn accepts_matching_request_with_mixed_sign_squash() {
     gear_utils::init_default_logger();
 
-    let (ctx, _, _) = mock_validator_context();
+    let (ctx, _, _) = mock_validator_context(Database::memory());
     let actor_negative = ActorId::from([0xA1; 32]);
     let actor_positive = ActorId::from([0xB2; 32]);
 
