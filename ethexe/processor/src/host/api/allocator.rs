@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, context::HostContext};
+use crate::host::{StoreData, store};
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -27,15 +27,12 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
 }
 
 fn free(caller: Caller<'_, StoreData>, ptr: i32) {
-    let mut host_context = HostContext { caller };
-
-    host_context.deallocate_memory(ptr as u32).unwrap();
+    let mut caller = caller;
+    store::deallocate_memory(&mut caller, ptr as u32).unwrap();
 }
 
 fn malloc(caller: Caller<'_, StoreData>, size: i32) -> i32 {
-    let mut host_context = HostContext { caller };
-
-    let ptr: u32 = host_context.allocate_memory(size as _).unwrap();
-
+    let mut caller = caller;
+    let ptr = store::allocate_memory(&mut caller, size as _).unwrap();
     ptr as i32
 }

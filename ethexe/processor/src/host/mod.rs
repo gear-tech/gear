@@ -30,7 +30,6 @@ use tokio::sync::mpsc;
 pub mod api;
 pub mod runtime;
 
-mod context;
 mod store;
 mod threads;
 

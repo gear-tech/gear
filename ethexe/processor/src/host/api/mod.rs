@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::context::HostContext;
-use crate::host::StoreData;
+use crate::host::{StoreData, store};
 use ethexe_runtime_common::{pack_u32_to_i64, unpack_i64_to_u32};
 use parity_scale_codec::{Decode, Encode};
 use wasmtime::{Caller, Memory, StoreContext, StoreContextMut};
@@ -100,23 +99,16 @@ pub fn allocate_and_write(
 }
 
 pub fn allocate_and_write_raw(
-    caller: Caller<'_, StoreData>,
+    mut caller: Caller<'_, StoreData>,
     data: impl AsRef<[u8]>,
 ) -> (Caller<'_, StoreData>, i64) {
     let data = data.as_ref();
     let len = data.len();
 
-    let mut host_context = HostContext { caller };
-
-    let ptr: u32 = host_context.allocate_memory(len as u32).unwrap();
-
-    let mut caller = host_context.caller;
-
+    let ptr: u32 = store::allocate_memory(&mut caller, len as u32).unwrap();
     let memory = caller.data().memory();
-
     memory.write(&mut caller, ptr as usize, data).unwrap();
 
     let res = pack_u32_to_i64(ptr, len as u32);
-
     (caller, res)
 }

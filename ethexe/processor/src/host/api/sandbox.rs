@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, api::MemoryWrap, context::HostContext, store};
+use crate::host::{StoreData, api::MemoryWrap, store};
 use ethexe_runtime_common::pack_u32_to_i64;
 use gear_sandbox_host::host::{
     self as sandbox_detail, HostResult, Instantiate, Pointer, SupervisorFuncIndex, Value, WordSize,
@@ -183,9 +183,7 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
     let res = res.encode();
     let res_len = res.len() as u32;
 
-    let mut host_context = HostContext { caller };
-    let ptr = host_context.allocate_memory(res_len).unwrap();
-    let mut caller = host_context.caller;
+    let ptr = store::allocate_memory(&mut caller, res_len).unwrap();
     caller
         .data()
         .memory()
