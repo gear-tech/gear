@@ -2719,8 +2719,7 @@ async fn injected_tx_fungible_token() {
 }
 
 #[tokio::test]
-// TODO: up me back to 60s
-#[ntest::timeout(15_000)]
+#[ntest::timeout(60_000)]
 async fn injected_tx_fungible_token_over_network() {
     init_logger();
 

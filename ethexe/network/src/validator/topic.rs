@@ -25,7 +25,7 @@ use crate::{
 };
 use ethexe_common::{
     Address, HashOf,
-    injected::{CompactSignedPromise, InjectedTransaction},
+    injected::{InjectedTransaction, SignedCompactPromise},
     network::VerifiedValidatorMessage,
 };
 use lru::LruCache;
@@ -290,8 +290,8 @@ impl ValidatorTopic {
     fn inner_verify_promise(
         &self,
         _source: PeerId,
-        compact_promise: CompactSignedPromise,
-    ) -> Result<CompactSignedPromise, VerifyPromiseError> {
+        compact_promise: SignedCompactPromise,
+    ) -> Result<SignedCompactPromise, VerifyPromiseError> {
         let address = compact_promise.address();
         if !self.snapshot.contains(address) {
             return Err(VerifyPromiseError::UnknownValidator {
@@ -307,8 +307,8 @@ impl ValidatorTopic {
     pub fn verify_promise(
         &self,
         source: PeerId,
-        compact_promise: CompactSignedPromise,
-    ) -> (MessageAcceptance, Option<CompactSignedPromise>) {
+        compact_promise: SignedCompactPromise,
+    ) -> (MessageAcceptance, Option<SignedCompactPromise>) {
         match self.inner_verify_promise(source, compact_promise) {
             Ok(compact_promise) => (MessageAcceptance::Accept, Some(compact_promise)),
             Err(err) => {
@@ -392,9 +392,9 @@ mod tests {
         signer: &Signer,
         public_key: PublicKey,
         promise: Promise,
-    ) -> CompactSignedPromise {
+    ) -> SignedCompactPromise {
         let signed_promise = signer.signed_message(public_key, promise, None).unwrap();
-        CompactSignedPromise::from_signed_promise_unchecked(&signed_promise)
+        SignedCompactPromise::from_signed_promise(&signed_promise)
     }
 
     #[test]

@@ -30,7 +30,7 @@ use ethexe_common::{
     Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec,
     db::BlockMetaStorageRO,
     gear::BatchCommitment,
-    injected::{CompactSignedPromise, Promise},
+    injected::{Promise, SignedCompactPromise},
     network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
@@ -123,7 +123,7 @@ impl StateHandler for Producer {
                         .signer
                         .signed_message(self.ctx.core.pub_key, promise, None)?;
                 let compact_signed_promise =
-                    CompactSignedPromise::from_signed_promise_unchecked(&signed_promise);
+                    SignedCompactPromise::from_signed_promise(&signed_promise);
 
                 self.ctx
                     .output(ConsensusEvent::PublishPromise(compact_signed_promise));

@@ -26,8 +26,8 @@ use ethexe_common::{
     db::*,
     events::BlockEvent,
     injected::{
-        AddressedInjectedTransaction, CompactSignedPromise, InjectedTransaction,
-        InjectedTransactionAcceptance, SignedInjectedTransaction,
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
+        SignedCompactPromise, SignedInjectedTransaction,
     },
     network::VerifiedValidatorMessage,
 };
@@ -85,7 +85,7 @@ impl TestingNetworkInjectedEvent {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
-    PromiseMessage(CompactSignedPromise),
+    PromiseMessage(SignedCompactPromise),
     ValidatorIdentityUpdated(Address),
     InjectedTransaction(TestingNetworkInjectedEvent),
     PeerBlocked(PeerId),

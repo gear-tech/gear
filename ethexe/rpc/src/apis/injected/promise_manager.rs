@@ -22,19 +22,16 @@ use ethexe_common::{
     HashOf,
     db::{InjectedStorageRO, InjectedStorageRW},
     injected::{
-        CompactSignedPromise, InjectedTransaction, Promise, SignedPromise, restore_signed_promise,
+        InjectedTransaction, Promise, SignedCompactPromise, SignedPromise, restore_signed_promise,
     },
 };
 use ethexe_db::Database;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::trace;
 
-pub const MAX_PROMISE_WAITING: Duration =
-    Duration::from_secs(alloy::eips::merge::SLOT_DURATION_SECS * 20);
-
 type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
-type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, CompactSignedPromise>>;
+type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactPromise>>;
 
 /// The manager for promise subscribers.
 #[derive(Debug, Clone)]
@@ -66,10 +63,12 @@ pub struct PendingSubscriber {
 
 impl PendingSubscriber {
     pub fn new(
+        db: &Database,
         tx_hash: HashOf<InjectedTransaction>,
         receiver: oneshot::Receiver<SignedPromise>,
     ) -> Self {
-        let receiver = tokio::time::timeout(MAX_PROMISE_WAITING, receiver);
+        let timeout_duration = utils::promise_waiting_timeout(db);
+        let receiver = tokio::time::timeout(timeout_duration, receiver);
         Self { tx_hash, receiver }
     }
 
@@ -96,7 +95,7 @@ impl PromiseSubscriptionManager {
             Entry::Vacant(entry) => {
                 let (sender, receiver) = oneshot::channel();
                 entry.insert(sender);
-                Ok(PendingSubscriber::new(tx_hash, receiver))
+                Ok(PendingSubscriber::new(&self.db, tx_hash, receiver))
             }
         }
     }
@@ -108,7 +107,7 @@ impl PromiseSubscriptionManager {
         self.subscribers.remove(&tx_hash).map(|(_, v)| v)
     }
 
-    pub fn on_compact_promise(&self, compact: CompactSignedPromise) {
+    pub fn on_compact_promise(&self, compact: SignedCompactPromise) {
         trace!(?compact, "received new compact promise");
         let tx_hash = compact.data().tx_hash;
 
@@ -160,5 +159,15 @@ impl PromiseSubscriptionManager {
     #[cfg(test)]
     pub fn subscribers_count(&self) -> usize {
         self.subscribers.len()
+    }
+}
+
+mod utils {
+    use ethexe_common::db::ConfigStorageRO;
+
+    /// Returns the maximum time that spawned [super::PendingSubscriber] will wait for promise.
+    pub fn promise_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> std::time::Duration {
+        let slot_duration_secs = db.config().timelines.slot;
+        std::time::Duration::from_secs(slot_duration_secs * 20)
     }
 }

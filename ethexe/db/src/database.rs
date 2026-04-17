@@ -34,7 +34,7 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{CompactSignedPromise, InjectedTransaction, Promise, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -117,7 +117,7 @@ impl Key {
             | Self::AnnounceMeta(hash) => bytes.extend(hash.as_ref()),
 
             Self::InjectedTransaction(hash) | Self::Promise(hash) | Self::CompactPromise(hash) => {
-                bytes.extend(hash.inner().as_ref())
+                bytes.extend(hash.as_ref())
             }
 
             Self::ProgramToCodeId(program_id) => bytes.extend(program_id.as_ref()),
@@ -718,12 +718,12 @@ impl InjectedStorageRO for RawDatabase {
     fn compact_promise(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> Option<CompactSignedPromise> {
+    ) -> Option<SignedCompactPromise> {
         self.kv
             .get(&Key::CompactPromise(tx_hash).to_bytes())
             .map(|data| {
-                CompactSignedPromise::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into CompactSignedPromise")
+                SignedCompactPromise::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into SignedCompactPromise")
             })
     }
 }
@@ -744,7 +744,7 @@ impl InjectedStorageRW for RawDatabase {
             .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
     }
 
-    fn set_compact_promise(&self, promise: &CompactSignedPromise) {
+    fn set_compact_promise(&self, promise: &SignedCompactPromise) {
         let tx_hash = promise.data().tx_hash;
         tracing::trace!(?promise, "Set compact promise for injected transaction");
 
@@ -960,7 +960,7 @@ impl InjectedStorageRO for Database {
     delegate!(to self.raw {
         fn injected_transaction(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedInjectedTransaction>;
         fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
-        fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<CompactSignedPromise>;
+        fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise>;
     });
 }
 
@@ -968,7 +968,7 @@ impl InjectedStorageRW for Database {
     delegate!(to self.raw {
         fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
         fn set_promise(&self, promise: &Promise);
-        fn set_compact_promise(&self, promise: &CompactSignedPromise);
+        fn set_compact_promise(&self, promise: &SignedCompactPromise);
     });
 }
 

@@ -23,7 +23,7 @@ use crate::{
     Schedule, SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{CompactSignedPromise, InjectedTransaction, Promise, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -138,7 +138,7 @@ pub trait InjectedStorageRO {
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 
     /// Returns the compact promise by its transaction hash.
-    fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<CompactSignedPromise>;
+    fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -147,7 +147,7 @@ pub trait InjectedStorageRW: InjectedStorageRO {
 
     fn set_promise(&self, promise: &Promise);
 
-    fn set_compact_promise(&self, promise: &CompactSignedPromise);
+    fn set_compact_promise(&self, promise: &SignedCompactPromise);
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]

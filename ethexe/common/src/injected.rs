@@ -152,9 +152,9 @@ impl Promise {
         unsafe { HashOf::new(self.reply.to_hash()) }
     }
 
-    /// Converts promise to its [`PromiseHashes`].
-    pub fn to_hashes(&self) -> PromiseHashes {
-        PromiseHashes {
+    /// Converts promise to its compact version.
+    pub fn to_compact(&self) -> CompactPromise {
+        CompactPromise {
             tx_hash: self.tx_hash,
             reply_hash: self.reply_hash(),
         }
@@ -163,25 +163,25 @@ impl Promise {
 
 impl ToDigest for Promise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        self.to_hashes().update_hasher(hasher);
+        self.to_compact().update_hasher(hasher);
     }
 }
 
-/// A wrapper on top of [`PromiseHashes`].
+/// A signed wrapper on top of [`CompactPromise`].
 ///
-/// [`CompactSignedPromise`] is a lightweight version of [`SignedPromise`], that is
+/// [`SignedCompactPromise`] is a lightweight version of [`SignedPromise`], that is
 /// needed to reduce the amount of data transferred in network between validators.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
-pub struct CompactSignedPromise(SignedMessage<PromiseHashes>);
+pub struct SignedCompactPromise(SignedMessage<CompactPromise>);
 
 /// The hashes of [`Promise`] parts.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct PromiseHashes {
+pub struct CompactPromise {
     pub tx_hash: HashOf<InjectedTransaction>,
     pub reply_hash: HashOf<ReplyInfo>,
 }
 
-impl ToDigest for PromiseHashes {
+impl ToDigest for CompactPromise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
             tx_hash,
@@ -193,44 +193,35 @@ impl ToDigest for PromiseHashes {
     }
 }
 
-impl CompactSignedPromise {
-    /// Create the [`CompactSignedPromise`] from private key and hashes.
-    pub fn create(private_key: PrivateKey, promise_hashes: PromiseHashes) -> SignResult<Self> {
-        SignedMessage::create(private_key, promise_hashes).map(CompactSignedPromise)
+impl SignedCompactPromise {
+    /// Create the [`SignedCompactPromise`] from private key and hashes.
+    pub fn create(private_key: PrivateKey, promise_hashes: CompactPromise) -> SignResult<Self> {
+        SignedMessage::create(private_key, promise_hashes).map(SignedCompactPromise)
     }
 
     pub fn create_from_promise(private_key: PrivateKey, promise: &Promise) -> SignResult<Self> {
-        Self::create(private_key, promise.to_hashes())
+        Self::create(private_key, promise.to_compact())
     }
 
-    /// Create the [`CompactSignedPromise`] from a valid [`SignedPromise`].
+    /// Create the [`SignedCompactPromise`] from a valid [`SignedPromise`].
     ///
     /// # Panics
-    /// Panics if the digest of [`Promise`] and [`PromiseHashes`] ever diverge.
+    /// Panics if the digest of [`Promise`] and [`CompactPromise`] ever diverge.
     /// This must hold by construction; tests enforce the invariant.
-    pub fn from_signed_promise_unchecked(signed_promise: &SignedPromise) -> Self {
-        Self::try_from(signed_promise)
-            .expect("SignedPromise and PromiseHashes must have identical digest")
+    pub fn from_signed_promise(signed_promise: &SignedPromise) -> Self {
+        let compact = signed_promise.data().to_compact();
+        let (signature, address) = (*signed_promise.signature(), signed_promise.address());
+
+        let signed_compact = SignedMessage::try_from_parts(compact, signature, address)
+            .expect("SignedPromise and CompactPromise must have identical digest");
+        Self(signed_compact)
     }
 }
 
-impl TryFrom<&SignedPromise> for CompactSignedPromise {
-    type Error = &'static str;
-
-    fn try_from(signed_promise: &SignedPromise) -> Result<Self, Self::Error> {
-        SignedMessage::try_from_parts(
-            signed_promise.data().to_hashes(),
-            *signed_promise.signature(),
-            signed_promise.address(),
-        )
-        .map(CompactSignedPromise)
-    }
-}
-
-/// Restores the [SignedPromise] from parts: [Promise], [CompactSignedPromise].
+/// Restores the [SignedPromise] from parts: [Promise], [SignedCompactPromise].
 pub fn restore_signed_promise(
     promise: Promise,
-    compact: &CompactSignedPromise,
+    compact: &SignedCompactPromise,
 ) -> Result<SignedPromise, RestorePromiseError> {
     if promise.tx_hash != compact.data().tx_hash {
         return Err(RestorePromiseError::HashesMismatch {
@@ -330,7 +321,7 @@ mod tests {
     fn promise_hashes_digest_equal_to_promise_digest() {
         let promise = Promise::mock(());
 
-        assert_eq!(promise.to_digest(), promise.to_hashes().to_digest());
+        assert_eq!(promise.to_digest(), promise.to_compact().to_digest());
     }
 
     #[test]
@@ -340,7 +331,7 @@ mod tests {
 
         let signed_promise = SignedPromise::create(private_key.clone(), promise.clone()).unwrap();
         let compact_signed_promise =
-            CompactSignedPromise::create_from_promise(private_key, &promise).unwrap();
+            SignedCompactPromise::create_from_promise(private_key, &promise).unwrap();
 
         assert_eq!(signed_promise.address(), compact_signed_promise.address());
         assert_eq!(
@@ -356,8 +347,7 @@ mod tests {
 
         let signed_promise = SignedPromise::create(private_key.clone(), promise).unwrap();
 
-        let compact_signed_promise =
-            CompactSignedPromise::try_from(&signed_promise).expect("valid signed promise");
+        let compact_signed_promise = SignedCompactPromise::from_signed_promise(&signed_promise);
 
         assert_eq!(signed_promise.address(), compact_signed_promise.address());
         assert_eq!(

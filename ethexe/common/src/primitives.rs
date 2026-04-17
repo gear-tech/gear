@@ -161,7 +161,7 @@ pub enum PromisePolicy {
     Disabled,
 }
 
-/// The [PromiseEmissionMode] tells setups the promises mode in ethexe node.
+/// The [PromiseEmissionMode] configures the promise emission mode for the ethexe node
 #[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::IsVariant, Default)]
 pub enum PromiseEmissionMode {
     /// Node should always emit promises during announces execution.
@@ -251,7 +251,7 @@ impl CodeAndId {
 ///
 /// TODO(kuzmindev): `ProtocolTimelines` can store more protocol parameters,
 /// for example `max_validators` in election.
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ProtocolTimelines {
     // The genesis timestamp of the GearExe network in seconds.
     pub genesis_ts: u64,
@@ -263,6 +263,17 @@ pub struct ProtocolTimelines {
     pub election: u64,
     /// The slot duration in seconds.
     pub slot: u64,
+}
+
+impl Default for ProtocolTimelines {
+    fn default() -> Self {
+        Self {
+            genesis_ts: 0,
+            era: 10_000,
+            election: 200,
+            slot: 2,
+        }
+    }
 }
 
 // TODO: #5290 remove panics here
