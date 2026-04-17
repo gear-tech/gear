@@ -100,7 +100,9 @@ impl InstanceCreator {
     /// A wasm runtime modules is expected to use some runtime interface,
     /// which calls linked host functions.
     pub fn new(runtime: Vec<u8>) -> Result<Self> {
-        let config = wasmtime::Config::new();
+        let mut config = wasmtime::Config::new();
+        let cache = wasmtime::Cache::new(Default::default())?;
+        config.cache(Some(cache));
         let engine = wasmtime::Engine::new(&config)?;
 
         let module = wasmtime::Module::new(&engine, runtime)?;
