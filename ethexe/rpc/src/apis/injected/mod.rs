@@ -29,7 +29,7 @@
 //! [spawner::spawn_pending_subscriber].
 //!
 //! **Important:** the pending subscriber will be dropped after
-//! [promise_manager::MAX_PROMISE_WAITING_SECS] seconds to avoid dead subscribers.
+//! waiting for **20 * Ethereum slot** seconds to avoid dead subscribers.
 //!
 //! [promise_manager::PromiseSubscriptionManager] provides two methods for receiving promises:
 //! - [promise_manager::PromiseSubscriptionManager::on_compact_promise] receives the promise
