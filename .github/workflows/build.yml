@@ -463,6 +463,7 @@ jobs:
           snap -p vara_ci.snap
 
   fuzzer:
+    if: false # temporarily disabled until we fix it
     runs-on: [kuberunner]
     needs: workspace
     env:

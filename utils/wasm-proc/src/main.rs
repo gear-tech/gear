@@ -290,7 +290,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimized_wasm_path.display()
         );
 
-        validate_program(code)?;
+        validate_program(code, false)?;
     }
 
     Ok(())
