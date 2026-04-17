@@ -45,6 +45,10 @@ impl<'a> Router<'a> {
         self.router_query_client.events()
     }
 
+    pub async fn code_commitment_gas(&self) -> Result<u128> {
+        self.router_query_client.code_commitment_gas().await
+    }
+
     // TODO: move StorageView into ethexe-common and export
 
     pub async fn storage_view(&self) -> Result<StorageView> {
@@ -193,6 +197,10 @@ impl<'a> Router<'a> {
 
     pub async fn validated_codes_count_at(&self, id: impl IntoBlockId) -> Result<u64> {
         self.router_query_client.validated_codes_count_at(id).await
+    }
+
+    pub async fn latest_gas_price(&self) -> Result<u128> {
+        self.router_query_client.latest_gas_price().await
     }
 
     pub async fn timelines(&self) -> Result<Timelines> {

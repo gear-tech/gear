@@ -384,6 +384,10 @@ library Gear {
          * @dev The total number of validated codes. Used for fast-sync.
          */
         uint256 validatedCodesCount;
+        /**
+         * @dev Latest gas price in Ethereum network (changes every batch commitment).
+         */
+        uint256 latestGasPrice;
     }
 
     /**

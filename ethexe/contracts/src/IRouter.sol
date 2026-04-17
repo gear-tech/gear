@@ -52,6 +52,10 @@ interface IRouter {
          * @notice Count of validated codes.
          */
         uint256 validatedCodesCount;
+        /**
+         * @notice Latest gas price in Ethereum network (changes every batch commitment).
+         */
+        uint256 latestGasPrice;
     }
 
     /**
@@ -216,6 +220,10 @@ interface IRouter {
      */
     error RouterGenesisHashNotInitialized();
 
+    error InvalidValidationFee();
+
+    error PayValidationFeeFailed();
+
     /**
      * @dev Thrown when the code is already on validation or validated.
      */
@@ -263,6 +271,8 @@ interface IRouter {
     error SignatureVerificationFailed();
 
     error ZeroValueTransfer();
+
+    error WithdrawExecutableBalanceFailed();
 
     /* # Views */
 
@@ -414,6 +424,12 @@ interface IRouter {
     function validatedCodesCount() external view returns (uint256);
 
     /**
+     * @dev Returns the latest gas price in Ethereum network.
+     * @return latestGasPrice The latest gas price.
+     */
+    function latestGasPrice() external view returns (uint256);
+
+    /**
      * @dev Returns the timelines.
      * @return timelines The timelines.
      */
@@ -437,6 +453,12 @@ interface IRouter {
      */
     function unpause() external;
 
+    /**
+     * @dev Withdraws the executable balance in WVARA ERC20 token.
+     *      Throws `WithdrawExecutableBalanceFailed` if the transfer fails.
+     */
+    function withdrawExecutableBalance() external;
+
     /* # Calls */
 
     /**
@@ -449,10 +471,11 @@ interface IRouter {
      *      This method is expected to be called within EIP-7594 transaction and will have sidecar
      *      attached to it containing WASM bytecode. On EVM, we can only verify that there was
      *      at least 1 blobhash in a transaction.
+     *      Note: `msg.value` must be `Router.CODE_COMMITMENT_GAS() * Router.latestGasPrice()` to cover validation costs.
      * @param codeId The expected code ID for which the validation is requested.
      *               It's calculated as `gprimitives::CodeId::generate(wasm_code)` (blake2b hash).
      */
-    function requestCodeValidation(bytes32 codeId) external;
+    function requestCodeValidation(bytes32 codeId) external payable;
 
     /**
      * @dev Creates new program (`Mirror`) with the given code ID, salt, and initializer.

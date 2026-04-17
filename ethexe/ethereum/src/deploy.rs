@@ -168,6 +168,9 @@ impl EthereumDeployer {
 
 // Private implementation details
 impl EthereumDeployer {
+    /// Fixes "out of gas" error for unknown reason, maybe need to report to alloy?
+    const LOOKUP_GENESIS_HASH_GAS: u64 = 100_000;
+
     /// Deploy all contracts and return the router address.
     async fn deploy_contracts(&self) -> Result<Address> {
         let provider = self.ethereum.provider().clone();
@@ -221,6 +224,7 @@ impl EthereumDeployer {
 
         let builder = router.lookupGenesisHash();
         builder
+            .gas(Self::LOOKUP_GENESIS_HASH_GAS)
             .send()
             .await?
             .try_get_receipt_check_reverted()
