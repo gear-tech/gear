@@ -192,13 +192,13 @@ uluru = "3.1.0"
 lru = "0.16.1"
 url = "2.5.2"
 wat = "1.0.71"
-wasmer = { version = "6.1.0", default-features = false, features = [
+wasmer = { version = "7.1.0", default-features = false, features = [
     "singlepass",
 ] }
-wasmer-cache = "6.1.0"
-wasmer-types = "6.1.0"
-wasmer-vm = "6.1.0"
-wasmer-compiler = "6.1.0"
+wasmer-cache = "7.1.0"
+wasmer-types = "7.1.0"
+wasmer-vm = "7.1.0"
+wasmer-compiler = "7.1.0"
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
 wasmparser = { version = "0.230", default-features = false, features = [
