@@ -119,7 +119,7 @@ impl Processor {
     }
 
     pub fn with_config(config: ProcessorConfig, db: Database) -> Result<Self> {
-        let creator = InstanceCreator::new(host::runtime())?;
+        let creator = InstanceCreator::new(db.clone(), host::runtime())?;
         Ok(Self {
             config,
             db,

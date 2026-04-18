@@ -42,7 +42,7 @@ fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
 
     let hash = store::memory(&mut caller).decode(hash_ptr as usize, size_of::<H256>());
 
-    let maybe_data = threads::with_db(|db| db.read(hash));
+    let maybe_data = caller.data().db.read(hash);
 
     let res = maybe_data
         .map(|data| super::allocate_and_write_raw(caller, data))
@@ -56,9 +56,10 @@ fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
 fn write(mut caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
     log::trace!(target: "host_call", "write(ptr={ptr:?}, len={len:?})");
 
+    let db = caller.data().db.clone_boxed();
     let memory = store::memory(&mut caller);
     let data = memory.slice(ptr as usize, len as usize);
-    let hash = threads::with_db(|db| db.write(data));
+    let hash = db.write(data);
 
     let res = super::allocate_and_write(caller, hash);
 

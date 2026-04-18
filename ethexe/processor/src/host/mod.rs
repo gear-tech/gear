@@ -18,7 +18,7 @@
 
 use core_processor::common::JournalNote;
 use ethexe_common::{gear::MessageType, injected::Promise};
-use ethexe_db::CASDatabase;
+use ethexe_db::Database;
 use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, unpack_i64_to_u32};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::H256;
@@ -82,6 +82,7 @@ pub type Store = wasmtime::Store<StoreData>;
 
 #[derive(Clone)]
 pub(crate) struct InstanceCreator {
+    db: Database,
     engine: wasmtime::Engine,
     instance_pre: Arc<wasmtime::InstancePre<StoreData>>,
 }
@@ -97,7 +98,7 @@ impl InstanceCreator {
     ///
     /// A wasm runtime modules is expected to use some runtime interface,
     /// which calls linked host functions.
-    pub fn new(runtime: Vec<u8>) -> Result<Self> {
+    pub fn new(db: Database, runtime: Vec<u8>) -> Result<Self> {
         let mut config = wasmtime::Config::new();
         let cache = wasmtime::Cache::new(Default::default())?;
         config.cache(Some(cache));
@@ -117,13 +118,21 @@ impl InstanceCreator {
         let instance_pre = Arc::new(instance_pre);
 
         Ok(Self {
+            db,
             engine,
             instance_pre,
         })
     }
 
     pub fn instantiate(&self) -> Result<InstanceWrapper> {
-        let mut store = Store::new(&self.engine, Default::default());
+        let store = StoreData {
+            memory: None,
+            table: None,
+            allocator: None,
+            db: self.db.cas().clone_boxed(),
+            promise_out_tx: None,
+        };
+        let mut store = Store::new(&self.engine, store);
 
         let instance = self.instance_pre.instantiate(&mut store)?;
 
@@ -145,7 +154,6 @@ pub(crate) struct InstanceWrapper {
 }
 
 impl InstanceWrapper {
-    #[allow(unused)]
     pub fn data(&self) -> &StoreData {
         self.store.data()
     }
@@ -169,11 +177,11 @@ impl InstanceWrapper {
     /// processed out of the wasm module.
     pub fn run(
         &mut self,
-        db: Box<dyn CASDatabase>,
         ctx: ProcessQueueContext,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<(ProgramJournals, H256, u64)> {
-        threads::set(db, ctx.state_root);
+        threads::set(self.data().db.clone_boxed(), ctx.state_root);
+
         self.with_promise_out_tx(promise_out_tx, |instance_wrapper| {
             // Pieces of resulting journal. Hack to avoid single allocation limit.
             let (ptr_lens, gas_spent): (Vec<i64>, i64) =
@@ -187,7 +195,7 @@ impl InstanceWrapper {
                 mega_journal.push(journal_and_message_type);
             }
 
-            let new_state_hash = threads::with_params(|params| params.state_hash);
+            let new_state_hash = threads::state_hash();
 
             Ok((mega_journal, new_state_hash, gas_spent as u64))
         })

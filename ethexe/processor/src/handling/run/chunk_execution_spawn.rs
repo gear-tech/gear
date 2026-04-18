@@ -48,7 +48,6 @@ pub async fn spawn_chunk_execution(
         instrumented_code: InstrumentedCode,
         code_metadata: CodeMetadata,
         executor: InstanceWrapper,
-        db: Box<dyn CASDatabase>,
         gas_allowance_for_chunk: u64,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     }
@@ -63,13 +62,11 @@ pub async fn spawn_chunk_execution(
             instrumented_code,
             code_metadata,
             mut executor,
-            db,
             gas_allowance_for_chunk,
             promise_out_tx,
         } = executable;
 
         let (jn, new_state_hash, gas_spent) = executor.run(
-            db,
             ProcessQueueContext {
                 program_id,
                 state_root: state_hash,
@@ -118,7 +115,6 @@ pub async fn spawn_chunk_execution(
                 instrumented_code,
                 code_metadata,
                 executor,
-                db: ctx.inner().db.cas().clone_boxed(),
                 gas_allowance_for_chunk,
                 promise_out_tx: ctx.inner().promise_out_tx.clone(),
             })

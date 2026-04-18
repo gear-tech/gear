@@ -39,8 +39,8 @@ thread_local! {
 }
 
 pub struct ThreadParams {
-    pub db: Box<dyn CASDatabase>,
     pub state_hash: H256,
+    db: Box<dyn CASDatabase>,
     pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
@@ -111,30 +111,24 @@ pub fn set(db: Box<dyn CASDatabase>, state_hash: H256) {
     }))
 }
 
-pub fn update_state_hash(state_hash: H256) {
+fn with_params<T>(f: impl FnOnce(&mut ThreadParams) -> T) -> T {
     PARAMS.with_borrow_mut(|v| {
         let params = v.as_mut().expect(UNSET_PANIC);
 
+        f(params)
+    })
+}
+
+pub fn update_state_hash(state_hash: H256) {
+    with_params(|params| {
         params.state_hash = state_hash;
         params.pages_registry_cache = None;
         params.pages_regions_cache = None;
     })
 }
 
-pub fn with_db<T>(f: impl FnOnce(&dyn CASDatabase) -> T) -> T {
-    PARAMS.with_borrow(|v| {
-        let params = v.as_ref().expect(UNSET_PANIC);
-
-        f(params.db.as_ref())
-    })
-}
-
-pub fn with_params<T>(f: impl FnOnce(&mut ThreadParams) -> T) -> T {
-    PARAMS.with_borrow_mut(|v| {
-        let params = v.as_mut().expect(UNSET_PANIC);
-
-        f(params)
-    })
+pub fn state_hash() -> H256 {
+    with_params(|params| params.state_hash)
 }
 
 #[derive(Debug)]

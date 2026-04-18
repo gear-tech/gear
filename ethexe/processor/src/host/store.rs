@@ -5,6 +5,7 @@
 
 use core::ops::Range;
 use ethexe_common::injected::Promise;
+use ethexe_db::CASDatabase;
 use ethexe_runtime_common::unpack_i64_to_u32;
 use parity_scale_codec::Decode;
 use sp_allocator::FreeingBumpHeapAllocator;
@@ -30,11 +31,11 @@ pub(crate) fn write_memory_from(
     Ok(())
 }
 
-#[derive(Default)]
 pub(crate) struct StoreData {
     pub(crate) memory: Option<Memory>,
     pub(crate) table: Option<Table>,
     pub(crate) allocator: Option<FreeingBumpHeapAllocator>,
+    pub(crate) db: Box<dyn CASDatabase>,
     pub(crate) promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 }
 
