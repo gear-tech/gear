@@ -45,7 +45,7 @@ fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
     let maybe_data = threads::with_db(|db| db.read(hash));
 
     let res = maybe_data
-        .map(|data| super::allocate_and_write_raw(caller, data).1)
+        .map(|data| super::allocate_and_write_raw(caller, data))
         .unwrap_or(0);
 
     log::trace!(target: "host_call", "read_by_hash(..) -> {res:?}");
@@ -60,7 +60,7 @@ fn write(mut caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
     let data = memory.slice(ptr as usize, len as usize);
     let hash = threads::with_db(|db| db.write(data));
 
-    let (_caller, res) = super::allocate_and_write(caller, hash);
+    let res = super::allocate_and_write(caller, hash);
 
     // This extracts first bytes (ptr).
     let res = res as i32;

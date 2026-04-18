@@ -96,7 +96,7 @@ fn lazy_pages_status(caller: Caller<'_, StoreData>) -> i64 {
 
     let status = lazy_pages_detail::lazy_pages_status();
 
-    let (_caller, res) = super::allocate_and_write(caller, status);
+    let res = super::allocate_and_write(caller, status);
 
     log::trace!(target: "host_call", "lazy_pages_status(..) -> {res:?}");
 
@@ -143,7 +143,7 @@ fn write_accessed_pages(caller: Caller<'_, StoreData>) -> i64 {
 
     let pages = lazy_pages_detail::write_accessed_pages();
 
-    let (_caller, res) = super::allocate_and_write(caller, pages);
+    let res = super::allocate_and_write(caller, pages);
 
     log::trace!(target: "host_call", "write_accessed_pages(..) -> {res:?}");
 

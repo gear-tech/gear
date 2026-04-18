@@ -19,7 +19,7 @@
 use crate::host::{StoreData, store};
 use ethexe_runtime_common::pack_u32_to_i64;
 use parity_scale_codec::Encode;
-use wasmtime::Caller;
+use wasmtime::StoreContextMut;
 
 pub mod allocator;
 pub mod database;
@@ -28,17 +28,18 @@ pub mod logging;
 pub mod promise;
 pub mod sandbox;
 
-pub fn allocate_and_write(
-    caller: Caller<'_, StoreData>,
+pub fn allocate_and_write<'a>(
+    caller: impl Into<StoreContextMut<'a, StoreData>>,
     data: impl Encode,
-) -> (Caller<'_, StoreData>, i64) {
+) -> i64 {
     allocate_and_write_raw(caller, data.encode())
 }
 
-pub fn allocate_and_write_raw(
-    mut caller: Caller<'_, StoreData>,
+pub fn allocate_and_write_raw<'a>(
+    caller: impl Into<StoreContextMut<'a, StoreData>>,
     data: impl AsRef<[u8]>,
-) -> (Caller<'_, StoreData>, i64) {
+) -> i64 {
+    let mut caller = caller.into();
     let data = data.as_ref();
     let len = data.len();
 
@@ -46,6 +47,5 @@ pub fn allocate_and_write_raw(
     let memory = caller.data().memory();
     memory.write(&mut caller, ptr as usize, data).unwrap();
 
-    let res = pack_u32_to_i64(ptr, len as u32);
-    (caller, res)
+    pack_u32_to_i64(ptr, len as u32)
 }
