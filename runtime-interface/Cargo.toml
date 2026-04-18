@@ -14,7 +14,7 @@ builtins-common = { workspace = true, optional = true }
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages = { workspace = true, optional = true }
-gear-sandbox-interface.workspace = true
+gear-sandbox-interface = { workspace = true, optional = true }
 
 sp-io.workspace = true
 sp-runtime-interface = { workspace = true, default-features = false }
@@ -24,11 +24,10 @@ log = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "sandbox"]
 std = [
 	"gear-core/std",
 	"gear-lazy-pages",
-	"gear-sandbox-interface/std",
 
 	"sp-io/std",
 	"sp-std/std",
@@ -38,3 +37,4 @@ std = [
 
 	"builtins-common/bls12-381-std",
 ]
+sandbox = ["std", "gear-sandbox-interface/std"]

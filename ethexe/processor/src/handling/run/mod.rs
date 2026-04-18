@@ -498,10 +498,10 @@ mod tests {
         .collect();
 
         let transitions = InBlockTransitions::new(0, states, Default::default());
-
+        let db = Database::memory();
         let mut ctx = CommonRunContext::new(
-            Database::memory(),
-            InstanceCreator::new(host::runtime()).unwrap(),
+            db.clone(),
+            InstanceCreator::new(db.clone(), host::runtime()).unwrap(),
             transitions,
             1_000_000,
             CHUNK_PROCESSING_THREADS,
@@ -662,7 +662,7 @@ mod tests {
             in_block_transitions,
             100,
             16,
-            InstanceCreator::new(host::runtime()).unwrap(),
+            InstanceCreator::new(db.clone(), host::runtime()).unwrap(),
             BlockHeader::dummy(3),
         );
         access_state(

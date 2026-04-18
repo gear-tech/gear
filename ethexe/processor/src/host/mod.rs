@@ -18,28 +18,27 @@
 
 use core_processor::common::JournalNote;
 use ethexe_common::{gear::MessageType, injected::Promise};
-use ethexe_db::CASDatabase;
+use ethexe_db::Database;
 use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, unpack_i64_to_u32};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
-use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
 pub mod api;
 pub mod runtime;
 
-mod context;
+mod store;
 mod threads;
+
+pub(crate) use store::{StoreData, write_memory_from};
 
 #[derive(thiserror::Error, Debug)]
 pub enum InstanceError {
     #[error("failed to write call input: {0}")]
     CallInputWrite(String),
-    #[error("host state should be set before call and reset after")]
-    HostStateNotSet,
     #[error("couldn't find 'memory' export")]
     MemoryExportNotFound,
     #[error("'memory' export is not a wasm memory")]
@@ -83,6 +82,7 @@ pub type Store = wasmtime::Store<StoreData>;
 
 #[derive(Clone)]
 pub(crate) struct InstanceCreator {
+    db: Database,
     engine: wasmtime::Engine,
     instance_pre: Arc<wasmtime::InstancePre<StoreData>>,
 }
@@ -98,9 +98,10 @@ impl InstanceCreator {
     ///
     /// A wasm runtime modules is expected to use some runtime interface,
     /// which calls linked host functions.
-    pub fn new(runtime: Vec<u8>) -> Result<Self> {
+    pub fn new(db: Database, runtime: Vec<u8>) -> Result<Self> {
         let mut config = wasmtime::Config::new();
-        config.cache_config_load_default()?;
+        let cache = wasmtime::Cache::new(Default::default())?;
+        config.cache(Some(cache));
         let engine = wasmtime::Engine::new(&config)?;
 
         let module = wasmtime::Module::new(&engine, runtime)?;
@@ -117,13 +118,21 @@ impl InstanceCreator {
         let instance_pre = Arc::new(instance_pre);
 
         Ok(Self {
+            db,
             engine,
             instance_pre,
         })
     }
 
     pub fn instantiate(&self) -> Result<InstanceWrapper> {
-        let mut store = Store::new(&self.engine, Default::default());
+        let store = StoreData {
+            memory: None,
+            table: None,
+            allocator: None,
+            db: self.db.cas().clone_boxed(),
+            promise_out_tx: None,
+        };
+        let mut store = Store::new(&self.engine, store);
 
         let instance = self.instance_pre.instantiate(&mut store)?;
 
@@ -145,7 +154,6 @@ pub(crate) struct InstanceWrapper {
 }
 
 impl InstanceWrapper {
-    #[allow(unused)]
     pub fn data(&self) -> &StoreData {
         self.store.data()
     }
@@ -169,31 +177,28 @@ impl InstanceWrapper {
     /// processed out of the wasm module.
     pub fn run(
         &mut self,
-        db: Box<dyn CASDatabase>,
         ctx: ProcessQueueContext,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<(ProgramJournals, H256, u64)> {
-        threads::set(db, ctx.state_root, promise_out_tx.clone());
+        threads::set(self.data().db.clone_boxed(), ctx.state_root);
 
-        // Cleanup the `promise_out_tx` from thread-local to signal receiver that channel is closed.
-        let _cleanup = scopeguard::guard((), |()| {
-            threads::clear_promise_out_tx();
-        });
+        self.with_promise_out_tx(promise_out_tx, |instance_wrapper| {
+            // Pieces of resulting journal. Hack to avoid single allocation limit.
+            let (ptr_lens, gas_spent): (Vec<i64>, i64) =
+                instance_wrapper.call("run", ctx.encode())?;
 
-        // Pieces of resulting journal. Hack to avoid single allocation limit.
-        let (ptr_lens, gas_spent): (Vec<i64>, i64) = self.call("run", ctx.encode())?;
+            let mut mega_journal = Vec::with_capacity(ptr_lens.len());
 
-        let mut mega_journal = Vec::with_capacity(ptr_lens.len());
+            for ptr_len in ptr_lens {
+                let journal_and_message_type: (Vec<JournalNote>, MessageType, bool) =
+                    instance_wrapper.get_call_output(ptr_len)?;
+                mega_journal.push(journal_and_message_type);
+            }
 
-        for ptr_len in ptr_lens {
-            let journal_and_message_type: (Vec<JournalNote>, MessageType, bool) =
-                self.get_call_output(ptr_len)?;
-            mega_journal.push(journal_and_message_type);
-        }
+            let new_state_hash = threads::state_hash();
 
-        let new_state_hash = threads::with_params(|params| params.state_hash);
-
-        Ok((mega_journal, new_state_hash, gas_spent as u64))
+            Ok((mega_journal, new_state_hash, gas_spent as u64))
+        })
     }
 
     /// Low-level call to exported from the wasm module `name` function.
@@ -214,32 +219,31 @@ impl InstanceWrapper {
     }
 
     fn with_host_state<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
-        self.set_host_state()?;
+        self.set_allocator()?;
         let res = f(self);
-        let _allocation_stats = self.reset_host_state()?;
+        let _allocation_stats = self.unset_allocator()?;
+        res
+    }
+
+    fn with_promise_out_tx<T>(
+        &mut self,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        f: impl FnOnce(&mut Self) -> Result<T>,
+    ) -> Result<T> {
+        self.data_mut().promise_out_tx = promise_out_tx;
+        let res = f(self);
+        let _ = self.data_mut().promise_out_tx.take();
         res
     }
 
     fn set_call_input(&mut self, bytes: &[u8]) -> Result<(i32, i32)> {
-        let memory = self.memory()?;
-
         let len = bytes.len() as u32; // TODO: check len.
 
-        let ptr = self.with_allocator(|instance_wrapper, allocator| {
-            allocator
-                .allocate(
-                    &mut MemoryWrapper::from((&memory, &mut instance_wrapper.store)),
-                    len,
-                )
-                .map_err(Into::into)
-        })?;
+        let ptr = store::allocator(&mut self.store).allocate(len)?;
 
-        sp_wasm_interface::util::write_memory_from(&mut self.store, ptr, bytes)
-            .map_err(InstanceError::CallInputWrite)?;
+        write_memory_from(&mut self.store, ptr, bytes).map_err(InstanceError::CallInputWrite)?;
 
-        let ptr = ptr.into_value().as_i32().expect("must be i32");
-
-        Ok((ptr, len as i32))
+        Ok((ptr as i32, len as i32))
     }
 
     fn get_call_output<D: Decode>(&mut self, ptr_len: i64) -> Result<D> {
@@ -254,48 +258,22 @@ impl InstanceWrapper {
         Ok(res)
     }
 
-    fn set_host_state(&mut self) -> Result<()> {
+    fn set_allocator(&mut self) -> Result<()> {
         let heap_base = self.heap_base()?;
-
         let allocator = FreeingBumpHeapAllocator::new(heap_base);
-
-        let host_state = HostState::new(allocator);
-
-        self.data_mut().host_state = Some(host_state);
+        self.data_mut().allocator = Some(allocator);
 
         Ok(())
     }
 
-    fn reset_host_state(&mut self) -> Result<AllocationStats> {
-        let host_state = self
+    fn unset_allocator(&mut self) -> Result<AllocationStats> {
+        let allocator = self
             .data_mut()
-            .host_state
+            .allocator
             .take()
-            .ok_or(InstanceError::HostStateNotSet)?;
-
-        Ok(host_state.allocation_stats())
-    }
-
-    fn with_allocator<T>(
-        &mut self,
-        f: impl FnOnce(&mut Self, &mut FreeingBumpHeapAllocator) -> Result<T>,
-    ) -> Result<T> {
-        let mut allocator = self
-            .data_mut()
-            .host_state
-            .as_mut()
-            .and_then(|s| s.allocator.take())
             .ok_or(InstanceError::AllocatorNotSet)?;
 
-        let res = f(self, &mut allocator);
-
-        self.data_mut()
-            .host_state
-            .as_mut()
-            .expect("checked above")
-            .allocator = Some(allocator);
-
-        res
+        Ok(allocator.stats())
     }
 
     fn memory(&mut self) -> Result<wasmtime::Memory> {

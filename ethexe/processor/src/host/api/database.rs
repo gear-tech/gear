@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{api::MemoryWrap, threads};
+use crate::host::{StoreData, store, threads};
 use gprimitives::H256;
-use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -32,26 +31,21 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
 fn update_state_hash(caller: Caller<'_, StoreData>, program_state_hash_ptr: i32) {
     log::trace!(target: "host_call", "update_state_hash(program_state_hash={program_state_hash_ptr:?})");
 
-    let memory = MemoryWrap(caller.data().memory());
-
-    let hash_slice = memory.slice(&caller, program_state_hash_ptr as usize, size_of::<H256>());
-    let program_state_hash = H256::from_slice(hash_slice);
+    let program_state_hash =
+        store::memory(caller).decode(program_state_hash_ptr as usize, size_of::<H256>());
 
     threads::update_state_hash(program_state_hash);
 }
 
-fn read_by_hash(caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
+fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
     log::trace!(target: "host_call", "read_by_hash(hash_ptr={hash_ptr:?})");
 
-    let memory = MemoryWrap(caller.data().memory());
+    let hash = store::memory(&mut caller).decode(hash_ptr as usize, size_of::<H256>());
 
-    let hash_slice = memory.slice(&caller, hash_ptr as usize, size_of::<H256>());
-    let hash = H256::from_slice(hash_slice);
-
-    let maybe_data = threads::with_db(|db| db.read(hash));
+    let maybe_data = caller.data().db.read(hash);
 
     let res = maybe_data
-        .map(|data| super::allocate_and_write_raw(caller, data).1)
+        .map(|data| super::allocate_and_write_raw(caller, data))
         .unwrap_or(0);
 
     log::trace!(target: "host_call", "read_by_hash(..) -> {res:?}");
@@ -59,16 +53,15 @@ fn read_by_hash(caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
     res
 }
 
-fn write(caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
+fn write(mut caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
     log::trace!(target: "host_call", "write(ptr={ptr:?}, len={len:?})");
 
-    let memory = MemoryWrap(caller.data().memory());
+    let db = caller.data().db.clone_boxed();
+    let memory = store::memory(&mut caller);
+    let data = memory.slice(ptr as usize, len as usize);
+    let hash = db.write(data);
 
-    let data = memory.slice(&caller, ptr as usize, len as usize);
-
-    let hash = threads::with_db(|db| db.write(data));
-
-    let (_caller, res) = super::allocate_and_write(caller, hash);
+    let res = super::allocate_and_write(caller, hash);
 
     // This extracts first bytes (ptr).
     let res = res as i32;
