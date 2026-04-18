@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, api::MemoryWrap};
+use crate::host::{StoreData, store};
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -25,10 +25,9 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     Ok(())
 }
 
-fn publish_promise(caller: Caller<'_, StoreData>, promise_ptr_len: i64) {
-    if let Some(sender) = caller.data().promise_out_tx.as_ref() {
-        let memory = MemoryWrap(caller.data().memory());
-        let promise = memory.decode_by_val(&caller, promise_ptr_len);
+fn publish_promise(mut caller: Caller<'_, StoreData>, promise_ptr_len: i64) {
+    if let Some(sender) = caller.data().promise_out_tx.clone() {
+        let promise = store::memory(&mut caller).decode_by_val(promise_ptr_len);
 
         match sender.send(promise) {
             Ok(()) => {

@@ -5,6 +5,8 @@
 
 use core::ops::Range;
 use ethexe_common::injected::Promise;
+use ethexe_runtime_common::unpack_i64_to_u32;
+use parity_scale_codec::Decode;
 use sp_allocator::FreeingBumpHeapAllocator;
 use tokio::sync::mpsc;
 use wasmtime::{AsContextMut, Memory, StoreContextMut, Table};
@@ -43,9 +45,48 @@ impl StoreData {
     }
 }
 
-struct MemoryWrapper<'a> {
+pub(crate) struct MemoryWrapper<'a> {
     caller: StoreContextMut<'a, StoreData>,
     memory: Memory,
+}
+
+// TODO: return results for mem accesses.
+impl MemoryWrapper<'_> {
+    pub fn decode_by_val<D: Decode>(&self, ptr_len: i64) -> D {
+        let mut slice = self.slice_by_val(ptr_len);
+        D::decode(&mut slice).unwrap()
+    }
+
+    pub fn decode<D: Decode>(&self, ptr: usize, len: usize) -> D {
+        let mut slice = self.slice(ptr, len);
+        D::decode(&mut slice).unwrap()
+    }
+
+    pub fn slice_by_val(&self, ptr_len: i64) -> &[u8] {
+        let (ptr, len) = unpack_i64_to_u32(ptr_len);
+        self.slice(ptr as usize, len as usize)
+    }
+
+    pub fn array<const N: usize>(&self, ptr: usize) -> [u8; N] {
+        let slice = self.slice(ptr, N);
+        slice.try_into().expect("infallible")
+    }
+
+    pub fn slice(&self, ptr: usize, len: usize) -> &[u8] {
+        self.memory
+            .data(&self.caller)
+            .get(ptr..)
+            .and_then(|s| s.get(..len))
+            .unwrap()
+    }
+
+    pub fn slice_mut(&mut self, ptr: usize, len: usize) -> &mut [u8] {
+        self.memory
+            .data_mut(&mut self.caller)
+            .get_mut(ptr..)
+            .and_then(|s| s.get_mut(..len))
+            .unwrap()
+    }
 }
 
 impl sp_allocator::Memory for MemoryWrapper<'_> {
@@ -76,6 +117,12 @@ impl sp_allocator::Memory for MemoryWrapper<'_> {
             .maximum()
             .map(|pages| pages as u32)
     }
+}
+
+pub(crate) fn memory<'a>(caller: impl Into<StoreContextMut<'a, StoreData>>) -> MemoryWrapper<'a> {
+    let caller = caller.into();
+    let memory = caller.data().memory();
+    MemoryWrapper { caller, memory }
 }
 
 pub(crate) struct Allocator<'a> {
@@ -114,11 +161,8 @@ pub(crate) fn allocator<'a>(caller: impl Into<StoreContextMut<'a, StoreData>>) -
         .take()
         .expect("allocator is available during wasm calls; qed");
 
-    let memory = caller.data_mut().memory();
-    let memory = MemoryWrapper { caller, memory };
-
     Allocator {
-        memory,
+        memory: memory(caller),
         allocator: Some(allocator),
     }
 }

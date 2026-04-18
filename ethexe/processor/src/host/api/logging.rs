@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::MemoryWrap;
-use crate::host::StoreData;
+use crate::host::{StoreData, store};
 use log::Level;
 use wasmtime::{Caller, Linker};
 
@@ -39,12 +38,12 @@ fn log(caller: Caller<'_, StoreData>, level: i32, target: i64, message: i64) {
         _ => Level::Trace,
     };
 
-    let memory = MemoryWrap(caller.data().memory());
+    let memory = store::memory(caller);
 
-    let target = memory.slice_by_val(&caller, target);
+    let target = memory.slice_by_val(target);
     let target = core::str::from_utf8(target).unwrap_or_default();
 
-    let message = memory.slice_by_val(&caller, message);
+    let message = memory.slice_by_val(message);
     let message = core::str::from_utf8(message).unwrap_or_default();
 
     log::log!(target: target, level, "{message}");

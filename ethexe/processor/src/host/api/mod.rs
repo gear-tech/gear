@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::host::{StoreData, store};
-use ethexe_runtime_common::{pack_u32_to_i64, unpack_i64_to_u32};
-use parity_scale_codec::{Decode, Encode};
-use wasmtime::{Caller, Memory, StoreContext, StoreContextMut};
+use ethexe_runtime_common::pack_u32_to_i64;
+use parity_scale_codec::Encode;
+use wasmtime::Caller;
 
 pub mod allocator;
 pub mod database;
@@ -27,69 +27,6 @@ pub mod lazy_pages;
 pub mod logging;
 pub mod promise;
 pub mod sandbox;
-
-pub struct MemoryWrap(Memory);
-
-// TODO: return results for mem accesses.
-impl MemoryWrap {
-    pub fn decode_by_val<'a, T: 'a + 'static, D: Decode>(
-        &self,
-        store: impl Into<StoreContext<'a, T>>,
-        ptr_len: i64,
-    ) -> D {
-        let mut slice = self.slice_by_val(store, ptr_len);
-
-        D::decode(&mut slice).unwrap()
-    }
-
-    #[allow(unused)]
-    pub fn decode<'a, T: 'a + 'static, D: Decode>(
-        &self,
-        store: impl Into<StoreContext<'a, T>>,
-        ptr: usize,
-        len: usize,
-    ) -> D {
-        let mut slice = self.slice(store, ptr, len);
-
-        D::decode(&mut slice).unwrap()
-    }
-
-    pub fn slice_by_val<'a, T: 'a + 'static>(
-        &self,
-        store: impl Into<StoreContext<'a, T>>,
-        ptr_len: i64,
-    ) -> &'a [u8] {
-        let (ptr, len) = unpack_i64_to_u32(ptr_len);
-
-        self.slice(store, ptr as usize, len as usize)
-    }
-
-    pub fn slice<'a, T: 'a + 'static>(
-        &self,
-        store: impl Into<StoreContext<'a, T>>,
-        ptr: usize,
-        len: usize,
-    ) -> &'a [u8] {
-        self.0
-            .data(store)
-            .get(ptr..)
-            .and_then(|s| s.get(..len))
-            .unwrap()
-    }
-
-    pub fn slice_mut<'a, T: 'a + 'static>(
-        &self,
-        store: impl Into<StoreContextMut<'a, T>>,
-        ptr: usize,
-        len: usize,
-    ) -> &'a mut [u8] {
-        self.0
-            .data_mut(store)
-            .get_mut(ptr..)
-            .and_then(|s| s.get_mut(..len))
-            .unwrap()
-    }
-}
 
 pub fn allocate_and_write(
     caller: Caller<'_, StoreData>,

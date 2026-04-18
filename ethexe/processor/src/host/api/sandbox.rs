@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, api::MemoryWrap, store};
+use crate::host::{StoreData, store};
 use ethexe_runtime_common::pack_u32_to_i64;
 use gear_sandbox_host::host::{
     self as sandbox_detail, HostResult, Instantiate, Pointer, SupervisorFuncIndex, Value, WordSize,
 };
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use std::ops::Range;
 use wasmtime::{AsContext, AsContextMut, Caller, Linker, Val};
 
@@ -179,8 +179,7 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
         "get_global_val(instance_idx={instance_idx:?}, name={name:?})"
     );
 
-    let memory = MemoryWrap(caller.data().memory());
-    let name = memory.slice_by_val(&caller, name).to_vec();
+    let name = store::memory(&mut caller).slice_by_val(name).to_vec();
     let name = core::str::from_utf8(&name).unwrap_or_default();
 
     let res =
@@ -225,9 +224,9 @@ fn instantiate(
         "instantiate(dispatch_thunk_id={dispatch_thunk_id:?}, wasm_code={wasm_code:?}, raw_env_def={raw_env_def:?}, state_ptr={state_ptr:?})"
     );
 
-    let memory = MemoryWrap(caller.data().memory());
-    let wasm_code = memory.slice_by_val(&caller, wasm_code).to_vec();
-    let raw_env_def = memory.slice_by_val(&caller, raw_env_def).to_vec();
+    let memory = store::memory(&mut caller);
+    let wasm_code = memory.slice_by_val(wasm_code).to_vec();
+    let raw_env_def = memory.slice_by_val(raw_env_def).to_vec();
 
     let res = sandbox_detail::instantiate::<ProcessorOps>(
         &mut caller,
@@ -256,10 +255,10 @@ fn invoke(
         "invoke(instance_idx={instance_idx:?}, function={function:?}, args={args:?}, return_val_ptr={return_val_ptr:?}, return_val_len={return_val_len:?}, state_ptr={state_ptr:?})"
     );
 
-    let memory = MemoryWrap(caller.data().memory());
-    let function = memory.slice_by_val(&caller, function).to_vec();
+    let memory = store::memory(&mut caller);
+    let function = memory.slice_by_val(function).to_vec();
     let function = core::str::from_utf8(&function).unwrap_or_default();
-    let args = memory.slice_by_val(&caller, args).to_vec();
+    let args = memory.slice_by_val(args).to_vec();
 
     let res = sandbox_detail::invoke::<ProcessorOps>(
         &mut caller,
@@ -364,11 +363,10 @@ fn set_global_val(
         "set_global_val(instance_idx={instance_idx:?}, name={name:?}, value={value:?})"
     );
 
-    let memory = MemoryWrap(caller.data().memory());
-    let name = memory.slice_by_val(&caller, name).to_vec();
+    let memory = store::memory(&mut caller);
+    let name = memory.slice_by_val(name).to_vec();
     let name = core::str::from_utf8(&name).unwrap_or_default();
-    let value = memory.slice_by_val(&caller, value).to_vec();
-    let value = Value::decode(&mut value.as_slice()).unwrap();
+    let value: Value = memory.decode_by_val(value);
 
     let res = sandbox_detail::set_global_val::<ProcessorOps>(
         &mut caller,
