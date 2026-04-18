@@ -21,9 +21,9 @@
 //! This module handles spawning program execution tasks in a thread pool.
 
 use super::*;
-use crate::{handling::thread_pool::ThreadPool, host::InstanceWrapper};
+use crate::thread_pool;
 use ethexe_runtime_common::ProcessQueueContext;
-use std::sync::LazyLock;
+use futures::stream::FuturesOrdered;
 
 /// An alias introduced for better readability of the chunks execution steps.
 pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
@@ -39,52 +39,6 @@ pub async fn spawn_chunk_execution(
     chunk: Vec<(ActorId, H256)>,
     queue_type: MessageType,
 ) -> Result<Vec<ChunkItemOutput>> {
-    struct Executable {
-        queue_type: MessageType,
-        block_info: BlockInfo,
-        promise_policy: PromisePolicy,
-        program_id: ActorId,
-        state_hash: H256,
-        instrumented_code: InstrumentedCode,
-        code_metadata: CodeMetadata,
-        executor: InstanceWrapper,
-        gas_allowance_for_chunk: u64,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-    }
-
-    fn execute_chunk_item(executable: Executable) -> Result<ChunkItemOutput> {
-        let Executable {
-            queue_type,
-            block_info,
-            promise_policy,
-            program_id,
-            state_hash,
-            instrumented_code,
-            code_metadata,
-            mut executor,
-            gas_allowance_for_chunk,
-            promise_out_tx,
-        } = executable;
-
-        let (jn, new_state_hash, gas_spent) = executor.run(
-            ProcessQueueContext {
-                program_id,
-                state_root: state_hash,
-                queue_type,
-                instrumented_code,
-                code_metadata,
-                gas_allowance: GasAllowanceCounter::new(gas_allowance_for_chunk),
-                block_info,
-                promise_policy,
-            },
-            promise_out_tx,
-        )?;
-        Ok((program_id, new_state_hash, jn, gas_spent))
-    }
-
-    static THREAD_POOL: LazyLock<ThreadPool<Executable, Result<ChunkItemOutput>>> =
-        LazyLock::new(|| ThreadPool::new(execute_chunk_item));
-
     let gas_allowance_for_chunk = ctx
         .inner()
         .gas_allowance_counter
@@ -99,27 +53,30 @@ pub async fn spawn_chunk_execution(
         timestamp: block_header.timestamp,
     };
 
-    let executables = chunk
+    chunk
         .into_iter()
         .map(|(program_id, state_hash)| {
             let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
-
-            let executor = ctx.inner().instance_creator.instantiate()?;
-
-            Ok(Executable {
-                queue_type,
-                block_info,
-                promise_policy,
-                program_id,
-                state_hash,
-                instrumented_code,
-                code_metadata,
-                executor,
-                gas_allowance_for_chunk,
-                promise_out_tx: ctx.inner().promise_out_tx.clone(),
-            })
+            let mut executor = ctx.inner().instance_creator.instantiate()?;
+            let promise_out_tx = ctx.inner().promise_out_tx.clone();
+            Ok(thread_pool::spawn(move || {
+                let (jn, new_state_hash, gas_spent) = executor.run(
+                    ProcessQueueContext {
+                        program_id,
+                        state_root: state_hash,
+                        queue_type,
+                        instrumented_code,
+                        code_metadata,
+                        gas_allowance: GasAllowanceCounter::new(gas_allowance_for_chunk),
+                        block_info,
+                        promise_policy,
+                    },
+                    promise_out_tx,
+                )?;
+                Ok((program_id, new_state_hash, jn, gas_spent))
+            }))
         })
-        .collect::<Result<Vec<_>>>()?;
-
-    THREAD_POOL.spawn_many(executables).try_collect().await
+        .collect::<Result<FuturesOrdered<_>>>()?
+        .try_collect()
+        .await
 }
