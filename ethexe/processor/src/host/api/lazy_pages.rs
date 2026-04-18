@@ -18,7 +18,7 @@
 
 // TODO (breathx): remove cloning of slices from wasm memory (unsafe casts).
 
-use crate::host::{StoreData, store, threads::EthexeHostLazyPages};
+use crate::host::{StoreData, context, threads::EthexeHostLazyPages};
 use gear_lazy_pages::LazyPagesVersion;
 use gear_runtime_interface::{LazyPagesInitContext, lazy_pages_detail};
 use wasmtime::{Caller, Linker};
@@ -66,7 +66,7 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
 fn change_wasm_memory_addr_and_size(caller: Caller<'_, StoreData>, addr: i64, size: i64) {
     log::trace!(target: "host_call", "change_wasm_memory_addr_and_size(addr={addr:?}, size={size:?})");
 
-    let memory = store::memory(caller);
+    let memory = context::memory(caller);
     let addr = memory.decode_by_val(addr);
     let size = memory.decode_by_val(size);
 
@@ -76,7 +76,7 @@ fn change_wasm_memory_addr_and_size(caller: Caller<'_, StoreData>, addr: i64, si
 fn init_lazy_pages(caller: Caller<'_, StoreData>, ctx: i64) -> i32 {
     log::trace!(target: "host_call", "init_lazy_pages(ctx={ctx:?})");
 
-    let ctx: LazyPagesInitContext = store::memory(caller).decode_by_val(ctx);
+    let ctx: LazyPagesInitContext = context::memory(caller).decode_by_val(ctx);
 
     gear_lazy_pages::init(LazyPagesVersion::Version1, ctx.into(), EthexeHostLazyPages)
         .map_err(|err| log::error!("Cannot initialize lazy-pages: {err}"))
@@ -86,7 +86,7 @@ fn init_lazy_pages(caller: Caller<'_, StoreData>, ctx: i64) -> i32 {
 fn init_lazy_pages_for_program(caller: Caller<'_, StoreData>, ctx: i64) {
     log::trace!(target: "host_call", "init_lazy_pages_for_program(ctx={ctx:?})");
 
-    let ctx = store::memory(caller).decode_by_val(ctx);
+    let ctx = context::memory(caller).decode_by_val(ctx);
 
     lazy_pages_detail::init_lazy_pages_for_program(ctx);
 }
@@ -117,7 +117,7 @@ fn pre_process_memory_accesses(
 ) -> i32 {
     log::trace!(target: "host_call", "pre_process_memory_accesses(reads={reads:?}, writes={writes:?}, gas_bytes={gas_bytes:?})");
 
-    let mut memory = store::memory(&mut caller);
+    let mut memory = context::memory(&mut caller);
     let reads = memory.slice_by_val(reads);
     let writes = memory.slice_by_val(writes);
 

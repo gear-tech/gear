@@ -30,10 +30,10 @@ use tokio::sync::mpsc;
 pub mod api;
 pub mod runtime;
 
-mod store;
+mod context;
 mod threads;
 
-pub(crate) use store::{StoreData, write_memory_from};
+pub(crate) use context::{StoreData, write_memory_from};
 
 #[derive(thiserror::Error, Debug)]
 pub enum InstanceError {
@@ -239,7 +239,7 @@ impl InstanceWrapper {
     fn set_call_input(&mut self, bytes: &[u8]) -> Result<(i32, i32)> {
         let len = bytes.len() as u32; // TODO: check len.
 
-        let ptr = store::allocator(&mut self.store).allocate(len)?;
+        let ptr = context::allocator(&mut self.store).allocate(len)?;
 
         write_memory_from(&mut self.store, ptr, bytes).map_err(InstanceError::CallInputWrite)?;
 

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, store};
+use crate::host::{StoreData, context};
 use log::Level;
 use wasmtime::{Caller, Linker};
 
@@ -38,7 +38,7 @@ fn log(caller: Caller<'_, StoreData>, level: i32, target: i64, message: i64) {
         _ => Level::Trace,
     };
 
-    let memory = store::memory(caller);
+    let memory = context::memory(caller);
 
     let target = memory.slice_by_val(target);
     let target = core::str::from_utf8(target).unwrap_or_default();

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, store};
+use crate::host::{StoreData, context};
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -27,9 +27,9 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
 }
 
 fn free(caller: Caller<'_, StoreData>, ptr: u32) {
-    store::allocator(caller).deallocate(ptr).unwrap()
+    context::allocator(caller).deallocate(ptr).unwrap()
 }
 
 fn malloc(caller: Caller<'_, StoreData>, size: u32) -> u32 {
-    store::allocator(caller).allocate(size).unwrap()
+    context::allocator(caller).allocate(size).unwrap()
 }

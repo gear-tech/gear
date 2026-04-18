@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, store};
+use crate::host::{StoreData, context};
 use ethexe_runtime_common::pack_u32_to_i64;
 use parity_scale_codec::Encode;
 use wasmtime::StoreContextMut;
@@ -43,7 +43,9 @@ pub fn allocate_and_write_raw<'a>(
     let data = data.as_ref();
     let len = data.len();
 
-    let ptr: u32 = store::allocator(&mut caller).allocate(len as u32).unwrap();
+    let ptr: u32 = context::allocator(&mut caller)
+        .allocate(len as u32)
+        .unwrap();
     let memory = caller.data().memory();
     memory.write(&mut caller, ptr as usize, data).unwrap();
 

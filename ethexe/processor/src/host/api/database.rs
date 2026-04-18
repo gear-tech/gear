@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, store, threads};
+use crate::host::{StoreData, context, threads};
 use gprimitives::H256;
 use wasmtime::{Caller, Linker};
 
@@ -32,7 +32,7 @@ fn update_state_hash(caller: Caller<'_, StoreData>, program_state_hash_ptr: i32)
     log::trace!(target: "host_call", "update_state_hash(program_state_hash={program_state_hash_ptr:?})");
 
     let program_state_hash =
-        store::memory(caller).decode(program_state_hash_ptr as usize, size_of::<H256>());
+        context::memory(caller).decode(program_state_hash_ptr as usize, size_of::<H256>());
 
     threads::update_state_hash(program_state_hash);
 }
@@ -40,7 +40,7 @@ fn update_state_hash(caller: Caller<'_, StoreData>, program_state_hash_ptr: i32)
 fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
     log::trace!(target: "host_call", "read_by_hash(hash_ptr={hash_ptr:?})");
 
-    let hash = store::memory(&mut caller).decode(hash_ptr as usize, size_of::<H256>());
+    let hash = context::memory(&mut caller).decode(hash_ptr as usize, size_of::<H256>());
 
     let maybe_data = caller.data().db.read(hash);
 
@@ -57,7 +57,7 @@ fn write(mut caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
     log::trace!(target: "host_call", "write(ptr={ptr:?}, len={len:?})");
 
     let db = caller.data().db.clone_boxed();
-    let memory = store::memory(&mut caller);
+    let memory = context::memory(&mut caller);
     let data = memory.slice(ptr as usize, len as usize);
     let hash = db.write(data);
 

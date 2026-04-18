@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, store};
+use crate::host::{StoreData, context};
 use ethexe_runtime_common::pack_u32_to_i64;
 use gear_sandbox_host::host::{
     self as sandbox_detail, HostResult, Instantiate, Pointer, SupervisorFuncIndex, Value, WordSize,
@@ -141,21 +141,21 @@ impl sandbox_detail::ContextOps for ProcessorOps {
         address: Pointer<u8>,
         data: &[u8],
     ) -> Result<(), String> {
-        store::write_memory_from(caller, u32::from(address), data)
+        context::write_memory_from(caller, u32::from(address), data)
     }
 
     fn allocate_memory(
         caller: &mut Self::Caller<'_>,
         size: WordSize,
     ) -> Result<Pointer<u8>, String> {
-        store::allocator(caller)
+        context::allocator(caller)
             .allocate(size)
             .map(Pointer::new)
             .map_err(|err| err.to_string())
     }
 
     fn deallocate_memory(caller: &mut Self::Caller<'_>, ptr: Pointer<u8>) -> Result<(), String> {
-        store::allocator(caller)
+        context::allocator(caller)
             .deallocate(ptr.into())
             .map_err(|err| err.to_string())
     }
@@ -179,7 +179,7 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
         "get_global_val(instance_idx={instance_idx:?}, name={name:?})"
     );
 
-    let name = store::memory(&mut caller).slice_by_val(name).to_vec();
+    let name = context::memory(&mut caller).slice_by_val(name).to_vec();
     let name = core::str::from_utf8(&name).unwrap_or_default();
 
     let res =
@@ -187,7 +187,7 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
     let res = res.encode();
     let res_len = res.len() as u32;
 
-    let ptr = store::allocator(&mut caller).allocate(res_len).unwrap();
+    let ptr = context::allocator(&mut caller).allocate(res_len).unwrap();
     caller
         .data()
         .memory()
@@ -224,7 +224,7 @@ fn instantiate(
         "instantiate(dispatch_thunk_id={dispatch_thunk_id:?}, wasm_code={wasm_code:?}, raw_env_def={raw_env_def:?}, state_ptr={state_ptr:?})"
     );
 
-    let memory = store::memory(&mut caller);
+    let memory = context::memory(&mut caller);
     let wasm_code = memory.slice_by_val(wasm_code).to_vec();
     let raw_env_def = memory.slice_by_val(raw_env_def).to_vec();
 
@@ -255,7 +255,7 @@ fn invoke(
         "invoke(instance_idx={instance_idx:?}, function={function:?}, args={args:?}, return_val_ptr={return_val_ptr:?}, return_val_len={return_val_len:?}, state_ptr={state_ptr:?})"
     );
 
-    let memory = store::memory(&mut caller);
+    let memory = context::memory(&mut caller);
     let function = memory.slice_by_val(function).to_vec();
     let function = core::str::from_utf8(&function).unwrap_or_default();
     let args = memory.slice_by_val(args).to_vec();
@@ -363,7 +363,7 @@ fn set_global_val(
         "set_global_val(instance_idx={instance_idx:?}, name={name:?}, value={value:?})"
     );
 
-    let memory = store::memory(&mut caller);
+    let memory = context::memory(&mut caller);
     let name = memory.slice_by_val(name).to_vec();
     let name = core::str::from_utf8(&name).unwrap_or_default();
     let value: Value = memory.decode_by_val(value);

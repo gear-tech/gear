@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, store};
+use crate::host::{StoreData, context};
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -27,7 +27,7 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
 
 fn publish_promise(mut caller: Caller<'_, StoreData>, promise_ptr_len: i64) {
     if let Some(sender) = caller.data().promise_out_tx.clone() {
-        let promise = store::memory(&mut caller).decode_by_val(promise_ptr_len);
+        let promise = context::memory(&mut caller).decode_by_val(promise_ptr_len);
 
         match sender.send(promise) {
             Ok(()) => {
