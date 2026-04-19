@@ -128,7 +128,7 @@ async fn validate_db(config: InitConfig, db: &RawDatabase) -> Result<()> {
         config.router_address
     );
     ensure!(
-        db_config.timelines.slot == config.slot_duration_secs,
+        db_config.timelines.slot.get() == config.slot_duration_secs,
         "Database slot duration {} does not match the provided slot duration {}",
         db_config.timelines.slot,
         config.slot_duration_secs
@@ -202,9 +202,15 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         router_address: config.router_address,
         timelines: ProtocolTimelines {
             genesis_ts: genesis_block.header.timestamp,
-            era: timelines.era,
+            era: timelines
+                .era
+                .try_into()
+                .context("era duration must be non-zero")?,
             election: timelines.election,
-            slot: config.slot_duration_secs,
+            slot: config
+                .slot_duration_secs
+                .try_into()
+                .context("slot duration must be non-zero")?,
         },
         genesis_block_hash: genesis.hash,
         genesis_announce_hash,

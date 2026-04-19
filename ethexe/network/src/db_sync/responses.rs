@@ -252,7 +252,7 @@ mod tests {
     };
     use ethexe_db::Database;
     use gprimitives::H256;
-    use std::num::NonZeroU32;
+    use std::num::{NonZeroU32, NonZeroU64};
 
     fn make_announce(block: u64, parent: HashOf<Announce>) -> Announce {
         Announce::base(H256::from_low_u64_be(block), parent)
@@ -263,7 +263,12 @@ mod tests {
             version: 0,
             chain_id: 0,
             router_address: Default::default(),
-            timelines: ProtocolTimelines::default(),
+            timelines: ProtocolTimelines {
+                genesis_ts: 0,
+                era: NonZeroU64::new(1).unwrap(),
+                election: 0,
+                slot: NonZeroU64::new(1).unwrap(),
+            },
             genesis_block_hash: H256::zero(),
             genesis_announce_hash: genesis,
         });

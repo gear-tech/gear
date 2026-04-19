@@ -74,8 +74,11 @@ impl ValidatorList {
         latest_block_header: BlockHeader,
         latest_validators: ValidatorsVec,
     ) -> anyhow::Result<(Self, Arc<ValidatorListSnapshot>)> {
+        let current_era_index = timelines
+            .era_from_ts(latest_block_header.timestamp)
+            .context("failed to calculate era from timestamp")?;
         let snapshot = ValidatorListSnapshot {
-            current_era_index: timelines.era_from_ts(latest_block_header.timestamp),
+            current_era_index,
             current_validators: latest_validators,
             next_validators: None,
         };
@@ -91,7 +94,10 @@ impl ValidatorList {
             .db
             .block_header(chain_head)
             .context("failed to get chain head block header")?;
-        let chain_head_era = self.timelines.era_from_ts(chain_head_header.timestamp);
+        let chain_head_era = self
+            .timelines
+            .era_from_ts(chain_head_header.timestamp)
+            .context("failed to calculate era from timestamp")?;
 
         let current_validators = self
             .db
@@ -116,12 +122,13 @@ mod tests {
     use core::convert::TryFrom;
     use ethexe_common::db::OnChainStorageRW;
     use ethexe_db::Database;
+    use std::num::NonZeroU64;
 
     const TIMELINES: ProtocolTimelines = ProtocolTimelines {
         genesis_ts: 0,
-        era: 10,
+        era: NonZeroU64::new(10).unwrap(),
         election: 5,
-        slot: 1,
+        slot: NonZeroU64::new(1).unwrap(),
     };
 
     fn validators_vec(addresses: &[u64]) -> ValidatorsVec {

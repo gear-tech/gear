@@ -857,6 +857,7 @@ mod tests {
     use std::{
         collections::{BTreeSet, HashMap},
         future,
+        num::NonZeroU64,
         sync::Arc,
     };
     use tokio::{
@@ -955,9 +956,9 @@ mod tests {
             };
             const TIMELINES: ProtocolTimelines = ProtocolTimelines {
                 genesis_ts: GENESIS_BLOCK_HEADER.timestamp,
-                era: 1,
+                era: NonZeroU64::new(1).unwrap(),
                 election: 1,
-                slot: 1,
+                slot: NonZeroU64::new(1).unwrap(),
             };
 
             let Self {

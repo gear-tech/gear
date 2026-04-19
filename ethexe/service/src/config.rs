@@ -20,11 +20,10 @@
 
 use anyhow::Result;
 use ethexe_network::NetworkConfig;
-use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use gsigner::secp256k1::{Address, PublicKey};
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, time::Duration};
 
 #[derive(Debug)]
 pub struct Config {
@@ -105,4 +104,14 @@ impl FromStr for ConfigPublicKey {
             key => Ok(Self::Enabled(key.parse()?)),
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct EthereumConfig {
+    pub rpc: String,
+    pub beacon_rpc: String,
+    pub router_address: Address,
+    pub block_time: Duration,
+    pub eip1559_fee_increase_percentage: u64,
+    pub blob_gas_multiplier: u128,
 }

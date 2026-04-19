@@ -261,9 +261,9 @@ impl Arbitrary for ProtocolTimelines {
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         Just(Self {
             genesis_ts: 0,
-            era: 1000,
+            era: 1000.try_into().unwrap(),
             election: 200,
-            slot: 10,
+            slot: 10.try_into().unwrap(),
         })
         .boxed()
     }
@@ -679,7 +679,7 @@ impl BlockChain {
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
 
-                let block_era = config.timelines.era_from_ts(header.timestamp);
+                let block_era = config.timelines.era_from_ts(header.timestamp).unwrap();
                 db.set_validators(block_era, validators.clone());
                 db.set_block_validators_committed_for_era(hash, block_era);
             }
@@ -812,9 +812,9 @@ impl BlockChain {
             router_address,
             timelines: ProtocolTimelines {
                 genesis_ts: genesis_ts as u64,
-                era: slot * 100,
+                era: (slot * 100).try_into().unwrap(),
                 election: slot * 20,
-                slot,
+                slot: slot.try_into().unwrap(),
             },
             genesis_block_hash: blocks[0].hash,
             genesis_announce_hash: genesis_announce_hash.unwrap(),
