@@ -41,3 +41,28 @@ pub fn blake2b_256(data: &[u8]) -> [u8; 32] {
     }
     out
 }
+
+/// Compute the SHA-256 hash of `data`.
+///
+/// Dispatches to `gsys::gr_sha256`. Runs natively on both Vara and
+/// ethexe (`sp_core::hashing::sha2_256` on the host side).
+pub fn sha256(data: &[u8]) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    unsafe {
+        gsys::gr_sha256(data.as_ptr() as _, data.len() as u32, out.as_mut_ptr() as _);
+    }
+    out
+}
+
+/// Compute the Keccak-256 hash of `data` (Ethereum-style Keccak, not
+/// NIST SHA-3).
+///
+/// Dispatches to `gsys::gr_keccak256`. Runs natively on both Vara and
+/// ethexe (`sp_core::hashing::keccak_256` on the host side).
+pub fn keccak256(data: &[u8]) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    unsafe {
+        gsys::gr_keccak256(data.as_ptr() as _, data.len() as u32, out.as_mut_ptr() as _);
+    }
+    out
+}

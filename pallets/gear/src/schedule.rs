@@ -538,10 +538,28 @@ pub struct SyscallWeights<T: Config> {
     /// Weight per input byte by `gr_blake2b_256_per_byte`.
     pub gr_blake2b_256_per_byte: Weight,
 
+    /// Weight of calling `gr_sha256` (base cost, input-length
+    /// independent).
+    pub gr_sha256: Weight,
+
+    /// Weight per input byte by `gr_sha256_per_byte`.
+    pub gr_sha256_per_byte: Weight,
+
+    /// Weight of calling `gr_keccak256` (base cost, input-length
+    /// independent). Ethereum-style Keccak, not NIST SHA-3.
+    pub gr_keccak256: Weight,
+
+    /// Weight per input byte by `gr_keccak256_per_byte`.
+    pub gr_keccak256_per_byte: Weight,
+
     /// Weight of calling `gr_sr25519_verify` (fixed cost — signature
     /// length is fixed at 64 bytes and message length contribution is
     /// negligible vs the curve math).
     pub gr_sr25519_verify: Weight,
+
+    /// Weight of calling `gr_ed25519_verify` (fixed cost — same
+    /// shape as `gr_sr25519_verify`).
+    pub gr_ed25519_verify: Weight,
 
     /// Weight of calling `gr_reply_code`.
     pub gr_reply_code: Weight,
@@ -1163,7 +1181,12 @@ impl<T: Config> Default for SyscallWeights<T> {
             // because the WASM baseline is what proves the delta.
             gr_blake2b_256: Weight::zero(),
             gr_blake2b_256_per_byte: Weight::zero(),
+            gr_sha256: Weight::zero(),
+            gr_sha256_per_byte: Weight::zero(),
+            gr_keccak256: Weight::zero(),
+            gr_keccak256_per_byte: Weight::zero(),
             gr_sr25519_verify: Weight::zero(),
+            gr_ed25519_verify: Weight::zero(),
             gr_reply_to: cost_batched(W::<T>::gr_reply_to),
             gr_signal_code: cost_batched(W::<T>::gr_signal_code),
             gr_signal_from: cost_batched(W::<T>::gr_signal_from),
@@ -1261,7 +1284,12 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
             gr_debug_per_byte: val.gr_debug_per_byte.ref_time().into(),
             gr_blake2b_256: val.gr_blake2b_256.ref_time().into(),
             gr_blake2b_256_per_byte: val.gr_blake2b_256_per_byte.ref_time().into(),
+            gr_sha256: val.gr_sha256.ref_time().into(),
+            gr_sha256_per_byte: val.gr_sha256_per_byte.ref_time().into(),
+            gr_keccak256: val.gr_keccak256.ref_time().into(),
+            gr_keccak256_per_byte: val.gr_keccak256_per_byte.ref_time().into(),
             gr_sr25519_verify: val.gr_sr25519_verify.ref_time().into(),
+            gr_ed25519_verify: val.gr_ed25519_verify.ref_time().into(),
             gr_reply_to: val.gr_reply_to.ref_time().into(),
             gr_signal_code: val.gr_signal_code.ref_time().into(),
             gr_signal_from: val.gr_signal_from.ref_time().into(),

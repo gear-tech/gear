@@ -314,8 +314,23 @@ pub struct SyscallCosts {
     /// Cost per input byte by `gr_blake2b_256`.
     pub gr_blake2b_256_per_byte: CostOf<BytesAmount>,
 
+    /// Cost of calling `gr_sha256`.
+    pub gr_sha256: CostOf<CallsAmount>,
+
+    /// Cost per input byte by `gr_sha256`.
+    pub gr_sha256_per_byte: CostOf<BytesAmount>,
+
+    /// Cost of calling `gr_keccak256`.
+    pub gr_keccak256: CostOf<CallsAmount>,
+
+    /// Cost per input byte by `gr_keccak256`.
+    pub gr_keccak256_per_byte: CostOf<BytesAmount>,
+
     /// Cost of calling `gr_sr25519_verify`.
     pub gr_sr25519_verify: CostOf<CallsAmount>,
+
+    /// Cost of calling `gr_ed25519_verify`.
+    pub gr_ed25519_verify: CostOf<CallsAmount>,
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
@@ -431,8 +446,14 @@ pub enum CostToken {
     CreateProgramWGas(BytesAmount, BytesAmount),
     /// Cost of calling `gr_blake2b_256`, taking in account input size.
     Blake2b256(BytesAmount),
+    /// Cost of calling `gr_sha256`, taking in account input size.
+    Sha256(BytesAmount),
+    /// Cost of calling `gr_keccak256`, taking in account input size.
+    Keccak256(BytesAmount),
     /// Cost of calling `gr_sr25519_verify`.
     Sr25519Verify,
+    /// Cost of calling `gr_ed25519_verify`.
+    Ed25519Verify,
 }
 
 impl SyscallCosts {
@@ -512,7 +533,10 @@ impl SyscallCosts {
             )
             .with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
             Blake2b256(len) => cost_with_per_byte!(gr_blake2b_256, len),
+            Sha256(len) => cost_with_per_byte!(gr_sha256, len),
+            Keccak256(len) => cost_with_per_byte!(gr_keccak256, len),
             Sr25519Verify => self.gr_sr25519_verify.cost_for_one(),
+            Ed25519Verify => self.gr_ed25519_verify.cost_for_one(),
         }
     }
 }

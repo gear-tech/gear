@@ -21,6 +21,7 @@ use crate::wasm::interface;
 
 interface::declare! {
     pub(super) fn ext_sr25519_verify_v1(pk: i32, msg: i64, sig: i32) -> i32;
+    pub(super) fn ext_ed25519_verify_v1(pk: i32, msg: i64, sig: i32) -> i32;
 }
 
 // Called from `NativeRuntimeInterface::sr25519_verify` in
@@ -32,6 +33,19 @@ pub fn sr25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
     let sig_ptr = sig.as_ptr() as i32;
 
     let result = unsafe { sys::ext_sr25519_verify_v1(pk_ptr, msg_packed, sig_ptr) };
+
+    result != 0
+}
+
+// Mirrors `sr25519_verify` shape. ed25519 keys and signatures are also
+// 32 and 64 bytes respectively, so the ABI is identical — the only
+// difference is the curve used server-side.
+pub fn ed25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
+    let pk_ptr = pk.as_ptr() as i32;
+    let msg_packed = utils::repr_ri_slice(msg);
+    let sig_ptr = sig.as_ptr() as i32;
+
+    let result = unsafe { sys::ext_ed25519_verify_v1(pk_ptr, msg_packed, sig_ptr) };
 
     result != 0
 }

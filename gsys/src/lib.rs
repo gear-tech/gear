@@ -545,6 +545,41 @@ syscalls! {
         out: *mut u8,
     );
 
+    /// Infallible `gr_ed25519_verify` crypto syscall.
+    ///
+    /// Writes `1` into `out` if the signature is valid, `0` otherwise.
+    ///
+    /// Arguments type:
+    /// - `pk`: `const ptr` for the 32-byte ed25519 public key.
+    /// - `msg`: `const ptr` for the beginning of the message buffer.
+    /// - `msg_len`: `u32` length of the message buffer.
+    /// - `sig`: `const ptr` for the 64-byte ed25519 signature.
+    /// - `out`: `mut ptr` for the 1-byte verification result.
+    pub fn gr_ed25519_verify(
+        pk: *const Hash,
+        msg: *const SizedBufferStart,
+        msg_len: Length,
+        sig: *const [u8; 64],
+        out: *mut u8,
+    );
+
+    /// Infallible `gr_sha256` hash syscall.
+    ///
+    /// Arguments type:
+    /// - `data`: `const ptr` for the beginning of the input buffer.
+    /// - `len`: `u32` length of the input buffer.
+    /// - `out`: `mut ptr` for the resulting 32-byte hash.
+    pub fn gr_sha256(data: *const SizedBufferStart, len: Length, out: *mut Hash);
+
+    /// Infallible `gr_keccak256` hash syscall (Ethereum-style Keccak,
+    /// not NIST SHA-3).
+    ///
+    /// Arguments type:
+    /// - `data`: `const ptr` for the beginning of the input buffer.
+    /// - `len`: `u32` length of the input buffer.
+    /// - `out`: `mut ptr` for the resulting 32-byte hash.
+    pub fn gr_keccak256(data: *const SizedBufferStart, len: Length, out: *mut Hash);
+
     /// Infallible `gr_panic` control syscall.
     ///
     /// Stops the execution.

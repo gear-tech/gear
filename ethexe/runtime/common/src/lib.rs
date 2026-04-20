@@ -110,7 +110,10 @@ pub trait RuntimeInterface: Storage {
     // `RI::<method>(...)` through this seam so the host-import wiring
     // stays behind one trait.
     fn sr25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool;
+    fn ed25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool;
     fn blake2b_256(data: &[u8]) -> [u8; 32];
+    fn sha256(data: &[u8]) -> [u8; 32];
+    fn keccak256(data: &[u8]) -> [u8; 32];
 }
 
 /// A main low-level interface to perform state changes

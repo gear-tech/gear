@@ -51,3 +51,21 @@ pub fn sr25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
     }
     ok != 0
 }
+
+/// Verify an ed25519 signature.
+///
+/// Same shape and error convention as [`sr25519_verify`]; the only
+/// difference is the curve used server-side.
+pub fn ed25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
+    let mut ok: u8 = 0;
+    unsafe {
+        gsys::gr_ed25519_verify(
+            pk.as_ptr() as _,
+            msg.as_ptr() as _,
+            msg.len() as u32,
+            sig.as_ptr() as _,
+            &mut ok,
+        );
+    }
+    ok != 0
+}

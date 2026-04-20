@@ -520,8 +520,18 @@ pub struct SyscallWeights {
     pub gr_blake2b_256: Weight,
     #[doc = " Weight per input byte by `gr_blake2b_256`."]
     pub gr_blake2b_256_per_byte: Weight,
+    #[doc = " Weight of calling `gr_sha256`."]
+    pub gr_sha256: Weight,
+    #[doc = " Weight per input byte by `gr_sha256`."]
+    pub gr_sha256_per_byte: Weight,
+    #[doc = " Weight of calling `gr_keccak256`."]
+    pub gr_keccak256: Weight,
+    #[doc = " Weight per input byte by `gr_keccak256`."]
+    pub gr_keccak256_per_byte: Weight,
     #[doc = " Weight of calling `gr_sr25519_verify`."]
     pub gr_sr25519_verify: Weight,
+    #[doc = " Weight of calling `gr_ed25519_verify`."]
+    pub gr_ed25519_verify: Weight,
 }
 
 impl Default for SyscallWeights {
@@ -815,7 +825,27 @@ impl Default for SyscallWeights {
                 ref_time: 0,
                 proof_size: 0,
             },
+            gr_sha256: Weight {
+                ref_time: 0,
+                proof_size: 0,
+            },
+            gr_sha256_per_byte: Weight {
+                ref_time: 0,
+                proof_size: 0,
+            },
+            gr_keccak256: Weight {
+                ref_time: 0,
+                proof_size: 0,
+            },
+            gr_keccak256_per_byte: Weight {
+                ref_time: 0,
+                proof_size: 0,
+            },
             gr_sr25519_verify: Weight {
+                ref_time: 0,
+                proof_size: 0,
+            },
+            gr_ed25519_verify: Weight {
                 ref_time: 0,
                 proof_size: 0,
             },
@@ -1233,7 +1263,12 @@ impl From<SyscallWeights> for SyscallCosts {
                 .into(),
             gr_blake2b_256: val.gr_blake2b_256.ref_time().into(),
             gr_blake2b_256_per_byte: val.gr_blake2b_256_per_byte.ref_time().into(),
+            gr_sha256: val.gr_sha256.ref_time().into(),
+            gr_sha256_per_byte: val.gr_sha256_per_byte.ref_time().into(),
+            gr_keccak256: val.gr_keccak256.ref_time().into(),
+            gr_keccak256_per_byte: val.gr_keccak256_per_byte.ref_time().into(),
             gr_sr25519_verify: val.gr_sr25519_verify.ref_time().into(),
+            gr_ed25519_verify: val.gr_ed25519_verify.ref_time().into(),
         }
     }
 }

@@ -1504,6 +1504,151 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    /// Base cost of `gr_sha256`. See `gr_blake2b_256` for methodology.
+    pub fn gr_sha256(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let data_offset = COMMON_OFFSET;
+        let data_len = COMMON_PAYLOAD_LEN;
+        let out_offset = data_offset + data_len;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SyscallName::Sha256],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    InstrI32Const(data_offset),
+                    InstrI32Const(data_len),
+                    InstrI32Const(out_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    pub fn gr_sha256_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = API_BENCHMARK_BATCH_SIZE;
+        let data_offset = COMMON_OFFSET;
+        let data_len = n * 1024;
+        let out_offset = data_offset + data_len;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SyscallName::Sha256],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    InstrI32Const(data_offset),
+                    InstrI32Const(data_len),
+                    InstrI32Const(out_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    /// Base cost of `gr_keccak256` (Ethereum-style Keccak).
+    pub fn gr_keccak256(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let data_offset = COMMON_OFFSET;
+        let data_len = COMMON_PAYLOAD_LEN;
+        let out_offset = data_offset + data_len;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SyscallName::Keccak256],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    InstrI32Const(data_offset),
+                    InstrI32Const(data_len),
+                    InstrI32Const(out_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    pub fn gr_keccak256_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = API_BENCHMARK_BATCH_SIZE;
+        let data_offset = COMMON_OFFSET;
+        let data_len = n * 1024;
+        let out_offset = data_offset + data_len;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SyscallName::Keccak256],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    InstrI32Const(data_offset),
+                    InstrI32Const(data_len),
+                    InstrI32Const(out_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    /// Fixed cost of `gr_ed25519_verify`. See `gr_sr25519_verify` for
+    /// the data-segment methodology — ed25519 uses the same shape
+    /// (32-byte pk, 64-byte sig).
+    pub fn gr_ed25519_verify(r: u32) -> Result<Exec<T>, &'static str> {
+        use sp_core::{Pair as _, ed25519::Pair};
+
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+
+        let pair = Pair::from_seed(&[0x42u8; 32]);
+        let pk_bytes: [u8; 32] = pair.public().0;
+        let msg_bytes: &[u8] = b"gear-protocol-ed25519-verify-bench";
+        let sig_bytes: [u8; 64] = pair.sign(msg_bytes).0;
+
+        let pk_offset = COMMON_OFFSET;
+        let msg_offset = pk_offset + pk_bytes.len() as u32;
+        let sig_offset = msg_offset + msg_bytes.len() as u32;
+        let out_offset = sig_offset + sig_bytes.len() as u32;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SyscallName::Ed25519Verify],
+            data_segments: vec![
+                DataSegment {
+                    offset: pk_offset,
+                    value: pk_bytes.to_vec(),
+                },
+                DataSegment {
+                    offset: msg_offset,
+                    value: msg_bytes.to_vec(),
+                },
+                DataSegment {
+                    offset: sig_offset,
+                    value: sig_bytes.to_vec(),
+                },
+            ],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    InstrI32Const(pk_offset),
+                    InstrI32Const(msg_offset),
+                    InstrI32Const(msg_bytes.len() as u32),
+                    InstrI32Const(sig_offset),
+                    InstrI32Const(out_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
     pub fn termination_bench(
         name: SyscallName,
         param: Option<u32>,

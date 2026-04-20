@@ -109,7 +109,10 @@ pub enum SyscallName {
 
     // Crypto & hashing
     Blake2b256,
+    Sha256,
+    Keccak256,
     Sr25519Verify,
+    Ed25519Verify,
 }
 
 impl SyscallName {
@@ -173,7 +176,10 @@ impl SyscallName {
             Self::WaitUpTo => "gr_wait_up_to",
             Self::Wake => "gr_wake",
             Self::Blake2b256 => "gr_blake2b_256",
+            Self::Sha256 => "gr_sha256",
+            Self::Keccak256 => "gr_keccak256",
             Self::Sr25519Verify => "gr_sr25519_verify",
+            Self::Ed25519Verify => "gr_ed25519_verify",
         }
     }
 
@@ -479,17 +485,19 @@ impl SyscallName {
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::MutBlockNumberWithHash(HashType::SubjectId).into(),
             ]),
-            Self::Blake2b256 => SyscallSignature::gr_infallible([
-                Ptr::SizedBufferStart {
-                    length_param_idx: 1,
-                }
-                .into(),
-                Length,
-                // 32-byte output hash. `HashType::SubjectId` is reused here as a
-                // generic 32-byte opaque hash tag for ABI metadata purposes.
-                Ptr::MutHash(HashType::SubjectId).into(),
-            ]),
-            Self::Sr25519Verify => SyscallSignature::gr_infallible([
+            Self::Blake2b256 | Self::Sha256 | Self::Keccak256 => {
+                SyscallSignature::gr_infallible([
+                    Ptr::SizedBufferStart {
+                        length_param_idx: 1,
+                    }
+                    .into(),
+                    Length,
+                    // 32-byte output hash. `HashType::SubjectId` is reused
+                    // as an opaque 32-byte hash tag for ABI metadata.
+                    Ptr::MutHash(HashType::SubjectId).into(),
+                ])
+            }
+            Self::Sr25519Verify | Self::Ed25519Verify => SyscallSignature::gr_infallible([
                 // 32-byte public key. `HashType::SubjectId` reused as opaque tag.
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::SizedBufferStart {
@@ -499,7 +507,7 @@ impl SyscallName {
                 Length,
                 // 64-byte signature. Represented here as an opaque fixed-length
                 // ptr (`HashType::SubjectId`) for ABI metadata purposes; the real
-                // size is tracked in `gsys::gr_sr25519_verify`'s declaration.
+                // size is tracked in `gsys::gr_{sr,ed}25519_verify`'s declaration.
                 Ptr::Hash(HashType::SubjectId).into(),
                 // 1-byte verification result: 1 = valid, 0 = invalid.
                 Ptr::MutBufferStart.into(),

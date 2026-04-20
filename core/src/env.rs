@@ -181,12 +181,29 @@ pub trait Externalities {
     /// Compute a BLAKE2b-256 digest over `data`.
     fn blake2b_256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError>;
 
+    /// Compute a SHA-256 digest over `data`.
+    fn sha256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError>;
+
+    /// Compute a Keccak-256 digest over `data` (Ethereum-style Keccak,
+    /// not NIST SHA-3).
+    fn keccak256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError>;
+
     /// Verify an sr25519 signature `sig` over `msg` against public key `pk`.
     ///
     /// Returns `Ok(true)` if the signature is valid, `Ok(false)` on any
     /// verification failure (including malformed key/signature bytes). Only
     /// unrecoverable host-side errors are surfaced through the error type.
     fn sr25519_verify(
+        &self,
+        pk: &[u8; 32],
+        msg: &[u8],
+        sig: &[u8; 64],
+    ) -> Result<bool, Self::UnrecoverableError>;
+
+    /// Verify an ed25519 signature `sig` over `msg` against public key `pk`.
+    ///
+    /// Same error convention as [`Self::sr25519_verify`].
+    fn ed25519_verify(
         &self,
         pk: &[u8; 32],
         msg: &[u8],

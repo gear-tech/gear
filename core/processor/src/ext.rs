@@ -1178,6 +1178,14 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         Ok(sp_core::hashing::blake2_256(data))
     }
 
+    fn sha256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError> {
+        Ok(sp_core::hashing::sha2_256(data))
+    }
+
+    fn keccak256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError> {
+        Ok(sp_core::hashing::keccak_256(data))
+    }
+
     fn sr25519_verify(
         &self,
         pk: &[u8; 32],
@@ -1193,6 +1201,25 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         let signature = Signature::from_raw(*sig);
 
         Ok(<sp_core::sr25519::Pair as Pair>::verify(
+            &signature, msg, &public,
+        ))
+    }
+
+    fn ed25519_verify(
+        &self,
+        pk: &[u8; 32],
+        msg: &[u8],
+        sig: &[u8; 64],
+    ) -> Result<bool, Self::UnrecoverableError> {
+        use sp_core::{
+            Pair,
+            ed25519::{Public, Signature},
+        };
+
+        let public = Public::from_raw(*pk);
+        let signature = Signature::from_raw(*sig);
+
+        Ok(<sp_core::ed25519::Pair as Pair>::verify(
             &signature, msg, &public,
         ))
     }

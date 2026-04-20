@@ -21,6 +21,8 @@ use crate::wasm::interface;
 
 interface::declare! {
     pub(super) fn ext_blake2b_256_v1(data: i64, out: i32);
+    pub(super) fn ext_sha256_v1(data: i64, out: i32);
+    pub(super) fn ext_keccak256_v1(data: i64, out: i32);
 }
 
 // Called from `NativeRuntimeInterface::blake2b_256` in
@@ -32,6 +34,28 @@ pub fn blake2b_256(data: &[u8]) -> [u8; 32] {
 
     unsafe {
         sys::ext_blake2b_256_v1(data_packed, out.as_mut_ptr() as i32);
+    }
+
+    out
+}
+
+pub fn sha256(data: &[u8]) -> [u8; 32] {
+    let data_packed = utils::repr_ri_slice(data);
+    let mut out = [0u8; 32];
+
+    unsafe {
+        sys::ext_sha256_v1(data_packed, out.as_mut_ptr() as i32);
+    }
+
+    out
+}
+
+pub fn keccak256(data: &[u8]) -> [u8; 32] {
+    let data_packed = utils::repr_ri_slice(data);
+    let mut out = [0u8; 32];
+
+    unsafe {
+        sys::ext_keccak256_v1(data_packed, out.as_mut_ptr() as i32);
     }
 
     out

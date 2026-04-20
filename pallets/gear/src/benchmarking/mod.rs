@@ -1385,6 +1385,61 @@ benchmarks! {
         verify_process(res.unwrap());
     }
 
+    gr_ed25519_verify {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_ed25519_verify(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_sha256 {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_sha256(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_sha256_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_sha256_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_keccak256 {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let mut res = None;
+        let exec = Benches::<T>::gr_keccak256(r)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
+    gr_keccak256_per_kb {
+        let n in 0 .. MAX_PAYLOAD_LEN_KB;
+        let mut res = None;
+        let exec = Benches::<T>::gr_keccak256_per_kb(n)?;
+    }: {
+        res.replace(run_process(exec));
+    }
+    verify {
+        verify_process(res.unwrap());
+    }
+
     gr_reply_code {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let mut res = None;

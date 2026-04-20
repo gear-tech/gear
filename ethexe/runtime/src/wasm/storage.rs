@@ -161,7 +161,19 @@ impl RuntimeInterface for NativeRuntimeInterface {
         crypto_ri::sr25519_verify(pk, msg, sig)
     }
 
+    fn ed25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
+        crypto_ri::ed25519_verify(pk, msg, sig)
+    }
+
     fn blake2b_256(data: &[u8]) -> [u8; 32] {
         hash_ri::blake2b_256(data)
+    }
+
+    fn sha256(data: &[u8]) -> [u8; 32] {
+        hash_ri::sha256(data)
+    }
+
+    fn keccak256(data: &[u8]) -> [u8; 32] {
+        hash_ri::keccak256(data)
     }
 }

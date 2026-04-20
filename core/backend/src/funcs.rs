@@ -1044,6 +1044,44 @@ where
         )
     }
 
+    pub fn sha256(data: Read, out: WriteAs<[u8; 32]>) -> impl Syscall<Caller> {
+        InfallibleSyscall::new(
+            CostToken::Sha256(data.size().into()),
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let data: RuntimeBuffer = data
+                    .into_inner()?
+                    .try_into()
+                    .map_err(|LimitedVecError| {
+                        UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into()
+                    })
+                    .map_err(TrapExplanation::UnrecoverableExt)?;
+
+                let hash = ctx.caller_wrap.ext_mut().sha256(data.as_slice())?;
+
+                out.write(ctx, &hash).map_err(Into::into)
+            },
+        )
+    }
+
+    pub fn keccak256(data: Read, out: WriteAs<[u8; 32]>) -> impl Syscall<Caller> {
+        InfallibleSyscall::new(
+            CostToken::Keccak256(data.size().into()),
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let data: RuntimeBuffer = data
+                    .into_inner()?
+                    .try_into()
+                    .map_err(|LimitedVecError| {
+                        UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into()
+                    })
+                    .map_err(TrapExplanation::UnrecoverableExt)?;
+
+                let hash = ctx.caller_wrap.ext_mut().keccak256(data.as_slice())?;
+
+                out.write(ctx, &hash).map_err(Into::into)
+            },
+        )
+    }
+
     pub fn sr25519_verify(
         pk: ReadAs<[u8; 32]>,
         msg: Read,
@@ -1067,6 +1105,35 @@ where
                     .caller_wrap
                     .ext_mut()
                     .sr25519_verify(&pk, msg.as_slice(), &sig)?;
+
+                out.write(ctx, &u8::from(ok)).map_err(Into::into)
+            },
+        )
+    }
+
+    pub fn ed25519_verify(
+        pk: ReadAs<[u8; 32]>,
+        msg: Read,
+        sig: ReadAs<[u8; 64]>,
+        out: WriteAs<u8>,
+    ) -> impl Syscall<Caller> {
+        InfallibleSyscall::new(
+            CostToken::Ed25519Verify,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let pk = pk.into_inner()?;
+                let sig = sig.into_inner()?;
+                let msg: RuntimeBuffer = msg
+                    .into_inner()?
+                    .try_into()
+                    .map_err(|LimitedVecError| {
+                        UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into()
+                    })
+                    .map_err(TrapExplanation::UnrecoverableExt)?;
+
+                let ok = ctx
+                    .caller_wrap
+                    .ext_mut()
+                    .ed25519_verify(&pk, msg.as_slice(), &sig)?;
 
                 out.write(ctx, &u8::from(ok)).map_err(Into::into)
             },

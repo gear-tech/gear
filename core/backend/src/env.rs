@@ -228,7 +228,10 @@ where
         add_function!(FreeRange, free_range);
 
         add_function!(Blake2b256, blake2b_256);
+        add_function!(Sha256, sha256);
+        add_function!(Keccak256, keccak256);
         add_function!(Sr25519Verify, sr25519_verify);
+        add_function!(Ed25519Verify, ed25519_verify);
     }
 }
 
