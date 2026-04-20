@@ -50,8 +50,9 @@ use crate::config::{Config, ConfigPublicKey};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
+    rpc::types::anvil::Metadata,
 };
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
@@ -78,7 +79,7 @@ use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeI
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use futures::{StreamExt, stream::FuturesUnordered};
+use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
 use std::{
@@ -158,6 +159,21 @@ pub struct Service {
 impl Service {
     /// Number of reserved dev accounts (deployer, validator).
     const RESERVED_DEV_ACCOUNTS: u32 = 2;
+    /// Expected Foundry toolchain commit sha.
+    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f1abb2ca347187bb6dea8c3881ca44ce50aab1e7";
+
+    fn check_foundry_toolchain_version(client_commit_sha: Option<String>) -> Result<()> {
+        if let Some(client_commit_sha) = client_commit_sha
+            && client_commit_sha != Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA
+        {
+            bail!(
+                "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install nightly-{commit_sha} --force`.",
+                commit_sha = Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA,
+            );
+        }
+
+        Ok(())
+    }
 
     pub async fn configure_dev_environment(
         key_path: PathBuf,
@@ -213,6 +229,12 @@ impl Service {
         let provider: RootProvider = ProviderBuilder::default()
             .connect(anvil.ws_endpoint().as_str())
             .await?;
+
+        let Metadata {
+            client_commit_sha, ..
+        } = provider.anvil_metadata().await?;
+
+        Self::check_foundry_toolchain_version(client_commit_sha)?;
 
         const ETHER: u128 = 1_000_000_000_000_000_000;
         let balance = 10_000 * ETHER;
@@ -327,7 +349,7 @@ impl Service {
                 "👶 Genesis block hash wasn't found. Call router.lookupGenesisHash() first"
             );
 
-            anyhow::bail!("Failed to query valid genesis hash");
+            bail!("Failed to query valid genesis hash");
         } else {
             log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
         }
@@ -564,7 +586,7 @@ impl Service {
                 fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
                 event = prometheus.maybe_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
-                    anyhow::bail!("`RPCWorker` has terminated, shutting down...")
+                    bail!("`RPCWorker` has terminated, shutting down...")
                 }
             };
 
@@ -764,7 +786,7 @@ impl Service {
                         }
                     }
                     PrometheusEvent::ServerClosed(result) => {
-                        anyhow::bail!("Prometheus server closed with result: {result:?}");
+                        bail!("Prometheus server closed with result: {result:?}");
                     }
                 },
                 Event::Fetching(result) => {
@@ -819,11 +841,13 @@ impl GenesisInitializer for GenesisInitializerFromFile {
 
     fn process_code(&mut self, code_id: CodeId, code: Vec<u8>) -> ethexe_db::CodeProcessingFuture {
         let mut cloned_processor = self.processor.clone();
-        let func = move || {
+        async move {
             let ProcessedCodeInfo {
                 code_id: _,
                 valid: info,
-            } = cloned_processor.process_code(CodeAndIdUnchecked { code_id, code })?;
+            } = cloned_processor
+                .process_code(CodeAndIdUnchecked { code_id, code })
+                .await?;
 
             let Some(ValidCodeInfo {
                 code: _,
@@ -835,7 +859,7 @@ impl GenesisInitializer for GenesisInitializerFromFile {
             };
 
             Ok(Some((instrumented_code, code_metadata)))
-        };
-        Box::pin(async move { func() })
+        }
+        .boxed()
     }
 }
