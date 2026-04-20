@@ -254,6 +254,30 @@ impl<'a> Router<'a> {
             .await
     }
 
+    pub async fn create_program_with_value(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        value: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.router_client
+            .create_program_with_value(code_id, salt, override_initializer, value)
+            .await
+    }
+
+    pub async fn create_program_with_value_and_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        value: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        self.router_client
+            .create_program_with_value_and_receipt(code_id, salt, override_initializer, value)
+            .await
+    }
+
     pub async fn create_program_with_abi_interface(
         &self,
         code_id: CodeId,
@@ -279,6 +303,44 @@ impl<'a> Router<'a> {
                 salt,
                 override_initializer,
                 abi_interface,
+            )
+            .await
+    }
+
+    pub async fn create_program_with_abi_interface_and_value(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        value: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.router_client
+            .create_program_with_abi_interface_and_value(
+                code_id,
+                salt,
+                override_initializer,
+                abi_interface,
+                value,
+            )
+            .await
+    }
+
+    pub async fn create_program_with_abi_interface_and_value_with_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        value: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        self.router_client
+            .create_program_with_abi_interface_and_value_with_receipt(
+                code_id,
+                salt,
+                override_initializer,
+                abi_interface,
+                value,
             )
             .await
     }

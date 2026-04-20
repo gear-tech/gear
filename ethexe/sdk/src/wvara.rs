@@ -104,6 +104,10 @@ impl WVara {
         self.wvara_query_client.allowance(owner, spender).await
     }
 
+    pub async fn nonces(&self, owner: ActorId) -> Result<U256> {
+        self.wvara_query_client.nonces(owner).await
+    }
+
     pub async fn mint(&self, to: ActorId, amount: u128) -> Result<H256> {
         self.wvara_client.mint(to, amount).await
     }
