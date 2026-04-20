@@ -845,11 +845,11 @@ mod tests {
     use super::*;
     use crate::{
         db_sync::{ExternalDataProvider, tests::fill_data_provider},
-        utils::tests::init_logger,
+        utils::tests::{arb_value, init_logger},
     };
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState, mock::*};
+    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState};
     use ethexe_db::Database;
     use gprimitives::{ActorId, CodeId, H256};
     use gsigner::secp256k1::Signer;
@@ -970,7 +970,7 @@ mod tests {
 
             db.set_config(DBConfig {
                 timelines: TIMELINES,
-                ..DBConfig::mock(())
+                ..arb_value::<DBConfig>(())
             });
 
             let key = signer.generate().unwrap();

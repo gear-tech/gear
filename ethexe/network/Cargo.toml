@@ -53,5 +53,6 @@ gear-workspace-hack.workspace = true
 libp2p-swarm-test = { version = "0.6.0", default-features = false, features = ["tokio"] }
 tokio = { workspace = true, features = ["full", "test-util"] }
 tracing-subscriber.workspace = true
+proptest = { workspace = true }
 ethexe-common = { workspace = true, features = ["mock"] }
 ethexe-db = { workspace = true, features = ["mock"] }

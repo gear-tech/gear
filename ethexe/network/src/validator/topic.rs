@@ -326,16 +326,18 @@ impl ValidatorTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::tests::arb_value;
     use assert_matches::assert_matches;
     use ethexe_common::{
         Announce,
+        ecdsa::SignedData,
         gear_core::{message::ReplyCode, rpc::ReplyInfo},
         injected::Promise,
-        mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
-    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+    use gsigner::secp256k1::{PrivateKey, Secp256k1SignerExt, Signer};
     use nonempty::{NonEmpty, nonempty};
+    use proptest::{prelude::*, test_runner::Config as ProptestConfig};
 
     const CHAIN_HEAD_ERA: u64 = 10;
 
@@ -357,22 +359,23 @@ mod tests {
         )
     }
 
-    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
-        let signer = Signer::memory();
-        let pub_key = signer.generate().unwrap();
-
-        signer
-            .signed_data(
-                pub_key,
-                ValidatorMessage {
-                    era_index,
-                    payload: Announce::mock(()),
-                },
-                None,
-            )
+    fn validator_message_from_private_key(
+        private_key: PrivateKey,
+        era_index: u64,
+        payload: Announce,
+    ) -> VerifiedValidatorMessage {
+        SignedData::create(&private_key, ValidatorMessage { era_index, payload })
             .map(SignedValidatorMessage::from)
             .unwrap()
             .into_verified()
+    }
+
+    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
+        validator_message_from_private_key(
+            PrivateKey::random(),
+            era_index,
+            arb_value::<Announce>(()),
+        )
     }
 
     fn signed_promise() -> SignedPromise {
@@ -388,6 +391,133 @@ mod tests {
         };
 
         signer.signed_message(pub_key, promise, None).unwrap()
+    }
+
+    fn private_key_strategy() -> impl Strategy<Value = PrivateKey> {
+        any::<[u8; 32]>().prop_filter_map("valid secp256k1 private key", |seed| {
+            PrivateKey::from_seed(seed).ok()
+        })
+    }
+
+    fn distinct_private_keys() -> impl Strategy<Value = (PrivateKey, PrivateKey)> {
+        (private_key_strategy(), private_key_strategy()).prop_filter(
+            "distinct validator addresses",
+            |(message_key, next_key)| {
+                message_key.public_key().to_address() != next_key.public_key().to_address()
+            },
+        )
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn proptest_current_era_messages_from_current_validators_are_accepted(
+            private_key in private_key_strategy(),
+            payload in any::<Announce>(),
+        ) {
+            let message = validator_message_from_private_key(private_key, CHAIN_HEAD_ERA, payload);
+            let expected = message.clone();
+            let mut alice = new_topic(nonempty![expected.address()]);
+
+            let (acceptance, verified_msg) =
+                alice.verify_validator_message(PeerId::random(), message);
+
+            prop_assert!(matches!(acceptance, MessageAcceptance::Accept));
+            prop_assert_eq!(verified_msg, Some(expected));
+            prop_assert_eq!(alice.cached_messages.len(), 0);
+            prop_assert_eq!(alice.next_message(), None);
+        }
+
+        #[test]
+        fn proptest_next_era_messages_from_next_validators_are_cached_and_released_once(
+            private_key in private_key_strategy(),
+            payload in any::<Announce>(),
+        ) {
+            let message =
+                validator_message_from_private_key(private_key, CHAIN_HEAD_ERA + 1, payload);
+            let expected = message.clone();
+            let snapshot = ValidatorListSnapshot {
+                current_era_index: CHAIN_HEAD_ERA,
+                current_validators: nonempty![Address::default()].into(),
+                next_validators: Some(nonempty![expected.address()].into()),
+            };
+            let mut alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
+
+            let (acceptance, verified_msg) =
+                alice.verify_validator_message(PeerId::random(), message);
+
+            prop_assert!(matches!(acceptance, MessageAcceptance::Ignore));
+            prop_assert_eq!(verified_msg, None);
+            prop_assert_eq!(alice.cached_messages.len(), 1);
+
+            alice.on_new_snapshot(new_snapshot(CHAIN_HEAD_ERA + 1, nonempty![expected.address()]));
+
+            prop_assert_eq!(alice.cached_messages.len(), 0);
+            prop_assert_eq!(alice.next_message(), Some(expected));
+            prop_assert_eq!(alice.next_message(), None);
+        }
+
+        #[test]
+        fn proptest_too_old_messages_are_rejected(
+            private_key in private_key_strategy(),
+            payload in any::<Announce>(),
+            era_index in 0u64..(CHAIN_HEAD_ERA - 1),
+        ) {
+            let message = validator_message_from_private_key(private_key, era_index, payload);
+            let mut alice = new_topic(nonempty![message.address()]);
+
+            let (acceptance, verified_msg) =
+                alice.verify_validator_message(PeerId::random(), message);
+
+            prop_assert!(matches!(acceptance, MessageAcceptance::Reject));
+            prop_assert_eq!(verified_msg, None);
+            prop_assert_eq!(alice.cached_messages.len(), 0);
+            prop_assert_eq!(alice.next_message(), None);
+        }
+
+        #[test]
+        fn proptest_too_new_messages_are_rejected(
+            private_key in private_key_strategy(),
+            payload in any::<Announce>(),
+            era_index in (CHAIN_HEAD_ERA + 2)..(CHAIN_HEAD_ERA + 102),
+        ) {
+            let message = validator_message_from_private_key(private_key, era_index, payload);
+            let mut alice = new_topic(nonempty![message.address()]);
+
+            let (acceptance, verified_msg) =
+                alice.verify_validator_message(PeerId::random(), message);
+
+            prop_assert!(matches!(acceptance, MessageAcceptance::Reject));
+            prop_assert_eq!(verified_msg, None);
+            prop_assert_eq!(alice.cached_messages.len(), 0);
+            prop_assert_eq!(alice.next_message(), None);
+        }
+
+        #[test]
+        fn proptest_next_era_messages_from_non_next_validators_are_rejected(
+            keys in distinct_private_keys(),
+            payload in any::<Announce>(),
+        ) {
+            let (message_key, next_key) = keys;
+            let message =
+                validator_message_from_private_key(message_key, CHAIN_HEAD_ERA + 1, payload);
+            let next_address = next_key.public_key().to_address();
+            let snapshot = ValidatorListSnapshot {
+                current_era_index: CHAIN_HEAD_ERA,
+                current_validators: nonempty![next_address].into(),
+                next_validators: Some(nonempty![next_address].into()),
+            };
+            let mut alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
+
+            let (acceptance, verified_msg) =
+                alice.verify_validator_message(PeerId::random(), message);
+
+            prop_assert!(matches!(acceptance, MessageAcceptance::Reject));
+            prop_assert_eq!(verified_msg, None);
+            prop_assert_eq!(alice.cached_messages.len(), 0);
+            prop_assert_eq!(alice.next_message(), None);
+        }
     }
 
     #[test]
