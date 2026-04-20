@@ -198,6 +198,25 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
     fn system_reserve_gas(&mut self, _: u64) -> Result<(), Self::FallibleError> {
         unreachable!("system_reserve_gas syscall is forbidden in ethexe runtime")
     }
+
+    // Crypto / hash syscalls are explicitly NOT delegated to `CoreExt`.
+    // Delegating would run `sp_core` crypto compiled into the ethexe-runtime
+    // WASM blob — the slow path this proposal replaces. Instead we route
+    // through the `RuntimeInterface` seam (`RI::sr25519_verify`), which on
+    // the wasm runtime target ends up calling the `ext_*_v1` host imports
+    // serviced natively by `ethexe/processor/src/host/api/{crypto,hash}.rs`.
+    fn sr25519_verify(
+        &self,
+        pk: &[u8; 32],
+        msg: &[u8],
+        sig: &[u8; 64],
+    ) -> Result<bool, Self::UnrecoverableError> {
+        Ok(RI::sr25519_verify(pk, msg, sig))
+    }
+
+    fn blake2b_256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError> {
+        Ok(RI::blake2b_256(data))
+    }
 }
 
 impl<RI: RuntimeInterface> CountersOwner for Ext<RI> {

@@ -103,6 +103,14 @@ pub trait RuntimeInterface: Storage {
     /// Publish a promise produced during execution to the compute service layer.
     /// The implementation is expected to forward it to external subscribers.
     fn publish_promise(&self, promise: &Promise);
+
+    // Crypto / hash primitives. These are associated (no `&self`) because
+    // crypto ops are pure compute and the impl has no state to read.
+    // Calls from `Ext<RI>::{sr25519_verify,blake2b_256}` dispatch as
+    // `RI::<method>(...)` through this seam so the host-import wiring
+    // stays behind one trait.
+    fn sr25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool;
+    fn blake2b_256(data: &[u8]) -> [u8; 32];
 }
 
 /// A main low-level interface to perform state changes

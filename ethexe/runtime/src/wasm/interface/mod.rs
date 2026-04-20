@@ -19,8 +19,14 @@
 #[path = "allocator.rs"]
 pub(crate) mod allocator_ri;
 
+#[path = "crypto.rs"]
+pub(crate) mod crypto_ri;
+
 #[path = "database.rs"]
 pub(crate) mod database_ri;
+
+#[path = "hash.rs"]
+pub(crate) mod hash_ri;
 
 #[path = "logging.rs"]
 pub(crate) mod logging_ri;

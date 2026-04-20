@@ -106,6 +106,10 @@ pub enum SyscallName {
     ReserveGas,
     UnreserveGas,
     SystemReserveGas,
+
+    // Crypto & hashing
+    Blake2b256,
+    Sr25519Verify,
 }
 
 impl SyscallName {
@@ -168,6 +172,8 @@ impl SyscallName {
             Self::WaitFor => "gr_wait_for",
             Self::WaitUpTo => "gr_wait_up_to",
             Self::Wake => "gr_wake",
+            Self::Blake2b256 => "gr_blake2b_256",
+            Self::Sr25519Verify => "gr_sr25519_verify",
         }
     }
 
@@ -472,6 +478,31 @@ impl SyscallName {
             Self::Random => SyscallSignature::gr_infallible([
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::MutBlockNumberWithHash(HashType::SubjectId).into(),
+            ]),
+            Self::Blake2b256 => SyscallSignature::gr_infallible([
+                Ptr::SizedBufferStart {
+                    length_param_idx: 1,
+                }
+                .into(),
+                Length,
+                // 32-byte output hash. `HashType::SubjectId` is reused here as a
+                // generic 32-byte opaque hash tag for ABI metadata purposes.
+                Ptr::MutHash(HashType::SubjectId).into(),
+            ]),
+            Self::Sr25519Verify => SyscallSignature::gr_infallible([
+                // 32-byte public key. `HashType::SubjectId` reused as opaque tag.
+                Ptr::Hash(HashType::SubjectId).into(),
+                Ptr::SizedBufferStart {
+                    length_param_idx: 2,
+                }
+                .into(),
+                Length,
+                // 64-byte signature. Represented here as an opaque fixed-length
+                // ptr (`HashType::SubjectId`) for ABI metadata purposes; the real
+                // size is tracked in `gsys::gr_sr25519_verify`'s declaration.
+                Ptr::Hash(HashType::SubjectId).into(),
+                // 1-byte verification result: 1 = valid, 0 = invalid.
+                Ptr::MutBufferStart.into(),
             ]),
             Self::SystemBreak => unimplemented!("Unsupported syscall signature for system_break"),
         }

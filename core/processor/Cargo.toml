@@ -23,6 +23,8 @@ log.workspace = true
 derive_more.workspace = true
 actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
+sp-core = { workspace = true, features = ["full_crypto"] }
+sp-io = { workspace = true }
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
@@ -31,7 +33,7 @@ gear-core = { workspace = true, features = ["mock"] }
 
 [features]
 default = ["std"]
-std = ["gear-core-backend/std", "gear-wasm-instrument/std"]
+std = ["gear-core-backend/std", "gear-wasm-instrument/std", "sp-core/std", "sp-io/std"]
 strict = []
 mock = ["gear-core/mock"]
 gtest = []

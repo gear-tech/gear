@@ -178,6 +178,21 @@ pub trait Externalities {
     /// This should be no-op in release builds.
     fn debug(&self, data: &str) -> Result<(), Self::UnrecoverableError>;
 
+    /// Compute a BLAKE2b-256 digest over `data`.
+    fn blake2b_256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError>;
+
+    /// Verify an sr25519 signature `sig` over `msg` against public key `pk`.
+    ///
+    /// Returns `Ok(true)` if the signature is valid, `Ok(false)` on any
+    /// verification failure (including malformed key/signature bytes). Only
+    /// unrecoverable host-side errors are surfaced through the error type.
+    fn sr25519_verify(
+        &self,
+        pk: &[u8; 32],
+        msg: &[u8],
+        sig: &[u8; 64],
+    ) -> Result<bool, Self::UnrecoverableError>;
+
     /// Get the currently handled message payload slice.
     fn payload_slice(&mut self, at: u32, len: u32) -> Result<PayloadSlice, Self::FallibleError>;
 

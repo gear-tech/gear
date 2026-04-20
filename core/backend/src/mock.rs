@@ -198,6 +198,17 @@ impl Externalities for MockExt {
     fn debug(&self, _data: &str) -> Result<(), Self::UnrecoverableError> {
         Ok(())
     }
+    fn blake2b_256(&self, _data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError> {
+        Ok([0u8; 32])
+    }
+    fn sr25519_verify(
+        &self,
+        _pk: &[u8; 32],
+        _msg: &[u8],
+        _sig: &[u8; 64],
+    ) -> Result<bool, Self::UnrecoverableError> {
+        Ok(false)
+    }
     fn size(&self) -> Result<usize, Self::UnrecoverableError> {
         Ok(0)
     }

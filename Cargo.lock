@@ -5434,6 +5434,8 @@ dependencies = [
  "rand 0.8.5",
  "scopeguard",
  "sp-allocator",
+ "sp-core",
+ "sp-io",
  "sp-wasm-interface",
  "thiserror 2.0.17",
  "tokio",
@@ -6865,6 +6867,8 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
+ "sp-core",
+ "sp-io",
 ]
 
 [[package]]

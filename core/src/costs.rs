@@ -307,6 +307,15 @@ pub struct SyscallCosts {
 
     /// Cost per salt byte by `gr_create_program_wgas`.
     pub gr_create_program_wgas_salt_per_byte: CostOf<BytesAmount>,
+
+    /// Cost of calling `gr_blake2b_256`.
+    pub gr_blake2b_256: CostOf<CallsAmount>,
+
+    /// Cost per input byte by `gr_blake2b_256`.
+    pub gr_blake2b_256_per_byte: CostOf<BytesAmount>,
+
+    /// Cost of calling `gr_sr25519_verify`.
+    pub gr_sr25519_verify: CostOf<CallsAmount>,
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
@@ -420,6 +429,10 @@ pub enum CostToken {
     CreateProgram(BytesAmount, BytesAmount),
     /// Cost of calling `gr_create_program_wgas`, taking in account payload and salt size.
     CreateProgramWGas(BytesAmount, BytesAmount),
+    /// Cost of calling `gr_blake2b_256`, taking in account input size.
+    Blake2b256(BytesAmount),
+    /// Cost of calling `gr_sr25519_verify`.
+    Sr25519Verify,
 }
 
 impl SyscallCosts {
@@ -498,6 +511,8 @@ impl SyscallCosts {
                     .with_bytes(self.gr_create_program_wgas_payload_per_byte, payload),
             )
             .with_bytes(self.gr_create_program_wgas_salt_per_byte, salt),
+            Blake2b256(len) => cost_with_per_byte!(gr_blake2b_256, len),
+            Sr25519Verify => self.gr_sr25519_verify.cost_for_one(),
         }
     }
 }

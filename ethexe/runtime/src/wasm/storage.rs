@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::wasm::interface::promise_ri;
+use crate::wasm::interface::{crypto_ri, hash_ri, promise_ri};
 
 use super::interface::database_ri;
 use alloc::vec::Vec;
@@ -155,5 +155,13 @@ impl RuntimeInterface for NativeRuntimeInterface {
 
     fn publish_promise(&self, promise: &Promise) {
         promise_ri::publish_promise(promise);
+    }
+
+    fn sr25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
+        crypto_ri::sr25519_verify(pk, msg, sig)
+    }
+
+    fn blake2b_256(data: &[u8]) -> [u8; 32] {
+        hash_ri::blake2b_256(data)
     }
 }

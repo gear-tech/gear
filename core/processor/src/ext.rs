@@ -1174,6 +1174,29 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         Ok(())
     }
 
+    fn blake2b_256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError> {
+        Ok(sp_core::hashing::blake2_256(data))
+    }
+
+    fn sr25519_verify(
+        &self,
+        pk: &[u8; 32],
+        msg: &[u8],
+        sig: &[u8; 64],
+    ) -> Result<bool, Self::UnrecoverableError> {
+        use sp_core::{
+            Pair,
+            sr25519::{Public, Signature},
+        };
+
+        let public = Public::from_raw(*pk);
+        let signature = Signature::from_raw(*sig);
+
+        Ok(<sp_core::sr25519::Pair as Pair>::verify(
+            &signature, msg, &public,
+        ))
+    }
+
     fn payload_slice(&mut self, at: u32, len: u32) -> Result<PayloadSlice, Self::FallibleError> {
         let end = at
             .checked_add(len)

@@ -23,7 +23,9 @@ use sp_wasm_interface::{FunctionContext as _, IntoValue as _, StoreData};
 use wasmtime::{Caller, Memory, StoreContext, StoreContextMut};
 
 pub mod allocator;
+pub mod crypto;
 pub mod database;
+pub mod hash;
 pub mod lazy_pages;
 pub mod logging;
 pub mod promise;

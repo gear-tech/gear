@@ -226,6 +226,9 @@ where
         add_function!(Alloc, alloc);
         add_function!(Free, free);
         add_function!(FreeRange, free_range);
+
+        add_function!(Blake2b256, blake2b_256);
+        add_function!(Sr25519Verify, sr25519_verify);
     }
 }
 

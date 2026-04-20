@@ -519,6 +519,32 @@ syscalls! {
     /// - `len`: `u32` length of the payload buffer.
     pub fn gr_debug(payload: *const SizedBufferStart, len: Length);
 
+    /// Infallible `gr_blake2b_256` hash syscall.
+    ///
+    /// Arguments type:
+    /// - `data`: `const ptr` for the beginning of the input buffer.
+    /// - `len`: `u32` length of the input buffer.
+    /// - `out`: `mut ptr` for the resulting 32-byte hash.
+    pub fn gr_blake2b_256(data: *const SizedBufferStart, len: Length, out: *mut Hash);
+
+    /// Infallible `gr_sr25519_verify` crypto syscall.
+    ///
+    /// Writes `1` into `out` if the signature is valid, `0` otherwise.
+    ///
+    /// Arguments type:
+    /// - `pk`: `const ptr` for the 32-byte sr25519 public key.
+    /// - `msg`: `const ptr` for the beginning of the message buffer.
+    /// - `msg_len`: `u32` length of the message buffer.
+    /// - `sig`: `const ptr` for the 64-byte sr25519 signature.
+    /// - `out`: `mut ptr` for the 1-byte verification result.
+    pub fn gr_sr25519_verify(
+        pk: *const Hash,
+        msg: *const SizedBufferStart,
+        msg_len: Length,
+        sig: *const [u8; 64],
+        out: *mut u8,
+    );
+
     /// Infallible `gr_panic` control syscall.
     ///
     /// Stops the execution.
