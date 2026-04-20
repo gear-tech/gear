@@ -16,6 +16,136 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Ethexe Compute
+//!
+//! Orchestrates the three pipelines that turn on-chain data into executed
+//! state for the ethexe node: code validation, block preparation, and
+//! announce computation. The crate wraps `ethexe-processor` and exposes its
+//! progress as a `futures::Stream` of [`ComputeEvent`]s: the outer service
+//! submits work through a few input methods, then polls the stream and
+//! handles each event that comes out.
+//!
+//! [`ComputeService`] composes three independent sub-services. Each does
+//! one thing and emits one family of events:
+//!
+//! - `codes` — validates and instruments a WASM code blob and marks its
+//!   validity in the database. Emits [`ComputeEvent::CodeProcessed`].
+//! - `prepare` — brings a synced block (and any not-yet-prepared ancestors)
+//!   into a state where it can be executed, requesting missing code blobs
+//!   from the caller along the way. Emits [`ComputeEvent::RequestLoadCodes`]
+//!   and [`ComputeEvent::BlockPrepared`].
+//! - `compute` — executes an announce (computing any missing ancestor
+//!   announces first), optionally streaming promises for it. Emits
+//!   [`ComputeEvent::Promise`] and [`ComputeEvent::AnnounceComputed`].
+//!
+//! ## Role in the stack and relation to other crates
+//!
+//! - `ethexe-processor` is the backend. Compute is generic over the
+//!   [`ProcessorExt`] trait defined here and has a direct impl for
+//!   [`Processor`]; the only other impl in the tree is a test mock
+//!   (`tests::MockProcessor`) that lets the sub-service tests run without
+//!   any real WASM execution.
+//! - `ethexe-blob-loader` is **not** a direct dependency. When `prepare`
+//!   discovers codes with unknown validation status, it yields
+//!   [`ComputeEvent::RequestLoadCodes`] upstream; the service layer is
+//!   responsible for calling the blob loader, and then feeds the loaded
+//!   bytes back into compute via [`ComputeService::process_code`]. That
+//!   way compute itself never has to make network calls.
+//! - `ethexe-db` is the only place compute reads from and writes to.
+//! - `ethexe-service` is the sole consumer: it polls the `futures::Stream`
+//!   produced by [`ComputeService`] inside the main `tokio::select!` loop
+//!   and routes each [`ComputeEvent`] variant to the rest of the node
+//!   (consensus, network, blob-loader).
+//!
+//! ## Entry points
+//!
+//! | Method                                       | Effect                                                                                  |
+//! |----------------------------------------------|-----------------------------------------------------------------------------------------|
+//! | [`ComputeService::process_code`]             | Queue a code blob for validation + instrumentation + DB persistence.                    |
+//! | [`ComputeService::prepare_block`]            | Queue a synced block for preparation (walks ancestors, emits code requests).            |
+//! | [`ComputeService::compute_announce`]         | Queue an announce for execution with a [`PromisePolicy`](ethexe_common::PromisePolicy). |
+//! | `<ComputeService as Stream>::poll_next`      | Drive all three sub-services and yield the next [`ComputeEvent`].                       |
+//!
+//! ## Code processing pipeline (`codes` sub-service)
+//!
+//! For every code submitted through [`ComputeService::process_code`] the
+//! stream eventually yields exactly one [`ComputeEvent::CodeProcessed`]
+//! (carrying the same `CodeId`) or a [`ComputeError`]. This holds both
+//! for fresh codes and for codes that had already been validated in a
+//! previous run, so the caller does not have to de-duplicate.
+//!
+//! Multiple codes submitted at once can be processed concurrently.
+//!
+//! ## Block preparation pipeline (`prepare` sub-service)
+//!
+//! For every block hash submitted through [`ComputeService::prepare_block`]
+//! the stream eventually yields exactly one [`ComputeEvent::BlockPrepared`]
+//! for that hash or a [`ComputeError`]. Before the block-prepared event,
+//! the stream may emit one or more [`ComputeEvent::RequestLoadCodes`] if
+//! the block — or any of its still-unprepared ancestors — references codes
+//! whose validity has not yet been established. The caller must fetch
+//! those codes (out of scope for this crate) and feed them back in through
+//! [`ComputeService::process_code`]; preparation resumes automatically as
+//! the missing codes arrive.
+//!
+//! ## Announce computation pipeline (`compute` sub-service)
+//!
+//! For every announce submitted through [`ComputeService::compute_announce`]
+//! with a [`PromisePolicy`](ethexe_common::PromisePolicy), the stream
+//! eventually yields exactly one [`ComputeEvent::AnnounceComputed`] for
+//! that announce or a [`ComputeError`]. If the caller passed
+//! [`PromisePolicy::Enabled`](ethexe_common::PromisePolicy), zero or more
+//! [`ComputeEvent::Promise`] events for the same announce are yielded
+//! first. Every `Promise` for a given announce is yielded strictly before
+//! the `AnnounceComputed` of that announce — `AnnounceComputed` is the
+//! "all promises for this announce have been delivered" marker.
+//!
+//! Computation is sequential: at most one announce is executed at a time.
+//! If the announce's parent (or any further ancestor) has not been
+//! computed yet, missing ancestors are computed first, in order.
+//! Ancestors are always computed without promise collection regardless of
+//! the requested policy — promises describe the user-visible result of
+//! the target announce only.
+//!
+//! The target block must already be prepared; otherwise the computation
+//! fails with [`ComputeError::BlockNotPrepared`].
+//!
+//! Actual WASM execution is delegated to [`ProcessorExt::process_programs`].
+//!
+//! ## Canonical event quarantine
+//!
+//! Ethereum events do not become visible to the runtime on the block they
+//! arrive in. When building the execution input for a block, compute
+//! instead takes the events from an ancestor that is
+//! [`ComputeConfig::canonical_quarantine`](ComputeConfig) blocks older.
+//! If the walk back would cross genesis, the returned event list is
+//! empty — i.e. the first `canonical_quarantine` blocks after genesis
+//! see no Ethereum events at all.
+//!
+//! ## Event flow summary
+//!
+//! | [`ComputeEvent`]          | Fired by | Expected consumer                                     |
+//! |---------------------------|----------|-------------------------------------------------------|
+//! | `CodeProcessed(code_id)`  | `codes`  | Informational.                                        |
+//! | `RequestLoadCodes(set)`   | `prepare`| Handed to `ethexe-blob-loader` to fetch code blobs.   |
+//! | `BlockPrepared(hash)`     | `prepare`| Handed to `ethexe-consensus`.                         |
+//! | `AnnounceComputed(hash)`  | `compute`| Handed to `ethexe-consensus`.                         |
+//! | `Promise(p, ah)`          | `compute`| Handed to `ethexe-consensus` for signing.             |
+//!
+//! ## When modifying this crate
+//!
+//! - A code result must reach the `prepare` sub-service before the
+//!   corresponding `CodeProcessed` is emitted upstream, otherwise a block
+//!   waiting on that code will stall for an extra poll.
+//! - An announce must only be computed after its block has been prepared.
+//! - For announce execution, canonical events must always be read via
+//!   [`find_canonical_events_post_quarantine`], never directly via
+//!   `db.block_events(...)` from the announce's own block. Taking the raw
+//!   events would skip the quarantine and produce non-deterministic state
+//!   across nodes that disagree on a recent reorg.
+//! - For any single announce, `AnnounceComputed` must be the last event
+//!   emitted; every `Promise` that belongs to it comes strictly before.
+
 pub use compute::{
     ComputeConfig, ComputeSubService,
     utils::{find_canonical_events_post_quarantine, prepare_executable_for_announce},
@@ -62,8 +192,6 @@ pub enum ComputeError {
     BlockHeaderNotFound(H256),
     #[error("block validators committed for era not found for block({0})")]
     CommittedEraNotFound(H256),
-    #[error("process code join error")]
-    CodeProcessJoin(#[from] tokio::task::JoinError),
     #[error("codes queue not found for computed block({0})")]
     CodesQueueNotFound(H256),
     #[error("last committed batch not found for computed block({0})")]
@@ -101,7 +229,10 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
         executable: ExecutableData,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
-    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo>;
+    fn process_code(
+        &mut self,
+        code_and_id: CodeAndIdUnchecked,
+    ) -> impl Future<Output = Result<ProcessedCodeInfo>> + Send;
 }
 
 impl ProcessorExt for Processor {
@@ -115,7 +246,7 @@ impl ProcessorExt for Processor {
             .map_err(Into::into)
     }
 
-    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
-        self.process_code(code_and_id).map_err(Into::into)
+    async fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+        self.process_code(code_and_id).await.map_err(Into::into)
     }
 }
