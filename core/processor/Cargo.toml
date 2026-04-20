@@ -23,7 +23,7 @@ log.workspace = true
 derive_more.workspace = true
 actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
-sp-core = { workspace = true, features = ["full_crypto"] }
+sp-core = { workspace = true }
 # NOTE: sp-io was previously pulled here for secp256k1_ecdsa_recover, but
 # on wasm32 targets it registers its own #[global_allocator] which
 # conflicts with ethexe-runtime's allocator. Switched to libsecp256k1

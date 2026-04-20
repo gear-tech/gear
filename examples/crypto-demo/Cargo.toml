@@ -19,7 +19,7 @@ gear-wasm-builder.workspace = true
 [dev-dependencies]
 gtest.workspace = true
 log.workspace = true
-sp-core = { workspace = true, features = ["std", "full_crypto"] }
+sp-core = { workspace = true, features = ["std"] }
 # Used in the KAT recover test to decompress sp_core's 33-byte pubkey
 # to the 65-byte form the syscall ABI returns, so the test can
 # byte-compare.

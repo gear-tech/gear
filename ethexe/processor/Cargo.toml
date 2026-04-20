@@ -25,7 +25,7 @@ wasmtime.workspace = true
 log.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 sp-allocator = { workspace = true, features = ["std"] }
-sp-core = { workspace = true, features = ["std", "full_crypto"] }
+sp-core = { workspace = true, features = ["std"] }
 libsecp256k1 = { workspace = true, features = ["std", "static-context"] }
 # Context-parameterized sr25519 verify. sp_core::sr25519::Pair::verify
 # hardcodes ctx = b"substrate"; we call schnorrkel::PublicKey::verify_simple
