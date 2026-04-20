@@ -1164,6 +1164,16 @@ where
                 let sig = sig.into_inner()?;
                 let pk = pk.into_inner()?;
 
+                // Reject unknown malleability_flag values at the wrapper
+                // layer. Must match ethexe's host-fn behavior (see
+                // ethexe/processor/src/host/api/crypto.rs::secp256k1_verify)
+                // or the same (sig, flag) pair gives different answers on
+                // the two networks — exactly the consistency guarantee the
+                // shared low-s helper exists to uphold.
+                if malleability_flag > 1 {
+                    return out.write(ctx, &0u8).map_err(Into::into);
+                }
+
                 let ok = ctx
                     .caller_wrap
                     .ext_mut()

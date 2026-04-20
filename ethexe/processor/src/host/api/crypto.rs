@@ -167,10 +167,14 @@ fn secp256k1_verify(
     i32::from(ok)
 }
 
-/// Returns 0 on success, 1 on recovery failure, 2 for unknown
+/// Returns 0 on success, 1 on recovery failure, 3 for unknown
 /// malleability flag values. Writes the 65-byte SEC1 uncompressed
 /// pubkey (`0x04 || x || y`) into `out_pk_ptr` on success; zero-fills
 /// that buffer in every failure case so callers see a defined output.
+///
+/// Error codes must match `core/backend/src/funcs.rs::secp256k1_recover`'s
+/// Vara wrapper byte-for-byte — a contract branching on err code must
+/// get the same value on both networks.
 fn secp256k1_recover(
     mut caller: Caller<'_, StoreData>,
     msg_hash_ptr: i32,
@@ -186,15 +190,16 @@ fn secp256k1_recover(
     let memory = MemoryWrap(caller.data().memory());
 
     let flag = malleability_flag as u32;
-    // Unknown flag — bail before any crypto work. Mirrors
-    // `core/backend/src/funcs.rs::secp256k1_recover` which rejects the
-    // same condition at the Vara wrapper layer with err = 3. Here we
-    // surface err = 2; the wrapper disambiguates upstream.
+    // Unknown flag — bail before any crypto work. Matches the Vara
+    // wrapper at core/backend/src/funcs.rs::secp256k1_recover which
+    // also returns err = 3 on this path. Consistency across networks
+    // is a hard requirement — the same (sig, flag) must fail the same
+    // way everywhere.
     if flag > 1 {
         memory
             .slice_mut(&mut caller, out_pk_ptr as usize, 65)
             .copy_from_slice(&[0u8; 65]);
-        return 2;
+        return 3;
     }
 
     let msg_hash: [u8; 32] = match read_fixed(&memory, &caller, msg_hash_ptr) {

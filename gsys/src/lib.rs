@@ -627,10 +627,20 @@ syscalls! {
     ///
     /// Error codes:
     /// - `0` = success.
-    /// - `1` = malformed signature (bad length, unparseable, invalid v).
-    /// - `2` = non-recoverable (curve math returned no valid pubkey).
+    /// - `1` = any cryptographic failure. Covers malformed signatures
+    ///   (bad length, unparseable, invalid `v` byte), non-recoverable
+    ///   signatures (curve math yielded no valid pubkey), AND high-s
+    ///   signatures rejected under `malleability_flag = 1`. These are
+    ///   collapsed into a single code because the Vara trait surface
+    ///   returns `Option<[u8; 65]>` — the host layer does not retain
+    ///   the distinction. Contracts that need to distinguish these
+    ///   cases must validate inputs at the program level before
+    ///   calling the syscall.
     /// - `3` = unknown `malleability_flag` value; `0` and `1` are legal.
-    /// - `4` = high-s signature rejected because `malleability_flag = 1`.
+    ///
+    /// (Codes `2` and `4` are reserved for a future ABI revision that
+    /// propagates richer error information; they are currently not
+    /// emitted by any implementation.)
     ///
     /// `malleability_flag` is symmetric with `gr_secp256k1_verify`:
     /// - `0` = permissive. Any valid (low-s or high-s) signature is

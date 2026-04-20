@@ -40,8 +40,18 @@ pub(crate) mod utils {
     pub fn repr_ri_slice(slice: impl AsRef<[u8]>) -> i64 {
         let slice = slice.as_ref();
 
-        let ptr = slice.as_ptr() as u32;
         let len = slice.len() as u32;
+        // Empty slices in Rust may carry a dangling-but-aligned
+        // pointer (e.g. `NonNull::dangling()`). Packing that raw ptr
+        // and handing it to the host leads to out-of-bounds failures
+        // in wasmtime's `memory.slice(ptr, 0)` even though zero bytes
+        // are being read. Canonicalize to `ptr = 0` when `len == 0`
+        // so host-side zero-length reads are trivially in-bounds.
+        // Without this, legal guest inputs like `sha256([])` or
+        // `sr25519_verify(pk, b"", msg, sig)` would trap on ethexe
+        // while working on Vara (whose memory path skips zero-length
+        // reads entirely).
+        let ptr = if len == 0 { 0 } else { slice.as_ptr() as u32 };
         pack_u32_to_i64(ptr, len)
     }
 }
