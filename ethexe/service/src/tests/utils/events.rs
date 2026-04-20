@@ -337,7 +337,6 @@ impl ObserverEventReceiver {
 
     // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
     // If your test depends on events in skipped blocks, you need to improve this method.
-    // TODO #4554: iterate thru skipped blocks.
     pub fn filter_map_block_synced_with_header(
         self,
     ) -> impl Stream<Item = (BlockEvent, SimpleBlockData)> {
