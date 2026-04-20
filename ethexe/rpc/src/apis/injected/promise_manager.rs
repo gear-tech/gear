@@ -30,6 +30,10 @@ use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::trace;
 
+// TODO (kuzmindev): Currently, PromiseSubscriptionManager do not check, that transaction was
+// sent by validator, so there must be pre-validation for data received from network (SignedCompactPromise).
+
+// TODO (kuzmindev): think about using `moka::sync::Cache` instead of DashMap
 type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactPromise>>;
 
