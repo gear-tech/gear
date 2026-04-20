@@ -113,6 +113,8 @@ pub enum SyscallName {
     Keccak256,
     Sr25519Verify,
     Ed25519Verify,
+    Secp256k1Verify,
+    Secp256k1Recover,
 }
 
 impl SyscallName {
@@ -180,6 +182,8 @@ impl SyscallName {
             Self::Keccak256 => "gr_keccak256",
             Self::Sr25519Verify => "gr_sr25519_verify",
             Self::Ed25519Verify => "gr_ed25519_verify",
+            Self::Secp256k1Verify => "gr_secp256k1_verify",
+            Self::Secp256k1Recover => "gr_secp256k1_recover",
         }
     }
 
@@ -510,6 +514,31 @@ impl SyscallName {
                 // size is tracked in `gsys::gr_{sr,ed}25519_verify`'s declaration.
                 Ptr::Hash(HashType::SubjectId).into(),
                 // 1-byte verification result: 1 = valid, 0 = invalid.
+                Ptr::MutBufferStart.into(),
+            ]),
+            // secp256k1 signatures are 65 bytes, pubkeys are 33 bytes
+            // (SEC1-compressed) — both represented here as opaque
+            // fixed-length ptrs (`HashType::SubjectId`) for ABI
+            // metadata; the real sizes are authoritative in
+            // `gsys::gr_secp256k1_{verify,recover}`.
+            Self::Secp256k1Verify => SyscallSignature::gr_infallible([
+                // 32-byte message hash.
+                Ptr::Hash(HashType::SubjectId).into(),
+                // 65-byte signature (opaque).
+                Ptr::Hash(HashType::SubjectId).into(),
+                // 33-byte compressed pubkey (opaque).
+                Ptr::Hash(HashType::SubjectId).into(),
+                // 1-byte verification result.
+                Ptr::MutBufferStart.into(),
+            ]),
+            Self::Secp256k1Recover => SyscallSignature::gr_infallible([
+                // 32-byte message hash.
+                Ptr::Hash(HashType::SubjectId).into(),
+                // 65-byte signature (opaque).
+                Ptr::Hash(HashType::SubjectId).into(),
+                // 65-byte SEC1-uncompressed pubkey output (opaque).
+                Ptr::MutHash(HashType::SubjectId).into(),
+                // u32 error code (0 on success).
                 Ptr::MutBufferStart.into(),
             ]),
             Self::SystemBreak => unimplemented!("Unsupported syscall signature for system_break"),

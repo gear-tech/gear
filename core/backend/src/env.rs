@@ -232,6 +232,8 @@ where
         add_function!(Keccak256, keccak256);
         add_function!(Sr25519Verify, sr25519_verify);
         add_function!(Ed25519Verify, ed25519_verify);
+        add_function!(Secp256k1Verify, secp256k1_verify);
+        add_function!(Secp256k1Recover, secp256k1_recover);
     }
 }
 

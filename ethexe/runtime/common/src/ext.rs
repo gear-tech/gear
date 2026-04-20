@@ -223,6 +223,23 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
         Ok(RI::ed25519_verify(pk, msg, sig))
     }
 
+    fn secp256k1_verify(
+        &self,
+        msg_hash: &[u8; 32],
+        sig: &[u8; 65],
+        pk: &[u8; 33],
+    ) -> Result<bool, Self::UnrecoverableError> {
+        Ok(RI::secp256k1_verify(msg_hash, sig, pk))
+    }
+
+    fn secp256k1_recover(
+        &self,
+        msg_hash: &[u8; 32],
+        sig: &[u8; 65],
+    ) -> Result<Option<[u8; 65]>, Self::UnrecoverableError> {
+        Ok(RI::secp256k1_recover(msg_hash, sig))
+    }
+
     fn blake2b_256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError> {
         Ok(RI::blake2b_256(data))
     }

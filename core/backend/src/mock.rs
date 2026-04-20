@@ -223,6 +223,21 @@ impl Externalities for MockExt {
     ) -> Result<bool, Self::UnrecoverableError> {
         Ok(false)
     }
+    fn secp256k1_verify(
+        &self,
+        _msg_hash: &[u8; 32],
+        _sig: &[u8; 65],
+        _pk: &[u8; 33],
+    ) -> Result<bool, Self::UnrecoverableError> {
+        Ok(false)
+    }
+    fn secp256k1_recover(
+        &self,
+        _msg_hash: &[u8; 32],
+        _sig: &[u8; 65],
+    ) -> Result<Option<[u8; 65]>, Self::UnrecoverableError> {
+        Ok(None)
+    }
     fn size(&self) -> Result<usize, Self::UnrecoverableError> {
         Ok(0)
     }

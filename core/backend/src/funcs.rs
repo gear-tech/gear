@@ -1140,6 +1140,58 @@ where
         )
     }
 
+    pub fn secp256k1_verify(
+        msg_hash: ReadAs<[u8; 32]>,
+        sig: ReadAs<[u8; 65]>,
+        pk: ReadAs<[u8; 33]>,
+        out: WriteAs<u8>,
+    ) -> impl Syscall<Caller> {
+        InfallibleSyscall::new(
+            CostToken::Secp256k1Verify,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let msg_hash = msg_hash.into_inner()?;
+                let sig = sig.into_inner()?;
+                let pk = pk.into_inner()?;
+
+                let ok = ctx
+                    .caller_wrap
+                    .ext_mut()
+                    .secp256k1_verify(&msg_hash, &sig, &pk)?;
+
+                out.write(ctx, &u8::from(ok)).map_err(Into::into)
+            },
+        )
+    }
+
+    pub fn secp256k1_recover(
+        msg_hash: ReadAs<[u8; 32]>,
+        sig: ReadAs<[u8; 65]>,
+        out_pk: WriteAs<[u8; 65]>,
+        err: WriteAs<u32>,
+    ) -> impl Syscall<Caller> {
+        InfallibleSyscall::new(
+            CostToken::Secp256k1Recover,
+            move |ctx: &mut MemoryCallerContext<Caller>| {
+                let msg_hash = msg_hash.into_inner()?;
+                let sig = sig.into_inner()?;
+
+                let recovered = ctx
+                    .caller_wrap
+                    .ext_mut()
+                    .secp256k1_recover(&msg_hash, &sig)?;
+
+                // err = 0 on Some, 1 on None. out_pk is always written
+                // (zeros on failure) so callers observe a defined buffer.
+                let (err_code, pk_bytes) = match recovered {
+                    Some(pk) => (0u32, pk),
+                    None => (1u32, [0u8; 65]),
+                };
+                out_pk.write(ctx, &pk_bytes)?;
+                err.write(ctx, &err_code).map_err(Into::into)
+            },
+        )
+    }
+
     pub fn panic(data: ReadPayloadLimited) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
             CostToken::Null,

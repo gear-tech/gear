@@ -5443,13 +5443,13 @@ dependencies = [
  "gear-workspace-hack",
  "gprimitives",
  "itertools 0.13.0",
+ "libsecp256k1",
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
  "scopeguard",
  "sp-allocator",
  "sp-core",
- "sp-io",
  "sp-wasm-interface",
  "thiserror 2.0.17",
  "tokio",
@@ -6879,10 +6879,10 @@ dependencies = [
  "gear-wasm-instrument",
  "gear-workspace-hack",
  "gsys",
+ "libsecp256k1",
  "log",
  "parity-scale-codec",
  "sp-core",
- "sp-io",
 ]
 
 [[package]]

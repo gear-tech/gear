@@ -561,6 +561,14 @@ pub struct SyscallWeights<T: Config> {
     /// shape as `gr_sr25519_verify`).
     pub gr_ed25519_verify: Weight,
 
+    /// Weight of calling `gr_secp256k1_verify` (fixed cost).
+    pub gr_secp256k1_verify: Weight,
+
+    /// Weight of calling `gr_secp256k1_recover` (fixed cost; the
+    /// recovery + decompression is a single ECDSA public-key math
+    /// operation).
+    pub gr_secp256k1_recover: Weight,
+
     /// Weight of calling `gr_reply_code`.
     pub gr_reply_code: Weight,
 
@@ -1187,6 +1195,8 @@ impl<T: Config> Default for SyscallWeights<T> {
             gr_keccak256_per_byte: Weight::zero(),
             gr_sr25519_verify: Weight::zero(),
             gr_ed25519_verify: Weight::zero(),
+            gr_secp256k1_verify: Weight::zero(),
+            gr_secp256k1_recover: Weight::zero(),
             gr_reply_to: cost_batched(W::<T>::gr_reply_to),
             gr_signal_code: cost_batched(W::<T>::gr_signal_code),
             gr_signal_from: cost_batched(W::<T>::gr_signal_from),
@@ -1290,6 +1300,8 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
             gr_keccak256_per_byte: val.gr_keccak256_per_byte.ref_time().into(),
             gr_sr25519_verify: val.gr_sr25519_verify.ref_time().into(),
             gr_ed25519_verify: val.gr_ed25519_verify.ref_time().into(),
+            gr_secp256k1_verify: val.gr_secp256k1_verify.ref_time().into(),
+            gr_secp256k1_recover: val.gr_secp256k1_recover.ref_time().into(),
             gr_reply_to: val.gr_reply_to.ref_time().into(),
             gr_signal_code: val.gr_signal_code.ref_time().into(),
             gr_signal_from: val.gr_signal_from.ref_time().into(),

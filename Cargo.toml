@@ -543,6 +543,7 @@ nix = "0.26.4" # gear-lazy-pages
 ipc-channel = "0.19.0" # lazy-pages-fuzzer
 itertools = { version = "0.13", default-features = false } # utils/wasm-builder
 libp2p = "=0.51.4" # gcli (same version as sc-consensus)
+libsecp256k1 = { version = "0.7.2", default-features = false } # core/processor, ethexe/processor — secp256k1 recover pubkey decompression
 mimalloc = { version = "0.1.46", default-features = false } # node/cli
 nacl = "0.5.3" # gcli
 libfuzzer-sys = "0.4" # utils/runtime-fuzzer/fuzz

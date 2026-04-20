@@ -580,6 +580,42 @@ syscalls! {
     /// - `out`: `mut ptr` for the resulting 32-byte hash.
     pub fn gr_keccak256(data: *const SizedBufferStart, len: Length, out: *mut Hash);
 
+    /// Infallible `gr_secp256k1_verify` crypto syscall.
+    ///
+    /// Writes `1` into `out` if the signature is valid, `0` otherwise.
+    ///
+    /// Arguments type:
+    /// - `msg_hash`: `const ptr` for the 32-byte message digest.
+    /// - `sig`: `const ptr` for the 65-byte ECDSA signature (r || s || v).
+    /// - `pk`: `const ptr` for the 33-byte SEC1-compressed secp256k1 public key.
+    /// - `out`: `mut ptr` for the 1-byte verification result.
+    pub fn gr_secp256k1_verify(
+        msg_hash: *const Hash,
+        sig: *const [u8; 65],
+        pk: *const [u8; 33],
+        out: *mut u8,
+    );
+
+    /// `gr_secp256k1_recover` crypto syscall: recovers an uncompressed
+    /// secp256k1 public key from an ECDSA signature and message hash.
+    ///
+    /// On success writes the 65-byte SEC1-uncompressed pubkey
+    /// (`0x04 || x || y`) into `out_pk` and sets `err` to `0`. On any
+    /// failure (malformed signature, non-recoverable) `err` is set to
+    /// a non-zero value; `out_pk` contents are undefined in that case.
+    ///
+    /// Arguments type:
+    /// - `msg_hash`: `const ptr` for the 32-byte message digest.
+    /// - `sig`: `const ptr` for the 65-byte ECDSA signature (r || s || v).
+    /// - `out_pk`: `mut ptr` for the 65-byte SEC1-uncompressed pubkey.
+    /// - `err`: `mut ptr` for the `u32` error code (0 on success).
+    pub fn gr_secp256k1_recover(
+        msg_hash: *const Hash,
+        sig: *const [u8; 65],
+        out_pk: *mut [u8; 65],
+        err: *mut u32,
+    );
+
     /// Infallible `gr_panic` control syscall.
     ///
     /// Stops the execution.

@@ -1649,6 +1649,107 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    /// Fixed cost of `gr_secp256k1_verify`. Uses a pre-signed valid
+    /// triple (msg_hash, sig, compressed pk) generated at bench-setup
+    /// time via sp_core::ecdsa — same methodology as `gr_sr25519_verify`.
+    pub fn gr_secp256k1_verify(r: u32) -> Result<Exec<T>, &'static str> {
+        use sp_core::{Pair as _, ecdsa::Pair};
+
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+
+        let pair = Pair::from_seed(&[0x42u8; 32]);
+        let pk_compressed: [u8; 33] = pair.public().0;
+        // Digest the message once at setup so we benchmark the
+        // verify-prehashed path that matches the syscall ABI.
+        let msg_bytes: &[u8] = b"gear-protocol-secp256k1-verify-bench";
+        let msg_hash: [u8; 32] = sp_core::hashing::blake2_256(msg_bytes);
+        let sig: sp_core::ecdsa::Signature = pair.sign_prehashed(&msg_hash);
+        let sig_bytes: [u8; 65] = sig.0;
+
+        let msg_hash_offset = COMMON_OFFSET;
+        let sig_offset = msg_hash_offset + msg_hash.len() as u32;
+        let pk_offset = sig_offset + sig_bytes.len() as u32;
+        let out_offset = pk_offset + pk_compressed.len() as u32;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SyscallName::Secp256k1Verify],
+            data_segments: vec![
+                DataSegment {
+                    offset: msg_hash_offset,
+                    value: msg_hash.to_vec(),
+                },
+                DataSegment {
+                    offset: sig_offset,
+                    value: sig_bytes.to_vec(),
+                },
+                DataSegment {
+                    offset: pk_offset,
+                    value: pk_compressed.to_vec(),
+                },
+            ],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    InstrI32Const(msg_hash_offset),
+                    InstrI32Const(sig_offset),
+                    InstrI32Const(pk_offset),
+                    InstrI32Const(out_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    /// Fixed cost of `gr_secp256k1_recover`. Same setup as
+    /// `gr_secp256k1_verify` — valid triple, recover reconstructs the
+    /// (uncompressed) pubkey from (msg_hash, sig).
+    pub fn gr_secp256k1_recover(r: u32) -> Result<Exec<T>, &'static str> {
+        use sp_core::{Pair as _, ecdsa::Pair};
+
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+
+        let pair = Pair::from_seed(&[0x42u8; 32]);
+        let msg_bytes: &[u8] = b"gear-protocol-secp256k1-recover-bench";
+        let msg_hash: [u8; 32] = sp_core::hashing::blake2_256(msg_bytes);
+        let sig: sp_core::ecdsa::Signature = pair.sign_prehashed(&msg_hash);
+        let sig_bytes: [u8; 65] = sig.0;
+
+        let msg_hash_offset = COMMON_OFFSET;
+        let sig_offset = msg_hash_offset + msg_hash.len() as u32;
+        let out_pk_offset = sig_offset + sig_bytes.len() as u32;
+        let err_offset = out_pk_offset + 65;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SyscallName::Secp256k1Recover],
+            data_segments: vec![
+                DataSegment {
+                    offset: msg_hash_offset,
+                    value: msg_hash.to_vec(),
+                },
+                DataSegment {
+                    offset: sig_offset,
+                    value: sig_bytes.to_vec(),
+                },
+            ],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    InstrI32Const(msg_hash_offset),
+                    InstrI32Const(sig_offset),
+                    InstrI32Const(out_pk_offset),
+                    InstrI32Const(err_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
     pub fn termination_bench(
         name: SyscallName,
         param: Option<u32>,

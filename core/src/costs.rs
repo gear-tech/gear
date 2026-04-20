@@ -331,6 +331,12 @@ pub struct SyscallCosts {
 
     /// Cost of calling `gr_ed25519_verify`.
     pub gr_ed25519_verify: CostOf<CallsAmount>,
+
+    /// Cost of calling `gr_secp256k1_verify`.
+    pub gr_secp256k1_verify: CostOf<CallsAmount>,
+
+    /// Cost of calling `gr_secp256k1_recover`.
+    pub gr_secp256k1_recover: CostOf<CallsAmount>,
 }
 
 /// Enumerates syscalls that can be charged by gas meter.
@@ -454,6 +460,10 @@ pub enum CostToken {
     Sr25519Verify,
     /// Cost of calling `gr_ed25519_verify`.
     Ed25519Verify,
+    /// Cost of calling `gr_secp256k1_verify`.
+    Secp256k1Verify,
+    /// Cost of calling `gr_secp256k1_recover`.
+    Secp256k1Recover,
 }
 
 impl SyscallCosts {
@@ -537,6 +547,8 @@ impl SyscallCosts {
             Keccak256(len) => cost_with_per_byte!(gr_keccak256, len),
             Sr25519Verify => self.gr_sr25519_verify.cost_for_one(),
             Ed25519Verify => self.gr_ed25519_verify.cost_for_one(),
+            Secp256k1Verify => self.gr_secp256k1_verify.cost_for_one(),
+            Secp256k1Recover => self.gr_secp256k1_recover.cost_for_one(),
         }
     }
 }

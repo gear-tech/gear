@@ -111,6 +111,8 @@ pub trait RuntimeInterface: Storage {
     // stays behind one trait.
     fn sr25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool;
     fn ed25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool;
+    fn secp256k1_verify(msg_hash: &[u8; 32], sig: &[u8; 65], pk: &[u8; 33]) -> bool;
+    fn secp256k1_recover(msg_hash: &[u8; 32], sig: &[u8; 65]) -> Option<[u8; 65]>;
     fn blake2b_256(data: &[u8]) -> [u8; 32];
     fn sha256(data: &[u8]) -> [u8; 32];
     fn keccak256(data: &[u8]) -> [u8; 32];

@@ -210,6 +210,30 @@ pub trait Externalities {
         sig: &[u8; 64],
     ) -> Result<bool, Self::UnrecoverableError>;
 
+    /// Verify an ECDSA signature `sig` over `msg_hash` against
+    /// SEC1-compressed secp256k1 public key `pk`.
+    ///
+    /// Same error convention as [`Self::sr25519_verify`].
+    fn secp256k1_verify(
+        &self,
+        msg_hash: &[u8; 32],
+        sig: &[u8; 65],
+        pk: &[u8; 33],
+    ) -> Result<bool, Self::UnrecoverableError>;
+
+    /// Recover the SEC1-uncompressed (65-byte, `0x04 || x || y`)
+    /// secp256k1 public key that produced signature `sig` over
+    /// `msg_hash`.
+    ///
+    /// Returns `Ok(Some(pk))` on success, `Ok(None)` when the signature
+    /// is malformed or non-recoverable. Only unrecoverable host-side
+    /// errors surface through the error type.
+    fn secp256k1_recover(
+        &self,
+        msg_hash: &[u8; 32],
+        sig: &[u8; 65],
+    ) -> Result<Option<[u8; 65]>, Self::UnrecoverableError>;
+
     /// Get the currently handled message payload slice.
     fn payload_slice(&mut self, at: u32, len: u32) -> Result<PayloadSlice, Self::FallibleError>;
 

@@ -165,6 +165,14 @@ impl RuntimeInterface for NativeRuntimeInterface {
         crypto_ri::ed25519_verify(pk, msg, sig)
     }
 
+    fn secp256k1_verify(msg_hash: &[u8; 32], sig: &[u8; 65], pk: &[u8; 33]) -> bool {
+        crypto_ri::secp256k1_verify(msg_hash, sig, pk)
+    }
+
+    fn secp256k1_recover(msg_hash: &[u8; 32], sig: &[u8; 65]) -> Option<[u8; 65]> {
+        crypto_ri::secp256k1_recover(msg_hash, sig)
+    }
+
     fn blake2b_256(data: &[u8]) -> [u8; 32] {
         hash_ri::blake2b_256(data)
     }

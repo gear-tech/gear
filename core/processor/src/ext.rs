@@ -1224,6 +1224,60 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         ))
     }
 
+    fn secp256k1_verify(
+        &self,
+        msg_hash: &[u8; 32],
+        sig: &[u8; 65],
+        pk: &[u8; 33],
+    ) -> Result<bool, Self::UnrecoverableError> {
+        use sp_core::ecdsa::{Public, Signature};
+
+        let public = Public::from_raw(*pk);
+        let signature = Signature::from_raw(*sig);
+
+        // `ecdsa::Pair::verify_prehashed` is what we want: the caller
+        // gave us a 32-byte digest, not a raw message. Using
+        // `Pair::verify(msg)` would re-hash the digest.
+        Ok(sp_core::ecdsa::Pair::verify_prehashed(
+            &signature, msg_hash, &public,
+        ))
+    }
+
+    fn secp256k1_recover(
+        &self,
+        msg_hash: &[u8; 32],
+        sig: &[u8; 65],
+    ) -> Result<Option<[u8; 65]>, Self::UnrecoverableError> {
+        // `sp_core::ecdsa::Signature::recover_prehashed` returns a
+        // 33-byte SEC1-compressed pubkey; we decompress with
+        // libsecp256k1 directly to produce the 65-byte uncompressed
+        // form the ABI promises (`0x04 || x || y`).
+        //
+        // sp_io::crypto::secp256k1_ecdsa_recover would have done this
+        // in one call but its wasm build registers a #[global_allocator]
+        // that conflicts with ethexe-runtime's allocator when this
+        // crate is linked into the ethexe runtime blob.
+        let signature = sp_core::ecdsa::Signature::from_raw(*sig);
+        let Some(compressed) = signature.recover_prehashed(msg_hash) else {
+            return Ok(None);
+        };
+
+        // Disambiguate AsRef: `Public` implements multiple AsRef
+        // conversions; pick the byte-slice view explicitly.
+        let compressed_slice: &[u8] = AsRef::<[u8]>::as_ref(&compressed);
+        let compressed_bytes: [u8; 33] = match compressed_slice.try_into() {
+            Ok(a) => a,
+            // `Public` is always 33 bytes, but be defensive rather
+            // than panicking on a hypothetically-changed layout.
+            Err(_) => return Ok(None),
+        };
+
+        match libsecp256k1::PublicKey::parse_compressed(&compressed_bytes) {
+            Ok(pk) => Ok(Some(pk.serialize())),
+            Err(_) => Ok(None),
+        }
+    }
+
     fn payload_slice(&mut self, at: u32, len: u32) -> Result<PayloadSlice, Self::FallibleError> {
         let end = at
             .checked_add(len)

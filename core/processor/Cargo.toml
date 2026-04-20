@@ -24,7 +24,13 @@ derive_more.workspace = true
 actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 sp-core = { workspace = true, features = ["full_crypto"] }
-sp-io = { workspace = true }
+# NOTE: sp-io was previously pulled here for secp256k1_ecdsa_recover, but
+# on wasm32 targets it registers its own #[global_allocator] which
+# conflicts with ethexe-runtime's allocator. Switched to libsecp256k1
+# directly (already transitively present via sp-core::ecdsa) so the
+# Vara path doesn't drag the sp_io allocator into the ethexe-runtime
+# wasm blob.
+libsecp256k1 = { workspace = true, features = ["static-context"] }
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
@@ -33,7 +39,7 @@ gear-core = { workspace = true, features = ["mock"] }
 
 [features]
 default = ["std"]
-std = ["gear-core-backend/std", "gear-wasm-instrument/std", "sp-core/std", "sp-io/std"]
+std = ["gear-core-backend/std", "gear-wasm-instrument/std", "sp-core/std", "libsecp256k1/std"]
 strict = []
 mock = ["gear-core/mock"]
 gtest = []

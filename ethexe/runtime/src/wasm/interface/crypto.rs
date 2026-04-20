@@ -22,6 +22,11 @@ use crate::wasm::interface;
 interface::declare! {
     pub(super) fn ext_sr25519_verify_v1(pk: i32, msg: i64, sig: i32) -> i32;
     pub(super) fn ext_ed25519_verify_v1(pk: i32, msg: i64, sig: i32) -> i32;
+    pub(super) fn ext_secp256k1_verify_v1(msg_hash: i32, sig: i32, pk: i32) -> i32;
+    /// Writes the recovered 65-byte pubkey into `out_pk`; returns 0 on
+    /// success, non-zero on any recovery failure (the out buffer is
+    /// zero-filled in the failure case).
+    pub(super) fn ext_secp256k1_recover_v1(msg_hash: i32, sig: i32, out_pk: i32) -> i32;
 }
 
 // Called from `NativeRuntimeInterface::sr25519_verify` in
@@ -48,4 +53,27 @@ pub fn ed25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
     let result = unsafe { sys::ext_ed25519_verify_v1(pk_ptr, msg_packed, sig_ptr) };
 
     result != 0
+}
+
+pub fn secp256k1_verify(msg_hash: &[u8; 32], sig: &[u8; 65], pk: &[u8; 33]) -> bool {
+    let result = unsafe {
+        sys::ext_secp256k1_verify_v1(
+            msg_hash.as_ptr() as i32,
+            sig.as_ptr() as i32,
+            pk.as_ptr() as i32,
+        )
+    };
+    result != 0
+}
+
+pub fn secp256k1_recover(msg_hash: &[u8; 32], sig: &[u8; 65]) -> Option<[u8; 65]> {
+    let mut out_pk = [0u8; 65];
+    let err = unsafe {
+        sys::ext_secp256k1_recover_v1(
+            msg_hash.as_ptr() as i32,
+            sig.as_ptr() as i32,
+            out_pk.as_mut_ptr() as i32,
+        )
+    };
+    if err == 0 { Some(out_pk) } else { None }
 }
