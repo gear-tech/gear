@@ -477,11 +477,21 @@ pub struct PreparedBlockData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockFullData {
     pub hash: H256,
-    pub synced: SyncedBlockData,
+    pub synced: Option<SyncedBlockData>,
     pub prepared: Option<PreparedBlockData>,
 }
 
 impl BlockFullData {
+    #[track_caller]
+    pub fn as_synced(&self) -> &SyncedBlockData {
+        self.synced.as_ref().expect("block not synced")
+    }
+
+    #[track_caller]
+    pub fn as_synced_mut(&mut self) -> &mut SyncedBlockData {
+        self.synced.as_mut().expect("block not synced")
+    }
+
     #[track_caller]
     pub fn as_prepared(&self) -> &PreparedBlockData {
         self.prepared.as_ref().expect("block is not prepared")
@@ -496,7 +506,7 @@ impl BlockFullData {
     pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
-            header: self.synced.header,
+            header: self.as_synced().header,
         }
     }
 }
@@ -660,16 +670,21 @@ impl BlockChain {
 
         for BlockFullData {
             hash,
-            synced: SyncedBlockData { header, events },
+            synced,
             prepared,
         } in blocks
         {
-            db.set_block_header(hash, header);
-            db.set_block_events(hash, &events);
-            db.set_block_synced(hash);
+            if let Some(SyncedBlockData { header, events }) = synced {
+                db.set_block_header(hash, header);
+                db.set_block_events(hash, &events);
+                db.set_block_synced(hash);
 
-            let block_era = config.timelines.era_from_ts(header.timestamp);
-            db.set_validators(block_era, validators.clone());
+                let block_era = config.timelines.era_from_ts(header.timestamp);
+                db.set_validators(block_era, validators.clone());
+                db.mutate_block_meta(hash, |meta| {
+                    meta.latest_era_validators_committed = Some(block_era)
+                });
+            }
 
             if let Some(PreparedBlockData {
                 codes_queue,
@@ -688,8 +703,8 @@ impl BlockChain {
                         codes_queue: Some(codes_queue),
                         last_committed_batch: Some(last_committed_batch),
                         last_committed_announce: Some(last_committed_announce),
-                        latest_era_validators_committed: block_era,
-                    }
+                        ..*meta
+                    };
                 });
             }
         }
@@ -748,14 +763,14 @@ impl BlockChain {
                 |((parent_hash, _, _), (block_hash, block_height, block_timestamp))| {
                     BlockFullData {
                         hash: block_hash,
-                        synced: SyncedBlockData {
+                        synced: Some(SyncedBlockData {
                             header: BlockHeader {
                                 height: block_height,
                                 timestamp: block_timestamp as u64,
                                 parent_hash,
                             },
                             events: Default::default(),
-                        },
+                        }),
                         prepared: Some(PreparedBlockData {
                             codes_queue: Default::default(),
                             announces: Some(Default::default()), // empty here, filled below with announces

@@ -50,7 +50,7 @@ pub struct BlockMeta {
     /// Last committed on-chain announce hash.
     pub last_committed_announce: Option<HashOf<Announce>>,
     /// Latest era with committed validators.
-    pub latest_era_validators_committed: u64,
+    pub latest_era_validators_committed: Option<u64>,
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "7cda0e8b9fe62acd3dc32937ef0b56c64736858542fe4dc0ac3fc81ec175d0ea";
+            "57d9225b66e9821469f150e6a178e504783f3fee2110b9b5845a859fb7e9ed3c";
 
         let types = [
             meta_type::<BlockMeta>(),

@@ -16,11 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    InitConfig, RawDatabase,
-    database::BlockSmallData,
-    migrations::{v2, v3::keys::LATEST_ERA_VALIDATORS_COMMITTED_KEY_PREF},
-};
+use crate::{InitConfig, RawDatabase, database::BlockSmallData, migrations::v2};
 use anyhow::{Context, Result, bail};
 use ethexe_common::db::{BlockMeta, DBConfig};
 use gprimitives::H256;
@@ -54,10 +50,11 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 
     let block_small_data_prefix = H256::from_low_u64_be(keys::BLOCK_SMALL_DATA_KEY_PREF);
     let block_announces_prefix = H256::from_low_u64_be(keys::BLOCK_ANNOUNCES_KEY_PREF);
-    let latest_era_prefix = H256::from_low_u64_be(LATEST_ERA_VALIDATORS_COMMITTED_KEY_PREF);
+    let latest_era_prefix = H256::from_low_u64_be(keys::LATEST_ERA_VALIDATORS_COMMITTED_KEY_PREF);
 
     let mut block_announces_copy = Vec::new();
     let mut block_small_data_copy = Vec::new();
+    let mut keys_to_remove = Vec::new();
 
     for (key, value) in db.kv.iter_prefix(block_small_data_prefix.as_bytes()) {
         if key.len() != 2 * std::mem::size_of::<H256>() {
@@ -87,16 +84,32 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 
         let block_hash = H256::from_slice(&key[std::mem::size_of::<H256>()..]);
 
-        let latest_era_key = [latest_era_prefix.as_bytes(), block_hash.as_bytes()].concat();
-        let Some(latest_era_raw) = db.kv.get(&latest_era_key) else {
-            // Put the debug data in log, not in error message
-            debug!(block_hash=%block_hash, block_small_data_key=?key, latest_era_key=?latest_era_key, "Latest era validators not found for block");
+        let latest_era_validators_committed_key =
+            [latest_era_prefix.as_bytes(), block_hash.as_bytes()].concat();
+        keys_to_remove.push(latest_era_validators_committed_key.clone());
 
-            bail!("`Latest era validators committed` not found for block={block_hash}")
-        };
-
-        let latest_era_validators_committed = u64::decode(&mut latest_era_raw.as_slice())
+        let latest_era_validators_committed = db
+            .kv
+            .get(&latest_era_validators_committed_key)
+            .map(|raw_u64| u64::decode(&mut raw_u64.as_slice()))
+            .transpose()
             .context("Failed to decode era number (u64)")?;
+
+        // Important: for prepared block validators must present in database
+        if prepared && latest_era_validators_committed.is_none() {
+            debug!(
+                block_small_data_key=?key,
+                block_hash=?block_hash,
+                block_header=?block_header,
+                block_is_synced,
+                ?latest_era_validators_committed_key,
+                "Found prepared block without latest era validators committed entry during v2->v3 migration"
+            );
+
+            bail!(
+                "Inconsistent v2 database state during v2->v3 migration: prepared block {block_hash:?} is missing latest era validators committed"
+            )
+        }
 
         let new_block_small_data = BlockSmallData {
             block_header,
@@ -137,7 +150,14 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         ..config
     });
 
-    info!("✅ Database config updated. Migration v2->v3 successfully finished.");
+    info!("⏳ Database config updated.");
+
+    info!("🗑️ Clearing the previous keys from database");
+    keys_to_remove.into_iter().for_each(|key| {
+        unsafe { db.kv.take(key.as_ref()) };
+    });
+
+    info!("✅ Migration v2->v3 successfully finished.");
 
     Ok(())
 }
@@ -145,10 +165,8 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 pub mod v3_migrated_types {
 
     use ethexe_common::{Announce, BlockHeader, HashOf};
-    use gsigner::Digest;
-    // TODO: check the data structures.
-    // Before migration is was: use `alloc::collections::BTreeSet`
     use gear_core::ids::CodeId;
+    use gsigner::Digest;
     use parity_scale_codec::{Decode, Encode};
     use scale_info::TypeInfo;
     use std::collections::{BTreeSet, VecDeque};
@@ -190,7 +208,7 @@ mod tests {
                 meta_type::<BlockSmallData>(),
                 meta_type::<BlockMeta>(),
             ],
-            "a473452904e3947bda043fa55c88c74c5d3d603fa4ca8ca72a807542d1cd02eb",
+            "ce87c1c2e0cdf462b5acc29f6feba7289bb40ef32ebad8fa9c9de9f52352c038",
         );
     }
 }

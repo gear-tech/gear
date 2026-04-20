@@ -322,7 +322,13 @@ impl BatchCommitmentManager {
         let latest_era_validators_committed = self
             .db
             .block_meta(block.hash)
-            .latest_era_validators_committed;
+            .latest_era_validators_committed
+            .ok_or_else(|| {
+                anyhow!(
+                    "not found latest_era_validators_committed in database for block: {}",
+                    block.hash
+                )
+            })?;
 
         if latest_era_validators_committed == block_era + 1 {
             tracing::trace!(

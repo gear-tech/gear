@@ -473,7 +473,7 @@ async fn test_aggregate_validators_commitment() {
 
     // Inside election period validators already committed
     ctx.core.db.mutate_block_meta(chain.blocks[7].hash, |meta| {
-        meta.latest_era_validators_committed = 1;
+        meta.latest_era_validators_committed = Some(1);
     });
     let commitment = ctx
         .core
@@ -487,7 +487,7 @@ async fn test_aggregate_validators_commitment() {
     ctx.core
         .db
         .mutate_block_meta(chain.blocks[15].hash, |meta| {
-            meta.latest_era_validators_committed = 0;
+            meta.latest_era_validators_committed = Some(0);
         });
     let commitment = ctx
         .core
@@ -503,7 +503,7 @@ async fn test_aggregate_validators_commitment() {
     ctx.core
         .db
         .mutate_block_meta(chain.blocks[15].hash, |meta| {
-            meta.latest_era_validators_committed = 3;
+            meta.latest_era_validators_committed = Some(3);
         });
     ctx.core
         .batch_manager

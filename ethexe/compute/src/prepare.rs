@@ -294,10 +294,11 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
     let mut codes_queue = parent_meta
         .codes_queue
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
+    let mut latest_validators_committed_era = parent_meta
+        .latest_era_validators_committed
+        .ok_or(ComputeError::CommittedEraNotFound(parent))?;
 
     let mut last_committed_announce_hash = None;
-
-    let mut latest_validators_committed_era = parent_meta.latest_era_validators_committed;
 
     for event in block.events {
         match event {
@@ -353,7 +354,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
         meta.codes_queue = Some(codes_queue);
         meta.last_committed_announce = Some(last_committed_announce_hash);
         meta.prepared = true;
-        meta.latest_era_validators_committed = latest_validators_committed_era;
+        meta.latest_era_validators_committed = Some(latest_validators_committed_era);
     });
 
     db.globals_mutate(|globals| {

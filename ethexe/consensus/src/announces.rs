@@ -1059,20 +1059,21 @@ mod tests {
 
         let chain = test_block_chain(10)
             .tap_mut(|chain| {
-                chain.blocks[10].synced.events = (0..MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2 + 1)
-                    .map(|i| BlockEvent::Mirror {
-                        actor_id: ActorId::from(i as u64),
-                        event: MirrorEvent::MessageQueueingRequested(
-                            MessageQueueingRequestedEvent {
-                                id: MessageId::zero(),
-                                source: ActorId::zero(),
-                                payload: vec![],
-                                value: 0,
-                                call_reply: false,
-                            },
-                        ),
-                    })
-                    .collect();
+                chain.blocks[10].as_synced_mut().events =
+                    (0..MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE / 2 + 1)
+                        .map(|i| BlockEvent::Mirror {
+                            actor_id: ActorId::from(i as u64),
+                            event: MirrorEvent::MessageQueueingRequested(
+                                MessageQueueingRequestedEvent {
+                                    id: MessageId::zero(),
+                                    source: ActorId::zero(),
+                                    payload: vec![],
+                                    value: 0,
+                                    call_reply: false,
+                                },
+                            ),
+                        })
+                        .collect();
 
                 chain
                     .block_top_announce_mut(9)

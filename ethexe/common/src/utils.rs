@@ -61,7 +61,7 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceSto
             codes_queue: Some(block_data.codes_queue),
             last_committed_batch: Some(block_data.last_committed_batch),
             last_committed_announce: Some(block_data.last_committed_announce),
-            latest_era_validators_committed: block_data.latest_era_with_committed_validators,
+            latest_era_validators_committed: Some(block_data.latest_era_with_committed_validators),
         }
     });
 }
