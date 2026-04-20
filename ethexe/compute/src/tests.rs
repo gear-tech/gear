@@ -147,11 +147,12 @@ impl ProcessorExt for MockProcessor {
         Ok(self.process_programs_result.take().unwrap_or_default())
     }
 
-    async fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+    fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
         self.process_code_calls
             .lock()
             .unwrap()
             .push(code_and_id.clone());
+
         Ok(self
             .process_codes_result
             .take()

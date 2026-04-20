@@ -369,12 +369,9 @@ impl Router {
                 } else {
                     format!("{err}")
                 };
-                log::error!(
-                    "Failed to estimate gas for batch commitment: (error: {error}, block info: {latest_block}, calldata: 0x{}, batch commitment: {commitment:?})",
-                    hex::encode(calldata)
-                );
                 return Err(anyhow!(
-                    "Failed to estimate gas for batch commitment: {error}"
+                    "Failed to estimate gas for batch commitment: (error: {error}, block info: {latest_block}, calldata: 0x{}, batch commitment: {commitment:?})",
+                    hex::encode(calldata),
                 ));
             }
         };

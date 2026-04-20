@@ -16,20 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ProcessorExt, Result, service::SubService};
+use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
     CodeAndIdUnchecked,
     db::{CodesStorageRO, CodesStorageRW},
 };
 use ethexe_db::Database;
 use ethexe_processor::{ProcessedCodeInfo, ValidCodeInfo};
-use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use gprimitives::CodeId;
 use metrics::Gauge;
-use std::{
-    future,
-    task::{Context, Poll},
-};
+use std::task::{Context, Poll};
+use tokio::task::JoinSet;
 
 /// Metrics for the [`CodesSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
@@ -44,7 +41,7 @@ pub struct CodesSubService<P: ProcessorExt> {
     processor: P,
     metrics: Metrics,
 
-    processions: FuturesUnordered<BoxFuture<'static, Result<CodeId>>>,
+    processions: JoinSet<Result<CodeId>>,
 }
 
 impl<P: ProcessorExt> CodesSubService<P> {
@@ -53,7 +50,7 @@ impl<P: ProcessorExt> CodesSubService<P> {
             db,
             processor,
             metrics: Metrics::default(),
-            processions: FuturesUnordered::new(),
+            processions: JoinSet::new(),
         }
     }
 
@@ -73,37 +70,36 @@ impl<P: ProcessorExt> CodesSubService<P> {
                     "Instrumented code {code_id:?} must exist in database"
                 );
             }
-            self.processions.push(future::ready(Ok(code_id)).boxed());
+            self.processions.spawn(async move { Ok(code_id) });
         } else {
             let db = self.db.clone();
             let mut processor = self.processor.clone();
 
-            self.processions.push(
-                async move {
-                    let ProcessedCodeInfo { code_id, valid } =
-                        processor.process_code(code_and_id).await?;
-                    if let Some(ValidCodeInfo {
-                        code,
-                        instrumented_code,
-                        code_metadata,
-                    }) = valid
-                    {
-                        db.set_original_code(&code);
-                        db.set_instrumented_code(
-                            ethexe_runtime_common::VERSION,
-                            code_id,
+            self.processions.spawn_blocking(move || {
+                processor
+                    .process_code(code_and_id)
+                    .map(|ProcessedCodeInfo { code_id, valid }| {
+                        if let Some(ValidCodeInfo {
+                            code,
                             instrumented_code,
-                        );
-                        db.set_code_metadata(code_id, code_metadata);
-                        db.set_code_valid(code_id, true);
-                    } else {
-                        db.set_code_valid(code_id, false);
-                    }
+                            code_metadata,
+                        }) = valid
+                        {
+                            db.set_original_code(&code);
+                            db.set_instrumented_code(
+                                ethexe_runtime_common::VERSION,
+                                code_id,
+                                instrumented_code,
+                            );
+                            db.set_code_metadata(code_id, code_metadata);
+                            db.set_code_valid(code_id, true);
+                        } else {
+                            db.set_code_valid(code_id, false);
+                        }
 
-                    Ok(code_id)
-                }
-                .boxed(),
-            );
+                        code_id
+                    })
+            });
         }
 
         self.metrics
@@ -116,14 +112,14 @@ impl<P: ProcessorExt> SubService for CodesSubService<P> {
     type Output = CodeId;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
-        if let Poll::Ready(Some(res)) = self.processions.poll_next_unpin(cx) {
-            self.metrics
-                .processing_codes
-                .set(self.processions.len() as f64);
-            return Poll::Ready(res);
-        }
-
-        Poll::Pending
+        futures::ready!(self.processions.poll_join_next(cx))
+            .map(|res| {
+                self.metrics
+                    .processing_codes
+                    .set(self.processions.len() as f64);
+                res.map_err(ComputeError::CodeProcessJoin)?
+            })
+            .map_or(Poll::Pending, Poll::Ready)
     }
 }
 
