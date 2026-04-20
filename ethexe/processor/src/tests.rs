@@ -73,7 +73,7 @@ mod utils {
         (code_id, code)
     }
 
-    pub fn upload_code(processor: &mut Processor, code: &[u8]) -> CodeId {
+    pub async fn upload_code(processor: &mut Processor, code: &[u8]) -> CodeId {
         let code_id = CodeId::generate(code);
 
         let ValidCodeInfo {
@@ -85,6 +85,7 @@ mod utils {
                 code: code.to_vec(),
                 code_id,
             })
+            .await
             .expect("failed to process code")
             .valid
             .expect("code is invalid");
@@ -98,7 +99,7 @@ mod utils {
         code_id
     }
 
-    pub fn setup_test_env_and_load_codes<const N: usize>(
+    pub async fn setup_test_env_and_load_codes<const N: usize>(
         codes: [&[u8]; N],
     ) -> (Processor, BlockChain, [CodeId; N]) {
         let db = Database::memory();
@@ -107,7 +108,7 @@ mod utils {
 
         let mut code_ids = Vec::new();
         for code in codes {
-            code_ids.push(upload_code(&mut processor, code));
+            code_ids.push(upload_code(&mut processor, code).await);
         }
 
         (processor, chain, code_ids.try_into().unwrap())
@@ -135,7 +136,8 @@ mod utils {
     }
 
     pub async fn simple_init_test(code: impl AsRef<[u8]>) -> InBlockTransitions {
-        let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_ref()]);
+        let (mut processor, chain, [code_id]) =
+            setup_test_env_and_load_codes([code.as_ref()]).await;
         let block1 = chain.blocks[1].to_simple();
 
         let mut handler = setup_handler(processor.db.clone(), block1);
@@ -180,7 +182,8 @@ mod utils {
 async fn ping_init() {
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
 
     // Empty processing for block1
     let executable = ExecutableData {
@@ -270,8 +273,8 @@ async fn ping_init() {
         .expect("failed to process send message");
 }
 
-#[test]
-fn handle_new_code_valid() {
+#[tokio::test]
+async fn handle_new_code_valid() {
     init_logger();
 
     let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
@@ -283,6 +286,7 @@ fn handle_new_code_valid() {
             code: code.clone(),
             code_id,
         })
+        .await
         .map(|res| (res.code_id, res.valid.expect("code must be valid")))
         .unwrap();
 
@@ -296,8 +300,8 @@ fn handle_new_code_valid() {
     );
 }
 
-#[test]
-fn handle_new_code_invalid() {
+#[tokio::test]
+async fn handle_new_code_invalid() {
     init_logger();
 
     let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
@@ -307,6 +311,7 @@ fn handle_new_code_invalid() {
     assert!(
         processor
             .process_code(CodeAndIdUnchecked { code, code_id })
+            .await
             .expect("failed to call runtime api")
             .valid
             .is_none()
@@ -318,7 +323,7 @@ async fn ping_pong() {
     init_logger();
 
     let (mut processor, chain, [code_id, ..]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let user_id = ActorId::from(10);
@@ -398,7 +403,7 @@ async fn async_and_ping() {
     };
 
     let (mut processor, chain, [ping_code_id, upload_code_id, ..]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let mut handler = setup_handler(processor.db.clone(), block1);
@@ -537,7 +542,7 @@ async fn many_waits() {
 
     let (_, code) = wat_to_wasm(wat.as_str());
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]).await;
     let block1 = chain.blocks[1].to_simple();
     let wake_block = chain.blocks[1 + blocks_to_wait].to_simple();
 
@@ -689,7 +694,7 @@ async fn overlay_execution() {
         };
 
     let (mut processor, chain, [ping_code_id, async_code_id]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     // -----------------------------------------------------------------------------
@@ -919,7 +924,8 @@ async fn injected_ping_pong() {
     init_logger();
 
     let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let user_1 = ActorId::from(10);
@@ -1029,7 +1035,8 @@ async fn injected_prioritized_over_canonical() {
     init_logger();
 
     let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let canonical_user = ActorId::from(10);
@@ -1141,7 +1148,8 @@ async fn injected_prioritized_over_canonical() {
 async fn executable_balance_charged() {
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
     let mut handler = setup_handler(processor.db.clone(), block1);
 
@@ -1228,7 +1236,7 @@ async fn executable_balance_injected_panic_not_charged() {
 
     let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
     let (mut processor, chain, [code_id]) =
-        setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let user_id = ActorId::from(10);
@@ -1361,7 +1369,8 @@ async fn insufficient_executable_balance_still_charged() {
 
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
     let mut handler = setup_handler(processor.db.clone(), block1);
 
@@ -1532,7 +1541,7 @@ async fn injected_and_events_then_tasks_then_queues() {
     "#;
 
     let (_, code) = wat_to_wasm(wat);
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]).await;
 
     let task_user = ActorId::from(10);
     let injected_user_pk = PrivateKey::random();

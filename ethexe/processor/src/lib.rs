@@ -152,6 +152,8 @@
 //! - Processor is designed to write only in CAS, it must NEVER modify
 //!   key-value storage from Database.
 
+pub use host::InstanceError;
+
 use core::num::NonZero;
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
@@ -165,7 +167,7 @@ use ethexe_runtime_common::{
     state::Storage,
 };
 use gear_core::{
-    code::{CodeMetadata, InstrumentationStatus, InstrumentedCode},
+    code::{CodeMetadata, InstrumentedCode},
     ids::prelude::CodeIdExt,
     rpc::ReplyInfo,
 };
@@ -174,13 +176,11 @@ use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunCo
 use host::InstanceCreator;
 use tokio::sync::mpsc;
 
-pub use host::InstanceError;
-
 mod handling;
 mod host;
-
 #[cfg(test)]
 mod tests;
+mod thread_pool;
 
 // Default amount of programs in one chunk to be processed in parallel.
 pub const DEFAULT_CHUNK_SIZE: NonZero<usize> = NonZero::new(16).unwrap();
@@ -271,7 +271,10 @@ impl Processor {
         OverlaidProcessor(self)
     }
 
-    pub fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
+    pub async fn process_code(
+        &mut self,
+        code_and_id: CodeAndIdUnchecked,
+    ) -> Result<ProcessedCodeInfo> {
         log::debug!("Processing upload code {code_and_id:?}");
 
         let CodeAndIdUnchecked { code, code_id } = code_and_id;
@@ -283,28 +286,27 @@ impl Processor {
             });
         }
 
-        let Some((instrumented_code, code_metadata)) =
-            self.creator.instantiate()?.instrument(&code)?
-        else {
-            return Ok(ProcessedCodeInfo {
-                code_id,
-                valid: None,
-            });
-        };
-
-        let InstrumentationStatus::Instrumented { .. } = code_metadata.instrumentation_status()
-        else {
-            panic!("Instrumented code returned, but instrumentation status is not Instrumented");
-        };
-
-        Ok(ProcessedCodeInfo {
-            code_id,
-            valid: Some(ValidCodeInfo {
+        let mut instance = self.creator.instantiate()?;
+        let valid = thread_pool::spawn(move || -> Result<_> {
+            let instrumented_code = instance.instrument(&code)?;
+            let info = instrumented_code.map(|(instrumented_code, code_metadata)| ValidCodeInfo {
                 code,
                 instrumented_code,
                 code_metadata,
-            }),
+            });
+            Ok(info)
         })
+        .await?;
+
+        if let Some(valid) = &valid {
+            let status = valid.code_metadata.instrumentation_status();
+            assert!(
+                status.is_instrumented(),
+                "Instrumented code returned, but instrumentation status is not Instrumented: {status:?}"
+            );
+        }
+
+        Ok(ProcessedCodeInfo { code_id, valid })
     }
 
     pub async fn process_programs(
@@ -412,13 +414,13 @@ impl Processor {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ProcessedCodeInfo {
     pub code_id: CodeId,
     pub valid: Option<ValidCodeInfo>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ValidCodeInfo {
     pub code: Vec<u8>,
     pub instrumented_code: InstrumentedCode,
