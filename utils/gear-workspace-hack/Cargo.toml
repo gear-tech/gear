@@ -217,17 +217,17 @@ features = ["test-helpers"]
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
+alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
-alloy-consensus = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["kzg", "serde"] }
-alloy-contract = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["pubsub"] }
-alloy-eips = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["kzg", "serde", "std"] }
+alloy-consensus = { version = "2", default-features = false, features = ["kzg", "serde"] }
+alloy-contract = { version = "2", default-features = false, features = ["pubsub"] }
+alloy-eips = { version = "2", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
-alloy-signer-local = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["mnemonic"] }
+alloy-provider = { version = "2", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { version = "2", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { version = "2", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
+alloy-signer-local = { version = "2", default-features = false, features = ["mnemonic"] }
 alloy-sol-type-parser = { version = "1", default-features = false, features = ["serde", "std"] }
 alloy-sol-types = { version = "1", features = ["json"] }
 anyhow = { version = "1" }
@@ -489,17 +489,17 @@ zeroize = { version = "1", features = ["derive", "std"] }
 [build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
+alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
-alloy-consensus = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["kzg", "serde"] }
-alloy-contract = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["pubsub"] }
-alloy-eips = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["kzg", "serde", "std"] }
+alloy-consensus = { version = "2", default-features = false, features = ["kzg", "serde"] }
+alloy-contract = { version = "2", default-features = false, features = ["pubsub"] }
+alloy-eips = { version = "2", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
-alloy-signer-local = { git = "https://github.com/gear-tech/alloy.git", branch = "better-gas-estimation", default-features = false, features = ["mnemonic"] }
+alloy-provider = { version = "2", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { version = "2", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { version = "2", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
+alloy-signer-local = { version = "2", default-features = false, features = ["mnemonic"] }
 alloy-sol-macro = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-expander = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-input = { version = "1", default-features = false, features = ["json"] }

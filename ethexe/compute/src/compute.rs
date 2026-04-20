@@ -444,7 +444,7 @@ mod tests {
 
         const USER_ID: ActorId = ActorId::new([1u8; 32]);
 
-        pub fn upload_code(processor: &mut Processor, code: &[u8], db: &Database) -> CodeId {
+        pub async fn upload_code(processor: &mut Processor, code: &[u8], db: &Database) -> CodeId {
             let code_id = CodeId::generate(code);
 
             let ValidCodeInfo {
@@ -456,6 +456,7 @@ mod tests {
                     code: code.to_vec(),
                     code_id,
                 })
+                .await
                 .expect("failed to process code")
                 .valid
                 .expect("code is invalid");
