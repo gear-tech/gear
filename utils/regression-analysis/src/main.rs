@@ -382,7 +382,9 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_keccak256,
                     gr_keccak256_per_byte,
                     gr_sr25519_verify,
+                    gr_sr25519_verify_per_byte,
                     gr_ed25519_verify,
+                    gr_ed25519_verify_per_byte,
                     gr_secp256k1_verify,
                     gr_secp256k1_recover,
                 }

@@ -552,14 +552,22 @@ pub struct SyscallWeights<T: Config> {
     /// Weight per input byte by `gr_keccak256_per_byte`.
     pub gr_keccak256_per_byte: Weight,
 
-    /// Weight of calling `gr_sr25519_verify` (fixed cost — signature
-    /// length is fixed at 64 bytes and message length contribution is
-    /// negligible vs the curve math).
+    /// Weight of calling `gr_sr25519_verify` (base cost — fixed curve
+    /// math per call; see `gr_sr25519_verify_per_byte` for the
+    /// transcript-size-dependent part).
     pub gr_sr25519_verify: Weight,
 
-    /// Weight of calling `gr_ed25519_verify` (fixed cost — same
-    /// shape as `gr_sr25519_verify`).
+    /// Weight per transcript byte (`ctx || msg`) for `gr_sr25519_verify`.
+    /// Prevents a caller passing a multi-megabyte `msg` / `ctx` from
+    /// being priced at the flat base cost.
+    pub gr_sr25519_verify_per_byte: Weight,
+
+    /// Weight of calling `gr_ed25519_verify` (base cost).
     pub gr_ed25519_verify: Weight,
+
+    /// Weight per message byte for `gr_ed25519_verify`. Same DoS
+    /// rationale as `gr_sr25519_verify_per_byte`.
+    pub gr_ed25519_verify_per_byte: Weight,
 
     /// Weight of calling `gr_secp256k1_verify` (fixed cost).
     pub gr_secp256k1_verify: Weight,
@@ -1194,7 +1202,9 @@ impl<T: Config> Default for SyscallWeights<T> {
             gr_keccak256: Weight::zero(),
             gr_keccak256_per_byte: Weight::zero(),
             gr_sr25519_verify: Weight::zero(),
+            gr_sr25519_verify_per_byte: Weight::zero(),
             gr_ed25519_verify: Weight::zero(),
+            gr_ed25519_verify_per_byte: Weight::zero(),
             gr_secp256k1_verify: Weight::zero(),
             gr_secp256k1_recover: Weight::zero(),
             gr_reply_to: cost_batched(W::<T>::gr_reply_to),
@@ -1299,7 +1309,9 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
             gr_keccak256: val.gr_keccak256.ref_time().into(),
             gr_keccak256_per_byte: val.gr_keccak256_per_byte.ref_time().into(),
             gr_sr25519_verify: val.gr_sr25519_verify.ref_time().into(),
+            gr_sr25519_verify_per_byte: val.gr_sr25519_verify_per_byte.ref_time().into(),
             gr_ed25519_verify: val.gr_ed25519_verify.ref_time().into(),
+            gr_ed25519_verify_per_byte: val.gr_ed25519_verify_per_byte.ref_time().into(),
             gr_secp256k1_verify: val.gr_secp256k1_verify.ref_time().into(),
             gr_secp256k1_recover: val.gr_secp256k1_recover.ref_time().into(),
             gr_reply_to: val.gr_reply_to.ref_time().into(),

@@ -1089,8 +1089,12 @@ where
         sig: ReadAs<[u8; 64]>,
         out: WriteAs<u8>,
     ) -> impl Syscall<Caller> {
+        // Transcript bytes = ctx || msg. Schnorrkel's merlin append
+        // cost scales linearly in (ctx_len + msg_len), so gas scales
+        // with the same sum.
+        let transcript_len = context.size().saturating_add(msg.size());
         InfallibleSyscall::new(
-            CostToken::Sr25519Verify,
+            CostToken::Sr25519Verify(transcript_len.into()),
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let pk = pk.into_inner()?;
                 let sig = sig.into_inner()?;
@@ -1127,8 +1131,9 @@ where
         sig: ReadAs<[u8; 64]>,
         out: WriteAs<u8>,
     ) -> impl Syscall<Caller> {
+        let msg_len = msg.size();
         InfallibleSyscall::new(
-            CostToken::Ed25519Verify,
+            CostToken::Ed25519Verify(msg_len.into()),
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let pk = pk.into_inner()?;
                 let sig = sig.into_inner()?;

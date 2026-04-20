@@ -528,10 +528,14 @@ pub struct SyscallWeights {
     pub gr_keccak256: Weight,
     #[doc = " Weight per input byte by `gr_keccak256`."]
     pub gr_keccak256_per_byte: Weight,
-    #[doc = " Weight of calling `gr_sr25519_verify`."]
+    #[doc = " Weight of calling `gr_sr25519_verify` (base cost)."]
     pub gr_sr25519_verify: Weight,
-    #[doc = " Weight of calling `gr_ed25519_verify`."]
+    #[doc = " Weight per transcript byte (`ctx || msg`) by `gr_sr25519_verify`."]
+    pub gr_sr25519_verify_per_byte: Weight,
+    #[doc = " Weight of calling `gr_ed25519_verify` (base cost)."]
     pub gr_ed25519_verify: Weight,
+    #[doc = " Weight per message byte by `gr_ed25519_verify`."]
+    pub gr_ed25519_verify_per_byte: Weight,
     #[doc = " Weight of calling `gr_secp256k1_verify`."]
     pub gr_secp256k1_verify: Weight,
     #[doc = " Weight of calling `gr_secp256k1_recover`."]
@@ -849,7 +853,15 @@ impl Default for SyscallWeights {
                 ref_time: 0,
                 proof_size: 0,
             },
+            gr_sr25519_verify_per_byte: Weight {
+                ref_time: 0,
+                proof_size: 0,
+            },
             gr_ed25519_verify: Weight {
+                ref_time: 0,
+                proof_size: 0,
+            },
+            gr_ed25519_verify_per_byte: Weight {
                 ref_time: 0,
                 proof_size: 0,
             },
@@ -1280,7 +1292,9 @@ impl From<SyscallWeights> for SyscallCosts {
             gr_keccak256: val.gr_keccak256.ref_time().into(),
             gr_keccak256_per_byte: val.gr_keccak256_per_byte.ref_time().into(),
             gr_sr25519_verify: val.gr_sr25519_verify.ref_time().into(),
+            gr_sr25519_verify_per_byte: val.gr_sr25519_verify_per_byte.ref_time().into(),
             gr_ed25519_verify: val.gr_ed25519_verify.ref_time().into(),
+            gr_ed25519_verify_per_byte: val.gr_ed25519_verify_per_byte.ref_time().into(),
             gr_secp256k1_verify: val.gr_secp256k1_verify.ref_time().into(),
             gr_secp256k1_recover: val.gr_secp256k1_recover.ref_time().into(),
         }

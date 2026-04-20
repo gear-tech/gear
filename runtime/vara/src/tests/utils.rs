@@ -258,14 +258,16 @@ pub(super) fn expected_syscall_weights_count() -> usize {
         gr_keccak256: _,
         gr_keccak256_per_byte: _,
         gr_sr25519_verify: _,
+        gr_sr25519_verify_per_byte: _,
         gr_ed25519_verify: _,
+        gr_ed25519_verify_per_byte: _,
         gr_secp256k1_verify: _,
         gr_secp256k1_recover: _,
         _phantom: __phantom,
     } = SyscallWeights::<Runtime>::default();
 
     // total number of syscalls
-    80
+    82
 }
 
 pub(super) fn expected_pages_costs_count() -> usize {
@@ -551,6 +553,18 @@ pub(super) fn check_syscall_weights<T: pallet_gear::Config>(
         expectation!(gr_create_program_wgas),
         expectation!(gr_create_program_wgas_payload_per_byte),
         expectation!(gr_create_program_wgas_salt_per_byte),
+        expectation!(gr_blake2b_256),
+        expectation!(gr_blake2b_256_per_byte),
+        expectation!(gr_sha256),
+        expectation!(gr_sha256_per_byte),
+        expectation!(gr_keccak256),
+        expectation!(gr_keccak256_per_byte),
+        expectation!(gr_sr25519_verify),
+        expectation!(gr_sr25519_verify_per_byte),
+        expectation!(gr_ed25519_verify),
+        expectation!(gr_ed25519_verify_per_byte),
+        expectation!(gr_secp256k1_verify),
+        expectation!(gr_secp256k1_recover),
     ];
 
     check_expectations(&expectations)
