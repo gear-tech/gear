@@ -210,6 +210,7 @@ impl Externalities for MockExt {
     fn sr25519_verify(
         &self,
         _pk: &[u8; 32],
+        _ctx: &[u8],
         _msg: &[u8],
         _sig: &[u8; 64],
     ) -> Result<bool, Self::UnrecoverableError> {
@@ -228,6 +229,7 @@ impl Externalities for MockExt {
         _msg_hash: &[u8; 32],
         _sig: &[u8; 65],
         _pk: &[u8; 33],
+        _malleability_flag: u32,
     ) -> Result<bool, Self::UnrecoverableError> {
         Ok(false)
     }
@@ -235,6 +237,7 @@ impl Externalities for MockExt {
         &self,
         _msg_hash: &[u8; 32],
         _sig: &[u8; 65],
+        _malleability_flag: u32,
     ) -> Result<Option<[u8; 65]>, Self::UnrecoverableError> {
         Ok(None)
     }

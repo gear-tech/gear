@@ -188,14 +188,20 @@ pub trait Externalities {
     /// not NIST SHA-3).
     fn keccak256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError>;
 
-    /// Verify an sr25519 signature `sig` over `msg` against public key `pk`.
+    /// Verify an sr25519 signature `sig` over `msg` against public key `pk`
+    /// using the Schnorrkel simple signing context `ctx`.
+    ///
+    /// A signer and verifier must use the same `ctx` for verification to
+    /// succeed. `ctx = b"substrate"` matches `sp_core::sr25519::Pair::sign`.
     ///
     /// Returns `Ok(true)` if the signature is valid, `Ok(false)` on any
-    /// verification failure (including malformed key/signature bytes). Only
-    /// unrecoverable host-side errors are surfaced through the error type.
+    /// verification failure (including malformed key/signature bytes or
+    /// mismatched context). Only unrecoverable host-side errors are
+    /// surfaced through the error type.
     fn sr25519_verify(
         &self,
         pk: &[u8; 32],
+        ctx: &[u8],
         msg: &[u8],
         sig: &[u8; 64],
     ) -> Result<bool, Self::UnrecoverableError>;
@@ -211,7 +217,13 @@ pub trait Externalities {
     ) -> Result<bool, Self::UnrecoverableError>;
 
     /// Verify an ECDSA signature `sig` over `msg_hash` against
-    /// SEC1-compressed secp256k1 public key `pk`.
+    /// SEC1-compressed secp256k1 public key `pk`, with caller-selected
+    /// malleability policy.
+    ///
+    /// `malleability_flag` values:
+    /// - `LowSPolicy::Permissive` (0): any valid sig accepted (Ethereum
+    ///   `ecrecover` compat).
+    /// - `LowSPolicy::Strict` (1): high-s sigs (`s > n/2`) are rejected.
     ///
     /// Same error convention as [`Self::sr25519_verify`].
     fn secp256k1_verify(
@@ -219,19 +231,28 @@ pub trait Externalities {
         msg_hash: &[u8; 32],
         sig: &[u8; 65],
         pk: &[u8; 33],
+        malleability_flag: u32,
     ) -> Result<bool, Self::UnrecoverableError>;
 
     /// Recover the SEC1-uncompressed (65-byte, `0x04 || x || y`)
     /// secp256k1 public key that produced signature `sig` over
     /// `msg_hash`.
     ///
+    /// `malleability_flag` has the same semantics as
+    /// [`Self::secp256k1_verify`]. If the policy rejects a high-s
+    /// signature, this returns `Ok(None)` — the caller cannot
+    /// distinguish "malformed" from "rejected by policy" at this
+    /// trait layer; the syscall wrapper distinguishes the two via
+    /// distinct `err` codes.
+    ///
     /// Returns `Ok(Some(pk))` on success, `Ok(None)` when the signature
-    /// is malformed or non-recoverable. Only unrecoverable host-side
-    /// errors surface through the error type.
+    /// is malformed, non-recoverable, or rejected by policy. Only
+    /// unrecoverable host-side errors surface through the error type.
     fn secp256k1_recover(
         &self,
         msg_hash: &[u8; 32],
         sig: &[u8; 65],
+        malleability_flag: u32,
     ) -> Result<Option<[u8; 65]>, Self::UnrecoverableError>;
 
     /// Get the currently handled message payload slice.

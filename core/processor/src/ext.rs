@@ -1189,20 +1189,20 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     fn sr25519_verify(
         &self,
         pk: &[u8; 32],
+        ctx: &[u8],
         msg: &[u8],
         sig: &[u8; 64],
     ) -> Result<bool, Self::UnrecoverableError> {
-        use sp_core::{
-            Pair,
-            sr25519::{Public, Signature},
+        // Use schnorrkel directly so the caller can pick any simple
+        // signing context. `sp_core::sr25519::Pair::verify` hardcodes
+        // `b"substrate"` and would silently fail for any other ctx.
+        let Ok(public) = schnorrkel::PublicKey::from_bytes(pk) else {
+            return Ok(false);
         };
-
-        let public = Public::from_raw(*pk);
-        let signature = Signature::from_raw(*sig);
-
-        Ok(<sp_core::sr25519::Pair as Pair>::verify(
-            &signature, msg, &public,
-        ))
+        let Ok(signature) = schnorrkel::Signature::from_bytes(sig) else {
+            return Ok(false);
+        };
+        Ok(public.verify_simple(ctx, msg, &signature).is_ok())
     }
 
     fn ed25519_verify(
@@ -1229,15 +1229,21 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         msg_hash: &[u8; 32],
         sig: &[u8; 65],
         pk: &[u8; 33],
+        malleability_flag: u32,
     ) -> Result<bool, Self::UnrecoverableError> {
         use sp_core::ecdsa::{Public, Signature};
+
+        // Shared low-s check before curve work. Same helper is called
+        // from `secp256k1_recover` so both syscalls give identical
+        // answers for the same (sig, flag) pair.
+        if malleability_flag == 1 && !gear_core::crypto::is_low_s(sig) {
+            return Ok(false);
+        }
 
         let public = Public::from_raw(*pk);
         let signature = Signature::from_raw(*sig);
 
-        // `ecdsa::Pair::verify_prehashed` is what we want: the caller
-        // gave us a 32-byte digest, not a raw message. Using
-        // `Pair::verify(msg)` would re-hash the digest.
+        // `verify_prehashed` — caller gave us a digest, don't re-hash.
         Ok(sp_core::ecdsa::Pair::verify_prehashed(
             &signature, msg_hash, &public,
         ))
@@ -1247,7 +1253,15 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         &self,
         msg_hash: &[u8; 32],
         sig: &[u8; 65],
+        malleability_flag: u32,
     ) -> Result<Option<[u8; 65]>, Self::UnrecoverableError> {
+        // Shared low-s check before any recovery work. Matches
+        // `secp256k1_verify`'s policy so the two syscalls stay
+        // symmetric on the same (sig, flag) pair.
+        if malleability_flag == 1 && !gear_core::crypto::is_low_s(sig) {
+            return Ok(None);
+        }
+
         // `sp_core::ecdsa::Signature::recover_prehashed` returns a
         // 33-byte SEC1-compressed pubkey; we decompress with
         // libsecp256k1 directly to produce the 65-byte uncompressed
@@ -1267,8 +1281,6 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
         let compressed_slice: &[u8] = AsRef::<[u8]>::as_ref(&compressed);
         let compressed_bytes: [u8; 33] = match compressed_slice.try_into() {
             Ok(a) => a,
-            // `Public` is always 33 bytes, but be defensive rather
-            // than panicking on a hypothetically-changed layout.
             Err(_) => return Ok(None),
         };
 

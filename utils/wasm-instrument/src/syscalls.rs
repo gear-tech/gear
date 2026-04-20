@@ -501,7 +501,27 @@ impl SyscallName {
                     Ptr::MutHash(HashType::SubjectId).into(),
                 ])
             }
-            Self::Sr25519Verify | Self::Ed25519Verify => SyscallSignature::gr_infallible([
+            Self::Sr25519Verify => SyscallSignature::gr_infallible([
+                // 32-byte public key. `HashType::SubjectId` reused as opaque tag.
+                Ptr::Hash(HashType::SubjectId).into(),
+                // Signing context buffer (schnorrkel "simple context").
+                Ptr::SizedBufferStart {
+                    length_param_idx: 2,
+                }
+                .into(),
+                Length,
+                // Message buffer. `length_param_idx` references msg_len below.
+                Ptr::SizedBufferStart {
+                    length_param_idx: 4,
+                }
+                .into(),
+                Length,
+                // 64-byte signature (opaque fixed-length tag).
+                Ptr::Hash(HashType::SubjectId).into(),
+                // 1-byte verification result: 1 = valid, 0 = invalid.
+                Ptr::MutBufferStart.into(),
+            ]),
+            Self::Ed25519Verify => SyscallSignature::gr_infallible([
                 // 32-byte public key. `HashType::SubjectId` reused as opaque tag.
                 Ptr::Hash(HashType::SubjectId).into(),
                 Ptr::SizedBufferStart {
@@ -509,11 +529,9 @@ impl SyscallName {
                 }
                 .into(),
                 Length,
-                // 64-byte signature. Represented here as an opaque fixed-length
-                // ptr (`HashType::SubjectId`) for ABI metadata purposes; the real
-                // size is tracked in `gsys::gr_{sr,ed}25519_verify`'s declaration.
+                // 64-byte signature (opaque fixed-length tag).
                 Ptr::Hash(HashType::SubjectId).into(),
-                // 1-byte verification result: 1 = valid, 0 = invalid.
+                // 1-byte verification result.
                 Ptr::MutBufferStart.into(),
             ]),
             // secp256k1 signatures are 65 bytes, pubkeys are 33 bytes
@@ -521,6 +539,9 @@ impl SyscallName {
             // fixed-length ptrs (`HashType::SubjectId`) for ABI
             // metadata; the real sizes are authoritative in
             // `gsys::gr_secp256k1_{verify,recover}`.
+            // `malleability_flag` is a `u32` scalar; we reuse
+            // `RegularParamType::Length` (the only generic i32 slot
+            // available) with a semantic stretch — documented below.
             Self::Secp256k1Verify => SyscallSignature::gr_infallible([
                 // 32-byte message hash.
                 Ptr::Hash(HashType::SubjectId).into(),
@@ -528,6 +549,8 @@ impl SyscallName {
                 Ptr::Hash(HashType::SubjectId).into(),
                 // 33-byte compressed pubkey (opaque).
                 Ptr::Hash(HashType::SubjectId).into(),
+                // malleability_flag: u32 policy selector (Length reused as i32 slot).
+                Length,
                 // 1-byte verification result.
                 Ptr::MutBufferStart.into(),
             ]),
@@ -536,6 +559,8 @@ impl SyscallName {
                 Ptr::Hash(HashType::SubjectId).into(),
                 // 65-byte signature (opaque).
                 Ptr::Hash(HashType::SubjectId).into(),
+                // malleability_flag: u32 policy selector (Length reused as i32 slot).
+                Length,
                 // 65-byte SEC1-uncompressed pubkey output (opaque).
                 Ptr::MutHash(HashType::SubjectId).into(),
                 // u32 error code (0 on success).

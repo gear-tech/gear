@@ -157,20 +157,29 @@ impl RuntimeInterface for NativeRuntimeInterface {
         promise_ri::publish_promise(promise);
     }
 
-    fn sr25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
-        crypto_ri::sr25519_verify(pk, msg, sig)
+    fn sr25519_verify(pk: &[u8; 32], ctx: &[u8], msg: &[u8], sig: &[u8; 64]) -> bool {
+        crypto_ri::sr25519_verify(pk, ctx, msg, sig)
     }
 
     fn ed25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
         crypto_ri::ed25519_verify(pk, msg, sig)
     }
 
-    fn secp256k1_verify(msg_hash: &[u8; 32], sig: &[u8; 65], pk: &[u8; 33]) -> bool {
-        crypto_ri::secp256k1_verify(msg_hash, sig, pk)
+    fn secp256k1_verify(
+        msg_hash: &[u8; 32],
+        sig: &[u8; 65],
+        pk: &[u8; 33],
+        malleability_flag: u32,
+    ) -> bool {
+        crypto_ri::secp256k1_verify(msg_hash, sig, pk, malleability_flag)
     }
 
-    fn secp256k1_recover(msg_hash: &[u8; 32], sig: &[u8; 65]) -> Option<[u8; 65]> {
-        crypto_ri::secp256k1_recover(msg_hash, sig)
+    fn secp256k1_recover(
+        msg_hash: &[u8; 32],
+        sig: &[u8; 65],
+        malleability_flag: u32,
+    ) -> Option<[u8; 65]> {
+        crypto_ri::secp256k1_recover(msg_hash, sig, malleability_flag)
     }
 
     fn blake2b_256(data: &[u8]) -> [u8; 32] {

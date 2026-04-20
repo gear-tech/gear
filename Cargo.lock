@@ -3868,6 +3868,7 @@ dependencies = [
 name = "demo-crypto"
 version = "0.1.0"
 dependencies = [
+ "gear-core",
  "gear-wasm-builder",
  "gear-workspace-hack",
  "gstd",
@@ -5448,6 +5449,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
+ "schnorrkel",
  "scopeguard",
  "sp-allocator",
  "sp-core",
@@ -6883,6 +6885,7 @@ dependencies = [
  "libsecp256k1",
  "log",
  "parity-scale-codec",
+ "schnorrkel",
  "sp-core",
 ]
 

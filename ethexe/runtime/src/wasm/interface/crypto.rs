@@ -20,24 +20,38 @@ use super::utils;
 use crate::wasm::interface;
 
 interface::declare! {
-    pub(super) fn ext_sr25519_verify_v1(pk: i32, msg: i64, sig: i32) -> i32;
+    /// sr25519 verify with explicit Schnorrkel simple signing context.
+    pub(super) fn ext_sr25519_verify_v1(pk: i32, ctx: i64, msg: i64, sig: i32) -> i32;
     pub(super) fn ext_ed25519_verify_v1(pk: i32, msg: i64, sig: i32) -> i32;
-    pub(super) fn ext_secp256k1_verify_v1(msg_hash: i32, sig: i32, pk: i32) -> i32;
+    /// secp256k1 verify with malleability flag (0 = permissive, 1 = strict low-s).
+    pub(super) fn ext_secp256k1_verify_v1(
+        msg_hash: i32,
+        sig: i32,
+        pk: i32,
+        malleability_flag: i32,
+    ) -> i32;
     /// Writes the recovered 65-byte pubkey into `out_pk`; returns 0 on
     /// success, non-zero on any recovery failure (the out buffer is
-    /// zero-filled in the failure case).
-    pub(super) fn ext_secp256k1_recover_v1(msg_hash: i32, sig: i32, out_pk: i32) -> i32;
+    /// zero-filled in the failure case). `malleability_flag` semantics
+    /// match `ext_secp256k1_verify_v1`.
+    pub(super) fn ext_secp256k1_recover_v1(
+        msg_hash: i32,
+        sig: i32,
+        malleability_flag: i32,
+        out_pk: i32,
+    ) -> i32;
 }
 
 // Called from `NativeRuntimeInterface::sr25519_verify` in
 // `ethexe/runtime/src/wasm/storage.rs`, which is in turn invoked from
 // `Ext<RI>::sr25519_verify` via the `RI: RuntimeInterface` seam.
-pub fn sr25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
+pub fn sr25519_verify(pk: &[u8; 32], ctx: &[u8], msg: &[u8], sig: &[u8; 64]) -> bool {
     let pk_ptr = pk.as_ptr() as i32;
+    let ctx_packed = utils::repr_ri_slice(ctx);
     let msg_packed = utils::repr_ri_slice(msg);
     let sig_ptr = sig.as_ptr() as i32;
 
-    let result = unsafe { sys::ext_sr25519_verify_v1(pk_ptr, msg_packed, sig_ptr) };
+    let result = unsafe { sys::ext_sr25519_verify_v1(pk_ptr, ctx_packed, msg_packed, sig_ptr) };
 
     result != 0
 }
@@ -55,23 +69,34 @@ pub fn ed25519_verify(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
     result != 0
 }
 
-pub fn secp256k1_verify(msg_hash: &[u8; 32], sig: &[u8; 65], pk: &[u8; 33]) -> bool {
+pub fn secp256k1_verify(
+    msg_hash: &[u8; 32],
+    sig: &[u8; 65],
+    pk: &[u8; 33],
+    malleability_flag: u32,
+) -> bool {
     let result = unsafe {
         sys::ext_secp256k1_verify_v1(
             msg_hash.as_ptr() as i32,
             sig.as_ptr() as i32,
             pk.as_ptr() as i32,
+            malleability_flag as i32,
         )
     };
     result != 0
 }
 
-pub fn secp256k1_recover(msg_hash: &[u8; 32], sig: &[u8; 65]) -> Option<[u8; 65]> {
+pub fn secp256k1_recover(
+    msg_hash: &[u8; 32],
+    sig: &[u8; 65],
+    malleability_flag: u32,
+) -> Option<[u8; 65]> {
     let mut out_pk = [0u8; 65];
     let err = unsafe {
         sys::ext_secp256k1_recover_v1(
             msg_hash.as_ptr() as i32,
             sig.as_ptr() as i32,
+            malleability_flag as i32,
             out_pk.as_mut_ptr() as i32,
         )
     };

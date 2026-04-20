@@ -32,6 +32,7 @@ extern crate alloc;
 pub mod buffer;
 pub mod code;
 pub mod costs;
+pub mod crypto;
 pub mod env;
 pub mod env_vars;
 pub mod gas;

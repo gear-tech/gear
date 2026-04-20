@@ -1444,12 +1444,15 @@ where
     }
 
     /// Fixed cost of `gr_sr25519_verify`: verifies a KNOWN-VALID
-    /// (pk, msg, sig) triple `r * batch_size` times. Writing a valid
-    /// pre-signed triple into guest memory via `data_segments` ensures
-    /// the native `sp_core::sr25519::Pair::verify` runs the full
-    /// curve25519 pipeline (pubkey decompression → signature check →
-    /// batch equation). A zero-initialized triple would short-circuit
-    /// at pubkey decompression and understate the cost.
+    /// (pk, ctx, msg, sig) quadruple `r * batch_size` times. Writes
+    /// a valid pre-signed triple into guest memory via `data_segments`
+    /// so the native schnorrkel path runs the full curve25519
+    /// pipeline (pubkey decompression → transcript build → signature
+    /// check). Zero-initialized triples would short-circuit at
+    /// pubkey decompression and understate the cost.
+    ///
+    /// Uses the `b"substrate"` signing context to match
+    /// `sp_core::sr25519::Pair::sign`'s default.
     pub fn gr_sr25519_verify(r: u32) -> Result<Exec<T>, &'static str> {
         use sp_core::{Pair as _, sr25519::Pair};
 
@@ -1458,11 +1461,13 @@ where
         // Deterministic triple — stable across bench runs.
         let pair = Pair::from_seed(&[0x42u8; 32]);
         let pk_bytes: [u8; 32] = pair.public().0;
+        let ctx_bytes: &[u8] = b"substrate";
         let msg_bytes: &[u8] = b"gear-protocol-sr25519-verify-bench";
         let sig_bytes: [u8; 64] = pair.sign(msg_bytes).0;
 
         let pk_offset = COMMON_OFFSET;
-        let msg_offset = pk_offset + pk_bytes.len() as u32;
+        let ctx_offset = pk_offset + pk_bytes.len() as u32;
+        let msg_offset = ctx_offset + ctx_bytes.len() as u32;
         let sig_offset = msg_offset + msg_bytes.len() as u32;
         let out_offset = sig_offset + sig_bytes.len() as u32;
 
@@ -1473,6 +1478,10 @@ where
                 DataSegment {
                     offset: pk_offset,
                     value: pk_bytes.to_vec(),
+                },
+                DataSegment {
+                    offset: ctx_offset,
+                    value: ctx_bytes.to_vec(),
                 },
                 DataSegment {
                     offset: msg_offset,
@@ -1488,6 +1497,10 @@ where
                 &[
                     // pk ptr (32 bytes)
                     InstrI32Const(pk_offset),
+                    // ctx ptr
+                    InstrI32Const(ctx_offset),
+                    // ctx len
+                    InstrI32Const(ctx_bytes.len() as u32),
                     // msg ptr
                     InstrI32Const(msg_offset),
                     // msg len
@@ -1694,6 +1707,12 @@ where
                     InstrI32Const(msg_hash_offset),
                     InstrI32Const(sig_offset),
                     InstrI32Const(pk_offset),
+                    // malleability_flag = 0 (permissive); Ethereum
+                    // ecrecover-compat, matches the gcore default
+                    // wrapper. Strict-mode cost is essentially
+                    // identical (one byte compare) — no need for a
+                    // separate per-r bench.
+                    InstrI32Const(0),
                     InstrI32Const(out_offset),
                 ],
             )),
@@ -1740,6 +1759,9 @@ where
                 &[
                     InstrI32Const(msg_hash_offset),
                     InstrI32Const(sig_offset),
+                    // malleability_flag = 0 (permissive); matches
+                    // gcore's default wrapper + Ethereum compat.
+                    InstrI32Const(0),
                     InstrI32Const(out_pk_offset),
                     InstrI32Const(err_offset),
                 ],

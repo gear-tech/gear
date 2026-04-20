@@ -531,14 +531,24 @@ syscalls! {
     ///
     /// Writes `1` into `out` if the signature is valid, `0` otherwise.
     ///
+    /// Uses schnorrkel's "simple signing context" verification
+    /// (`PublicKey::verify_simple(ctx, msg, sig)`). A signer and
+    /// verifier must use the same `ctx` bytes for verification to
+    /// succeed. Passing `ctx = b"substrate"` matches the default
+    /// context used by `sp_core::sr25519::Pair::sign` / `verify`.
+    ///
     /// Arguments type:
     /// - `pk`: `const ptr` for the 32-byte sr25519 public key.
+    /// - `ctx`: `const ptr` for the beginning of the signing-context buffer.
+    /// - `ctx_len`: `u32` length of the signing-context buffer.
     /// - `msg`: `const ptr` for the beginning of the message buffer.
     /// - `msg_len`: `u32` length of the message buffer.
     /// - `sig`: `const ptr` for the 64-byte sr25519 signature.
     /// - `out`: `mut ptr` for the 1-byte verification result.
     pub fn gr_sr25519_verify(
         pk: *const Hash,
+        ctx: *const SizedBufferStart,
+        ctx_len: Length,
         msg: *const SizedBufferStart,
         msg_len: Length,
         sig: *const [u8; 64],
@@ -584,15 +594,26 @@ syscalls! {
     ///
     /// Writes `1` into `out` if the signature is valid, `0` otherwise.
     ///
+    /// `malleability_flag` is a 32-bit mode selector, symmetric with
+    /// `gr_secp256k1_recover`:
+    /// - `0` = permissive. Any valid (low-s or high-s) signature is
+    ///   accepted. Matches Ethereum `ecrecover` semantics.
+    /// - `1` = strict. High-s signatures (`s > n/2`) are rejected as
+    ///   invalid; only the canonical low-s form is accepted.
+    /// - Any other value: `out` is written to `0` and verification
+    ///   fails without touching the crypto path.
+    ///
     /// Arguments type:
     /// - `msg_hash`: `const ptr` for the 32-byte message digest.
     /// - `sig`: `const ptr` for the 65-byte ECDSA signature (r || s || v).
     /// - `pk`: `const ptr` for the 33-byte SEC1-compressed secp256k1 public key.
+    /// - `malleability_flag`: `u32` policy selector (see above).
     /// - `out`: `mut ptr` for the 1-byte verification result.
     pub fn gr_secp256k1_verify(
         msg_hash: *const Hash,
         sig: *const [u8; 65],
         pk: *const [u8; 33],
+        malleability_flag: u32,
         out: *mut u8,
     );
 
@@ -601,24 +622,38 @@ syscalls! {
     ///
     /// On success writes the 65-byte SEC1-uncompressed pubkey
     /// (`0x04 || x || y`) into `out_pk` and sets `err` to `0`.
-    /// On any failure (malformed signature, non-recoverable) `err` is
-    /// set to a non-zero value and `out_pk` is zero-filled so that the
-    /// guest always sees a defined buffer.
+    /// On any failure `err` is set to a non-zero value and `out_pk`
+    /// is zero-filled so that the guest always sees a defined buffer.
     ///
-    /// ECDSA signatures are malleable: if `(r, s, v)` is valid then
-    /// `(r, -s mod n, v ^ 1)` also recovers the same public key.
-    /// This syscall does NOT canonicalize `s` to the low-half. Callers
-    /// that use signature bytes for replay protection (e.g. hashing
-    /// the signature as a nonce) must enforce low-s themselves.
+    /// Error codes:
+    /// - `0` = success.
+    /// - `1` = malformed signature (bad length, unparseable, invalid v).
+    /// - `2` = non-recoverable (curve math returned no valid pubkey).
+    /// - `3` = unknown `malleability_flag` value; `0` and `1` are legal.
+    /// - `4` = high-s signature rejected because `malleability_flag = 1`.
+    ///
+    /// `malleability_flag` is symmetric with `gr_secp256k1_verify`:
+    /// - `0` = permissive. Any valid (low-s or high-s) signature is
+    ///   accepted. Matches Ethereum `ecrecover` semantics.
+    /// - `1` = strict. High-s signatures (`s > n/2`) are rejected
+    ///   before recovery is attempted.
+    ///
+    /// Note: ECDSA signatures are malleable even under strict mode in
+    /// the sense that `(r, s, v)` and `(r, s', v)` for the canonical
+    /// low-s `s'` recover the same pubkey — strict mode rejects the
+    /// non-canonical form at the ABI so callers using signature bytes
+    /// for replay-protection nonces can't be tricked by the twin sig.
     ///
     /// Arguments type:
     /// - `msg_hash`: `const ptr` for the 32-byte message digest.
     /// - `sig`: `const ptr` for the 65-byte ECDSA signature (r || s || v).
+    /// - `malleability_flag`: `u32` policy selector (see above).
     /// - `out_pk`: `mut ptr` for the 65-byte SEC1-uncompressed pubkey.
     /// - `err`: `mut ptr` for the `u32` error code (0 on success).
     pub fn gr_secp256k1_recover(
         msg_hash: *const Hash,
         sig: *const [u8; 65],
+        malleability_flag: u32,
         out_pk: *mut [u8; 65],
         err: *mut u32,
     );

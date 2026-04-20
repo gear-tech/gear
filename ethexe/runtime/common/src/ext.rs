@@ -217,10 +217,11 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
     fn sr25519_verify(
         &self,
         pk: &[u8; 32],
+        ctx: &[u8],
         msg: &[u8],
         sig: &[u8; 64],
     ) -> Result<bool, Self::UnrecoverableError> {
-        Ok(RI::sr25519_verify(pk, msg, sig))
+        Ok(RI::sr25519_verify(pk, ctx, msg, sig))
     }
 
     fn ed25519_verify(
@@ -237,16 +238,18 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
         msg_hash: &[u8; 32],
         sig: &[u8; 65],
         pk: &[u8; 33],
+        malleability_flag: u32,
     ) -> Result<bool, Self::UnrecoverableError> {
-        Ok(RI::secp256k1_verify(msg_hash, sig, pk))
+        Ok(RI::secp256k1_verify(msg_hash, sig, pk, malleability_flag))
     }
 
     fn secp256k1_recover(
         &self,
         msg_hash: &[u8; 32],
         sig: &[u8; 65],
+        malleability_flag: u32,
     ) -> Result<Option<[u8; 65]>, Self::UnrecoverableError> {
-        Ok(RI::secp256k1_recover(msg_hash, sig))
+        Ok(RI::secp256k1_recover(msg_hash, sig, malleability_flag))
     }
 
     fn blake2b_256(&self, data: &[u8]) -> Result<[u8; 32], Self::UnrecoverableError> {

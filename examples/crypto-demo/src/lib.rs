@@ -55,14 +55,18 @@ use alloc::vec::Vec;
 pub enum Op {
     /// Verify sr25519 signature by running schnorrkel inside the program
     /// WASM (no syscall). Baseline for the gas-delta comparison.
+    /// `ctx` is the Schnorrkel simple signing context — must match
+    /// what the off-chain signer used (typically `b"substrate"`).
     Sr25519VerifyWasm {
         pk: [u8; 32],
+        ctx: Vec<u8>,
         msg: Vec<u8>,
         sig: [u8; 64],
     },
     /// Verify sr25519 signature via the `gr_sr25519_verify` syscall.
     Sr25519VerifySyscall {
         pk: [u8; 32],
+        ctx: Vec<u8>,
         msg: Vec<u8>,
         sig: [u8; 64],
     },
@@ -73,17 +77,20 @@ pub enum Op {
         sig: [u8; 64],
     },
     /// Verify secp256k1 ECDSA signature via the `gr_secp256k1_verify`
-    /// syscall. `msg_hash` is the pre-computed digest (e.g. keccak256
-    /// on Ethereum paths).
+    /// syscall. `msg_hash` is the pre-computed digest. When `strict`
+    /// is true, high-s signatures are rejected at the ABI.
     Secp256k1Verify {
         msg_hash: [u8; 32],
         sig: [u8; 65],
         pk: [u8; 33],
+        strict: bool,
     },
     /// Recover the secp256k1 public key via `gr_secp256k1_recover`.
+    /// When `strict` is true, high-s signatures return `None`.
     Secp256k1Recover {
         msg_hash: [u8; 32],
         sig: [u8; 65],
+        strict: bool,
     },
     /// BLAKE2b-256 via `gr_blake2b_256`.
     Blake2b256(Vec<u8>),

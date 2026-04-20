@@ -31,6 +31,11 @@ sp-core = { workspace = true, features = ["full_crypto"] }
 # Vara path doesn't drag the sp_io allocator into the ethexe-runtime
 # wasm blob.
 libsecp256k1 = { workspace = true, features = ["static-context"] }
+# Used directly for context-parameterized sr25519 verification.
+# sp_core::sr25519::Pair::verify hardcodes ctx = b"substrate"; we call
+# schnorrkel::PublicKey::verify_simple directly so the gr_sr25519_verify
+# syscall can accept any Schnorrkel simple signing context.
+schnorrkel = { version = "0.11.4", default-features = false }
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
@@ -39,7 +44,7 @@ gear-core = { workspace = true, features = ["mock"] }
 
 [features]
 default = ["std"]
-std = ["gear-core-backend/std", "gear-wasm-instrument/std", "sp-core/std", "libsecp256k1/std"]
+std = ["gear-core-backend/std", "gear-wasm-instrument/std", "sp-core/std", "libsecp256k1/std", "schnorrkel/std"]
 strict = []
 mock = ["gear-core/mock"]
 gtest = []

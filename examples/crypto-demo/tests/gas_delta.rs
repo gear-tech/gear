@@ -49,12 +49,19 @@ fn sr25519_wasm_vs_syscall_gas_delta() {
         "program init failed to succeed"
     );
 
+    // sp_core's `Pair::sign` uses `b"substrate"` as the signing
+    // context, so both paths must pass the same ctx for the sig to
+    // validate. This is precisely the case the new ctx ABI exposes
+    // to user programs — previously implicit, now explicit.
+    let ctx: Vec<u8> = b"substrate".to_vec();
+
     let wasm_gas = run_verify(
         &system,
         &program,
         from,
         Op::Sr25519VerifyWasm {
             pk,
+            ctx: ctx.clone(),
             msg: msg.clone(),
             sig,
         },
@@ -66,6 +73,7 @@ fn sr25519_wasm_vs_syscall_gas_delta() {
         from,
         Op::Sr25519VerifySyscall {
             pk,
+            ctx,
             msg: msg.clone(),
             sig,
         },

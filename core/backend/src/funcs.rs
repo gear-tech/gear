@@ -1084,6 +1084,7 @@ where
 
     pub fn sr25519_verify(
         pk: ReadAs<[u8; 32]>,
+        context: Read,
         msg: Read,
         sig: ReadAs<[u8; 64]>,
         out: WriteAs<u8>,
@@ -1093,6 +1094,13 @@ where
             move |ctx: &mut MemoryCallerContext<Caller>| {
                 let pk = pk.into_inner()?;
                 let sig = sig.into_inner()?;
+                let context: RuntimeBuffer = context
+                    .into_inner()?
+                    .try_into()
+                    .map_err(|LimitedVecError| {
+                        UnrecoverableMemoryError::RuntimeAllocOutOfBounds.into()
+                    })
+                    .map_err(TrapExplanation::UnrecoverableExt)?;
                 let msg: RuntimeBuffer = msg
                     .into_inner()?
                     .try_into()
@@ -1101,10 +1109,12 @@ where
                     })
                     .map_err(TrapExplanation::UnrecoverableExt)?;
 
-                let ok = ctx
-                    .caller_wrap
-                    .ext_mut()
-                    .sr25519_verify(&pk, msg.as_slice(), &sig)?;
+                let ok = ctx.caller_wrap.ext_mut().sr25519_verify(
+                    &pk,
+                    context.as_slice(),
+                    msg.as_slice(),
+                    &sig,
+                )?;
 
                 out.write(ctx, &u8::from(ok)).map_err(Into::into)
             },
@@ -1144,6 +1154,7 @@ where
         msg_hash: ReadAs<[u8; 32]>,
         sig: ReadAs<[u8; 65]>,
         pk: ReadAs<[u8; 33]>,
+        malleability_flag: u32,
         out: WriteAs<u8>,
     ) -> impl Syscall<Caller> {
         InfallibleSyscall::new(
@@ -1156,7 +1167,7 @@ where
                 let ok = ctx
                     .caller_wrap
                     .ext_mut()
-                    .secp256k1_verify(&msg_hash, &sig, &pk)?;
+                    .secp256k1_verify(&msg_hash, &sig, &pk, malleability_flag)?;
 
                 out.write(ctx, &u8::from(ok)).map_err(Into::into)
             },
@@ -1166,6 +1177,7 @@ where
     pub fn secp256k1_recover(
         msg_hash: ReadAs<[u8; 32]>,
         sig: ReadAs<[u8; 65]>,
+        malleability_flag: u32,
         out_pk: WriteAs<[u8; 65]>,
         err: WriteAs<u32>,
     ) -> impl Syscall<Caller> {
@@ -1175,13 +1187,21 @@ where
                 let msg_hash = msg_hash.into_inner()?;
                 let sig = sig.into_inner()?;
 
-                let recovered = ctx
-                    .caller_wrap
-                    .ext_mut()
-                    .secp256k1_recover(&msg_hash, &sig)?;
+                // An unknown flag value is rejected at the wrapper layer
+                // without touching the curve math. Distinct error code
+                // from "malformed sig" and "high-s rejected" so callers
+                // can tell typos from policy from data errors.
+                if malleability_flag > 1 {
+                    out_pk.write(ctx, &[0u8; 65])?;
+                    return err.write(ctx, &3u32).map_err(Into::into);
+                }
 
-                // err = 0 on Some, 1 on None. out_pk is always written
-                // (zeros on failure) so callers observe a defined buffer.
+                let recovered = ctx.caller_wrap.ext_mut().secp256k1_recover(
+                    &msg_hash,
+                    &sig,
+                    malleability_flag,
+                )?;
+
                 let (err_code, pk_bytes) = match recovered {
                     Some(pk) => (0u32, pk),
                     None => (1u32, [0u8; 65]),
