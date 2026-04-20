@@ -16,20 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Demo program showing the gas delta between two ways to verify an
-//! sr25519 signature from inside a Gear program:
+//! Demo program exercising all seven crypto/hash `gr_*` syscalls.
 //!
-//! - [`Mode::Wasm`]   — uses the `schnorrkel` crate compiled into the
-//!                      program's own WASM. Every curve25519 scalar op is
-//!                      interpreted op-by-op by the host runtime.
-//! - [`Mode::Syscall`] — calls `gcore::crypto::sr25519_verify`, which
-//!                      dispatches to a native implementation on the host
-//!                      (`sp_core::sr25519::Pair::verify`) via the new
-//!                      `gr_sr25519_verify` syscall.
+//! Accepts a SCALE-encoded [`Op`] in the incoming message payload,
+//! dispatches to the matching syscall (or the pure-WASM schnorrkel
+//! baseline for the sr25519 gas-delta comparison), and replies with
+//! raw bytes that tests interpret per-op:
 //!
-//! The two modes share identical inputs; only the compute path differs.
-//! Pair this program with the gtest in `pallets/gear/src/tests/` (or run
-//! manually in `gtest::System`) to measure the gas delta.
+//! | Op                              | Reply                                    |
+//! |---------------------------------|------------------------------------------|
+//! | `Sr25519Verify{Wasm,Syscall}`   | `[1u8]` valid / `[0u8]` invalid          |
+//! | `Ed25519Verify`                 | `[1u8]` valid / `[0u8]` invalid          |
+//! | `Secp256k1Verify`               | `[1u8]` valid / `[0u8]` invalid          |
+//! | `Secp256k1Recover`              | SCALE `Option<[u8;65]>` (`[0]` or `[1, pk…]`) |
+//! | `Blake2b256` / `Sha256` / `Keccak256` | 32-byte digest                      |
 
 #![no_std]
 
@@ -46,29 +46,49 @@ pub use code::WASM_BINARY_OPT as WASM_BINARY;
 #[cfg(not(feature = "std"))]
 mod wasm;
 
-/// Verification-path selector. Sent as the first byte of the request.
-#[derive(Debug, Clone, Copy, Encode, Decode, Eq, PartialEq)]
-pub enum Mode {
-    /// Verify using the `schnorrkel` crate compiled into the program WASM.
-    Wasm,
-    /// Verify via the `gr_sr25519_verify` syscall (native on the host).
-    Syscall,
-}
-
-/// Full verification request — mode + the sr25519 triple to check.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct VerifyRequest {
-    /// Which path to use.
-    pub mode: Mode,
-    /// 32-byte sr25519 public key.
-    pub pk: [u8; 32],
-    /// Message bytes that were signed.
-    pub msg: alloc::vec::Vec<u8>,
-    /// 64-byte sr25519 signature.
-    pub sig: [u8; 64],
-}
-
-/// Reply shape: `1u8` on valid, `0u8` on invalid.
-pub type VerifyReply = u8;
-
 extern crate alloc;
+
+use alloc::vec::Vec;
+
+/// Request dispatched to the demo program's `handle()`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum Op {
+    /// Verify sr25519 signature by running schnorrkel inside the program
+    /// WASM (no syscall). Baseline for the gas-delta comparison.
+    Sr25519VerifyWasm {
+        pk: [u8; 32],
+        msg: Vec<u8>,
+        sig: [u8; 64],
+    },
+    /// Verify sr25519 signature via the `gr_sr25519_verify` syscall.
+    Sr25519VerifySyscall {
+        pk: [u8; 32],
+        msg: Vec<u8>,
+        sig: [u8; 64],
+    },
+    /// Verify ed25519 signature via the `gr_ed25519_verify` syscall.
+    Ed25519Verify {
+        pk: [u8; 32],
+        msg: Vec<u8>,
+        sig: [u8; 64],
+    },
+    /// Verify secp256k1 ECDSA signature via the `gr_secp256k1_verify`
+    /// syscall. `msg_hash` is the pre-computed digest (e.g. keccak256
+    /// on Ethereum paths).
+    Secp256k1Verify {
+        msg_hash: [u8; 32],
+        sig: [u8; 65],
+        pk: [u8; 33],
+    },
+    /// Recover the secp256k1 public key via `gr_secp256k1_recover`.
+    Secp256k1Recover {
+        msg_hash: [u8; 32],
+        sig: [u8; 65],
+    },
+    /// BLAKE2b-256 via `gr_blake2b_256`.
+    Blake2b256(Vec<u8>),
+    /// SHA-256 via `gr_sha256`.
+    Sha256(Vec<u8>),
+    /// Keccak-256 (Ethereum-style) via `gr_keccak256`.
+    Keccak256(Vec<u8>),
+}

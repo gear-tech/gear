@@ -3872,6 +3872,7 @@ dependencies = [
  "gear-workspace-hack",
  "gstd",
  "gtest",
+ "libsecp256k1",
  "log",
  "parity-scale-codec",
  "schnorrkel",

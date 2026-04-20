@@ -99,6 +99,15 @@ impl<RI: RuntimeInterface> Externalities for Ext<RI> {
     type FallibleError = <CoreExt<RI::LazyPages> as Externalities>::FallibleError;
     type AllocError = <CoreExt<RI::LazyPages> as Externalities>::AllocError;
 
+    // WARNING: DO NOT move crypto/hash methods (sr25519_verify,
+    // ed25519_verify, secp256k1_{verify,recover}, blake2b_256, sha256,
+    // keccak256) into this `delegate!` block. On the ethexe target
+    // `CoreExt` is compiled into the ethexe-runtime WASM blob, so
+    // delegating would run `sp_core` crypto op-by-op inside the
+    // interpreted runtime — exactly the 50-100× slow path this
+    // proposal exists to bypass. The explicit `fn` bodies below
+    // (`sr25519_verify` et al.) route through the `RuntimeInterface`
+    // seam instead, landing in native `sp_core` on the ethexe host.
     delegate::delegate! {
         to self.core {
             fn alloc<Context>(&mut self, ctx: &mut Context, mem: &mut impl Memory<Context>, pages_num: u32) -> Result<WasmPage, Self::AllocError>;

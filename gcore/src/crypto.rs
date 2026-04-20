@@ -95,6 +95,16 @@ pub fn secp256k1_verify(msg_hash: &[u8; 32], sig: &[u8; 65], pk: &[u8; 33]) -> b
 /// (`0x04 || x || y`) on success, `None` on any failure (malformed
 /// signature or non-recoverable). Mirrors Ethereum's `ecrecover`
 /// precompile.
+///
+/// # ECDSA signature malleability
+///
+/// ECDSA signatures are malleable: if `(r, s, v)` recovers a public
+/// key, then `(r, n-s, v ^ 1)` recovers the same key. This function
+/// does NOT canonicalize `s` to the low-half value (`s <= n/2`).
+/// Callers that use signature bytes for replay-protection nonces,
+/// deduplication, or on-chain uniqueness MUST enforce low-s before
+/// accepting the signature — otherwise an attacker can flip
+/// `s` → `n-s` to produce a distinct-but-equivalent signature.
 pub fn secp256k1_recover(msg_hash: &[u8; 32], sig: &[u8; 65]) -> Option<[u8; 65]> {
     let mut out_pk = [0u8; 65];
     let mut err: u32 = 0;

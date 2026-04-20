@@ -600,9 +600,16 @@ syscalls! {
     /// secp256k1 public key from an ECDSA signature and message hash.
     ///
     /// On success writes the 65-byte SEC1-uncompressed pubkey
-    /// (`0x04 || x || y`) into `out_pk` and sets `err` to `0`. On any
-    /// failure (malformed signature, non-recoverable) `err` is set to
-    /// a non-zero value; `out_pk` contents are undefined in that case.
+    /// (`0x04 || x || y`) into `out_pk` and sets `err` to `0`.
+    /// On any failure (malformed signature, non-recoverable) `err` is
+    /// set to a non-zero value and `out_pk` is zero-filled so that the
+    /// guest always sees a defined buffer.
+    ///
+    /// ECDSA signatures are malleable: if `(r, s, v)` is valid then
+    /// `(r, -s mod n, v ^ 1)` also recovers the same public key.
+    /// This syscall does NOT canonicalize `s` to the low-half. Callers
+    /// that use signature bytes for replay protection (e.g. hashing
+    /// the signature as a nonce) must enforce low-s themselves.
     ///
     /// Arguments type:
     /// - `msg_hash`: `const ptr` for the 32-byte message digest.

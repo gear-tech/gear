@@ -16,47 +16,63 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Mode, VerifyReply, VerifyRequest};
-use gstd::{crypto, msg};
+use crate::Op;
+use alloc::vec::Vec;
+use gstd::{crypto, hash, msg};
+use parity_scale_codec::Encode;
 
-// The signing context MUST match the one substrate / sp_core uses so that
-// a signature produced off-chain with `sp_core::sr25519::Pair::sign`
-// validates under both code paths. See
-// https://github.com/paritytech/substrate/blob/master/primitives/core/src/sr25519.rs
+// The sr25519 WASM-path signing context MUST match substrate /
+// sp_core so signatures signed off-chain validate under both paths.
+// See https://github.com/paritytech/substrate/blob/master/primitives/core/src/sr25519.rs
 const SIGNING_CTX: &[u8] = b"substrate";
+
+// Empty init. `handle()` sees the first real payload; the gear runtime
+// routes the first incoming message to `init()` by default.
+#[unsafe(no_mangle)]
+extern "C" fn init() {}
 
 #[unsafe(no_mangle)]
 extern "C" fn handle() {
-    let req: VerifyRequest = msg::load().expect("decode VerifyRequest");
+    let op: Op = msg::load().expect("decode Op");
 
-    let ok: VerifyReply = match req.mode {
-        Mode::Wasm => verify_wasm(&req) as u8,
-        Mode::Syscall => verify_syscall(&req) as u8,
+    let reply: Vec<u8> = match op {
+        Op::Sr25519VerifyWasm { pk, msg: data, sig } => {
+            alloc::vec![verify_sr25519_wasm(&pk, &data, &sig) as u8]
+        }
+        Op::Sr25519VerifySyscall { pk, msg: data, sig } => {
+            alloc::vec![crypto::sr25519_verify(&pk, &data, &sig) as u8]
+        }
+        Op::Ed25519Verify { pk, msg: data, sig } => {
+            alloc::vec![crypto::ed25519_verify(&pk, &data, &sig) as u8]
+        }
+        Op::Secp256k1Verify { msg_hash, sig, pk } => {
+            alloc::vec![crypto::secp256k1_verify(&msg_hash, &sig, &pk) as u8]
+        }
+        Op::Secp256k1Recover { msg_hash, sig } => {
+            // SCALE-encoded Option<[u8; 65]>:
+            //   None       → [0x00]
+            //   Some(pk65) → [0x01, pk65...]
+            crypto::secp256k1_recover(&msg_hash, &sig).encode()
+        }
+        Op::Blake2b256(data) => hash::blake2b_256(&data).to_vec(),
+        Op::Sha256(data) => hash::sha256(&data).to_vec(),
+        Op::Keccak256(data) => hash::keccak256(&data).to_vec(),
     };
 
-    // Reply as raw bytes (1 byte). Using msg::reply(u8, …) goes through
-    // `with_optimized_encode` which has had edge cases with scalar types;
-    // reply_bytes is unambiguous.
-    msg::reply_bytes([ok], 0).expect("send reply");
+    msg::reply_bytes(reply, 0).expect("send reply");
 }
 
-/// WASM path: interpret `schnorrkel` curve25519 ops op-by-op inside this
-/// program's own WASM. Expected gas ~17B on the PolyBaskets profile —
-/// this is the slow baseline we compare against.
-fn verify_wasm(req: &VerifyRequest) -> bool {
-    let pk = match schnorrkel::PublicKey::from_bytes(&req.pk) {
+/// WASM-path sr25519 verify: interprets curve25519 op-by-op via the
+/// `schnorrkel` crate compiled into this program. Slow baseline for
+/// the gas-delta comparison in `tests/gas_delta.rs`.
+fn verify_sr25519_wasm(pk: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
+    let pk = match schnorrkel::PublicKey::from_bytes(pk) {
         Ok(pk) => pk,
         Err(_) => return false,
     };
-    let sig = match schnorrkel::Signature::from_bytes(&req.sig) {
+    let sig = match schnorrkel::Signature::from_bytes(sig) {
         Ok(sig) => sig,
         Err(_) => return false,
     };
-    pk.verify_simple(SIGNING_CTX, &req.msg, &sig).is_ok()
-}
-
-/// Syscall path: one `gr_sr25519_verify` syscall. Expected gas ~150M —
-/// native host compute, no in-WASM curve arithmetic.
-fn verify_syscall(req: &VerifyRequest) -> bool {
-    crypto::sr25519_verify(&req.pk, &req.msg, &req.sig)
+    pk.verify_simple(SIGNING_CTX, msg, &sig).is_ok()
 }
