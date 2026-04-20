@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{RpcEvent, errors};
+use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 
 use super::{
     InjectedServer, promise_manager::PromiseSubscriptionManager, relay::TransactionsRelayer,
@@ -46,6 +46,7 @@ pub struct InjectedApi {
     db: Database,
     manager: PromiseSubscriptionManager,
     relayer: TransactionsRelayer,
+    metrics: InjectedApiMetrics,
 }
 
 // TODO: add metrics middleware for InjectedApi
@@ -95,6 +96,7 @@ impl InjectedApi {
             db: db.clone(),
             manager: PromiseSubscriptionManager::new(db.clone()),
             relayer: TransactionsRelayer::new(rpc_sender, db),
+            metrics: InjectedApiMetrics::default(),
         }
     }
 }
@@ -105,6 +107,8 @@ impl InjectedApi {
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
+        self.metrics.send_injected_tx_calls.increment(1);
+
         self.relayer.relay(transaction).await
     }
 
@@ -113,6 +117,8 @@ impl InjectedApi {
         pending: PendingSubscriptionSink,
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult {
+        self.metrics.send_and_watch_injected_tx_calls.increment(1);
+
         let tx_hash = transaction.tx.data().to_hash();
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
