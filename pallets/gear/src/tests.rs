@@ -4973,6 +4973,68 @@ fn test_code_submission_pass() {
 }
 
 #[test]
+fn stripping_reduces_instrumented_code_len() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        use std::borrow::Cow;
+
+        let base = ProgramCodeKind::Default.to_bytes();
+
+        // Inject a 4 KiB `sails:idl` custom section into the raw wasm.
+        let idl_payload: Vec<u8> = (0..4096).map(|i| (i & 0xff) as u8).collect();
+        let mut module = Module::new(&base).expect("Default program must parse");
+        module
+            .custom_sections
+            .get_or_insert_with(Vec::new)
+            .push((Cow::Borrowed("sails:idl"), idl_payload.clone()));
+        let code_with_idl = module.serialize().expect("must serialize");
+        let code_id = CodeId::generate(&code_with_idl);
+
+        // Sanity: the constructed original carries sails:idl.
+        assert!(
+            has_sails_idl(&code_with_idl),
+            "fixture must contain sails:idl before upload"
+        );
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            code_with_idl.clone(),
+        ));
+
+        // OriginalCode keeps the IDL (RPC readers depend on this).
+        let original = <Test as Config>::CodeStorage::get_original_code(code_id)
+            .expect("original code must be stored");
+        assert!(
+            has_sails_idl(&original),
+            "OriginalCode must retain the sails:idl custom section"
+        );
+
+        // InstrumentedCode must not contain any custom sections at all.
+        let instrumented = <Test as Config>::CodeStorage::get_instrumented_code(code_id)
+            .expect("instrumented code must be stored");
+        let parsed = Module::new(instrumented.bytes())
+            .expect("instrumented bytes must be a valid module");
+        assert!(
+            parsed
+                .custom_sections
+                .as_ref()
+                .is_none_or(|cs| cs.is_empty()),
+            "InstrumentedCode must have no custom sections after strip"
+        );
+    })
+}
+
+fn has_sails_idl(wasm: &[u8]) -> bool {
+    let Ok(module) = Module::new(wasm) else {
+        return false;
+    };
+    module
+        .custom_sections
+        .as_ref()
+        .is_some_and(|cs| cs.iter().any(|(n, _)| n == "sails:idl"))
+}
+
+#[test]
 fn test_same_code_submission_fails() {
     init_logger();
     new_test_ext().execute_with(|| {

@@ -186,6 +186,8 @@ impl Code {
         let table_section_size = utils::get_instantiated_table_section_size(&module);
         let element_section_size = utils::get_instantiated_element_section_size(&module)?;
 
+        module.strip_custom_sections();
+
         let code = module.serialize()?;
 
         // Use instrumented code to get section sizes.
@@ -1244,5 +1246,80 @@ mod tests {
                 InstrumentationError::GasInjection
             ))
         ));
+    }
+
+    /// Walks a WASM binary and returns `true` if it contains a custom section
+    /// with the given name.
+    fn has_custom_section(wasm: &[u8], name: &str) -> bool {
+        wasmparser::Parser::new(0)
+            .parse_all(wasm)
+            .filter_map(|p| p.ok())
+            .any(|payload| match payload {
+                wasmparser::Payload::CustomSection(reader) => reader.name() == name,
+                _ => false,
+            })
+    }
+
+    #[test]
+    fn instrumented_code_strips_custom_sections_but_original_keeps_them() {
+        // Build a valid gear program and inject a `sails:idl` custom section
+        // into its bytes before instrumentation.
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (export "init" (func $init))
+                (func $init)
+            )
+        "#;
+        let base_bytes = wat2wasm(wat);
+
+        // Push a custom section through gear_wasm_instrument::Module
+        // (same mechanism sails tooling uses to embed the IDL).
+        let idl_payload: Vec<u8> = (0..64u8).collect();
+        let mut module = gear_wasm_instrument::Module::new(&base_bytes).unwrap();
+        module
+            .custom_sections
+            .get_or_insert_with(Vec::new)
+            .push((
+                alloc::borrow::Cow::Borrowed("sails:idl"),
+                idl_payload.clone(),
+            ));
+        let original_with_idl = module.serialize().unwrap();
+
+        // Sanity: the constructed original actually carries the section.
+        assert!(
+            has_custom_section(&original_with_idl, "sails:idl"),
+            "test fixture must contain the sails:idl custom section before instrumentation"
+        );
+
+        // Run through the full Code pipeline.
+        let code = Code::try_new_mock_const_or_no_rules(
+            original_with_idl,
+            true,
+            TryNewCodeConfig::default(),
+        )
+        .expect("valid gear program must instrument");
+
+        // OriginalCode preserves the section — IDL readers (RPC) rely on this.
+        assert!(
+            has_custom_section(code.original_code(), "sails:idl"),
+            "OriginalCode must retain sails:idl custom section"
+        );
+
+        // InstrumentedCode must not contain any custom sections.
+        assert!(
+            !has_custom_section(code.instrumented_code().bytes(), "sails:idl"),
+            "InstrumentedCode must have sails:idl stripped"
+        );
+
+        // Broader check: no custom section of any name survives.
+        let any_custom = wasmparser::Parser::new(0)
+            .parse_all(code.instrumented_code().bytes())
+            .filter_map(|p| p.ok())
+            .any(|payload| matches!(payload, wasmparser::Payload::CustomSection(_)));
+        assert!(
+            !any_custom,
+            "InstrumentedCode must have no custom sections at all"
+        );
     }
 }

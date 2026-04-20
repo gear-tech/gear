@@ -64,7 +64,7 @@ mod transitions;
 
 // TODO: consider format.
 /// Version of the runtime.
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 pub const RUNTIME_ID: u32 = 1;
 
 /// Maximum number of outgoing messages per execution of one dispatch.

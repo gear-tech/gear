@@ -1441,6 +1441,18 @@ impl Module {
         })
     }
 
+    /// Strips all WASM custom sections from the module.
+    ///
+    /// The `name` section is **preserved** to keep Wasmer/Wasmtime trap
+    /// backtraces readable in production logs. This differs from
+    /// `wasm_optimizer::Optimizer::strip_custom_sections`, which clears both.
+    ///
+    /// Custom sections (`sails:idl`, `producers`, etc.) are not consumed
+    /// at sandbox execution time; IDL readers pull from `OriginalCode`.
+    pub fn strip_custom_sections(&mut self) {
+        self.custom_sections = None;
+    }
+
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let mut module = wasm_encoder::Module::new();
 
@@ -1688,5 +1700,45 @@ mod tests {
         let parsed_module_bytes = Module::new(&module_bytes).unwrap().serialize().unwrap();
         let parsed_wat = wasmprinter::print_bytes(&parsed_module_bytes).unwrap();
         assert_eq!(wat, parsed_wat);
+    }
+
+    #[test]
+    fn strip_custom_sections_clears_custom_but_keeps_name() {
+        let mut builder = ModuleBuilder::default();
+        builder.push_custom_section("sails:idl", [0xAA, 0xBB, 0xCC]);
+        builder.push_custom_section("producers", [0xDE, 0xAD]);
+        let mut module = builder.build();
+        // Simulate a preserved name section.
+        module.name_section = Some(Vec::new());
+
+        module.strip_custom_sections();
+
+        assert!(
+            module.custom_sections.is_none(),
+            "custom_sections must be cleared"
+        );
+        assert!(
+            module.name_section.is_some(),
+            "name_section must be preserved across strip"
+        );
+
+        // Round-trip through serialize/parse: custom sections must not
+        // reappear in the serialized bytes.
+        let bytes = module.serialize().unwrap();
+        let reparsed = Module::new(&bytes).unwrap();
+        assert!(
+            reparsed.custom_sections.is_none()
+                || reparsed.custom_sections.as_ref().unwrap().is_empty(),
+            "serialized module must not contain custom sections after strip"
+        );
+    }
+
+    #[test]
+    fn strip_custom_sections_on_empty_module_is_noop() {
+        let mut module = ModuleBuilder::default().build();
+        // No custom sections, no name section: must not panic, stays None.
+        assert!(module.custom_sections.is_none());
+        module.strip_custom_sections();
+        assert!(module.custom_sections.is_none());
     }
 }

@@ -429,7 +429,11 @@ pub(super) fn instrumented_code_and_metadata(
     db: &Database,
     code_id: CodeId,
 ) -> Result<(InstrumentedCode, CodeMetadata)> {
-    db.instrumented_code(ethexe_runtime_common::VERSION, code_id)
+    db.instrumented_code(
+        ethexe_runtime_common::RUNTIME_ID,
+        ethexe_runtime_common::VERSION,
+        code_id,
+    )
         .and_then(|instrumented_code| {
             db.code_metadata(code_id)
                 .map(|metadata| (instrumented_code, metadata))

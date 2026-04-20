@@ -719,7 +719,11 @@ impl BlockChain {
             db.set_original_code(&original_bytes);
 
             if let Some(InstrumentedCodeData { instrumented, meta }) = instrumented {
-                db.set_instrumented_code(1, code_id, instrumented);
+                // (runtime_id, version). Literals match the current values of
+                // `ethexe_runtime_common::{RUNTIME_ID, VERSION}`. We can't import
+                // those constants here: `ethexe-runtime-common` already depends
+                // on `ethexe-common`, so the reverse would be a dep cycle.
+                db.set_instrumented_code(1, 2, code_id, instrumented);
                 db.set_code_metadata(code_id, meta);
                 db.set_code_blob_info(code_id, blob_info);
                 db.set_code_valid(code_id, true);

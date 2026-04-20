@@ -29,7 +29,7 @@ use ethexe_common::{
     },
     mock::*,
 };
-use ethexe_runtime_common::{RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue};
+use ethexe_runtime_common::{RUNTIME_ID, VERSION, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue};
 use gear_core::{
     ids::prelude::CodeIdExt,
     message::{ErrorReplyReason, ReplyCode, SuccessReplyReason},
@@ -92,7 +92,7 @@ mod utils {
 
         let db = &processor.db;
         db.set_original_code(&code);
-        db.set_instrumented_code(RUNTIME_ID, code_id, instrumented_code);
+        db.set_instrumented_code(RUNTIME_ID, VERSION, code_id, instrumented_code);
         db.set_code_metadata(code_id, code_metadata);
         db.set_code_valid(code_id, true);
 
@@ -297,6 +297,73 @@ async fn handle_new_code_valid() {
     assert_eq!(
         info.code_metadata.original_code_len(),
         info.code.len() as u32,
+    );
+}
+
+#[tokio::test]
+async fn instrumented_code_strips_custom_sections() {
+    init_logger();
+
+    // Build a valid gear program and inject a `sails:idl` custom section
+    // into its original bytes — simulating what sails tooling emits.
+    let (_orig_code_id, base_bytes) = utils::wat_to_wasm(utils::VALID_PROGRAM);
+    let idl_payload: Vec<u8> = (0..128u8).collect();
+
+    let mut module = gear_wasm_instrument::Module::new(&base_bytes)
+        .expect("VALID_PROGRAM must parse as a Module");
+    module
+        .custom_sections
+        .get_or_insert_with(Vec::new)
+        .push((
+            std::borrow::Cow::Borrowed("sails:idl"),
+            idl_payload.clone(),
+        ));
+    let code_with_idl = module.serialize().expect("serialize must succeed");
+    let code_id = CodeId::generate(&code_with_idl);
+
+    // Sanity-check the fixture before handing it to the processor.
+    let parsed = gear_wasm_instrument::Module::new(&code_with_idl).unwrap();
+    assert!(
+        parsed
+            .custom_sections
+            .as_ref()
+            .is_some_and(|cs| cs.iter().any(|(n, _)| n == "sails:idl")),
+        "fixture must contain sails:idl before processing"
+    );
+
+    // Run through the ethexe processor pipeline.
+    let mut processor =
+        Processor::new(Database::memory()).expect("failed to create processor");
+    let info = processor
+        .process_code(CodeAndIdUnchecked {
+            code: code_with_idl.clone(),
+            code_id,
+        })
+        .await
+        .expect("process_code failed")
+        .valid
+        .expect("code must be valid");
+
+    // OriginalCode keeps the IDL — RPC readers depend on this.
+    let original = gear_wasm_instrument::Module::new(&info.code)
+        .expect("original code must parse");
+    assert!(
+        original
+            .custom_sections
+            .as_ref()
+            .is_some_and(|cs| cs.iter().any(|(n, _)| n == "sails:idl")),
+        "processor must not strip custom sections from OriginalCode"
+    );
+
+    // InstrumentedCode has no custom sections at all.
+    let instrumented = gear_wasm_instrument::Module::new(info.instrumented_code.bytes())
+        .expect("instrumented code must parse");
+    assert!(
+        instrumented
+            .custom_sections
+            .as_ref()
+            .is_none_or(|cs| cs.is_empty()),
+        "InstrumentedCode must have no custom sections after the strip"
     );
 }
 
