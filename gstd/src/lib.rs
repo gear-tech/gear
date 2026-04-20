@@ -167,7 +167,7 @@ pub use common::errors;
 pub use config::{Config, SYSTEM_RESERVE};
 pub use gcore::{
     ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
-    Ss58Address, Value, debug, static_mut, static_ref,
+    Ss58Address, Value, crypto, debug, hash, static_mut, static_ref,
 };
 #[cfg(target_arch = "wasm32")]
 pub use gcore::{ctor, dtor};

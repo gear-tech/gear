@@ -1,0 +1,27 @@
+[package]
+name = "demo-crypto"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec.workspace = true
+schnorrkel = { version = "0.11.4", default-features = false }
+gear-workspace-hack.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+log.workspace = true
+sp-core = { workspace = true, features = ["std", "full_crypto"] }
+
+[features]
+debug = ["gstd/debug"]
+std = []
+default = [ "std" ]

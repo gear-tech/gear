@@ -38,6 +38,7 @@ members = [
     "examples/big-data-section",
     "examples/bls381",
     "examples/calc-hash",
+    "examples/crypto-demo",
     "examples/custom",
     "examples/delayed-reservation-sender",
     "examples/compose",
@@ -477,6 +478,7 @@ demo-bls381 = { path = "examples/bls381" }
 demo-calc-hash = { path = "examples/calc-hash" }
 demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
 demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }
+demo-crypto = { path = "examples/crypto-demo" }
 demo-custom = { path = "examples/custom" }
 demo-delayed-reservation-sender = { path = "examples/delayed-reservation-sender" }
 demo-compose = { path = "examples/compose" }

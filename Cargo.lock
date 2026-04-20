@@ -3865,6 +3865,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-crypto"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gear-workspace-hack",
+ "gstd",
+ "gtest",
+ "log",
+ "parity-scale-codec",
+ "schnorrkel",
+ "sp-core",
+]
+
+[[package]]
 name = "demo-ctor"
 version = "0.1.0"
 dependencies = [

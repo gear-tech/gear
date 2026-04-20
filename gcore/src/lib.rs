@@ -71,8 +71,10 @@
 
 #[cfg(target_arch = "wasm32")]
 pub mod ctor;
+pub mod crypto;
 pub mod errors;
 pub mod exec;
+pub mod hash;
 pub mod msg;
 pub mod prog;
 pub use gear_stack_buffer as stack_buffer;
