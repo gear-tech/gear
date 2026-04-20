@@ -272,6 +272,15 @@ where
             SyscallName::ReservationReply => check_gr_reservation_reply::<T>(),
             SyscallName::ReservationReplyCommit => check_gr_reservation_reply_commit::<T>(),
             SyscallName::SystemReserveGas => check_gr_system_reserve_gas::<T>(),
+            SyscallName::Blake2b256
+            | SyscallName::Sha256
+            | SyscallName::Keccak256
+            | SyscallName::Sr25519Verify
+            | SyscallName::Ed25519Verify
+            | SyscallName::Secp256k1Verify
+            | SyscallName::Secp256k1Recover => {
+                /* covered by examples/crypto-demo known-answer tests */
+            }
         }
     });
 }

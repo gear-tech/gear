@@ -251,11 +251,21 @@ pub(super) fn expected_syscall_weights_count() -> usize {
         gr_create_program_wgas: _,
         gr_create_program_wgas_payload_per_byte: _,
         gr_create_program_wgas_salt_per_byte: _,
+        gr_blake2b_256: _,
+        gr_blake2b_256_per_byte: _,
+        gr_sha256: _,
+        gr_sha256_per_byte: _,
+        gr_keccak256: _,
+        gr_keccak256_per_byte: _,
+        gr_sr25519_verify: _,
+        gr_ed25519_verify: _,
+        gr_secp256k1_verify: _,
+        gr_secp256k1_recover: _,
         _phantom: __phantom,
     } = SyscallWeights::<Runtime>::default();
 
     // total number of syscalls
-    70
+    80
 }
 
 pub(super) fn expected_pages_costs_count() -> usize {

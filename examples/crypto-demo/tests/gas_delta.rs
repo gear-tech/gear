@@ -108,13 +108,7 @@ fn sr25519_wasm_vs_syscall_gas_delta() {
     );
 }
 
-fn run_verify(
-    system: &System,
-    program: &Program,
-    from: u64,
-    op: Op,
-    label: &str,
-) -> u64 {
+fn run_verify(system: &System, program: &Program, from: u64, op: Op, label: &str) -> u64 {
     let msg_id = program.send_bytes(from, op.encode());
     let run = system.run_next_block();
 

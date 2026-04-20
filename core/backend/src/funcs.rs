@@ -1174,10 +1174,12 @@ where
                     return out.write(ctx, &0u8).map_err(Into::into);
                 }
 
-                let ok = ctx
-                    .caller_wrap
-                    .ext_mut()
-                    .secp256k1_verify(&msg_hash, &sig, &pk, malleability_flag)?;
+                let ok = ctx.caller_wrap.ext_mut().secp256k1_verify(
+                    &msg_hash,
+                    &sig,
+                    &pk,
+                    malleability_flag,
+                )?;
 
                 out.write(ctx, &u8::from(ok)).map_err(Into::into)
             },

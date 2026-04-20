@@ -744,11 +744,7 @@ fn make_high_s_twin(sig: &[u8; 65]) -> [u8; 65] {
     for i in (0..32).rev() {
         let a = N[i] as i16;
         let b = sig[32 + i] as i16 + borrow;
-        let (r, new_borrow) = if a >= b {
-            (a - b, 0)
-        } else {
-            (a + 256 - b, 1)
-        };
+        let (r, new_borrow) = if a >= b { (a - b, 0) } else { (a + 256 - b, 1) };
         out[32 + i] = r as u8;
         borrow = new_borrow;
     }

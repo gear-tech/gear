@@ -375,6 +375,16 @@ fn weights(kind: WeightsKind, input_file: PathBuf, output_file: PathBuf) {
                     gr_create_program,
                     gr_create_program_payload_per_byte,
                     gr_create_program_salt_per_byte,
+                    gr_blake2b_256,
+                    gr_blake2b_256_per_byte,
+                    gr_sha256,
+                    gr_sha256_per_byte,
+                    gr_keccak256,
+                    gr_keccak256_per_byte,
+                    gr_sr25519_verify,
+                    gr_ed25519_verify,
+                    gr_secp256k1_verify,
+                    gr_secp256k1_recover,
                 }
             }
         }

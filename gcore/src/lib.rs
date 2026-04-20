@@ -69,9 +69,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
+pub mod crypto;
 #[cfg(target_arch = "wasm32")]
 pub mod ctor;
-pub mod crypto;
 pub mod errors;
 pub mod exec;
 pub mod hash;
