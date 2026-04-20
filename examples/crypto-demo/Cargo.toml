@@ -20,15 +20,8 @@ gear-wasm-builder.workspace = true
 gtest.workspace = true
 log.workspace = true
 sp-core = { workspace = true, features = ["std"] }
-# Used in the KAT recover test to decompress sp_core's 33-byte pubkey
-# to the 65-byte form the syscall ABI returns, so the test can
-# byte-compare.
 libsecp256k1 = { workspace = true, features = ["std", "static-context"] }
-# For shared SECP256K1_N_HALF constant + is_low_s helper used by the
-# malleability tests (single source of truth across both networks).
 gear-core.workspace = true
-# Sign sr25519 messages with explicit signing contexts (sp_core hardcodes
-# b"substrate"; tests need arbitrary ctx).
 schnorrkel = { version = "0.11.4", default-features = false, features = ["std"] }
 
 [features]

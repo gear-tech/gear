@@ -24,17 +24,7 @@ derive_more.workspace = true
 actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 sp-core = { workspace = true }
-# NOTE: sp-io was previously pulled here for secp256k1_ecdsa_recover, but
-# on wasm32 targets it registers its own #[global_allocator] which
-# conflicts with ethexe-runtime's allocator. Switched to libsecp256k1
-# directly (already transitively present via sp-core::ecdsa) so the
-# Vara path doesn't drag the sp_io allocator into the ethexe-runtime
-# wasm blob.
 libsecp256k1 = { workspace = true, features = ["static-context"] }
-# Used directly for context-parameterized sr25519 verification.
-# sp_core::sr25519::Pair::verify hardcodes ctx = b"substrate"; we call
-# schnorrkel::PublicKey::verify_simple directly so the gr_sr25519_verify
-# syscall can accept any Schnorrkel simple signing context.
 schnorrkel = { version = "0.11.4", default-features = false }
 gear-workspace-hack.workspace = true
 
