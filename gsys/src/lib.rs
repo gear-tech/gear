@@ -628,7 +628,7 @@ syscalls! {
     /// Error codes:
     /// - `0` = success.
     /// - `1` = any cryptographic failure. Covers malformed signatures
-    ///   (bad length, unparseable, invalid `v` byte), non-recoverable
+    ///   (bad length, unparsable, invalid `v` byte), non-recoverable
     ///   signatures (curve math yielded no valid pubkey), AND high-s
     ///   signatures rejected under `malleability_flag = 1`. These are
     ///   collapsed into a single code because the Vara trait surface
