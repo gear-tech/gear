@@ -110,52 +110,27 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-consensus 1.7.3",
- "alloy-contract 1.7.3",
- "alloy-core",
- "alloy-eips 1.7.3",
- "alloy-genesis 1.7.3",
- "alloy-network 1.7.3",
- "alloy-node-bindings 1.7.3",
- "alloy-provider 1.7.3",
- "alloy-pubsub 1.7.3",
- "alloy-rpc-client 1.7.3",
- "alloy-rpc-types 1.7.3",
- "alloy-serde 1.7.3",
- "alloy-signer 1.7.3",
- "alloy-signer-local 1.7.3",
- "alloy-transport 1.7.3",
- "alloy-transport-http 1.7.3",
- "alloy-transport-ws 1.7.3",
- "alloy-trie",
-]
-
-[[package]]
-name = "alloy"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85805c194576017df6c11057504e1d60b36f3913f8e365945486931f6ee81e40"
 dependencies = [
- "alloy-consensus 2.0.0",
- "alloy-contract 2.0.0",
+ "alloy-consensus",
+ "alloy-contract",
  "alloy-core",
- "alloy-eips 2.0.0",
- "alloy-genesis 2.0.0",
- "alloy-network 2.0.0",
- "alloy-node-bindings 2.0.0",
- "alloy-provider 2.0.0",
- "alloy-pubsub 2.0.0",
- "alloy-rpc-client 2.0.0",
- "alloy-rpc-types 2.0.0",
- "alloy-serde 2.0.0",
- "alloy-signer 2.0.0",
- "alloy-signer-local 2.0.0",
- "alloy-transport 2.0.0",
- "alloy-transport-http 2.0.0",
- "alloy-transport-ws 2.0.0",
+ "alloy-eips",
+ "alloy-genesis",
+ "alloy-network",
+ "alloy-node-bindings",
+ "alloy-provider",
+ "alloy-pubsub",
+ "alloy-rpc-client",
+ "alloy-rpc-types",
+ "alloy-serde",
+ "alloy-signer",
+ "alloy-signer-local",
+ "alloy-transport",
+ "alloy-transport-http",
+ "alloy-transport-ws",
  "alloy-trie",
 ]
 
@@ -173,42 +148,16 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-eips 1.7.3",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-serde 1.7.3",
- "alloy-trie",
- "alloy-tx-macros 1.7.3",
- "auto_impl",
- "borsh",
- "c-kzg",
- "derive_more 2.1.1",
- "either",
- "k256",
- "once_cell",
- "rand 0.8.5",
- "secp256k1 0.30.0",
- "serde",
- "serde_json",
- "serde_with",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "alloy-consensus"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8dbe4e5e9107bf6854e7550b666ca654ff2027eabf8153913e2e31ac4b089779"
 dependencies = [
- "alloy-eips 2.0.0",
+ "alloy-eips",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 2.0.0",
+ "alloy-serde",
  "alloy-trie",
- "alloy-tx-macros 2.0.0",
+ "alloy-tx-macros",
  "auto_impl",
  "borsh",
  "c-kzg",
@@ -222,19 +171,6 @@ dependencies = [
  "serde_json",
  "serde_with",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "alloy-consensus-any"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-consensus 1.7.3",
- "alloy-eips 1.7.3",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-serde 1.7.3",
- "serde",
 ]
 
 [[package]]
@@ -243,34 +179,12 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88fc7bbfb98cf5605a35aadf0ba43a7d9f1608d6f220d05e4fbd5144d3b0b625"
 dependencies = [
- "alloy-consensus 2.0.0",
- "alloy-eips 2.0.0",
+ "alloy-consensus",
+ "alloy-eips",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 2.0.0",
+ "alloy-serde",
  "serde",
-]
-
-[[package]]
-name = "alloy-contract"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-consensus 1.7.3",
- "alloy-dyn-abi",
- "alloy-json-abi",
- "alloy-network 1.7.3",
- "alloy-network-primitives 1.7.3",
- "alloy-primitives",
- "alloy-provider 1.7.3",
- "alloy-pubsub 1.7.3",
- "alloy-rpc-types-eth 1.7.3",
- "alloy-sol-types",
- "alloy-transport 1.7.3",
- "futures",
- "futures-util",
- "serde_json",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -279,17 +193,17 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4c16fa30b623e40a5b216da00f3b61870f5cbe863b59816ac1ecc2489515a40"
 dependencies = [
- "alloy-consensus 2.0.0",
+ "alloy-consensus",
  "alloy-dyn-abi",
  "alloy-json-abi",
- "alloy-network 2.0.0",
- "alloy-network-primitives 2.0.0",
+ "alloy-network",
+ "alloy-network-primitives",
  "alloy-primitives",
- "alloy-provider 2.0.0",
- "alloy-pubsub 2.0.0",
- "alloy-rpc-types-eth 2.0.0",
+ "alloy-provider",
+ "alloy-pubsub",
+ "alloy-rpc-types-eth",
  "alloy-sol-types",
- "alloy-transport 2.0.0",
+ "alloy-transport",
  "futures",
  "futures-util",
  "serde_json",
@@ -378,29 +292,6 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-eip2124",
- "alloy-eip2930",
- "alloy-eip7702",
- "alloy-eip7928",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-serde 1.7.3",
- "auto_impl",
- "borsh",
- "c-kzg",
- "derive_more 2.1.1",
- "either",
- "serde",
- "serde_with",
- "sha2 0.10.9",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "alloy-eips"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afb4919fa34b268842f434bfafa9c09136ab7b1a87ce0dd40a61befa35b5408c"
@@ -411,7 +302,7 @@ dependencies = [
  "alloy-eip7928",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 2.0.0",
+ "alloy-serde",
  "auto_impl",
  "borsh",
  "c-kzg",
@@ -424,27 +315,13 @@ dependencies = [
 
 [[package]]
 name = "alloy-genesis"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-eips 1.7.3",
- "alloy-primitives",
- "alloy-serde 1.7.3",
- "alloy-trie",
- "borsh",
- "serde",
- "serde_with",
-]
-
-[[package]]
-name = "alloy-genesis"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e111e22c1a2133e9ebfd9051ea0eaf63559594d2f50d43cbc6762fbb95fc3c2"
 dependencies = [
- "alloy-eips 2.0.0",
+ "alloy-eips",
  "alloy-primitives",
- "alloy-serde 2.0.0",
+ "alloy-serde",
  "alloy-trie",
  "borsh",
  "serde",
@@ -478,20 +355,6 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-rpc"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-primitives",
- "alloy-sol-types",
- "http 1.4.0",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tracing",
-]
-
-[[package]]
-name = "alloy-json-rpc"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31b6af6f374c1eeef8ab8dc26232cd440db167322a4207a3debd3d1ee565ca47"
@@ -507,45 +370,20 @@ dependencies = [
 
 [[package]]
 name = "alloy-network"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-consensus 1.7.3",
- "alloy-consensus-any 1.7.3",
- "alloy-eips 1.7.3",
- "alloy-json-rpc 1.7.3",
- "alloy-network-primitives 1.7.3",
- "alloy-primitives",
- "alloy-rpc-types-any 1.7.3",
- "alloy-rpc-types-eth 1.7.3",
- "alloy-serde 1.7.3",
- "alloy-signer 1.7.3",
- "alloy-sol-types",
- "async-trait",
- "auto_impl",
- "derive_more 2.1.1",
- "futures-utils-wasm",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "alloy-network"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0a3f5a7f3678b71d33fcc45b714fab8928dbc647d5aff2145e72032d5c849bb"
 dependencies = [
- "alloy-consensus 2.0.0",
- "alloy-consensus-any 2.0.0",
- "alloy-eips 2.0.0",
- "alloy-json-rpc 2.0.0",
- "alloy-network-primitives 2.0.0",
+ "alloy-consensus",
+ "alloy-consensus-any",
+ "alloy-eips",
+ "alloy-json-rpc",
+ "alloy-network-primitives",
  "alloy-primitives",
- "alloy-rpc-types-any 2.0.0",
- "alloy-rpc-types-eth 2.0.0",
- "alloy-serde 2.0.0",
- "alloy-signer 2.0.0",
+ "alloy-rpc-types-any",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
+ "alloy-signer",
  "alloy-sol-types",
  "async-trait",
  "auto_impl",
@@ -554,18 +392,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "alloy-network-primitives"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-consensus 1.7.3",
- "alloy-eips 1.7.3",
- "alloy-primitives",
- "alloy-serde 1.7.3",
- "serde",
 ]
 
 [[package]]
@@ -574,32 +400,11 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb50dc1fb0e0b2c8748d5bee1aa7acdd18f9e036311bc93a71d97be624030317"
 dependencies = [
- "alloy-consensus 2.0.0",
- "alloy-eips 2.0.0",
+ "alloy-consensus",
+ "alloy-eips",
  "alloy-primitives",
- "alloy-serde 2.0.0",
+ "alloy-serde",
  "serde",
-]
-
-[[package]]
-name = "alloy-node-bindings"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-genesis 1.7.3",
- "alloy-hardforks",
- "alloy-network 1.7.3",
- "alloy-primitives",
- "alloy-signer 1.7.3",
- "alloy-signer-local 1.7.3",
- "k256",
- "libc",
- "rand 0.8.5",
- "serde_json",
- "tempfile",
- "thiserror 2.0.17",
- "tracing",
- "url",
 ]
 
 [[package]]
@@ -608,12 +413,12 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85195890fcee519312718dc8418035935ad0d57f57943ca82689732432a702c9"
 dependencies = [
- "alloy-genesis 2.0.0",
+ "alloy-genesis",
  "alloy-hardforks",
- "alloy-network 2.0.0",
+ "alloy-network",
  "alloy-primitives",
- "alloy-signer 2.0.0",
- "alloy-signer-local 2.0.0",
+ "alloy-signer",
+ "alloy-signer-local",
  "k256",
  "libc",
  "rand 0.8.5",
@@ -653,69 +458,27 @@ dependencies = [
 
 [[package]]
 name = "alloy-provider"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-chains",
- "alloy-consensus 1.7.3",
- "alloy-eips 1.7.3",
- "alloy-json-rpc 1.7.3",
- "alloy-network 1.7.3",
- "alloy-network-primitives 1.7.3",
- "alloy-node-bindings 1.7.3",
- "alloy-primitives",
- "alloy-pubsub 1.7.3",
- "alloy-rpc-client 1.7.3",
- "alloy-rpc-types-anvil 1.7.3",
- "alloy-rpc-types-eth 1.7.3",
- "alloy-signer 1.7.3",
- "alloy-sol-types",
- "alloy-transport 1.7.3",
- "alloy-transport-http 1.7.3",
- "alloy-transport-ws 1.7.3",
- "async-stream",
- "async-trait",
- "auto_impl",
- "dashmap 6.1.0",
- "either",
- "futures",
- "futures-utils-wasm",
- "lru 0.16.3",
- "parking_lot 0.12.5",
- "pin-project",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tokio",
- "tracing",
- "url",
- "wasmtimer",
-]
-
-[[package]]
-name = "alloy-provider"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2ba5468f78c8893be2d68a7f2fda61753336e5653f006af19781001b5f99e6c"
 dependencies = [
  "alloy-chains",
- "alloy-consensus 2.0.0",
- "alloy-eips 2.0.0",
- "alloy-json-rpc 2.0.0",
- "alloy-network 2.0.0",
- "alloy-network-primitives 2.0.0",
- "alloy-node-bindings 2.0.0",
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-json-rpc",
+ "alloy-network",
+ "alloy-network-primitives",
+ "alloy-node-bindings",
  "alloy-primitives",
- "alloy-pubsub 2.0.0",
- "alloy-rpc-client 2.0.0",
- "alloy-rpc-types-anvil 2.0.0",
- "alloy-rpc-types-eth 2.0.0",
- "alloy-signer 2.0.0",
+ "alloy-pubsub",
+ "alloy-rpc-client",
+ "alloy-rpc-types-anvil",
+ "alloy-rpc-types-eth",
+ "alloy-signer",
  "alloy-sol-types",
- "alloy-transport 2.0.0",
- "alloy-transport-http 2.0.0",
- "alloy-transport-ws 2.0.0",
+ "alloy-transport",
+ "alloy-transport-http",
+ "alloy-transport-ws",
  "async-stream",
  "async-trait",
  "auto_impl",
@@ -738,34 +501,13 @@ dependencies = [
 
 [[package]]
 name = "alloy-pubsub"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-json-rpc 1.7.3",
- "alloy-primitives",
- "alloy-transport 1.7.3",
- "auto_impl",
- "bimap",
- "futures",
- "parking_lot 0.12.5",
- "serde",
- "serde_json",
- "tokio",
- "tokio-stream",
- "tower 0.5.2",
- "tracing",
- "wasmtimer",
-]
-
-[[package]]
-name = "alloy-pubsub"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffcefb5d3391a320eadb95d398e4135f8cc35c7bf29a6bdb357eadcfc5ee5638"
 dependencies = [
- "alloy-json-rpc 2.0.0",
+ "alloy-json-rpc",
  "alloy-primitives",
- "alloy-transport 2.0.0",
+ "alloy-transport",
  "auto_impl",
  "bimap",
  "futures",
@@ -803,40 +545,16 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-client"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-json-rpc 1.7.3",
- "alloy-primitives",
- "alloy-pubsub 1.7.3",
- "alloy-transport 1.7.3",
- "alloy-transport-http 1.7.3",
- "alloy-transport-ws 1.7.3",
- "futures",
- "pin-project",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tokio",
- "tokio-stream",
- "tower 0.5.2",
- "tracing",
- "url",
- "wasmtimer",
-]
-
-[[package]]
-name = "alloy-rpc-client"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "222fd4efff0fb9a25184684742c44fe9fa9a16c4ab5bf97583e71c86598ef8f0"
 dependencies = [
- "alloy-json-rpc 2.0.0",
+ "alloy-json-rpc",
  "alloy-primitives",
- "alloy-pubsub 2.0.0",
- "alloy-transport 2.0.0",
- "alloy-transport-http 2.0.0",
- "alloy-transport-ws 2.0.0",
+ "alloy-pubsub",
+ "alloy-transport",
+ "alloy-transport-http",
+ "alloy-transport-ws",
  "futures",
  "pin-project",
  "reqwest 0.13.2",
@@ -852,41 +570,16 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-primitives",
- "alloy-rpc-types-anvil 1.7.3",
- "alloy-rpc-types-beacon 1.7.3",
- "alloy-rpc-types-engine 1.7.3",
- "alloy-rpc-types-eth 1.7.3",
- "alloy-serde 1.7.3",
- "serde",
-]
-
-[[package]]
-name = "alloy-rpc-types"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "974df1e56405c27cb8242381f45d8b212ba9df5006046ccf704764a2a4634366"
 dependencies = [
  "alloy-primitives",
- "alloy-rpc-types-anvil 2.0.0",
- "alloy-rpc-types-beacon 2.0.0",
- "alloy-rpc-types-engine 2.0.0",
- "alloy-rpc-types-eth 2.0.0",
- "alloy-serde 2.0.0",
- "serde",
-]
-
-[[package]]
-name = "alloy-rpc-types-anvil"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-primitives",
- "alloy-rpc-types-eth 1.7.3",
- "alloy-serde 1.7.3",
+ "alloy-rpc-types-anvil",
+ "alloy-rpc-types-beacon",
+ "alloy-rpc-types-engine",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
  "serde",
 ]
 
@@ -897,19 +590,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06bc10b0dca4f5bfc3cd30ed46eab5d651b5bb2cd300d683bdcdf5d2bfe6e82c"
 dependencies = [
  "alloy-primitives",
- "alloy-rpc-types-eth 2.0.0",
- "alloy-serde 2.0.0",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
  "serde",
-]
-
-[[package]]
-name = "alloy-rpc-types-any"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-consensus-any 1.7.3",
- "alloy-rpc-types-eth 1.7.3",
- "alloy-serde 1.7.3",
 ]
 
 [[package]]
@@ -918,28 +601,13 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "949c0f16a94ae33cdb1139b8dbf9e34d7f26ebfe97962e2a4d620b5f65f48fe4"
 dependencies = [
- "alloy-consensus-any 2.0.0",
- "alloy-network-primitives 2.0.0",
+ "alloy-consensus-any",
+ "alloy-network-primitives",
  "alloy-primitives",
- "alloy-rpc-types-eth 2.0.0",
- "alloy-serde 2.0.0",
+ "alloy-rpc-types-eth",
+ "alloy-serde",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "alloy-rpc-types-beacon"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-eips 1.7.3",
- "alloy-primitives",
- "alloy-rpc-types-engine 1.7.3",
- "derive_more 2.1.1",
- "serde",
- "serde_json",
- "serde_with",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -948,30 +616,14 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a8f7fa8ca056bb797a368aeed329e6ace6b62ee4271432ac36ab8ae87a5e60d"
 dependencies = [
- "alloy-eips 2.0.0",
+ "alloy-eips",
  "alloy-primitives",
- "alloy-rpc-types-engine 2.0.0",
+ "alloy-rpc-types-engine",
  "derive_more 2.1.1",
  "serde",
  "serde_json",
  "serde_with",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "alloy-rpc-types-engine"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-consensus 1.7.3",
- "alloy-eips 1.7.3",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-serde 1.7.3",
- "derive_more 2.1.1",
- "rand 0.8.5",
- "serde",
- "strum 0.27.2",
 ]
 
 [[package]]
@@ -980,11 +632,11 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e59bc947935732cae5b072753e5e034c0b70a8b031c2839f45e2659ba07df9ae"
 dependencies = [
- "alloy-consensus 2.0.0",
- "alloy-eips 2.0.0",
+ "alloy-consensus",
+ "alloy-eips",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 2.0.0",
+ "alloy-serde",
  "derive_more 2.1.1",
  "rand 0.8.5",
  "serde",
@@ -993,53 +645,23 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-eth"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-consensus 1.7.3",
- "alloy-consensus-any 1.7.3",
- "alloy-eips 1.7.3",
- "alloy-network-primitives 1.7.3",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-serde 1.7.3",
- "alloy-sol-types",
- "itertools 0.13.0",
- "serde",
- "serde_json",
- "serde_with",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "alloy-rpc-types-eth"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc280a41931bd419af86e9e859dd9726b73313aaa2e479b33c0e344f4b892ddb"
 dependencies = [
- "alloy-consensus 2.0.0",
- "alloy-consensus-any 2.0.0",
- "alloy-eips 2.0.0",
- "alloy-network-primitives 2.0.0",
+ "alloy-consensus",
+ "alloy-consensus-any",
+ "alloy-eips",
+ "alloy-network-primitives",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-serde 2.0.0",
+ "alloy-serde",
  "alloy-sol-types",
  "itertools 0.14.0",
  "serde",
  "serde_json",
  "serde_with",
  "thiserror 2.0.17",
-]
-
-[[package]]
-name = "alloy-serde"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-primitives",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1051,20 +673,6 @@ dependencies = [
  "alloy-primitives",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "alloy-signer"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-primitives",
- "async-trait",
- "auto_impl",
- "either",
- "elliptic-curve",
- "k256",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1084,32 +692,14 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer-local"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-consensus 1.7.3",
- "alloy-network 1.7.3",
- "alloy-primitives",
- "alloy-signer 1.7.3",
- "async-trait",
- "coins-bip32",
- "coins-bip39",
- "k256",
- "rand 0.8.5",
- "thiserror 2.0.17",
- "zeroize",
-]
-
-[[package]]
-name = "alloy-signer-local"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c67d2372aada343130d41e249b59a3cef29b1678dcd3fd80f1c2c4d6b5318f2"
 dependencies = [
- "alloy-consensus 2.0.0",
- "alloy-network 2.0.0",
+ "alloy-consensus",
+ "alloy-network",
  "alloy-primitives",
- "alloy-signer 2.0.0",
+ "alloy-signer",
  "async-trait",
  "coins-bip32",
  "coins-bip39",
@@ -1194,33 +784,11 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-json-rpc 1.7.3",
- "auto_impl",
- "base64 0.22.1",
- "derive_more 2.1.1",
- "futures",
- "futures-utils-wasm",
- "parking_lot 0.12.5",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tokio",
- "tower 0.5.2",
- "tracing",
- "url",
- "wasmtimer",
-]
-
-[[package]]
-name = "alloy-transport"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32b7b755e64ae6b5de0d762ed2c780e072167ea5e542076a559e00314352a0bf"
 dependencies = [
- "alloy-json-rpc 2.0.0",
+ "alloy-json-rpc",
  "auto_impl",
  "base64 0.22.1",
  "derive_more 2.1.1",
@@ -1235,21 +803,6 @@ dependencies = [
  "tracing",
  "url",
  "wasmtimer",
-]
-
-[[package]]
-name = "alloy-transport-http"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-json-rpc 1.7.3",
- "alloy-transport 1.7.3",
- "itertools 0.13.0",
- "reqwest 0.12.28",
- "serde_json",
- "tower 0.5.2",
- "tracing",
- "url",
 ]
 
 [[package]]
@@ -1258,8 +811,8 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a29980e69119444ed26b75e7ee5bed2043870f904a64318297e55800db686564"
 dependencies = [
- "alloy-json-rpc 2.0.0",
- "alloy-transport 2.0.0",
+ "alloy-json-rpc",
+ "alloy-transport",
  "itertools 0.14.0",
  "reqwest 0.13.2",
  "serde_json",
@@ -1270,29 +823,12 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-ws"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "alloy-pubsub 1.7.3",
- "alloy-transport 1.7.3",
- "futures",
- "http 1.4.0",
- "serde_json",
- "tokio",
- "tokio-tungstenite 0.26.2",
- "tracing",
- "url",
- "ws_stream_wasm",
-]
-
-[[package]]
-name = "alloy-transport-ws"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4b71dc951db66795cfb52eef835f64cf15163bc93b656e061b457ce5ebff370"
 dependencies = [
- "alloy-pubsub 2.0.0",
- "alloy-transport 2.0.0",
+ "alloy-pubsub",
+ "alloy-transport",
  "futures",
  "http 1.4.0",
  "rustls 0.23.36",
@@ -1318,17 +854,6 @@ dependencies = [
  "serde",
  "smallvec",
  "tracing",
-]
-
-[[package]]
-name = "alloy-tx-macros"
-version = "1.7.3"
-source = "git+https://github.com/gear-tech/alloy.git?branch=fix-blob-gas-filler#eb448cabe2138d016cf7dd5542293ec5b8c317cf"
-dependencies = [
- "darling 0.21.3",
- "proc-macro2",
- "quote",
- "syn 2.0.114",
 ]
 
 [[package]]
@@ -4037,7 +3562,6 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "serde",
  "strsim 0.11.1",
  "syn 2.0.114",
 ]
@@ -5584,7 +5108,7 @@ checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 name = "ethexe-blob-loader"
 version = "1.10.0"
 dependencies = [
- "alloy 2.0.0",
+ "alloy",
  "ethexe-common",
  "ethexe-ethereum",
  "futures",
@@ -5692,7 +5216,7 @@ dependencies = [
 name = "ethexe-consensus"
 version = "1.10.0"
 dependencies = [
- "alloy 2.0.0",
+ "alloy",
  "anyhow",
  "async-trait",
  "derive_more 2.1.1",
@@ -5726,7 +5250,7 @@ dependencies = [
 name = "ethexe-db"
 version = "1.10.0"
 dependencies = [
- "alloy 2.0.0",
+ "alloy",
  "anyhow",
  "auto_impl",
  "dashmap 5.5.3",
@@ -5760,7 +5284,7 @@ dependencies = [
 name = "ethexe-ethereum"
 version = "1.10.0"
 dependencies = [
- "alloy 2.0.0",
+ "alloy",
  "anyhow",
  "async-trait",
  "ethexe-common",
@@ -5819,7 +5343,7 @@ dependencies = [
 name = "ethexe-node-loader"
 version = "1.10.0"
 dependencies = [
- "alloy 2.0.0",
+ "alloy",
  "anyhow",
  "clap 4.5.54",
  "demo-syscalls-ethexe",
@@ -5860,7 +5384,7 @@ dependencies = [
 name = "ethexe-observer"
 version = "1.10.0"
 dependencies = [
- "alloy 2.0.0",
+ "alloy",
  "anyhow",
  "derive_more 2.1.1",
  "ethexe-common",
@@ -6006,7 +5530,7 @@ dependencies = [
 name = "ethexe-sdk"
 version = "1.10.0"
 dependencies = [
- "alloy 2.0.0",
+ "alloy",
  "anyhow",
  "ethexe-common",
  "ethexe-ethereum",
@@ -6024,7 +5548,7 @@ dependencies = [
 name = "ethexe-service"
 version = "1.10.0"
 dependencies = [
- "alloy 2.0.0",
+ "alloy",
  "anyhow",
  "async-broadcast",
  "async-trait",
@@ -7874,17 +7398,17 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "ahash",
- "alloy 1.7.3",
+ "alloy",
  "alloy-chains",
- "alloy-consensus 1.7.3",
- "alloy-contract 1.7.3",
- "alloy-eips 1.7.3",
+ "alloy-consensus",
+ "alloy-contract",
+ "alloy-eips",
  "alloy-json-abi",
  "alloy-primitives",
- "alloy-provider 1.7.3",
- "alloy-rpc-client 1.7.3",
- "alloy-rpc-types 1.7.3",
- "alloy-signer-local 1.7.3",
+ "alloy-provider",
+ "alloy-rpc-client",
+ "alloy-rpc-types",
+ "alloy-signer-local",
  "alloy-sol-macro",
  "alloy-sol-macro-expander",
  "alloy-sol-macro-input",
@@ -7953,7 +7477,6 @@ dependencies = [
  "event-listener-strategy",
  "finality-grandpa",
  "fixed-hash",
- "foldhash 0.2.0",
  "form_urlencoded",
  "frame-executive",
  "frame-metadata 16.0.0",
@@ -8093,7 +7616,6 @@ dependencies = [
  "rustc-hash 2.1.1",
  "rustc-hex",
  "rustix 0.36.17",
- "rustix 0.38.44",
  "rustix 1.1.3",
  "rustls 0.23.36",
  "rustls-webpki 0.103.8",
@@ -8111,6 +7633,7 @@ dependencies = [
  "sec1",
  "secp256k1 0.28.2",
  "secrecy",
+ "security-framework 3.5.1",
  "security-framework-sys",
  "semver 1.0.27",
  "serde",
@@ -19580,22 +19103,6 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.26.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a9daff607c6d2bf6c16fd681ccb7eecc83e4e2cdc1ca067ffaadfca5de7f084"
-dependencies = [
- "futures-util",
- "log",
- "rustls 0.23.36",
- "rustls-pki-types",
- "tokio",
- "tokio-rustls 0.26.4",
- "tungstenite 0.26.2",
- "webpki-roots 0.26.11",
-]
-
-[[package]]
-name = "tokio-tungstenite"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
@@ -20038,25 +19545,6 @@ dependencies = [
  "sha1",
  "thiserror 1.0.69",
  "url",
- "utf-8",
-]
-
-[[package]]
-name = "tungstenite"
-version = "0.26.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4793cb5e56680ecbb1d843515b23b6de9a75eb04b66643e256a396d43be33c13"
-dependencies = [
- "bytes",
- "data-encoding",
- "http 1.4.0",
- "httparse",
- "log",
- "rand 0.9.2",
- "rustls 0.23.36",
- "rustls-pki-types",
- "sha1",
- "thiserror 2.0.17",
  "utf-8",
 ]
 
