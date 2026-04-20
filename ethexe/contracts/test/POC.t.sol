@@ -28,6 +28,8 @@ contract POCTest is Base {
     address[] private vaults;
     address private sender;
     uint256 private senderPrivateKey;
+    address private relayer;
+    uint256 private relayerPrivateKey;
 
     function setUp() public override {
         admin = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
@@ -36,6 +38,7 @@ contract POCTest is Base {
         blockDuration = 12;
         maxValidators = 3;
         (sender, senderPrivateKey) = makeAddrAndKey("Sender");
+        (relayer, relayerPrivateKey) = makeAddrAndKey("Relayer");
 
         setUpWrappedVara();
 
@@ -170,7 +173,9 @@ contract POCTest is Base {
         }
         vm.stopPrank();
 
-        vm.startPrank(sender);
+        assertEq(wrappedVara.balanceOf(sender), fee);
+
+        vm.startPrank(relayer);
 
         bytes32 _codeId = bytes32(uint256(1));
         bytes32[] memory blobHashes = new bytes32[](1);
@@ -190,6 +195,8 @@ contract POCTest is Base {
         vm.blobhashes(blobHashes);
 
         router.requestCodeValidationOnBehalf(sender, _codeId, blobHashes, deadline, v1, r1, s1, v2, r2, s2);
+
+        assertEq(wrappedVara.balanceOf(sender), 0);
 
         vm.stopPrank();
     }
