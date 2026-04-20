@@ -7519,7 +7519,7 @@ dependencies = [
  "indexmap 2.13.0",
  "ipnet",
  "itertools 0.10.5",
- "itertools 0.13.0",
+ "itertools 0.11.0",
  "js-sys",
  "jsonrpsee",
  "jsonrpsee-client-transport",
