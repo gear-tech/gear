@@ -1388,6 +1388,122 @@ where
         Self::prepare_handle(module, 0)
     }
 
+    /// Base cost of `gr_blake2b_256`: hashes a fixed small payload
+    /// `r * batch_size` times. Combined with `gr_blake2b_256_per_kb`
+    /// this gives base + per-byte weights via linear regression.
+    pub fn gr_blake2b_256(r: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+        let data_offset = COMMON_OFFSET;
+        let data_len = COMMON_PAYLOAD_LEN;
+        let out_offset = data_offset + data_len;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SyscallName::Blake2b256],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // data ptr
+                    InstrI32Const(data_offset),
+                    // data len
+                    InstrI32Const(data_len),
+                    // out ptr (32-byte hash)
+                    InstrI32Const(out_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    /// Per-byte cost of `gr_blake2b_256`: hashes an `n`-KB payload once
+    /// per batch. Linear slope of the resulting time vs `n` yields the
+    /// `gr_blake2b_256_per_byte` weight.
+    pub fn gr_blake2b_256_per_kb(n: u32) -> Result<Exec<T>, &'static str> {
+        let repetitions = API_BENCHMARK_BATCH_SIZE;
+        let data_offset = COMMON_OFFSET;
+        let data_len = n * 1024;
+        let out_offset = data_offset + data_len;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            imported_functions: vec![SyscallName::Blake2b256],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    InstrI32Const(data_offset),
+                    InstrI32Const(data_len),
+                    InstrI32Const(out_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
+    /// Fixed cost of `gr_sr25519_verify`: verifies a KNOWN-VALID
+    /// (pk, msg, sig) triple `r * batch_size` times. Writing a valid
+    /// pre-signed triple into guest memory via `data_segments` ensures
+    /// the native `sp_core::sr25519::Pair::verify` runs the full
+    /// curve25519 pipeline (pubkey decompression → signature check →
+    /// batch equation). A zero-initialized triple would short-circuit
+    /// at pubkey decompression and understate the cost.
+    pub fn gr_sr25519_verify(r: u32) -> Result<Exec<T>, &'static str> {
+        use sp_core::{Pair as _, sr25519::Pair};
+
+        let repetitions = r * API_BENCHMARK_BATCH_SIZE;
+
+        // Deterministic triple — stable across bench runs.
+        let pair = Pair::from_seed(&[0x42u8; 32]);
+        let pk_bytes: [u8; 32] = pair.public().0;
+        let msg_bytes: &[u8] = b"gear-protocol-sr25519-verify-bench";
+        let sig_bytes: [u8; 64] = pair.sign(msg_bytes).0;
+
+        let pk_offset = COMMON_OFFSET;
+        let msg_offset = pk_offset + pk_bytes.len() as u32;
+        let sig_offset = msg_offset + msg_bytes.len() as u32;
+        let out_offset = sig_offset + sig_bytes.len() as u32;
+
+        let module = ModuleDefinition {
+            memory: Some(ImportedMemory::new(SMALL_MEM_SIZE)),
+            imported_functions: vec![SyscallName::Sr25519Verify],
+            data_segments: vec![
+                DataSegment {
+                    offset: pk_offset,
+                    value: pk_bytes.to_vec(),
+                },
+                DataSegment {
+                    offset: msg_offset,
+                    value: msg_bytes.to_vec(),
+                },
+                DataSegment {
+                    offset: sig_offset,
+                    value: sig_bytes.to_vec(),
+                },
+            ],
+            handle_body: Some(body::syscall(
+                repetitions,
+                &[
+                    // pk ptr (32 bytes)
+                    InstrI32Const(pk_offset),
+                    // msg ptr
+                    InstrI32Const(msg_offset),
+                    // msg len
+                    InstrI32Const(msg_bytes.len() as u32),
+                    // sig ptr (64 bytes)
+                    InstrI32Const(sig_offset),
+                    // out ptr (1 byte)
+                    InstrI32Const(out_offset),
+                ],
+            )),
+            ..Default::default()
+        };
+
+        Self::prepare_handle(module, 0)
+    }
+
     pub fn termination_bench(
         name: SyscallName,
         param: Option<u32>,

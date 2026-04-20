@@ -531,6 +531,18 @@ pub struct SyscallWeights<T: Config> {
     /// Weight per payload byte by `gr_debug_per_byte`.
     pub gr_debug_per_byte: Weight,
 
+    /// Weight of calling `gr_blake2b_256` (base cost, input-length
+    /// independent).
+    pub gr_blake2b_256: Weight,
+
+    /// Weight per input byte by `gr_blake2b_256_per_byte`.
+    pub gr_blake2b_256_per_byte: Weight,
+
+    /// Weight of calling `gr_sr25519_verify` (fixed cost — signature
+    /// length is fixed at 64 bytes and message length contribution is
+    /// negligible vs the curve math).
+    pub gr_sr25519_verify: Weight,
+
     /// Weight of calling `gr_reply_code`.
     pub gr_reply_code: Weight,
 
@@ -1143,6 +1155,15 @@ impl<T: Config> Default for SyscallWeights<T> {
             gr_random: cost_batched(W::<T>::gr_random),
             gr_debug: cost_batched(W::<T>::gr_debug),
             gr_debug_per_byte: cost_byte_batched(W::<T>::gr_debug_per_kb),
+            // Placeholder weights until `make gear-weights` regenerates
+            // the weights trait with the new crypto benchmarks
+            // (see pallets/gear/src/benchmarking/{syscalls,mod}.rs).
+            // Before the real numbers land, zero-weight means the
+            // syscall charges nothing — demo comparison stays valid
+            // because the WASM baseline is what proves the delta.
+            gr_blake2b_256: Weight::zero(),
+            gr_blake2b_256_per_byte: Weight::zero(),
+            gr_sr25519_verify: Weight::zero(),
             gr_reply_to: cost_batched(W::<T>::gr_reply_to),
             gr_signal_code: cost_batched(W::<T>::gr_signal_code),
             gr_signal_from: cost_batched(W::<T>::gr_signal_from),
@@ -1238,6 +1259,9 @@ impl<T: Config> From<SyscallWeights<T>> for SyscallCosts {
             gr_reply_push_input_per_byte: val.gr_reply_push_input_per_byte.ref_time().into(),
             gr_debug: val.gr_debug.ref_time().into(),
             gr_debug_per_byte: val.gr_debug_per_byte.ref_time().into(),
+            gr_blake2b_256: val.gr_blake2b_256.ref_time().into(),
+            gr_blake2b_256_per_byte: val.gr_blake2b_256_per_byte.ref_time().into(),
+            gr_sr25519_verify: val.gr_sr25519_verify.ref_time().into(),
             gr_reply_to: val.gr_reply_to.ref_time().into(),
             gr_signal_code: val.gr_signal_code.ref_time().into(),
             gr_signal_from: val.gr_signal_from.ref_time().into(),
