@@ -444,7 +444,7 @@ mod tests {
 
         const USER_ID: ActorId = ActorId::new([1u8; 32]);
 
-        pub fn upload_code(processor: &mut Processor, code: &[u8], db: &Database) -> CodeId {
+        pub async fn upload_code(processor: &mut Processor, code: &[u8], db: &Database) -> CodeId {
             let code_id = CodeId::generate(code);
 
             let ValidCodeInfo {
@@ -456,6 +456,7 @@ mod tests {
                     code: code.to_vec(),
                     code_id,
                 })
+                .await
                 .expect("failed to process code")
                 .valid
                 .expect("code is invalid");
@@ -614,7 +615,7 @@ mod tests {
                 let db = Database::memory();
                 let mut processor = Processor::new(db.clone()).unwrap();
                 let ping_code_id =
-                    test_utils::upload_code(&mut processor, demo_ping::WASM_BINARY, &db);
+                    test_utils::upload_code(&mut processor, demo_ping::WASM_BINARY, &db).await;
                 let ping_id = ActorId::from(0x10000);
                 let blockchain = chain.setup(&db);
                 let blockchain_len = blockchain.blocks.len() - 1;
@@ -713,7 +714,7 @@ mod tests {
                 let mut processor = Processor::new(db.clone()).unwrap();
 
                 let ping_code_id =
-                    test_utils::upload_code(&mut processor, demo_ping::WASM_BINARY, &db);
+                    test_utils::upload_code(&mut processor, demo_ping::WASM_BINARY, &db).await;
                 let ping_id = ActorId::from(0x10000);
                 let blockchain = chain.setup(&db);
 
