@@ -486,8 +486,10 @@ fn waitlist_entries_strategy() -> BoxedStrategy<BTreeMap<MessageId, (Dispatch, u
 }
 
 #[cfg(test)]
-fn dispatch_stash_entries_strategy()
--> BoxedStrategy<BTreeMap<MessageId, (Dispatch, u32, Option<ActorId>)>> {
+type DispatchStashEntry = (Dispatch, u32, Option<ActorId>);
+
+#[cfg(test)]
+fn dispatch_stash_entries_strategy() -> BoxedStrategy<BTreeMap<MessageId, DispatchStashEntry>> {
     collection::btree_map(
         message_id_strategy(),
         (
