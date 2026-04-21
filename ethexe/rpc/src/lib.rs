@@ -66,9 +66,9 @@ use futures::{Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{
     RpcModule as JsonrpcModule,
-    server::{PingConfig, Server, ServerHandle},
+    server::{PingConfig, RpcServiceBuilder, Server, ServerHandle},
 };
-use metrics::{DEFAULT_TRACKED_METHODS, RpcMetricsRegistry};
+use metrics::{RpcMetricsLayer, RpcMetricsRegistry};
 use std::{
     net::SocketAddr,
     pin::Pin,
@@ -130,16 +130,10 @@ impl RpcServer {
 
         let cors_layer = self.cors_layer()?;
         let http_middleware = tower::ServiceBuilder::new().layer(cors_layer);
-        let rpc_middleware = RpcMetricsRegistry::new(DEFAULT_TRACKED_METHODS).middleware();
 
-        let server = Server::builder()
-            .set_http_middleware(http_middleware)
-            .set_rpc_middleware(rpc_middleware)
-            // Setup WebSocket pings to detect dead connections.
-            // Now it is set to default: ping_interval = 30s, inactive_limit = 40s
-            .enable_ws_ping(PingConfig::default())
-            .build(self.config.listen_addr)
-            .await?;
+        let rpc_metrics_registry = RpcMetricsRegistry::default();
+        let rpc_middleware =
+            RpcServiceBuilder::new().layer(RpcMetricsLayer::from_registry(rpc_metrics_registry));
 
         let processor = Processor::with_config(
             ProcessorConfig {
@@ -161,9 +155,17 @@ impl RpcServer {
         };
         let injected_api = server_apis.injected.clone();
 
-        let handle = server.start(server_apis.into_methods());
+        let server_handle = Server::builder()
+            .set_http_middleware(http_middleware)
+            .set_rpc_middleware(rpc_middleware)
+            // Setup WebSocket pings to detect dead connections.
+            // Now it is set to default: ping_interval = 30s, inactive_limit = 40s
+            .enable_ws_ping(PingConfig::default())
+            .build(self.config.listen_addr)
+            .await?
+            .start(server_apis.into_methods());
 
-        Ok((handle, RpcService::new(rpc_receiver, injected_api)))
+        Ok((server_handle, RpcService::new(rpc_receiver, injected_api)))
     }
 
     fn cors_layer(&self) -> Result<CorsLayer> {

@@ -18,165 +18,190 @@
 
 //! Metrics for the RPC server.
 
-use futures::future::BoxFuture;
-use jsonrpsee::{
-    server::{MethodResponse, RpcServiceBuilder, middleware::rpc::RpcServiceT},
-    types::Request,
-};
-use metrics::{Counter, Gauge, Histogram, counter, gauge, histogram};
-use std::{collections::HashMap, sync::Arc, time::Instant};
-use tower::{
-    Layer,
-    layer::util::{Identity, Stack},
-};
+pub use metrics::*;
+pub use middleware::{RpcMetricsLayer, RpcMetricsRegistry};
 
-/// Methods tracked by the generic RPC middleware.
-pub const DEFAULT_TRACKED_METHODS: &[&str] = &[
-    "injected_sendTransaction",
-    "injected_sendTransactionAndWatch",
-    "program_calculateReplyForHandle",
-];
+mod middleware {
+    use super::metrics::{DEFAULT_TRACKED_METHODS, MethodMetrics};
+    use futures::future::BoxFuture;
+    use jsonrpsee::{
+        server::{MethodResponse, middleware::rpc::RpcServiceT},
+        types::Request,
+    };
+    use std::{collections::HashMap, sync::Arc, time::Instant};
+    use tower::Layer;
 
-/// Metrics for the Injected RPC API lifecycle.
-#[derive(Clone, metrics_derive::Metrics)]
-#[metrics(scope = "ethexe_rpc_injected_api")]
-pub struct InjectedApiMetrics {
-    /// The number of active injected transaction promises subscriptions.
-    pub injected_tx_active_subscriptions: Gauge,
-    /// The total number of injected transaction promises given to subscribers.
-    pub injected_tx_promises_given: Counter,
-}
-
-#[derive(Clone)]
-pub struct RpcMetricsRegistry {
-    methods: Arc<HashMap<&'static str, MethodMetrics>>,
-}
-
-impl RpcMetricsRegistry {
-    pub fn new(methods: &'static [&'static str]) -> Self {
-        let methods = methods
-            .iter()
-            .copied()
-            .map(|method| (method, MethodMetrics::new(method)))
-            .collect();
-
-        Self {
-            methods: Arc::new(methods),
-        }
+    /// A methods metrics registry for [RpcMetricsLayer].
+    /// Internally it uses the mapping `method_name` => [MethodMetrics], so the
+    /// access to metrics is fast and do not add extra request latency.
+    #[derive(Clone)]
+    pub struct RpcMetricsRegistry {
+        methods_map: Arc<HashMap<&'static str, MethodMetrics>>,
     }
 
-    fn get(&self, method: &str) -> Option<&MethodMetrics> {
-        self.methods.get(method)
-    }
-
-    pub fn middleware(self) -> RpcServiceBuilder<Stack<RpcMetricsLayer, Identity>> {
-        RpcServiceBuilder::new().layer(RpcMetricsLayer::new(self))
-    }
-}
-
-#[derive(Clone)]
-pub struct RpcMetricsLayer {
-    registry: RpcMetricsRegistry,
-}
-
-impl RpcMetricsLayer {
-    fn new(registry: RpcMetricsRegistry) -> Self {
-        Self { registry }
-    }
-}
-
-impl<S> Layer<S> for RpcMetricsLayer {
-    type Service = RpcMetricsService<S>;
-
-    fn layer(&self, service: S) -> Self::Service {
-        RpcMetricsService {
-            service,
-            registry: self.registry.clone(),
-        }
-    }
-}
-
-#[derive(Clone)]
-struct MethodMetrics {
-    calls_started: Counter,
-    calls_finished_ok: Counter,
-    calls_finished_err: Counter,
-    calls_latency_seconds: Histogram,
-    calls_response_size_bytes: Histogram,
-    calls_in_flight: Gauge,
-}
-
-impl MethodMetrics {
-    fn new(method: &'static str) -> Self {
-        Self {
-            calls_started: counter!("ethexe_rpc_calls_started_total", "method" => method),
-            calls_finished_ok: counter!(
-                "ethexe_rpc_calls_finished_total",
-                "method" => method,
-                "status" => "ok"
-            ),
-            calls_finished_err: counter!(
-                "ethexe_rpc_calls_finished_total",
-                "method" => method,
-                "status" => "error"
-            ),
-            calls_latency_seconds: histogram!(
-                "ethexe_rpc_call_duration_seconds",
-                "method" => method
-            ),
-            calls_response_size_bytes: histogram!(
-                "ethexe_rpc_response_size_bytes",
-                "method" => method
-            ),
-            calls_in_flight: gauge!("ethexe_rpc_calls_in_flight", "method" => method),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct RpcMetricsService<S> {
-    service: S,
-    registry: RpcMetricsRegistry,
-}
-
-impl<'a, S> RpcServiceT<'a> for RpcMetricsService<S>
-where
-    S: RpcServiceT<'a> + Send + Sync,
-    S::Future: Send + 'a,
-{
-    type Future = BoxFuture<'a, MethodResponse>;
-
-    fn call(&self, request: Request<'a>) -> Self::Future {
-        let metrics = self.registry.get(request.method_name()).cloned();
-        let future = self.service.call(request);
-
-        Box::pin(async move {
-            let Some(metrics) = metrics else {
-                return future.await;
-            };
-
-            metrics.calls_started.increment(1);
-            metrics.calls_in_flight.increment(1);
-            let _in_flight_guard = scopeguard::guard(metrics.calls_in_flight.clone(), |gauge| {
-                gauge.decrement(1);
+    impl RpcMetricsRegistry {
+        pub fn new(methods: &'static [&'static str]) -> Self {
+            let mut methods_map = HashMap::new();
+            methods.iter().copied().for_each(|method_name| {
+                let method_metrics = MethodMetrics::new_with_labels(&[("method", method_name)]);
+                methods_map.insert(method_name, method_metrics);
             });
-            let started_at = Instant::now();
 
-            let response = future.await;
-
-            metrics
-                .calls_latency_seconds
-                .record(started_at.elapsed().as_secs_f64());
-            metrics
-                .calls_response_size_bytes
-                .record(response.as_result().len() as f64);
-
-            if response.is_success() {
-                metrics.calls_finished_ok.increment(1);
-            } else {
-                metrics.calls_finished_err.increment(1);
+            Self {
+                methods_map: Arc::new(methods_map),
             }
-            response
-        })
+        }
+
+        pub fn get(&self, method: &str) -> Option<&MethodMetrics> {
+            self.methods_map.get(method)
+        }
+    }
+
+    impl Default for RpcMetricsRegistry {
+        fn default() -> Self {
+            Self::new(DEFAULT_TRACKED_METHODS)
+        }
+    }
+
+    /// Metrics layer for [jsonrpsee::server::RpcServiceBuilder].
+    /// Uses [RpcMetricsService] to wrap each request to metrics collection logic.
+    ///
+    /// Note: [Self::default] creates itself from registry with [DEFAULT_TRACKED_METHODS].
+    #[derive(Clone, Default)]
+    pub struct RpcMetricsLayer {
+        registry: RpcMetricsRegistry,
+    }
+
+    impl RpcMetricsLayer {
+        /// Creates new [RpcMetricsLayer] from registry.
+        pub fn from_registry(registry: RpcMetricsRegistry) -> Self {
+            Self { registry }
+        }
+    }
+
+    impl<S> Layer<S> for RpcMetricsLayer {
+        type Service = RpcMetricsService<S>;
+
+        fn layer(&self, service: S) -> Self::Service {
+            RpcMetricsService {
+                service,
+                registry: self.registry.clone(),
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct RpcMetricsService<S> {
+        service: S,
+        registry: RpcMetricsRegistry,
+    }
+
+    impl<'a, S> RpcServiceT<'a> for RpcMetricsService<S>
+    where
+        S: RpcServiceT<'a> + Send + Sync,
+        S::Future: Send + 'a,
+    {
+        type Future = BoxFuture<'a, MethodResponse>;
+
+        fn call(&self, request: Request<'a>) -> Self::Future {
+            let metrics = self.registry.get(request.method_name()).cloned();
+            let future = self.service.call(request);
+
+            Box::pin(async move {
+                let Some(metrics) = metrics else {
+                    return future.await;
+                };
+
+                metrics.on_incoming_request();
+                let started_at = Instant::now();
+
+                let response = future.await;
+                metrics.on_outgoing_response(started_at, &response);
+                response
+            })
+        }
+    }
+}
+
+/// Metrics type definitions.
+#[allow(clippy::module_inception)]
+mod metrics {
+    use jsonrpsee::server::MethodResponse;
+    use metrics::{Counter, Gauge, Histogram};
+    use std::time::Instant;
+
+    /// Default methods names tracked by [super::RpcMetricsLayer].
+    pub const DEFAULT_TRACKED_METHODS: &[&str] = &[
+        "injected_sendTransaction",
+        "injected_sendTransactionAndWatch",
+        "program_calculateReplyForHandle",
+    ];
+
+    /// Unified bundle of metrics for RPC method.
+    /// [metrics_derive::Metrics] macro will register all metrics under the `ethexe_rpc_*` scope.
+    ///
+    /// ## Must use
+    /// This object must be created using [MethodMetrics::new_with_labels] method.
+    /// This method will construct all metrics with provided unique label.
+    #[derive(Clone, metrics_derive::Metrics)]
+    #[metrics(scope = "ethexe_rpc")]
+    pub struct MethodMetrics {
+        #[metric(
+            rename = "calls_started_total",
+            describe = "Number of started RPC calls for the method"
+        )]
+        calls_started: Counter,
+        #[metric(
+            rename = "calls_finished_total",
+            labels = [("status", "ok")],
+            describe = "Number of successfully finished RPC calls for the method"
+        )]
+        calls_finished_ok: Counter,
+        #[metric(
+            rename = "calls_finished_total",
+            labels = [("status", "error")],
+            describe = "Number of failed RPC calls for the method"
+        )]
+        calls_finished_err: Counter,
+        #[metric(
+            rename = "call_duration_seconds",
+            describe = "Latency of RPC calls for the method in seconds"
+        )]
+        calls_latency_seconds: Histogram,
+        #[metric(
+            rename = "calls_in_flight",
+            describe = "Number of in-flight RPC calls for the method"
+        )]
+        calls_in_flight: Gauge,
+    }
+
+    impl MethodMetrics {
+        pub fn on_incoming_request(&self) {
+            self.calls_started.increment(1);
+            self.calls_in_flight.increment(1);
+        }
+
+        pub fn on_outgoing_response(&self, started_at: Instant, response: &MethodResponse) {
+            self.calls_latency_seconds
+                .record(started_at.elapsed().as_secs_f64());
+
+            match response.is_success() {
+                true => self.calls_finished_ok.increment(1),
+                false => self.calls_finished_err.increment(1),
+            }
+
+            self.calls_in_flight.decrement(1);
+        }
+    }
+
+    /// The metrics for internal state of [crate::apis::InjectedApi].
+    #[derive(Clone, metrics_derive::Metrics)]
+    #[metrics(scope = "ethexe_rpc_injected_api")]
+    pub struct InjectedApiMetrics {
+        #[metric(
+            rename = "active_promise_subscriptions",
+            describe = "Number of active subscriptions for injected transaction's promise"
+        )]
+        pub injected_tx_active_subscriptions: Gauge,
     }
 }

@@ -122,37 +122,28 @@ impl InjectedApi {
                 return Err(errors::bad_request(err).into());
             }
         };
-        self.metrics.injected_tx_active_subscriptions.increment(1);
 
         let acceptance = self.relayer.relay(transaction).await.inspect_err(|_err| {
-            self.metrics.injected_tx_active_subscriptions.decrement(1);
             self.manager.cancel_registration(tx_hash);
         })?;
         let sink = match acceptance {
             InjectedTransactionAcceptance::Accept => {
                 pending.accept().await.inspect_err(|_err| {
-                    self.metrics.injected_tx_active_subscriptions.decrement(1);
                     self.manager.cancel_registration(tx_hash);
                 })?
             }
             InjectedTransactionAcceptance::Reject { reason } => {
-                self.metrics.injected_tx_active_subscriptions.decrement(1);
                 self.manager.cancel_registration(tx_hash);
                 return Err(reason.into());
             }
         };
 
-        let manager = self.manager.clone();
-        let metrics = self.metrics.clone();
-        spawner::spawn_pending_subscriber(
-            sink,
-            pending_subscriber,
-            metrics.clone(),
-            move |tx_hash| {
-                metrics.injected_tx_active_subscriptions.decrement(1);
-                manager.cancel_registration(tx_hash);
-            },
-        );
+        self.metrics.injected_tx_active_subscriptions.increment(1);
+        let (manager, metrics) = (self.manager.clone(), self.metrics.clone());
+        spawner::spawn_pending_subscriber(sink, pending_subscriber, move |tx_hash| {
+            manager.cancel_registration(tx_hash);
+            metrics.injected_tx_active_subscriptions.decrement(1);
+        });
         Ok(())
     }
 

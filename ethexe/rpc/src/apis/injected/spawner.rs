@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::promise_manager::PendingSubscriber;
-use crate::metrics::InjectedApiMetrics;
 use ethexe_common::{HashOf, injected::InjectedTransaction};
 use jsonrpsee::{SubscriptionMessage, SubscriptionSink};
 use tracing::{error, trace, warn};
@@ -28,7 +27,6 @@ use tracing::{error, trace, warn};
 pub fn spawn_pending_subscriber<F>(
     sink: SubscriptionSink,
     subscriber: PendingSubscriber,
-    metrics: InjectedApiMetrics,
     on_finish: F,
 ) where
     F: FnOnce(HashOf<InjectedTransaction>) + std::marker::Send + 'static,
@@ -63,8 +61,6 @@ pub fn spawn_pending_subscriber<F>(
             Ok(message) => {
                 if let Err(err) = sink.send(message).await {
                     trace!("failed to send promise, client disconnected: err={err}");
-                } else {
-                    metrics.injected_tx_promises_given.increment(1);
                 }
             }
             Err(err) => {
