@@ -485,7 +485,7 @@ contract Router is
      * @dev Sets the extra fee for requesting code validation on behalf of someone else in WVARA ERC20 token.
      * @param newExtraFee The new extra fee for requesting code validation on behalf of someone else.
      */
-    function setRequestCodeValidationExtraFee(uint256 newExtraFee) external {
+    function setRequestCodeValidationExtraFee(uint256 newExtraFee) external onlyOwner {
         _router().protocolData.requestCodeValidationExtraFee = newExtraFee;
     }
 
