@@ -232,6 +232,11 @@ interface IRouter {
     error CodeAlreadyOnValidationOrValidated();
 
     /**
+     * @dev Thrown when the provided blob hashes length doesn't match the actual blob hashes length in transaction.
+     */
+    error InvalidBlobHashesLength(uint256 providedLength, uint256 expectedLength);
+
+    /**
      * @dev Thrown when the blobhash for code validation request is invalid.
      */
     error InvalidBlobHash(uint256 index, bytes32 providedBlobHash, bytes32 expectedBlobHash);
@@ -471,6 +476,18 @@ interface IRouter {
      * @param newMirror The new mirror implementation address.
      */
     function setMirror(address newMirror) external;
+
+    /**
+     * @dev Sets the base fee for requesting code validation in WVARA ERC20 token.
+     * @param newBaseFee The new base fee for requesting code validation.
+     */
+    function setRequestCodeValidationBaseFee(uint256 newBaseFee) external;
+
+    /**
+     * @dev Sets the extra fee for requesting code validation on behalf of someone else in WVARA ERC20 token.
+     * @param newExtraFee The new extra fee for requesting code validation on behalf of someone else.
+     */
+    function setRequestCodeValidationExtraFee(uint256 newExtraFee) external;
 
     /**
      * @dev Pauses the contract.

@@ -182,8 +182,15 @@ contract POCTest is Base {
         blobHashes[0] = bytes32(uint256(1));
         uint256 deadline = vm.getBlockTimestamp() + 10;
 
-        bytes32 structHash1 =
-            keccak256(abi.encode(REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH, sender, _codeId, blobHashes, deadline));
+        bytes32 structHash1 = keccak256(
+            abi.encode(
+                REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH,
+                sender,
+                _codeId,
+                keccak256(abi.encodePacked(blobHashes)),
+                deadline
+            )
+        );
         bytes32 hash1 = MessageHashUtils.toTypedDataHash(router.DOMAIN_SEPARATOR(), structHash1);
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(senderPrivateKey, hash1);
 

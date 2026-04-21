@@ -474,6 +474,22 @@ contract Router is
     }
 
     /**
+     * @dev Sets the base fee for requesting code validation in WVARA ERC20 token.
+     * @param newBaseFee The new base fee for requesting code validation.
+     */
+    function setRequestCodeValidationBaseFee(uint256 newBaseFee) external onlyOwner {
+        _router().protocolData.requestCodeValidationBaseFee = newBaseFee;
+    }
+
+    /**
+     * @dev Sets the extra fee for requesting code validation on behalf of someone else in WVARA ERC20 token.
+     * @param newExtraFee The new extra fee for requesting code validation on behalf of someone else.
+     */
+    function setRequestCodeValidationExtraFee(uint256 newExtraFee) external {
+        _router().protocolData.requestCodeValidationExtraFee = newExtraFee;
+    }
+
+    /**
      * @dev Pauses the contract.
      */
     function pause() public onlyOwner {
@@ -580,6 +596,16 @@ contract Router is
 
         require(router.protocolData.codes[_codeId] == Gear.CodeState.Unknown, CodeAlreadyOnValidationOrValidated());
 
+        uint256 _blobHashesLength = 0;
+        while (true) {
+            if (blobhash(_blobHashesLength) == bytes32(0)) {
+                break;
+            }
+            _blobHashesLength++;
+        }
+
+        require(_blobHashes.length == _blobHashesLength, InvalidBlobHashesLength(_blobHashes.length, _blobHashesLength));
+
         for (uint256 i = 0; i < _blobHashes.length; i++) {
             bytes32 expectedBlobHash = blobhash(i);
             require(_blobHashes[i] == expectedBlobHash, InvalidBlobHash(i, _blobHashes[i], expectedBlobHash));
@@ -588,7 +614,13 @@ contract Router is
         require(block.timestamp <= _deadline, ExpiredSignature(_deadline));
 
         bytes32 structHash = keccak256(
-            abi.encode(REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH, _requester, _codeId, _blobHashes, _deadline)
+            abi.encode(
+                REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH,
+                _requester,
+                _codeId,
+                keccak256(abi.encodePacked(_blobHashes)),
+                _deadline
+            )
         );
 
         bytes32 hash = _hashTypedDataV4(structHash);
