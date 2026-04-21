@@ -821,6 +821,11 @@ impl UserMailbox {
     fn store<S: Storage + ?Sized>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
     }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn from_inner(inner: BTreeMap<MessageId, Expiring<MailboxMessage>>) -> Self {
+        Self(inner)
+    }
 }
 
 impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
@@ -1095,6 +1100,11 @@ impl MemoryPagesRegion {
 
     pub fn as_inner(&self) -> &MemoryPagesRegionInner {
         &self.0
+    }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn from_inner(inner: MemoryPagesRegionInner) -> Self {
+        Self(inner)
     }
 }
 
