@@ -31,7 +31,23 @@ pub async fn dev_node() -> (NodeInstance, SignedApi) {
         .spawn()
         .expect("Failed to spawn node process");
 
-    let api = Api::new(&node.ws()).await.unwrap().signed_as_alice();
+    let api = match Api::new(&node.ws()).await {
+        Ok(api) => api.signed_as_alice(),
+        Err(err) => {
+            eprintln!("[gsdk-test-diag] Api::new({}) failed: {err:#}", node.ws());
+            eprintln!("[gsdk-test-diag] Node logs:");
+            match node.logs() {
+                Ok(logs) if !logs.is_empty() => {
+                    for line in logs {
+                        eprintln!("[gsdk-test-diag]   {line}");
+                    }
+                }
+                Ok(_) => eprintln!("[gsdk-test-diag]   <node produced no log lines>"),
+                Err(e) => eprintln!("[gsdk-test-diag]   <failed to read node logs: {e}>"),
+            }
+            panic!("Api::new failed, see node logs above");
+        }
+    };
 
     (node, api)
 }

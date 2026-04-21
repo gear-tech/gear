@@ -52,6 +52,12 @@ impl Log {
         // Blocking after initialization.
         let mut reader = BufReader::new(stderr);
         for line in reader.by_ref().lines().map_while(|result| result.ok()) {
+            // DIAGNOSTIC: capture and echo pre-initialization lines so crashes
+            // before "Imported #1" surface in test output.
+            eprintln!("[node-startup] {line}");
+            if let Ok(mut logs) = self.logs.write() {
+                logs.push(line.clone());
+            }
             if line.contains(BLOCK_INITIALIZATION) {
                 break;
             }
