@@ -476,3 +476,19 @@ pub const fn unpack_i64_to_u32(val: i64) -> (u32, u32) {
     let low = val as u32;
     (low, high)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Guards against drift between `ethexe-common`'s mock constants and the
+    /// real `RUNTIME_ID`/`VERSION` exported here. The mock can't `use` these
+    /// constants directly because `ethexe-runtime-common` depends on
+    /// `ethexe-common`, so a future bump of `VERSION` or `RUNTIME_ID` would
+    /// silently leave the mock stale. This test fails loudly instead.
+    #[test]
+    fn mock_constants_match_runtime_constants() {
+        assert_eq!(RUNTIME_ID, ethexe_common::mock::MOCK_RUNTIME_ID);
+        assert_eq!(VERSION, ethexe_common::mock::MOCK_VERSION);
+    }
+}
