@@ -47,7 +47,8 @@ use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{
-    TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
+    EthereumBuilder, TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams,
+    router::Router,
 };
 use ethexe_observer::ObserverEvent;
 use ethexe_processor::Processor;
@@ -72,6 +73,30 @@ use tokio::sync::{
 };
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
+
+#[derive(Clone)]
+struct RecordingCommitter {
+    router: Router,
+    committed_batches: Arc<Mutex<Vec<BatchCommitment>>>,
+}
+
+#[async_trait::async_trait]
+impl BatchCommitter for RecordingCommitter {
+    fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+        Box::new(self.clone())
+    }
+
+    async fn commit(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> anyhow::Result<H256> {
+        self.committed_batches.lock().await.push(batch.clone());
+        Box::new(self.router.clone())
+            .commit(batch, signatures)
+            .await
+    }
+}
 
 #[tokio::test]
 #[ntest::timeout(30_000)]
@@ -1014,6 +1039,132 @@ async fn value_send_program_to_user_and_replied() {
         .await
         .unwrap();
     assert!(default_anvil_balance - balance <= measurement_error);
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn batch_commitment_squashes_repeated_ping_transitions() {
+    init_logger();
+
+    let mut env = TestEnv::new(TestEnvConfig {
+        commitment_delay_limit: 5,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let committed_batches = Arc::new(Mutex::new(Vec::new()));
+    let recording_committer = RecordingCommitter {
+        router: EthereumBuilder::default()
+            .rpc_url(&env.eth_cfg.rpc)
+            .router_address(env.eth_cfg.router_address)
+            .signer(env.signer.clone())
+            .sender_address(env.validators[0].public_key.to_address())
+            .eip1559_fee_increase_percentage(env.eth_cfg.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier(env.eth_cfg.blob_gas_multiplier)
+            .build()
+            .await
+            .unwrap()
+            .router(),
+        committed_batches: committed_batches.clone(),
+    };
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.custom_committer = Some(Box::new(recording_committer.clone()));
+    node.start_service().await;
+
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = program.program_id;
+
+    committed_batches.lock().await.clear();
+
+    node.stop_service().await;
+
+    let first_ping = env.send_message(ping_id, b"PING").await.unwrap();
+    let second_ping = env.send_message(ping_id, b"PING").await.unwrap();
+
+    env.skip_blocks(env.commitment_delay_limit + 2).await;
+
+    node.custom_committer = Some(Box::new(recording_committer));
+    node.start_service().await;
+    env.force_new_block().await;
+
+    let first_reply = first_ping.wait_for().await.unwrap();
+    assert_eq!(first_reply.program_id, ping_id);
+    assert_eq!(
+        first_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(first_reply.payload, b"PONG");
+
+    let second_reply = second_ping.wait_for().await.unwrap();
+    assert_eq!(second_reply.program_id, ping_id);
+    assert_eq!(
+        second_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(second_reply.payload, b"PONG");
+
+    let committed_batches = committed_batches.lock().await.clone();
+    let matching_batch = committed_batches
+        .iter()
+        .find(|batch| {
+            batch.chain_commitment.as_ref().is_some_and(|chain| {
+                chain.transitions.iter().any(|transition| {
+                    transition.actor_id == ping_id && transition.messages.len() == 2
+                })
+            })
+        })
+        .expect("expected committed batch with a squashed ping program transition");
+    let chain_commitment = matching_batch
+        .chain_commitment
+        .as_ref()
+        .expect("expected chain commitment");
+
+    assert_eq!(
+        chain_commitment
+            .transitions
+            .iter()
+            .filter(|transition| transition.actor_id == ping_id)
+            .count(),
+        1,
+        "repeated transitions for the same actor must be squashed before commit"
+    );
+
+    let squashed_transition = chain_commitment
+        .transitions
+        .iter()
+        .find(|transition| transition.actor_id == ping_id)
+        .expect("expected squashed transition for ping actor");
+    assert_eq!(
+        squashed_transition.messages.len(),
+        2,
+        "squashed transition must carry both reply messages"
+    );
+    assert!(
+        squashed_transition
+            .messages
+            .iter()
+            .all(|message| message.payload == b"PONG"),
+        "expected both outgoing messages to be PONG replies"
+    );
 }
 
 #[tokio::test]
