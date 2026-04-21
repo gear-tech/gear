@@ -2,6 +2,7 @@
 pragma solidity ^0.8.33;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {NoncesUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/NoncesUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
@@ -28,6 +29,7 @@ contract Router is
     OwnableUpgradeable,
     PausableUpgradeable,
     EIP712Upgradeable,
+    NoncesUpgradeable,
     ReentrancyGuardTransientUpgradeable,
     UUPSUpgradeable
 {
@@ -42,9 +44,9 @@ contract Router is
     uint256 private constant DEFAULT_REQUEST_CODE_VALIDATION_BASE_FEE = 1_000;
     uint256 private constant DEFAULT_REQUEST_CODE_VALIDATION_EXTRA_FEE = 500;
 
-    // keccak256("RequestCodeValidationOnBehalf(address requester,bytes32 codeId,bytes32[] blobHashes,uint256 deadline)")
+    // keccak256("RequestCodeValidationOnBehalf(address requester,bytes32 codeId,bytes32[] blobHashes,uint256 nonce,uint256 deadline)")
     bytes32 private constant REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH =
-        0x21d22dbb6ca3344a7f7c1dfcbe01d1b3a6aad6920ebeb232f72cc411c4436b17;
+        0x375d2ef9b9e33c640a295f53873dc74833c3d019f349464ce2fe8899962b8097;
 
     /**
      * @custom:oz-upgrades-unsafe-allow constructor
@@ -82,6 +84,7 @@ contract Router is
         __Ownable_init(_owner);
         __Pausable_init();
         __EIP712_init(EIP712_NAME, EIP712_VERSION);
+        __Nonces_init();
         __ReentrancyGuardTransient_init();
 
         // Because of validator storages impl we have to check, that current timestamp is greater than 0.
@@ -619,6 +622,7 @@ contract Router is
                 _requester,
                 _codeId,
                 keccak256(abi.encodePacked(_blobHashes)),
+                _useNonce(_requester),
                 _deadline
             )
         );

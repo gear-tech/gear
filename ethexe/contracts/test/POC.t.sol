@@ -20,7 +20,7 @@ contract POCTest is Base {
     bytes32 private constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
     bytes32 private constant REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH = keccak256(
-        "RequestCodeValidationOnBehalf(address requester,bytes32 codeId,bytes32[] blobHashes,uint256 deadline)"
+        "RequestCodeValidationOnBehalf(address requester,bytes32 codeId,bytes32[] blobHashes,uint256 nonce,uint256 deadline)"
     );
 
     SigningKey signingKey;
@@ -188,6 +188,7 @@ contract POCTest is Base {
                 sender,
                 _codeId,
                 keccak256(abi.encodePacked(blobHashes)),
+                router.nonces(sender),
                 deadline
             )
         );
