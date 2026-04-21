@@ -500,11 +500,13 @@ fn dispatch_stash_entries_strategy()
     .boxed()
 }
 
-fn mailbox_with_storage_strategy() -> BoxedStrategy<(
+type MailboxWWithStorage = (
     MemStorage,
     Mailbox,
     BTreeMap<ActorId, BTreeMap<MessageId, Expiring<MailboxMessage>>>,
-)> {
+);
+
+fn mailbox_with_storage_strategy() -> BoxedStrategy<MailboxWWithStorage> {
     collection::btree_map(
         actor_id_strategy(),
         collection::btree_map(
