@@ -377,7 +377,7 @@ mod tests {
         new_swarm_with_config(Config::default()).await
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn smoke() {
         const EXCESSIVE_DATA: i8 = Config::new().blocked_threshold / 3 - 1;
 
