@@ -437,7 +437,7 @@ mod tests {
             } if peer_id == chad_peer_id
         );
 
-        time::sleep(alice_config.driver_time).await;
+        time::advance(alice_config.driver_time).await;
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
