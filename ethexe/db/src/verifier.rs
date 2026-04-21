@@ -44,6 +44,7 @@ pub enum IntegrityVerifierError {
     BlockAnnouncesLenNotOne(H256),
     NoBlockLastCommittedBatch(H256),
     NoBlockLastCommittedAnnounce(H256),
+    NoBlockLatestEraValidatorsCommitted(H256),
     BlockAnnouncesIsEmpty(H256),
     NoBlockAnnounces(H256),
     NoBlockHeader(H256),
@@ -164,6 +165,12 @@ impl DatabaseVisitor for IntegrityVerifier {
         if meta.last_committed_announce.is_none() {
             self.errors
                 .push(IntegrityVerifierError::NoBlockLastCommittedAnnounce(block));
+        }
+        if meta.latest_era_validators_committed.is_none() {
+            self.errors
+                .push(IntegrityVerifierError::NoBlockLatestEraValidatorsCommitted(
+                    block,
+                ));
         }
         if let Some(announces) = self.db.block_announces(block) {
             if announces.is_empty() {
@@ -694,6 +701,7 @@ mod tests {
             meta.last_committed_batch = Some(Digest::random());
             meta.last_committed_announce = Some(announce_hash);
             meta.codes_queue = Some(Default::default());
+            meta.latest_era_validators_committed = Some(10);
         });
         db.set_block_synced(block_hash);
 
