@@ -18,13 +18,43 @@
 
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{Api, SignedApi};
-use std::{env, env::consts::EXE_EXTENSION, path::PathBuf};
+use std::{env, env::consts::EXE_EXTENSION, path::PathBuf, sync::Once};
+
+fn probe_binary_once(bin_path: &std::path::Path) {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        eprintln!("[gsdk-test-diag] probing {bin_path:?}");
+        eprintln!(
+            "[gsdk-test-diag] exists={} is_file={}",
+            bin_path.exists(),
+            bin_path.is_file()
+        );
+        match std::process::Command::new(bin_path).arg("--version").output() {
+            Ok(out) => {
+                eprintln!("[gsdk-test-diag] --version exit status: {}", out.status);
+                eprintln!(
+                    "[gsdk-test-diag] --version stdout: {:?}",
+                    String::from_utf8_lossy(&out.stdout)
+                );
+                eprintln!(
+                    "[gsdk-test-diag] --version stderr: {:?}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
+            }
+            Err(e) => {
+                eprintln!("[gsdk-test-diag] --version spawn failed: {e}");
+            }
+        }
+    });
+}
 
 pub async fn dev_node() -> (NodeInstance, SignedApi) {
     // Use release build because of performance reasons.
     let bin_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let mut bin_path = bin_path.join("../target/release/gear");
     bin_path.set_extension(EXE_EXTENSION);
+
+    probe_binary_once(&bin_path);
 
     let node = Node::from_path(bin_path)
         .expect("Failed to start node: Maybe it isn't built with --release flag?")
