@@ -19,7 +19,7 @@
 //! Metrics for the RPC server.
 
 pub use metrics::*;
-pub use middleware::{RpcMetricsLayer, RpcMetricsRegistry};
+pub use middleware::RpcMetricsLayer;
 
 mod middleware {
     use super::metrics::{DEFAULT_TRACKED_METHODS, MethodMetrics};
@@ -70,13 +70,6 @@ mod middleware {
     #[derive(Clone, Default)]
     pub struct RpcMetricsLayer {
         registry: RpcMetricsRegistry,
-    }
-
-    impl RpcMetricsLayer {
-        /// Creates new [RpcMetricsLayer] from registry.
-        pub fn from_registry(registry: RpcMetricsRegistry) -> Self {
-            Self { registry }
-        }
     }
 
     impl<S> Layer<S> for RpcMetricsLayer {

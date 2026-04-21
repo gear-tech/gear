@@ -68,7 +68,7 @@ use jsonrpsee::{
     RpcModule as JsonrpcModule,
     server::{PingConfig, RpcServiceBuilder, Server, ServerHandle},
 };
-use metrics::{RpcMetricsLayer, RpcMetricsRegistry};
+use metrics::RpcMetricsLayer;
 use std::{
     net::SocketAddr,
     pin::Pin,
@@ -130,10 +130,8 @@ impl RpcServer {
 
         let cors_layer = self.cors_layer()?;
         let http_middleware = tower::ServiceBuilder::new().layer(cors_layer);
-
-        let rpc_metrics_registry = RpcMetricsRegistry::default();
-        let rpc_middleware =
-            RpcServiceBuilder::new().layer(RpcMetricsLayer::from_registry(rpc_metrics_registry));
+        // Setup the default RPC metrics layer.
+        let rpc_middleware = RpcServiceBuilder::new().layer(RpcMetricsLayer::default());
 
         let processor = Processor::with_config(
             ProcessorConfig {
@@ -163,7 +161,7 @@ impl RpcServer {
             .enable_ws_ping(PingConfig::default())
             .build(self.config.listen_addr)
             .await?
-            .start(server_apis.into_methods());
+            .start(server_apis.into_module());
 
         Ok((server_handle, RpcService::new(rpc_receiver, injected_api)))
     }
@@ -229,11 +227,9 @@ struct RpcServerApis {
 }
 
 impl RpcServerApis {
-    pub fn into_methods(self) -> jsonrpsee::server::RpcModule<()> {
+    pub fn into_module(self) -> jsonrpsee::server::RpcModule<()> {
         let mut module = JsonrpcModule::new(());
 
-        // let rpc = self.block.into_rpc();
-        // let callbacks = rpc.method_names();
         module
             .merge(BlockServer::into_rpc(self.block))
             .expect("No conflicts");
