@@ -22,6 +22,8 @@ use ethexe_common::gear::{
     ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
 };
 
+// TODO #5356: squash transitions before charging size so repeated actors are
+// counted against the actual committed payload rather than the pre-squash input.
 /// Stateful helper used by [`BatchCommitmentManager`](super::manager::BatchCommitmentManager)
 /// to assemble a candidate batch commitment under protocol size and deepness limits.
 ///
@@ -63,7 +65,12 @@ impl BatchFiller {
         }
     }
 
-    pub fn into_parts(self) -> BatchParts {
+    pub fn into_parts(mut self) -> BatchParts {
+        if let Some(chain) = &mut self.parts.chain_commitment {
+            chain.transitions =
+                super::utils::squash_transitions_by_actor(std::mem::take(&mut chain.transitions));
+            super::utils::sort_transitions_by_value_to_receive(&mut chain.transitions);
+        }
         self.parts
     }
 
