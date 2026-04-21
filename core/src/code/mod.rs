@@ -460,7 +460,7 @@ mod tests {
         },
         gas_metering::CustomConstantCostRules,
     };
-    use alloc::{format, vec::Vec};
+    use alloc::{format, string::String, vec::Vec};
     use gear_wasm_instrument::{InstrumentationError, ModuleError, STACK_END_EXPORT_NAME};
 
     fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
@@ -1303,20 +1303,29 @@ mod tests {
             "OriginalCode must retain sails:idl custom section"
         );
 
-        // InstrumentedCode must not contain any custom sections.
+        // InstrumentedCode must have the sails:idl section stripped.
         assert!(
             !has_custom_section(code.instrumented_code().bytes(), "sails:idl"),
             "InstrumentedCode must have sails:idl stripped"
         );
 
-        // Broader check: no custom section of any name survives.
-        let any_custom = wasmparser::Parser::new(0)
+        // Broader check: every custom section other than `name` is gone.
+        // The WASM binary format stores the name section as a custom section
+        // named "name"; we intentionally preserve it for readable trap
+        // backtraces (see `Module::strip_custom_sections`).
+        let lingering: Vec<String> = wasmparser::Parser::new(0)
             .parse_all(code.instrumented_code().bytes())
             .filter_map(|p| p.ok())
-            .any(|payload| matches!(payload, wasmparser::Payload::CustomSection(_)));
+            .filter_map(|payload| match payload {
+                wasmparser::Payload::CustomSection(reader) if reader.name() != "name" => {
+                    Some(String::from(reader.name()))
+                }
+                _ => None,
+            })
+            .collect();
         assert!(
-            !any_custom,
-            "InstrumentedCode must have no custom sections at all"
+            lingering.is_empty(),
+            "InstrumentedCode must have no custom sections apart from `name`; found: {lingering:?}"
         );
     }
 }
