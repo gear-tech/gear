@@ -1177,12 +1177,14 @@ mod tests {
 
         // Different version under same runtime_id is a distinct namespace.
         assert!(
-            db.instrumented_code(runtime_id, version + 1, code_id).is_none(),
+            db.instrumented_code(runtime_id, version + 1, code_id)
+                .is_none(),
             "bumping version must invalidate prior entries"
         );
         // Different runtime_id under same version is also distinct.
         assert!(
-            db.instrumented_code(runtime_id + 1, version, code_id).is_none(),
+            db.instrumented_code(runtime_id + 1, version, code_id)
+                .is_none(),
             "changing runtime_id must invalidate prior entries"
         );
     }

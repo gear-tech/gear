@@ -314,10 +314,7 @@ async fn instrumented_code_strips_custom_sections() {
     module
         .custom_sections
         .get_or_insert_with(Vec::new)
-        .push((
-            std::borrow::Cow::Borrowed("sails:idl"),
-            idl_payload.clone(),
-        ));
+        .push((std::borrow::Cow::Borrowed("sails:idl"), idl_payload.clone()));
     let code_with_idl = module.serialize().expect("serialize must succeed");
     let code_id = CodeId::generate(&code_with_idl);
 
@@ -332,8 +329,7 @@ async fn instrumented_code_strips_custom_sections() {
     );
 
     // Run through the ethexe processor pipeline.
-    let mut processor =
-        Processor::new(Database::memory()).expect("failed to create processor");
+    let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
     let info = processor
         .process_code(CodeAndIdUnchecked {
             code: code_with_idl.clone(),
@@ -345,8 +341,7 @@ async fn instrumented_code_strips_custom_sections() {
         .expect("code must be valid");
 
     // OriginalCode keeps the IDL — RPC readers depend on this.
-    let original = gear_wasm_instrument::Module::new(&info.code)
-        .expect("original code must parse");
+    let original = gear_wasm_instrument::Module::new(&info.code).expect("original code must parse");
     assert!(
         original
             .custom_sections

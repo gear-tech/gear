@@ -591,14 +591,11 @@ where
 
         try_push_node!(no_hash: self.original_code(code_id));
 
-        if let Some(instrumented_code) = self
-            .storage
-            .instrumented_code(
-                ethexe_runtime_common::RUNTIME_ID,
-                ethexe_runtime_common::VERSION,
-                code_id,
-            )
-        {
+        if let Some(instrumented_code) = self.storage.instrumented_code(
+            ethexe_runtime_common::RUNTIME_ID,
+            ethexe_runtime_common::VERSION,
+            code_id,
+        ) {
             self.push_node(InstrumentedCodeNode {
                 code_id,
                 instrumented_code,

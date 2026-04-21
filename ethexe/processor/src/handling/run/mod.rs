@@ -434,11 +434,11 @@ pub(super) fn instrumented_code_and_metadata(
         ethexe_runtime_common::VERSION,
         code_id,
     )
-        .and_then(|instrumented_code| {
-            db.code_metadata(code_id)
-                .map(|metadata| (instrumented_code, metadata))
-        })
-        .ok_or_else(|| ProcessorError::MissingInstrumentedCodeForProgram(code_id))
+    .and_then(|instrumented_code| {
+        db.code_metadata(code_id)
+            .map(|metadata| (instrumented_code, metadata))
+    })
+    .ok_or_else(|| ProcessorError::MissingInstrumentedCodeForProgram(code_id))
 }
 
 pub(super) fn states(

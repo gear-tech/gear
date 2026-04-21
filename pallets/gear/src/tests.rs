@@ -5012,8 +5012,8 @@ fn stripping_reduces_instrumented_code_len() {
         // InstrumentedCode must not contain any custom sections at all.
         let instrumented = <Test as Config>::CodeStorage::get_instrumented_code(code_id)
             .expect("instrumented code must be stored");
-        let parsed = Module::new(instrumented.bytes())
-            .expect("instrumented bytes must be a valid module");
+        let parsed =
+            Module::new(instrumented.bytes()).expect("instrumented bytes must be a valid module");
         assert!(
             parsed
                 .custom_sections

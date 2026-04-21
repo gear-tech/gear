@@ -1277,13 +1277,10 @@ mod tests {
         // (same mechanism sails tooling uses to embed the IDL).
         let idl_payload: Vec<u8> = (0..64u8).collect();
         let mut module = gear_wasm_instrument::Module::new(&base_bytes).unwrap();
-        module
-            .custom_sections
-            .get_or_insert_with(Vec::new)
-            .push((
-                alloc::borrow::Cow::Borrowed("sails:idl"),
-                idl_payload.clone(),
-            ));
+        module.custom_sections.get_or_insert_with(Vec::new).push((
+            alloc::borrow::Cow::Borrowed("sails:idl"),
+            idl_payload.clone(),
+        ));
         let original_with_idl = module.serialize().unwrap();
 
         // Sanity: the constructed original actually carries the section.

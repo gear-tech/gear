@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::InitConfig;
-use crate::{KVDatabase, RawDatabase};
+use crate::RawDatabase;
 use anyhow::{Context as _, Result};
 use ethexe_common::db::DBConfig;
 use gprimitives::H256;
