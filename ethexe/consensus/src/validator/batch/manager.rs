@@ -401,7 +401,6 @@ impl BatchCommitmentManager {
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
-            // TODO: mark the #4908 as closed before commit.
             max_validators,
         };
 
