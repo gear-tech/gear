@@ -68,6 +68,7 @@ use jsonrpsee::{
     RpcModule as JsonrpcModule,
     server::{PingConfig, Server, ServerHandle},
 };
+use metrics::{DEFAULT_TRACKED_METHODS, RpcMetricsRegistry};
 use std::{
     net::SocketAddr,
     pin::Pin,
@@ -129,9 +130,11 @@ impl RpcServer {
 
         let cors_layer = self.cors_layer()?;
         let http_middleware = tower::ServiceBuilder::new().layer(cors_layer);
+        let rpc_middleware = RpcMetricsRegistry::new(DEFAULT_TRACKED_METHODS).middleware();
 
         let server = Server::builder()
             .set_http_middleware(http_middleware)
+            .set_rpc_middleware(rpc_middleware)
             // Setup WebSocket pings to detect dead connections.
             // Now it is set to default: ping_interval = 30s, inactive_limit = 40s
             .enable_ws_ping(PingConfig::default())

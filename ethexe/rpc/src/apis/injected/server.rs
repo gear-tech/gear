@@ -49,7 +49,6 @@ pub struct InjectedApi {
     metrics: InjectedApiMetrics,
 }
 
-// TODO: add metrics middleware for InjectedApi
 #[async_trait]
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
@@ -107,8 +106,6 @@ impl InjectedApi {
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        self.metrics.send_injected_tx_calls.increment(1);
-
         self.relayer.relay(transaction).await
     }
 
@@ -117,8 +114,6 @@ impl InjectedApi {
         pending: PendingSubscriptionSink,
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult {
-        self.metrics.send_and_watch_injected_tx_calls.increment(1);
-
         let tx_hash = transaction.tx.data().to_hash();
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
@@ -127,26 +122,37 @@ impl InjectedApi {
                 return Err(errors::bad_request(err).into());
             }
         };
+        self.metrics.injected_tx_active_subscriptions.increment(1);
 
         let acceptance = self.relayer.relay(transaction).await.inspect_err(|_err| {
+            self.metrics.injected_tx_active_subscriptions.decrement(1);
             self.manager.cancel_registration(tx_hash);
         })?;
         let sink = match acceptance {
             InjectedTransactionAcceptance::Accept => {
                 pending.accept().await.inspect_err(|_err| {
+                    self.metrics.injected_tx_active_subscriptions.decrement(1);
                     self.manager.cancel_registration(tx_hash);
                 })?
             }
             InjectedTransactionAcceptance::Reject { reason } => {
+                self.metrics.injected_tx_active_subscriptions.decrement(1);
                 self.manager.cancel_registration(tx_hash);
                 return Err(reason.into());
             }
         };
 
         let manager = self.manager.clone();
-        spawner::spawn_pending_subscriber(sink, pending_subscriber, move |tx_hash| {
-            manager.cancel_registration(tx_hash);
-        });
+        let metrics = self.metrics.clone();
+        spawner::spawn_pending_subscriber(
+            sink,
+            pending_subscriber,
+            metrics.clone(),
+            move |tx_hash| {
+                metrics.injected_tx_active_subscriptions.decrement(1);
+                manager.cancel_registration(tx_hash);
+            },
+        );
         Ok(())
     }
 
