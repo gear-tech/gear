@@ -772,6 +772,7 @@ impl Database {
             timelines: ProtocolTimelines::default(),
             genesis_block_hash: H256::zero(),
             genesis_announce_hash: HashOf::zero(),
+            max_validators: 10,
         };
 
         let globals = DBGlobals {

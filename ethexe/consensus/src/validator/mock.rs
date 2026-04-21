@@ -181,6 +181,7 @@ pub fn mock_validator_context(db: Database) -> (ValidatorContext, Vec<PublicKey>
         timelines,
         genesis_block_hash: H256::zero(),
         genesis_announce_hash: HashOf::zero(),
+        max_validators: 10,
     });
 
     (ctx, keys, ethereum)

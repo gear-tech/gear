@@ -818,6 +818,7 @@ impl BlockChain {
             },
             genesis_block_hash: blocks[0].hash,
             genesis_announce_hash: genesis_announce_hash.unwrap(),
+            max_validators: 10,
         };
 
         let globals = DBGlobals {
@@ -929,6 +930,7 @@ impl Arbitrary for DBConfig {
                     timelines,
                     genesis_block_hash,
                     genesis_announce_hash,
+                    max_validators: 0,
                 },
             )
             .boxed()

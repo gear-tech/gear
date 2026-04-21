@@ -308,7 +308,10 @@ impl BatchCommitmentManager {
         &self,
         block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
-        let timelines = self.db.config().timelines;
+        let (timelines, max_validators) = {
+            let config = self.db.config();
+            (config.timelines, config.max_validators)
+        };
 
         let block_era = timelines.era_from_ts(block.header.timestamp);
         let election_ts = timelines.era_election_start_ts(block_era);
@@ -392,8 +395,8 @@ impl BatchCommitmentManager {
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
-            // TODO #4908: max validators must be configurable
-            max_validators: 10,
+            // TODO: mark the #4908 as closed before commit.
+            max_validators,
         };
 
         let elected_validators = match self.middleware.make_election_at(request).await {

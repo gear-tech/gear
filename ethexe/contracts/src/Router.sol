@@ -177,7 +177,8 @@ contract Router is
             computeSettings: router.computeSettings,
             timelines: router.timelines,
             programsCount: router.protocolData.programsCount,
-            validatedCodesCount: router.protocolData.validatedCodesCount
+            validatedCodesCount: router.protocolData.validatedCodesCount,
+            maxValidators: router.protocolData.maxValidators
         });
     }
 

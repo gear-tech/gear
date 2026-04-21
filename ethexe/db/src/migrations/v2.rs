@@ -16,25 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::InitConfig;
+use super::{InitConfig, utils};
 use anyhow::{Context as _, Result, ensure};
 use gprimitives::H256;
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Decode, Encode};
 
 // Critical usages for migration
 #[allow(unused_imports)]
 use crate::KVDatabase;
-use crate::{RawDatabase, database::BlockSmallData};
+use crate::{RawDatabase, database::BlockSmallData, migrations::v4::migrated_types::DBConfig};
 use ethexe_common::{
     Announce, HashOf,
-    db::{AnnounceStorageRW, DBConfig, DBGlobals},
+    db::{AnnounceStorageRW, DBGlobals},
 };
 
 pub const VERSION: u32 = 2;
 
 const _: () = const {
     assert!(
-        crate::VERSION == VERSION,
+        crate::VERSION == super::v4::VERSION,
         "Check migration code for types changing in case of version change: DBConfig, DBGlobals, Announce, BlockSmallData. \
          Also check AnnounceStorageRW, KVDatabase, dyn KVDatabase implementations"
     );
@@ -87,8 +87,11 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
             announces_to_copy.push(announce);
         }
     }
+    let config_key = utils::config_key_bytes();
+    let raw_config = db.kv.get(&config_key).context("Cannot find db config")?;
+    let mut config =
+        DBConfig::decode(&mut raw_config.as_slice()).context("Failed decode database config")?;
 
-    let config = db.kv.config().context("Cannot find db config")?;
     let globals: DBGlobals = db.kv.globals().context("Cannot find db globals")?;
 
     // Check that announce hashes in config and globals are correct, to be sure that we won't break anything by copying announces
@@ -121,10 +124,8 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         db.set_announce(announce);
     }
 
-    db.kv.set_config(DBConfig {
-        version: VERSION,
-        ..config
-    });
+    config.version = VERSION;
+    db.kv.put(&config_key, config.encode());
 
     Ok(())
 }
@@ -145,7 +146,7 @@ mod tests {
                 meta_type::<Announce>(),
                 meta_type::<BlockSmallData>(),
             ],
-            "81abd3c542f8e52406a3f590c9baffdbd9bd6f983ca1410f536c3967544f069e",
+            "b5677e7d7eaf0c48e5c6d0b8c0f14db5a12f9b82cfc067601f2163d8fb20bc2e",
         );
     }
 }

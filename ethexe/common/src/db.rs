@@ -197,6 +197,7 @@ pub struct DBConfig {
     pub timelines: ProtocolTimelines,
     pub genesis_block_hash: H256,
     pub genesis_announce_hash: HashOf<Announce>,
+    pub max_validators: u16,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
@@ -260,7 +261,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "d27a8b20ef1490fd5a73fd7a04780b373d42d73c4444fea555d10985ce203125";
+            "da31c84a05323ebd4e36c80beb9572700fad5a677a366b3fa7c2184ec9b12e74";
 
         let types = [
             meta_type::<BlockMeta>(),
