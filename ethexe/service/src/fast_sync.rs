@@ -728,8 +728,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             .to::<u64>(),
     ));
 
-    // TODO: #5020 whether we need to setup validators here?
-
     ethexe_common::setup_block_in_db(
         db,
         block_hash,
