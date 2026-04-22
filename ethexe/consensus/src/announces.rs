@@ -1110,6 +1110,7 @@ mod tests {
                 })
                 .map(|tx| SignedMessage::create(PrivateKey::random(), tx).unwrap())
                 .collect(),
+            extensions: vec![],
         };
 
         let status = accept_announce(&db, announce.clone()).unwrap();

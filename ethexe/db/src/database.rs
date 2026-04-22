@@ -1068,6 +1068,7 @@ mod tests {
             parent: HashOf::random(),
             gas_allowance: Some(1000),
             injected_transactions: vec![],
+            extensions: vec![],
         };
         let announce_hash = db.set_announce(announce.clone());
         assert_eq!(announce_hash, announce.to_hash());

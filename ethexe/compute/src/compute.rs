@@ -549,6 +549,7 @@ mod tests {
             parent: db.config().genesis_announce_hash,
             gas_allowance: Some(100),
             injected_transactions: vec![],
+            extensions: vec![],
         };
         let announce_hash = announce.to_hash();
 

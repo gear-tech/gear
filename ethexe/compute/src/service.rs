@@ -188,6 +188,7 @@ mod tests {
             parent: chain.block_top_announce_hash(1),
             gas_allowance: Some(42),
             injected_transactions: vec![],
+            extensions: vec![],
         };
         let announce_hash = announce.to_hash();
         service.compute_announce(announce, PromisePolicy::Disabled);

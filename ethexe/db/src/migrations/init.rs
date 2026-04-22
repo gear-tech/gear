@@ -162,6 +162,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         parent: HashOf::zero(),
         gas_allowance: None,
         injected_transactions: vec![],
+        extensions: vec![],
     };
 
     let (program_states, schedule) = if let Some(initializer) = config.genesis_initializer {

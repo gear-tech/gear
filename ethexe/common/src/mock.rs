@@ -289,6 +289,7 @@ impl Arbitrary for Announce {
                 parent,
                 gas_allowance: Some(100),
                 injected_transactions: vec![],
+                extensions: vec![],
             })
             .boxed()
     }

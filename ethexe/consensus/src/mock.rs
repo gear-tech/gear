@@ -97,6 +97,7 @@ pub fn test_announce(block_hash: H256, parent: HashOf<Announce>) -> Announce {
         parent,
         gas_allowance: Some(100),
         injected_transactions: vec![],
+        extensions: vec![],
     }
 }
 

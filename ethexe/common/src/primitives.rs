@@ -82,7 +82,7 @@ pub struct SimpleBlockData {
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, derive_more::Display)]
 #[display(
-    "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})"
+    "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?}), exts: {extensions:?}"
 )]
 pub struct Announce {
     pub block_hash: H256,
@@ -90,6 +90,15 @@ pub struct Announce {
     pub gas_allowance: Option<u64>,
     // TODO kuzmindev: remove InjectedTransaction from Announce and store only its hashes.
     // Need to implement `PublicAnnounce` struct which will contain full bodies of injected transactions.
+    pub injected_transactions: Vec<SignedInjectedTransaction>,
+
+    pub extensions: Vec<AnnounceExtension>,
+}
+
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq)]
+pub struct AnnounceExtension {
+    pub gas_allowance: Option<u64>,
     pub injected_transactions: Vec<SignedInjectedTransaction>,
 }
 
@@ -101,6 +110,7 @@ impl Announce {
             parent,
             gas_allowance,
             injected_transactions,
+            extensions,
         } = self;
 
         let transactions = injected_transactions
@@ -116,8 +126,44 @@ impl Announce {
             .not()
             .then(|| utils::hash(&transactions.encode()));
 
-        let announce_parts = (block_hash, parent, gas_allowance, maybe_transactions_hash);
-        unsafe { HashOf::new(H256(utils::hash(&announce_parts.encode()))) }
+        let announce_bytes = if extensions.is_empty() {
+            (block_hash, parent, gas_allowance, maybe_transactions_hash).encode()
+        } else {
+            let extensions = extensions
+                .iter()
+                .map(|ext| {
+                    let AnnounceExtension {
+                        gas_allowance,
+                        injected_transactions,
+                    } = ext;
+
+                    let transactions = injected_transactions
+                        .iter()
+                        .map(|tx| (tx.signature(), tx.data().to_hash()))
+                        .collect::<Vec<_>>();
+
+                    let maybe_transactions_hash = transactions
+                        .is_empty()
+                        .not()
+                        .then(|| utils::hash(&transactions.encode()));
+
+                    (gas_allowance, maybe_transactions_hash)
+                })
+                .collect::<Vec<_>>();
+
+            let extensions_hash = utils::hash(&extensions.encode());
+
+            (
+                block_hash,
+                parent,
+                gas_allowance,
+                maybe_transactions_hash,
+                extensions_hash,
+            )
+                .encode()
+        };
+
+        unsafe { HashOf::new(H256(utils::hash(&announce_bytes))) }
     }
 
     pub fn base(block_hash: H256, parent: HashOf<Self>) -> Self {
@@ -126,6 +172,7 @@ impl Announce {
             parent,
             gas_allowance: None,
             injected_transactions: Vec::new(),
+            extensions: Vec::new(),
         }
     }
 
@@ -135,6 +182,7 @@ impl Announce {
             parent,
             gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
             injected_transactions: Vec::new(),
+            extensions: Vec::new(),
         }
     }
 
@@ -386,6 +434,7 @@ mod tests {
             parent: unsafe { HashOf::new(H256::random()) },
             gas_allowance: Some(1_000_000),
             injected_transactions: vec![],
+            extensions: vec![],
         };
 
         let hash1 = announce.to_hash();
@@ -429,6 +478,7 @@ mod tests {
                 )
                 .unwrap(),
             ],
+            extensions: vec![],
         };
         let hash1 = announce.to_hash();
         let hash2 = gear_core::utils::hash(&announce.encode());
@@ -444,6 +494,7 @@ mod tests {
             parent,
             gas_allowance,
             injected_transactions,
+            extensions: _,
         } = announce.clone();
         let txs_hashes = injected_transactions
             .into_iter()

@@ -208,6 +208,7 @@ impl Producer {
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
             injected_transactions,
+            extensions: vec![],
         };
 
         let (announce_hash, newly_included) =

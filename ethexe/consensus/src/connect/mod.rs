@@ -390,6 +390,7 @@ mod tests {
             parent: HashOf::random(),
             gas_allowance: Some(199),
             injected_transactions: vec![],
+            extensions: vec![],
         };
         let announce_hash = announce.to_hash();
         service
