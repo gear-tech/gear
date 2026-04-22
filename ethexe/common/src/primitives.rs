@@ -24,7 +24,7 @@ use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
-use core::ops::Not;
+use core::{num::NonZeroU64, ops::Not};
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
@@ -240,55 +240,64 @@ impl CodeAndId {
 ///
 /// TODO(kuzmindev): `ProtocolTimelines` can store more protocol parameters,
 /// for example `max_validators` in election.
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ProtocolTimelines {
     // The genesis timestamp of the GearExe network in seconds.
     pub genesis_ts: u64,
     // The duration of an era in seconds.
-    pub era: u64,
+    pub era: NonZeroU64,
     /// The election duration in seconds before the end of an era when the next set of validators elected.
-    ///  (start of era)[ - - - - - - - - - - -  + - - - - ] (end of era)
-    ///                                         ^ election
+    ///  (start of era)[ - - - - - - - - - - - - + - - - - ] (end of era)
+    ///                                          ^ election
     pub election: u64,
     /// The slot duration in seconds.
-    pub slot: u64,
+    pub slot: NonZeroU64,
 }
 
-// TODO: #5290 remove panics here
 impl ProtocolTimelines {
     /// Returns the era index for the given timestamp. Eras starts from 0.
     ///
-    /// # Panics
-    /// If the given timestamp is less than `genesis_ts`, this function will panic.
+    /// Returns `None` if `ts < genesis_ts`
     #[inline(always)]
-    pub fn era_from_ts(&self, ts: u64) -> u64 {
+    pub fn era_from_ts(&self, ts: u64) -> Option<u64> {
         ts.checked_sub(self.genesis_ts)
-            .expect("timestamp must be >= genesis_ts")
-            / self.era
+            .map(|delta| delta / self.era.get())
     }
 
     /// Returns the timestamp since which the given era started.
+    ///
+    /// Returns `None` if overflows u64.
     #[inline(always)]
-    pub fn era_start_ts(&self, era_index: u64) -> u64 {
-        self.genesis_ts + era_index * self.era
+    pub fn era_start_ts(&self, era_index: u64) -> Option<u64> {
+        era_index
+            .checked_mul(self.era.get())?
+            .checked_add(self.genesis_ts)
     }
 
     /// Returns the timestamp when election starts in the given era.
     /// NOTE: election starts for the next era validators.
+    ///
+    /// Returns `None` if overflows u64.
+    ///
+    /// # Panics
+    /// Panics if `era duration < election duration`
     #[inline(always)]
-    pub fn era_election_start_ts(&self, era_index: u64) -> u64 {
-        self.era_start_ts(era_index + 1) - self.election
+    pub fn era_election_start_ts(&self, era_index: u64) -> Option<u64> {
+        self.era_start_ts(era_index)?.checked_add(
+            self.era
+                .get()
+                .checked_sub(self.election)
+                .expect("Incorrect Timelines - era duration < election duration"),
+        )
     }
 
     /// Returns the slot index for the given timestamp. Slots starts from 0.
     ///
-    /// # Panics
-    /// If the given timestamp is less than `genesis_ts`, this function will panic.
+    /// Returns `None` if `ts < genesis_ts`
     #[inline(always)]
-    pub fn slot_from_ts(&self, ts: u64) -> u64 {
+    pub fn slot_from_ts(&self, ts: u64) -> Option<u64> {
         ts.checked_sub(self.genesis_ts)
-            .expect("timestamp must be >= genesis_ts")
-            / self.slot
+            .map(|delta| delta / self.slot.get())
     }
 }
 
@@ -314,54 +323,51 @@ mod tests {
     use gsigner::PrivateKey;
     use std::vec;
 
-    #[test]
-    fn test_era_from_ts_calculation() {
-        let timelines = ProtocolTimelines {
+    fn mock_timelines() -> ProtocolTimelines {
+        ProtocolTimelines {
             genesis_ts: 10,
-            era: 234,
+            era: NonZeroU64::new(234).unwrap(),
             election: 200,
-            slot: 10,
-        };
-
-        // For 0 era
-        assert_eq!(timelines.era_from_ts(10), 0);
-        assert_eq!(timelines.era_from_ts(45), 0);
-        assert_eq!(timelines.era_from_ts(243), 0);
-
-        // For 1 era
-        assert_eq!(timelines.era_from_ts(244), 1);
-        assert_eq!(timelines.era_from_ts(333), 1);
+            slot: NonZeroU64::new(10).unwrap(),
+        }
     }
 
-    #[should_panic(expected = "timestamp must be >= genesis_ts")]
     #[test]
-    fn panic_on_era_from_ts_before_genesis() {
-        ProtocolTimelines {
+    fn test_era_from_ts_calculation() {
+        let timelines = mock_timelines();
+
+        // For 0 era
+        assert_eq!(timelines.era_from_ts(10), Some(0));
+        assert_eq!(timelines.era_from_ts(45), Some(0));
+        assert_eq!(timelines.era_from_ts(243), Some(0));
+
+        // For 1 era
+        assert_eq!(timelines.era_from_ts(244), Some(1));
+        assert_eq!(timelines.era_from_ts(333), Some(1));
+    }
+
+    #[test]
+    fn era_from_ts_returns_none_before_genesis() {
+        let result = ProtocolTimelines {
             genesis_ts: 100,
-            era: 234,
-            election: 200,
-            slot: 10,
+            ..mock_timelines()
         }
         .era_from_ts(50);
+        assert_eq!(result, None);
     }
 
     #[test]
     fn test_era_start_calculation() {
-        let timelines = ProtocolTimelines {
-            genesis_ts: 10,
-            era: 234,
-            election: 200,
-            slot: 10,
-        };
+        let timelines = mock_timelines();
 
         // For 0 era
-        assert_eq!(timelines.era_start_ts(0), 10);
-        assert_eq!(timelines.era_start_ts(0), 10);
-        assert_eq!(timelines.era_start_ts(0), 10);
+        assert_eq!(timelines.era_start_ts(0), Some(10));
+        assert_eq!(timelines.era_start_ts(0), Some(10));
+        assert_eq!(timelines.era_start_ts(0), Some(10));
 
         // For 1 era
-        assert_eq!(timelines.era_start_ts(1), 244);
-        assert_eq!(timelines.era_start_ts(1), 244);
+        assert_eq!(timelines.era_start_ts(1), Some(244));
+        assert_eq!(timelines.era_start_ts(1), Some(244));
     }
 
     // The possible future announce structure

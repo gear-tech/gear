@@ -149,7 +149,7 @@ mod tests {
                 meta_type::<Announce>(),
                 meta_type::<v3_migrated_types::BlockSmallData>(),
             ],
-            "6cfad404549d4a146ccb2fbad83d63474383b2059363c45e740c842ac95f7c45",
+            "a1524f115ac314dc8eec8fbb597867e67d30e268f7c5f5331ac723317899ef4a",
         );
     }
 }

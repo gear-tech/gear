@@ -1613,9 +1613,12 @@ async fn multiple_validators() {
         .await
         .unwrap();
 
-    tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
-        .await
-        .expect_err("Timeout expected");
+    tokio::time::timeout(
+        env.eth_cfg.block_time * 5,
+        wait_for_reply_to.clone().wait_for(),
+    )
+    .await
+    .expect_err("Timeout expected");
 
     log::info!(
         "📗 Re-start validator 0 and check, that now ethexe is working, validator 1 is still stopped"
@@ -3121,7 +3124,7 @@ async fn announces_conflicts() {
 
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
-        let era_index = timelines.era_from_ts(block.header.timestamp);
+        let era_index = timelines.era_from_ts(block.header.timestamp).unwrap();
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
         let announce_hash = announce.to_hash();
         validator0
@@ -3192,7 +3195,7 @@ async fn announces_conflicts() {
         // skip slots for validators 3, 4, 5 and go to the timestamp, where next block producer is validator 6
         env.provider
             .anvil_set_next_block_timestamp(
-                env.latest_block().await.header.timestamp + env.block_time.as_secs() * 4,
+                env.latest_block().await.header.timestamp + env.eth_cfg.block_time.as_secs() * 4,
             )
             .await
             .unwrap();
@@ -3219,7 +3222,7 @@ async fn announces_conflicts() {
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
-        let era_index = timelines.era_from_ts(block.header.timestamp);
+        let era_index = timelines.era_from_ts(block.header.timestamp).unwrap();
         let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
         let announce6_hash = announce6.to_hash();
         validator6
@@ -3243,7 +3246,7 @@ async fn announces_conflicts() {
         // so must be rejected by validators 1..=5
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
-        let era_index = timelines.era_from_ts(block.header.timestamp);
+        let era_index = timelines.era_from_ts(block.header.timestamp).unwrap();
         let parent = validator1_db
             .block_announces(block.header.parent_hash)
             .into_iter()

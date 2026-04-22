@@ -78,9 +78,15 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
         router_address: config.router_address,
         timelines: ProtocolTimelines {
             genesis_ts: timelines.genesis_ts,
-            era: timelines.era,
+            era: timelines
+                .era
+                .try_into()
+                .context("era duration must be non-zero")?,
             election: timelines.election,
-            slot: config.slot_duration_secs,
+            slot: config
+                .slot_duration_secs
+                .try_into()
+                .context("slot duration must be non-zero")?,
         },
         genesis_block_hash: latest_data.genesis_block_hash,
         genesis_announce_hash: latest_data.genesis_announce_hash,
@@ -107,7 +113,7 @@ mod tests {
                 meta_type::<v0::ProtocolTimelines>(),
                 meta_type::<DBConfig>(),
             ],
-            "68246d1aef14df71d8ba42d0a3b81f87c51c58c6ab24fe0348f1882e9c7d5a5a",
+            "97f71c37b40f02753863afae68bbd8fb1bda9a9110dbf3a9e24e6d1869c6dafa",
         );
     }
 }

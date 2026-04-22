@@ -208,7 +208,7 @@ mod tests {
                 meta_type::<BlockSmallData>(),
                 meta_type::<BlockMeta>(),
             ],
-            "ce87c1c2e0cdf462b5acc29f6feba7289bb40ef32ebad8fa9c9de9f52352c038",
+            "364dff015201cbcd49dd1dc045f0c95aa31565dcb7f99c2d017d682394f9e295",
         );
     }
 }
