@@ -29,8 +29,7 @@ use crate::KVDatabase;
 use crate::RawDatabase;
 use ethexe_common::db::DBConfig;
 
-// TODO: remove the hack
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 
 const _: () = const {
     assert!(

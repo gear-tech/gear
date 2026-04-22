@@ -44,7 +44,7 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     [b1, b2, b3, b4, b5, b6]
 }
 
-pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
+pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceStorageRW>(
     db: &DB,
     block_hash: H256,
     block_data: PreparedBlockData,
@@ -53,20 +53,17 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db.set_block_events(block_hash, &block_data.events);
     db.set_block_synced(block_hash);
 
+    db.set_block_announces(block_hash, block_data.announces);
+
     db.mutate_block_meta(block_hash, |meta| {
         *meta = BlockMeta {
             prepared: true,
-            announces: Some(block_data.announces),
             codes_queue: Some(block_data.codes_queue),
             last_committed_batch: Some(block_data.last_committed_batch),
             last_committed_announce: Some(block_data.last_committed_announce),
+            latest_era_validators_committed: Some(block_data.latest_era_with_committed_validators),
         }
     });
-
-    db.set_block_validators_committed_for_era(
-        block_hash,
-        block_data.latest_era_with_committed_validators,
-    );
 }
 
 pub fn setup_announce_in_db<DB: AnnounceStorageRW>(

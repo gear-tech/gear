@@ -33,16 +33,16 @@ mod migration;
 mod v0;
 mod v1;
 mod v2;
-// TODO: remove before merge to master.
-// Set to v4, because there is a pending pull request with v3 migration.
-// This is named "v4" to prevent the merge difficulties.
+mod v3;
 mod v4;
 
 pub const OLDEST_SUPPORTED_VERSION: u32 = v0::VERSION;
 pub const LATEST_VERSION: u32 = v4::VERSION;
+
 pub const MIGRATIONS: &[&dyn Migration] = &[
     &v1::migration_from_v0,
     &v2::migration_from_v1,
+    &v3::migration_from_v2,
     &v4::migration_from_v3,
 ];
 
@@ -78,7 +78,7 @@ pub mod utils {
     use gprimitives::H256;
 
     const DB_CONFIG_KEY_PREF: u64 = 15;
-    pub const CONFIG_KEY_LEN: usize = std::mem::size_of::<H256>() + 8;
+    const CONFIG_KEY_LEN: usize = std::mem::size_of::<H256>() + 8;
 
     pub fn config_key_bytes() -> [u8; CONFIG_KEY_LEN] {
         let mut bytes = [0u8; CONFIG_KEY_LEN];

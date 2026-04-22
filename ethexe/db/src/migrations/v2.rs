@@ -24,7 +24,10 @@ use parity_scale_codec::{Decode, Encode};
 // Critical usages for migration
 #[allow(unused_imports)]
 use crate::KVDatabase;
-use crate::{RawDatabase, database::BlockSmallData, migrations::v4::migrated_types::DBConfig};
+use crate::{
+    RawDatabase,
+    migrations::{v3, v4::migrated_types::DBConfig},
+};
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRW, DBGlobals},
@@ -65,8 +68,9 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 
         let block_hash = H256::from_slice(&k[std::mem::size_of::<H256>()..]);
 
-        let BlockSmallData { meta, .. } = BlockSmallData::decode(&mut v.as_slice())
-            .context("failed to decode BlockSmallData during migration")?;
+        let v3::migrated_types::BlockSmallData { meta, .. } =
+            v3::migrated_types::BlockSmallData::decode(&mut v.as_slice())
+                .context("failed to decode BlockSmallData during migration")?;
 
         log::trace!("Investigating block {block_hash:?} with meta {meta:?}");
 
@@ -133,7 +137,7 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrations::migration::test::assert_migration_types_hash;
+    use crate::migrations::{migration::test::assert_migration_types_hash, v3};
     use scale_info::meta_type;
 
     #[test]
@@ -144,9 +148,9 @@ mod tests {
                 meta_type::<DBConfig>(),
                 meta_type::<DBGlobals>(),
                 meta_type::<Announce>(),
-                meta_type::<BlockSmallData>(),
+                meta_type::<v3::migrated_types::BlockSmallData>(),
             ],
-            "b5677e7d7eaf0c48e5c6d0b8c0f14db5a12f9b82cfc067601f2163d8fb20bc2e",
+            "a3b9cfe297f8c7b63e8d17208aa97b99d5da1b27bec120f7f9ae37c6f973ed68",
         );
     }
 }
