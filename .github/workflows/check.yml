@@ -131,9 +131,9 @@ jobs:
           - name: linux-aarch64
             target: aarch64-unknown-linux-gnu
             runs-on: ubuntu-24.04-arm
-          # - name: windows-x86_64
-          #   target: x86_64-pc-windows-msvc
-          #   runs-on: ubuntu-24.04-arm
+          - name: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            runs-on: ubuntu-24.04-arm
     runs-on: ${{ matrix.runs-on }}
     name: clippy (${{ matrix.name }})
     steps:
@@ -307,9 +307,9 @@ jobs:
           - name: linux-aarch64
             target: aarch64-unknown-linux-gnu
             runs-on: ubuntu-24.04-arm
-          # - name: windows-x86_64
-          #   target: x86_64-pc-windows-msvc
-          #   runs-on: windows-latest
+          - name: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            runs-on: windows-latest
     runs-on: ${{ matrix.runs-on }}
     needs: [clippy, wasm]
     name: stack-height (${{ matrix.name }})
