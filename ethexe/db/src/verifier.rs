@@ -23,7 +23,7 @@ use crate::{
 };
 use ethexe_common::{
     Announce, BlockHeader, HashOf, ScheduledTask,
-    db::{AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, BlockMeta, OnChainStorageRO},
 };
 use ethexe_runtime_common::state::{MessageQueue, MessageQueueHashWithSize};
 use gear_core::code::CodeMetadata;
@@ -44,6 +44,7 @@ pub enum IntegrityVerifierError {
     BlockAnnouncesLenNotOne(H256),
     NoBlockLastCommittedBatch(H256),
     NoBlockLastCommittedAnnounce(H256),
+    NoBlockLatestEraValidatorsCommitted(H256),
     BlockAnnouncesIsEmpty(H256),
     NoBlockAnnounces(H256),
     NoBlockHeader(H256),
@@ -165,7 +166,13 @@ impl DatabaseVisitor for IntegrityVerifier {
             self.errors
                 .push(IntegrityVerifierError::NoBlockLastCommittedAnnounce(block));
         }
-        if let Some(announces) = meta.announces {
+        if meta.latest_era_validators_committed.is_none() {
+            self.errors
+                .push(IntegrityVerifierError::NoBlockLatestEraValidatorsCommitted(
+                    block,
+                ));
+        }
+        if let Some(announces) = self.db.block_announces(block) {
             if announces.is_empty() {
                 self.errors
                     .push(IntegrityVerifierError::BlockAnnouncesIsEmpty(block));
@@ -180,8 +187,7 @@ impl DatabaseVisitor for IntegrityVerifier {
     fn visit_announce(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
         if self
             .db
-            .block_meta(announce.block_hash)
-            .announces
+            .block_announces(announce.block_hash)
             .map(|announces| announces.iter().all(|a| *a != announce_hash))
             .unwrap_or(true)
         {
@@ -689,12 +695,13 @@ mod tests {
 
         db.set_block_header(block_hash, block_header);
         db.set_block_events(block_hash, &[]);
+        db.set_block_announces(block_hash, [announce_hash].into());
         db.mutate_block_meta(block_hash, |meta| {
             meta.prepared = true;
             meta.last_committed_batch = Some(Digest::random());
             meta.last_committed_announce = Some(announce_hash);
-            meta.announces = Some([announce_hash].into());
             meta.codes_queue = Some(Default::default());
+            meta.latest_era_validators_committed = Some(10);
         });
         db.set_block_synced(block_hash);
 

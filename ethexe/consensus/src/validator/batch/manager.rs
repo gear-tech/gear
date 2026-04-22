@@ -200,12 +200,7 @@ impl BatchCommitmentManager {
                 });
             }
 
-            let candidates = self
-                .db
-                .block_meta(block.hash)
-                .announces
-                .into_iter()
-                .flatten();
+            let candidates = self.db.block_announces(block.hash).into_iter().flatten();
 
             let best_announce_hash =
                 announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
@@ -332,7 +327,8 @@ impl BatchCommitmentManager {
 
         let latest_era_validators_committed = self
             .db
-            .block_validators_committed_for_era(block.hash)
+            .block_meta(block.hash)
+            .latest_era_validators_committed
             .ok_or_else(|| {
                 anyhow!(
                     "not found latest_era_validators_committed in database for block: {}",
