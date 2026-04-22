@@ -29,7 +29,7 @@ use alloy::sol_types::SolValue;
 use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ToDigest,
-    consensus::{BatchCommitmentValidationRequest, MAX_BATCH_SIZE_LIMIT},
+    consensus::BatchCommitmentValidationRequest,
     db::{AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, OnChainStorageRO},
     gear::{BatchCommitment, ChainCommitment, RewardsCommitment, ValidatorsCommitment},
 };
@@ -200,12 +200,7 @@ impl BatchCommitmentManager {
                 });
             }
 
-            let candidates = self
-                .db
-                .block_meta(block.hash)
-                .announces
-                .into_iter()
-                .flatten();
+            let candidates = self.db.block_announces(block.hash).into_iter().flatten();
 
             let best_announce_hash =
                 announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
@@ -256,12 +251,18 @@ impl BatchCommitmentManager {
                 head_announce: announce,
             };
             for announce_hash in not_committed_announces.into_iter() {
-                let transitions = super::utils::announce_transitions(&self.db, announce_hash)?;
+                let Some(transitions) = self.db.announce_outcome(announce_hash) else {
+                    anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
+                };
                 chain_commitment.transitions.extend(transitions);
                 if announce_hash == announce {
                     break;
                 }
             }
+            chain_commitment.transitions = super::utils::squash_transitions_by_actor(
+                std::mem::take(&mut chain_commitment.transitions),
+            );
+            super::utils::sort_transitions_by_value_to_receive(&mut chain_commitment.transitions);
             batch_parts.chain_commitment = Some(chain_commitment);
         }
 
@@ -294,7 +295,7 @@ impl BatchCommitmentManager {
         }
 
         let batch_encoded_size = Gear::BatchCommitment::from(batch).abi_encoded_size() as u64;
-        if batch_encoded_size > MAX_BATCH_SIZE_LIMIT {
+        if batch_encoded_size > self.limits.batch_size_limit {
             return Ok(ValidationStatus::Rejected {
                 request,
                 reason: ValidationRejectReason::BatchSizeLimitExceeded,
@@ -326,7 +327,8 @@ impl BatchCommitmentManager {
 
         let latest_era_validators_committed = self
             .db
-            .block_validators_committed_for_era(block.hash)
+            .block_meta(block.hash)
+            .latest_era_validators_committed
             .ok_or_else(|| {
                 anyhow!(
                     "not found latest_era_validators_committed in database for block: {}",

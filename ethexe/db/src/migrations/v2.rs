@@ -24,7 +24,10 @@ use parity_scale_codec::Decode;
 // Critical usages for migration
 #[allow(unused_imports)]
 use crate::KVDatabase;
-use crate::{RawDatabase, database::BlockSmallData};
+use crate::{
+    RawDatabase,
+    migrations::{v3, v3::v3_migrated_types},
+};
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRW, DBConfig, DBGlobals},
@@ -34,7 +37,7 @@ pub const VERSION: u32 = 2;
 
 const _: () = const {
     assert!(
-        crate::VERSION == VERSION,
+        crate::VERSION == v3::VERSION,
         "Check migration code for types changing in case of version change: DBConfig, DBGlobals, Announce, BlockSmallData. \
          Also check AnnounceStorageRW, KVDatabase, dyn KVDatabase implementations"
     );
@@ -65,8 +68,9 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 
         let block_hash = H256::from_slice(&k[std::mem::size_of::<H256>()..]);
 
-        let BlockSmallData { meta, .. } = BlockSmallData::decode(&mut v.as_slice())
-            .context("failed to decode BlockSmallData during migration")?;
+        let v3_migrated_types::BlockSmallData { meta, .. } =
+            v3_migrated_types::BlockSmallData::decode(&mut v.as_slice())
+                .context("failed to decode BlockSmallData during migration")?;
 
         log::trace!("Investigating block {block_hash:?} with meta {meta:?}");
 
@@ -132,7 +136,7 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrations::migration::test::assert_migration_types_hash;
+    use crate::migrations::{migration::test::assert_migration_types_hash, v3::v3_migrated_types};
     use scale_info::meta_type;
 
     #[test]
@@ -143,9 +147,9 @@ mod tests {
                 meta_type::<DBConfig>(),
                 meta_type::<DBGlobals>(),
                 meta_type::<Announce>(),
-                meta_type::<BlockSmallData>(),
+                meta_type::<v3_migrated_types::BlockSmallData>(),
             ],
-            "81abd3c542f8e52406a3f590c9baffdbd9bd6f983ca1410f536c3967544f069e",
+            "6cfad404549d4a146ccb2fbad83d63474383b2059363c45e740c842ac95f7c45",
         );
     }
 }
