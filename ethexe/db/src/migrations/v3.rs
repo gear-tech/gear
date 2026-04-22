@@ -64,10 +64,10 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     let mut keys_to_remove = Vec::new();
 
     for (key, value) in db.kv.iter_prefix(block_small_data_prefix.as_bytes()) {
-        if key.len() != 2 * std::mem::size_of::<H256>() {
+        if key.len() != 2 * size_of::<H256>() {
             warn!(
                 "⚠️ Found invalid BlockSmallData key: expected key len - {}, found key len - {}",
-                2 * std::mem::size_of::<H256>(),
+                2 * size_of::<H256>(),
                 key.len()
             );
             continue;
@@ -89,7 +89,7 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
                 },
         } = block_small_data;
 
-        let block_hash = H256::from_slice(&key[std::mem::size_of::<H256>()..]);
+        let block_hash = H256::from_slice(&key[size_of::<H256>()..]);
 
         let latest_era_validators_committed_key =
             [latest_era_prefix.as_bytes(), block_hash.as_bytes()].concat();

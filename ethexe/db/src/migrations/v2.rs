@@ -62,11 +62,11 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         .kv
         .iter_prefix(H256::from_low_u64_be(BLOCK_SMALL_DATA_PREFIX).as_bytes())
     {
-        if k.len() != 2 * std::mem::size_of::<H256>() {
+        if k.len() != 2 * size_of::<H256>() {
             continue;
         }
 
-        let block_hash = H256::from_slice(&k[std::mem::size_of::<H256>()..]);
+        let block_hash = H256::from_slice(&k[size_of::<H256>()..]);
 
         let v3::migrated_types::BlockSmallData { meta, .. } =
             v3::migrated_types::BlockSmallData::decode(&mut v.as_slice())

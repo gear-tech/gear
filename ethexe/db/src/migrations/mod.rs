@@ -78,12 +78,12 @@ pub mod utils {
     use gprimitives::H256;
 
     const DB_CONFIG_KEY_PREF: u64 = 15;
-    const CONFIG_KEY_LEN: usize = std::mem::size_of::<H256>() + 8;
+    const CONFIG_KEY_LEN: usize = size_of::<H256>() + 8;
 
     pub fn config_key_bytes() -> [u8; CONFIG_KEY_LEN] {
         let mut bytes = [0u8; CONFIG_KEY_LEN];
         let prefix = H256::from_low_u64_be(DB_CONFIG_KEY_PREF);
-        bytes[..std::mem::size_of::<H256>()].copy_from_slice(prefix.as_bytes());
+        bytes[..size_of::<H256>()].copy_from_slice(prefix.as_bytes());
         bytes
     }
 }
