@@ -732,8 +732,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         ))
         .context("failed to calculate era from validators timestamp")?;
 
-    // TODO: #5020 whether we need to setup validators here?
-
     ethexe_common::setup_block_in_db(
         db,
         block_hash,

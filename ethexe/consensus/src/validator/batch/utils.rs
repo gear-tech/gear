@@ -24,9 +24,12 @@ use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment, StateTransition},
+    gear::{
+        BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
+    },
 };
-use gprimitives::{CodeId, H256};
+use gprimitives::{ActorId, CodeId, H256};
+use std::collections::{HashMap, hash_map::Entry};
 
 pub fn collect_not_committed_predecessors<DB: AnnounceStorageRO + BlockMetaStorageRO>(
     db: &DB,
@@ -149,7 +152,9 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
     let max_depth = pending.len() as u32;
 
     for (depth, announce_hash) in pending.into_iter().enumerate() {
-        let transitions = super::utils::announce_transitions(&db, announce_hash)?;
+        let Some(transitions) = db.announce_outcome(announce_hash) else {
+            anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
+        };
         let commitment = ChainCommitment {
             head_announce: announce_hash,
             transitions,
@@ -163,18 +168,6 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
         }
     }
     Ok((final_announce, max_depth))
-}
-
-pub fn announce_transitions<DB: AnnounceStorageRO>(
-    db: &DB,
-    announce_hash: HashOf<Announce>,
-) -> Result<Vec<StateTransition>> {
-    let Some(mut announce_transitions) = db.announce_outcome(announce_hash) else {
-        anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
-    };
-
-    sort_transitions_by_value_to_receive(&mut announce_transitions);
-    Ok(announce_transitions)
 }
 
 pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
@@ -251,11 +244,151 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
         .transpose()?)
 }
 
+/// Squashes transitions for the same actor into a single transition per actor.
+///
+/// For each actor, the newest transition (last in chronological order) provides the
+/// `new_state_hash`. Messages, value claims, and `value_to_receive` are accumulated
+/// from all transitions. If any transition marks the actor as exited, the resulting
+/// inheritor is taken from the newest exit transition. The returned transitions
+/// preserve the order in which each actor first appeared; callers apply any
+/// later ordering required for commitment encoding or execution.
+pub fn squash_transitions_by_actor(transitions: Vec<StateTransition>) -> Vec<StateTransition> {
+    let mut positions = HashMap::new();
+    let mut aggregations = Vec::new();
+
+    for transition in transitions {
+        match positions.entry(transition.actor_id) {
+            Entry::Vacant(entry) => {
+                entry.insert(aggregations.len());
+                aggregations.push(ActorAggregation::new(transition));
+            }
+            Entry::Occupied(entry) => {
+                aggregations[*entry.get()].join(transition);
+            }
+        }
+    }
+
+    aggregations
+        .into_iter()
+        .map(|aggregation| aggregation.finish())
+        .collect()
+}
+
+struct ActorAggregation {
+    newest: StateTransition,
+    messages: Vec<Message>,
+    value_claims: Vec<ValueClaim>,
+    value_to_receive: SignedMagnitude,
+    exit_inheritor: Option<ActorId>,
+}
+
+impl ActorAggregation {
+    fn new(mut transition: StateTransition) -> Self {
+        let messages = std::mem::take(&mut transition.messages);
+        let value_claims = std::mem::take(&mut transition.value_claims);
+        let exit_inheritor = transition.exited.then_some(transition.inheritor);
+
+        Self {
+            value_to_receive: SignedMagnitude::new(
+                transition.value_to_receive,
+                transition.value_to_receive_negative_sign,
+            ),
+            newest: transition,
+            messages,
+            value_claims,
+            exit_inheritor,
+        }
+    }
+
+    fn join(&mut self, mut transition: StateTransition) {
+        let actor_id = transition.actor_id;
+        debug_assert_eq!(self.newest.actor_id, actor_id);
+        self.messages.append(&mut transition.messages);
+        self.value_claims.append(&mut transition.value_claims);
+        self.value_to_receive.add_assign(
+            SignedMagnitude::new(
+                transition.value_to_receive,
+                transition.value_to_receive_negative_sign,
+            ),
+            actor_id,
+        );
+        if transition.exited {
+            self.exit_inheritor = Some(transition.inheritor);
+        }
+        self.newest = transition;
+    }
+
+    fn finish(self) -> StateTransition {
+        let SignedMagnitude {
+            value: value_to_receive,
+            negative: value_to_receive_negative_sign,
+        } = self.value_to_receive;
+
+        StateTransition {
+            actor_id: self.newest.actor_id,
+            new_state_hash: self.newest.new_state_hash,
+            exited: self.exit_inheritor.is_some(),
+            inheritor: self.exit_inheritor.unwrap_or(self.newest.inheritor),
+            value_to_receive,
+            value_to_receive_negative_sign,
+            value_claims: self.value_claims,
+            messages: self.messages,
+        }
+    }
+}
+
+/// Internal signed-magnitude helper for `StateTransition::value_to_receive`.
+///
+/// Consensus stores the transfer amount as `(u128, negative_sign)` instead of a
+/// signed integer to keep the on-chain representation cheaper. Squashing needs
+/// signed arithmetic, so this helper performs addition directly on that wire
+/// format:
+/// - zero is always normalized to `negative = false`
+/// - equal signs use checked addition
+/// - opposite signs subtract the smaller magnitude from the larger one and keep
+///   the sign of the larger magnitude
+#[derive(Clone, Copy)]
+struct SignedMagnitude {
+    value: u128,
+    negative: bool,
+}
+
+impl SignedMagnitude {
+    fn new(value: u128, negative: bool) -> Self {
+        Self {
+            value,
+            negative: value != 0 && negative,
+        }
+    }
+
+    fn add_assign(&mut self, other: Self, actor_id: ActorId) {
+        match self.negative == other.negative {
+            true => {
+                self.value = self.value.checked_add(other.value).unwrap_or_else(|| {
+                    panic!("squashed transition value overflow for actor {actor_id:?}")
+                });
+            }
+            false => match self.value.cmp(&other.value) {
+                std::cmp::Ordering::Greater => {
+                    self.value -= other.value;
+                }
+                std::cmp::Ordering::Equal => {
+                    self.value = 0;
+                    self.negative = false;
+                }
+                std::cmp::Ordering::Less => {
+                    self.value = other.value - self.value;
+                    self.negative = other.negative;
+                }
+            },
+        }
+    }
+}
+
 pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition]) {
-    transitions.sort_by(|lhs, rhs| {
-        rhs.value_to_receive_negative_sign
-            .cmp(&lhs.value_to_receive_negative_sign)
-    });
+    // `false < true`, so invert the key to keep transitions that return value to
+    // the router ahead of transitions that receive value from it.
+    transitions.sort_by_key(|transition| !transition.value_to_receive_negative_sign);
 }
 
 #[cfg(test)]
@@ -451,5 +584,486 @@ mod tests {
                 "Expiry should match the one in the batch commitment"
             );
         }
+    }
+
+    #[test]
+    fn test_squash_transitions_by_actor() {
+        use ethexe_common::gear::Message;
+
+        let actor = ActorId::from([7; 32]);
+        let inheritor_old = ActorId::from([8; 32]);
+        let inheritor_new = ActorId::from([9; 32]);
+
+        let m1 = Message {
+            id: Default::default(),
+            destination: inheritor_old,
+            payload: b"old".to_vec(),
+            value: 1,
+            reply_details: None,
+            call: false,
+        };
+        let m2 = Message {
+            id: Default::default(),
+            destination: inheritor_new,
+            payload: b"new".to_vec(),
+            value: 2,
+            reply_details: None,
+            call: false,
+        };
+
+        let transitions = vec![
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([1; 32]),
+                exited: true,
+                inheritor: inheritor_old,
+                value_to_receive: 1,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![m1.clone()],
+            },
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([2; 32]),
+                exited: true,
+                inheritor: inheritor_new,
+                value_to_receive: 2,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![m2.clone()],
+            },
+        ];
+
+        let squashed = squash_transitions_by_actor(transitions);
+        assert_eq!(squashed.len(), 1);
+
+        let st = &squashed[0];
+        assert_eq!(st.actor_id, actor);
+        assert_eq!(st.new_state_hash, H256::from([2; 32]));
+        assert!(st.exited);
+        assert_eq!(st.inheritor, inheritor_new);
+        assert_eq!(st.messages, vec![m1, m2]);
+        assert_eq!(st.value_to_receive, 3);
+    }
+
+    #[test]
+    #[should_panic(expected = "squashed transition value overflow")]
+    fn test_squash_value_overflow_panics() {
+        let actor = ActorId::from([5; 32]);
+
+        let _ = squash_transitions_by_actor(vec![
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([1; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 42,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([2; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: u128::MAX - 10,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+        ]);
+    }
+
+    #[test]
+    fn test_squash_preserves_distinct_actors() {
+        let actor_a = ActorId::from([1; 32]);
+        let actor_b = ActorId::from([2; 32]);
+
+        let transitions = vec![
+            StateTransition {
+                actor_id: actor_a,
+                new_state_hash: H256::from([10; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 5,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor_b,
+                new_state_hash: H256::from([20; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 10,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+        ];
+
+        let squashed = squash_transitions_by_actor(transitions);
+        assert_eq!(squashed.len(), 2);
+
+        let st_a = squashed.iter().find(|t| t.actor_id == actor_a).unwrap();
+        assert_eq!(st_a.new_state_hash, H256::from([10; 32]));
+        assert_eq!(st_a.value_to_receive, 5);
+
+        let st_b = squashed.iter().find(|t| t.actor_id == actor_b).unwrap();
+        assert_eq!(st_b.new_state_hash, H256::from([20; 32]));
+        assert_eq!(st_b.value_to_receive, 10);
+    }
+
+    #[test]
+    fn test_squash_preserves_first_seen_actor_order() {
+        let actor_a = ActorId::from([0xA1; 32]);
+        let actor_b = ActorId::from([0xB2; 32]);
+
+        let squashed = squash_transitions_by_actor(vec![
+            StateTransition {
+                actor_id: actor_a,
+                new_state_hash: H256::from([1; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 10,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor_b,
+                new_state_hash: H256::from([2; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 5,
+                value_to_receive_negative_sign: true,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor_a,
+                new_state_hash: H256::from([3; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 1,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+        ]);
+
+        assert_eq!(
+            squashed
+                .iter()
+                .map(|transition| transition.actor_id)
+                .collect::<Vec<_>>(),
+            vec![actor_a, actor_b]
+        );
+    }
+
+    #[test]
+    fn test_squash_no_exit_preserves_inheritor_zero() {
+        let actor = ActorId::from([3; 32]);
+
+        let transitions = vec![
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([1; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 1,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([2; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 2,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+        ];
+
+        let squashed = squash_transitions_by_actor(transitions);
+        assert_eq!(squashed.len(), 1);
+        assert!(!squashed[0].exited);
+        assert_eq!(squashed[0].inheritor, ActorId::zero());
+        assert_eq!(squashed[0].value_to_receive, 3);
+    }
+
+    #[test]
+    fn test_squash_comprehensive() {
+        use ethexe_common::gear::{Message, ValueClaim};
+        use gprimitives::MessageId;
+
+        // --- Actors ---
+        let actor_a = ActorId::from([0xAA; 32]); // appears in 3 blocks
+        let actor_b = ActorId::from([0xBB; 32]); // appears in 2 blocks; later non-exit is defensive
+        let actor_c = ActorId::from([0xCC; 32]); // appears only once (singleton)
+
+        let inheritor_1 = ActorId::from([0x11; 32]);
+
+        // --- Messages ---
+        let msg = |tag: &[u8], val: u128| Message {
+            id: MessageId::from(H256::from_slice(&{
+                let mut buf = [0u8; 32];
+                buf[..tag.len().min(32)].copy_from_slice(&tag[..tag.len().min(32)]);
+                buf
+            })),
+            destination: ActorId::from([0xDD; 32]),
+            payload: tag.to_vec(),
+            value: val,
+            reply_details: None,
+            call: false,
+        };
+        let m_a1 = msg(b"a1", 10);
+        let m_a2 = msg(b"a2", 20);
+        let m_a3 = msg(b"a3", 30);
+        let m_b1 = msg(b"b1", 100);
+        let m_b2 = msg(b"b2", 200);
+        let m_c1 = msg(b"c1", 50);
+
+        // --- Value claims ---
+        let vc = |id_byte: u8, val: u128| ValueClaim {
+            message_id: MessageId::from(H256::from([id_byte; 32])),
+            destination: ActorId::from([id_byte; 32]),
+            value: val,
+        };
+        let vc_a1 = vc(0x01, 5);
+        let vc_a2 = vc(0x02, 15);
+        let vc_b1 = vc(0x03, 7);
+
+        // Simulate transitions in chronological order (oldest first):
+        //
+        // Block 1: actor_a (state=H1, exit to inheritor_1, value=100, msg=a1, vc=vc_a1)
+        //          actor_b (state=H3, exited=true inheritor_1, value=50, msg=b1, vc=vc_b1)
+        // Block 2: actor_a (state=H2, no exit, value=200, msg=a2, vc=vc_a2)
+        //          actor_b (state=H4, exited=false, value=25, msg=b2)
+        // Block 3: actor_a (state=H_final, no exit, value=150, msg=a3, neg_sign=true)
+        //          actor_c (state=H5, no exit, value=1, msg=c1) -- singleton
+        let transitions = vec![
+            // Block 1
+            StateTransition {
+                actor_id: actor_a,
+                new_state_hash: H256::from([0x01; 32]),
+                exited: true,
+                inheritor: inheritor_1,
+                value_to_receive: 100,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![vc_a1.clone()],
+                messages: vec![m_a1.clone()],
+            },
+            StateTransition {
+                actor_id: actor_b,
+                new_state_hash: H256::from([0x03; 32]),
+                exited: true,
+                inheritor: inheritor_1,
+                value_to_receive: 50,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![vc_b1.clone()],
+                messages: vec![m_b1.clone()],
+            },
+            // Block 2
+            StateTransition {
+                actor_id: actor_a,
+                new_state_hash: H256::from([0x02; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 200,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![vc_a2.clone()],
+                messages: vec![m_a2.clone()],
+            },
+            StateTransition {
+                actor_id: actor_b,
+                new_state_hash: H256::from([0x04; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 25,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![m_b2.clone()],
+            },
+            // Block 3
+            StateTransition {
+                actor_id: actor_a,
+                new_state_hash: H256::from([0xFF; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 150,
+                value_to_receive_negative_sign: true,
+                value_claims: vec![],
+                messages: vec![m_a3.clone()],
+            },
+            StateTransition {
+                actor_id: actor_c,
+                new_state_hash: H256::from([0x05; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 1,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![m_c1.clone()],
+            },
+        ];
+
+        let squashed = squash_transitions_by_actor(transitions);
+
+        // We look up each actor explicitly to keep assertions independent from
+        // the sign-based output ordering.
+        assert_eq!(squashed.len(), 3, "3 distinct actors expected");
+
+        // --- actor_a: 3 transitions squashed ---
+        let st_a = squashed.iter().find(|t| t.actor_id == actor_a).unwrap();
+        // Newest state hash (block 3)
+        assert_eq!(st_a.new_state_hash, H256::from([0xFF; 32]));
+        // Block 1 exited, but blocks 2 & 3 did not—however once exited the flag sticks
+        // only if any transition set exited=true. Here block 1 did, so exit_inheritor = inheritor_1
+        // but then block 2 did not exit (no override) and block 3 did not exit (no override).
+        // The latest exit was block 1 with inheritor_1.
+        assert!(st_a.exited);
+        assert_eq!(st_a.inheritor, inheritor_1);
+        // Messages in chronological order: a1, a2, a3
+        assert_eq!(st_a.messages, vec![m_a1, m_a2, m_a3]);
+        // Value claims accumulated: vc_a1, vc_a2
+        assert_eq!(st_a.value_claims, vec![vc_a1, vc_a2]);
+        // value_to_receive: 100 + 200 - 150 = 150
+        assert_eq!(st_a.value_to_receive, 150);
+        assert!(!st_a.value_to_receive_negative_sign);
+
+        // --- actor_b: 2 transitions squashed ---
+        let st_b = squashed.iter().find(|t| t.actor_id == actor_b).unwrap();
+        // Newest state hash (block 2)
+        assert_eq!(st_b.new_state_hash, H256::from([0x04; 32]));
+        // Block 1 exited with inheritor_1; block 2 does not exit. That second
+        // transition is defensive coverage for an otherwise unreachable state,
+        // so the latest exited transition is still block 1.
+        assert!(st_b.exited);
+        assert_eq!(st_b.inheritor, inheritor_1);
+        // Messages: b1, b2
+        assert_eq!(st_b.messages, vec![m_b1, m_b2]);
+        // Value claims: only vc_b1
+        assert_eq!(st_b.value_claims, vec![vc_b1]);
+        // value: 50 + 25 = 75
+        assert_eq!(st_b.value_to_receive, 75);
+        assert!(!st_b.value_to_receive_negative_sign);
+
+        // --- actor_c: singleton, passes through unchanged ---
+        let st_c = squashed.iter().find(|t| t.actor_id == actor_c).unwrap();
+        assert_eq!(st_c.new_state_hash, H256::from([0x05; 32]));
+        assert!(!st_c.exited);
+        assert_eq!(st_c.inheritor, ActorId::zero());
+        assert_eq!(st_c.messages, vec![m_c1]);
+        assert!(st_c.value_claims.is_empty());
+        assert_eq!(st_c.value_to_receive, 1);
+        assert!(!st_c.value_to_receive_negative_sign);
+    }
+
+    /// Exit in a later block overrides an earlier exit's inheritor.
+    #[test]
+    fn test_squash_later_exit_overrides_earlier() {
+        let actor = ActorId::from([0xEE; 32]);
+        let inheritor_early = ActorId::from([0x11; 32]);
+        let inheritor_late = ActorId::from([0x22; 32]);
+
+        let transitions = vec![
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([1; 32]),
+                exited: true,
+                inheritor: inheritor_early,
+                value_to_receive: 0,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([2; 32]),
+                exited: true,
+                inheritor: inheritor_late,
+                value_to_receive: 0,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+        ];
+
+        let squashed = squash_transitions_by_actor(transitions);
+        assert_eq!(squashed.len(), 1);
+        assert!(squashed[0].exited);
+        assert_eq!(
+            squashed[0].inheritor, inheritor_late,
+            "latest exit's inheritor must win"
+        );
+    }
+
+    #[test]
+    fn test_squash_mixed_sign_value_to_receive() {
+        let actor = ActorId::from([0xAB; 32]);
+
+        let squashed = squash_transitions_by_actor(vec![
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([1; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 100,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([2; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 50,
+                value_to_receive_negative_sign: true,
+                value_claims: vec![],
+                messages: vec![],
+            },
+        ]);
+
+        assert_eq!(squashed.len(), 1);
+        assert_eq!(squashed[0].value_to_receive, 50);
+        assert!(!squashed[0].value_to_receive_negative_sign);
+    }
+
+    #[test]
+    fn test_squash_exact_value_cancellation() {
+        let actor = ActorId::from([0xAC; 32]);
+
+        let squashed = squash_transitions_by_actor(vec![
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([1; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 100,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            },
+            StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([2; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 100,
+                value_to_receive_negative_sign: true,
+                value_claims: vec![],
+                messages: vec![],
+            },
+        ]);
+
+        assert_eq!(squashed.len(), 1);
+        assert_eq!(squashed[0].value_to_receive, 0);
+        assert!(!squashed[0].value_to_receive_negative_sign);
     }
 }

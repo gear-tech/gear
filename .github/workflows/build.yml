@@ -55,7 +55,7 @@ jobs:
             {
               name: "linux-x86_64",
               target: "x86_64-unknown-linux-gnu",
-              "runs-on": ["kuberunner", "github-runner-02"]
+              "runs-on": ["kuberunner"]
             }
           ]')
           ethexe_targets=$(jq -c -n '[
@@ -103,7 +103,7 @@ jobs:
               {
                 name: "windows-x86_64",
                 target: "x86_64-pc-windows-msvc",
-                "runs-on": ["kuberunner", "github-runner-02"]
+                "runs-on": ["kuberunner"]
               }
             ]')
             ethexe_targets=$(echo "$ethexe_targets" | jq -c '. += [
@@ -251,7 +251,7 @@ jobs:
 
   workspace:
     needs: [dynamic-matrix, gear-cli]
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: [kuberunner]
     strategy:
       matrix:
         profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
@@ -284,7 +284,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly-c07d504b4ae67754584f4e05ff0c547a43c50f7b
+          version: nightly-f1abb2ca347187bb6dea8c3881ca44ce50aab1e7
 
       - name: "Show: Versioning"
         run: |
@@ -331,7 +331,7 @@ jobs:
           path: target/nextest/ci/junit.xml
 
   crates-io:
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: [kuberunner]
     needs: workspace
     steps:
       - name: "ACTIONS: Checkout"
@@ -358,7 +358,7 @@ jobs:
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
   benchmarks:
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: [kuberunner]
     needs: workspace
     name: benchmarks
     steps:
@@ -463,7 +463,8 @@ jobs:
           snap -p vara_ci.snap
 
   fuzzer:
-    runs-on: [kuberunner, github-runner-01]
+    if: false # temporarily disabled until we fix it
+    runs-on: [kuberunner]
     needs: workspace
     env:
       RUSTFLAGS: "--cfg fuzz"
@@ -528,7 +529,7 @@ jobs:
         run: cat lazy_pages_fuzz_run
 
   production:
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: [kuberunner]
     needs: [dynamic-matrix, workspace]
     if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
