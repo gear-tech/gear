@@ -365,8 +365,15 @@ impl Router {
                 ));
             }
         };
-        let gas_limit =
-            Self::HUGE_GAS_LIMIT.max(estimated_gas_limit + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
+        let gas_limit = estimated_gas_limit + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS;
+        if gas_limit > Self::HUGE_GAS_LIMIT {
+            log::error!(
+                "Estimated gas limit {gas_limit} is too high for batch commitment: {commitment:?}",
+            );
+            return Err(anyhow!(
+                "Estimated gas limit {gas_limit} is too high for batch commitment",
+            ));
+        }
 
         builder.gas(gas_limit).send().await.map_err(Into::into)
     }
