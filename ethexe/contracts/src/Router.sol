@@ -733,7 +733,6 @@ contract Router is
             _commitment.validators,
             nextEraStart
         );
-        router.protocolData.maxValidators = uint16(_commitment.validators.length);
 
         emit ValidatorsCommittedForEra(_commitment.eraIndex);
 
