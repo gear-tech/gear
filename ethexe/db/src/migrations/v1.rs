@@ -31,7 +31,7 @@ pub const VERSION: u32 = 1;
 
 const _: () = const {
     assert!(
-        crate::VERSION == super::v2::VERSION,
+        crate::VERSION == super::v3::VERSION,
         "Check migration code for types changing in case of version change: DBConfig, DBGlobals, ProtocolTimelines"
     );
 };

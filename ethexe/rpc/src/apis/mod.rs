@@ -26,10 +26,12 @@ pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
 pub use dev::{DevApi, DevServer};
 pub use injected::{InjectedApi, InjectedServer};
-pub use program::{FullProgramState, ProgramApi, ProgramServer};
+pub use program::{ProgramApi, ProgramServer};
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
     block::BlockClient, code::CodeClient, dev::DevClient, injected::InjectedClient,
     program::ProgramClient,
 };
+#[cfg(feature = "client")]
+pub use program::FullProgramState;

@@ -79,10 +79,8 @@ enum Key {
     Globals = 14,
     Config = 15,
 
-    // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    LatestEraValidatorsCommitted(H256) = 16,
-
     Announces(HashOf<Announce>) = 17,
+    BlockAnnounces(H256) = 18,
 }
 
 impl Key {
@@ -100,9 +98,9 @@ impl Key {
         bytes.extend(self.prefix());
 
         match self {
-            Self::BlockSmallData(hash)
-            | Self::BlockEvents(hash)
-            | Self::LatestEraValidatorsCommitted(hash) => bytes.extend(hash.as_ref()),
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) | Self::BlockAnnounces(hash) => {
+                bytes.extend(hash.as_ref())
+            }
 
             Self::ValidatorSet(era_index) => {
                 bytes.extend(era_index.to_le_bytes());
@@ -420,6 +418,15 @@ impl AnnounceStorageRO for RawDatabase {
             })
             .unwrap_or_default()
     }
+
+    fn block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>> {
+        self.kv
+            .get(&Key::BlockAnnounces(block_hash).to_bytes())
+            .map(|data| {
+                BTreeSet::<HashOf<Announce>>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeSet<HashOf<Announce>>`")
+            })
+    }
 }
 
 impl AnnounceStorageRW for RawDatabase {
@@ -470,6 +477,28 @@ impl AnnounceStorageRW for RawDatabase {
         self.kv
             .put(&Key::AnnounceMeta(announce_hash).to_bytes(), meta.encode());
     }
+
+    fn set_block_announces(&self, block_hash: H256, announces: BTreeSet<HashOf<Announce>>) {
+        tracing::trace!("Set block {block_hash} announces: len {}", announces.len());
+        self.kv.put(
+            &Key::BlockAnnounces(block_hash).to_bytes(),
+            announces.encode(),
+        );
+    }
+
+    fn mutate_block_announces(
+        &self,
+        block_hash: H256,
+        f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
+    ) {
+        tracing::trace!("For block {block_hash} mutate announces");
+        let mut announces = self.block_announces(block_hash).unwrap_or_default();
+        f(&mut announces);
+        self.kv.put(
+            &Key::BlockAnnounces(block_hash).to_bytes(),
+            announces.encode(),
+        );
+    }
 }
 
 impl OnChainStorageRO for RawDatabase {
@@ -510,15 +539,6 @@ impl OnChainStorageRO for RawDatabase {
                     .expect("Failed to decode data into `ValidatorsVec`")
             })
     }
-
-    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64> {
-        self.kv
-            .get(&Key::LatestEraValidatorsCommitted(block_hash).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `u64` (era_index)")
-            })
-    }
 }
 
 impl OnChainStorageRW for RawDatabase {
@@ -551,13 +571,6 @@ impl OnChainStorageRW for RawDatabase {
         self.kv.put(
             &Key::ValidatorSet(era_index).to_bytes(),
             validator_set.encode(),
-        );
-    }
-
-    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64) {
-        self.kv.put(
-            &Key::LatestEraValidatorsCommitted(block_hash).to_bytes(),
-            era_index.encode(),
         );
     }
 }
@@ -812,11 +825,11 @@ impl HashStorageRO for Database {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, TypeInfo)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub(crate) struct BlockSmallData {
-    pub(crate) block_header: Option<BlockHeader>,
-    pub(crate) block_is_synced: bool,
-    pub(crate) meta: BlockMeta,
+    pub block_header: Option<BlockHeader>,
+    pub block_is_synced: bool,
+    pub meta: BlockMeta,
 }
 
 impl BlockMetaStorageRO for Database {
@@ -873,7 +886,6 @@ impl OnChainStorageRO for Database {
             fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
             fn block_synced(&self, block_hash: H256) -> bool;
             fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
-            fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64>;
         }
     }
 }
@@ -886,7 +898,6 @@ impl OnChainStorageRW for Database {
             fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
             fn set_block_synced(&self, block_hash: H256);
             fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
-            fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64);
         }
     }
 }
@@ -898,6 +909,7 @@ impl AnnounceStorageRO for Database {
         fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
         fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
         fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
+        fn block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
     });
 }
 
@@ -915,6 +927,12 @@ impl AnnounceStorageRW for Database {
             &self,
             announce_hash: HashOf<Announce>,
             f: impl FnOnce(&mut AnnounceMeta),
+        );
+        fn set_block_announces(&self, block_hash: H256, announces: BTreeSet<HashOf<Announce>>);
+        fn mutate_block_announces(
+            &self,
+            block_hash: H256,
+            f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
         );
     });
 }
