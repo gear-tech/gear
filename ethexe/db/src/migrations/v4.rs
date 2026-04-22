@@ -17,17 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{InitConfig, utils};
+use crate::RawDatabase;
 use alloy::providers::RootProvider;
 use anyhow::{Context as _, Result, bail};
+use ethexe_common::db::DBConfig;
 use ethexe_ethereum::router::RouterQuery;
 use parity_scale_codec::Decode;
 use tracing::info;
-
-// Critical usages for migration
-#[allow(unused_imports)]
-use crate::KVDatabase;
-use crate::RawDatabase;
-use ethexe_common::db::DBConfig;
 
 pub const VERSION: u32 = 4;
 
