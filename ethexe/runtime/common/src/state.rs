@@ -1070,6 +1070,7 @@ impl MemoryPages {
         }
 
         for (region_idx, region) in updated_regions {
+            // TODO #5373
             if let Some(region_hash) = region.store(storage).to_inner() {
                 self[region_idx] = region_hash.into();
             }

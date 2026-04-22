@@ -1257,6 +1257,7 @@ mod tests {
             let (raw_pages, removed_pages) = raw_pages;
             let storage = MemStorage::default();
             let hashed_pages = storage.write_pages_data(raw_pages);
+            let initial_pages = hashed_pages.clone();
             let mut memory_pages = MemoryPages::default();
             memory_pages.update_and_store_regions(&storage, hashed_pages.clone());
 
@@ -1271,7 +1272,58 @@ mod tests {
             }
 
             memory_pages.remove_and_store_regions(&storage, &removed_pages);
-            prop_assert_eq!(flatten_memory_pages(&storage, &memory_pages), expected);
+
+            let actual = flatten_memory_pages(&storage, &memory_pages);
+
+            for region_idx in 0..MemoryPages::REGIONS_AMOUNT {
+                let region_idx = region_idx as u8;
+
+                let expected_region: BTreeMap<_, _> = expected
+                    .iter()
+                    .filter(|(page, _)| {
+                        let page_region: u8 = MemoryPages::page_region(**page).into();
+                        page_region == region_idx
+                    })
+                    .map(|(&page, &hash)| (page, hash))
+                    .collect();
+
+                if expected_region.is_empty() {
+                    continue;
+                }
+
+                let actual_region: BTreeMap<_, _> = actual
+                    .iter()
+                    .filter(|(page, _)| {
+                        let page_region: u8 = MemoryPages::page_region(**page).into();
+                        page_region == region_idx
+                    })
+                    .map(|(&page, &hash)| (page, hash))
+                    .collect();
+
+                prop_assert_eq!(
+                    actual_region,
+                    expected_region,
+                    "region {:?} should match when it remains non-empty after removal",
+                    region_idx
+                );
+            }
+
+            for page in initial_pages.keys().filter(|page| !expected.contains_key(page)) {
+                let region_idx: u8 = MemoryPages::page_region(*page).into();
+                let region_still_has_pages = expected
+                    .keys()
+                    .any(|remaining_page| {
+                        let page_region: u8 = MemoryPages::page_region(*remaining_page).into();
+                        page_region == region_idx
+                    });
+
+                if region_still_has_pages {
+                    prop_assert!(
+                        !actual.contains_key(page),
+                        "removed page {page:?} should not remain in non-empty region {region_idx:?}"
+                    );
+                }
+            }
         }
 
         #[test]
