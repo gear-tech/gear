@@ -16,68 +16,199 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::InitConfig;
-use crate::RawDatabase;
-use anyhow::{Context as _, Result};
-use ethexe_common::db::DBConfig;
+use crate::{InitConfig, RawDatabase, database::BlockSmallData, migrations::v2};
+use anyhow::{Context, Result, bail};
+use ethexe_common::db::{BlockMeta, DBConfig};
 use gprimitives::H256;
+use parity_scale_codec::{Decode, Encode};
+use tracing::{debug, info, warn};
 
 pub const VERSION: u32 = 3;
 
-const _: () = const {
-    assert!(
-        crate::VERSION == VERSION,
-        "Check migration code for types changing in case of version change: DBConfig"
-    );
-};
+/// Historical key prefixes for `v3` migration.
+mod keys {
+    pub const BLOCK_SMALL_DATA_KEY_PREF: u64 = 0;
+    pub const LATEST_ERA_VALIDATORS_COMMITTED_KEY_PREF: u64 = 16;
+    pub const BLOCK_ANNOUNCES_KEY_PREF: u64 = 18;
+}
 
-/// v2 → v3: `InstrumentedCode` key layout gained a second `u32` slot
-/// (runtime_id, code_id) → (runtime_id, version, code_id). Drop any entries
-/// stored under the old 2-tuple layout so the cluster re-instruments them on
-/// next code observation. `OriginalCode` is preserved in CAS, so reprocessing
-/// does not need to re-fetch.
-///
-/// Note: this migration only cleans stale DB state. It does not itself
-/// re-instrument existing codes — that relies on the normal code processing
-/// pipeline observing the code again. Operators upgrading a live node should
-/// expect a brief window where existing programs return
-/// `MissingInstrumentedCodeForProgram` until their codes are re-observed.
+/// Changes from **v2** to **v3**:
+/// 1. Block announces are moved from [BlockMeta] to [`ethexe_common::db::AnnounceStorageRO`], and
+///    stores now by key `BlockAnnounces`
+/// 2. `LatestEraValidators` key is merged into `BlockMeta`.
 pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
-    // Matches `database::Key::InstrumentedCode`'s u64 discriminant (= 8).
-    const INSTRUMENTED_CODE_DISCRIMINANT: u64 = 8;
-    const PREFIX_LEN: usize = std::mem::size_of::<H256>();
-    // Old body: runtime_id(u32) + code_id(32 bytes).
-    const OLD_BODY_LEN: usize = std::mem::size_of::<u32>() + 32;
+    info!("🚧 Database migration v2->v3 starting...");
+    let config = db.kv.config().context("Database config not found")?;
 
-    let prefix = H256::from_low_u64_be(INSTRUMENTED_CODE_DISCRIMINANT);
+    if config.version != v2::VERSION {
+        bail!(
+            "Inconsistent database version: expected_version={}, found_version={}",
+            v2::VERSION,
+            config.version
+        )
+    }
 
-    let old_keys: Vec<Vec<u8>> = db
-        .kv
-        .iter_prefix(prefix.as_bytes())
-        .filter_map(|(k, _)| {
-            // Old layout total length: prefix(32) + body(36) = 68 bytes.
-            (k.len() == PREFIX_LEN + OLD_BODY_LEN).then_some(k)
-        })
-        .collect();
+    let block_small_data_prefix = H256::from_low_u64_be(keys::BLOCK_SMALL_DATA_KEY_PREF);
+    let block_announces_prefix = H256::from_low_u64_be(keys::BLOCK_ANNOUNCES_KEY_PREF);
+    let latest_era_prefix = H256::from_low_u64_be(keys::LATEST_ERA_VALIDATORS_COMMITTED_KEY_PREF);
 
-    let deleted = old_keys.len();
-    for key in old_keys {
-        // SAFETY: these entries are unreadable under the new 3-tuple key
-        // layout and the return value is intentionally discarded.
-        unsafe {
-            db.kv.take(&key);
+    let mut block_announces_copy = Vec::new();
+    let mut block_small_data_copy = Vec::new();
+    let mut keys_to_remove = Vec::new();
+
+    for (key, value) in db.kv.iter_prefix(block_small_data_prefix.as_bytes()) {
+        if key.len() != 2 * std::mem::size_of::<H256>() {
+            warn!(
+                "⚠️ Found invalid BlockSmallData key: expected key len - {}, found key len - {}",
+                2 * std::mem::size_of::<H256>(),
+                key.len()
+            );
+            continue;
+        }
+
+        let block_small_data = v3_migrated_types::BlockSmallData::decode(&mut value.as_slice())
+            .context("Failed to decode `v3_migrated_types::BlockSmallData` from database")?;
+
+        let v3_migrated_types::BlockSmallData {
+            block_header,
+            block_is_synced,
+            meta:
+                v3_migrated_types::BlockMeta {
+                    prepared,
+                    announces,
+                    codes_queue,
+                    last_committed_batch,
+                    last_committed_announce,
+                },
+        } = block_small_data;
+
+        let block_hash = H256::from_slice(&key[std::mem::size_of::<H256>()..]);
+
+        let latest_era_validators_committed_key =
+            [latest_era_prefix.as_bytes(), block_hash.as_bytes()].concat();
+        keys_to_remove.push(latest_era_validators_committed_key.clone());
+
+        let latest_era_validators_committed = db
+            .kv
+            .get(&latest_era_validators_committed_key)
+            .map(|raw_u64| u64::decode(&mut raw_u64.as_slice()))
+            .transpose()
+            .context("Failed to decode era number (u64)")?;
+
+        // Important: for prepared block validators must present in database
+        if prepared && latest_era_validators_committed.is_none() {
+            debug!(
+                block_small_data_key=?key,
+                block_hash=?block_hash,
+                block_header=?block_header,
+                block_is_synced,
+                ?latest_era_validators_committed_key,
+                "Found prepared block without latest era validators committed entry during v2->v3 migration"
+            );
+
+            bail!(
+                "Inconsistent v2 database state during v2->v3 migration: prepared block {block_hash:?} is missing latest era validators committed"
+            )
+        }
+
+        let new_block_small_data = BlockSmallData {
+            block_header,
+            block_is_synced,
+            meta: BlockMeta {
+                prepared,
+                codes_queue,
+                last_committed_batch,
+                last_committed_announce,
+                latest_era_validators_committed,
+            },
+        };
+
+        // Put new BlockSmallData by the same key.
+        block_small_data_copy.push((key, new_block_small_data));
+        // Put announces only if it contains some.
+        if let Some(announces) = announces {
+            block_announces_copy.push((block_hash, announces));
         }
     }
 
-    log::info!(
-        "migration v2→v3: dropped {deleted} stale InstrumentedCode entries under old key layout"
-    );
+    info!("⏳ All migratable data successfully collected");
 
-    let config = db.kv.config().context("Cannot find db config")?;
+    for (block_hash, announces) in block_announces_copy {
+        let block_announces_key =
+            [block_announces_prefix.as_bytes(), block_hash.as_bytes()].concat();
+        db.kv.put(&block_announces_key, announces.encode());
+    }
+
+    for (key, block_small_data) in block_small_data_copy {
+        db.kv.put(&key, block_small_data.encode());
+    }
+
+    info!("⏳ All migrated data updated in database");
+
     db.kv.set_config(DBConfig {
         version: VERSION,
         ..config
     });
 
+    info!("⏳ Database config updated.");
+
+    info!("🗑️ Clearing the previous keys from database");
+    keys_to_remove.into_iter().for_each(|key| {
+        unsafe { db.kv.take(key.as_ref()) };
+    });
+
+    info!("✅ Migration v2->v3 successfully finished.");
+
     Ok(())
+}
+
+pub mod v3_migrated_types {
+
+    use ethexe_common::{Announce, BlockHeader, HashOf};
+    use gear_core::ids::CodeId;
+    use gsigner::Digest;
+    use parity_scale_codec::{Decode, Encode};
+    use scale_info::TypeInfo;
+    use std::collections::{BTreeSet, VecDeque};
+
+    /// [BlockMeta] type used before v3 migration.
+    #[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
+    pub struct BlockMeta {
+        pub prepared: bool,
+        pub announces: Option<BTreeSet<HashOf<Announce>>>,
+        pub codes_queue: Option<VecDeque<CodeId>>,
+        pub last_committed_batch: Option<Digest>,
+        pub last_committed_announce: Option<HashOf<Announce>>,
+    }
+
+    /// [BlockSmallData] type used before v3 migration.
+    #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, TypeInfo)]
+    pub struct BlockSmallData {
+        pub block_header: Option<BlockHeader>,
+        pub block_is_synced: bool,
+        pub meta: BlockMeta,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::migrations::migration::test::assert_migration_types_hash;
+    use ethexe_common::db::DBConfig;
+    use scale_info::meta_type;
+
+    #[test]
+    fn ensure_migration_types() {
+        assert_migration_types_hash(
+            "v2->v3",
+            vec![
+                meta_type::<DBConfig>(),
+                meta_type::<v3_migrated_types::BlockSmallData>(),
+                meta_type::<v3_migrated_types::BlockMeta>(),
+                meta_type::<BlockSmallData>(),
+                meta_type::<BlockMeta>(),
+            ],
+            "ce87c1c2e0cdf462b5acc29f6feba7289bb40ef32ebad8fa9c9de9f52352c038",
+        );
+    }
 }
