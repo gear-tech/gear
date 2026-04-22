@@ -249,6 +249,11 @@ impl ConsensusService for ValidatorService {
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
         self.update_inner(|inner| inner.process_injected_transaction(tx))
     }
+
+    fn receive_slot_started(&mut self, slot: u64) -> Result<()> {
+        tracing::debug!("Received slot started: {slot}");
+        Ok(())
+    }
 }
 
 impl Stream for ValidatorService {

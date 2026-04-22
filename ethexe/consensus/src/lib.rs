@@ -260,6 +260,9 @@ pub trait ConsensusService:
 
     /// Process a received injected transaction from network
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
+
+    /// Notify that a new slot has started.
+    fn receive_slot_started(&mut self, slot: u64) -> Result<()>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]

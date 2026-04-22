@@ -56,7 +56,8 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, gear::CodeState, network::VerifiedValidatorMessage,
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, db::ConfigStorageRO, gear::CodeState,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -91,10 +92,13 @@ use std::{
 use tokio::sync::oneshot;
 
 pub mod config;
+pub mod slot_generator;
 
 mod fast_sync;
 #[cfg(test)]
 mod tests;
+
+use crate::slot_generator::{SlotEvent, SlotGenerator, SystemTimeSlotGenerator};
 
 #[derive(Debug, derive_more::From)]
 pub enum Event {
@@ -106,6 +110,7 @@ pub enum Event {
     Rpc(RpcEvent),
     Prometheus(PrometheusEvent),
     Fetching(db_sync::HandleResult),
+    Slot(SlotEvent),
 }
 
 #[derive(Clone)]
@@ -142,6 +147,7 @@ pub struct Service {
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
+    slot_generator: Box<dyn SlotGenerator>,
 
     // Optional services
     network: Option<NetworkService>,
@@ -460,6 +466,9 @@ impl Service {
 
         let fast_sync = config.node.fast_sync;
 
+        let slot_generator: Box<dyn SlotGenerator> =
+            Box::new(SystemTimeSlotGenerator::new(db.config().timelines));
+
         #[allow(unreachable_code)]
         Ok(Self {
             db,
@@ -469,6 +478,7 @@ impl Service {
             compute,
             consensus,
             signer,
+            slot_generator,
             prometheus,
             rpc,
             fast_sync,
@@ -501,6 +511,7 @@ impl Service {
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
         validator_address: Option<Address>,
+        slot_generator: Box<dyn SlotGenerator>,
     ) -> Self {
         Self {
             db,
@@ -509,6 +520,7 @@ impl Service {
             compute,
             consensus,
             signer,
+            slot_generator,
             network,
             prometheus,
             rpc,
@@ -537,6 +549,7 @@ impl Service {
             mut compute,
             mut consensus,
             signer: _signer,
+            mut slot_generator,
             mut prometheus,
             rpc,
             fast_sync: _,
@@ -574,6 +587,7 @@ impl Service {
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
                 event = rpc.maybe_next_some() => event.into(),
+                event = slot_generator.select_next_some() => event.into(),
                 fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
                 event = prometheus.maybe_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
@@ -597,6 +611,7 @@ impl Service {
                             "📦 receive a chain head",
                         );
 
+                        slot_generator.on_new_block(block_data.header.timestamp);
                         consensus.receive_new_chain_head(block_data)?
                     }
                     ObserverEvent::BlockSynced(block) => {
@@ -795,6 +810,9 @@ impl Service {
                             network_fetcher.push(network.db_sync_handle().retry(request));
                         }
                     }
+                }
+                Event::Slot(SlotEvent::SlotStarted(slot)) => {
+                    consensus.receive_slot_started(slot)?;
                 }
             }
         }

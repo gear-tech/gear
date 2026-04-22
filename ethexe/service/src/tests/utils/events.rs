@@ -144,6 +144,7 @@ pub enum TestingEvent {
     Rpc(TestingRpcEvent),
     Prometheus,
     Fetching,
+    Slot(crate::slot_generator::SlotEvent),
 }
 
 impl TestingEvent {
@@ -157,6 +158,7 @@ impl TestingEvent {
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
             Event::Prometheus(_event) => Self::Prometheus,
             Event::Fetching(_) => Self::Fetching,
+            Event::Slot(event) => Self::Slot(*event),
         }
     }
 }

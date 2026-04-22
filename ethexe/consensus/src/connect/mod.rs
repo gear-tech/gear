@@ -302,6 +302,11 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
+    fn receive_slot_started(&mut self, slot: u64) -> Result<()> {
+        tracing::debug!("Received slot started: {slot}");
+        Ok(())
+    }
+
     fn receive_validation_request(&mut self, _batch: VerifiedValidationRequest) -> Result<()> {
         Ok(())
     }

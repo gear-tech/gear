@@ -432,6 +432,7 @@ impl TestEnv {
             fast_sync,
             compute_config: self.compute_config,
             commitment_delay_limit: self.commitment_delay_limit,
+            continuous_block_generation: self.continuous_block_generation,
             running_service_handle: None,
         }
     }
@@ -940,6 +941,7 @@ pub struct Node {
     fast_sync: bool,
     compute_config: ComputeConfig,
     commitment_delay_limit: u32,
+    continuous_block_generation: bool,
 
     running_service_handle: Option<JoinHandle<()>>,
 }
@@ -1055,6 +1057,16 @@ impl Node {
 
         self.receiver = Some(receiver);
 
+        let timelines = self.db.config().timelines;
+        let slot_generator: Box<dyn crate::slot_generator::SlotGenerator> =
+            if self.continuous_block_generation {
+                Box::new(crate::slot_generator::SystemTimeSlotGenerator::new(
+                    timelines,
+                ))
+            } else {
+                Box::new(crate::slot_generator::HybridSlotGenerator::new(timelines))
+            };
+
         let service = Service::new_from_parts(
             self.db.clone(),
             observer,
@@ -1068,6 +1080,7 @@ impl Node {
             sender,
             self.fast_sync,
             validator_address,
+            slot_generator,
         );
 
         let name = self.name.clone();
