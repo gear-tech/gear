@@ -18,6 +18,7 @@
 
 use crate::{
     RouterDataProvider, Service,
+    slot_generator::{HybridSlotGenerator, SlotGenerator, SystemTimeSlotGenerator},
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
         events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
@@ -1058,14 +1059,11 @@ impl Node {
         self.receiver = Some(receiver);
 
         let timelines = self.db.config().timelines;
-        let slot_generator: Box<dyn crate::slot_generator::SlotGenerator> =
-            if self.continuous_block_generation {
-                Box::new(crate::slot_generator::SystemTimeSlotGenerator::new(
-                    timelines,
-                ))
-            } else {
-                Box::new(crate::slot_generator::HybridSlotGenerator::new(timelines))
-            };
+        let slot_generator: Box<dyn SlotGenerator> = if self.continuous_block_generation {
+            Box::new(SystemTimeSlotGenerator::new(timelines))
+        } else {
+            Box::new(HybridSlotGenerator::new(timelines))
+        };
 
         let service = Service::new_from_parts(
             self.db.clone(),

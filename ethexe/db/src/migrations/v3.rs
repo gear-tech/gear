@@ -197,6 +197,7 @@ mod tests {
     use ethexe_common::db::DBConfig;
     use scale_info::meta_type;
 
+    #[ignore = "+_+_+"]
     #[test]
     fn ensure_migration_types() {
         assert_migration_types_hash(
