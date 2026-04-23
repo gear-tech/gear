@@ -226,6 +226,19 @@ fn apply_router_transition_update(
     }
 }
 
+fn schedule_initial_workers(
+    pool_size: usize,
+    mut schedule_worker: impl FnMut(usize) -> bool,
+) -> bool {
+    for worker_idx in 0..pool_size {
+        if schedule_worker(worker_idx) {
+            return true;
+        }
+    }
+
+    false
+}
+
 impl<Rng: CallGenRng> BatchPool<Rng> {
     /// Creates a batch pool with one dedicated ethexe RPC pool per worker.
     pub fn new(
@@ -300,18 +313,15 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             BatchGenerator::<Rng>::new(seed, self.batch_size, config.code_seed_type, rt_settings);
 
         if !shutting_down {
-            for worker_idx in 0..self.pool_size {
-                if self.schedule_batch(
+            budget_exhausted = schedule_initial_workers(self.pool_size, |worker_idx| {
+                self.schedule_batch(
                     &mut batches,
                     &mut batch_gen,
                     &mid_map,
                     &mut rpc_rng,
                     worker_idx,
-                ) {
-                    budget_exhausted = true;
-                    break;
-                }
-            }
+                )
+            });
         }
 
         while !batches.is_empty() {
@@ -1707,42 +1717,14 @@ mod tests {
 
     #[test]
     fn first_exhausting_batch_stops_initial_scheduling_loop() {
-        use crate::batch::value::{
-            PreparedBatch, PreparedBatchWithSeed, ValueBudgetLedger, ValuePolicy,
-        };
+        let mut scheduled_workers = Vec::new();
 
-        let policy = ValuePolicy::from_parts(None, Some(5), Some(7), Some(5), Some(7))
-            .expect("policy")
-            .expect("enabled");
-        let mut ledger = ValueBudgetLedger::new(policy);
+        let exhausted = schedule_initial_workers(4, |worker_idx| {
+            scheduled_workers.push(worker_idx);
+            worker_idx == 0
+        });
 
-        let prepared = vec![
-            PreparedBatchWithSeed {
-                seed: 1,
-                batch: PreparedBatch::ClaimValue(Vec::new()),
-                spend: crate::batch::value::PlannedSpend {
-                    msg_value: 5,
-                    top_up_value: 7,
-                },
-            },
-            PreparedBatchWithSeed {
-                seed: 2,
-                batch: PreparedBatch::ClaimValue(Vec::new()),
-                spend: crate::batch::value::PlannedSpend {
-                    msg_value: 1,
-                    top_up_value: 0,
-                },
-            },
-        ];
-
-        let mut scheduled = 0usize;
-        for batch in prepared {
-            scheduled += 1;
-            if ledger.reserve(batch.spend).is_some() {
-                break;
-            }
-        }
-
-        assert_eq!(scheduled, 1);
+        assert!(exhausted);
+        assert_eq!(scheduled_workers, vec![0]);
     }
 }

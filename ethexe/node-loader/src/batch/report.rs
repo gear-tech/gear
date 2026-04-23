@@ -287,7 +287,9 @@ mod tests {
 
     #[test]
     fn pretty_summary_renders_budget_exhausted_value_stats() {
-        use crate::batch::value::{BudgetExhaustion, ValuePolicy, ValueProfile};
+        use crate::batch::value::{
+            BudgetExhaustion, ValuePolicy, ValueProfile, format_wei, format_wvara,
+        };
 
         let report = LoadRunReport {
             metadata: LoadRunMetadata {
@@ -324,6 +326,16 @@ mod tests {
         assert!(summary.contains("value profile: mainnet"));
         assert!(summary.contains("msg.value spent: 2100000000000000"));
         assert!(summary.contains("top-up spent: 10000000000000"));
+        assert!(summary.contains("msg.value budget: 2000000000000000"));
+        assert!(summary.contains("top-up budget: 10000000000000"));
         assert!(summary.contains("msg.value overshoot: 100000000000000"));
+        assert!(summary.contains("top-up overshoot: 0"));
+        assert!(summary.contains("budget exhausted flags: msg.value=true, top-up=true"));
+        assert!(summary.contains(&format!("({})", format_wei(2_100_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wvara(10_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wei(2_000_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wvara(10_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wei(100_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wvara(0))));
     }
 }
