@@ -384,6 +384,10 @@ library Gear {
          * @dev The total number of validated codes. Used for fast-sync.
          */
         uint256 validatedCodesCount;
+        /**
+         * @dev The maximum number of validators for era.
+         */
+        uint16 maxValidators;
     }
 
     /**
