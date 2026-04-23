@@ -806,6 +806,7 @@ impl Database {
             },
             genesis_block_hash: H256::zero(),
             genesis_announce_hash: HashOf::zero(),
+            max_validators: 10,
         };
 
         let globals = DBGlobals {
@@ -1059,7 +1060,7 @@ mod tests {
         limited::LimitedVec,
     };
 
-    /// `migrations::v4` hardcodes the `InstrumentedCode` discriminant (= 8) to
+    /// `migrations::v5` hardcodes the `InstrumentedCode` discriminant (= 8) to
     /// drop legacy entries under the old 2-tuple key layout. If the `Key` enum
     /// gets reordered, this test fails loudly so the migration can be updated.
     #[test]
@@ -1068,7 +1069,7 @@ mod tests {
         assert_eq!(
             &bytes[..size_of::<H256>()],
             H256::from_low_u64_be(8).as_bytes(),
-            "Key::InstrumentedCode discriminant drifted; update ethexe/db/src/migrations/v4.rs"
+            "Key::InstrumentedCode discriminant drifted; update ethexe/db/src/migrations/v5.rs"
         );
     }
 

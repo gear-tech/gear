@@ -237,9 +237,6 @@ impl CodeAndId {
 
 /// GearExe network timelines configuration. Parameters fetched the Router contract.
 /// This struct stores in the database, because of using in the multiple places.
-///
-/// TODO(kuzmindev): `ProtocolTimelines` can store more protocol parameters,
-/// for example `max_validators` in election.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ProtocolTimelines {
     // The genesis timestamp of the GearExe network in seconds.

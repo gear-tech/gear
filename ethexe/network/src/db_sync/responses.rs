@@ -270,6 +270,7 @@ mod tests {
             },
             genesis_block_hash: H256::zero(),
             genesis_announce_hash: genesis,
+            max_validators: 0,
         });
 
         db.globals_mutate(|globals| globals.start_announce_hash = start);

@@ -16,68 +16,85 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::InitConfig;
+use super::{InitConfig, utils};
 use crate::RawDatabase;
-use anyhow::{Context as _, Result};
+use alloy::providers::RootProvider;
+use anyhow::{Context as _, Result, bail};
 use ethexe_common::db::DBConfig;
-use gprimitives::H256;
+use ethexe_ethereum::router::RouterQuery;
+use parity_scale_codec::Decode;
+use tracing::info;
 
 pub const VERSION: u32 = 4;
 
 const _: () = const {
     assert!(
-        crate::VERSION == VERSION,
-        "Check migration code for types changing in case of version change: DBConfig"
+        crate::VERSION == super::v5::VERSION,
+        "Check migration code for types changing in case of version change: DBConfig, DBGlobals, Announce, BlockSmallData. \
+         Also check AnnounceStorageRW, KVDatabase, dyn KVDatabase implementations"
     );
 };
 
-/// v3 → v4: `InstrumentedCode` key layout gained a second `u32` slot
-/// (runtime_id, code_id) → (runtime_id, version, code_id). Drop any entries
-/// stored under the old 2-tuple layout so the cluster re-instruments them on
-/// next code observation. `OriginalCode` is preserved in CAS, so reprocessing
-/// does not need to re-fetch.
-///
-/// Note: this migration only cleans stale DB state. It does not itself
-/// re-instrument existing codes — that relies on the normal code processing
-/// pipeline observing the code again. Operators upgrading a live node should
-/// expect a brief window where existing programs return
-/// `MissingInstrumentedCodeForProgram` until their codes are re-observed.
-pub async fn migration_from_v3(_: &InitConfig, db: &RawDatabase) -> Result<()> {
-    // Matches `database::Key::InstrumentedCode`'s u64 discriminant (= 8).
-    const INSTRUMENTED_CODE_DISCRIMINANT: u64 = 8;
-    const PREFIX_LEN: usize = std::mem::size_of::<H256>();
-    // Old body: runtime_id(u32) + code_id(32 bytes).
-    const OLD_BODY_LEN: usize = std::mem::size_of::<u32>() + 32;
+pub async fn migration_from_v3(config: &InitConfig, db: &RawDatabase) -> Result<()> {
+    info!("🚧 Starting database migration v3->v4");
 
-    let prefix = H256::from_low_u64_be(INSTRUMENTED_CODE_DISCRIMINANT);
+    let provider = RootProvider::connect(&config.ethereum_rpc).await?;
+    let router_query = RouterQuery::from_provider(config.router_address, provider);
+    let storage_view = router_query.storage_view().await?;
 
-    let old_keys: Vec<Vec<u8>> = db
-        .kv
-        .iter_prefix(prefix.as_bytes())
-        .filter_map(|(k, _)| {
-            // Old layout total length: prefix(32) + body(36) = 68 bytes.
-            (k.len() == PREFIX_LEN + OLD_BODY_LEN).then_some(k)
-        })
-        .collect();
-
-    let deleted = old_keys.len();
-    for key in old_keys {
-        // SAFETY: these entries are unreadable under the new 3-tuple key
-        // layout and the return value is intentionally discarded.
-        unsafe {
-            db.kv.take(&key);
-        }
+    if storage_view.maxValidators == 0 {
+        bail!("The maximum number of validators is set to 0 in Router. Check Router storage")
     }
 
-    log::info!(
-        "migration v3→v4: dropped {deleted} stale InstrumentedCode entries under old key layout"
-    );
+    let key = utils::config_key_bytes();
+    let raw_config = db.kv.get(&key).context("Database config not found")?;
+    let old_config = migrated_types::DBConfig::decode(&mut raw_config.as_slice())
+        .context("Failed to decode DBConfig")?;
 
-    let config = db.kv.config().context("Cannot find db config")?;
     db.kv.set_config(DBConfig {
         version: VERSION,
-        ..config
+        chain_id: old_config.chain_id,
+        router_address: old_config.router_address,
+        timelines: old_config.timelines,
+        genesis_block_hash: old_config.genesis_block_hash,
+        genesis_announce_hash: old_config.genesis_announce_hash,
+        max_validators: storage_view.maxValidators,
     });
 
+    info!("✅ Database migration v3->v4 successfully finished");
     Ok(())
+}
+
+/// Database types changes in `v4` migration.
+pub mod migrated_types {
+    use ethexe_common::{Address, Announce, HashOf, ProtocolTimelines};
+    use gprimitives::H256;
+    use parity_scale_codec::{Decode, Encode};
+    use scale_info::TypeInfo;
+
+    #[derive(Debug, Clone, Decode, Encode, TypeInfo)]
+    pub struct DBConfig {
+        pub version: u32,
+        pub chain_id: u64,
+        pub router_address: Address,
+        pub timelines: ProtocolTimelines,
+        pub genesis_block_hash: H256,
+        pub genesis_announce_hash: HashOf<Announce>,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::migrations::migration::test::assert_migration_types_hash;
+    use scale_info::meta_type;
+
+    #[test]
+    fn ensure_migration_types() {
+        assert_migration_types_hash(
+            "v3->v4",
+            vec![meta_type::<migrated_types::DBConfig>()],
+            "943384f31bb358ff3ce7691cf97710bc03ec7d75d20f03b8cc5cbffa7c4c00b0",
+        );
+    }
 }

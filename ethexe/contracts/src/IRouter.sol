@@ -52,6 +52,10 @@ interface IRouter {
          * @notice Count of validated codes.
          */
         uint256 validatedCodesCount;
+        /**
+         * @notice Maximum number of validators for era.
+         */
+        uint16 maxValidators;
     }
 
     /**

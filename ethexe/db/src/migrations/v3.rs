@@ -16,9 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{InitConfig, RawDatabase, database::BlockSmallData, migrations::v2};
+use crate::{
+    InitConfig, RawDatabase,
+    database::BlockSmallData,
+    migrations::{v2, v4},
+};
 use anyhow::{Context, Result, bail};
-use ethexe_common::db::{BlockMeta, DBConfig};
+use ethexe_common::db::BlockMeta;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use tracing::{debug, info, warn};
@@ -38,7 +42,10 @@ mod keys {
 /// 2. `LatestEraValidators` key is merged into `BlockMeta`.
 pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     info!("🚧 Database migration v2->v3 starting...");
-    let config = db.kv.config().context("Database config not found")?;
+    let cfg_key = super::utils::config_key_bytes();
+    let raw_config = db.kv.get(&cfg_key).context("Database config not found")?;
+    let mut config = v4::migrated_types::DBConfig::decode(&mut raw_config.as_slice())
+        .context("Failed to decode v4::migrated_types::DBConfig")?;
 
     if config.version != v2::VERSION {
         bail!(
@@ -57,23 +64,23 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     let mut keys_to_remove = Vec::new();
 
     for (key, value) in db.kv.iter_prefix(block_small_data_prefix.as_bytes()) {
-        if key.len() != 2 * std::mem::size_of::<H256>() {
+        if key.len() != 2 * size_of::<H256>() {
             warn!(
                 "⚠️ Found invalid BlockSmallData key: expected key len - {}, found key len - {}",
-                2 * std::mem::size_of::<H256>(),
+                2 * size_of::<H256>(),
                 key.len()
             );
             continue;
         }
 
-        let block_small_data = v3_migrated_types::BlockSmallData::decode(&mut value.as_slice())
+        let block_small_data = migrated_types::BlockSmallData::decode(&mut value.as_slice())
             .context("Failed to decode `v3_migrated_types::BlockSmallData` from database")?;
 
-        let v3_migrated_types::BlockSmallData {
+        let migrated_types::BlockSmallData {
             block_header,
             block_is_synced,
             meta:
-                v3_migrated_types::BlockMeta {
+                migrated_types::BlockMeta {
                     prepared,
                     announces,
                     codes_queue,
@@ -82,7 +89,7 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
                 },
         } = block_small_data;
 
-        let block_hash = H256::from_slice(&key[std::mem::size_of::<H256>()..]);
+        let block_hash = H256::from_slice(&key[size_of::<H256>()..]);
 
         let latest_era_validators_committed_key =
             [latest_era_prefix.as_bytes(), block_hash.as_bytes()].concat();
@@ -145,10 +152,8 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 
     info!("⏳ All migrated data updated in database");
 
-    db.kv.set_config(DBConfig {
-        version: VERSION,
-        ..config
-    });
+    config.version = VERSION;
+    db.kv.put(&cfg_key, config.encode());
 
     info!("⏳ Database config updated.");
 
@@ -162,7 +167,7 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     Ok(())
 }
 
-pub mod v3_migrated_types {
+pub mod migrated_types {
 
     use ethexe_common::{Announce, BlockHeader, HashOf};
     use gear_core::ids::CodeId;
@@ -193,8 +198,7 @@ pub mod v3_migrated_types {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrations::migration::test::assert_migration_types_hash;
-    use ethexe_common::db::DBConfig;
+    use crate::migrations::{migration::test::assert_migration_types_hash, v3};
     use scale_info::meta_type;
 
     #[test]
@@ -202,13 +206,13 @@ mod tests {
         assert_migration_types_hash(
             "v2->v3",
             vec![
-                meta_type::<DBConfig>(),
-                meta_type::<v3_migrated_types::BlockSmallData>(),
-                meta_type::<v3_migrated_types::BlockMeta>(),
+                meta_type::<v4::migrated_types::DBConfig>(),
+                meta_type::<v3::migrated_types::BlockSmallData>(),
+                meta_type::<v3::migrated_types::BlockMeta>(),
                 meta_type::<BlockSmallData>(),
                 meta_type::<BlockMeta>(),
             ],
-            "364dff015201cbcd49dd1dc045f0c95aa31565dcb7f99c2d017d682394f9e295",
+            "973d91fffd0337947785011df816327c7ef63ca58c72af56cdb3f60f340ae1d6",
         );
     }
 }

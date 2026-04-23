@@ -219,6 +219,7 @@ pub fn test_block_chain_with_validators(len: u32, validators: ValidatorsVec) -> 
         timelines: test_protocol_timelines(),
         genesis_block_hash: blocks[0].hash,
         genesis_announce_hash: genesis_announce_hash.expect("genesis announce exists"),
+        max_validators: 10,
     };
 
     let globals = DBGlobals {
