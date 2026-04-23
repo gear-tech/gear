@@ -24,12 +24,14 @@ use crate::{
     ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
-    injected::{AddressedInjectedTransaction, InjectedTransaction},
+    injected::{AddressedInjectedTransaction, InjectedTransaction, Promise},
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     limited::LimitedVec,
+    message::{ReplyCode, SuccessReplyReason},
+    rpc::ReplyInfo,
 };
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use itertools::Itertools;
@@ -457,6 +459,25 @@ impl Arbitrary for AddressedInjectedTransaction {
                     .expect("signing injected transaction must succeed"),
             })
             .boxed()
+    }
+}
+
+impl Mock<()> for Promise {
+    fn mock(_args: ()) -> Self {
+        Promise::mock(HashOf::random())
+    }
+}
+
+impl Mock<HashOf<InjectedTransaction>> for Promise {
+    fn mock(tx_hash: HashOf<InjectedTransaction>) -> Self {
+        Promise {
+            tx_hash,
+            reply: ReplyInfo {
+                payload: H256::random().0.to_vec(),
+                value: 42,
+                code: ReplyCode::Success(SuccessReplyReason::Manual),
+            },
+        }
     }
 }
 

@@ -161,6 +161,17 @@ pub enum PromisePolicy {
     Disabled,
 }
 
+/// The [PromiseEmissionMode] configures the promise emission mode for the ethexe node
+#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::IsVariant, Default)]
+pub enum PromiseEmissionMode {
+    /// Node should always emit promises during announces execution.
+    /// Always set [`PromisePolicy::Enabled`].
+    AlwaysEmit,
+    /// [`PromisePolicy`] is set by consensus service.
+    #[default]
+    ConsensusDriven,
+}
+
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
@@ -249,6 +260,17 @@ pub struct ProtocolTimelines {
     pub election: u64,
     /// The slot duration in seconds.
     pub slot: NonZeroU64,
+}
+
+impl Default for ProtocolTimelines {
+    fn default() -> Self {
+        Self {
+            genesis_ts: 0,
+            era: NonZeroU64::new(10_000).unwrap(),
+            election: 200,
+            slot: NonZeroU64::new(2).unwrap(),
+        }
+    }
 }
 
 impl ProtocolTimelines {
