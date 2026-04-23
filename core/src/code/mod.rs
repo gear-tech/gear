@@ -1273,15 +1273,12 @@ mod tests {
         "#;
         let base_bytes = wat2wasm(wat);
 
-        // Push a custom section through gear_wasm_instrument::Module
-        // (same mechanism sails tooling uses to embed the IDL).
+        // Same mechanism sails tooling uses to embed the IDL.
         let idl_payload: Vec<u8> = (0..64u8).collect();
-        let mut module = gear_wasm_instrument::Module::new(&base_bytes).unwrap();
-        module.custom_sections.get_or_insert_with(Vec::new).push((
-            alloc::borrow::Cow::Borrowed("sails:idl"),
-            idl_payload.clone(),
-        ));
-        let original_with_idl = module.serialize().unwrap();
+        let module = gear_wasm_instrument::Module::new(&base_bytes).unwrap();
+        let mut builder = gear_wasm_instrument::ModuleBuilder::from_module(module);
+        builder.push_custom_section("sails:idl", idl_payload.clone());
+        let original_with_idl = builder.build().serialize().unwrap();
 
         // Sanity: the constructed original actually carries the section.
         assert!(

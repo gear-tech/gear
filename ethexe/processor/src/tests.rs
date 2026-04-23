@@ -309,24 +309,12 @@ async fn instrumented_code_strips_custom_sections() {
     let (_orig_code_id, base_bytes) = utils::wat_to_wasm(utils::VALID_PROGRAM);
     let idl_payload: Vec<u8> = (0..128u8).collect();
 
-    let mut module = gear_wasm_instrument::Module::new(&base_bytes)
+    let module = gear_wasm_instrument::Module::new(&base_bytes)
         .expect("VALID_PROGRAM must parse as a Module");
-    module
-        .custom_sections
-        .get_or_insert_with(Vec::new)
-        .push((std::borrow::Cow::Borrowed("sails:idl"), idl_payload.clone()));
-    let code_with_idl = module.serialize().expect("serialize must succeed");
+    let mut builder = gear_wasm_instrument::ModuleBuilder::from_module(module);
+    builder.push_custom_section("sails:idl", idl_payload.clone());
+    let code_with_idl = builder.build().serialize().expect("serialize must succeed");
     let code_id = CodeId::generate(&code_with_idl);
-
-    // Sanity-check the fixture before handing it to the processor.
-    let parsed = gear_wasm_instrument::Module::new(&code_with_idl).unwrap();
-    assert!(
-        parsed
-            .custom_sections
-            .as_ref()
-            .is_some_and(|cs| cs.iter().any(|(n, _)| n == "sails:idl")),
-        "fixture must contain sails:idl before processing"
-    );
 
     // Run through the ethexe processor pipeline.
     let mut processor = Processor::new(Database::memory()).expect("failed to create processor");

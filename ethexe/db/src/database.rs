@@ -1059,6 +1059,19 @@ mod tests {
         limited::LimitedVec,
     };
 
+    /// `migrations::v4` hardcodes the `InstrumentedCode` discriminant (= 8) to
+    /// drop legacy entries under the old 2-tuple key layout. If the `Key` enum
+    /// gets reordered, this test fails loudly so the migration can be updated.
+    #[test]
+    fn instrumented_code_key_discriminant_is_stable() {
+        let bytes = Key::InstrumentedCode(0, 0, CodeId::zero()).to_bytes();
+        assert_eq!(
+            &bytes[..size_of::<H256>()],
+            H256::from_low_u64_be(8).as_bytes(),
+            "Key::InstrumentedCode discriminant drifted; update ethexe/db/src/migrations/v4.rs"
+        );
+    }
+
     #[test]
     fn test_injected_transaction() {
         let db = Database::memory();

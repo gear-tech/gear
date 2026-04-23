@@ -4976,18 +4976,15 @@ fn test_code_submission_pass() {
 fn stripping_reduces_instrumented_code_len() {
     init_logger();
     new_test_ext().execute_with(|| {
-        use std::borrow::Cow;
-
         let base = ProgramCodeKind::Default.to_bytes();
+        let base_len = base.len();
 
-        // Inject a 4 KiB `sails:idl` custom section into the raw wasm.
         let idl_payload: Vec<u8> = (0..4096).map(|i| (i & 0xff) as u8).collect();
-        let mut module = Module::new(&base).expect("Default program must parse");
-        module
-            .custom_sections
-            .get_or_insert_with(Vec::new)
-            .push((Cow::Borrowed("sails:idl"), idl_payload.clone()));
-        let code_with_idl = module.serialize().expect("must serialize");
+        let idl_len = idl_payload.len();
+        let module = Module::new(&base).expect("Default program must parse");
+        let mut builder = gear_wasm_instrument::ModuleBuilder::from_module(module);
+        builder.push_custom_section("sails:idl", idl_payload);
+        let code_with_idl = builder.build().serialize().expect("must serialize");
         let code_id = CodeId::generate(&code_with_idl);
 
         // Sanity: the constructed original carries sails:idl.
@@ -5020,6 +5017,24 @@ fn stripping_reduces_instrumented_code_len() {
                 .as_ref()
                 .is_none_or(|cs| cs.is_empty()),
             "InstrumentedCode must have no custom sections after strip"
+        );
+
+        // Guard the stated contract of this test: stripping must shave at
+        // least (idl_len / 2) bytes off the instrumented artifact relative
+        // to the raw upload. Instrumentation itself adds some bytes, so we
+        // can't assert an exact equality — the half-payload floor catches
+        // any regression that re-embeds the section under a different name.
+        let grown = code_with_idl.len().saturating_sub(base_len);
+        assert!(
+            grown >= idl_len,
+            "fixture sanity: injecting {idl_len} bytes grew upload by only {grown}"
+        );
+        assert!(
+            instrumented.bytes().len() + idl_len / 2 < code_with_idl.len(),
+            "stripping must remove at least idl_len/2 = {} bytes; instrumented={}, original={}",
+            idl_len / 2,
+            instrumented.bytes().len(),
+            code_with_idl.len()
         );
     })
 }
