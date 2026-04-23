@@ -5,7 +5,7 @@ use gear_call_gen::{
     ClaimValueArgs, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
     UploadProgramArgs,
 };
-use rand::{RngCore, SeedableRng, rngs::SmallRng};
+use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::fmt;
 
 pub(crate) const DEFAULT_TOP_UP_VALUE: u128 = 500_000_000_000_000;
@@ -201,11 +201,11 @@ impl ValueBudgetLedger {
             msg_value_exhausted: self
                 .policy
                 .total_msg_value_budget
-                .is_some_and(|budget| self.spent_msg_value >= budget),
+                .is_some_and(|budget| spend.msg_value > 0 && self.spent_msg_value >= budget),
             top_up_exhausted: self
                 .policy
                 .total_top_up_budget
-                .is_some_and(|budget| self.spent_top_up_value >= budget),
+                .is_some_and(|budget| spend.top_up_value > 0 && self.spent_top_up_value >= budget),
         };
 
         if exhaustion.msg_value_exhausted || exhaustion.top_up_exhausted {
@@ -391,7 +391,7 @@ mod tests {
     use crate::batch::generator::Batch;
     use gear_call_gen::{CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
     use gprimitives::{ActorId, CodeId, MessageId};
-    use rand::{SeedableRng, rngs::SmallRng};
+    use rand::{rngs::SmallRng, SeedableRng};
 
     fn code(seed: u8) -> CodeId {
         CodeId::from([seed; 32])
@@ -621,6 +621,61 @@ mod tests {
 
         assert_eq!(
             exhaustion,
+            Some(BudgetExhaustion {
+                msg_value_exhausted: true,
+                top_up_exhausted: false,
+            })
+        );
+        assert!(ledger.is_exhausted());
+    }
+
+    #[test]
+    fn ledger_zero_budget_with_zero_spend_does_not_exhaust() {
+        let policy = ValuePolicy::from_parts(None, None, None, Some(0), Some(0))
+            .expect("policy")
+            .expect("enabled");
+        let mut ledger = ValueBudgetLedger::new(policy);
+
+        let exhaustion = ledger.reserve(PlannedSpend::default());
+
+        assert_eq!(exhaustion, None);
+        assert!(!ledger.is_exhausted());
+    }
+
+    #[test]
+    fn ledger_zero_budget_with_positive_spend_exhausts() {
+        let policy = ValuePolicy::from_parts(None, None, None, Some(0), Some(0))
+            .expect("policy")
+            .expect("enabled");
+        let mut ledger = ValueBudgetLedger::new(policy);
+
+        let exhaustion = ledger.reserve(PlannedSpend {
+            msg_value: 1,
+            top_up_value: 0,
+        });
+
+        assert_eq!(
+            exhaustion,
+            Some(BudgetExhaustion {
+                msg_value_exhausted: true,
+                top_up_exhausted: true,
+            })
+        );
+        assert!(ledger.is_exhausted());
+    }
+
+    #[test]
+    fn ledger_exact_budget_exhausts_on_positive_reservation() {
+        let policy = ValuePolicy::from_parts(None, None, None, Some(5), Some(7))
+            .expect("policy")
+            .expect("enabled");
+        let mut ledger = ValueBudgetLedger::new(policy);
+
+        assert_eq!(
+            ledger.reserve(PlannedSpend {
+                msg_value: 5,
+                top_up_value: 7,
+            }),
             Some(BudgetExhaustion {
                 msg_value_exhausted: true,
                 top_up_exhausted: true,
