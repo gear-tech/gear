@@ -26,11 +26,14 @@ use crate::{
     wvara::WVara,
 };
 use alloy::{
-    consensus::{SidecarBuilder, SimpleCoder},
+    consensus::{SidecarBuilder, SimpleCoder, constants::GWEI_TO_WEI},
     eips::BlockId,
     hex,
     primitives::{Address as AlloyAddress, Bytes, fixed_bytes},
-    providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
+    providers::{
+        PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider,
+        utils::{Eip1559Estimation, Eip1559Estimator},
+    },
     rpc::types::{TransactionReceipt, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
@@ -64,6 +67,8 @@ type QueryInstance = IRouter::IRouterInstance<RootProvider>;
 pub struct Router {
     instance: Instance,
     wvara_address: AlloyAddress,
+    eip1559_estimator: Eip1559Estimator,
+    eip1559_max_fee_per_gas_in_gwei: u128,
 }
 
 impl Router {
@@ -75,11 +80,15 @@ impl Router {
     pub(crate) fn new(
         address: AlloyAddress,
         wvara_address: AlloyAddress,
+        eip1559_estimator: Eip1559Estimator,
+        eip1559_max_fee_per_gas_in_gwei: u128,
         provider: AlloyProvider,
     ) -> Self {
         Self {
             instance: Instance::new(address, provider),
             wvara_address,
+            eip1559_estimator,
+            eip1559_max_fee_per_gas_in_gwei,
         }
     }
 
@@ -365,7 +374,30 @@ impl Router {
                 ));
             }
         };
+
+        let Eip1559Estimation {
+            max_fee_per_gas, ..
+        } = self
+            .instance
+            .provider()
+            .estimate_eip1559_fees_with(self.eip1559_estimator.clone())
+            .await?;
+        let max_fee_per_gas_in_gwei = max_fee_per_gas / (GWEI_TO_WEI as u128);
+        let eip1559_max_fee_per_gas_in_gwei = self.eip1559_max_fee_per_gas_in_gwei;
+
+        if eip1559_max_fee_per_gas_in_gwei > 0
+            && max_fee_per_gas_in_gwei > eip1559_max_fee_per_gas_in_gwei
+        {
+            log::error!(
+                "Estimated max fee per gas {max_fee_per_gas_in_gwei} gwei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_gwei} gwei, refusing to commit batch (commitment: {commitment:?})"
+            );
+            return Err(anyhow!(
+                "Estimated max fee per gas {max_fee_per_gas_in_gwei} gwei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_gwei} gwei, refusing to commit batch)",
+            ));
+        }
+
         let gas_limit = estimated_gas_limit + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS;
+
         if gas_limit > Self::HUGE_GAS_LIMIT {
             log::error!(
                 "Estimated gas limit {gas_limit} is too high for batch commitment: {commitment:?}",
