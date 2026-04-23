@@ -5,7 +5,6 @@ use gear_call_gen::{
     ClaimValueArgs, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
     UploadProgramArgs,
 };
-use gprimitives::ActorId;
 use rand::{RngCore, SeedableRng, rngs::SmallRng};
 use std::fmt;
 
@@ -70,30 +69,24 @@ pub enum PreparedBatch {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedUploadProgram {
     pub arg: UploadProgramArgs,
-    pub init_value: u128,
     pub top_up_value: u128,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedCreateProgram {
     pub arg: CreateProgramArgs,
-    pub init_value: u128,
     pub top_up_value: u128,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedSendMessage {
-    pub destination: ActorId,
-    pub payload: Vec<u8>,
-    pub gas_limit: u64,
+    pub arg: SendMessageArgs,
     pub use_injected: bool,
-    pub value: u128,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedSendReply {
     pub arg: SendReplyArgs,
-    pub value: u128,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,7 +129,8 @@ impl ValuePolicy {
             total_top_up_budget: total_top_up_budget.or(defaults.3),
         };
 
-        if policy.max_msg_value.is_none()
+        if profile.is_none()
+            && policy.max_msg_value.is_none()
             && policy.max_top_up_value.is_none()
             && policy.total_msg_value_budget.is_none()
             && policy.total_top_up_budget.is_none()
@@ -239,11 +233,8 @@ pub fn prepare_batch(
                     let top_up_value = clamp_top_up_value(DEFAULT_TOP_UP_VALUE, policy);
                     spend.msg_value = spend.msg_value.saturating_add(init_value);
                     spend.top_up_value = spend.top_up_value.saturating_add(top_up_value);
-                    PreparedUploadProgram {
-                        arg,
-                        init_value,
-                        top_up_value,
-                    }
+                    let arg = set_upload_program_value(arg, init_value);
+                    PreparedUploadProgram { arg, top_up_value }
                 })
                 .collect();
 
@@ -264,20 +255,16 @@ pub fn prepare_batch(
                 .into_iter()
                 .map(|arg| {
                     let SendMessageArgs((destination, payload, gas_limit, _)) = arg;
+                    let fuzzed_value = fuzz_message_value(&mut rng);
                     let use_injected = prefer_injected_tx(&mut rng);
                     let value = if use_injected {
                         0
                     } else {
-                        clamp_msg_value(fuzz_message_value(&mut rng), policy)
+                        clamp_msg_value(fuzzed_value, policy)
                     };
                     spend.msg_value = spend.msg_value.saturating_add(value);
-                    PreparedSendMessage {
-                        destination,
-                        payload,
-                        gas_limit,
-                        use_injected,
-                        value,
-                    }
+                    let arg = SendMessageArgs((destination, payload, gas_limit, value));
+                    PreparedSendMessage { arg, use_injected }
                 })
                 .collect();
 
@@ -296,11 +283,8 @@ pub fn prepare_batch(
                     let top_up_value = clamp_top_up_value(DEFAULT_TOP_UP_VALUE, policy);
                     spend.msg_value = spend.msg_value.saturating_add(init_value);
                     spend.top_up_value = spend.top_up_value.saturating_add(top_up_value);
-                    PreparedCreateProgram {
-                        arg,
-                        init_value,
-                        top_up_value,
-                    }
+                    let arg = set_create_program_value(arg, init_value);
+                    PreparedCreateProgram { arg, top_up_value }
                 })
                 .collect();
 
@@ -317,7 +301,8 @@ pub fn prepare_batch(
                 .map(|arg| {
                     let value = clamp_msg_value(fuzz_message_value(&mut rng), policy);
                     spend.msg_value = spend.msg_value.saturating_add(value);
-                    PreparedSendReply { arg, value }
+                    let arg = set_send_reply_value(arg, value);
+                    PreparedSendReply { arg }
                 })
                 .collect();
 
@@ -361,6 +346,21 @@ fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     (rng.next_u32() % 10) < 7
 }
 
+fn set_upload_program_value(arg: UploadProgramArgs, value: u128) -> UploadProgramArgs {
+    let UploadProgramArgs((code, salt, payload, gas_limit, _)) = arg;
+    UploadProgramArgs((code, salt, payload, gas_limit, value))
+}
+
+fn set_create_program_value(arg: CreateProgramArgs, value: u128) -> CreateProgramArgs {
+    let CreateProgramArgs((code_id, salt, payload, gas_limit, _)) = arg;
+    CreateProgramArgs((code_id, salt, payload, gas_limit, value))
+}
+
+fn set_send_reply_value(arg: SendReplyArgs, value: u128) -> SendReplyArgs {
+    let SendReplyArgs((message_id, payload, gas_limit, _)) = arg;
+    SendReplyArgs((message_id, payload, gas_limit, value))
+}
+
 pub fn format_wei(value: u128) -> String {
     format_amount(value, 18, "ETH")
 }
@@ -389,15 +389,115 @@ pub fn format_amount(value: u128, decimals: u32, symbol: &str) -> String {
 mod tests {
     use super::*;
     use crate::batch::generator::Batch;
-    use gear_call_gen::{CreateProgramArgs, SendReplyArgs};
-    use gprimitives::{CodeId, MessageId};
+    use gear_call_gen::{CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
+    use gprimitives::{ActorId, CodeId, MessageId};
+    use rand::{SeedableRng, rngs::SmallRng};
 
     fn code(seed: u8) -> CodeId {
         CodeId::from([seed; 32])
     }
 
+    fn actor(seed: u8) -> ActorId {
+        ActorId::from([seed; 32])
+    }
+
     fn message(seed: u8) -> MessageId {
         MessageId::from([seed; 32])
+    }
+
+    fn upload_program_args(seed: u8) -> UploadProgramArgs {
+        UploadProgramArgs((vec![seed; 32], vec![1, 2, 3], vec![4, 5, 6], 1_000, 0))
+    }
+
+    fn create_program_args(seed: u8) -> CreateProgramArgs {
+        CreateProgramArgs((code(seed), vec![1, 2, 3], vec![4, 5, 6], 1_000, 0))
+    }
+
+    fn send_reply_args(seed: u8) -> SendReplyArgs {
+        SendReplyArgs((message(seed), vec![7, 8, 9], 1_000, 0))
+    }
+
+    fn send_message_args(seed: u8) -> SendMessageArgs {
+        SendMessageArgs((actor(seed), vec![1, 2, 3], 1_000, 0))
+    }
+
+    fn send_message_batch() -> Batch {
+        Batch::SendMessage(vec![send_message_args(1), send_message_args(2)])
+    }
+
+    fn prepare_send_message_executor(
+        seed: u64,
+        policy: Option<&ValuePolicy>,
+    ) -> PreparedBatchWithSeed {
+        let mut rng = SmallRng::seed_from_u64(seed);
+        let mut spend = PlannedSpend::default();
+        let prepared = vec![send_message_args(1), send_message_args(2)]
+            .into_iter()
+            .map(|arg| {
+                let SendMessageArgs((destination, payload, gas_limit, _)) = arg;
+                let fuzzed_value = fuzz_message_value(&mut rng);
+                let use_injected = prefer_injected_tx(&mut rng);
+                let value = if use_injected {
+                    0
+                } else {
+                    clamp_msg_value(fuzzed_value, policy)
+                };
+                spend.msg_value = spend.msg_value.saturating_add(value);
+                PreparedSendMessage {
+                    arg: SendMessageArgs((destination, payload, gas_limit, value)),
+                    use_injected,
+                }
+            })
+            .collect();
+
+        PreparedBatchWithSeed {
+            seed,
+            batch: PreparedBatch::SendMessage(prepared),
+            spend,
+        }
+    }
+
+    fn prepare_send_message_legacy(
+        seed: u64,
+        policy: Option<&ValuePolicy>,
+    ) -> PreparedBatchWithSeed {
+        let mut rng = SmallRng::seed_from_u64(seed);
+        let mut spend = PlannedSpend::default();
+        let prepared = vec![send_message_args(1), send_message_args(2)]
+            .into_iter()
+            .map(|arg| {
+                let SendMessageArgs((destination, payload, gas_limit, _)) = arg;
+                let use_injected = prefer_injected_tx(&mut rng);
+                let value = if use_injected {
+                    0
+                } else {
+                    clamp_msg_value(fuzz_message_value(&mut rng), policy)
+                };
+                spend.msg_value = spend.msg_value.saturating_add(value);
+                PreparedSendMessage {
+                    arg: SendMessageArgs((destination, payload, gas_limit, value)),
+                    use_injected,
+                }
+            })
+            .collect();
+
+        PreparedBatchWithSeed {
+            seed,
+            batch: PreparedBatch::SendMessage(prepared),
+            spend,
+        }
+    }
+
+    fn send_message_order_mismatch_seed(policy: Option<&ValuePolicy>) -> u64 {
+        for seed in 0..1_000_u64 {
+            if prepare_send_message_executor(seed, policy)
+                != prepare_send_message_legacy(seed, policy)
+            {
+                return seed;
+            }
+        }
+
+        panic!("expected to find a divergent send_message seed");
     }
 
     #[test]
@@ -432,48 +532,79 @@ mod tests {
     }
 
     #[test]
+    fn explicit_dev_profile_is_preserved() {
+        let policy = ValuePolicy::from_parts(Some(ValueProfile::Dev), None, None, None, None)
+            .expect("policy")
+            .expect("enabled");
+
+        assert_eq!(policy.profile, Some(ValueProfile::Dev));
+        assert!(policy.max_msg_value.is_none());
+        assert!(policy.max_top_up_value.is_none());
+        assert!(policy.total_msg_value_budget.is_none());
+        assert!(policy.total_top_up_budget.is_none());
+    }
+
+    #[test]
     fn prepare_batch_caps_program_and_reply_values() {
         let policy = ValuePolicy::from_parts(None, Some(5), Some(7), None, None)
             .expect("policy")
             .expect("enabled");
 
-        let create = Batch::CreateProgram(vec![CreateProgramArgs((
-            code(1),
-            vec![1, 2, 3],
-            vec![4, 5, 6],
-            1_000,
-            0,
-        ))]);
+        let upload = Batch::UploadProgram(vec![upload_program_args(1)]);
+        let prepared_upload = prepare_batch((10_u64, upload).into(), Some(&policy));
+        assert_eq!(prepared_upload.spend.msg_value, 5);
+        assert_eq!(prepared_upload.spend.top_up_value, 7);
+        let PreparedBatch::UploadProgram(items) = prepared_upload.batch else {
+            panic!("unexpected batch variant");
+        };
+        let UploadProgramArgs((_, _, _, _, value)) = items[0].arg.clone();
+        assert_eq!(value, 5);
+        assert_eq!(items[0].top_up_value, 7);
+
+        let create = Batch::CreateProgram(vec![create_program_args(1)]);
         let prepared_create = prepare_batch((11_u64, create).into(), Some(&policy));
         assert_eq!(prepared_create.spend.msg_value, 5);
         assert_eq!(prepared_create.spend.top_up_value, 7);
+        let PreparedBatch::CreateProgram(items) = prepared_create.batch else {
+            panic!("unexpected batch variant");
+        };
+        let CreateProgramArgs((_, _, _, _, value)) = items[0].arg.clone();
+        assert_eq!(value, 5);
+        assert_eq!(items[0].top_up_value, 7);
 
-        let reply = Batch::SendReply(vec![SendReplyArgs((message(9), vec![7, 8, 9], 1_000, 0))]);
+        let reply = Batch::SendReply(vec![send_reply_args(9)]);
         let prepared_reply = prepare_batch((12_u64, reply).into(), Some(&policy));
-        assert_eq!(prepared_reply.spend.msg_value, 5);
         assert_eq!(prepared_reply.spend.top_up_value, 0);
+        let PreparedBatch::SendReply(items) = prepared_reply.batch else {
+            panic!("unexpected batch variant");
+        };
+        let SendReplyArgs((_, _, _, value)) = items[0].arg.clone();
+        assert_eq!(value, prepared_reply.spend.msg_value);
     }
 
     #[test]
     fn prepare_batch_is_seed_deterministic_when_policy_is_disabled() {
         let first = prepare_batch(
-            (
-                77_u64,
-                Batch::SendReply(vec![SendReplyArgs((message(7), vec![1, 2, 3], 1_000, 0))]),
-            )
-                .into(),
+            (77_u64, Batch::SendReply(vec![send_reply_args(7)])).into(),
             None,
         );
         let second = prepare_batch(
-            (
-                77_u64,
-                Batch::SendReply(vec![SendReplyArgs((message(7), vec![1, 2, 3], 1_000, 0))]),
-            )
-                .into(),
+            (77_u64, Batch::SendReply(vec![send_reply_args(7)])).into(),
             None,
         );
 
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn prepare_batch_send_message_consumes_rng_in_executor_order() {
+        let seed = send_message_order_mismatch_seed(None);
+        let prepared = prepare_batch((seed, send_message_batch()).into(), None);
+        let expected = prepare_send_message_executor(seed, None);
+        let legacy = prepare_send_message_legacy(seed, None);
+
+        assert_eq!(prepared, expected);
+        assert_ne!(prepared, legacy);
     }
 
     #[test]
