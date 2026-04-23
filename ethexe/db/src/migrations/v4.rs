@@ -94,7 +94,7 @@ mod tests {
         assert_migration_types_hash(
             "v3->v4",
             vec![meta_type::<migrated_types::DBConfig>()],
-            "4fcad0a5a6f4267238e41edd8241d936680793cc404e8c13dece4b2a45f9b541",
+            "943384f31bb358ff3ce7691cf97710bc03ec7d75d20f03b8cc5cbffa7c4c00b0",
         );
     }
 }
