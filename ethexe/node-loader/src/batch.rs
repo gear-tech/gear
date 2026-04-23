@@ -86,6 +86,7 @@ pub struct LoadRunConfig {
     pub code_seed_type: Option<SeedVariant>,
     pub workers: usize,
     pub batch_size: usize,
+    pub value_policy: Option<crate::batch::value::ValuePolicy>,
 }
 
 type MidMap = Arc<RwLock<BTreeMap<MessageId, ActorId>>>;

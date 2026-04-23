@@ -1,5 +1,6 @@
 //! CLI args for the `ethexe-node-loader`
 
+use crate::batch::value::ValueProfile;
 use anyhow::{Error, anyhow};
 use clap::{ArgAction, Parser};
 use std::str::FromStr;
@@ -63,6 +64,16 @@ pub struct LoadParams {
     /// Whether to batch regular `send_message` calls through the multicall contract.
     #[arg(long, default_value_t = true, action = ArgAction::Set)]
     pub use_send_message_multicall: bool,
+    #[arg(long, ignore_case = true, value_enum)]
+    pub value_profile: Option<ValueProfile>,
+    #[arg(long)]
+    pub max_msg_value: Option<u128>,
+    #[arg(long)]
+    pub max_top_up_value: Option<u128>,
+    #[arg(long)]
+    pub total_msg_value_budget: Option<u128>,
+    #[arg(long)]
+    pub total_top_up_budget: Option<u128>,
 }
 
 /// Parses CLI arguments for the binary and returns the selected subcommand.
@@ -127,5 +138,57 @@ impl FromStr for SeedVariant {
             "constant" => Ok(SeedVariant::Constant(num)),
             v => Err(anyhow!("Invalid variant {v}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::batch::value::ValueProfile;
+    use clap::Parser;
+
+    #[test]
+    fn load_params_parse_value_profile_and_overrides() {
+        let params = LoadParams::try_parse_from([
+            "ethexe-node-loader",
+            "--value-profile",
+            "mainnet",
+            "--max-msg-value",
+            "123",
+            "--max-top-up-value",
+            "456",
+            "--total-msg-value-budget",
+            "789",
+            "--total-top-up-budget",
+            "999",
+        ])
+        .expect("parse");
+
+        assert_eq!(params.value_profile, Some(ValueProfile::Mainnet));
+        assert_eq!(params.max_msg_value, Some(123));
+        assert_eq!(params.max_top_up_value, Some(456));
+        assert_eq!(params.total_msg_value_budget, Some(789));
+        assert_eq!(params.total_top_up_budget, Some(999));
+    }
+
+    #[test]
+    fn load_params_accept_zero_caps_and_budgets() {
+        let params = LoadParams::try_parse_from([
+            "ethexe-node-loader",
+            "--max-msg-value",
+            "0",
+            "--max-top-up-value",
+            "0",
+            "--total-msg-value-budget",
+            "0",
+            "--total-top-up-budget",
+            "0",
+        ])
+        .expect("parse");
+
+        assert_eq!(params.max_msg_value, Some(0));
+        assert_eq!(params.max_top_up_value, Some(0));
+        assert_eq!(params.total_msg_value_budget, Some(0));
+        assert_eq!(params.total_top_up_budget, Some(0));
     }
 }

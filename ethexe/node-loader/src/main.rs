@@ -20,7 +20,7 @@
 use crate::{
     abi::deploy_send_message_multicall,
     args::LoadParams,
-    batch::{BatchPool, LoadRunConfig, report::RunEndedBy},
+    batch::{BatchPool, LoadRunConfig, report::RunEndedBy, value::ValuePolicy},
 };
 use alloy::{
     hex,
@@ -94,6 +94,19 @@ async fn main() -> Result<()> {
 /// 5. start the block listener and the batch worker pool.
 async fn load_node(params: LoadParams) -> Result<()> {
     const MINT_AMOUNT: u128 = 500_000_000_000_000_000_000_000;
+    let value_policy = ValuePolicy::from_parts(
+        params.value_profile,
+        params.max_msg_value,
+        params.max_top_up_value,
+        params.total_msg_value_budget,
+        params.total_top_up_budget,
+    )?;
+
+    let value_policy_log = value_policy
+        .as_ref()
+        .map(ValuePolicy::describe)
+        .unwrap_or_else(|| "disabled".to_string());
+    info!(policy = %value_policy_log, "Configured value policy");
 
     let router_addr = validate_load_params(&params)?;
     let deployer_api = create_deployer_api(&params, router_addr).await?;
@@ -134,6 +147,7 @@ async fn load_node(params: LoadParams) -> Result<()> {
             code_seed_type: params.code_seed_type,
             workers: params.workers,
             batch_size: params.batch_size,
+            value_policy: value_policy.clone(),
         },
         tx,
         provider.root().clone(),
