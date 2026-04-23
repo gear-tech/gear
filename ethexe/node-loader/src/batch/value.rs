@@ -623,7 +623,7 @@ mod tests {
             exhaustion,
             Some(BudgetExhaustion {
                 msg_value_exhausted: true,
-                top_up_exhausted: false,
+                top_up_exhausted: true,
             })
         );
         assert!(ledger.is_exhausted());
