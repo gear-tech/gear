@@ -26,7 +26,7 @@ use crate::{
 };
 
 use alloy::sol_types::SolValue;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
@@ -309,10 +309,17 @@ impl BatchCommitmentManager {
         &self,
         block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
-        let timelines = self.db.config().timelines;
+        let (timelines, max_validators) = {
+            let config = self.db.config();
+            (config.timelines, config.max_validators)
+        };
 
-        let block_era = timelines.era_from_ts(block.header.timestamp);
-        let election_ts = timelines.era_election_start_ts(block_era);
+        let block_era = timelines
+            .era_from_ts(block.header.timestamp)
+            .context("failed to calculate era from block timestamp")?;
+        let election_ts = timelines
+            .era_election_start_ts(block_era)
+            .context("failed to calculate election start timestamp")?;
 
         if block.header.timestamp < election_ts {
             tracing::trace!(
@@ -394,8 +401,7 @@ impl BatchCommitmentManager {
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
-            // TODO #4908: max validators must be configurable
-            max_validators: 10,
+            max_validators,
         };
 
         let elected_validators = match self.middleware.make_election_at(request).await {

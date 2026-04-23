@@ -385,6 +385,10 @@ library Gear {
          */
         uint256 validatedCodesCount;
         /**
+         * @dev The maximum number of validators for era.
+         */
+        uint16 maxValidators;
+        /**
          * @dev The base fee of `Router.requestCodeValidation(...)` method.
          *      This base fee is paid in WVARA ERC20 token.
          */

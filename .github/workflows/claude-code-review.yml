@@ -69,10 +69,15 @@ jobs:
           EOF
 
       - name: Run Claude Code Review
-        uses: anthropics/claude-code-action@v1
+        # Pinned to v1.0.96 + Opus 4-6: last verified green combo (run on
+        # 2026-04-15). v1.0.97+ has a Bun/tsconfig-mismatch crash upstream
+        # (anthropics/claude-code-action#1205, #1234) that exits the Claude
+        # process with code 1 before any API call. v1.0.99+ added Opus 4.7
+        # support but bundled the same regression. Re-bump when #1205 is fixed.
+        uses: anthropics/claude-code-action@v1.0.96
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--model claude-opus-4-7 --thinking-budget high --mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
+          claude_args: '--model claude-opus-4-6 --thinking-budget high --mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
           prompt: |
             Review PR #${{ github.event.pull_request.number }} in gear (114-crate Rust monorepo, Solidity contracts in ethexe/).
 
@@ -210,10 +215,11 @@ jobs:
           EOF
 
       - name: Run Claude Delta Review
-        uses: anthropics/claude-code-action@v1
+        # See full-review job above for rationale on pinning.
+        uses: anthropics/claude-code-action@v1.0.96
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--model claude-opus-4-7 --thinking-budget high --mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
+          claude_args: '--model claude-opus-4-6 --thinking-budget high --mcp-config /tmp/mcp-config.json --allowedTools "Bash,Read,Glob,Grep,mcp__code-review-graph__detect_changes_tool,mcp__code-review-graph__get_review_context_tool,mcp__code-review-graph__get_impact_radius_tool"'
           prompt: |
             Delta review of new commits on PR #${{ steps.pr.outputs.number }} in gear (114-crate Rust monorepo).
             Diff: ${{ steps.last-review.outputs.sha }}..${{ steps.pr.outputs.head_sha }}. Do NOT re-review old code.

@@ -18,7 +18,6 @@ ethexe-network.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc = { workspace = true, features = ["client"] }
 ethexe-service.workspace = true
-ethexe-observer.workspace = true
 gsigner = { workspace = true, features = [
     "std",
     "secp256k1",

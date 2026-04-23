@@ -104,6 +104,7 @@ contract Router is
         router.validationSettings.thresholdDenominator = Gear.VALIDATORS_THRESHOLD_DENOMINATOR;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
+        router.protocolData.maxValidators = uint16(_validators.length);
 
         uint256 decimalsFactor = 10 ** IWrappedVara(_wrappedVara).decimals();
         router.protocolData.requestCodeValidationBaseFee = DEFAULT_REQUEST_CODE_VALIDATION_BASE_FEE * decimalsFactor;
@@ -182,7 +183,7 @@ contract Router is
         Storage storage router = _router();
         router.genesisBlock = Gear.newGenesis();
         router.latestCommittedBatch = Gear.CommittedBatchInfo({hash: bytes32(0), timestamp: 0});
-
+        router.protocolData.maxValidators = uint16(Gear.currentEraValidators(router).list.length);
         uint256 decimalsFactor = 10 ** IWrappedVara(router.implAddresses.wrappedVara).decimals();
         router.protocolData.requestCodeValidationBaseFee = DEFAULT_REQUEST_CODE_VALIDATION_BASE_FEE * decimalsFactor;
         router.protocolData.requestCodeValidationExtraFee = DEFAULT_REQUEST_CODE_VALIDATION_EXTRA_FEE * decimalsFactor;
@@ -212,6 +213,7 @@ contract Router is
             timelines: router.timelines,
             programsCount: router.protocolData.programsCount,
             validatedCodesCount: router.protocolData.validatedCodesCount,
+            maxValidators: router.protocolData.maxValidators,
             requestCodeValidationBaseFee: router.protocolData.requestCodeValidationBaseFee,
             requestCodeValidationExtraFee: router.protocolData.requestCodeValidationExtraFee
         });

@@ -248,6 +248,9 @@ impl Ethereum {
     /// This is useful mostly on testnets, where a lot of L2s can spam the network with blob transactions.
     pub const INCREASED_BLOB_GAS_MULTIPLIER: u128 = 3;
 
+    /// Default offset for permit deadline from the current block timestamp.
+    pub const PERMIT_DEADLINE_OFFSET: u64 = 120; // 2 minutes
+
     pub(crate) async fn new(
         ethereum_rpc_url: &str,
         router_address: Address,
@@ -370,7 +373,11 @@ impl Ethereum {
             header: BlockHeader { timestamp, .. },
             ..
         } = Self::get_latest_block_inner(provider).await?;
-        let deadline = AlloyU256::from(timestamp.checked_add(120).expect("infallible"));
+        let deadline = AlloyU256::from(
+            timestamp
+                .checked_add(Self::PERMIT_DEADLINE_OFFSET)
+                .expect("infallible"),
+        );
 
         let permit = Permit {
             owner: signer_address,

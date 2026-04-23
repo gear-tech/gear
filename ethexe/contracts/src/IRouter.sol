@@ -53,6 +53,10 @@ interface IRouter {
          */
         uint256 validatedCodesCount;
         /**
+         * @notice Maximum number of validators for era.
+         */
+        uint16 maxValidators;
+        /**
          * @notice The base fee of `Router.requestCodeValidation(...)` method.
          *         This base fee is paid in WVARA ERC20 token.
          */

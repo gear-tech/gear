@@ -21,7 +21,7 @@ use crate::{
     BatchCommitmentValidationReply, CommitmentSubmitted, ConsensusEvent,
     utils::MultisignedBatchCommitment, validator::initial::Initial,
 };
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context as _, Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
     Address, SimpleBlockData, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
@@ -116,7 +116,8 @@ impl Coordinator {
         let era_index = ctx
             .core
             .timelines
-            .era_from_ts(multisigned_batch.batch().timestamp);
+            .era_from_ts(multisigned_batch.batch().timestamp)
+            .context("failed to calculate era from batch timestamp")?;
         let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
         let message = ValidatorMessage { era_index, payload };
 
