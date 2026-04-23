@@ -395,7 +395,7 @@ impl Router {
             .provider()
             .estimate_eip1559_fees_with(self.eip1559_estimator.clone())
             .await?;
-        let max_fee_per_gas_in_gwei = max_fee_per_gas / (GWEI_TO_WEI as u128);
+        let max_fee_per_gas_in_gwei = max_fee_per_gas.div_ceil(GWEI_TO_WEI as u128);
         let eip1559_max_fee_per_gas_in_gwei = self.eip1559_max_fee_per_gas_in_gwei;
 
         if eip1559_max_fee_per_gas_in_gwei > 0
@@ -405,7 +405,7 @@ impl Router {
                 "Estimated max fee per gas {max_fee_per_gas_in_gwei} gwei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_gwei} gwei, refusing to commit batch (commitment: {commitment:?})"
             );
             return Err(anyhow!(
-                "Estimated max fee per gas {max_fee_per_gas_in_gwei} gwei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_gwei} gwei, refusing to commit batch)",
+                "Estimated max fee per gas {max_fee_per_gas_in_gwei} gwei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_gwei} gwei, refusing to commit batch",
             ));
         }
 
