@@ -410,6 +410,10 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             batch_with_seed,
             self.value_ledger.as_ref().map(ValueBudgetLedger::policy),
         );
+        // Task 3 intentionally accounts for planned spend at scheduling time so
+        // the run can stop dispatching new work as soon as reservations exhaust
+        // the configured budget. Failed or partially observed execution is not
+        // reconciled here.
         let budget_exhausted = self
             .value_ledger
             .as_mut()

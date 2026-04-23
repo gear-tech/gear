@@ -136,6 +136,7 @@ impl LoadRunReport {
         let _ = writeln!(out, "failures observed: {}", stats.failures);
 
         if let Some(value_stats) = &self.value_stats {
+            let _ = writeln!(out, "value accounting: planned reservations");
             let _ = writeln!(
                 out,
                 "value profile: {}",
@@ -148,33 +149,43 @@ impl LoadRunReport {
             );
             let _ = writeln!(
                 out,
-                "msg.value spent: {} ({})",
+                "planned msg.value: {} ({})",
                 value_stats.spent_msg_value,
                 format_wei(value_stats.spent_msg_value)
             );
             let _ = writeln!(
                 out,
-                "top-up spent: {} ({})",
+                "planned top-up: {} ({})",
                 value_stats.spent_top_up_value,
                 format_wvara(value_stats.spent_top_up_value)
             );
 
             if let Some(budget) = value_stats.msg_value_budget {
-                let _ = writeln!(out, "msg.value budget: {} ({})", budget, format_wei(budget));
+                let _ = writeln!(
+                    out,
+                    "planned msg.value budget: {} ({})",
+                    budget,
+                    format_wei(budget)
+                );
             }
             if let Some(budget) = value_stats.top_up_budget {
-                let _ = writeln!(out, "top-up budget: {} ({})", budget, format_wvara(budget));
+                let _ = writeln!(
+                    out,
+                    "planned top-up budget: {} ({})",
+                    budget,
+                    format_wvara(budget)
+                );
             }
 
             let _ = writeln!(
                 out,
-                "msg.value overshoot: {} ({})",
+                "planned msg.value overshoot: {} ({})",
                 value_stats.msg_value_overshoot,
                 format_wei(value_stats.msg_value_overshoot)
             );
             let _ = writeln!(
                 out,
-                "top-up overshoot: {} ({})",
+                "planned top-up overshoot: {} ({})",
                 value_stats.top_up_overshoot,
                 format_wvara(value_stats.top_up_overshoot)
             );
@@ -182,7 +193,7 @@ impl LoadRunReport {
             if let Some(exhausted) = value_stats.exhausted {
                 let _ = write!(
                     out,
-                    "budget exhausted flags: msg.value={}, top-up={}",
+                    "planned budget exhaustion flags: msg.value={}, top-up={}",
                     exhausted.msg_value_exhausted, exhausted.top_up_exhausted
                 );
             } else {
@@ -323,14 +334,15 @@ mod tests {
 
         let summary = report.render_pretty();
         assert!(summary.contains("status: budget exhausted"));
+        assert!(summary.contains("value accounting: planned reservations"));
         assert!(summary.contains("value profile: mainnet"));
-        assert!(summary.contains("msg.value spent: 2100000000000000"));
-        assert!(summary.contains("top-up spent: 10000000000000"));
-        assert!(summary.contains("msg.value budget: 2000000000000000"));
-        assert!(summary.contains("top-up budget: 10000000000000"));
-        assert!(summary.contains("msg.value overshoot: 100000000000000"));
-        assert!(summary.contains("top-up overshoot: 0"));
-        assert!(summary.contains("budget exhausted flags: msg.value=true, top-up=true"));
+        assert!(summary.contains("planned msg.value: 2100000000000000"));
+        assert!(summary.contains("planned top-up: 10000000000000"));
+        assert!(summary.contains("planned msg.value budget: 2000000000000000"));
+        assert!(summary.contains("planned top-up budget: 10000000000000"));
+        assert!(summary.contains("planned msg.value overshoot: 100000000000000"));
+        assert!(summary.contains("planned top-up overshoot: 0"));
+        assert!(summary.contains("planned budget exhaustion flags: msg.value=true, top-up=true"));
         assert!(summary.contains(&format!("({})", format_wei(2_100_000_000_000_000))));
         assert!(summary.contains(&format!("({})", format_wvara(10_000_000_000_000))));
         assert!(summary.contains(&format!("({})", format_wei(2_000_000_000_000_000))));
