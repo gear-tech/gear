@@ -18,6 +18,7 @@
 
 use crate::{
     RouterDataProvider, Service,
+    config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
         events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
@@ -26,7 +27,7 @@ use crate::{
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
-    rpc::types::anvil::MineOptions,
+    rpc::types::anvil::{Metadata, MineOptions},
 };
 use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
@@ -54,7 +55,7 @@ use ethexe_ethereum::{
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
-    EthereumConfig, ObserverConfig, ObserverService,
+    ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
@@ -98,7 +99,6 @@ pub struct TestEnv {
     pub validators: Vec<ValidatorConfig>,
     pub sender_id: ActorId,
     pub threshold: u64,
-    pub block_time: Duration,
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: u32,
     pub compute_config: ComputeConfig,
@@ -162,13 +162,19 @@ impl TestEnv {
 
                 let anvil = anvil.spawn();
 
+                let provider: RootProvider = ProviderBuilder::default()
+                    .connect(anvil.ws_endpoint().as_str())
+                    .await
+                    .expect("failed to connect to anvil");
+
+                let Metadata {
+                    client_commit_sha, ..
+                } = provider.anvil_metadata().await?;
+
+                Service::check_foundry_toolchain_version(client_commit_sha)?;
+
                 // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
                 if !continuous_block_generation {
-                    let provider: RootProvider = ProviderBuilder::default()
-                        .connect(anvil.ws_endpoint().as_str())
-                        .await
-                        .expect("failed to connect to anvil");
-
                     provider
                         .anvil_set_block_timestamp_interval(block_time.as_secs())
                         .await
@@ -238,6 +244,7 @@ impl TestEnv {
             ethereum_rpc: ws_rpc_url.clone(),
             router_address,
             slot_duration_secs: block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await?;
 
@@ -245,7 +252,7 @@ impl TestEnv {
             rpc: ws_rpc_url.clone(),
             beacon_rpc: http_rpc_url.clone(),
             router_address,
-            block_time: config.block_time,
+            block_time,
             eip1559_fee_increase_percentage: Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE,
             eip1559_max_fee_per_gas_in_gwei: Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI,
             blob_gas_multiplier: Ethereum::NO_BLOB_GAS_MULTIPLIER,
@@ -360,7 +367,6 @@ impl TestEnv {
             validators: validator_configs,
             sender_id: ActorId::from(H160::from(sender_address.0)),
             threshold,
-            block_time,
             continuous_block_generation,
             commitment_delay_limit,
             compute_config,
@@ -417,7 +423,6 @@ impl TestEnv {
             election_provider: self.election_provider.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
-            block_time: self.block_time,
             validator_config,
             network_public_key,
             network_address,
@@ -435,6 +440,7 @@ impl TestEnv {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
             router_address: self.eth_cfg.router_address,
             slot_duration_secs: self.eth_cfg.block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await
         .unwrap()
@@ -461,7 +467,7 @@ impl TestEnv {
             hack: self
                 .continuous_block_generation
                 .not()
-                .then(|| (self.provider.clone(), self.block_time)),
+                .then(|| (self.provider.clone(), self.eth_cfg.block_time)),
         })
     }
 
@@ -636,11 +642,19 @@ impl TestEnv {
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
     pub async fn next_block_producer_index(&self) -> usize {
-        let timestamp = self.latest_block().await.header.timestamp + self.block_time.as_secs();
+        let timestamp =
+            self.latest_block().await.header.timestamp + self.eth_cfg.block_time.as_secs();
         self.db
             .config()
             .timelines
-            .block_producer_index_at(self.validators.len(), timestamp)
+            .block_producer_index_at(
+                self.validators
+                    .len()
+                    .try_into()
+                    .expect("empty validators unexpected"),
+                timestamp,
+            )
+            .expect("failed to calculate block producer index")
     }
 
     /// Waits until the next block producer index becomes equal to `index`.
@@ -833,7 +847,6 @@ impl NodeConfig {
         }
     }
 
-    #[allow(unused)]
     pub fn db(mut self, db: Database) -> Self {
         self.db = Some(db);
         self
@@ -925,7 +938,6 @@ pub struct Node {
     election_provider: MockElectionProvider,
     signer: Signer,
     threshold: u64,
-    block_time: Duration,
     validator_config: Option<ValidatorConfig>,
     network_public_key: Option<PublicKey>,
     network_address: Option<String>,
@@ -1000,7 +1012,7 @@ impl Node {
                             signatures_threshold: self.threshold,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                             commitment_delay_limit: self.commitment_delay_limit,
-                            producer_delay: self.block_time / 6,
+                            producer_delay: self.eth_cfg.block_time / 6,
                             router_address: self.eth_cfg.router_address,
                             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,

@@ -213,13 +213,12 @@ pub fn block_touched_programs<DB: OnChainStorageRO + AnnounceStorageRO + Globals
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::mock::*;
 
     const ADDRESS: Address = Address([42; 20]);
 
     #[test]
     fn multisigned_batch_commitment_creation() {
-        let batch = BatchCommitment::mock(());
+        let batch = test_batch_commitment(test_block_hash(1), 1);
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
         let pub_key = public_keys[0];
@@ -243,7 +242,7 @@ mod tests {
 
     #[test]
     fn check_origin_closure_behavior() {
-        let batch = BatchCommitment::mock(());
+        let batch = test_batch_commitment(test_block_hash(2), 2);
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
         let pub_key = public_keys[0];
@@ -280,7 +279,7 @@ mod tests {
 
     #[test]
     fn reject_validation_reply_with_incorrect_digest() {
-        let batch = BatchCommitment::mock(());
+        let batch = test_batch_commitment(test_block_hash(3), 3);
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
         let pub_key = public_keys[0];
@@ -303,7 +302,7 @@ mod tests {
 
     #[test]
     fn accept_batch_commitment_validation_reply() {
-        let batch = BatchCommitment::mock(());
+        let batch = test_batch_commitment(test_block_hash(4), 4);
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
         let pub_key = public_keys[0];

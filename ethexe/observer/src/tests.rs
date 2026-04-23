@@ -59,6 +59,7 @@ async fn test_deployment() -> Result<()> {
         ethereum_rpc: ethereum_rpc.clone(),
         router_address: ethereum.router().address(),
         slot_duration_secs: 1,
+        genesis_initializer: None,
     })
     .await?;
 

@@ -23,7 +23,7 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use ethexe_common::Address;
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::EthereumConfig;
+use ethexe_service::config::EthereumConfig;
 use serde::Deserialize;
 use std::time::Duration;
 
