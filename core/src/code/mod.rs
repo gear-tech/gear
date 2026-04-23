@@ -1251,51 +1251,44 @@ mod tests {
     mod custom_section_tests {
         use crate::code::get_custom_section_data;
         use alloc::{vec, vec::Vec};
+        use wasm_encoder::{CustomSection, Module, TypeSection};
 
-        fn make_wasm_with_custom_section(name: &str, data: &[u8]) -> Vec<u8> {
-            let mut module = wasm_encoder::Module::new();
+        fn make_wasm_with_custom_sections(sections: &[(&str, &[u8])]) -> Vec<u8> {
+            let mut module = Module::new();
             // Add a minimal type section so it's a valid module
-            let mut types = wasm_encoder::TypeSection::new();
+            let mut types = TypeSection::new();
             types.ty().function(vec![], vec![]);
             module.section(&types);
-            // Add the custom section
-            module.section(&wasm_encoder::CustomSection {
-                name: name.into(),
-                data: data.into(),
-            });
+            // Append each custom section in order
+            for (name, data) in sections {
+                module.section(&CustomSection {
+                    name: (*name).into(),
+                    data: (*data).into(),
+                });
+            }
             module.finish()
         }
 
         #[test]
         fn section_found() {
-            let wasm = make_wasm_with_custom_section("sails:idl", b"hello idl");
+            let wasm = make_wasm_with_custom_sections(&[("sails:idl", b"hello idl")]);
             let result = get_custom_section_data(&wasm, "sails:idl");
             assert_eq!(result.unwrap().unwrap(), b"hello idl");
         }
 
         #[test]
         fn section_not_found() {
-            let wasm = make_wasm_with_custom_section("other", b"data");
+            let wasm = make_wasm_with_custom_sections(&[("other", b"data")]);
             let result = get_custom_section_data(&wasm, "sails:idl");
             assert_eq!(result.unwrap(), None);
         }
 
         #[test]
         fn first_match_returned() {
-            let mut module = wasm_encoder::Module::new();
-            let mut types = wasm_encoder::TypeSection::new();
-            types.ty().function(vec![], vec![]);
-            module.section(&types);
-            module.section(&wasm_encoder::CustomSection {
-                name: "sails:idl".into(),
-                data: b"first".into(),
-            });
-            module.section(&wasm_encoder::CustomSection {
-                name: "sails:idl".into(),
-                data: b"second".into(),
-            });
-            let wasm = module.finish();
-
+            let wasm = make_wasm_with_custom_sections(&[
+                ("sails:idl", b"first"),
+                ("sails:idl", b"second"),
+            ]);
             let result = get_custom_section_data(&wasm, "sails:idl");
             assert_eq!(result.unwrap().unwrap(), b"first");
         }

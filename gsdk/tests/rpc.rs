@@ -100,6 +100,54 @@ async fn test_calculate_create_gas() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_read_wasm_custom_section() -> Result<()> {
+    let (_node, api) = dev_node().await;
+
+    // Minimal valid Gear program (exports `init` + imports `env.memory`)
+    // augmented with a named custom section. The `@custom` wat annotation
+    // emits a raw custom section at module scope.
+    let wat_code = r#"
+        (module
+            (import "env" "memory" (memory 0))
+            (export "init" (func $init))
+            (func $init)
+            (@custom "sails:idl" "hello idl")
+        )
+    "#;
+    let wasm = wat::parse_str(wat_code).unwrap();
+
+    // Upload the code so `OriginalCodeStorage(code_id)` is populated.
+    api.upload_code(wasm.clone()).await?;
+    let code_id = CodeId::generate(&wasm);
+
+    // Positive case — present section round-trips through the RPC. This
+    // exercises the full storage-key path
+    // (`twox_128("GearProgram") ++ twox_128("OriginalCodeStorage") ++ code_id`),
+    // the SCALE envelope decode, and `get_custom_section_data`.
+    let present = api.read_wasm_custom_section(code_id, "sails:idl").await?;
+    assert_eq!(present.as_deref(), Some(b"hello idl".as_ref()));
+
+    // Missing section on a known code → `Ok(None)` / null.
+    let missing_section = api
+        .read_wasm_custom_section(code_id, "no:such:section")
+        .await?;
+    assert!(missing_section.is_none());
+
+    // Unknown code_id → `Ok(None)` / null.
+    let unknown_code = api
+        .read_wasm_custom_section(CodeId::from([0u8; 32]), "sails:idl")
+        .await?;
+    assert!(unknown_code.is_none());
+
+    // `at: Some(best_hash)` takes the same storage-read path as `at: None`,
+    // so exercising `None` here is sufficient for this happy-path test.
+    // Historical queries against a block preceding code upload would need
+    // deterministic multi-block state and are out of scope here.
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_calculate_handle_gas() -> Result<()> {
     let (_node, api) = dev_node().await;
 

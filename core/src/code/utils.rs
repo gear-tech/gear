@@ -542,26 +542,20 @@ pub fn get_code_type_sections_sizes(
 ///
 /// Returns `Ok(Some(data))` if the section is found, `Ok(None)` if the WASM
 /// is valid but the section is not present, and `Err` if the WASM is malformed.
+/// The error preserves the underlying parser diagnostic (offset + reason).
 pub fn get_custom_section_data<'a>(
     wasm: &'a [u8],
     section_name: &str,
-) -> Result<Option<&'a [u8]>, &'static str> {
-    let parser = wasmparser::Parser::new(0);
-    let mut saw_version = false;
-
-    for payload in parser.parse_all(wasm) {
-        let payload = payload.map_err(|_| "invalid wasm binary")?;
-        match payload {
-            Payload::Version { .. } => saw_version = true,
-            Payload::CustomSection(section) if section.name() == section_name => {
-                return Ok(Some(section.data()));
-            }
-            _ => {}
+) -> Result<Option<&'a [u8]>, wasmparser::BinaryReaderError> {
+    // `parse_all` rejects input without a valid magic + version preamble on
+    // the first iteration, so there's no need for a separate "was a version
+    // header observed?" flag.
+    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+        if let Payload::CustomSection(section) = payload?
+            && section.name() == section_name
+        {
+            return Ok(Some(section.data()));
         }
-    }
-
-    if !saw_version {
-        return Err("invalid wasm binary");
     }
 
     Ok(None)
