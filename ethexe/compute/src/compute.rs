@@ -205,21 +205,21 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if self.computation.is_none()
             && self.promises_stream.is_none()
-            && let Some((announce, promise_policy)) = self.input.pop_front()
+            && let Some((announce, consensus_policy)) = self.input.pop_front()
         {
-            let maybe_promise_out_tx =
-                match utils::resolve_promise_policy(promise_policy, self.config.promises_mode()) {
-                    PromisePolicy::Enabled => {
-                        let (sender, receiver) = mpsc::unbounded_channel();
-                        self.promises_stream = Some(utils::AnnouncePromisesStream::new(
-                            receiver,
-                            announce.to_hash(),
-                        ));
+            let promise_policy = match self.config.promises_mode() {
+                PromiseEmissionMode::AlwaysEmit => PromisePolicy::Enabled,
+                PromiseEmissionMode::ConsensusDriven => consensus_policy,
+            };
 
-                        Some(sender)
-                    }
-                    PromisePolicy::Disabled => None,
-                };
+            let maybe_promise_out_tx = promise_policy.is_enabled().then(|| {
+                let (sender, receiver) = mpsc::unbounded_channel();
+                self.promises_stream = Some(utils::AnnouncePromisesStream::new(
+                    receiver,
+                    announce.to_hash(),
+                ));
+                sender
+            });
 
             self.computation = Some(future_timing::timed(
                 Self::compute(
@@ -280,18 +280,6 @@ pub(crate) mod utils {
     use super::*;
     use futures::Stream;
     use std::pin::Pin;
-
-    /// Resolves [PromisePolicy] with consensus provided policy and global
-    /// [PromiseEmissionMode] set for node.
-    pub(super) fn resolve_promise_policy(
-        consensus_policy: PromisePolicy,
-        mode: PromiseEmissionMode,
-    ) -> PromisePolicy {
-        match mode {
-            PromiseEmissionMode::AlwaysEmit => PromisePolicy::Enabled,
-            PromiseEmissionMode::ConsensusDriven => consensus_policy,
-        }
-    }
 
     /// The stream of promises from announce execution.
     pub(super) struct AnnouncePromisesStream {

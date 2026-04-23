@@ -21,19 +21,17 @@ use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
     HashOf,
     db::{InjectedStorageRO, InjectedStorageRW},
-    injected::{
-        InjectedTransaction, Promise, SignedCompactPromise, SignedPromise, restore_signed_promise,
-    },
+    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedPromise},
 };
 use ethexe_db::Database;
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tracing::trace;
+use tracing::{trace, warn};
 
 // TODO (kuzmindev): Currently, PromiseSubscriptionManager do not check, that transaction was
 // sent by validator, so there must be pre-validation for data received from network (SignedCompactPromise).
 
-// TODO (kuzmindev): think about using `moka::sync::Cache` instead of DashMap
+// TODO (kuzmindev): think about using `moka::sync::Cache` instead of DashMap.
 type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactPromise>>;
 
@@ -116,16 +114,17 @@ impl PromiseSubscriptionManager {
         let tx_hash = compact.data().tx_hash;
 
         match self.db.promise(tx_hash) {
-            Some(promise) => match restore_signed_promise(promise, &compact) {
+            Some(promise) => match compact.restore(promise) {
                 Ok(signed_promise) => {
                     self.db.set_compact_promise(&compact);
                     self.dispatch_promise(signed_promise);
                 }
 
-                Err(_err) => {
-                    trace!(
-                        ?compact, %tx_hash, "failed to create signed promise from parts, producer send invalid signature: compact_promise={compact:?}"
+                Err(err) => {
+                    warn!(
+                        ?compact, %tx_hash, error=?err, "failed to create signed promise from parts, producer send invalid signature: compact_promise={compact:?}"
                     );
+                    self.waiting_for_compute.insert(tx_hash, compact);
                 }
             },
             None => {
@@ -140,7 +139,7 @@ impl PromiseSubscriptionManager {
         self.db.set_promise(&promise);
 
         if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) {
-            match restore_signed_promise(promise, &compact_promise) {
+            match compact_promise.restore(promise) {
                 Ok(signed_promise) => {
                     self.db.set_compact_promise(&compact_promise);
                     self.dispatch_promise(signed_promise);

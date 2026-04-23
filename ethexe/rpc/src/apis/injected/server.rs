@@ -27,7 +27,7 @@ use ethexe_common::{
     db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedPromise, restore_signed_promise,
+        SignedInjectedTransaction, SignedPromise,
     },
 };
 use ethexe_db::Database;
@@ -167,7 +167,7 @@ impl InjectedApi {
             return Ok(None);
         };
 
-        match restore_signed_promise(promise, &compact) {
+        match compact.restore(promise) {
             Ok(message) => Ok(Some(message)),
             Err(err) => {
                 trace!(

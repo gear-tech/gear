@@ -227,8 +227,6 @@ impl RpcServerApis {
     pub fn into_methods(self) -> jsonrpsee::server::RpcModule<()> {
         let mut module = JsonrpcModule::new(());
 
-        // let rpc = self.block.into_rpc();
-        // let callbacks = rpc.method_names();
         module
             .merge(BlockServer::into_rpc(self.block))
             .expect("No conflicts");
