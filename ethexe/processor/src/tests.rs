@@ -20,7 +20,7 @@ use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
-    ScheduledTask, SimpleBlockData,
+    PrivateKey, ScheduledTask, SignedMessage, SimpleBlockData,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
@@ -73,7 +73,7 @@ mod utils {
         (code_id, code)
     }
 
-    pub fn upload_code(processor: &mut Processor, code: &[u8]) -> CodeId {
+    pub async fn upload_code(processor: &mut Processor, code: &[u8]) -> CodeId {
         let code_id = CodeId::generate(code);
 
         let ValidCodeInfo {
@@ -85,6 +85,7 @@ mod utils {
                 code: code.to_vec(),
                 code_id,
             })
+            .await
             .expect("failed to process code")
             .valid
             .expect("code is invalid");
@@ -98,7 +99,7 @@ mod utils {
         code_id
     }
 
-    pub fn setup_test_env_and_load_codes<const N: usize>(
+    pub async fn setup_test_env_and_load_codes<const N: usize>(
         codes: [&[u8]; N],
     ) -> (Processor, BlockChain, [CodeId; N]) {
         let db = Database::memory();
@@ -107,7 +108,7 @@ mod utils {
 
         let mut code_ids = Vec::new();
         for code in codes {
-            code_ids.push(upload_code(&mut processor, code));
+            code_ids.push(upload_code(&mut processor, code).await);
         }
 
         (processor, chain, code_ids.try_into().unwrap())
@@ -135,7 +136,8 @@ mod utils {
     }
 
     pub async fn simple_init_test(code: impl AsRef<[u8]>) -> InBlockTransitions {
-        let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_ref()]);
+        let (mut processor, chain, [code_id]) =
+            setup_test_env_and_load_codes([code.as_ref()]).await;
         let block1 = chain.blocks[1].to_simple();
 
         let mut handler = setup_handler(processor.db.clone(), block1);
@@ -180,7 +182,8 @@ mod utils {
 async fn ping_init() {
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
 
     // Empty processing for block1
     let executable = ExecutableData {
@@ -270,8 +273,8 @@ async fn ping_init() {
         .expect("failed to process send message");
 }
 
-#[test]
-fn handle_new_code_valid() {
+#[tokio::test]
+async fn handle_new_code_valid() {
     init_logger();
 
     let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
@@ -283,6 +286,7 @@ fn handle_new_code_valid() {
             code: code.clone(),
             code_id,
         })
+        .await
         .map(|res| (res.code_id, res.valid.expect("code must be valid")))
         .unwrap();
 
@@ -296,8 +300,8 @@ fn handle_new_code_valid() {
     );
 }
 
-#[test]
-fn handle_new_code_invalid() {
+#[tokio::test]
+async fn handle_new_code_invalid() {
     init_logger();
 
     let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
@@ -307,6 +311,7 @@ fn handle_new_code_invalid() {
     assert!(
         processor
             .process_code(CodeAndIdUnchecked { code, code_id })
+            .await
             .expect("failed to call runtime api")
             .valid
             .is_none()
@@ -318,7 +323,7 @@ async fn ping_pong() {
     init_logger();
 
     let (mut processor, chain, [code_id, ..]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let user_id = ActorId::from(10);
@@ -398,7 +403,7 @@ async fn async_and_ping() {
     };
 
     let (mut processor, chain, [ping_code_id, upload_code_id, ..]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let mut handler = setup_handler(processor.db.clone(), block1);
@@ -537,7 +542,7 @@ async fn many_waits() {
 
     let (_, code) = wat_to_wasm(wat.as_str());
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]).await;
     let block1 = chain.blocks[1].to_simple();
     let wake_block = chain.blocks[1 + blocks_to_wait].to_simple();
 
@@ -689,7 +694,7 @@ async fn overlay_execution() {
         };
 
     let (mut processor, chain, [ping_code_id, async_code_id]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     // -----------------------------------------------------------------------------
@@ -919,7 +924,8 @@ async fn injected_ping_pong() {
     init_logger();
 
     let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let user_1 = ActorId::from(10);
@@ -1029,7 +1035,8 @@ async fn injected_prioritized_over_canonical() {
     init_logger();
 
     let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let canonical_user = ActorId::from(10);
@@ -1141,7 +1148,8 @@ async fn injected_prioritized_over_canonical() {
 async fn executable_balance_charged() {
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
     let mut handler = setup_handler(processor.db.clone(), block1);
 
@@ -1228,7 +1236,7 @@ async fn executable_balance_injected_panic_not_charged() {
 
     let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
     let (mut processor, chain, [code_id]) =
-        setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]);
+        setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
     let user_id = ActorId::from(10);
@@ -1361,7 +1369,8 @@ async fn insufficient_executable_balance_still_charged() {
 
     init_logger();
 
-    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
     let mut handler = setup_handler(processor.db.clone(), block1);
 
@@ -1494,6 +1503,254 @@ async fn call_wake_with_delay_is_unsupported() {
         .expect("must be reply")
         .to_reply_code();
     assert_eq!(reply_code, ReplyCode::Success(SuccessReplyReason::Auto));
+}
+
+/// Tests that process_programs phases execute in strict order:
+/// 1. Injected transactions + events (populate queues)
+/// 2. Scheduled tasks (e.g., WakeMessage moves dispatches back to queues)
+/// 3. Queue processing (injected queue first, then canonical queue)
+///
+/// Uses `process_programs` to exercise the full pipeline.
+#[tokio::test]
+async fn injected_and_events_then_tasks_then_queues() {
+    init_logger();
+
+    // Handle function:
+    // - First call: sets flag and waits for 1 block
+    // - Subsequent calls: replies with "DONE"
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (import "env" "gr_wait_for" (func $wait_for (param i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (if
+                    (i32.eqz (i32.load (i32.const 0x200)))
+                    (then
+                        (i32.store (i32.const 0x200) (i32.const 1))
+                        (call $wait_for (i32.const 1))
+                    )
+                    (else
+                        (call $reply (i32.const 0) (i32.const 4) (i32.const 0x400) (i32.const 0x600))
+                    )
+                )
+            )
+            (data (i32.const 0) "DONE")
+        )
+    "#;
+
+    let (_, code) = wat_to_wasm(wat);
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]).await;
+
+    let task_user = ActorId::from(10);
+    let injected_user_pk = PrivateKey::random();
+    let canonical_user = ActorId::from(30);
+    let actor_id = ActorId::from(0x10000);
+
+    // === Block 1: Create program, init, and send a message that will wait ===
+    let block1 = chain.blocks[1].to_simple();
+
+    let create_and_init_events = vec![
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        })),
+        BlockRequestEvent::Mirror {
+            actor_id,
+            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 500_000_000_000,
+                },
+            ),
+        },
+        BlockRequestEvent::Mirror {
+            actor_id,
+            event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: task_user,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            }),
+        },
+    ];
+
+    let executable = ExecutableData {
+        block: block1,
+        events: create_and_init_events,
+        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        ..Default::default()
+    };
+    let FinalizedBlockTransitions {
+        states,
+        schedule,
+        program_creations,
+        ..
+    } = processor.process_programs(executable, None).await.unwrap();
+    program_creations
+        .into_iter()
+        .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));
+
+    // === Block 2: Send handle message that triggers wait_for(1) ===
+    let block2 = chain.blocks[2].to_simple();
+
+    let wait_message_event = vec![BlockRequestEvent::Mirror {
+        actor_id,
+        event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+            id: MessageId::from(2),
+            source: task_user,
+            payload: vec![],
+            value: 0,
+            call_reply: false,
+        }),
+    }];
+
+    let executable = ExecutableData {
+        block: block2,
+        program_states: states,
+        schedule,
+        events: wait_message_event,
+        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+        ..Default::default()
+    };
+    let FinalizedBlockTransitions {
+        states, schedule, ..
+    } = processor.process_programs(executable, None).await.unwrap();
+
+    // Verify WakeMessage is scheduled for block3
+    let wake_block_height = block2.header.height + 1;
+    assert!(
+        schedule.contains_key(&wake_block_height),
+        "WakeMessage must be scheduled for block {wake_block_height}"
+    );
+
+    // === Block 3: All three phases via process_programs ===
+    // - Phase 1 (injected + events): injected tx + canonical message populate queues
+    // - Phase 2 (tasks): WakeMessage moves waiting dispatch back to canonical queue
+    // - Phase 3 (queues): injected queue first, then canonical queue
+    let block3 = chain.blocks[3].to_simple();
+    assert_eq!(block3.header.height, wake_block_height);
+
+    let injected_tx = InjectedTransaction {
+        destination: actor_id,
+        payload: vec![].try_into().unwrap(),
+        value: 0,
+        reference_block: H256::random(),
+        salt: H256::random().0.to_vec().try_into().unwrap(),
+    };
+    let signed_injected = SignedMessage::create(injected_user_pk, injected_tx).unwrap();
+    let verified_injected = signed_injected.into_verified();
+    let injected_user: ActorId = verified_injected.address().into();
+
+    let canonical_event = vec![BlockRequestEvent::Mirror {
+        actor_id,
+        event: MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+            id: MessageId::from(3),
+            source: canonical_user,
+            payload: vec![],
+            value: 0,
+            call_reply: false,
+        }),
+    }];
+
+    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
+
+    let executable = ExecutableData {
+        block: block3,
+        program_states: states,
+        schedule,
+        injected_transactions: vec![verified_injected],
+        events: canonical_event,
+        gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+    };
+    let FinalizedBlockTransitions { transitions, .. } = processor
+        .process_programs(executable, Some(promise_out_tx))
+        .await
+        .unwrap();
+
+    // === Verify three-phase ordering via process_programs output ===
+    //
+    // The single `process_programs` call runs three phases internally:
+    //   Phase 1: handle_injected_and_events — pushes injected tx to injected queue,
+    //            pushes canonical event message to canonical queue
+    //   Phase 2: process_tasks — WakeMessage moves waiting dispatch to canonical queue
+    //   Phase 3: process_queues — executes injected queue first, then canonical queue
+    //
+    // We prove ordering by observing the output:
+    //
+    // ASSERT: Injected+events ran BEFORE queues.
+    //   If queues ran first, no messages would be in queues → 0 replies.
+    //   We get 3 replies ⇒ events populated queues before they were processed.
+    //
+    // ASSERT: Tasks ran BEFORE queues.
+    //   If queues ran before tasks, the WakeMessage wouldn't have moved the waiting dispatch
+    //   back into the canonical queue → only 2 replies (injected + canonical event).
+    //   We get 3 replies ⇒ tasks ran before queue processing.
+    //
+    // ASSERT: Injected+events ran BEFORE tasks (canonical queue is FIFO).
+    //   The event message (phase 1) is queued to canonical queue before the woken dispatch
+    //   (phase 2). So in output, event reply appears before task-woken reply.
+    //   If tasks ran before events, the woken dispatch would be first in canonical queue,
+    //   and we'd see task_user reply before canonical_user reply.
+    //
+    // ASSERT: Injected queue processed BEFORE canonical queue.
+    //   Injected reply is first in output, before any canonical replies.
+
+    // Injected message must produce a promise (proves it was executed)
+    let promise = promise_receiver
+        .recv()
+        .await
+        .expect("promise must be sent for injected transaction");
+    assert_eq!(promise.reply.payload, b"DONE");
+    assert_eq!(
+        promise.reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+
+    // Collect all outgoing messages from the single process_programs call
+    let to_users: Vec<_> = transitions
+        .iter()
+        .flat_map(|t| t.messages.iter().map(|m| (&t.actor_id, m)))
+        .collect();
+
+    // --- ASSERT: All three sources produced replies ---
+    // This proves both injected+events AND tasks ran BEFORE queue processing.
+    // If queues ran before injected+events: 0 replies (nothing in queues).
+    // If queues ran before tasks: 2 replies (no woken dispatch in canonical queue).
+    assert_eq!(
+        to_users.len(),
+        3,
+        "All 3 sources (injected, canonical event, task-woken) must produce replies. \
+         Missing replies means queue processing ran before injected+events or tasks."
+    );
+
+    // --- ASSERT: Injected queue processed BEFORE canonical queue ---
+    // The injected reply must come first because process_queues runs
+    // injected queues before canonical queues.
+    assert_eq!(
+        to_users[0].1.destination, injected_user,
+        "Injected reply must come first: injected queue is processed before canonical queue"
+    );
+    assert_eq!(to_users[0].1.payload, b"DONE");
+
+    // --- ASSERT: Events (phase 1) ran BEFORE tasks (phase 2) ---
+    // Canonical queue is FIFO. The event message was queued in phase 1 and the woken
+    // dispatch was queued in phase 2. So the event reply MUST appear before the task reply.
+    // If tasks ran first, task_user reply would appear at position 1, not position 2.
+    assert_eq!(
+        to_users[1].1.destination, canonical_user,
+        "Canonical event reply must come before task-woken reply: \
+         events (phase 1) must populate canonical queue before tasks (phase 2) add woken dispatches"
+    );
+    assert_eq!(to_users[1].1.payload, b"DONE");
+
+    assert_eq!(
+        to_users[2].1.destination, task_user,
+        "Task-woken reply must come last in canonical queue: \
+         tasks (phase 2) enqueue woken dispatch after events (phase 1) already queued their messages"
+    );
+    assert_eq!(to_users[2].1.payload, b"DONE");
 }
 
 #[tokio::test]

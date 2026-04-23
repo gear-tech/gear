@@ -18,6 +18,7 @@
 
 use crate::{
     RouterDataProvider, Service,
+    config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
         events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
@@ -26,7 +27,7 @@ use crate::{
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
-    rpc::types::anvil::MineOptions,
+    rpc::types::anvil::{Metadata, MineOptions},
 };
 use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
@@ -34,6 +35,7 @@ use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
     consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
+    db::ConfigStorageRO,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{
         BlockEvent, MirrorEvent, RouterEvent,
@@ -46,15 +48,14 @@ use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
-    Ethereum, INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE, NO_BLOB_GAS_MULTIPLIER,
-    NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+    Ethereum, EthereumBuilder,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
     middleware::MockElectionProvider,
     router::RouterQuery,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
-    EthereumConfig, ObserverConfig, ObserverService,
+    ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
@@ -98,7 +99,6 @@ pub struct TestEnv {
     pub validators: Vec<ValidatorConfig>,
     pub sender_id: ActorId,
     pub threshold: u64,
-    pub block_time: Duration,
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: u32,
     pub compute_config: ComputeConfig,
@@ -162,13 +162,19 @@ impl TestEnv {
 
                 let anvil = anvil.spawn();
 
+                let provider: RootProvider = ProviderBuilder::default()
+                    .connect(anvil.ws_endpoint().as_str())
+                    .await
+                    .expect("failed to connect to anvil");
+
+                let Metadata {
+                    client_commit_sha, ..
+                } = provider.anvil_metadata().await?;
+
+                Service::check_foundry_toolchain_version(client_commit_sha)?;
+
                 // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
                 if !continuous_block_generation {
-                    let provider: RootProvider = ProviderBuilder::default()
-                        .connect(anvil.ws_endpoint().as_str())
-                        .await
-                        .expect("failed to connect to anvil");
-
                     provider
                         .anvil_set_block_timestamp_interval(block_time.as_secs())
                         .await
@@ -208,15 +214,14 @@ impl TestEnv {
 
         let ethereum = if let Some(router_address) = router_address {
             log::info!("📗 Connecting to existing router at {router_address}");
-            Ethereum::new(
-                &ws_rpc_url,
-                router_address.parse().unwrap(),
-                signer.clone(),
-                sender_address,
-                INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE,
-                NO_BLOB_GAS_MULTIPLIER,
-            )
-            .await?
+            EthereumBuilder::default()
+                .rpc_url(&ws_rpc_url)
+                .router_address(router_address.parse().unwrap())
+                .signer(signer.clone())
+                .sender_address(sender_address)
+                .with_eip1559_increased_fee()
+                .build()
+                .await?
         } else {
             log::info!("📗 Deploying new router");
             let validators_addresses: Vec<Address> =
@@ -239,6 +244,7 @@ impl TestEnv {
             ethereum_rpc: ws_rpc_url.clone(),
             router_address,
             slot_duration_secs: block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await?;
 
@@ -246,9 +252,9 @@ impl TestEnv {
             rpc: ws_rpc_url.clone(),
             beacon_rpc: http_rpc_url.clone(),
             router_address,
-            block_time: config.block_time,
-            eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-            blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
+            block_time,
+            eip1559_fee_increase_percentage: Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            blob_gas_multiplier: Ethereum::NO_BLOB_GAS_MULTIPLIER,
         };
         let mut observer = ObserverService::new(
             db.clone(),
@@ -360,7 +366,6 @@ impl TestEnv {
             validators: validator_configs,
             sender_id: ActorId::from(H160::from(sender_address.0)),
             threshold,
-            block_time,
             continuous_block_generation,
             commitment_delay_limit,
             compute_config,
@@ -417,7 +422,6 @@ impl TestEnv {
             election_provider: self.election_provider.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
-            block_time: self.block_time,
             validator_config,
             network_public_key,
             network_address,
@@ -435,6 +439,7 @@ impl TestEnv {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
             router_address: self.eth_cfg.router_address,
             slot_duration_secs: self.eth_cfg.block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await
         .unwrap()
@@ -461,7 +466,7 @@ impl TestEnv {
             hack: self
                 .continuous_block_generation
                 .not()
-                .then(|| (self.provider.clone(), self.block_time)),
+                .then(|| (self.provider.clone(), self.eth_cfg.block_time)),
         })
     }
 
@@ -636,11 +641,19 @@ impl TestEnv {
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
     pub async fn next_block_producer_index(&self) -> usize {
-        let timestamp = self.latest_block().await.header.timestamp;
-        ethexe_consensus::block_producer_index(
-            self.validators.len(),
-            (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
-        )
+        let timestamp =
+            self.latest_block().await.header.timestamp + self.eth_cfg.block_time.as_secs();
+        self.db
+            .config()
+            .timelines
+            .block_producer_index_at(
+                self.validators
+                    .len()
+                    .try_into()
+                    .expect("empty validators unexpected"),
+                timestamp,
+            )
+            .expect("failed to calculate block producer index")
     }
 
     /// Waits until the next block producer index becomes equal to `index`.
@@ -833,7 +846,6 @@ impl NodeConfig {
         }
     }
 
-    #[allow(unused)]
     pub fn db(mut self, db: Database) -> Self {
         self.db = Some(db);
         self
@@ -850,6 +862,7 @@ impl NodeConfig {
             cors: None,
             gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * DEFAULT_BLOCK_GAS_LIMIT,
             chunk_size: DEFAULT_CHUNK_SIZE.get(),
+            with_dev_api: false,
         };
         self.rpc = Some(service_rpc_config);
 
@@ -924,7 +937,6 @@ pub struct Node {
     election_provider: MockElectionProvider,
     signer: Signer,
     threshold: u64,
-    block_time: Duration,
     validator_config: Option<ValidatorConfig>,
     network_public_key: Option<PublicKey>,
     network_address: Option<String>,
@@ -972,18 +984,20 @@ impl Node {
                 let committer = if let Some(custom_committer) = self.custom_committer.take() {
                     custom_committer
                 } else {
-                    Ethereum::new(
-                        &self.eth_cfg.rpc,
-                        self.eth_cfg.router_address,
-                        self.signer.clone(),
-                        config.public_key.to_address(),
-                        self.eth_cfg.eip1559_fee_increase_percentage,
-                        self.eth_cfg.blob_gas_multiplier,
-                    )
-                    .await
-                    .unwrap()
-                    .router()
-                    .into()
+                    EthereumBuilder::default()
+                        .rpc_url(&self.eth_cfg.rpc)
+                        .router_address(self.eth_cfg.router_address)
+                        .signer(self.signer.clone())
+                        .sender_address(config.public_key.to_address())
+                        .eip1559_fee_increase_percentage(
+                            self.eth_cfg.eip1559_fee_increase_percentage,
+                        )
+                        .blob_gas_multiplier(self.eth_cfg.blob_gas_multiplier)
+                        .build()
+                        .await
+                        .unwrap()
+                        .router()
+                        .into()
                 };
 
                 Box::pin(
@@ -995,10 +1009,9 @@ impl Node {
                         ethexe_consensus::ValidatorConfig {
                             pub_key: config.public_key,
                             signatures_threshold: self.threshold,
-                            slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                             commitment_delay_limit: self.commitment_delay_limit,
-                            producer_delay: self.block_time / 6,
+                            producer_delay: self.eth_cfg.block_time / 6,
                             router_address: self.eth_cfg.router_address,
                             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
@@ -1009,7 +1022,6 @@ impl Node {
             } else {
                 Box::pin(ConnectService::new(
                     self.db.clone(),
-                    self.block_time,
                     self.commitment_delay_limit,
                 ))
             }

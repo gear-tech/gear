@@ -52,6 +52,14 @@ pub enum BlobLoaderError {
 }
 
 #[derive(thiserror::Error, Debug)]
+enum ReadBlobBundleError {
+    #[error("failed to read blob bundle from beacon node: {0}")]
+    Reqwest(#[from] reqwest::Error),
+    #[error("failed to decode blob bundle response: {0}")]
+    Serde(#[from] serde_json::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
 enum ReaderError {
     #[error("transport error: {0}")]
     Transport(#[from] RpcError<TransportErrorKind>),
@@ -64,7 +72,7 @@ enum ReaderError {
     #[error("failed to get block by hash: {0}")]
     BlockNotFound(H256),
     #[error("failed to read blob bundle: {0}")]
-    ReadBlob(reqwest::Error),
+    ReadBlob(#[from] ReadBlobBundleError),
     #[error("failed to decode blobs")]
     DecodeBlobs,
     #[error("failed to access genesis time: {0}")]
@@ -78,7 +86,6 @@ enum ReaderError {
 type LoaderResult<T> = Result<T, BlobLoaderError>;
 type ReaderResult<T> = Result<T, ReaderError>;
 
-// TODO (#4674): write tests for BlobLoaderService implementations
 pub trait BlobLoaderService:
     Stream<Item = LoaderResult<BlobLoaderEvent>> + FusedStream + Send + Unpin
 {
@@ -212,9 +219,10 @@ impl ConsensusLayerBlobReader {
         &self,
         slot: u64,
         versioned_hashes: &[B256],
-    ) -> reqwest::Result<GetBlobsResponse> {
+    ) -> Result<GetBlobsResponse, ReadBlobBundleError> {
         let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
-        self.http_client
+        let bytes = self
+            .http_client
             .get(format!(
                 "{ethereum_beacon_rpc}/eth/v1/beacon/blobs/{slot}?versioned_hashes={}",
                 versioned_hashes
@@ -225,8 +233,13 @@ impl ConsensusLayerBlobReader {
             ))
             .send()
             .await?
-            .json::<GetBlobsResponse>()
-            .await
+            .bytes()
+            .await?;
+        let blobs_response =
+            serde_json::from_slice::<GetBlobsResponse>(&bytes).inspect_err(|err| {
+                log::trace!("failed to decode blob bundle response: {err}, bytes: {bytes:?}")
+            })?;
+        Ok(blobs_response)
     }
 }
 
@@ -331,7 +344,7 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
     }
 }
 
-// TODO: #5092 temporary solution to protect against inconsistent blob data,
+// TODO: #4995 temporary solution to protect against inconsistent blob data,
 // we have second check of code id in ethexe-processor in handle_new_code as well,
 // so this solution must be reconsidered.
 fn handle_blob(

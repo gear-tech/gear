@@ -29,3 +29,6 @@ mod api;
 mod mirror;
 mod router;
 mod wvara;
+
+// Re-export the
+pub use ethexe_node_wrapper::{Error, VaraEth, VaraEthInstance};

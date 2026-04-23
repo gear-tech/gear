@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Implementation of the `ethexe key` command.
+
 use crate::params::Params;
 use anyhow::Result;
 use clap::Parser;
@@ -56,7 +58,7 @@ impl KeyCommand {
         self
     }
 
-    /// Execute the command.
+    /// Resolves the effective key store and delegates execution to `gsigner`.
     pub fn exec(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
@@ -68,6 +70,7 @@ impl KeyCommand {
     }
 }
 
+/// Injects the default storage path into keyring-oriented `gsigner` subcommands.
 fn apply_default_storage(command: SchemeSubcommand, default: PathBuf) -> SchemeSubcommand {
     match command {
         SchemeSubcommand::Keyring { mut command } => {
@@ -78,6 +81,7 @@ fn apply_default_storage(command: SchemeSubcommand, default: PathBuf) -> SchemeS
     }
 }
 
+/// Applies the derived storage path to all keyring commands that operate on persisted keys.
 fn apply_default_storage_keyring(command: &mut SchemeKeyringCommands, default: &std::path::Path) {
     match command {
         SchemeKeyringCommands::Clear { storage } | SchemeKeyringCommands::List { storage } => {

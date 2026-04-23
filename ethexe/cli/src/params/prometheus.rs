@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Parameters for the optional Prometheus metrics endpoint.
+
 use super::MergeParams;
 use clap::Parser;
 use ethexe_prometheus::PrometheusConfig;
@@ -48,9 +50,12 @@ pub struct PrometheusParams {
 }
 
 impl PrometheusParams {
+    /// Default node label exposed through metrics.
     pub const DEFAULT_PROMETHEUS_NAME: &str = "DevelopmentNode";
+    /// Default HTTP port used by the metrics endpoint.
     pub const DEFAULT_PROMETHEUS_PORT: u16 = 9635;
 
+    /// Converts Prometheus parameters into an optional [`PrometheusConfig`].
     pub fn into_config(self) -> Option<PrometheusConfig> {
         if self.no_prometheus {
             return None;

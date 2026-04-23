@@ -15,6 +15,7 @@ gprimitives = { workspace = true, features = ["std"] }
 alloy = { workspace = true, features = ["rpc", "rpc-types", "rpc-types-beacon"] }
 thiserror.workspace = true
 reqwest = { workspace = true, features = ["default-tls", "json"] }
+serde_json.workspace = true
 futures.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }

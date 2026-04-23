@@ -25,6 +25,7 @@ use rand::RngCore;
 /// Total number of non-wait command variants we can generate.
 const CMD_VARIANT_COUNT: u32 = 18;
 
+/// Generates one randomized sequence of fuzz commands for the mega contract.
 pub fn generate_fuzz_commands(
     rng: &mut impl RngCore,
     max_commands: usize,
@@ -41,6 +42,7 @@ pub fn generate_fuzz_commands(
     commands
 }
 
+/// Generates a single fuzz command variant.
 fn generate_one(rng: &mut impl RngCore, program_id: ActorId) -> FuzzCommand {
     match rng.next_u32() % CMD_VARIANT_COUNT {
         0 => FuzzCommand::CheckSize,
@@ -108,6 +110,7 @@ fn generate_one(rng: &mut impl RngCore, program_id: ActorId) -> FuzzCommand {
     }
 }
 
+/// Fills a byte vector with random data from the provided RNG.
 fn random_bytes(rng: &mut impl RngCore, len: usize) -> Vec<u8> {
     let mut buf = vec![0u8; len];
     let mut i = 0;

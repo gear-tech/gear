@@ -17,8 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    metrics::Libp2pMetrics, peer_score, utils::ExponentialBackoffInterval,
-    validator::discovery::SignedValidatorIdentity,
+    peer_score, utils::ExponentialBackoffInterval, validator::discovery::SignedValidatorIdentity,
 };
 use anyhow::Context as _;
 use ethexe_common::Address;
@@ -327,14 +326,18 @@ pub struct Behaviour {
     peer_score: peer_score::Handle,
     cache_candidates_records: HashMap<QueryId, kad::Record>,
     min_quorum_peers: u32,
-    metrics: Arc<Libp2pMetrics>,
+    metrics: Arc<libp2p::metrics::Metrics>,
     // `get_closest_peers` related fields
     peer_addresses: PeerAddresses,
     discovery_timer: ExponentialBackoffInterval,
 }
 
 impl Behaviour {
-    pub fn new(peer: PeerId, peer_score: peer_score::Handle, metrics: Arc<Libp2pMetrics>) -> Self {
+    pub fn new(
+        peer: PeerId,
+        peer_score: peer_score::Handle,
+        metrics: Arc<libp2p::metrics::Metrics>,
+    ) -> Self {
         Self::with_min_quorum(peer, peer_score, KAD_MIN_QUORUM_PEERS, metrics)
     }
 
@@ -342,7 +345,7 @@ impl Behaviour {
         peer: PeerId,
         peer_score: peer_score::Handle,
         min_quorum_peers: u32,
-        metrics: Arc<Libp2pMetrics>,
+        metrics: Arc<libp2p::metrics::Metrics>,
     ) -> Self {
         let mut inner = kad::Config::new(KAD_PROTOCOL_NAME);
         inner
@@ -824,8 +827,9 @@ mod tests {
     use std::{collections::BTreeMap, num::NonZeroUsize};
     use tokio::time;
 
-    fn new_metrics() -> Arc<Libp2pMetrics> {
-        Arc::new(Libp2pMetrics::new())
+    fn new_metrics() -> Arc<libp2p::metrics::Metrics> {
+        let mut registry = libp2p::metrics::Registry::default();
+        Arc::new(libp2p::metrics::Metrics::new(&mut registry))
     }
 
     fn new_identity() -> SignedValidatorIdentity {

@@ -1,12 +1,15 @@
-name: PR
+name: PR & Merge queue
 
 on:
   pull_request:
     branches: [master]
     types: [labeled, synchronize]
 
+  merge_group:
+    types: [checks_requested]
+
 concurrency:
-  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -17,11 +20,12 @@ jobs:
       should_skip: ${{ steps.skip.outputs.should_skip }}
     steps:
       - name: Wait a bit for label storms
-        if: ${{ github.event.action == 'labeled' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'labeled' }}
         run: sleep 10
 
       - name: Only run latest workflow-run for this PR
         id: skip
+        if: ${{ github.event_name == 'pull_request' }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -33,7 +37,7 @@ jobs:
 
           # github.workflow_ref looks like this, so we extract filename:
           # owner/repo/.github/workflows/pr.yml@refs/pull/123/merge
-          wf_path="$(echo "$WF_REF" | sed -E 's#^[^/]*/[^/]*/##; s#@.*$##')"   # .github/workflows/PR.yml
+          wf_path="$(echo "$WF_REF" | sed -E 's#^[^/]*/[^/]*/##; s#@.*$##')"
           wf_file="$(basename "$wf_path")"
           echo "workflow file: $wf_file"
 
@@ -67,15 +71,15 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
-      macos: ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
-      windows: ${{ contains(github.event.pull_request.labels.*.name, 'E1-forcenatwin') }}
-      linux-aarch64: ${{ contains(github.event.pull_request.labels.*.name, 'E5-forcelinuxaarch64') }}
-      release: ${{ contains(github.event.pull_request.labels.*.name, 'E3-forcerelease') }}
-      production: ${{ contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}
+      macos: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
+      windows: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E1-forcenatwin') }}
+      linux-aarch64: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E5-forcelinuxaarch64') }}
+      release: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E3-forcerelease') }}
+      production: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}
 
   validator:
     needs: gate
-    if: ${{ needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-validator') }}
+    if: ${{ github.event_name == 'pull_request' && needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-validator') }}
     uses: ./.github/workflows/validation.yml
     secrets:
       VARA_VALIDATOR_8: ${{ secrets.VARA_VALIDATOR_8 }}
@@ -84,5 +88,5 @@ jobs:
 
   check-node-sync:
     needs: gate
-    if: ${{ needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-node-sync') }}
+    if: ${{ github.event_name == 'pull_request' && needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-node-sync') }}
     uses: ./.github/workflows/check-node-sync.yml

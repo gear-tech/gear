@@ -38,5 +38,7 @@ ethexe-common = { workspace = true, features = ["std", "mock"] }
 ntest.workspace = true
 tracing-subscriber.workspace = true
 
+ethexe-db = {workspace = true, features = ["mock"]}
+
 [features]
 client = ["jsonrpsee/client"]

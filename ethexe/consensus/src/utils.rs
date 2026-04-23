@@ -174,34 +174,6 @@ pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
     data.iter().any(|item| !seen.insert(item))
 }
 
-// TODO #4553: temporary implementation, should be improved
-/// Returns block producer for time slot. Next slot is the next validator in the list.
-pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
-    (slot % validators_amount as u64) as usize
-}
-
-/// Calculates the producer address for a given slot based on the validators and timestamp.
-///
-/// # Arguments
-/// * `validators` - A list of validator addresses
-/// * `timestamp` - The timestamp to determine the slot (in seconds)
-/// * `slot_duration` - The duration of each slot (in seconds)
-///
-/// # Returns
-/// The address of the producer for the given timestamp slot.
-pub fn block_producer_for(
-    validators: &ValidatorsVec,
-    timestamp: u64,
-    slot_duration: u64,
-) -> Address {
-    let slot = timestamp / slot_duration;
-    let index = block_producer_index(validators.len(), slot);
-    validators
-        .get(index)
-        .cloned()
-        .unwrap_or_else(|| unreachable!("index must be valid"))
-}
-
 pub fn block_touched_programs<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO>(
     db: &DB,
     block_hash: H256,
@@ -241,36 +213,12 @@ pub fn block_touched_programs<DB: OnChainStorageRO + AnnounceStorageRO + Globals
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::mock::*;
 
     const ADDRESS: Address = Address([42; 20]);
 
     #[test]
-    fn block_producer_index_calculates_correct_index() {
-        let validators_amount = 5;
-        let slot = 7;
-        let index = block_producer_index(validators_amount, slot);
-        assert_eq!(index, 2);
-    }
-
-    #[test]
-    fn producer_for_calculates_correct_producer() {
-        let validators = vec![
-            Address::from([1; 20]),
-            Address::from([2; 20]),
-            Address::from([3; 20]),
-        ]
-        .try_into()
-        .unwrap();
-        let timestamp = 10;
-
-        let producer = block_producer_for(&validators, timestamp, 1);
-        assert_eq!(producer, validators[timestamp as usize % validators.len()]);
-    }
-
-    #[test]
     fn multisigned_batch_commitment_creation() {
-        let batch = BatchCommitment::mock(());
+        let batch = test_batch_commitment(test_block_hash(1), 1);
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
         let pub_key = public_keys[0];
@@ -294,7 +242,7 @@ mod tests {
 
     #[test]
     fn check_origin_closure_behavior() {
-        let batch = BatchCommitment::mock(());
+        let batch = test_batch_commitment(test_block_hash(2), 2);
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
         let pub_key = public_keys[0];
@@ -331,7 +279,7 @@ mod tests {
 
     #[test]
     fn reject_validation_reply_with_incorrect_digest() {
-        let batch = BatchCommitment::mock(());
+        let batch = test_batch_commitment(test_block_hash(3), 3);
 
         let (signer, _, public_keys) = init_signer_with_keys(1);
         let pub_key = public_keys[0];
@@ -354,7 +302,7 @@ mod tests {
 
     #[test]
     fn accept_batch_commitment_validation_reply() {
-        let batch = BatchCommitment::mock(());
+        let batch = test_batch_commitment(test_block_hash(4), 4);
 
         let (signer, _, public_keys) = init_signer_with_keys(2);
         let pub_key = public_keys[0];

@@ -16,21 +16,56 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! # Vara.eth service
+//! Top-level runtime service for an ethexe node.
+//!
+//! ## Responsibilities
+//! This crate provides the top-level [`Service`] orchestrator for ethexe.
+//! The service owns all subservices and drives them through a single async event loop.
+//!
+//! ## Event Loop
+//! The subservices in [`Service`] communicate with each other via the [`Event`] enum.
+//!
+//! In [`Service::run`], the service uses the [tokio::select] macro to poll
+//! event streams (see [`futures::Stream`]) and route events to the appropriate subservice.
+//!
+//! ## Configuration And Startup
+//! [`Service::new`] takes a [`Config`] on startup.
+//! [`Config`] contains all configuration options required to create the subservices.
+//!
+//! In the general case, [`Service::new`] is called from the `ethexe-cli` crate,
+//! where [`Config`] is parsed from command-line arguments or a configuration file.
+//!
+//! ## Testing
+//! Integration tests for this crate live in `src/tests`.
+//! They use `TestEnv` to prepare an Anvil-based or external Ethereum environment,
+//! initialize an in-memory database, and construct test nodes.
+//!
+//! Each node runs [`Service`] using `Service::new_from_parts`.
+//! Tests observe service behavior through `TestingEvent` streams, which mirror the
+//! internal [`Event`] flow and allow waiting for startup, block sync, announce
+//! processing, network activity, and RPC requests.
+
 use crate::config::{Config, ConfigPublicKey};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
+    rpc::types::anvil::Metadata,
 };
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
-use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
+use ethexe_common::{
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, gear::CodeState, network::VerifiedValidatorMessage,
+};
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_db::{Database, InitConfig, RawDatabase, RocksDatabase};
-use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_db::{
+    Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
+};
+use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
@@ -39,11 +74,11 @@ use ethexe_observer::{
     ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
 };
-use ethexe_processor::{Processor, ProcessorConfig};
+use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeInfo};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use futures::{StreamExt, stream::FuturesUnordered};
+use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
 use std::{
@@ -123,6 +158,21 @@ pub struct Service {
 impl Service {
     /// Number of reserved dev accounts (deployer, validator).
     const RESERVED_DEV_ACCOUNTS: u32 = 2;
+    /// Expected Foundry toolchain commit sha.
+    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f1abb2ca347187bb6dea8c3881ca44ce50aab1e7";
+
+    fn check_foundry_toolchain_version(client_commit_sha: Option<String>) -> Result<()> {
+        if let Some(client_commit_sha) = client_commit_sha
+            && client_commit_sha != Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA
+        {
+            bail!(
+                "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install nightly-{commit_sha} --force`.",
+                commit_sha = Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA,
+            );
+        }
+
+        Ok(())
+    }
 
     pub async fn configure_dev_environment(
         key_path: PathBuf,
@@ -179,6 +229,12 @@ impl Service {
             .connect(anvil.ws_endpoint().as_str())
             .await?;
 
+        let Metadata {
+            client_commit_sha, ..
+        } = provider.anvil_metadata().await?;
+
+        Self::check_foundry_toolchain_version(client_commit_sha)?;
+
         const ETHER: u128 = 1_000_000_000_000_000_000;
         let balance = 10_000 * ETHER;
         let balance = balance.try_into().expect("infallible");
@@ -220,11 +276,21 @@ impl Service {
         )
         .with_context(|| "failed to open database")?;
 
+        let genesis_initializer: Option<Box<dyn GenesisInitializer>> =
+            match &config.node.genesis_state_dump {
+                Some(path) => {
+                    log::info!("Using genesis state dump: {}", path.display());
+                    Some(Box::new(GenesisInitializerFromFile::new(path.clone())?))
+                }
+                None => None,
+            };
+
         let db = ethexe_db::initialize_db(
             InitConfig {
                 ethereum_rpc: config.ethereum.rpc.clone(),
                 router_address: config.ethereum.router_address,
                 slot_duration_secs: config.ethereum.block_time.as_secs(),
+                genesis_initializer,
             },
             RawDatabase::from_one(&rocks_db),
         )
@@ -233,7 +299,7 @@ impl Service {
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: config.ethereum.rpc.clone(),
             ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
-            beacon_block_time: alloy::eips::merge::SLOT_DURATION,
+            beacon_block_time: config.ethereum.block_time,
             attempts: const { NonZero::<u8>::new(3).unwrap() },
         };
         let blob_loader = BlobLoader::new(db.clone(), consensus_config)
@@ -277,7 +343,7 @@ impl Service {
                 "👶 Genesis block hash wasn't found. Call router.lookupGenesisHash() first"
             );
 
-            anyhow::bail!("Failed to query valid genesis hash");
+            bail!("Failed to query valid genesis hash");
         } else {
             log::info!("👶 Genesis block hash: {genesis_block_hash:?}");
         }
@@ -312,15 +378,17 @@ impl Service {
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(pub_key) = validator_pub_key {
-                let ethereum = Ethereum::new(
-                    &config.ethereum.rpc,
-                    config.ethereum.router_address,
-                    signer.clone(),
-                    pub_key.to_address(),
-                    config.ethereum.eip1559_fee_increase_percentage,
-                    config.ethereum.blob_gas_multiplier,
-                )
-                .await?;
+                let ethereum = EthereumBuilder::default()
+                    .rpc_url(&config.ethereum.rpc)
+                    .router_address(config.ethereum.router_address)
+                    .signer(signer.clone())
+                    .sender_address(pub_key.to_address())
+                    .eip1559_fee_increase_percentage(
+                        config.ethereum.eip1559_fee_increase_percentage,
+                    )
+                    .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
+                    .build()
+                    .await?;
                 Box::pin(ValidatorService::new(
                     signer.clone(),
                     ethereum.middleware().query(),
@@ -329,7 +397,6 @@ impl Service {
                     ValidatorConfig {
                         pub_key,
                         signatures_threshold: threshold,
-                        slot_duration: config.ethereum.block_time,
                         block_gas_limit: config.node.block_gas_limit,
                         // TODO: #4942 commitment_delay_limit is a protocol specific constant
                         // which better to be configurable by router contract
@@ -341,11 +408,7 @@ impl Service {
                     },
                 )?)
             } else {
-                Box::pin(ConnectService::new(
-                    db.clone(),
-                    config.ethereum.block_time,
-                    3,
-                ))
+                Box::pin(ConnectService::new(db.clone(), 3))
             }
         };
 
@@ -514,7 +577,7 @@ impl Service {
                 fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
                 event = prometheus.maybe_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
-                    anyhow::bail!("`RPCWorker` has terminated, shutting down...")
+                    bail!("`RPCWorker` has terminated, shutting down...")
                 }
             };
 
@@ -710,7 +773,7 @@ impl Service {
                         }
                     }
                     PrometheusEvent::ServerClosed(result) => {
-                        anyhow::bail!("Prometheus server closed with result: {result:?}");
+                        bail!("Prometheus server closed with result: {result:?}");
                     }
                 },
                 Event::Fetching(result) => {
@@ -735,5 +798,55 @@ impl Service {
                 }
             }
         }
+    }
+}
+
+struct GenesisInitializerFromFile {
+    state_path: PathBuf,
+    processor: Processor,
+}
+
+impl GenesisInitializerFromFile {
+    pub fn new(genesis_state_path: PathBuf) -> Result<Self> {
+        // Safety: in context of GenesisInitializerFromFile, processor doesn't access the database,
+        // it's only used for code processing, so it's safe to create it with an empty database.
+        #[allow(unused_unsafe)]
+        let db = unsafe { Database::memory() };
+        let processor = Processor::new(db)?;
+
+        Ok(Self {
+            state_path: genesis_state_path,
+            processor,
+        })
+    }
+}
+
+impl GenesisInitializer for GenesisInitializerFromFile {
+    fn get_genesis_data(&mut self) -> anyhow::Result<ethexe_db::dump::StateDump> {
+        StateDump::read_from_file(&self.state_path)
+    }
+
+    fn process_code(&mut self, code_id: CodeId, code: Vec<u8>) -> ethexe_db::CodeProcessingFuture {
+        let mut cloned_processor = self.processor.clone();
+        async move {
+            let ProcessedCodeInfo {
+                code_id: _,
+                valid: info,
+            } = cloned_processor
+                .process_code(CodeAndIdUnchecked { code_id, code })
+                .await?;
+
+            let Some(ValidCodeInfo {
+                code: _,
+                instrumented_code,
+                code_metadata,
+            }) = info
+            else {
+                return Ok(None);
+            };
+
+            Ok(Some((instrumented_code, code_metadata)))
+        }
+        .boxed()
     }
 }

@@ -22,10 +22,7 @@ use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
     subordinate::Subordinate,
 };
-use crate::{
-    announces::{self, DBAnnouncesExt},
-    utils,
-};
+use crate::announces::{self, DBAnnouncesExt};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -223,18 +220,27 @@ impl Initial {
 
 impl ValidatorContext {
     fn switch_to_producer_or_subordinate(self, block: SimpleBlockData) -> Result<ValidatorState> {
-        let era_index = self.core.timelines.era_from_ts(block.header.timestamp);
+        let era_index = self
+            .core
+            .timelines
+            .era_from_ts(block.header.timestamp)
+            .ok_or_else(|| anyhow!("failed to calculate era for block {}", block.hash))?;
         let validators = self
             .core
             .db
             .validators(era_index)
-            .ok_or(anyhow!("validators not found for era {era_index}"))?;
+            .ok_or_else(|| anyhow!("validators not found for era {era_index}"))?;
 
-        let producer = utils::block_producer_for(
-            &validators,
-            block.header.timestamp,
-            self.core.slot_duration.as_secs(),
-        );
+        let producer = self
+            .core
+            .timelines
+            .block_producer_at(&validators, block.header.timestamp)
+            .ok_or_else(|| {
+                anyhow!(
+                    "failed to calculate block producer for block {}",
+                    block.hash
+                )
+            })?;
         let my_address = self.core.pub_key.to_address();
 
         if my_address == producer {
@@ -261,7 +267,7 @@ mod tests {
     use std::num::NonZeroU32;
 
     use super::*;
-    use crate::{ConsensusEvent, validator::mock::*};
+    use crate::{ConsensusEvent, mock::*, validator::mock::*};
     use ethexe_common::{
         Announce, HashOf, ValidatorsVec, db::*, mock::*, network::AnnouncesResponse,
     };
@@ -270,15 +276,15 @@ mod tests {
 
     #[test]
     fn create_initial_success() {
-        let (ctx, _, _) = mock_validator_context();
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
         let initial = Initial::create(ctx).unwrap();
         assert!(initial.is_initial());
     }
 
     #[test]
     fn create_with_chain_head_success() {
-        let (ctx, _, _) = mock_validator_context();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let block = test_block_chain(1).setup(&ctx.core.db).blocks[1].to_simple();
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
     }
@@ -287,15 +293,15 @@ mod tests {
     async fn switch_to_producer() {
         gear_utils::init_default_logger();
 
-        let (mut ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let validators: ValidatorsVec = nonempty![
-            ctx.core.pub_key.to_address(),
             keys[0].to_address(),
             keys[1].to_address(),
+            ctx.core.pub_key.to_address(),
         ]
         .into();
 
-        let chain = BlockChain::mock((2, validators)).setup(&ctx.core.db);
+        let chain = test_block_chain_with_validators(2, validators).setup(&ctx.core.db);
         ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[2].to_simple();
 
@@ -313,7 +319,7 @@ mod tests {
     fn switch_to_subordinate() {
         gear_utils::init_default_logger();
 
-        let (mut ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let validators: ValidatorsVec = nonempty![
             ctx.core.pub_key.to_address(),
             keys[1].to_address(),
@@ -321,7 +327,7 @@ mod tests {
         ]
         .into();
 
-        let chain = BlockChain::mock((1, validators)).setup(&ctx.core.db);
+        let chain = test_block_chain_with_validators(1, validators).setup(&ctx.core.db);
         ctx.core.timelines = chain.config.timelines;
         let block = chain.blocks[1].to_simple();
         let state = Initial::create_with_chain_head(ctx, block).unwrap();
@@ -342,10 +348,10 @@ mod tests {
     fn missing_announces_request_response() {
         gear_utils::init_default_logger();
 
-        let (mut ctx, _, _) = mock_validator_context();
+        let (mut ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
         let last = 9;
 
-        let mut chain = BlockChain::mock(last as u32);
+        let mut chain = test_block_chain(last as u32);
         chain.blocks[last].as_prepared_mut().announces = None;
 
         // create 2 missing announces from blocks last - 2 and last - 1
@@ -401,9 +407,9 @@ mod tests {
     fn announce_propagation_done() {
         gear_utils::init_default_logger();
 
-        let (mut ctx, _, _) = mock_validator_context();
+        let (mut ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
         let last = 9;
-        let chain = BlockChain::mock(last as u32)
+        let chain = test_block_chain(last as u32)
             .tap_mut(|chain| {
                 // remove announces from 5 latest blocks
                 (last - 4..=last).for_each(|idx| {
@@ -443,11 +449,11 @@ mod tests {
         let ctx = state.into_context();
         assert_eq!(ctx.output, vec![]);
         for i in last - 5..last - 5 + ctx.core.commitment_delay_limit as usize {
-            let announces = ctx.core.db.block_meta(chain.blocks[i].hash).announces;
+            let announces = ctx.core.db.block_announces(chain.blocks[i].hash);
             assert_eq!(announces.unwrap().len(), 2);
         }
         for i in last - 5 + ctx.core.commitment_delay_limit as usize..=last {
-            let announces = ctx.core.db.block_meta(chain.blocks[i].hash).announces;
+            let announces = ctx.core.db.block_announces(chain.blocks[i].hash);
             assert_eq!(announces.unwrap().len(), 1);
         }
     }
@@ -456,9 +462,9 @@ mod tests {
     fn announce_propagation_many_missing_blocks() {
         gear_utils::init_default_logger();
 
-        let (mut ctx, _, _) = mock_validator_context();
+        let (mut ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
         let last = 12;
-        let chain = BlockChain::mock(last as u32)
+        let chain = test_block_chain(last as u32)
             .tap_mut(|chain| {
                 // remove announces from 10 latest blocks
                 (last - 9..=last).for_each(|idx| {
@@ -480,7 +486,7 @@ mod tests {
         assert_eq!(ctx.output, vec![]);
         (last - 9..=last).for_each(|idx| {
             let block_hash = chain.blocks[idx].hash;
-            let announces = ctx.core.db.block_meta(block_hash).announces;
+            let announces = ctx.core.db.block_announces(block_hash);
             assert!(
                 announces.is_some(),
                 "expected announces to be propagated for block {block_hash}"
@@ -497,8 +503,8 @@ mod tests {
     fn process_synced_block_rejected() {
         gear_utils::init_default_logger();
 
-        let (ctx, _, _) = mock_validator_context();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let block = test_block_chain(1).setup(&ctx.core.db).blocks[1].to_simple();
 
         let initial = Initial::create(ctx)
             .unwrap()
@@ -527,8 +533,8 @@ mod tests {
     fn process_prepared_block_rejected() {
         gear_utils::init_default_logger();
 
-        let (ctx, _, _) = mock_validator_context();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let block = test_block_chain(1).setup(&ctx.core.db).blocks[1].to_simple();
         let state = Initial::create_with_chain_head(ctx, block)
             .unwrap()
             .process_synced_block(block.hash)
@@ -547,9 +553,8 @@ mod tests {
     fn process_announces_response_rejected() {
         gear_utils::init_default_logger();
 
-        let (ctx, _, _) = mock_validator_context();
-        let block = BlockChain::mock(1)
-            .setup(&ctx.core.db)
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let block = test_block_chain(1)
             .tap_mut(|chain| {
                 chain.blocks[1].as_prepared_mut().announces = None;
                 chain.blocks[1].as_prepared_mut().last_committed_announce = HashOf::random();
@@ -591,9 +596,9 @@ mod tests {
     fn commitment_with_delay() {
         gear_utils::init_default_logger();
 
-        let (mut ctx, _, _) = mock_validator_context();
+        let (mut ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
         let last = 10;
-        let mut chain = BlockChain::mock(last as u32);
+        let mut chain = test_block_chain(last as u32);
 
         // create unknown announce for block last - 6
         let unknown_announce = Announce::with_default_gas(

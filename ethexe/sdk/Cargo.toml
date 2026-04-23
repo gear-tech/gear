@@ -13,6 +13,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+ethexe-node-wrapper.workspace = true
+
 alloy.workspace = true
 anyhow.workspace = true
 ethexe-common.workspace = true

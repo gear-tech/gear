@@ -189,7 +189,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::tx_validation::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES;
+    use crate::{mock::*, tx_validation::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES};
 
     use super::*;
     use ethexe_common::{
@@ -220,7 +220,7 @@ mod tests {
         );
         let program_id = ActorId::from([1; 32]);
 
-        let chain = BlockChain::mock(10)
+        let chain = test_block_chain(10)
             .tap_mut(|c| {
                 // set 2 last announces as not computed
                 c.block_top_announce_mut(10).computed = None;
@@ -247,11 +247,7 @@ mod tests {
 
         let signer = Signer::memory();
         let key = signer.generate().unwrap();
-        let tx = InjectedTransaction {
-            reference_block: chain.blocks[9].hash,
-            destination: program_id,
-            ..InjectedTransaction::mock(())
-        };
+        let tx = test_injected_transaction(chain.blocks[9].hash, program_id);
         let tx_hash = tx.to_hash();
         let signed_tx = signer.signed_message(key, tx, None).unwrap();
 
@@ -266,12 +262,8 @@ mod tests {
             signer
                 .signed_message(
                     key,
-                    InjectedTransaction {
-                        reference_block: chain.blocks[9].hash,
-                        value: 100,
-                        destination: program_id,
-                        ..InjectedTransaction::mock(())
-                    },
+                    test_injected_transaction(chain.blocks[9].hash, program_id)
+                        .tap_mut(|tx| tx.value = 100),
                     None,
                 )
                 .unwrap(),
@@ -321,7 +313,7 @@ mod tests {
         };
         let state_hash = db.write_program_state(state);
 
-        let chain = BlockChain::mock(10)
+        let chain = test_block_chain(10)
             .tap_mut(|chain| {
                 chain.blocks[10].as_synced_mut().events = (0..97)
                     .map(|i| BlockEvent::Mirror {
@@ -362,11 +354,7 @@ mod tests {
         let signer = Signer::memory();
         let key = signer.generate().unwrap();
         for i in 90..140 {
-            let tx = InjectedTransaction {
-                reference_block: chain.blocks[9].hash,
-                destination: ActorId::from(i as u64),
-                ..InjectedTransaction::mock(())
-            };
+            let tx = test_injected_transaction(chain.blocks[9].hash, ActorId::from(i as u64));
             let signed_tx = signer.signed_message(key, tx, None).unwrap();
             tx_pool.handle_tx(signed_tx);
         }

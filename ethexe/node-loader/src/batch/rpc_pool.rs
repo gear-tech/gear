@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow};
+use ethexe_common::injected::Promise;
 use ethexe_ethereum::Ethereum;
 use ethexe_sdk::VaraEthApi;
 use gprimitives::{ActorId, CodeId, MessageId};
@@ -15,15 +16,18 @@ struct EthexeRpcEndpoint {
     reconnect_not_before: Option<Instant>,
 }
 
+/// Small failover pool for ethexe JSON-RPC clients used by one worker.
 pub(crate) struct EthexeRpcPool {
     endpoints: Vec<EthexeRpcEndpoint>,
 }
 
 impl EthexeRpcPool {
+    /// Returns how many endpoints are configured in the pool.
     pub(crate) fn endpoint_count(&self) -> usize {
         self.endpoints.len()
     }
 
+    /// Creates a new pool from the configured ethexe RPC URLs.
     pub(crate) fn new(urls: Vec<String>) -> Result<Self> {
         if urls.is_empty() {
             return Err(anyhow!(
@@ -47,10 +51,12 @@ impl EthexeRpcPool {
         Ok(Self { endpoints })
     }
 
+    /// Picks a preferred starting endpoint for a request.
     pub(crate) fn random_endpoint_index(&self, rng: &mut impl RngCore) -> usize {
         (rng.next_u32() as usize) % self.endpoints.len()
     }
 
+    /// Establishes a fresh client connection for one endpoint.
     async fn reconnect_client(
         &mut self,
         endpoint_idx: usize,
@@ -83,6 +89,7 @@ impl EthexeRpcPool {
         Ok(endpoint.client.as_ref().expect("just inserted"))
     }
 
+    /// Returns a connected client for an endpoint, respecting reconnect cooldowns.
     async fn get_or_connect_client(
         &mut self,
         endpoint_idx: usize,
@@ -117,12 +124,14 @@ impl EthexeRpcPool {
         Ok(self.endpoints[endpoint_idx].client.as_ref().unwrap())
     }
 
+    /// Computes a deterministic reconnect delay for an endpoint.
     fn reconnect_delay_for_endpoint(endpoint_idx: usize) -> Duration {
         let spread = RPC_RECONNECT_DELAY_SPREAD_SECS.saturating_add(1);
         let jitter = (endpoint_idx as u64) % spread;
         Duration::from_secs(RPC_RECONNECT_DELAY_MIN_SECS.saturating_add(jitter))
     }
 
+    /// Drops the current client and postpones reconnect attempts for an endpoint.
     fn schedule_reconnect(&mut self, endpoint_idx: usize, reason: &str) {
         if let Some(endpoint) = self.endpoints.get_mut(endpoint_idx) {
             endpoint.client = None;
@@ -141,6 +150,7 @@ impl EthexeRpcPool {
         }
     }
 
+    /// Returns endpoint indices in rotation order starting from `preferred_idx`.
     fn endpoint_indices_from(&self, preferred_idx: usize) -> Vec<usize> {
         let len = self.endpoints.len();
         if len == 0 {
@@ -152,6 +162,7 @@ impl EthexeRpcPool {
             .collect()
     }
 
+    /// Requests code validation through the ethexe RPC pool with failover.
     pub(crate) async fn request_code_validation(
         &mut self,
         preferred_endpoint_idx: usize,
@@ -209,6 +220,7 @@ impl EthexeRpcPool {
         Err(anyhow!("request_code_validation exhausted retries"))
     }
 
+    /// Waits for previously requested code validation to finish with failover.
     pub(crate) async fn wait_for_code_validation(
         &mut self,
         preferred_endpoint_idx: usize,
@@ -266,14 +278,15 @@ impl EthexeRpcPool {
         Err(anyhow!("wait_for_code_validation exhausted retries"))
     }
 
-    pub(crate) async fn send_message_injected(
+    /// Sends an injected message and waits for the promise returned by ethexe.
+    pub(crate) async fn send_message_injected_and_watch(
         &mut self,
         preferred_endpoint_idx: usize,
         api: &Ethereum,
         actor: ActorId,
         payload: &[u8],
         value: u128,
-    ) -> Result<MessageId> {
+    ) -> Result<(MessageId, Promise)> {
         let mut last_err: Option<anyhow::Error> = None;
 
         for attempt in 1..=RPC_MAX_ATTEMPTS {
@@ -295,19 +308,22 @@ impl EthexeRpcPool {
 
                 match client
                     .mirror(actor)
-                    .send_message_injected(payload, value)
+                    .send_message_injected_and_watch(payload, value)
                     .await
                 {
-                    Ok(mid) => return Ok(mid),
+                    Ok(result) => return Ok(result),
                     Err(err) => {
                         tracing::warn!(
                             endpoint_idx,
                             attempt,
                             max_attempts = RPC_MAX_ATTEMPTS,
                             error = %err,
-                            "send_message_injected failed; scheduling delayed reconnect"
+                            "send_message_injected_and_watch failed; scheduling delayed reconnect"
                         );
-                        self.schedule_reconnect(endpoint_idx, "send_message_injected failure");
+                        self.schedule_reconnect(
+                            endpoint_idx,
+                            "send_message_injected_and_watch failure",
+                        );
                         last_err = Some(err);
                     }
                 }
@@ -317,7 +333,7 @@ impl EthexeRpcPool {
                 tracing::warn!(
                     attempt,
                     max_attempts = RPC_MAX_ATTEMPTS,
-                    "send_message_injected retrying with available endpoints"
+                    "send_message_injected_and_watch retrying with available endpoints"
                 );
             }
         }
@@ -326,6 +342,6 @@ impl EthexeRpcPool {
             return Err(err);
         }
 
-        Err(anyhow!("send_message_injected exhausted retries"))
+        Err(anyhow!("send_message_injected_and_watch exhausted retries"))
     }
 }
