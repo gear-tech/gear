@@ -64,14 +64,19 @@ pub struct LoadParams {
     /// Whether to batch regular `send_message` calls through the multicall contract.
     #[arg(long, default_value_t = true, action = ArgAction::Set)]
     pub use_send_message_multicall: bool,
+    /// Value policy preset for load-mode message and top-up amounts.
     #[arg(long, ignore_case = true, value_enum)]
     pub value_profile: Option<ValueProfile>,
+    /// Per-message value cap in wei.
     #[arg(long)]
     pub max_msg_value: Option<u128>,
+    /// Per-program top-up cap in WVARA base units.
     #[arg(long)]
     pub max_top_up_value: Option<u128>,
+    /// Total message value budget across the run in wei.
     #[arg(long)]
     pub total_msg_value_budget: Option<u128>,
+    /// Total top-up budget across the run in WVARA base units.
     #[arg(long)]
     pub total_top_up_budget: Option<u128>,
 }
@@ -149,8 +154,9 @@ mod tests {
 
     #[test]
     fn load_params_parse_value_profile_and_overrides() {
-        let params = LoadParams::try_parse_from([
+        let params = Params::try_parse_from([
             "ethexe-node-loader",
+            "load",
             "--value-profile",
             "mainnet",
             "--max-msg-value",
@@ -164,17 +170,22 @@ mod tests {
         ])
         .expect("parse");
 
-        assert_eq!(params.value_profile, Some(ValueProfile::Mainnet));
-        assert_eq!(params.max_msg_value, Some(123));
-        assert_eq!(params.max_top_up_value, Some(456));
-        assert_eq!(params.total_msg_value_budget, Some(789));
-        assert_eq!(params.total_top_up_budget, Some(999));
+        let Params::Load(load_params) = params else {
+            panic!("expected load params");
+        };
+
+        assert_eq!(load_params.value_profile, Some(ValueProfile::Mainnet));
+        assert_eq!(load_params.max_msg_value, Some(123));
+        assert_eq!(load_params.max_top_up_value, Some(456));
+        assert_eq!(load_params.total_msg_value_budget, Some(789));
+        assert_eq!(load_params.total_top_up_budget, Some(999));
     }
 
     #[test]
     fn load_params_accept_zero_caps_and_budgets() {
-        let params = LoadParams::try_parse_from([
+        let params = Params::try_parse_from([
             "ethexe-node-loader",
+            "load",
             "--max-msg-value",
             "0",
             "--max-top-up-value",
@@ -186,9 +197,13 @@ mod tests {
         ])
         .expect("parse");
 
-        assert_eq!(params.max_msg_value, Some(0));
-        assert_eq!(params.max_top_up_value, Some(0));
-        assert_eq!(params.total_msg_value_budget, Some(0));
-        assert_eq!(params.total_top_up_budget, Some(0));
+        let Params::Load(load_params) = params else {
+            panic!("expected load params");
+        };
+
+        assert_eq!(load_params.max_msg_value, Some(0));
+        assert_eq!(load_params.max_top_up_value, Some(0));
+        assert_eq!(load_params.total_msg_value_budget, Some(0));
+        assert_eq!(load_params.total_top_up_budget, Some(0));
     }
 }
