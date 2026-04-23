@@ -8,7 +8,7 @@ use gear_call_gen::{
 use rand::{RngCore, SeedableRng, rngs::SmallRng};
 use std::fmt;
 
-pub const DEFAULT_TOP_UP_VALUE: u128 = 500_000_000_000_000;
+pub(crate) const DEFAULT_TOP_UP_VALUE: u128 = 500_000_000_000_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[value(rename_all = "lower")]
@@ -332,7 +332,7 @@ fn clamp_top_up_value(value: u128, policy: Option<&ValuePolicy>) -> u128 {
         .map_or(value, |cap| value.min(cap))
 }
 
-fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
+pub(crate) fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
     if rng.next_u32() % 10 < 6 {
         return 0;
     }
@@ -342,7 +342,7 @@ fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
     random_value % max_value
 }
 
-fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
+pub(crate) fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
     (rng.next_u32() % 10) < 7
 }
 

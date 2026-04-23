@@ -31,7 +31,7 @@ use gear_core::{
     message::ReplyCode,
 };
 use gprimitives::{ActorId, CodeId, H256, MessageId};
-use rand::{RngCore, SeedableRng, rngs::SmallRng};
+use rand::{SeedableRng, rngs::SmallRng};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
@@ -54,6 +54,7 @@ use crate::{
             BatchExecutionStats, BatchReport, BatchRunReport, LoadRunMetadata, LoadRunReport,
             RunEndedBy,
         },
+        value::{DEFAULT_TOP_UP_VALUE, fuzz_message_value, prefer_injected_tx},
     },
     utils,
 };
@@ -91,32 +92,7 @@ type MidMap = Arc<RwLock<BTreeMap<MessageId, ActorId>>>;
 type WorkerBatchFuture =
     futures::future::BoxFuture<'static, (usize, EthexeRpcPool, Result<BatchRunReport>)>;
 
-/// Amount of wVARA (12 decimals) to top up each program's executable balance.
-const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
-
-const INJECTED_TX_RATIO_NUM: u8 = 7;
-const INJECTED_TX_RATIO_DEN: u8 = 10;
 const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
-
-/// Biases message traffic toward injected transactions while keeping some
-/// regular on-chain sends in circulation.
-fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
-    // Make injected txs common, but still keep some on-chain `send_message` calls.
-    (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
-}
-
-/// Produces a fuzzed message value used for init, send, and reply operations.
-fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
-    // 60% zero value
-    if rng.next_u32() % 10 < 6 {
-        return 0;
-    }
-
-    // 40% random value
-    let max_value = 1_000_000_000_000_000_000u128;
-    let random_value = ((rng.next_u64() as u128) << 64) | (rng.next_u64() as u128);
-    random_value % max_value
-}
 
 /// Converts an arbitrary salt buffer into the fixed 32-byte form expected by
 /// Ethereum ABI bindings.
@@ -544,7 +520,7 @@ async fn run_batch_impl(
                     salt_to_h256(salt),
                     arg.0.2.clone(),
                     fuzzed_value,
-                    TOP_UP_AMOUNT,
+                    DEFAULT_TOP_UP_VALUE,
                 ));
             }
 
@@ -778,7 +754,7 @@ async fn run_batch_impl(
                     salt_to_h256(salt),
                     arg.0.2.clone(),
                     fuzzed_value,
-                    TOP_UP_AMOUNT,
+                    DEFAULT_TOP_UP_VALUE,
                 ));
             }
 
