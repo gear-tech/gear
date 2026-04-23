@@ -22,6 +22,9 @@ Then run the loader with:
 `load` mode now supports optional value control. If you do not pass any value flags, the
 loader keeps its current dev-oriented behavior.
 
+`--value-profile` supplies the default limits and budgets for `load`; explicit numeric flags
+override those defaults.
+
 Available flags:
 
 - `--value-profile <dev|testnet|mainnet>`
@@ -29,6 +32,9 @@ Available flags:
 - `--max-top-up-value <u128>` in WVARA smallest units
 - `--total-msg-value-budget <u128>` in wei
 - `--total-top-up-budget <u128>` in WVARA smallest units
+
+The examples below only show value-control settings; they still use the loader's existing
+connection and address defaults unless you also pass network-specific endpoints or addresses.
 
 Safe testnet example:
 
