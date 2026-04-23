@@ -60,6 +60,7 @@ use crate::{
 
 pub mod context;
 pub mod generator;
+pub mod value;
 pub mod report;
 pub mod rpc_pool;
 
