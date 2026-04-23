@@ -60,9 +60,9 @@ use crate::{
 
 pub mod context;
 pub mod generator;
-pub mod value;
 pub mod report;
 pub mod rpc_pool;
+pub mod value;
 
 use rpc_pool::EthexeRpcPool;
 

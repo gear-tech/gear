@@ -448,12 +448,7 @@ mod tests {
         assert_eq!(prepared_create.spend.msg_value, 5);
         assert_eq!(prepared_create.spend.top_up_value, 7);
 
-        let reply = Batch::SendReply(vec![SendReplyArgs((
-            message(9),
-            vec![7, 8, 9],
-            1_000,
-            0,
-        ))]);
+        let reply = Batch::SendReply(vec![SendReplyArgs((message(9), vec![7, 8, 9], 1_000, 0))]);
         let prepared_reply = prepare_batch((12_u64, reply).into(), Some(&policy));
         assert_eq!(prepared_reply.spend.msg_value, 5);
         assert_eq!(prepared_reply.spend.top_up_value, 0);
@@ -461,15 +456,22 @@ mod tests {
 
     #[test]
     fn prepare_batch_is_seed_deterministic_when_policy_is_disabled() {
-        let batch = Batch::SendReply(vec![SendReplyArgs((
-            message(7),
-            vec![1, 2, 3],
-            1_000,
-            0,
-        ))]);
-
-        let first = prepare_batch((77_u64, batch.clone()).into(), None);
-        let second = prepare_batch((77_u64, batch).into(), None);
+        let first = prepare_batch(
+            (
+                77_u64,
+                Batch::SendReply(vec![SendReplyArgs((message(7), vec![1, 2, 3], 1_000, 0))]),
+            )
+                .into(),
+            None,
+        );
+        let second = prepare_batch(
+            (
+                77_u64,
+                Batch::SendReply(vec![SendReplyArgs((message(7), vec![1, 2, 3], 1_000, 0))]),
+            )
+                .into(),
+            None,
+        );
 
         assert_eq!(first, second);
     }
