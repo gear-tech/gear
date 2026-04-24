@@ -21,11 +21,11 @@
 //! Specialized for our [`EthexeContext`]: values are [`SequencerBlock`]s,
 //! not the upstream `TestContext` u64-plus-factors toy value.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 use anyhow::{Result, anyhow};
 use bytes::Bytes;
-use ethexe_common::SimpleBlockData;
+use ethexe_db::Database;
 use gprimitives::H256;
 use tracing::{debug, error, info};
 
@@ -37,12 +37,13 @@ use malachitebft_app_channel::app::types::core::{
 };
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 
-use crate::block::SequencerBlock;
+use crate::block::{SequencerBlock, Transaction};
 use crate::codec::JsonCodec;
 use crate::context::{
     Address, EthexeSigner, EthexeContext, Genesis, Height, ProposalData, ProposalFin,
     ProposalInit, ProposalPart, ValidatorSet, Value, sign_proposal_fin,
 };
+use crate::quarantine;
 use crate::store::{DecidedValue, Store};
 use crate::streaming::{PartStreamsMap, ProposalParts};
 
@@ -59,14 +60,17 @@ pub struct State {
     vote_extensions: HashMap<Height, VoteExtensions<EthexeContext>>,
     streams_map: PartStreamsMap,
 
-    /// Rolling history of the most recent Ethereum chain heads the
-    /// outer service has told us about. Oldest in front, newest at the
-    /// back. Used to pick the *quarantine-eligible* anchor for the
-    /// next sequencer block.
-    pub eth_head_history: VecDeque<SimpleBlockData>,
-    /// Number of Ethereum blocks behind the current head that are
-    /// considered to have passed the ethexe quarantine window.
-    pub quarantine_depth: u32,
+    /// Shared ethexe database. Both the producer path (picking the
+    /// quarantine-passed EB for [`Transaction::AdvanceTillEthereumBlock`])
+    /// and the validator path (verifying a peer's pick) read directly
+    /// from here — authoritative source for the current EB chain head.
+    pub db: Database,
+
+    /// Matches [`ethexe_compute::ComputeConfig::canonical_quarantine`].
+    /// Number of canonical descendants an EB needs to have before it's
+    /// considered "out of quarantine" and safe to anchor a sequencer
+    /// block to.
+    pub canonical_quarantine: u8,
 
     pub store: Store,
     pub current_height: Height,
@@ -75,6 +79,7 @@ pub struct State {
 }
 
 impl State {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ctx: EthexeContext,
         signing_provider: EthexeSigner,
@@ -82,7 +87,8 @@ impl State {
         address: Address,
         height: Height,
         store: Store,
-        quarantine_depth: u32,
+        db: Database,
+        canonical_quarantine: u8,
     ) -> Self {
         Self {
             ctx,
@@ -95,35 +101,24 @@ impl State {
             store,
             vote_extensions: HashMap::new(),
             streams_map: PartStreamsMap::new(),
-            eth_head_history: VecDeque::new(),
-            quarantine_depth,
+            db,
+            canonical_quarantine,
         }
     }
 
-    /// Append a new Ethereum chain head to the rolling history,
-    /// trimming anything older than `quarantine_depth + 1` blocks.
-    pub fn push_chain_head(&mut self, head: SimpleBlockData) {
-        self.eth_head_history.push_back(head);
-        // Keep one extra slot so we can always name a quarantine-depth
-        // deep ancestor.
-        let retain = (self.quarantine_depth as usize).saturating_add(1).max(1);
-        while self.eth_head_history.len() > retain {
-            self.eth_head_history.pop_front();
-        }
+    /// The Ethereum block hash the producer should anchor the next
+    /// sequencer block to — i.e. the youngest EB that has already
+    /// passed quarantine relative to the local chain head.
+    pub fn quarantine_anchor(&self) -> Result<H256> {
+        quarantine::anchor(&self.db, self.canonical_quarantine)
     }
 
-    /// The Ethereum block that has most recently passed the quarantine
-    /// window. Returns `H256::zero()` until we've observed enough heads.
-    pub fn quarantine_anchor(&self) -> H256 {
-        if self.eth_head_history.is_empty() {
-            return H256::zero();
-        }
-        // Front of the queue is always the oldest; that's what just
-        // passed quarantine relative to the current tip.
-        self.eth_head_history
-            .front()
-            .map(|b| b.hash)
-            .unwrap_or_default()
+    /// Ethexe genesis block hash — used as the safe fallback anchor
+    /// when the quarantine walk cannot proceed (e.g. DB is still
+    /// catching up on startup).
+    pub fn genesis_block_hash(&self) -> H256 {
+        use ethexe_common::db::ConfigStorageRO;
+        self.db.config().genesis_block_hash
     }
 
     pub async fn get_earliest_height(&self) -> Height {
@@ -133,14 +128,47 @@ impl State {
             .unwrap_or_default()
     }
 
-    /// Validate an assembled proposal. TODO: real validation —
-    /// currently accepts ANYTHING as the user asked for this MVP.
-    pub fn validate_proposal_parts(&self, _parts: &ProposalParts) -> Result<()> {
-        // TODO: proper validation:
-        //   - proposer matches select_proposer(height, round)
-        //   - ProposalFin signature verifies against the proposer's key
-        //   - block's Transaction sequence is well-formed
-        Ok(())
+    /// Validate an assembled proposal.
+    ///
+    /// Current checks:
+    /// - exactly one [`Transaction::AdvanceTillEthereumBlock`] is
+    ///   present and the EB it targets has passed quarantine in our
+    ///   local view ([`quarantine::verify_passed`]).
+    ///
+    /// Still TODO:
+    /// - proposer matches `select_proposer(height, round)`;
+    /// - `ProposalFin` signature verifies against the proposer's key;
+    /// - mempool-injected transactions are well-formed.
+    pub fn validate_proposal_parts(&self, parts: &ProposalParts) -> Result<()> {
+        let block = parts
+            .parts
+            .iter()
+            .find_map(|p| p.as_data())
+            .map(|d| &d.block)
+            .ok_or_else(|| anyhow!("missing Data part in proposal"))?;
+
+        let mut advance_txs =
+            block
+                .transactions
+                .iter()
+                .filter_map(|tx| match tx {
+                    Transaction::AdvanceTillEthereumBlock { eth_block_hash } => {
+                        Some(*eth_block_hash)
+                    }
+                    _ => None,
+                });
+
+        let advance = advance_txs
+            .next()
+            .ok_or_else(|| anyhow!("proposal missing AdvanceTillEthereumBlock tx"))?;
+        if advance_txs.next().is_some() {
+            return Err(anyhow!(
+                "proposal has more than one AdvanceTillEthereumBlock tx"
+            ));
+        }
+
+        quarantine::verify_passed(&self.db, advance, self.canonical_quarantine)
+            .map_err(|e| anyhow!("AdvanceTillEthereumBlock {advance} rejected: {e}"))
     }
 
     /// Handle an incoming proposal part; returns a `ProposedValue`

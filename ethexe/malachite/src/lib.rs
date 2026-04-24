@@ -24,11 +24,14 @@
 //! that has passed the ethexe quarantine.
 //!
 //! ## Inputs
-//! - [`MalachiteService::receive_new_chain_head`] — new Ethereum chain
-//!   head; used to advance the quarantine window and pick the anchor
-//!   for the next sequencer block.
+//! - A shared [`ethexe_db::Database`] passed in at construction —
+//!   the producer reads the current EB chain head from
+//!   [`DBGlobals::latest_synced_block`] when Malachite asks for a value,
+//!   and both sides use it to compute and verify the quarantine anchor.
 //! - A [`Mempool`] passed in at construction, sampled from whenever the
 //!   node is the proposer.
+//!
+//! [`DBGlobals::latest_synced_block`]: ethexe_common::db::DBGlobals
 //!
 //! ## Outputs (`Stream<Item = Result<MalachiteEvent>>`)
 //! - [`MalachiteEvent::BlockProposal`] — a new sequencer block has been
@@ -56,7 +59,8 @@
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
-use ethexe_common::{SimpleBlockData, injected::SignedInjectedTransaction};
+use ethexe_common::injected::SignedInjectedTransaction;
+use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use rand::rngs::OsRng;
@@ -92,6 +96,7 @@ mod block;
 mod codec;
 mod context;
 mod mempool;
+mod quarantine;
 mod state;
 mod store;
 mod streaming;
@@ -195,10 +200,11 @@ pub struct MalachiteConfig {
     /// Gas allowance per block.
     pub gas_allowance: u64,
 
-    /// Number of Ethereum blocks that must elapse between a block
-    /// becoming the chain head and it being eligible as an anchor for a
-    /// sequencer block.
-    pub quarantine_depth: u32,
+    /// Number of canonical descendants an Ethereum block must have
+    /// before it is considered out of quarantine and safe to anchor a
+    /// sequencer block to. Matches
+    /// [`ethexe_compute::ComputeConfig::canonical_quarantine`].
+    pub canonical_quarantine: u8,
 
     /// Deterministic chain id derived from the ethexe genesis.
     pub chain_id: ChainId,
@@ -212,7 +218,9 @@ pub struct MalachiteConfig {
 
 impl MalachiteConfig {
     pub const DEFAULT_GAS_ALLOWANCE: u64 = 1_000_000_000;
-    pub const DEFAULT_QUARANTINE_DEPTH: u32 = 2;
+    /// Default matches [`ethexe_common::gear::CANONICAL_QUARANTINE`].
+    pub const DEFAULT_CANONICAL_QUARANTINE: u8 =
+        ethexe_common::gear::CANONICAL_QUARANTINE;
     /// Sits right next to `ethexe-network`'s default (20333/udp for
     /// QUIC) so operators can open a single range of ports. Note the
     /// protocol difference: Malachite currently binds a TCP listener.
@@ -229,7 +237,7 @@ impl MalachiteConfig {
         Self {
             moniker: "ethexe-malachite".to_string(),
             gas_allowance: Self::DEFAULT_GAS_ALLOWANCE,
-            quarantine_depth: Self::DEFAULT_QUARANTINE_DEPTH,
+            canonical_quarantine: Self::DEFAULT_CANONICAL_QUARANTINE,
             chain_id: derive_chain_id(ethexe_genesis_block_hash),
             listen_addr: Self::DEFAULT_LISTEN_ADDR,
             home_dir,
@@ -390,7 +398,6 @@ fn load_or_generate_node_key(home_dir: &std::path::Path) -> Result<PrivateKey> {
 /// Malachite-backed consensus service.
 pub struct MalachiteService {
     events_rx: mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
-    chain_head_tx: mpsc::UnboundedSender<SimpleBlockData>,
     mempool: Arc<dyn Mempool>,
 
     #[allow(dead_code)]
@@ -403,7 +410,16 @@ impl MalachiteService {
     /// Bootstrap the Malachite engine + app task. The engine runs in the
     /// background; `Stream::poll_next` then forwards
     /// [`MalachiteEvent`]s out of the app task.
-    pub async fn new(config: MalachiteConfig, mempool: Arc<dyn Mempool>) -> Result<Self> {
+    ///
+    /// `db` is the shared ethexe [`Database`]: the producer reads the
+    /// current Ethereum chain head + walks back `canonical_quarantine`
+    /// from it to anchor every sequencer block; validators read the
+    /// same view to verify incoming proposals.
+    pub async fn new(
+        config: MalachiteConfig,
+        db: Database,
+        mempool: Arc<dyn Mempool>,
+    ) -> Result<Self> {
         tracing::info!(
             target: "ethexe::malachite",
             moniker = %config.moniker,
@@ -486,7 +502,6 @@ impl MalachiteService {
 
         // ---- app task -----------------------------------------------------
         let (events_tx, events_rx) = mpsc::unbounded_channel();
-        let (chain_head_tx, chain_head_rx) = mpsc::unbounded_channel();
 
         let start_height = store
             .max_decided_value_height()
@@ -501,7 +516,8 @@ impl MalachiteService {
             address,
             start_height,
             store,
-            config.quarantine_depth,
+            db,
+            config.canonical_quarantine,
         );
 
         let gas_allowance = config.gas_allowance;
@@ -510,8 +526,7 @@ impl MalachiteService {
         let app_handle = tokio::spawn(
             async move {
                 if let Err(e) =
-                    app::run(state, channels, mempool, gas_allowance, chain_head_rx, events_tx)
-                        .await
+                    app::run(state, channels, mempool, gas_allowance, events_tx).await
                 {
                     tracing::error!(target: "ethexe::malachite", error = %e, "App task terminated");
                 }
@@ -521,7 +536,6 @@ impl MalachiteService {
 
         Ok(Self {
             events_rx,
-            chain_head_tx,
             mempool: mempool_for_service,
             engine,
             app_handle,
@@ -533,15 +547,6 @@ impl MalachiteService {
     /// assembling the next sequencer block.
     pub fn receive_injected_transaction(&self, tx: SignedInjectedTransaction) {
         self.mempool.insert(tx);
-    }
-
-    /// Pass a new Ethereum chain head into the service. Used to advance
-    /// the quarantine window and to select the anchor of the next
-    /// sequencer block.
-    pub fn receive_new_chain_head(&mut self, head: SimpleBlockData) {
-        if self.chain_head_tx.send(head).is_err() {
-            tracing::warn!(target: "ethexe::malachite", "app task closed, chain head dropped");
-        }
     }
 }
 

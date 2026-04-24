@@ -481,10 +481,13 @@ impl Service {
             hex::encode(malachite_config.chain_id),
             malachite_config.listen_addr,
         );
-        let malachite =
-            MalachiteService::new(malachite_config, std::sync::Arc::new(InjectedTxMempool::default()))
-                .await
-                .context("failed to start Malachite service")?;
+        let malachite = MalachiteService::new(
+            malachite_config,
+            db.clone(),
+            std::sync::Arc::new(InjectedTxMempool::default()),
+        )
+        .await
+        .context("failed to start Malachite service")?;
 
         let fast_sync = config.node.fast_sync;
 
@@ -535,9 +538,13 @@ impl Service {
             .join("ethexe-malachite-test")
             .join(format!("{}", std::process::id()));
         let cfg = MalachiteConfig::from_ethexe_genesis(H256::zero(), tmp);
-        let malachite = MalachiteService::new(cfg, std::sync::Arc::new(InjectedTxMempool::default()))
-            .await
-            .context("failed to start Malachite service in test")?;
+        let malachite = MalachiteService::new(
+            cfg,
+            db.clone(),
+            std::sync::Arc::new(InjectedTxMempool::default()),
+        )
+        .await
+        .context("failed to start Malachite service in test")?;
         Ok(Self {
             db,
             observer,
@@ -636,7 +643,6 @@ impl Service {
                             "📦 receive a chain head",
                         );
 
-                        malachite.receive_new_chain_head(block_data);
                         consensus.receive_new_chain_head(block_data)?
                     }
                     ObserverEvent::BlockSynced(block) => {

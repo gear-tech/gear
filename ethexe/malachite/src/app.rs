@@ -13,18 +13,18 @@
 //! Runs in a spawned tokio task; consumes `AppMsg`s from the engine,
 //! mirrors each decision back out on an internal `mpsc` as
 //! `MalachiteEvent::{BlockProposal, BlockFinalized}` for the outer
-//! `MalachiteService` stream. Also listens for Ethereum chain-head
-//! updates from the outer service and stashes them in `State` so the
-//! next sequencer block can anchor to the right Eth hash.
+//! `MalachiteService` stream. The current Ethereum chain head is read
+//! straight from the shared [`ethexe_db::Database`] (via `State`) at
+//! the moment the engine asks us to propose, so we don't need an
+//! in-process chain-head channel.
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
-use ethexe_common::SimpleBlockData;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
 use malachitebft_app_channel::app::streaming::StreamContent;
@@ -38,33 +38,22 @@ use crate::context::{EthexeContext, Height};
 use crate::state::{State, decode_value, encode_value};
 use crate::{CommitCertificate, MalachiteEvent, Mempool};
 
-/// Run the channel-app event loop. Terminates when either the consensus
-/// channel is closed (engine shut down) or `event_tx` is dropped (outer
-/// service shut down).
+/// Run the channel-app event loop. Terminates when the consensus
+/// channel is closed (engine shut down) or `event_tx` is dropped
+/// (outer service shut down).
 pub async fn run(
     mut state: State,
     mut channels: Channels<EthexeContext>,
     mempool: Arc<dyn Mempool>,
     gas_allowance: u64,
-    mut chain_head_rx: mpsc::UnboundedReceiver<SimpleBlockData>,
     event_tx: mpsc::UnboundedSender<Result<MalachiteEvent>>,
 ) -> Result<()> {
     loop {
-        tokio::select! {
-            // Chain-head updates from the outer service
-            Some(head) = chain_head_rx.recv() => {
-                state.push_chain_head(head);
-            }
-
-            // Messages from the Malachite engine
-            msg = channels.consensus.recv() => {
-                let Some(msg) = msg else {
-                    return Err(anyhow!("Consensus channel closed unexpectedly"));
-                };
-                handle_app_msg(&mut state, &mut channels, &*mempool, gas_allowance, &event_tx, msg)
-                    .await?;
-            }
-        }
+        let Some(msg) = channels.consensus.recv().await else {
+            return Err(anyhow!("Consensus channel closed unexpectedly"));
+        };
+        handle_app_msg(&mut state, &mut channels, &*mempool, gas_allowance, &event_tx, msg)
+            .await?;
     }
 }
 
@@ -146,12 +135,21 @@ async fn handle_app_msg(
             // --- Build the SequencerBlock -----------------------------
             //
             //   1. AdvanceTillEthereumBlock targeting the Eth block that
-            //      has just passed the ethexe quarantine window.
+            //      has just passed the ethexe quarantine window. The
+            //      anchor is read directly from the shared database so
+            //      producer and validators can agree on the same
+            //      canonical view without an in-process side channel.
             //   2. Any injected transactions drawn from the mempool.
             //   3. A single ProgressTasks at the end.
             //   4. A single ProcessQueues at the very end.
             let injected = mempool.fetch(gas_allowance).await;
-            let quarantine_anchor = state.quarantine_anchor();
+            let quarantine_anchor = match state.quarantine_anchor() {
+                Ok(hash) => hash,
+                Err(e) => {
+                    warn!(error = %e, "Quarantine anchor lookup failed; using genesis as fallback");
+                    state.genesis_block_hash()
+                }
+            };
 
             let mut transactions = Vec::with_capacity(injected.len() + 3);
             transactions.push(crate::Transaction::AdvanceTillEthereumBlock {
