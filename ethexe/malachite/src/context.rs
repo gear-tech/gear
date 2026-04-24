@@ -16,15 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Custom [`Context`] for Malachite that plugs our [`SequencerBlock`]
-//! in as `Value`.
+//! Custom [`Context`] for Malachite backed by **secp256k1** / ECDSA
+//! signatures (the same curve ethexe uses everywhere else on-chain).
 //!
-//! The [`malachitebft-test`] crate supplies battle-tested building
-//! blocks for everything that is *not* `Value`-dependent — `Address`,
-//! `Height`, ed25519 signing. We reuse those verbatim and write our
-//! own [`Value`], [`ValueId`], [`Vote`], [`Proposal`], [`ProposalPart`],
-//! [`Validator`], [`ValidatorSet`] so the consensus engine operates
-//! on [`SequencerBlock`]s directly.
+//! We reuse [`malachitebft_test::Height`] — it's a thin `u64` newtype
+//! with no crypto inside — and re-implement everything that touches
+//! keys or addresses:
+//!
+//! - [`Address`] — a newtype over [`gsigner::schemes::secp256k1::Address`]
+//!   (20 bytes, `keccak256(uncompressed_pubkey)[12..]`). The orphan
+//!   rule forces a newtype because we need to
+//!   `impl malachitebft_core_types::Address` for it.
+//! - `SigningScheme = malachitebft_signing_ecdsa::K256` — upstream
+//!   Ecdsa-over-`k256` scheme; its `PrivateKey`/`PublicKey`/`Signature`
+//!   are the associated crypto types.
+//! - [`EthexeSigner`] — our [`SigningProvider<EthexeContext>`] backed
+//!   by the same 32-byte secret the node's validator identity is
+//!   built from. No separate Malachite key, no node_key.json.
 
 use core::slice;
 use std::sync::Arc;
@@ -34,6 +42,7 @@ use bytes::Bytes;
 use gprimitives::H256;
 use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
+use sha3::{Digest as _, Keccak256};
 
 use malachitebft_core_types::{
     Context, LinearTimeouts, NilOrVal, Round, SignedExtension, SignedMessage, SignedProposal,
@@ -44,11 +53,79 @@ use malachitebft_core_types::{
 use malachitebft_core_types::ValidatorSet as _ValidatorSetTrait;
 use malachitebft_core_types::Value as _ValueTrait;
 use malachitebft_signing::{Error as SigningError, SigningProvider, VerificationResult};
-use malachitebft_signing_ed25519::{Ed25519, PublicKey, Signature};
+use malachitebft_signing_ecdsa::{K256, K256Config};
 
-pub use malachitebft_test::{Address, Height, PrivateKey};
+pub use malachitebft_test::Height;
 
 use crate::block::SequencerBlock;
+
+pub type PublicKey = malachitebft_signing_ecdsa::PublicKey<K256Config>;
+pub type PrivateKey = malachitebft_signing_ecdsa::PrivateKey<K256Config>;
+pub type Signature = malachitebft_signing_ecdsa::Signature<K256Config>;
+
+// ---------------------------------------------------------------------------
+// Address — newtype over gsigner::secp256k1::Address (orphan rule)
+// ---------------------------------------------------------------------------
+
+/// 20-byte Ethereum-style address derived from a secp256k1 public key
+/// the same way the rest of ethexe derives it:
+/// `keccak256(uncompressed_pubkey[1..])[12..]`.
+///
+/// Wraps [`gsigner::schemes::secp256k1::Address`]. We cannot impl the
+/// foreign [`malachitebft_core_types::Address`] marker trait for the
+/// foreign gsigner type directly, hence the newtype.
+#[derive(
+    Copy,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    derive_more::Display,
+    derive_more::Debug,
+    Serialize,
+    Deserialize,
+)]
+#[serde(transparent)]
+#[display("{_0}")]
+#[debug("{_0:?}")]
+pub struct Address(pub gsigner::schemes::secp256k1::Address);
+
+impl Address {
+    /// Derive the address from a secp256k1 public key.
+    pub fn from_public_key(public_key: &PublicKey) -> Self {
+        // SEC1 uncompressed point: 0x04 || x(32) || y(32) = 65 bytes.
+        let encoded = public_key.inner().to_encoded_point(false);
+        let bytes = encoded.as_bytes();
+        debug_assert_eq!(bytes.len(), 65);
+        let mut hasher = Keccak256::new();
+        hasher.update(&bytes[1..]);
+        let hash = hasher.finalize();
+        let mut addr = [0u8; 20];
+        addr.copy_from_slice(&hash[12..]);
+        Self(gsigner::schemes::secp256k1::Address(addr))
+    }
+
+    pub fn into_inner(self) -> gsigner::schemes::secp256k1::Address {
+        self.0
+    }
+}
+
+impl From<gsigner::schemes::secp256k1::Address> for Address {
+    fn from(inner: gsigner::schemes::secp256k1::Address) -> Self {
+        Self(inner)
+    }
+}
+
+impl From<Address> for gsigner::schemes::secp256k1::Address {
+    fn from(outer: Address) -> Self {
+        outer.0
+    }
+}
+
+impl malachitebft_core_types::Address for Address {}
 
 // ---------------------------------------------------------------------------
 // Value + ValueId
@@ -143,6 +220,21 @@ impl Validator {
             voting_power,
         }
     }
+
+    /// Construct with an explicit address — useful when the set comes
+    /// from a genesis file that carries addresses and pubkeys
+    /// independently (consistency is checked at load time).
+    pub fn with_address(
+        address: Address,
+        public_key: PublicKey,
+        voting_power: VotingPower,
+    ) -> Self {
+        Self {
+            address,
+            public_key,
+            voting_power,
+        }
+    }
 }
 
 impl PartialOrd for Validator {
@@ -178,10 +270,14 @@ pub struct ValidatorSet {
 
 impl ValidatorSet {
     pub fn new(validators: impl IntoIterator<Item = Validator>) -> Self {
-        let validators: Vec<_> = validators.into_iter().collect();
-        assert!(!validators.is_empty());
+        let mut v: Vec<_> = validators.into_iter().collect();
+        assert!(!v.is_empty(), "validator set must be non-empty");
+        // Stable deterministic ordering by address so all nodes see
+        // the same "index → validator" mapping regardless of load
+        // order.
+        v.sort();
         Self {
-            validators: Arc::new(validators),
+            validators: Arc::new(v),
         }
     }
 
@@ -214,7 +310,7 @@ impl ValidatorSet {
     }
 
     pub fn get_keys(&self) -> Vec<PublicKey> {
-        self.validators.iter().map(|v| v.public_key).collect()
+        self.validators.iter().map(|v| v.public_key.clone()).collect()
     }
 }
 
@@ -232,15 +328,15 @@ impl malachitebft_core_types::ValidatorSet<EthexeContext> for ValidatorSet {
     }
 
     fn get_by_index(&self, index: usize) -> Option<&Validator> {
-        self.validators.get(index)
+        self.get_by_index(index)
     }
 }
 
 // ---------------------------------------------------------------------------
-// Genesis
+// Genesis wrapper
 // ---------------------------------------------------------------------------
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Genesis {
     pub validator_set: ValidatorSet,
 }
@@ -249,7 +345,7 @@ pub struct Genesis {
 // Vote
 // ---------------------------------------------------------------------------
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Vote {
     pub typ: VoteType,
     pub height: Height,
@@ -296,13 +392,12 @@ impl Vote {
     }
 
     pub fn to_sign_bytes(&self) -> Bytes {
-        let vote = Self {
-            extension: None,
-            ..self.clone()
-        };
-        Bytes::from(serde_json::to_vec(&vote).expect("vote is serde-serializable"))
+        serde_json::to_vec(self)
+            .expect("Vote is serde-serializable")
+            .into()
     }
 
+    #[allow(dead_code)]
     pub fn from_sign_bytes(bytes: &[u8]) -> Result<Self, serde_json::Error> {
         serde_json::from_slice(bytes)
     }
@@ -359,7 +454,7 @@ pub struct Proposal {
     pub round: Round,
     pub value: Value,
     pub pol_round: Round,
-    pub validator_address: Address,
+    pub proposer: Address,
 }
 
 impl Proposal {
@@ -368,21 +463,24 @@ impl Proposal {
         round: Round,
         value: Value,
         pol_round: Round,
-        validator_address: Address,
+        proposer: Address,
     ) -> Self {
         Self {
             height,
             round,
             value,
             pol_round,
-            validator_address,
+            proposer,
         }
     }
 
     pub fn to_sign_bytes(&self) -> Bytes {
-        Bytes::from(serde_json::to_vec(self).expect("proposal is serde-serializable"))
+        serde_json::to_vec(self)
+            .expect("Proposal is serde-serializable")
+            .into()
     }
 
+    #[allow(dead_code)]
     pub fn from_sign_bytes(bytes: &[u8]) -> Result<Self, serde_json::Error> {
         serde_json::from_slice(bytes)
     }
@@ -410,23 +508,61 @@ impl malachitebft_core_types::Proposal<EthexeContext> for Proposal {
     }
 
     fn validator_address(&self) -> &Address {
-        &self.validator_address
+        &self.proposer
     }
 }
 
 // ---------------------------------------------------------------------------
-// ProposalPart
+// ProposalPart (streamed)
 // ---------------------------------------------------------------------------
 
-/// A streamed fragment of a proposal. We stream the whole
-/// [`SequencerBlock`] in a single `Data` part — no splitting is needed
-/// while blocks are small; once they grow we'll chunk the
-/// transaction vector.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProposalPart {
     Init(ProposalInit),
     Data(ProposalData),
     Fin(ProposalFin),
+}
+
+impl ProposalPart {
+    pub fn get_type(&self) -> &'static str {
+        match self {
+            Self::Init(_) => "init",
+            Self::Data(_) => "data",
+            Self::Fin(_) => "fin",
+        }
+    }
+
+    pub fn as_init(&self) -> Option<&ProposalInit> {
+        match self {
+            Self::Init(i) => Some(i),
+            _ => None,
+        }
+    }
+
+    pub fn as_data(&self) -> Option<&ProposalData> {
+        match self {
+            Self::Data(d) => Some(d),
+            _ => None,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn as_fin(&self) -> Option<&ProposalFin> {
+        match self {
+            Self::Fin(f) => Some(f),
+            _ => None,
+        }
+    }
+}
+
+impl malachitebft_core_types::ProposalPart<EthexeContext> for ProposalPart {
+    fn is_first(&self) -> bool {
+        matches!(self, Self::Init(_))
+    }
+
+    fn is_last(&self) -> bool {
+        matches!(self, Self::Fin(_))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -457,10 +593,6 @@ impl ProposalData {
     pub fn new(block: SequencerBlock) -> Self {
         Self { block }
     }
-
-    pub fn size_bytes(&self) -> usize {
-        self.block.encode().len()
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -474,58 +606,11 @@ impl ProposalFin {
     }
 }
 
-impl ProposalPart {
-    pub fn get_type(&self) -> &'static str {
-        match self {
-            Self::Init(_) => "init",
-            Self::Data(_) => "data",
-            Self::Fin(_) => "fin",
-        }
-    }
-
-    pub fn as_init(&self) -> Option<&ProposalInit> {
-        match self {
-            Self::Init(init) => Some(init),
-            _ => None,
-        }
-    }
-
-    pub fn as_data(&self) -> Option<&ProposalData> {
-        match self {
-            Self::Data(data) => Some(data),
-            _ => None,
-        }
-    }
-
-    pub fn as_fin(&self) -> Option<&ProposalFin> {
-        match self {
-            Self::Fin(fin) => Some(fin),
-            _ => None,
-        }
-    }
-
-    pub fn to_sign_bytes(&self) -> Bytes {
-        Bytes::from(serde_json::to_vec(self).expect("ProposalPart is serde-serializable"))
-    }
-}
-
-impl malachitebft_core_types::ProposalPart<EthexeContext> for ProposalPart {
-    fn is_first(&self) -> bool {
-        matches!(self, Self::Init(_))
-    }
-
-    fn is_last(&self) -> bool {
-        matches!(self, Self::Fin(_))
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Context
 // ---------------------------------------------------------------------------
 
-/// Context type tying all of the above together. `EthexeContext`
-/// mirrors the upstream `TestContext` in spirit but with our
-/// [`SequencerBlock`]-backed [`Value`].
+/// Context type tying all of the above together.
 #[derive(Clone, Debug, Default)]
 pub struct EthexeContext;
 
@@ -545,7 +630,7 @@ impl Context for EthexeContext {
     type Value = Value;
     type Vote = Vote;
     type Extension = Bytes;
-    type SigningScheme = Ed25519;
+    type SigningScheme = K256;
     type Timeouts = LinearTimeouts;
 
     fn select_proposer<'a>(
@@ -604,16 +689,14 @@ impl Context for EthexeContext {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Sign the fin part of a streamed proposal — same derivation as the
-/// upstream `TestContext`: keccak-256 over (height_be, round_be, all
-/// data-bytes) signed by the proposer.
+/// Sign the fin part of a streamed proposal over a keccak256 of
+/// (height_be, round_be, data-bytes).
 pub fn sign_proposal_fin(
     signer: &EthexeSigner,
     height: Height,
     round: Round,
     data_bytes: &[u8],
 ) -> Signature {
-    use sha3::{Digest, Keccak256};
     let mut h = Keccak256::new();
     h.update(height.as_u64().to_be_bytes());
     h.update(round.as_i64().to_be_bytes());
@@ -624,7 +707,7 @@ pub fn sign_proposal_fin(
 
 /// Flatten accumulated extensions from previous height's commit
 /// certificate into a single byte buffer (for inclusion in the next
-/// `Value`). Mirrors upstream `TestContext` behaviour.
+/// `Value`).
 #[allow(dead_code)]
 pub fn flatten_extensions(certs: Vec<SignedExtension<EthexeContext>>) -> Vec<u8> {
     let mut out = Vec::new();
@@ -635,12 +718,14 @@ pub fn flatten_extensions(certs: Vec<SignedExtension<EthexeContext>>) -> Vec<u8>
 }
 
 // ---------------------------------------------------------------------------
-// Signing provider — our own impl of `SigningProvider<EthexeContext>`.
-// The upstream `Ed25519Provider` is hard-bound to `TestContext`, so we
-// wrap the `PrivateKey` ourselves. Crypto is the same (ed25519-consensus
-// under the hood).
+// Signing provider — secp256k1/ECDSA (k256 via malachitebft-signing-ecdsa).
 // ---------------------------------------------------------------------------
 
+/// Node-local signing provider. Owns an ECDSA [`PrivateKey`] on the
+/// k256 curve; the raw 32-byte secret is the same one that identifies
+/// the node on-chain (extracted once at service startup from
+/// [`gsigner::Signer`]), so Malachite votes and on-chain commitments
+/// share a single validator identity.
 #[derive(Debug)]
 pub struct EthexeSigner {
     private_key: PrivateKey,
@@ -654,6 +739,10 @@ impl EthexeSigner {
     #[allow(dead_code)]
     pub fn private_key(&self) -> &PrivateKey {
         &self.private_key
+    }
+
+    pub fn public_key(&self) -> PublicKey {
+        self.private_key.public_key()
     }
 
     pub fn sign(&self, data: &[u8]) -> Signature {
@@ -738,4 +827,3 @@ impl SigningProvider<EthexeContext> for EthexeSigner {
         ))
     }
 }
-

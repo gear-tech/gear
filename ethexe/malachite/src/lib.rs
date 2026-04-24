@@ -64,7 +64,10 @@ use ethexe_common::{SimpleBlockData, injected::SignedInjectedTransaction};
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
-use rand::rngs::OsRng;
+use gsigner::{
+    Signer,
+    schemes::secp256k1::{PublicKey as Secp256k1PublicKey, Secp256k1},
+};
 use sha3::{Digest, Keccak256};
 use std::{
     net::SocketAddr,
@@ -89,13 +92,15 @@ use malachitebft_app_channel::{
     RequestContext, SigningProviderExt, SyncContext, WalContext,
 };
 use crate::context::{
-    Address, EthexeSigner, Genesis, Height, PrivateKey, Validator, ValidatorSet,
+    Address, EthexeSigner, Genesis, Height, PrivateKey, PublicKey,
 };
+use crate::genesis::MalachiteGenesis;
 
 mod app;
 mod block;
 mod codec;
 mod context;
+mod genesis;
 mod mempool;
 mod quarantine;
 mod state;
@@ -377,50 +382,26 @@ pub fn derive_chain_id(ethexe_genesis_block_hash: H256) -> ChainId {
 }
 
 // ---------------------------------------------------------------------------
-// Node-key persistence
+// Key extraction
 // ---------------------------------------------------------------------------
 
-/// Read the Malachite ed25519 node key from `home_dir/node_key.json`,
-/// generating and persisting a fresh one on first boot. Restarts keep
-/// the same libp2p peer id so peers don't have to re-discover this
-/// node every time it comes back up.
-fn load_or_generate_node_key(home_dir: &std::path::Path) -> Result<PrivateKey> {
-    let key_path = home_dir.join("node_key.json");
-    if key_path.exists() {
-        let raw = std::fs::read_to_string(&key_path)
-            .with_context(|| format!("reading {}", key_path.display()))?;
-        let key: PrivateKey = serde_json::from_str(&raw)
-            .with_context(|| format!("decoding {}", key_path.display()))?;
-        tracing::debug!(target: "ethexe::malachite", path = %key_path.display(), "loaded node key");
-        Ok(key)
-    } else {
-        let key = PrivateKey::generate(OsRng);
-        let encoded = serde_json::to_string_pretty(&key).context("encoding node key")?;
-        // Ensure the directory exists before we try to write into it —
-        // the engine bootstrap creates WAL dirs elsewhere; we don't
-        // want to depend on that ordering.
-        if let Some(parent) = key_path.parent() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!("creating node-key dir {}", parent.display())
-            })?;
-        }
-        std::fs::write(&key_path, encoded)
-            .with_context(|| format!("writing {}", key_path.display()))?;
-        tracing::info!(
-            target: "ethexe::malachite",
-            path = %key_path.display(),
-            "generated new node key",
-        );
-        // POSIX-only: tighten file perms on Unix so key is owner-readable only.
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&key_path)?.permissions();
-            perms.set_mode(0o600);
-            std::fs::set_permissions(&key_path, perms)?;
-        }
-        Ok(key)
-    }
+/// Pull the raw 32-byte secp256k1 secret for `validator_pub_key` out
+/// of the shared [`gsigner::Signer`]. Same secret is used to sign:
+/// - on-chain commitments (via ethexe-ethereum);
+/// - Malachite consensus votes (via [`EthexeSigner`]);
+/// - libp2p handshake (peer id is derived from the public key).
+///
+/// So the node has a single identity across all three layers and
+/// peers can verify votes against the same address the validator is
+/// registered under in genesis.
+fn export_validator_secret(
+    signer: &Signer<Secp256k1>,
+    validator_pub_key: Secp256k1PublicKey,
+) -> Result<[u8; 32]> {
+    let priv_key = signer
+        .private_key(validator_pub_key)
+        .context("exporting validator private key from gsigner keyring")?;
+    Ok(priv_key.to_bytes())
 }
 
 // ---------------------------------------------------------------------------
@@ -440,19 +421,24 @@ pub struct MalachiteService {
 }
 
 impl MalachiteService {
-    /// Bootstrap the Malachite engine + app task. The engine runs in the
-    /// background; `Stream::poll_next` then forwards
-    /// [`MalachiteEvent`]s out of the app task.
+    /// Bootstrap the Malachite engine + app task.
     ///
-    /// `db` is the shared ethexe [`Database`], used for walking
-    /// `parent_hash` links along the canonical chain. The current
-    /// chain head itself is fed in later via
-    /// [`Self::receive_new_chain_head`] so both producer and
-    /// validators work off the exact block received from the observer
-    /// event stream rather than `DBGlobals::latest_synced_block`.
+    /// Parameters:
+    /// - `signer` — shared ethexe key manager; the raw secp256k1
+    ///   secret for `validator_pub_key` is extracted once here to
+    ///   drive Malachite signing, libp2p identity, and on-chain
+    ///   commitments off the same key.
+    /// - `validator_pub_key` — this node's validator public key;
+    ///   must appear in the genesis validator set at `home_dir`.
+    /// - `db` — shared ethexe [`Database`] for quarantine walks.
+    ///
+    /// The engine runs in the background; `Stream::poll_next` then
+    /// forwards [`MalachiteEvent`]s out of the app task.
     pub async fn new(
         config: MalachiteConfig,
         db: Database,
+        signer: Signer<Secp256k1>,
+        validator_pub_key: Secp256k1PublicKey,
         mempool: Arc<dyn Mempool>,
     ) -> Result<Self> {
         tracing::info!(
@@ -475,19 +461,32 @@ impl MalachiteService {
         let db_path = config.home_dir.join("store.db");
 
         // ---- keys & identity ---------------------------------------------
-        // Persist the ed25519 node key at `home_dir/node_key.json` so the
-        // peer id is stable across restarts. Generated on first boot.
-        let private_key = load_or_generate_node_key(&config.home_dir)
-            .context("loading/generating Malachite node key")?;
-        let public_key = private_key.public_key();
+        // Single identity across Malachite / libp2p / on-chain: pull
+        // the raw 32-byte secret out of the gsigner keyring once.
+        let secret_bytes = export_validator_secret(&signer, validator_pub_key)
+            .context("extracting validator secret for Malachite")?;
+        let private_key = PrivateKey::from_slice(&secret_bytes)
+            .map_err(|e| anyhow::anyhow!("constructing ECDSA private key: {e}"))?;
+        let public_key: PublicKey = private_key.public_key();
         let address = Address::from_public_key(&public_key);
         let signing_provider = EthexeSigner::new(private_key.clone());
 
-        let keypair = Keypair::ed25519_from_bytes(private_key.inner().to_bytes())
-            .expect("valid ed25519 keypair");
-        let peer_id_bytes = keypair.public().to_peer_id().to_bytes();
+        let libp2p_keypair: Keypair = {
+            let mut sk = secret_bytes;
+            let secret =
+                libp2p_identity::secp256k1::SecretKey::try_from_bytes(&mut sk)
+                    .expect("valid secp256k1 keypair bytes");
+            // zero the copy we handed off; the real secret still
+            // lives inside `private_key` and the gsigner keyring.
+            for byte in sk.iter_mut() {
+                *byte = 0;
+            }
+            let inner = libp2p_identity::secp256k1::Keypair::from(secret);
+            Keypair::from(inner)
+        };
+        let peer_id_bytes = libp2p_keypair.public().to_peer_id().to_bytes();
         let proof = signing_provider
-            .sign_validator_proof(public_key.as_bytes().to_vec(), peer_id_bytes)
+            .sign_validator_proof(public_key.to_vec(), peer_id_bytes)
             .await
             .map_err(|e| anyhow::anyhow!("failed to sign validator proof: {e:?}"))?;
         let proof_bytes: Bytes = {
@@ -499,22 +498,35 @@ impl MalachiteService {
         };
         let identity = NetworkIdentity::new_validator(
             config.moniker.clone(),
-            keypair,
+            libp2p_keypair,
             address.to_string(),
             proof_bytes,
         );
 
-        // ---- genesis (single validator) ----------------------------------
-        let validator_set = ValidatorSet::new(vec![Validator::new(public_key, 1)]);
+        // ---- genesis validator set ---------------------------------------
+        let genesis_path = config.home_dir.join("genesis.json");
+        let genesis_raw = MalachiteGenesis::load(&genesis_path)
+            .with_context(|| format!("loading Malachite genesis from {}", genesis_path.display()))?;
+        if !genesis_raw
+            .validators
+            .iter()
+            .any(|v| v.address == address)
+        {
+            return Err(anyhow::anyhow!(
+                "local validator address {address} not found in genesis at {}",
+                genesis_path.display()
+            ));
+        }
+        let validator_set = genesis_raw.to_validator_set();
         let genesis = Genesis { validator_set };
 
         // ---- engine -------------------------------------------------------
         let inner_cfg = build_inner_config(&config);
         let ctx = EthexeContext::new();
 
-        // Ed25519Provider doesn't impl Clone, so make two providers that
-        // share the same private key — one for Malachite's consensus,
-        // one retained in `State` for signing proposal fins.
+        // Keep an independent signing provider for the consensus
+        // engine; the `State` keeps its own copy for streaming
+        // proposal fins. Both wrap the same private key.
         let consensus_signer = EthexeSigner::new(private_key.clone());
         let (channels, engine) = EngineBuilder::new(ctx.clone(), inner_cfg)
             .with_default_wal(WalContext::new(wal_path, JsonCodec))

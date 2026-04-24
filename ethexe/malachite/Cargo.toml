@@ -35,15 +35,17 @@ malachitebft-core-types.workspace = true
 malachitebft-engine.workspace = true
 malachitebft-proto.workspace = true
 malachitebft-signing.workspace = true
-malachitebft-signing-ed25519.workspace = true
+malachitebft-signing-ecdsa.workspace = true
 malachitebft-sync.workspace = true
 malachitebft-test.workspace = true
-ed25519-consensus = "2"
+k256 = { version = "0.13", features = ["ecdsa", "serde"] }
+libp2p-identity = { version = "0.2", features = ["secp256k1"] }
 serde_bytes = "0.11"
 
 # ethexe
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-db = { workspace = true, default-features = false }
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 gprimitives = { workspace = true, features = ["std"] }
 
 gear-workspace-hack.workspace = true

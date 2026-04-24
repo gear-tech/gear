@@ -25,7 +25,6 @@
 //! our [`EthexeContext`].
 
 use bytes::Bytes;
-use ed25519_consensus::Signature;
 use serde::{Deserialize, Serialize};
 
 use malachitebft_app::streaming::StreamId;
@@ -41,7 +40,9 @@ use malachitebft_sync::{
     PeerId, RawDecidedValue, Request, Response, Status, ValueRequest, ValueResponse,
 };
 
-use crate::context::{Address, EthexeContext, Height, Proposal, ProposalPart, ValueId, Value, Vote};
+use crate::context::{
+    Address, EthexeContext, Height, Proposal, ProposalPart, Signature, Value, ValueId, Vote,
+};
 
 // ---------------------------------------------------------------------------
 // JsonCodec — top-level type implementing `Codec<T>` for each type the
@@ -199,11 +200,11 @@ impl From<SignedConsensusMsg<EthexeContext>> for RawSignedConsensusMsg {
         match value {
             SignedConsensusMsg::Vote(vote) => Self::Vote(RawSignedMessage {
                 message: vote.message.to_sign_bytes(),
-                signature: *vote.signature.inner(),
+                signature: vote.signature.clone(),
             }),
             SignedConsensusMsg::Proposal(proposal) => Self::Proposal(RawSignedMessage {
                 message: proposal.message.to_sign_bytes(),
-                signature: *proposal.signature.inner(),
+                signature: proposal.signature.clone(),
             }),
         }
     }
@@ -214,11 +215,11 @@ impl From<RawSignedConsensusMsg> for SignedConsensusMsg<EthexeContext> {
         match value {
             RawSignedConsensusMsg::Vote(raw) => SignedConsensusMsg::Vote(SignedVote {
                 message: Vote::from_sign_bytes(&raw.message).unwrap(),
-                signature: raw.signature.into(),
+                signature: raw.signature,
             }),
             RawSignedConsensusMsg::Proposal(raw) => SignedConsensusMsg::Proposal(SignedProposal {
                 message: Proposal::from_sign_bytes(&raw.message).unwrap(),
-                signature: raw.signature.into(),
+                signature: raw.signature,
             }),
         }
     }
@@ -383,7 +384,7 @@ impl From<CommitCertificate<EthexeContext>> for RawCommitCertificate {
                     .iter()
                     .map(|sig| RawCommitSignature {
                         address: sig.address,
-                        signature: *sig.signature.inner(),
+                        signature: sig.signature.clone(),
                     })
                     .collect(),
             },
@@ -498,7 +499,7 @@ impl From<LivenessMsg<EthexeContext>> for RawLivenessMsg {
         match value {
             LivenessMsg::Vote(vote) => Self::Vote(RawSignedMessage {
                 message: vote.message.to_sign_bytes(),
-                signature: *vote.signature.inner(),
+                signature: vote.signature.clone(),
             }),
             LivenessMsg::PolkaCertificate(polka) => Self::PolkaCertificate(RawPolkaCertificate {
                 height: polka.height,
@@ -518,7 +519,7 @@ impl From<LivenessMsg<EthexeContext>> for RawLivenessMsg {
                             vote_type: sig.vote_type,
                             value_id: sig.value_id,
                             address: sig.address,
-                            signature: *sig.signature.inner(),
+                            signature: sig.signature.clone(),
                         })
                         .collect(),
                 })
@@ -624,7 +625,7 @@ impl From<ValidatorProof<EthexeContext>> for RawValidatorProof {
         Self {
             public_key: value.public_key,
             peer_id: value.peer_id,
-            signature: *value.signature.inner(),
+            signature: value.signature.clone(),
         }
     }
 }

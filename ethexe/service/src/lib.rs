@@ -145,7 +145,7 @@ pub struct Service {
     blob_loader: Box<dyn BlobLoaderService>,
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
-    malachite: MalachiteService,
+    malachite: Option<MalachiteService>,
     signer: Signer,
 
     // Optional services
@@ -481,13 +481,24 @@ impl Service {
             hex::encode(malachite_config.chain_id),
             malachite_config.listen_addr,
         );
-        let malachite = MalachiteService::new(
-            malachite_config,
-            db.clone(),
-            std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
-        )
-        .await
-        .context("failed to start Malachite service")?;
+        let malachite = if let Some(pub_key) = validator_pub_key {
+            Some(
+                MalachiteService::new(
+                    malachite_config,
+                    db.clone(),
+                    signer.clone(),
+                    pub_key,
+                    std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
+                )
+                .await
+                .context("failed to start Malachite service")?,
+            )
+        } else {
+            log::info!(
+                "🪨 No validator public key configured; Malachite service disabled on this node"
+            );
+            None
+        };
 
         let fast_sync = config.node.fast_sync;
 
@@ -534,17 +545,14 @@ impl Service {
         fast_sync: bool,
         validator_address: Option<Address>,
     ) -> Result<Self> {
-        let tmp = std::env::temp_dir()
+        // Tests don't yet exercise Malachite consensus directly; keep
+        // the field `None` and let the outer event loop idle that
+        // branch via `maybe_next_some`.
+        let _tmp = std::env::temp_dir()
             .join("ethexe-malachite-test")
             .join(format!("{}", std::process::id()));
-        let cfg = MalachiteConfig::from_ethexe_genesis(H256::zero(), tmp);
-        let malachite = MalachiteService::new(
-            cfg,
-            db.clone(),
-            std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
-        )
-        .await
-        .context("failed to start Malachite service in test")?;
+        let _cfg = MalachiteConfig::from_ethexe_genesis(H256::zero(), _tmp);
+        let malachite: Option<MalachiteService> = None;
         Ok(Self {
             db,
             observer,
@@ -615,7 +623,7 @@ impl Service {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
                 event = consensus.select_next_some() => event?.into(),
-                event = malachite.select_next_some() => event?.into(),
+                event = malachite.maybe_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
@@ -643,7 +651,9 @@ impl Service {
                             "📦 receive a chain head",
                         );
 
-                        malachite.receive_new_chain_head(block_data);
+                        if let Some(m) = malachite.as_mut() {
+                            m.receive_new_chain_head(block_data);
+                        }
                         consensus.receive_new_chain_head(block_data)?
                     }
                     ObserverEvent::BlockSynced(block) => {
@@ -712,7 +722,9 @@ impl Service {
                                 // Shadow the tx into the Malachite mempool too —
                                 // sequencer side keeps its own independent pool
                                 // for block-producer picks.
-                                malachite.receive_injected_transaction((*transaction).clone());
+                                if let Some(m) = malachite.as_mut() {
+                                    m.receive_injected_transaction((*transaction).clone());
+                                }
                                 let res = consensus.receive_injected_transaction(*transaction);
                                 channel
                                     .send(res.into())
@@ -754,8 +766,9 @@ impl Service {
                                 // Also drop the TX into the Malachite
                                 // mempool so the sequencer can pick it
                                 // up on the producer side.
-                                malachite
-                                    .receive_injected_transaction(transaction.tx.clone());
+                                if let Some(m) = malachite.as_mut() {
+                                    m.receive_injected_transaction(transaction.tx.clone());
+                                }
                                 let acceptance = consensus
                                     .receive_injected_transaction(transaction.tx)
                                     .into();
