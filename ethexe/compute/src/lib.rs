@@ -151,12 +151,13 @@ pub use compute::{
     utils::{find_canonical_events_post_quarantine, prepare_executable_for_announce},
 };
 use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, injected::Promise};
-use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
+use ethexe_processor::{
+    BoundPromiseSink, ExecutableData, ProcessedCodeInfo, Processor, ProcessorError,
+};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
-use tokio::sync::mpsc;
 
 mod codes;
 mod compute;
@@ -227,7 +228,7 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
     fn process_code(
         &mut self,
@@ -239,9 +240,9 @@ impl ProcessorExt for Processor {
     async fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<FinalizedBlockTransitions> {
-        self.process_programs(executable, promise_out_tx)
+        self.process_programs(executable, promise_sink)
             .await
             .map_err(Into::into)
     }
