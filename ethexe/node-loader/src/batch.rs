@@ -1540,7 +1540,7 @@ async fn process_events(
 mod tests {
     use super::{
         Event, TransitionedMessage, apply_mirror_event_update, apply_router_transition_update,
-        send_message_wait_window,
+        schedule_initial_workers, send_message_wait_window,
     };
     use crate::batch::context::ContextUpdate;
     use ethexe_common::events::{
