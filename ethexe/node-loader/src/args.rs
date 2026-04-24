@@ -68,6 +68,12 @@ pub struct LoadParams {
     pub worker_private_keys: Vec<String>,
     #[arg(long, short, default_value = "1")]
     pub batch_size: usize,
+    /// Percentage of load batches that create new programs after bootstrapping.
+    ///
+    /// The default preserves the historical mix: `upload_program` and
+    /// `create_program` were two out of six uniformly selected batch families.
+    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=100))]
+    pub program_creation_ratio: Option<u8>,
     /// Whether to batch regular `send_message` calls through the multicall contract.
     #[arg(long, default_value_t = true, action = ArgAction::Set)]
     pub use_send_message_multicall: bool,

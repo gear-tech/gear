@@ -22,7 +22,7 @@ use crate::{
     abi::deploy_send_message_multicall,
     args::LoadParams,
     batch::{
-        BatchPool, LoadRunConfig,
+        BatchPool, LoadRunConfig, WorkloadPolicy,
         report::RunEndedBy,
         value::{ValuePolicy, format_wvara},
     },
@@ -167,6 +167,7 @@ async fn load_node(params: LoadParams) -> Result<()> {
             code_seed_type: params.code_seed_type,
             workers: params.workers,
             batch_size: params.batch_size,
+            workload_policy: WorkloadPolicy::new(params.program_creation_ratio),
             value_policy: value_policy.clone(),
         },
         tx,

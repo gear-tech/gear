@@ -81,12 +81,33 @@ pub struct BatchPool<Rng: CallGenRng> {
     _marker: PhantomData<Rng>,
 }
 
+const DEFAULT_PROGRAM_CREATION_RATIO: u8 = 33;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorkloadPolicy {
+    pub program_creation_ratio: u8,
+}
+
+impl WorkloadPolicy {
+    pub fn new(program_creation_ratio: Option<u8>) -> Self {
+        Self {
+            program_creation_ratio: program_creation_ratio
+                .unwrap_or(DEFAULT_PROGRAM_CREATION_RATIO),
+        }
+    }
+
+    pub fn persistent_program_loading(self) -> bool {
+        self.program_creation_ratio < DEFAULT_PROGRAM_CREATION_RATIO
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LoadRunConfig {
     pub loader_seed: Option<u64>,
     pub code_seed_type: Option<SeedVariant>,
     pub workers: usize,
     pub batch_size: usize,
+    pub workload_policy: WorkloadPolicy,
     pub value_policy: Option<crate::batch::value::ValuePolicy>,
 }
 
@@ -309,8 +330,13 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         self.value_ledger = config.value_policy.clone().map(ValueBudgetLedger::new);
 
         let rt_settings = RuntimeSettings::new()?;
-        let mut batch_gen =
-            BatchGenerator::<Rng>::new(seed, self.batch_size, config.code_seed_type, rt_settings);
+        let mut batch_gen = BatchGenerator::<Rng>::new(
+            seed,
+            self.batch_size,
+            config.code_seed_type,
+            rt_settings,
+            config.workload_policy,
+        );
 
         if !shutting_down {
             budget_exhausted = schedule_initial_workers(self.pool_size, |worker_idx| {
