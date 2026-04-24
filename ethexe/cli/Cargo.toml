@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 ethexe-network.workspace = true
+ethexe-malachite.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc = { workspace = true, features = ["client"] }
 ethexe-service.workspace = true

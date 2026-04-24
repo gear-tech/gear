@@ -62,6 +62,9 @@ use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
+use ethexe_malachite::{
+    EmptyMempool, MalachiteConfig, MalachiteEvent, MalachiteService,
+};
 use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
@@ -100,6 +103,7 @@ mod tests;
 pub enum Event {
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
+    Malachite(MalachiteEvent),
     Network(NetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
@@ -141,6 +145,7 @@ pub struct Service {
     blob_loader: Box<dyn BlobLoaderService>,
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
+    malachite: MalachiteService,
     signer: Signer,
 
     // Optional services
@@ -458,6 +463,29 @@ impl Service {
         let processor = Processor::with_config(processor_config, db.clone())?;
         let compute = ComputeService::new(compute_config, db.clone(), processor);
 
+        // Malachite consensus service. Genesis is derived
+        // deterministically from the ethexe genesis block hash so
+        // every node on the same deployment agrees on the chain id.
+        let malachite_home = config
+            .node
+            .database_path_for(config.ethereum.router_address)
+            .join("malachite");
+        let mut malachite_config =
+            MalachiteConfig::from_ethexe_genesis(genesis_block_hash, malachite_home)
+                .with_listen_addr(config.malachite.listen_addr);
+        if let Some(moniker) = config.malachite.moniker.clone() {
+            malachite_config.moniker = moniker;
+        }
+        log::info!(
+            "🪨 Malachite chain id: 0x{}  listen: {}",
+            hex::encode(malachite_config.chain_id),
+            malachite_config.listen_addr,
+        );
+        let malachite =
+            MalachiteService::new(malachite_config, std::sync::Arc::new(EmptyMempool))
+                .await
+                .context("failed to start Malachite service")?;
+
         let fast_sync = config.node.fast_sync;
 
         #[allow(unreachable_code)]
@@ -468,6 +496,7 @@ impl Service {
             blob_loader,
             compute,
             consensus,
+            malachite,
             signer,
             prometheus,
             rpc,
@@ -488,7 +517,7 @@ impl Service {
 
     #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new_from_parts(
+    pub(crate) async fn new_from_parts(
         db: Database,
         observer: ObserverService,
         blob_loader: Box<dyn BlobLoaderService>,
@@ -501,13 +530,21 @@ impl Service {
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
         validator_address: Option<Address>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let tmp = std::env::temp_dir()
+            .join("ethexe-malachite-test")
+            .join(format!("{}", std::process::id()));
+        let cfg = MalachiteConfig::from_ethexe_genesis(H256::zero(), tmp);
+        let malachite = MalachiteService::new(cfg, std::sync::Arc::new(EmptyMempool))
+            .await
+            .context("failed to start Malachite service in test")?;
+        Ok(Self {
             db,
             observer,
             blob_loader,
             compute,
             consensus,
+            malachite,
             signer,
             network,
             prometheus,
@@ -515,7 +552,7 @@ impl Service {
             sender,
             fast_sync,
             validator_address,
-        }
+        })
     }
 
     pub async fn run(mut self) -> Result<()> {
@@ -536,6 +573,7 @@ impl Service {
             mut blob_loader,
             mut compute,
             mut consensus,
+            mut malachite,
             signer: _signer,
             mut prometheus,
             rpc,
@@ -570,6 +608,7 @@ impl Service {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
                 event = consensus.select_next_some() => event?.into(),
+                event = malachite.select_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
@@ -597,6 +636,7 @@ impl Service {
                             "📦 receive a chain head",
                         );
 
+                        malachite.receive_new_chain_head(block_data);
                         consensus.receive_new_chain_head(block_data)?
                     }
                     ObserverEvent::BlockSynced(block) => {
@@ -762,6 +802,25 @@ impl Service {
                     }
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
+                    }
+                },
+                Event::Malachite(event) => match event {
+                    MalachiteEvent::BlockProposal(block) => {
+                        tracing::info!(
+                            height = block.height,
+                            eth_ref = %block.eth_block_ref,
+                            gas = block.gas_allowance,
+                            txs = block.transactions.len(),
+                            "🧱 Malachite: BlockProposal",
+                        );
+                    }
+                    MalachiteEvent::BlockFinalized(cert) => {
+                        tracing::info!(
+                            height = cert.height,
+                            block_hash = %cert.block_hash,
+                            sigs = cert.signatures.len(),
+                            "✅ Malachite: BlockFinalized",
+                        );
                     }
                 },
                 Event::Prometheus(event) => match event {

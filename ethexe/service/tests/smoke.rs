@@ -77,6 +77,7 @@ async fn constructor() {
         node: node_cfg,
         ethereum: eth_cfg,
         network: None,
+        malachite: Default::default(),
         rpc: None,
         prometheus: None,
     };

@@ -138,6 +138,7 @@ pub enum TestingEvent {
     // Services events.
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
+    Malachite,
     Network(TestingNetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
@@ -151,6 +152,7 @@ impl TestingEvent {
         match event {
             Event::Compute(event) => Self::Compute(event.clone()),
             Event::Consensus(event) => Self::Consensus(event.clone()),
+            Event::Malachite(_event) => Self::Malachite,
             Event::Network(event) => Self::Network(TestingNetworkEvent::new(event)),
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),

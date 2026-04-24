@@ -1073,7 +1073,9 @@ impl Node {
             sender,
             self.fast_sync,
             validator_address,
-        );
+        )
+        .await
+        .expect("Failed to construct test service");
 
         let name = self.name.clone();
         let handle = task::spawn(async move {

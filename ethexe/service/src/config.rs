@@ -23,15 +23,38 @@ use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use gsigner::secp256k1::{Address, PublicKey};
-use std::{path::PathBuf, str::FromStr, time::Duration};
+use std::{net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 
 #[derive(Debug)]
 pub struct Config {
     pub node: NodeConfig,
     pub ethereum: EthereumConfig,
     pub network: Option<NetworkConfig>,
+    pub malachite: MalachiteCliConfig,
     pub rpc: Option<RpcConfig>,
     pub prometheus: Option<PrometheusConfig>,
+}
+
+/// User-facing subset of [`ethexe_malachite::MalachiteConfig`],
+/// resolved at CLI/TOML parse time. The rest of the runtime fields
+/// (genesis-derived chain id, home directory, mempool) are filled in
+/// by the service itself.
+#[derive(Clone, Debug)]
+pub struct MalachiteCliConfig {
+    /// Listen address for the Malachite libp2p TCP swarm.
+    pub listen_addr: SocketAddr,
+    /// Override the default `ethexe-malachite` moniker reported in
+    /// Malachite logs and libp2p identify.
+    pub moniker: Option<String>,
+}
+
+impl Default for MalachiteCliConfig {
+    fn default() -> Self {
+        Self {
+            listen_addr: ethexe_malachite::MalachiteConfig::DEFAULT_LISTEN_ADDR,
+            moniker: None,
+        }
+    }
 }
 
 impl Config {

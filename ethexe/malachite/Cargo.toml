@@ -1,0 +1,39 @@
+[package]
+description = "Malachite-backed consensus service for ethexe"
+name = "ethexe-malachite"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+bytes.workspace = true
+derive_more.workspace = true
+futures.workspace = true
+hex.workspace = true
+log.workspace = true
+parity-scale-codec.workspace = true
+prost = { version = "0.13", default-features = false }
+rand = { workspace = true, features = ["std", "std_rng"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha3.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+tracing.workspace = true
+
+# Malachite BFT engine
+malachitebft-app-channel.workspace = true
+malachitebft-proto.workspace = true
+malachitebft-test.workspace = true
+
+# ethexe
+ethexe-common = { workspace = true, features = ["std"] }
+ethexe-db = { workspace = true, default-features = false }
+gprimitives = { workspace = true, features = ["std"] }
+
+gear-workspace-hack.workspace = true
