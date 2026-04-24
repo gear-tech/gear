@@ -28,15 +28,21 @@ use ::proptest::{
     arbitrary::Arbitrary,
     collection, option,
     prelude::{BoxedStrategy, Strategy, any},
-    prop_oneof, sample,
+    prop_oneof,
     strategy::Just,
 };
-use alloc::{collections::BTreeMap, vec::Vec};
+#[cfg(test)]
+use ::proptest::sample;
+use alloc::collections::BTreeMap;
+#[cfg(test)]
+use alloc::vec::Vec;
 use ethexe_common::{
-    HashOf, MaybeHashOf, ProgramStates, Schedule, StateHashWithQueueSize,
+    HashOf, MaybeHashOf, ProgramStates, StateHashWithQueueSize,
     gear::{Message, MessageType, ValueClaim},
     mock::schedule_strategy as common_schedule_strategy,
 };
+#[cfg(test)]
+use ethexe_common::Schedule;
 use gear_core::{
     buffer::Payload,
     ids::prelude::MessageIdExt as _,
@@ -371,6 +377,36 @@ fn program_states_strategy() -> BoxedStrategy<ProgramStates> {
     collection::btree_map(actor_id_strategy(), any::<StateHashWithQueueSize>(), 0..=4).boxed()
 }
 
+fn in_block_transitions_strategy() -> BoxedStrategy<InBlockTransitions> {
+    (
+        any::<u32>(),
+        program_states_strategy(),
+        common_schedule_strategy(),
+        collection::btree_map(actor_id_strategy(), any::<NonFinalTransition>(), 0..=4),
+        collection::btree_map(actor_id_strategy(), code_id_strategy(), 0..=3),
+    )
+        .prop_map(
+            |(block_height, states, schedule, modifications, raw_program_creations)| {
+                let mut program_creations = BTreeMap::new();
+                for (actor_id, code_id) in raw_program_creations {
+                    if !states.contains_key(&actor_id) {
+                        program_creations.insert(actor_id, code_id);
+                    }
+                }
+
+                InBlockTransitions::from_parts(
+                    block_height,
+                    states,
+                    schedule,
+                    modifications,
+                    program_creations,
+                )
+            },
+        )
+        .boxed()
+}
+
+#[cfg(test)]
 #[derive(Debug, Clone)]
 struct InBlockTransitionsModel {
     modifications: BTreeMap<ActorId, NonFinalTransition>,
@@ -379,6 +415,7 @@ struct InBlockTransitionsModel {
     program_creations: BTreeMap<ActorId, CodeId>,
 }
 
+#[cfg(test)]
 fn transition_with_current_state_strategy(
     current_state: StateHashWithQueueSize,
 ) -> BoxedStrategy<NonFinalTransition> {
@@ -395,6 +432,7 @@ fn transition_with_current_state_strategy(
     .boxed()
 }
 
+#[cfg(test)]
 fn in_block_transitions_with_model_strategy()
 -> BoxedStrategy<(InBlockTransitions, InBlockTransitionsModel)> {
     (
@@ -1002,9 +1040,7 @@ impl Arbitrary for InBlockTransitions {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        in_block_transitions_with_model_strategy()
-            .prop_map(|(transitions, _model)| transitions)
-            .boxed()
+        in_block_transitions_strategy()
     }
 }
 
