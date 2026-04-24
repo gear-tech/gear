@@ -214,6 +214,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         },
         genesis_block_hash: genesis.hash,
         genesis_announce_hash,
+        max_validators: storage_view.maxValidators,
     };
 
     // NOTE: start block and announce could be changed later by fast-sync

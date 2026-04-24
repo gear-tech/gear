@@ -16,14 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{InitConfig, v0};
+use super::{InitConfig, v0, v4::migrated_types::DBConfig};
 use crate::RawDatabase;
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result};
-use ethexe_common::{
-    ProtocolTimelines,
-    db::{DBConfig, DBGlobals},
-};
+use ethexe_common::{ProtocolTimelines, db::DBGlobals};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
@@ -31,7 +28,7 @@ pub const VERSION: u32 = 1;
 
 const _: () = const {
     assert!(
-        crate::VERSION == super::v3::VERSION,
+        crate::VERSION == super::v4::VERSION,
         "Check migration code for types changing in case of version change: DBConfig, DBGlobals, ProtocolTimelines"
     );
 };
@@ -113,7 +110,7 @@ mod tests {
                 meta_type::<v0::ProtocolTimelines>(),
                 meta_type::<DBConfig>(),
             ],
-            "97f71c37b40f02753863afae68bbd8fb1bda9a9110dbf3a9e24e6d1869c6dafa",
+            "a0a685f32d4fedd5a3645f5b33fdf671759d88167a37dac24e82721dfe295c1b",
         );
     }
 }

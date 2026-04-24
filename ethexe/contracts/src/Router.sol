@@ -87,6 +87,7 @@ contract Router is
         router.validationSettings.thresholdDenominator = Gear.VALIDATORS_THRESHOLD_DENOMINATOR;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
+        router.protocolData.maxValidators = uint16(_validators.length);
 
         // Set validators for the era 0.
         _resetValidators(
@@ -152,6 +153,7 @@ contract Router is
         Storage storage router = _router();
         router.genesisBlock = Gear.newGenesis();
         router.latestCommittedBatch = Gear.CommittedBatchInfo({hash: bytes32(0), timestamp: 0});
+        router.protocolData.maxValidators = uint16(Gear.currentEraValidators(router).list.length);
     }
 
     /**
@@ -177,7 +179,8 @@ contract Router is
             computeSettings: router.computeSettings,
             timelines: router.timelines,
             programsCount: router.protocolData.programsCount,
-            validatedCodesCount: router.protocolData.validatedCodesCount
+            validatedCodesCount: router.protocolData.validatedCodesCount,
+            maxValidators: router.protocolData.maxValidators
         });
     }
 
