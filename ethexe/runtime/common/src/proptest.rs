@@ -24,6 +24,8 @@ use crate::{
         PayloadLookup, Program, ProgramState, RegionIdx, Storage, UserMailbox, Waitlist,
     },
 };
+#[cfg(test)]
+use ::proptest::sample;
 use ::proptest::{
     arbitrary::Arbitrary,
     collection, option,
@@ -31,18 +33,16 @@ use ::proptest::{
     prop_oneof,
     strategy::Just,
 };
-#[cfg(test)]
-use ::proptest::sample;
 use alloc::collections::BTreeMap;
 #[cfg(test)]
 use alloc::vec::Vec;
+#[cfg(test)]
+use ethexe_common::Schedule;
 use ethexe_common::{
     HashOf, MaybeHashOf, ProgramStates, StateHashWithQueueSize,
     gear::{Message, MessageType, ValueClaim},
     mock::schedule_strategy as common_schedule_strategy,
 };
-#[cfg(test)]
-use ethexe_common::Schedule;
 use gear_core::{
     buffer::Payload,
     ids::prelude::MessageIdExt as _,
