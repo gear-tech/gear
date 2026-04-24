@@ -316,9 +316,9 @@ impl Arbitrary for ProtocolTimelines {
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         Just(Self {
             genesis_ts: 0,
-            era: 1000,
+            era: 1000.try_into().unwrap(),
             election: 200,
-            slot: 10,
+            slot: 10.try_into().unwrap(),
         })
         .boxed()
     }
@@ -576,18 +576,18 @@ impl BlockFullData {
     }
 
     #[track_caller]
-    pub fn as_prepared(&self) -> &PreparedBlockData {
-        self.prepared.as_ref().expect("block not prepared")
-    }
-
-    #[track_caller]
     pub fn as_synced_mut(&mut self) -> &mut SyncedBlockData {
         self.synced.as_mut().expect("block not synced")
     }
 
     #[track_caller]
+    pub fn as_prepared(&self) -> &PreparedBlockData {
+        self.prepared.as_ref().expect("block is not prepared")
+    }
+
+    #[track_caller]
     pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
-        self.prepared.as_mut().expect("block not prepared")
+        self.prepared.as_mut().expect("block is not prepared")
     }
 
     #[track_caller]
@@ -767,9 +767,11 @@ impl BlockChain {
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
 
-                let block_era = config.timelines.era_from_ts(header.timestamp);
+                let block_era = config.timelines.era_from_ts(header.timestamp).unwrap();
                 db.set_validators(block_era, validators.clone());
-                db.set_block_validators_committed_for_era(hash, block_era);
+                db.mutate_block_meta(hash, |meta| {
+                    meta.latest_era_validators_committed = Some(block_era)
+                });
             }
 
             if let Some(PreparedBlockData {
@@ -779,14 +781,18 @@ impl BlockChain {
                 last_committed_announce,
             }) = prepared
             {
+                if let Some(announces) = announces {
+                    db.set_block_announces(hash, announces);
+                }
+
                 db.mutate_block_meta(hash, |meta| {
                     *meta = BlockMeta {
                         prepared: true,
-                        announces,
                         codes_queue: Some(codes_queue),
                         last_committed_batch: Some(last_committed_batch),
                         last_committed_announce: Some(last_committed_announce),
-                    }
+                        ..*meta
+                    };
                 });
             }
         }
@@ -900,12 +906,13 @@ impl BlockChain {
             router_address,
             timelines: ProtocolTimelines {
                 genesis_ts: genesis_ts as u64,
-                era: slot * 100,
+                era: (slot * 100).try_into().unwrap(),
                 election: slot * 20,
-                slot,
+                slot: slot.try_into().unwrap(),
             },
             genesis_block_hash: blocks[0].hash,
             genesis_announce_hash: genesis_announce_hash.unwrap(),
+            max_validators: 10,
         };
 
         let globals = DBGlobals {
@@ -943,7 +950,7 @@ pub trait DBMockExt {
     fn top_announce_hash(&self, block: H256) -> HashOf<Announce>;
 }
 
-impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
+impl<DB: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO> DBMockExt for DB {
     #[track_caller]
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
@@ -955,8 +962,7 @@ impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
 
     #[track_caller]
     fn top_announce_hash(&self, block: H256) -> HashOf<Announce> {
-        self.block_meta(block)
-            .announces
+        self.block_announces(block)
             .expect("block announces not found")
             .into_iter()
             .next()
@@ -1017,6 +1023,7 @@ impl Arbitrary for DBConfig {
                     timelines,
                     genesis_block_hash,
                     genesis_announce_hash,
+                    max_validators: 0,
                 },
             )
             .boxed()

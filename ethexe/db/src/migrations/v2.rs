@@ -16,25 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::InitConfig;
+use super::{InitConfig, utils};
 use anyhow::{Context as _, Result, ensure};
 use gprimitives::H256;
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Decode, Encode};
 
 // Critical usages for migration
 #[allow(unused_imports)]
 use crate::KVDatabase;
-use crate::{RawDatabase, database::BlockSmallData};
+use crate::{
+    RawDatabase,
+    migrations::{v3, v4::migrated_types::DBConfig},
+};
 use ethexe_common::{
     Announce, HashOf,
-    db::{AnnounceStorageRW, DBConfig, DBGlobals},
+    db::{AnnounceStorageRW, DBGlobals},
 };
 
 pub const VERSION: u32 = 2;
 
 const _: () = const {
     assert!(
-        crate::VERSION == VERSION,
+        crate::VERSION == super::v4::VERSION,
         "Check migration code for types changing in case of version change: DBConfig, DBGlobals, Announce, BlockSmallData. \
          Also check AnnounceStorageRW, KVDatabase, dyn KVDatabase implementations"
     );
@@ -59,14 +62,15 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         .kv
         .iter_prefix(H256::from_low_u64_be(BLOCK_SMALL_DATA_PREFIX).as_bytes())
     {
-        if k.len() != 2 * std::mem::size_of::<H256>() {
+        if k.len() != 2 * size_of::<H256>() {
             continue;
         }
 
-        let block_hash = H256::from_slice(&k[std::mem::size_of::<H256>()..]);
+        let block_hash = H256::from_slice(&k[size_of::<H256>()..]);
 
-        let BlockSmallData { meta, .. } = BlockSmallData::decode(&mut v.as_slice())
-            .context("failed to decode BlockSmallData during migration")?;
+        let v3::migrated_types::BlockSmallData { meta, .. } =
+            v3::migrated_types::BlockSmallData::decode(&mut v.as_slice())
+                .context("failed to decode BlockSmallData during migration")?;
 
         log::trace!("Investigating block {block_hash:?} with meta {meta:?}");
 
@@ -87,8 +91,11 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
             announces_to_copy.push(announce);
         }
     }
+    let config_key = utils::config_key_bytes();
+    let raw_config = db.kv.get(&config_key).context("Cannot find db config")?;
+    let mut config =
+        DBConfig::decode(&mut raw_config.as_slice()).context("Failed decode database config")?;
 
-    let config = db.kv.config().context("Cannot find db config")?;
     let globals: DBGlobals = db.kv.globals().context("Cannot find db globals")?;
 
     // Check that announce hashes in config and globals are correct, to be sure that we won't break anything by copying announces
@@ -121,10 +128,8 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
         db.set_announce(announce);
     }
 
-    db.kv.set_config(DBConfig {
-        version: VERSION,
-        ..config
-    });
+    config.version = VERSION;
+    db.kv.put(&config_key, config.encode());
 
     Ok(())
 }
@@ -132,7 +137,7 @@ pub async fn migration_from_v1(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrations::migration::test::assert_migration_types_hash;
+    use crate::migrations::{migration::test::assert_migration_types_hash, v3};
     use scale_info::meta_type;
 
     #[test]
@@ -143,9 +148,9 @@ mod tests {
                 meta_type::<DBConfig>(),
                 meta_type::<DBGlobals>(),
                 meta_type::<Announce>(),
-                meta_type::<BlockSmallData>(),
+                meta_type::<v3::migrated_types::BlockSmallData>(),
             ],
-            "81abd3c542f8e52406a3f590c9baffdbd9bd6f983ca1410f536c3967544f069e",
+            "8e2f11ef0da840f25b086f6adfabbcc08729e4a0f0b107d51a4ea043402aed57",
         );
     }
 }

@@ -24,7 +24,7 @@ use crate::{
     announces::{self, DBAnnouncesExt},
     validator::DefaultProcessing,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
@@ -228,7 +228,8 @@ impl Producer {
             .ctx
             .core
             .timelines
-            .era_from_ts(self.block.header.timestamp);
+            .era_from_ts(self.block.header.timestamp)
+            .context("failed to calculate era from block timestamp")?;
         let message = ValidatorMessage {
             era_index,
             payload: announce.clone(),

@@ -127,7 +127,7 @@ impl<T: BatchCommitter + 'static> From<T> for Box<dyn BatchCommitter> {
 pub struct ElectionRequest {
     pub at_block_hash: H256,
     pub at_timestamp: u64,
-    pub max_validators: u32,
+    pub max_validators: u16,
 }
 
 /// [`MiddlewareWrapper`] is a wrapper around the dyn [`ElectionProvider`] trait.

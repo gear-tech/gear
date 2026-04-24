@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, num::NonZeroU64};
 
 use super::types::{ValidationRejectReason, ValidationStatus};
 
@@ -518,8 +518,9 @@ async fn test_aggregate_validators_commitment() {
     let (ctx, _, eth) = mock_validator_context(Database::memory());
     let chain = test_block_chain(20)
         .tap_mut(|chain| {
-            chain.config.timelines.era = 10 * chain.config.timelines.slot;
-            chain.config.timelines.election = 5 * chain.config.timelines.slot;
+            chain.config.timelines.era =
+                NonZeroU64::new(10 * chain.config.timelines.slot.get()).unwrap();
+            chain.config.timelines.election = 5 * chain.config.timelines.slot.get();
         })
         .setup(&ctx.core.db);
 
@@ -530,11 +531,11 @@ async fn test_aggregate_validators_commitment() {
         .into_iter()
         .collect();
     eth.predefined_election_at.write().await.insert(
-        chain.config.timelines.era_election_start_ts(0),
+        chain.config.timelines.era_election_start_ts(0).unwrap(),
         validators1.clone(),
     );
     eth.predefined_election_at.write().await.insert(
-        chain.config.timelines.era_election_start_ts(1),
+        chain.config.timelines.era_election_start_ts(1).unwrap(),
         validators2.clone(),
     );
 
@@ -570,9 +571,9 @@ async fn test_aggregate_validators_commitment() {
     assert_eq!(commitment.era_index, 1);
 
     // Inside election period validators already committed
-    ctx.core
-        .db
-        .set_block_validators_committed_for_era(chain.blocks[7].hash, 1);
+    ctx.core.db.mutate_block_meta(chain.blocks[7].hash, |meta| {
+        meta.latest_era_validators_committed = Some(1);
+    });
     let commitment = ctx
         .core
         .batch_manager
@@ -584,7 +585,9 @@ async fn test_aggregate_validators_commitment() {
     // Election for era 2 but validators are not committed for era 1
     ctx.core
         .db
-        .set_block_validators_committed_for_era(chain.blocks[15].hash, 0);
+        .mutate_block_meta(chain.blocks[15].hash, |meta| {
+            meta.latest_era_validators_committed = Some(0);
+        });
     let commitment = ctx
         .core
         .batch_manager
@@ -598,7 +601,9 @@ async fn test_aggregate_validators_commitment() {
     // Election for era 2 but validators for era 3 are already committed
     ctx.core
         .db
-        .set_block_validators_committed_for_era(chain.blocks[15].hash, 3);
+        .mutate_block_meta(chain.blocks[15].hash, |meta| {
+            meta.latest_era_validators_committed = Some(3);
+        });
     ctx.core
         .batch_manager
         .aggregate_validators_commitment(&chain.blocks[15].to_simple())

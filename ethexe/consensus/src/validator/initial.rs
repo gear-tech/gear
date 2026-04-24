@@ -220,17 +220,27 @@ impl Initial {
 
 impl ValidatorContext {
     fn switch_to_producer_or_subordinate(self, block: SimpleBlockData) -> Result<ValidatorState> {
-        let era_index = self.core.timelines.era_from_ts(block.header.timestamp);
+        let era_index = self
+            .core
+            .timelines
+            .era_from_ts(block.header.timestamp)
+            .ok_or_else(|| anyhow!("failed to calculate era for block {}", block.hash))?;
         let validators = self
             .core
             .db
             .validators(era_index)
-            .ok_or(anyhow!("validators not found for era {era_index}"))?;
+            .ok_or_else(|| anyhow!("validators not found for era {era_index}"))?;
 
         let producer = self
             .core
             .timelines
-            .block_producer_at(&validators, block.header.timestamp);
+            .block_producer_at(&validators, block.header.timestamp)
+            .ok_or_else(|| {
+                anyhow!(
+                    "failed to calculate block producer for block {}",
+                    block.hash
+                )
+            })?;
         let my_address = self.core.pub_key.to_address();
 
         if my_address == producer {
@@ -439,11 +449,11 @@ mod tests {
         let ctx = state.into_context();
         assert_eq!(ctx.output, vec![]);
         for i in last - 5..last - 5 + ctx.core.commitment_delay_limit as usize {
-            let announces = ctx.core.db.block_meta(chain.blocks[i].hash).announces;
+            let announces = ctx.core.db.block_announces(chain.blocks[i].hash);
             assert_eq!(announces.unwrap().len(), 2);
         }
         for i in last - 5 + ctx.core.commitment_delay_limit as usize..=last {
-            let announces = ctx.core.db.block_meta(chain.blocks[i].hash).announces;
+            let announces = ctx.core.db.block_announces(chain.blocks[i].hash);
             assert_eq!(announces.unwrap().len(), 1);
         }
     }
@@ -476,7 +486,7 @@ mod tests {
         assert_eq!(ctx.output, vec![]);
         (last - 9..=last).for_each(|idx| {
             let block_hash = chain.blocks[idx].hash;
-            let announces = ctx.core.db.block_meta(block_hash).announces;
+            let announces = ctx.core.db.block_announces(block_hash);
             assert!(
                 announces.is_some(),
                 "expected announces to be propagated for block {block_hash}"
@@ -545,7 +555,6 @@ mod tests {
 
         let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
         let block = test_block_chain(1)
-            .setup(&ctx.core.db)
             .tap_mut(|chain| {
                 chain.blocks[1].as_prepared_mut().announces = None;
                 chain.blocks[1].as_prepared_mut().last_committed_announce = HashOf::random();

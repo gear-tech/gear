@@ -26,7 +26,7 @@ use crate::{
 };
 
 use alloy::sol_types::SolValue;
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
@@ -200,12 +200,7 @@ impl BatchCommitmentManager {
                 });
             }
 
-            let candidates = self
-                .db
-                .block_meta(block.hash)
-                .announces
-                .into_iter()
-                .flatten();
+            let candidates = self.db.block_announces(block.hash).into_iter().flatten();
 
             let best_announce_hash =
                 announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
@@ -314,10 +309,17 @@ impl BatchCommitmentManager {
         &self,
         block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
-        let timelines = self.db.config().timelines;
+        let (timelines, max_validators) = {
+            let config = self.db.config();
+            (config.timelines, config.max_validators)
+        };
 
-        let block_era = timelines.era_from_ts(block.header.timestamp);
-        let election_ts = timelines.era_election_start_ts(block_era);
+        let block_era = timelines
+            .era_from_ts(block.header.timestamp)
+            .context("failed to calculate era from block timestamp")?;
+        let election_ts = timelines
+            .era_election_start_ts(block_era)
+            .context("failed to calculate election start timestamp")?;
 
         if block.header.timestamp < election_ts {
             tracing::trace!(
@@ -332,7 +334,8 @@ impl BatchCommitmentManager {
 
         let latest_era_validators_committed = self
             .db
-            .block_validators_committed_for_era(block.hash)
+            .block_meta(block.hash)
+            .latest_era_validators_committed
             .ok_or_else(|| {
                 anyhow!(
                     "not found latest_era_validators_committed in database for block: {}",
@@ -398,8 +401,7 @@ impl BatchCommitmentManager {
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
-            // TODO #4908: max validators must be configurable
-            max_validators: 10,
+            max_validators,
         };
 
         let elected_validators = match self.middleware.make_election_at(request).await {
