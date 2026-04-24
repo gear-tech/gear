@@ -18,7 +18,7 @@ pub enum Params {
         seed: u64,
     },
     /// Perform load test on the node
-    Load(LoadParams),
+    Load(Box<LoadParams>),
     /// Fuzz-test syscalls via the mega contract
     Fuzz(FuzzParams),
 }

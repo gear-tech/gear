@@ -25,7 +25,7 @@ use ethexe_ethereum::{
     mirror::events::try_extract_event,
 };
 use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
-use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
+use gear_call_gen::{CallGenRng, ClaimValueArgs};
 use gear_core::{
     ids::prelude::{CodeIdExt, MessageIdExt},
     message::ReplyCode,
@@ -756,7 +756,7 @@ async fn run_batch_impl(
         }
 
         PreparedBatch::SendReply(args) => {
-            let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
+            let removed_from_mailbox = args.iter().map(|call| call.arg.0.0);
 
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
