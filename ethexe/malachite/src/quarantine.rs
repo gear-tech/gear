@@ -18,26 +18,29 @@
 
 //! Canonical-quarantine helpers for the Malachite producer and validators.
 //!
-//! Both sides read directly from the shared [`Database`]: the producer
-//! to pick the youngest EB that has passed quarantine relative to the
-//! local chain head, validators to verify that the producer's pick is
-//! a canonical ancestor of the local chain head at depth ≥ quarantine.
+//! Both sides operate on the same inputs:
+//! - `head`: the most recent Ethereum block each node received via the
+//!   observer event stream — **not** `DBGlobals::latest_synced_block`,
+//!   which trails the event stream and is updated only after extra
+//!   processing.
+//! - the shared [`ethexe_db::Database`] as a source of
+//!   `parent_hash` links along the canonical chain.
 //!
-//! Convention used across ethexe:
+//! Convention:
 //! - `EB` = Ethereum block;
 //! - `MB` = Malachite sequencer block;
-//! - *"quarantine-passed"* means the block has at least
+//! - *"quarantine-passed"* means the block has ≥
 //!   [`ComputeConfig::canonical_quarantine`] canonical descendants on top.
 //!
-//! The semantics mirror
+//! The walk semantics mirror
 //! [`ethexe_compute::utils::find_canonical_events_post_quarantine`] so
-//! that the block the producer anchors to here is exactly the block
-//! whose events the execution layer would apply.
+//! that the EB the producer anchors to here is exactly the EB whose
+//! events the execution layer applies.
 //!
 //! [`ComputeConfig::canonical_quarantine`]: ethexe_compute::ComputeConfig
 
 use anyhow::{Result, anyhow};
-use ethexe_common::db::{ConfigStorageRO, GlobalsStorageRO, OnChainStorageRO};
+use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};
 use ethexe_db::Database;
 use gprimitives::H256;
 
@@ -47,30 +50,30 @@ use gprimitives::H256;
 /// malformed proposal from pinning us on a long DB walk.
 const VERIFY_LOOKBACK_SLACK: u32 = 1024;
 
-/// Return the hash of the youngest Ethereum block that has passed
-/// quarantine relative to the current local chain head.
+/// Return the youngest EB that has passed quarantine relative to `head`.
 ///
-/// Walks back `canonical_quarantine` steps along `parent_hash` from
-/// [`DBGlobals::latest_synced_block`]. If the walk reaches the ethexe
-/// genesis block first (chain too short), returns the genesis hash —
-/// the producer will emit it as an `AdvanceTillEthereumBlock` value
-/// and the executor treats it as "no advance beyond genesis".
+/// Walks back `canonical_quarantine` steps along `parent_hash`. If the
+/// walk would cross `genesis_block_hash` — meaning our chain is too
+/// short — returns `Ok(None)`: the producer then emits the next MB
+/// **without** an `AdvanceTillEthereumBlock` transaction instead of
+/// pretending to anchor on genesis.
 ///
-/// Returns an error only if a block header is unexpectedly missing
-/// from the database; callers should treat that as "do not propose
-/// yet".
-///
-/// [`DBGlobals::latest_synced_block`]: ethexe_common::db::DBGlobals
-pub fn anchor(db: &Database, canonical_quarantine: u8) -> Result<H256> {
-    let head = db.globals().latest_synced_block;
-    let genesis = db.config().genesis_block_hash;
-
+/// Returns `Err` when a block header is unexpectedly missing from the
+/// database (chain-integrity issue); callers treat that as "do not
+/// propose yet".
+pub fn anchor(
+    db: &Database,
+    head: SimpleBlockData,
+    canonical_quarantine: u8,
+    genesis_block_hash: H256,
+) -> Result<Option<H256>> {
     let mut current = head.hash;
     let mut header = head.header;
 
     for _ in 0..canonical_quarantine {
-        if current == genesis {
-            return Ok(current);
+        if current == genesis_block_hash {
+            // Too close to genesis — no EB has passed quarantine yet.
+            return Ok(None);
         }
         let parent = header.parent_hash;
         header = db
@@ -79,38 +82,43 @@ pub fn anchor(db: &Database, canonical_quarantine: u8) -> Result<H256> {
         current = parent;
     }
 
-    Ok(current)
+    // If after the full walk we landed exactly on genesis — still not
+    // enough depth *past* it (the ethexe quarantine window is defined
+    // as "≥ N canonical descendants", genesis has no ancestors to
+    // reach).
+    if current == genesis_block_hash {
+        return Ok(None);
+    }
+
+    Ok(Some(current))
 }
 
-/// Verify that `candidate` has already passed quarantine relative to
-/// the local chain head.
+/// Verify that `candidate` has passed quarantine relative to `head`.
 ///
-/// Concretely: `candidate` must be a canonical ancestor of
-/// [`DBGlobals::latest_synced_block`] reached in ≥ `canonical_quarantine`
-/// parent steps. `candidate == genesis` is always accepted (it cannot
-/// go any earlier than genesis).
+/// Concretely: `candidate` must be a canonical ancestor of `head`
+/// reached in ≥ `canonical_quarantine` parent steps.
 ///
 /// Returns `Err` when:
-/// - candidate is not an ancestor within the lookback window (either
-///   it's on a different fork, or our local view is behind the
-///   producer — we can't verify in either case, caller should reject
-///   the proposal);
-/// - candidate is an ancestor but the distance is smaller than
+/// - `candidate` is not an ancestor within the lookback window (either
+///   on a different fork, or our local view is behind the producer —
+///   we can't verify in either case, caller should reject the
+///   proposal);
+/// - `candidate` is an ancestor but the distance is smaller than
 ///   `canonical_quarantine` (still in quarantine);
 /// - a parent header is missing in the DB (chain integrity issue).
 ///
-/// [`DBGlobals::latest_synced_block`]: ethexe_common::db::DBGlobals
-pub fn verify_passed(db: &Database, candidate: H256, canonical_quarantine: u8) -> Result<()> {
-    let head = db.globals().latest_synced_block;
-    let genesis = db.config().genesis_block_hash;
-
-    // Producer convention: when our chain is too short to reach
-    // `canonical_quarantine`, `anchor` returns genesis. Matching that,
-    // we always accept genesis.
-    if candidate == genesis {
-        return Ok(());
-    }
-
+/// There is no "genesis is always OK" special case here: the producer
+/// rule in [`anchor`] is to skip `AdvanceTillEthereumBlock` entirely
+/// when the chain is too short, so a validator should never see a
+/// proposal anchoring on genesis — and if it does, the walk will
+/// correctly fail with "still within quarantine".
+pub fn verify_passed(
+    db: &Database,
+    head: SimpleBlockData,
+    candidate: H256,
+    canonical_quarantine: u8,
+    genesis_block_hash: H256,
+) -> Result<()> {
     let canonical_quarantine = canonical_quarantine as u32;
     let max_steps = canonical_quarantine + VERIFY_LOOKBACK_SLACK;
 
@@ -129,7 +137,7 @@ pub fn verify_passed(db: &Database, candidate: H256, canonical_quarantine: u8) -
             };
         }
 
-        if current == genesis {
+        if current == genesis_block_hash {
             return Err(anyhow!(
                 "EB {candidate} is not a canonical ancestor of local chain head \
                  (walk reached genesis at depth {depth})"

@@ -25,13 +25,14 @@
 //!
 //! ## Inputs
 //! - A shared [`ethexe_db::Database`] passed in at construction —
-//!   the producer reads the current EB chain head from
-//!   [`DBGlobals::latest_synced_block`] when Malachite asks for a value,
-//!   and both sides use it to compute and verify the quarantine anchor.
+//!   used to walk `parent_hash` links when computing or verifying the
+//!   quarantine anchor.
+//! - [`MalachiteService::receive_new_chain_head`] — the latest
+//!   Ethereum block observed by the node. Only the newest value is
+//!   retained (no history); it is the reference point for picking
+//!   and validating the quarantine anchor.
 //! - A [`Mempool`] passed in at construction, sampled from whenever the
 //!   node is the proposer.
-//!
-//! [`DBGlobals::latest_synced_block`]: ethexe_common::db::DBGlobals
 //!
 //! ## Outputs (`Stream<Item = Result<MalachiteEvent>>`)
 //! - [`MalachiteEvent::BlockProposal`] — a new sequencer block has been
@@ -59,7 +60,7 @@
 use anyhow::{Context as _, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
-use ethexe_common::injected::SignedInjectedTransaction;
+use ethexe_common::{SimpleBlockData, injected::SignedInjectedTransaction};
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -398,6 +399,7 @@ fn load_or_generate_node_key(home_dir: &std::path::Path) -> Result<PrivateKey> {
 /// Malachite-backed consensus service.
 pub struct MalachiteService {
     events_rx: mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
+    chain_head_tx: mpsc::UnboundedSender<SimpleBlockData>,
     mempool: Arc<dyn Mempool>,
 
     #[allow(dead_code)]
@@ -411,10 +413,12 @@ impl MalachiteService {
     /// background; `Stream::poll_next` then forwards
     /// [`MalachiteEvent`]s out of the app task.
     ///
-    /// `db` is the shared ethexe [`Database`]: the producer reads the
-    /// current Ethereum chain head + walks back `canonical_quarantine`
-    /// from it to anchor every sequencer block; validators read the
-    /// same view to verify incoming proposals.
+    /// `db` is the shared ethexe [`Database`], used for walking
+    /// `parent_hash` links along the canonical chain. The current
+    /// chain head itself is fed in later via
+    /// [`Self::receive_new_chain_head`] so both producer and
+    /// validators work off the exact block received from the observer
+    /// event stream rather than `DBGlobals::latest_synced_block`.
     pub async fn new(
         config: MalachiteConfig,
         db: Database,
@@ -502,6 +506,7 @@ impl MalachiteService {
 
         // ---- app task -----------------------------------------------------
         let (events_tx, events_rx) = mpsc::unbounded_channel();
+        let (chain_head_tx, chain_head_rx) = mpsc::unbounded_channel();
 
         let start_height = store
             .max_decided_value_height()
@@ -525,8 +530,15 @@ impl MalachiteService {
         let span = tracing::error_span!("ethexe::malachite::app", moniker = %config.moniker);
         let app_handle = tokio::spawn(
             async move {
-                if let Err(e) =
-                    app::run(state, channels, mempool, gas_allowance, events_tx).await
+                if let Err(e) = app::run(
+                    state,
+                    channels,
+                    mempool,
+                    gas_allowance,
+                    chain_head_rx,
+                    events_tx,
+                )
+                .await
                 {
                     tracing::error!(target: "ethexe::malachite", error = %e, "App task terminated");
                 }
@@ -536,6 +548,7 @@ impl MalachiteService {
 
         Ok(Self {
             events_rx,
+            chain_head_tx,
             mempool: mempool_for_service,
             engine,
             app_handle,
@@ -547,6 +560,15 @@ impl MalachiteService {
     /// assembling the next sequencer block.
     pub fn receive_injected_transaction(&self, tx: SignedInjectedTransaction) {
         self.mempool.insert(tx);
+    }
+
+    /// Feed the latest observer-delivered chain head into the
+    /// Malachite app. Only the newest value is retained — intermediate
+    /// heads are harmlessly overwritten.
+    pub fn receive_new_chain_head(&mut self, head: SimpleBlockData) {
+        if self.chain_head_tx.send(head).is_err() {
+            tracing::warn!(target: "ethexe::malachite", "app task closed, chain head dropped");
+        }
     }
 }
 

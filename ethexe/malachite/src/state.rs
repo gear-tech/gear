@@ -25,6 +25,7 @@ use std::collections::HashMap;
 
 use anyhow::{Result, anyhow};
 use bytes::Bytes;
+use ethexe_common::SimpleBlockData;
 use ethexe_db::Database;
 use gprimitives::H256;
 use tracing::{debug, error, info};
@@ -60,11 +61,22 @@ pub struct State {
     vote_extensions: HashMap<Height, VoteExtensions<EthexeContext>>,
     streams_map: PartStreamsMap,
 
-    /// Shared ethexe database. Both the producer path (picking the
-    /// quarantine-passed EB for [`Transaction::AdvanceTillEthereumBlock`])
-    /// and the validator path (verifying a peer's pick) read directly
-    /// from here — authoritative source for the current EB chain head.
+    /// Shared ethexe database. Used by both the producer and validator
+    /// paths to resolve `parent_hash` links when walking the canonical
+    /// chain during quarantine checks. The *head* itself is **not**
+    /// read from here — see [`Self::latest_received_head`].
     pub db: Database,
+
+    /// Most recent Ethereum block received via the observer event
+    /// stream (`Observer::Block`). This is intentionally decoupled
+    /// from [`DBGlobals::latest_synced_block`], which trails the
+    /// event stream because it is only updated after extra sync
+    /// processing. At [`Self::quarantine_anchor`] time the producer
+    /// works off this value; validators verify `AdvanceTillEthereumBlock`
+    /// against the same local view.
+    ///
+    /// [`DBGlobals::latest_synced_block`]: ethexe_common::db::DBGlobals
+    pub latest_received_head: Option<SimpleBlockData>,
 
     /// Matches [`ethexe_compute::ComputeConfig::canonical_quarantine`].
     /// Number of canonical descendants an EB needs to have before it's
@@ -102,20 +114,42 @@ impl State {
             vote_extensions: HashMap::new(),
             streams_map: PartStreamsMap::new(),
             db,
+            latest_received_head: None,
             canonical_quarantine,
         }
     }
 
-    /// The Ethereum block hash the producer should anchor the next
-    /// sequencer block to — i.e. the youngest EB that has already
-    /// passed quarantine relative to the local chain head.
-    pub fn quarantine_anchor(&self) -> Result<H256> {
-        quarantine::anchor(&self.db, self.canonical_quarantine)
+    /// Overwrite [`Self::latest_received_head`] with the newest
+    /// observer-delivered chain head.
+    pub fn set_latest_received_head(&mut self, head: SimpleBlockData) {
+        self.latest_received_head = Some(head);
     }
 
-    /// Ethexe genesis block hash — used as the safe fallback anchor
-    /// when the quarantine walk cannot proceed (e.g. DB is still
-    /// catching up on startup).
+    /// The Ethereum block hash the producer should anchor the next
+    /// sequencer block to — i.e. the youngest EB that has already
+    /// passed quarantine relative to the latest received head.
+    ///
+    /// Returns `Ok(None)` when either
+    /// - no chain-head event has arrived yet, or
+    /// - the chain isn't deep enough past genesis to clear the
+    ///   quarantine window.
+    ///
+    /// In both cases the producer must skip the
+    /// [`Transaction::AdvanceTillEthereumBlock`] transaction for this
+    /// sequencer block.
+    pub fn quarantine_anchor(&self) -> Result<Option<H256>> {
+        let Some(head) = self.latest_received_head else {
+            return Ok(None);
+        };
+        quarantine::anchor(
+            &self.db,
+            head,
+            self.canonical_quarantine,
+            self.genesis_block_hash(),
+        )
+    }
+
+    /// Ethexe genesis block hash as stored in the database.
     pub fn genesis_block_hash(&self) -> H256 {
         use ethexe_common::db::ConfigStorageRO;
         self.db.config().genesis_block_hash
@@ -131,9 +165,12 @@ impl State {
     /// Validate an assembled proposal.
     ///
     /// Current checks:
-    /// - exactly one [`Transaction::AdvanceTillEthereumBlock`] is
-    ///   present and the EB it targets has passed quarantine in our
-    ///   local view ([`quarantine::verify_passed`]).
+    /// - at most one [`Transaction::AdvanceTillEthereumBlock`] is
+    ///   present — zero is legal (producer had no EB past quarantine
+    ///   yet), two+ is a protocol violation;
+    /// - if present, the targeted EB has passed quarantine in our
+    ///   local view ([`quarantine::verify_passed`]), using the latest
+    ///   received chain head as the reference point.
     ///
     /// Still TODO:
     /// - proposer matches `select_proposer(height, round)`;
@@ -158,17 +195,29 @@ impl State {
                     _ => None,
                 });
 
-        let advance = advance_txs
-            .next()
-            .ok_or_else(|| anyhow!("proposal missing AdvanceTillEthereumBlock tx"))?;
+        let Some(advance) = advance_txs.next() else {
+            // No AdvanceTillEthereumBlock is a legal producer choice
+            // when the chain is still too close to genesis.
+            return Ok(());
+        };
         if advance_txs.next().is_some() {
             return Err(anyhow!(
                 "proposal has more than one AdvanceTillEthereumBlock tx"
             ));
         }
 
-        quarantine::verify_passed(&self.db, advance, self.canonical_quarantine)
-            .map_err(|e| anyhow!("AdvanceTillEthereumBlock {advance} rejected: {e}"))
+        let head = self.latest_received_head.ok_or_else(|| {
+            anyhow!("cannot verify AdvanceTillEthereumBlock: no chain-head event received yet")
+        })?;
+
+        quarantine::verify_passed(
+            &self.db,
+            head,
+            advance,
+            self.canonical_quarantine,
+            self.genesis_block_hash(),
+        )
+        .map_err(|e| anyhow!("AdvanceTillEthereumBlock {advance} rejected: {e}"))
     }
 
     /// Handle an incoming proposal part; returns a `ProposedValue`

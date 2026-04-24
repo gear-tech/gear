@@ -643,6 +643,7 @@ impl Service {
                             "📦 receive a chain head",
                         );
 
+                        malachite.receive_new_chain_head(block_data);
                         consensus.receive_new_chain_head(block_data)?
                     }
                     ObserverEvent::BlockSynced(block) => {
