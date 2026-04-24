@@ -28,8 +28,18 @@ tracing.workspace = true
 
 # Malachite BFT engine
 malachitebft-app-channel.workspace = true
+malachitebft-app.workspace = true
+malachitebft-codec.workspace = true
+malachitebft-core-consensus.workspace = true
+malachitebft-core-types.workspace = true
+malachitebft-engine.workspace = true
 malachitebft-proto.workspace = true
+malachitebft-signing.workspace = true
+malachitebft-signing-ed25519.workspace = true
+malachitebft-sync.workspace = true
 malachitebft-test.workspace = true
+ed25519-consensus = "2"
+serde_bytes = "0.11"
 
 # ethexe
 ethexe-common = { workspace = true, features = ["std"] }

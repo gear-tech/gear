@@ -63,7 +63,7 @@ use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
 use ethexe_malachite::{
-    EmptyMempool, MalachiteConfig, MalachiteEvent, MalachiteService,
+    InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService,
 };
 use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
@@ -482,7 +482,7 @@ impl Service {
             malachite_config.listen_addr,
         );
         let malachite =
-            MalachiteService::new(malachite_config, std::sync::Arc::new(EmptyMempool))
+            MalachiteService::new(malachite_config, std::sync::Arc::new(InjectedTxMempool::default()))
                 .await
                 .context("failed to start Malachite service")?;
 
@@ -535,7 +535,7 @@ impl Service {
             .join("ethexe-malachite-test")
             .join(format!("{}", std::process::id()));
         let cfg = MalachiteConfig::from_ethexe_genesis(H256::zero(), tmp);
-        let malachite = MalachiteService::new(cfg, std::sync::Arc::new(EmptyMempool))
+        let malachite = MalachiteService::new(cfg, std::sync::Arc::new(InjectedTxMempool::default()))
             .await
             .context("failed to start Malachite service in test")?;
         Ok(Self {
@@ -702,6 +702,10 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
+                                // Shadow the tx into the Malachite mempool too —
+                                // sequencer side keeps its own independent pool
+                                // for block-producer picks.
+                                malachite.receive_injected_transaction((*transaction).clone());
                                 let res = consensus.receive_injected_transaction(*transaction);
                                 channel
                                     .send(res.into())
@@ -740,6 +744,11 @@ impl Service {
                             let is_our_address = Some(transaction.recipient) == validator_address;
 
                             if is_zero_address || is_our_address {
+                                // Also drop the TX into the Malachite
+                                // mempool so the sequencer can pick it
+                                // up on the producer side.
+                                malachite
+                                    .receive_injected_transaction(transaction.tx.clone());
                                 let acceptance = consensus
                                     .receive_injected_transaction(transaction.tx)
                                     .into();
@@ -805,12 +814,11 @@ impl Service {
                     }
                 },
                 Event::Malachite(event) => match event {
-                    MalachiteEvent::BlockProposal(block) => {
+                    MalachiteEvent::BlockProposal { height, block } => {
                         tracing::info!(
-                            height = block.height,
-                            eth_ref = %block.eth_block_ref,
-                            gas = block.gas_allowance,
+                            height,
                             txs = block.transactions.len(),
+                            transactions = ?block.transactions.iter().map(|t| t.tag()).collect::<Vec<_>>(),
                             "🧱 Malachite: BlockProposal",
                         );
                     }

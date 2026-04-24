@@ -27,18 +27,15 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use ethexe_db::{KVDatabase, RocksDatabase};
-use prost::Message;
 use thiserror::Error;
 
 use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::app::types::codec::Codec;
 use malachitebft_app_channel::app::types::core::{CommitCertificate, Round};
-use malachitebft_proto::{Error as ProtoError, Protobuf};
-use malachitebft_test::codec::proto as codec;
-use malachitebft_test::codec::proto::ProtobufCodec;
-use malachitebft_test::proto;
-use malachitebft_test::{Height, TestContext, Value, ValueId};
+use malachitebft_core_types::Value as _ValueTrait;
 
+use crate::codec::JsonCodec;
+use crate::context::{EthexeContext, Height, Value, ValueId};
 use crate::streaming::ProposalParts;
 
 // ---- key schema ---------------------------------------------------------
@@ -66,21 +63,21 @@ fn key_certificate(h: Height) -> [u8; 9] {
     k
 }
 
-fn key_undecided(h: Height, r: Round, v: ValueId) -> [u8; 25] {
-    let mut k = [0u8; 25];
+fn key_undecided(h: Height, r: Round, v: ValueId) -> [u8; 49] {
+    let mut k = [0u8; 49];
     k[0] = P_UNDECIDED;
     k[1..9].copy_from_slice(&h.as_u64().to_be_bytes());
     k[9..17].copy_from_slice(&encode_round(r));
-    k[17..25].copy_from_slice(&v.as_u64().to_be_bytes());
+    k[17..49].copy_from_slice(v.0.as_fixed_bytes());
     k
 }
 
-fn key_pending(h: Height, r: Round, v: ValueId) -> [u8; 25] {
-    let mut k = [0u8; 25];
+fn key_pending(h: Height, r: Round, v: ValueId) -> [u8; 49] {
+    let mut k = [0u8; 49];
     k[0] = P_PENDING_PARTS;
     k[1..9].copy_from_slice(&h.as_u64().to_be_bytes());
     k[9..17].copy_from_slice(&encode_round(r));
-    k[17..25].copy_from_slice(&v.as_u64().to_be_bytes());
+    k[17..49].copy_from_slice(v.0.as_fixed_bytes());
     k
 }
 
@@ -109,15 +106,22 @@ fn decode_height_from_key(k: &[u8]) -> Option<Height> {
 }
 
 // ---- codec helpers ------------------------------------------------------
+//
+// JSON instead of protobuf — the whole codec story flipped to serde
+// when we swapped in our own `Context`.
 
-fn decode_certificate(bytes: &[u8]) -> Result<CommitCertificate<TestContext>, ProtoError> {
-    let p = proto::CommitCertificate::decode(bytes)?;
-    codec::decode_commit_certificate(p)
+type CodecError = serde_json::Error;
+
+fn decode_certificate(bytes: &[u8]) -> Result<CommitCertificate<EthexeContext>, CodecError> {
+    <JsonCodec as Codec<CommitCertificate<EthexeContext>>>::decode(
+        &JsonCodec,
+        Bytes::copy_from_slice(bytes),
+    )
 }
 
-fn encode_certificate(cert: &CommitCertificate<TestContext>) -> Result<Vec<u8>, ProtoError> {
-    let p = codec::encode_commit_certificate(cert)?;
-    Ok(p.encode_to_vec())
+fn encode_certificate(cert: &CommitCertificate<EthexeContext>) -> Result<Vec<u8>, CodecError> {
+    <JsonCodec as Codec<CommitCertificate<EthexeContext>>>::encode(&JsonCodec, cert)
+        .map(|b| b.to_vec())
 }
 
 // ---- public types -------------------------------------------------------
@@ -125,16 +129,13 @@ fn encode_certificate(cert: &CommitCertificate<TestContext>) -> Result<Vec<u8>, 
 #[derive(Clone, Debug)]
 pub struct DecidedValue {
     pub value: Value,
-    pub certificate: CommitCertificate<TestContext>,
+    pub certificate: CommitCertificate<EthexeContext>,
 }
 
 #[derive(Debug, Error)]
 pub enum StoreError {
     #[error("Backend error: {0}")]
     Backend(String),
-
-    #[error("Failed to encode/decode Protobuf: {0}")]
-    Protobuf(#[from] ProtoError),
 
     #[error("Failed to join on task: {0}")]
     TaskJoin(#[from] tokio::task::JoinError),
@@ -158,7 +159,7 @@ impl Db {
 
     fn insert_decided_value(&self, dv: DecidedValue) -> Result<(), StoreError> {
         let height = dv.certificate.height;
-        let value_bytes = dv.value.to_bytes()?.to_vec();
+        let value_bytes = <JsonCodec as Codec<Value>>::encode(&JsonCodec, &dv.value)?.to_vec();
         let cert_bytes = encode_certificate(&dv.certificate)?;
         self.db.put(&key_decided_value(height), value_bytes);
         self.db.put(&key_certificate(height), cert_bytes);
@@ -169,7 +170,9 @@ impl Db {
         let value = self
             .db
             .get(&key_decided_value(height))
-            .and_then(|b| Value::from_bytes(&b).ok());
+            .and_then(|b| {
+                <JsonCodec as Codec<Value>>::decode(&JsonCodec, Bytes::from(b)).ok()
+            });
         let cert = self
             .db
             .get(&key_certificate(height))
@@ -181,10 +184,10 @@ impl Db {
 
     fn insert_undecided_proposal(
         &self,
-        p: ProposedValue<TestContext>,
+        p: ProposedValue<EthexeContext>,
     ) -> Result<(), StoreError> {
         let key = key_undecided(p.height, p.round, p.value.id());
-        let bytes = ProtobufCodec.encode(&p)?;
+        let bytes = JsonCodec.encode(&p)?;
         self.db.put(&key, bytes.to_vec());
         Ok(())
     }
@@ -194,10 +197,10 @@ impl Db {
         height: Height,
         round: Round,
         value_id: ValueId,
-    ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+    ) -> Result<Option<ProposedValue<EthexeContext>>, StoreError> {
         let key = key_undecided(height, round, value_id);
         if let Some(bytes) = self.db.get(&key) {
-            let p: ProposedValue<TestContext> = ProtobufCodec.decode(Bytes::from(bytes))?;
+            let p: ProposedValue<EthexeContext> = JsonCodec.decode(Bytes::from(bytes))?;
             Ok(Some(p))
         } else {
             Ok(None)
@@ -208,11 +211,11 @@ impl Db {
         &self,
         height: Height,
         round: Round,
-    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
+    ) -> Result<Vec<ProposedValue<EthexeContext>>, StoreError> {
         let prefix = prefix_undecided_hr(height, round);
         let mut out = Vec::new();
         for (_, v) in self.db.iter_prefix(&prefix) {
-            let p: ProposedValue<TestContext> = ProtobufCodec.decode(Bytes::from(v))?;
+            let p: ProposedValue<EthexeContext> = JsonCodec.decode(Bytes::from(v))?;
             out.push(p);
         }
         Ok(out)
@@ -221,9 +224,9 @@ impl Db {
     fn get_undecided_proposal_by_value_id(
         &self,
         value_id: ValueId,
-    ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+    ) -> Result<Option<ProposedValue<EthexeContext>>, StoreError> {
         for (_, v) in self.db.iter_prefix(&[P_UNDECIDED]) {
-            let p: ProposedValue<TestContext> = ProtobufCodec.decode(Bytes::from(v))?;
+            let p: ProposedValue<EthexeContext> = JsonCodec.decode(Bytes::from(v))?;
             if p.value.id() == value_id {
                 return Ok(Some(p));
             }
@@ -316,6 +319,7 @@ impl Db {
 /// the upstream `examples/channel` derivation so streaming semantics
 /// are unchanged.
 pub fn generate_value_id_from_parts(parts: &ProposalParts) -> ValueId {
+    use parity_scale_codec::Encode;
     use sha3::{Digest, Keccak256};
 
     let mut hasher = Keccak256::new();
@@ -324,13 +328,11 @@ pub fn generate_value_id_from_parts(parts: &ProposalParts) -> ValueId {
     hasher.update(parts.proposer.into_inner());
     for part in &parts.parts {
         if let Some(data) = part.as_data() {
-            hasher.update(data.factor.to_be_bytes());
+            hasher.update(data.block.encode());
         }
     }
     let hash = hasher.finalize();
-    let mut bytes = [0u8; 8];
-    bytes.copy_from_slice(&hash[..8]);
-    ValueId::new(u64::from_be_bytes(bytes))
+    ValueId(gprimitives::H256::from_slice(&hash))
 }
 
 // ---- async facade -------------------------------------------------------
@@ -376,7 +378,7 @@ impl Store {
 
     pub async fn store_decided_value(
         &self,
-        certificate: &CommitCertificate<TestContext>,
+        certificate: &CommitCertificate<EthexeContext>,
         value: Value,
     ) -> Result<(), StoreError> {
         let dv = DecidedValue {
@@ -389,7 +391,7 @@ impl Store {
 
     pub async fn store_undecided_proposal(
         &self,
-        value: ProposedValue<TestContext>,
+        value: ProposedValue<EthexeContext>,
     ) -> Result<(), StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.insert_undecided_proposal(value)).await?
@@ -400,7 +402,7 @@ impl Store {
         height: Height,
         round: Round,
         value_id: ValueId,
-    ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+    ) -> Result<Option<ProposedValue<EthexeContext>>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_undecided_proposal(height, round, value_id))
             .await?
@@ -410,7 +412,7 @@ impl Store {
         &self,
         height: Height,
         round: Round,
-    ) -> Result<Vec<ProposedValue<TestContext>>, StoreError> {
+    ) -> Result<Vec<ProposedValue<EthexeContext>>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_undecided_proposals(height, round)).await?
     }
@@ -452,7 +454,7 @@ impl Store {
     pub async fn get_undecided_proposal_by_value_id(
         &self,
         value_id: ValueId,
-    ) -> Result<Option<ProposedValue<TestContext>>, StoreError> {
+    ) -> Result<Option<ProposedValue<EthexeContext>>, StoreError> {
         let db = Arc::clone(&self.db);
         tokio::task::spawn_blocking(move || db.get_undecided_proposal_by_value_id(value_id)).await?
     }

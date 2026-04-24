@@ -59,7 +59,6 @@ use bytes::Bytes;
 use ethexe_common::{SimpleBlockData, injected::SignedInjectedTransaction};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
-use parity_scale_codec::Encode;
 use rand::rngs::OsRng;
 use sha3::{Digest, Keccak256};
 use std::{
@@ -84,46 +83,32 @@ use malachitebft_app_channel::{
     ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity,
     RequestContext, SigningProviderExt, SyncContext, WalContext,
 };
-use malachitebft_test::codec::proto::ProtobufCodec;
-use malachitebft_test::{
-    Address, Ed25519Provider, Genesis, Height, PrivateKey, TestContext, Validator, ValidatorSet,
+use crate::context::{
+    Address, EthexeSigner, Genesis, Height, PrivateKey, Validator, ValidatorSet,
 };
 
 mod app;
+mod block;
+mod codec;
+mod context;
+mod mempool;
 mod state;
 mod store;
 mod streaming;
 
+pub use crate::block::{
+    ProcessQueuesLimits, ProgressTasksLimits, SequencerBlock, Transaction,
+};
+pub use crate::mempool::InjectedTxMempool;
+
+use crate::codec::JsonCodec;
+use crate::context::EthexeContext;
 use crate::state::State;
 use crate::store::Store;
 
 // ---------------------------------------------------------------------------
-// Block / certificate
+// Block / certificate (public types used by the Stream consumer)
 // ---------------------------------------------------------------------------
-
-/// A block produced by the sequencer — ordered injected transactions
-/// anchored to an Ethereum block. No execution state: that is computed
-/// downstream by executors once the block is finalized.
-#[derive(Clone, Debug, PartialEq, Eq, Encode)]
-pub struct SequencerBlock {
-    /// Monotonically increasing height in the Malachite sequencer chain.
-    pub height: u64,
-    /// Hash of the Ethereum block this sequencer block anchors to.
-    pub eth_block_ref: H256,
-    /// Gas allowance for this block.
-    pub gas_allowance: u64,
-    /// Ordered transactions included in this block.
-    pub transactions: Vec<SignedInjectedTransaction>,
-}
-
-impl SequencerBlock {
-    /// Keccak256 over the SCALE-encoded block.
-    pub fn hash(&self) -> H256 {
-        let mut h = Keccak256::new();
-        h.update(self.encode());
-        H256::from_slice(&h.finalize())
-    }
-}
 
 /// Commit certificate — a finalized block together with the aggregated
 /// precommit signatures that authorize it.
@@ -138,18 +123,20 @@ pub struct CommitCertificate {
 // Event
 // ---------------------------------------------------------------------------
 
-/// Output event stream of the Malachite service.
+/// Output event stream of the Malachite service. `height` is the
+/// Malachite sequencer height at which the block was produced /
+/// finalized — it's reported here (rather than embedded inside the
+/// block) because the block itself is just an ordered transaction
+/// stream with no self-referential height field.
 #[derive(Debug, Clone, derive_more::Display)]
 pub enum MalachiteEvent {
     /// A new sequencer block has been produced (if this node is the
     /// proposer) or received and validated from a peer.
-    #[display(
-        "BlockProposal(height: {}, eth_ref: {}, txs: {})",
-        _0.height,
-        _0.eth_block_ref,
-        _0.transactions.len()
-    )]
-    BlockProposal(SequencerBlock),
+    #[display("BlockProposal(height: {}, txs: {})", height, block.transactions.len())]
+    BlockProposal {
+        height: u64,
+        block: SequencerBlock,
+    },
 
     /// A sequencer block has been committed by the BFT quorum.
     #[display(
@@ -168,6 +155,9 @@ pub enum MalachiteEvent {
 /// Source of injected transactions to pack into the next sequencer block.
 #[async_trait]
 pub trait Mempool: Send + Sync + 'static {
+    /// Accept a transaction into the pool.
+    fn insert(&self, tx: SignedInjectedTransaction);
+
     /// Return a batch of TXs that fit within the given gas budget.
     async fn fetch(&self, gas_budget: u64) -> Vec<SignedInjectedTransaction>;
 
@@ -181,6 +171,8 @@ pub struct EmptyMempool;
 
 #[async_trait]
 impl Mempool for EmptyMempool {
+    fn insert(&self, _tx: SignedInjectedTransaction) {}
+
     async fn fetch(&self, _gas_budget: u64) -> Vec<SignedInjectedTransaction> {
         Vec::new()
     }
@@ -399,6 +391,7 @@ fn load_or_generate_node_key(home_dir: &std::path::Path) -> Result<PrivateKey> {
 pub struct MalachiteService {
     events_rx: mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
     chain_head_tx: mpsc::UnboundedSender<SimpleBlockData>,
+    mempool: Arc<dyn Mempool>,
 
     #[allow(dead_code)]
     engine: EngineHandle,
@@ -437,7 +430,7 @@ impl MalachiteService {
             .context("loading/generating Malachite node key")?;
         let public_key = private_key.public_key();
         let address = Address::from_public_key(&public_key);
-        let signing_provider = Ed25519Provider::new(private_key.clone());
+        let signing_provider = EthexeSigner::new(private_key.clone());
 
         let keypair = Keypair::ed25519_from_bytes(private_key.inner().to_bytes())
             .expect("valid ed25519 keypair");
@@ -448,7 +441,9 @@ impl MalachiteService {
             .map_err(|e| anyhow::anyhow!("failed to sign validator proof: {e:?}"))?;
         let proof_bytes: Bytes = {
             use malachitebft_app_channel::app::types::codec::Codec;
-            <ProtobufCodec as Codec<_>>::encode(&ProtobufCodec, &proof)
+            <JsonCodec as Codec<malachitebft_core_types::ValidatorProof<EthexeContext>>>::encode(
+                &JsonCodec, &proof,
+            )
                 .map_err(|e| anyhow::anyhow!("failed to encode validator proof: {e}"))?
         };
         let identity = NetworkIdentity::new_validator(
@@ -464,17 +459,17 @@ impl MalachiteService {
 
         // ---- engine -------------------------------------------------------
         let inner_cfg = build_inner_config(&config);
-        let ctx = TestContext::new();
+        let ctx = EthexeContext::new();
 
         // Ed25519Provider doesn't impl Clone, so make two providers that
         // share the same private key — one for Malachite's consensus,
         // one retained in `State` for signing proposal fins.
-        let consensus_signer = Ed25519Provider::new(private_key.clone());
+        let consensus_signer = EthexeSigner::new(private_key.clone());
         let (channels, engine) = EngineBuilder::new(ctx.clone(), inner_cfg)
-            .with_default_wal(WalContext::new(wal_path, ProtobufCodec))
-            .with_default_network(NetworkContext::new(identity, ProtobufCodec))
+            .with_default_wal(WalContext::new(wal_path, JsonCodec))
+            .with_default_network(NetworkContext::new(identity, JsonCodec))
             .with_default_consensus(ConsensusContext::new(address, consensus_signer))
-            .with_default_sync(SyncContext::new(ProtobufCodec))
+            .with_default_sync(SyncContext::new(JsonCodec))
             .with_default_request(RequestContext::new(100))
             .build()
             .await
@@ -506,9 +501,11 @@ impl MalachiteService {
             address,
             start_height,
             store,
+            config.quarantine_depth,
         );
 
         let gas_allowance = config.gas_allowance;
+        let mempool_for_service = Arc::clone(&mempool);
         let span = tracing::error_span!("ethexe::malachite::app", moniker = %config.moniker);
         let app_handle = tokio::spawn(
             async move {
@@ -525,9 +522,17 @@ impl MalachiteService {
         Ok(Self {
             events_rx,
             chain_head_tx,
+            mempool: mempool_for_service,
             engine,
             app_handle,
         })
+    }
+
+    /// Pass an injected transaction into the Malachite mempool. The
+    /// producer on this node will pull from the same pool when
+    /// assembling the next sequencer block.
+    pub fn receive_injected_transaction(&self, tx: SignedInjectedTransaction) {
+        self.mempool.insert(tx);
     }
 
     /// Pass a new Ethereum chain head into the service. Used to advance

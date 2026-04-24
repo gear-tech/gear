@@ -29,21 +29,21 @@ use tracing::{error, info};
 use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
 use malachitebft_app_channel::app::streaming::StreamContent;
 use malachitebft_app_channel::app::types::core::utils::height::HeightRangeExt;
-use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity};
+use malachitebft_app_channel::app::types::core::{Height as _, Round, Validity, Value as _};
 use malachitebft_app_channel::app::types::sync::RawDecidedValue;
-use malachitebft_app_channel::app::types::{LocallyProposedValue, ProposedValue};
+use malachitebft_app_channel::app::types::ProposedValue;
 use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
-use malachitebft_test::{Height, TestContext};
 
+use crate::context::{EthexeContext, Height};
 use crate::state::{State, decode_value, encode_value};
-use crate::{CommitCertificate, MalachiteEvent, Mempool, SequencerBlock};
+use crate::{CommitCertificate, MalachiteEvent, Mempool};
 
 /// Run the channel-app event loop. Terminates when either the consensus
 /// channel is closed (engine shut down) or `event_tx` is dropped (outer
 /// service shut down).
 pub async fn run(
     mut state: State,
-    mut channels: Channels<TestContext>,
+    mut channels: Channels<EthexeContext>,
     mempool: Arc<dyn Mempool>,
     gas_allowance: u64,
     mut chain_head_rx: mpsc::UnboundedReceiver<SimpleBlockData>,
@@ -53,7 +53,7 @@ pub async fn run(
         tokio::select! {
             // Chain-head updates from the outer service
             Some(head) = chain_head_rx.recv() => {
-                state.latest_eth_head = Some(head);
+                state.push_chain_head(head);
             }
 
             // Messages from the Malachite engine
@@ -70,11 +70,11 @@ pub async fn run(
 
 async fn handle_app_msg(
     state: &mut State,
-    channels: &mut Channels<TestContext>,
+    channels: &mut Channels<EthexeContext>,
     mempool: &dyn Mempool,
     gas_allowance: u64,
     event_tx: &mpsc::UnboundedSender<Result<MalachiteEvent>>,
-    msg: AppMsg<TestContext>,
+    msg: AppMsg<EthexeContext>,
 ) -> Result<()> {
     match msg {
         // --- ConsensusReady ---------------------------------------------
@@ -143,29 +143,44 @@ async fn handle_app_msg(
         } => {
             info!(%height, %round, "Consensus requesting value to propose");
 
-            // Fetch from mempool up to gas_allowance. Result is observable
-            // in the emitted `SequencerBlock`, but doesn't currently drive
-            // the Malachite-internal `Value` (which stays TestContext u64).
-            let txs = mempool.fetch(gas_allowance).await;
-            let eth_ref = state.eth_anchor();
+            // --- Build the SequencerBlock -----------------------------
+            //
+            //   1. AdvanceTillEthereumBlock targeting the Eth block that
+            //      has just passed the ethexe quarantine window.
+            //   2. Any injected transactions drawn from the mempool.
+            //   3. A single ProgressTasks at the end.
+            //   4. A single ProcessQueues at the very end.
+            let injected = mempool.fetch(gas_allowance).await;
+            let quarantine_anchor = state.quarantine_anchor();
+
+            let mut transactions = Vec::with_capacity(injected.len() + 3);
+            transactions.push(crate::Transaction::AdvanceTillEthereumBlock {
+                eth_block_hash: quarantine_anchor,
+            });
+            for tx in injected {
+                transactions.push(crate::Transaction::Injected(tx));
+            }
+            transactions.push(crate::Transaction::ProgressTasks {
+                limits: crate::ProgressTasksLimits::default(),
+            });
+            transactions.push(crate::Transaction::ProcessQueues {
+                limits: crate::ProcessQueuesLimits::default(),
+            });
+            let block = crate::SequencerBlock::new(transactions);
+
+            // Emit the BlockProposal outward (producer side).
+            let _ = event_tx.send(Ok(crate::MalachiteEvent::BlockProposal {
+                height: height.as_u64(),
+                block: block.clone(),
+            }));
 
             let proposal = match state.get_previously_built_value(height, round).await? {
                 Some(p) => {
                     info!(value = %p.value.id(), "Re-using previously built value");
                     p
                 }
-                None => state.propose_value(height, round).await?,
+                None => state.propose_value(height, round, block).await?,
             };
-
-            // Emit a BlockProposal for the outer service. Height comes
-            // from Malachite, transactions from the mempool.
-            let block = SequencerBlock {
-                height: height.as_u64(),
-                eth_block_ref: eth_ref,
-                gas_allowance,
-                transactions: txs,
-            };
-            let _ = event_tx.send(Ok(MalachiteEvent::BlockProposal(block)));
 
             if reply.send(proposal.clone()).is_err() {
                 error!("Failed to send GetValue reply");
@@ -204,14 +219,10 @@ async fn handle_app_msg(
             // If the stream assembled into a complete value and validated
             // OK, announce it outward as well.
             if let Some(ref pv) = proposed_value {
-                let eth_ref = state.eth_anchor();
-                let block = SequencerBlock {
+                let _ = event_tx.send(Ok(crate::MalachiteEvent::BlockProposal {
                     height: pv.height.as_u64(),
-                    eth_block_ref: eth_ref,
-                    gas_allowance,
-                    transactions: Vec::new(),
-                };
-                let _ = event_tx.send(Ok(MalachiteEvent::BlockProposal(block)));
+                    block: pv.value.block.clone(),
+                }));
             }
 
             if reply.send(proposed_value).is_err() {
@@ -371,7 +382,7 @@ async fn handle_app_msg(
                 .get_undecided_proposal(height, proposal_round, value_id)
                 .await?;
             if let Some(proposal) = proposal {
-                let locally = LocallyProposedValue {
+                let locally = malachitebft_app_channel::app::types::LocallyProposedValue {
                     height,
                     round,
                     value: proposal.value,
@@ -389,13 +400,6 @@ async fn handle_app_msg(
     Ok(())
 }
 
-fn value_id_to_h256(
-    id: malachitebft_app_channel::app::types::core::ValueId<TestContext>,
-) -> gprimitives::H256 {
-    // TestContext's ValueId is a u64 — widen it into a right-aligned
-    // 32-byte hash for presentation purposes. When we move to our own
-    // Context this becomes the real block hash.
-    let mut bytes = [0u8; 32];
-    bytes[24..32].copy_from_slice(&id.as_u64().to_be_bytes());
-    gprimitives::H256(bytes)
+fn value_id_to_h256(id: crate::context::ValueId) -> gprimitives::H256 {
+    id.0
 }
