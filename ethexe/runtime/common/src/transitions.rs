@@ -285,6 +285,11 @@ impl NonFinalTransition {
     }
 
     #[cfg(any(test, feature = "mock"))]
+    pub fn initial_state(&self) -> H256 {
+        self.initial_state
+    }
+
+    #[cfg(any(test, feature = "mock"))]
     pub fn new(
         initial_state: H256,
         inheritor: Option<ActorId>,

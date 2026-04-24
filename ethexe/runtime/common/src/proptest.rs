@@ -32,7 +32,6 @@ use ::proptest::{
     strategy::Just,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
-use core::convert::TryFrom;
 use ethexe_common::{
     HashOf, MaybeHashOf, ProgramStates, Schedule, StateHashWithQueueSize,
     gear::{Message, MessageType, ValueClaim},
@@ -372,38 +371,28 @@ fn program_states_strategy() -> BoxedStrategy<ProgramStates> {
     collection::btree_map(actor_id_strategy(), any::<StateHashWithQueueSize>(), 0..=4).boxed()
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct InBlockTransitionsModel {
-    expected_transitions: Vec<ethexe_common::gear::StateTransition>,
+    modifications: BTreeMap<ActorId, NonFinalTransition>,
     states: ProgramStates,
     schedule: Schedule,
     program_creations: BTreeMap<ActorId, CodeId>,
 }
 
-fn build_expected_transitions(
-    states: &ProgramStates,
-    modifications: &BTreeMap<ActorId, NonFinalTransition>,
-) -> Vec<ethexe_common::gear::StateTransition> {
-    modifications
-        .iter()
-        .filter_map(|(&actor_id, modification)| {
-            let new_state = states
-                .get(&actor_id)
-                .copied()
-                .expect("modification only generated for known actor");
-
-            (!modification.is_noop(new_state.hash)).then(|| ethexe_common::gear::StateTransition {
-                actor_id,
-                new_state_hash: new_state.hash,
-                exited: modification.inheritor.is_some(),
-                inheritor: modification.inheritor.unwrap_or_default(),
-                value_to_receive: modification.value_to_receive.unsigned_abs(),
-                value_to_receive_negative_sign: modification.value_to_receive < 0,
-                value_claims: modification.claims.clone(),
-                messages: modification.messages.clone(),
-            })
-        })
-        .collect()
+fn transition_with_current_state_strategy(
+    current_state: StateHashWithQueueSize,
+) -> BoxedStrategy<NonFinalTransition> {
+    prop_oneof![
+        any::<NonFinalTransition>(),
+        Just(NonFinalTransition::new(
+            current_state.hash,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        )),
+    ]
+    .boxed()
 }
 
 fn in_block_transitions_with_model_strategy()
@@ -434,7 +423,20 @@ fn in_block_transitions_with_model_strategy()
                 Just(BTreeMap::new()).boxed()
             } else {
                 collection::vec(
-                    (sample::select(actors.clone()), any::<NonFinalTransition>()),
+                    sample::select(actors.clone()).prop_flat_map({
+                        let known_states = known_states.clone();
+                        move |actor_id| {
+                            let current_state = known_states
+                                .get(&actor_id)
+                                .copied()
+                                .expect("actor selected from known states");
+
+                            (
+                                Just(actor_id),
+                                transition_with_current_state_strategy(current_state),
+                            )
+                        }
+                    }),
                     0..=4,
                 )
                 .prop_map(|entries| entries.into_iter().collect::<BTreeMap<_, _>>())
@@ -451,10 +453,7 @@ fn in_block_transitions_with_model_strategy()
                 .prop_map(
                     |(block_height, states, schedule, modifications, program_creations)| {
                         let model = InBlockTransitionsModel {
-                            expected_transitions: build_expected_transitions(
-                                &states,
-                                &modifications,
-                            ),
+                            modifications: modifications.clone(),
                             states: states.clone(),
                             schedule: schedule.clone(),
                             program_creations: program_creations.clone(),
@@ -502,13 +501,13 @@ fn dispatch_stash_entries_strategy() -> BoxedStrategy<BTreeMap<MessageId, Dispat
     .boxed()
 }
 
-type MailboxWWithStorage = (
+type MailboxWithStorage = (
     MemStorage,
     Mailbox,
     BTreeMap<ActorId, BTreeMap<MessageId, Expiring<MailboxMessage>>>,
 );
 
-fn mailbox_with_storage_strategy() -> BoxedStrategy<MailboxWWithStorage> {
+fn mailbox_with_storage_strategy() -> BoxedStrategy<MailboxWithStorage> {
     collection::btree_map(
         actor_id_strategy(),
         collection::btree_map(
@@ -1049,7 +1048,67 @@ mod tests {
         fn finalize_matches_model((transitions, model) in in_block_transitions_with_model_strategy()) {
             let finalized = transitions.finalize();
 
-            prop_assert_eq!(finalized.transitions, model.expected_transitions);
+            let transitions_by_actor = finalized
+                .transitions
+                .iter()
+                .map(|transition| (transition.actor_id, transition))
+                .collect::<BTreeMap<_, _>>();
+            prop_assert_eq!(
+                transitions_by_actor.len(),
+                finalized.transitions.len(),
+                "each actor must appear at most once in finalized transitions",
+            );
+
+            let expected_actor_ids = model
+                .modifications
+                .iter()
+                .filter_map(|(&actor_id, modification)| {
+                    let current_state = model
+                        .states
+                        .get(&actor_id)
+                        .expect("modification only generated for known actor")
+                        .hash;
+                    let initial_state = modification.initial_state();
+                    let noop = !initial_state.is_zero()
+                        && current_state == initial_state
+                        && modification.inheritor.is_none()
+                        && modification.value_to_receive == 0
+                        && modification.claims.is_empty()
+                        && modification.messages.is_empty();
+
+                    (!noop).then_some(actor_id)
+                })
+                .collect::<BTreeSet<_>>();
+            let actual_actor_ids = transitions_by_actor.keys().copied().collect::<BTreeSet<_>>();
+            prop_assert_eq!(actual_actor_ids, expected_actor_ids.clone());
+
+            for actor_id in expected_actor_ids {
+                let modification = model
+                    .modifications
+                    .get(&actor_id)
+                    .expect("actor comes from modifications");
+                let transition = transitions_by_actor
+                    .get(&actor_id)
+                    .expect("non-noop modification must be finalized");
+                let current_state = model
+                    .states
+                    .get(&actor_id)
+                    .expect("modification only generated for known actor");
+
+                prop_assert_eq!(transition.new_state_hash, current_state.hash);
+                prop_assert_eq!(transition.exited, modification.inheritor.is_some());
+                prop_assert_eq!(transition.inheritor, modification.inheritor.unwrap_or_default());
+                prop_assert_eq!(
+                    transition.value_to_receive,
+                    modification.value_to_receive.unsigned_abs(),
+                );
+                prop_assert_eq!(
+                    transition.value_to_receive_negative_sign,
+                    modification.value_to_receive < 0,
+                );
+                prop_assert_eq!(&transition.value_claims, &modification.claims);
+                prop_assert_eq!(&transition.messages, &modification.messages);
+            }
             prop_assert_eq!(finalized.states, model.states);
             prop_assert_eq!(finalized.schedule, model.schedule);
             prop_assert_eq!(
@@ -1153,7 +1212,7 @@ mod tests {
         }
 
         #[test]
-        fn message_queue_is_fifo(dispatches in collection::vec(dispatch_direct_payload_strategy(), 0..=6)) {
+        fn message_queue_is_fifo(dispatches in collection::vec(dispatch_direct_payload_strategy(), 0..=32)) {
             let mut queue = MessageQueue::default();
             for dispatch in &dispatches {
                 queue.queue(dispatch.clone());
@@ -1287,6 +1346,9 @@ mod tests {
                     .map(|(&page, &hash)| (page, hash))
                     .collect();
 
+                // TODO #5373: removing all pages from a region leaves the old region hash in place,
+                // so empty regions cannot be asserted until MemoryPages::remove_and_store_regions
+                // clears the stored region entry.
                 if expected_region.is_empty() {
                     continue;
                 }
