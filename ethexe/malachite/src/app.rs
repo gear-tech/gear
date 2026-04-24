@@ -52,9 +52,12 @@ pub async fn run(
     loop {
         tokio::select! {
             // Latest observer-delivered chain head — overwrites the
-            // previous value; we never keep a history.
+            // previous value; we never keep a history. Also fans out
+            // to the mempool so it can GC expired entries and
+            // seen-hashes.
             Some(head) = chain_head_rx.recv() => {
                 state.set_latest_received_head(head);
+                mempool.set_chain_head(head);
             }
 
             // Messages from the Malachite engine
@@ -153,7 +156,15 @@ async fn handle_app_msg(
             //   2. Any injected transactions drawn from the mempool.
             //   3. A single ProgressTasks at the end.
             //   4. A single ProcessQueues at the very end.
-            let injected = mempool.fetch(gas_allowance).await;
+            //
+            // `fetch` is non-destructive: txs whose reference_block is
+            // an ancestor of the latest received head are returned but
+            // stay in the pool until the MB is actually finalized
+            // (`AppMsg::Finalized` below calls `mempool.forget`).
+            let injected = match state.latest_received_head {
+                Some(head) => mempool.fetch(head, gas_allowance).await,
+                None => Vec::new(),
+            };
             let quarantine_anchor = match state.quarantine_anchor() {
                 Ok(maybe_hash) => maybe_hash,
                 Err(e) => {
@@ -288,11 +299,20 @@ async fn handle_app_msg(
             };
 
             match state.commit(certificate, extensions).await {
-                Ok(_) => {
-                    // Drop transactions whose block has been committed.
-                    // Stub: we don't currently carry transactions through
-                    // the BFT-internal Value, so pass an empty slice.
-                    mempool.forget(&[]).await;
+                Ok(committed_block) => {
+                    // Drop the committed injected txs from the pool
+                    // and record their hashes in the seen-map so
+                    // duplicates can't reappear before the ref_block
+                    // ages out.
+                    let injected: Vec<_> = committed_block
+                        .transactions
+                        .into_iter()
+                        .filter_map(|tx| match tx {
+                            crate::Transaction::Injected(signed) => Some(signed),
+                            _ => None,
+                        })
+                        .collect();
+                    mempool.forget(&injected).await;
 
                     let _ = event_tx.send(Ok(MalachiteEvent::BlockFinalized(out_cert)));
 

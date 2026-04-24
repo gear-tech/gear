@@ -270,7 +270,7 @@ impl State {
         &mut self,
         certificate: CommitCertificate<EthexeContext>,
         extensions: VoteExtensions<EthexeContext>,
-    ) -> Result<()> {
+    ) -> Result<SequencerBlock> {
         let height = certificate.height;
         let value_id = certificate.value_id;
 
@@ -283,6 +283,8 @@ impl State {
             ));
         };
 
+        let committed_block = proposal.value.block.clone();
+
         self.store
             .store_decided_value(&certificate, proposal.value)
             .await?;
@@ -292,7 +294,7 @@ impl State {
 
         self.current_height = self.current_height.increment();
         self.current_round = Round::Nil;
-        Ok(())
+        Ok(committed_block)
     }
 
     pub async fn get_previously_built_value(

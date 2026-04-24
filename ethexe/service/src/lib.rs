@@ -484,7 +484,7 @@ impl Service {
         let malachite = MalachiteService::new(
             malachite_config,
             db.clone(),
-            std::sync::Arc::new(InjectedTxMempool::default()),
+            std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
         )
         .await
         .context("failed to start Malachite service")?;
@@ -541,7 +541,7 @@ impl Service {
         let malachite = MalachiteService::new(
             cfg,
             db.clone(),
-            std::sync::Arc::new(InjectedTxMempool::default()),
+            std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
         )
         .await
         .context("failed to start Malachite service in test")?;

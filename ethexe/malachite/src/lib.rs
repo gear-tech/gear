@@ -159,15 +159,40 @@ pub enum MalachiteEvent {
 // ---------------------------------------------------------------------------
 
 /// Source of injected transactions to pack into the next sequencer block.
+///
+/// The pool is fed new chain heads via [`Self::set_chain_head`] so it
+/// can garbage-collect entries whose `reference_block` has aged past
+/// [`ethexe_common::injected::VALIDITY_WINDOW`]. [`Self::fetch`] is
+/// non-destructive: a tx is only removed once the MB it ends up in
+/// is finalized and passed to [`Self::forget`], at which point the
+/// pool must remember the tx hash until it's safe to forget (that's
+/// also bounded by `VALIDITY_WINDOW`).
 #[async_trait]
 pub trait Mempool: Send + Sync + 'static {
-    /// Accept a transaction into the pool.
+    /// Accept a transaction into the pool. Implementations may reject
+    /// txs whose `reference_block` has already aged out or whose hash
+    /// has recently been committed; the current interface is
+    /// fire-and-forget so rejections are swallowed silently (logged).
     fn insert(&self, tx: SignedInjectedTransaction);
 
-    /// Return a batch of TXs that fit within the given gas budget.
-    async fn fetch(&self, gas_budget: u64) -> Vec<SignedInjectedTransaction>;
+    /// Notify the pool of a newly observed Ethereum chain head. Drives
+    /// expiration GC for both the pool and the seen-hash dedup table.
+    fn set_chain_head(&self, head: SimpleBlockData);
 
-    /// Drop the given TXs after they have been included in a committed block.
+    /// Return a batch of TXs whose `reference_block` is an ancestor
+    /// of `head` and that fit within the given gas budget. Non-ancestor
+    /// txs stay in the pool — they become eligible again if the chain
+    /// reorgs back to their branch.
+    async fn fetch(
+        &self,
+        head: SimpleBlockData,
+        gas_budget: u64,
+    ) -> Vec<SignedInjectedTransaction>;
+
+    /// Drop the given TXs after they have been included in a committed
+    /// (finalized) sequencer block. Implementations should also record
+    /// the hashes so subsequent [`Self::insert`] calls for the same tx
+    /// are rejected as duplicates, until the ref_block ages out.
     async fn forget(&self, committed: &[SignedInjectedTransaction]);
 }
 
@@ -179,7 +204,13 @@ pub struct EmptyMempool;
 impl Mempool for EmptyMempool {
     fn insert(&self, _tx: SignedInjectedTransaction) {}
 
-    async fn fetch(&self, _gas_budget: u64) -> Vec<SignedInjectedTransaction> {
+    fn set_chain_head(&self, _head: SimpleBlockData) {}
+
+    async fn fetch(
+        &self,
+        _head: SimpleBlockData,
+        _gas_budget: u64,
+    ) -> Vec<SignedInjectedTransaction> {
         Vec::new()
     }
 
