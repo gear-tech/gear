@@ -165,6 +165,8 @@ async fn handle_app_msg(
                 Some(head) => mempool.fetch(head, gas_allowance).await,
                 None => Vec::new(),
             };
+            // Walk failed (missing header past start_block, etc.) →
+            // treat the same as Ok(None): skip the transaction.
             let quarantine_anchor = match state.quarantine_anchor() {
                 Ok(maybe_hash) => maybe_hash,
                 Err(e) => {

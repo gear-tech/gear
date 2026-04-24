@@ -46,7 +46,7 @@ use std::{
 use async_trait::async_trait;
 use ethexe_common::{
     HashOf, SimpleBlockData,
-    db::OnChainStorageRO,
+    db::{GlobalsStorageRO, OnChainStorageRO},
     injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
 };
 use ethexe_db::Database;
@@ -120,26 +120,43 @@ impl InjectedTxMempool {
     fn is_expired(head_height: u32, ref_block_height: u32) -> bool {
         // Matches tx_validation.rs: tx is valid while
         //   ref_block_height <= head && ref_block_height + WINDOW > head.
-        // So it's expired when the second part fails.
-        ref_block_height + VALIDITY_WINDOW as u32 <= head_height
+        // So it's expired when the second part fails. `saturating_add`
+        // guards against u32 overflow if ref_block is close to
+        // u32::MAX (academic but cheap).
+        ref_block_height.saturating_add(VALIDITY_WINDOW as u32) <= head_height
+    }
+
+    /// The oldest block the local DB is guaranteed to have a header
+    /// for. Walks stop here; going past it would read a parent that
+    /// isn't in our DB.
+    fn start_block_hash(&self) -> H256 {
+        self.db.globals().start_block_hash
     }
 
     /// Build the set of ancestor hashes of `head` reachable within
-    /// `VALIDITY_WINDOW` parent steps. Used to answer "is this tx's
-    /// ref_block on the current branch?".
+    /// `VALIDITY_WINDOW` parent steps. Walk stops at `start_block`
+    /// (or earlier if a header happens to be missing). Used to
+    /// answer "is this tx's ref_block on the current branch?".
     fn recent_ancestors(&self, head: &SimpleBlockData) -> HashSet<H256> {
+        let start_fence = self.start_block_hash();
+
         let mut ancestors = HashSet::with_capacity(VALIDITY_WINDOW as usize + 1);
         ancestors.insert(head.hash);
 
+        let mut current = head.hash;
         let mut parent = head.header.parent_hash;
         for _ in 0..VALIDITY_WINDOW {
-            if parent == H256::zero() || ancestors.contains(&parent) {
+            if current == start_fence || parent == H256::zero() {
                 break;
             }
-            ancestors.insert(parent);
+            if !ancestors.insert(parent) {
+                // Parent already visited — defensive cycle guard.
+                break;
+            }
             let Some(header) = self.db.block_header(parent) else {
                 break;
             };
+            current = parent;
             parent = header.parent_hash;
         }
         ancestors
@@ -189,23 +206,26 @@ impl Mempool for InjectedTxMempool {
             return;
         }
 
+        // ref_block must resolve to a known header. If it doesn't:
+        // - the tx references a block we haven't synced yet (let the
+        //   sender re-gossip after our DB catches up),
+        // - or it's older than our start_block (we can't verify
+        //   ancestry locally, reject).
+        // Either way: don't hold onto something we can't reason about.
+        let Some(ref_height) = self.ref_block_height(ref_block) else {
+            debug!(
+                %tx_hash, %ref_block,
+                "rejecting tx: reference_block not in DB"
+            );
+            return;
+        };
         if let Some(head_height) = inner.latest_head_height {
-            match self.ref_block_height(ref_block) {
-                Some(h) if Self::is_expired(head_height, h) => {
-                    debug!(
-                        %tx_hash, %ref_block, ref_height = h, head_height,
-                        "rejecting tx: reference_block past VALIDITY_WINDOW"
-                    );
-                    return;
-                }
-                None => {
-                    debug!(
-                        %tx_hash, %ref_block,
-                        "rejecting tx: reference_block not in DB yet"
-                    );
-                    return;
-                }
-                Some(_) => {}
+            if Self::is_expired(head_height, ref_height) {
+                debug!(
+                    %tx_hash, %ref_block, ref_height, head_height,
+                    "rejecting tx: reference_block past VALIDITY_WINDOW"
+                );
+                return;
             }
         }
 

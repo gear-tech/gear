@@ -131,8 +131,8 @@ impl State {
     ///
     /// Returns `Ok(None)` when either
     /// - no chain-head event has arrived yet, or
-    /// - the chain isn't deep enough past genesis to clear the
-    ///   quarantine window.
+    /// - the chain between the local `start_block` and `head` is too
+    ///   short to clear the quarantine window.
     ///
     /// In both cases the producer must skip the
     /// [`Transaction::AdvanceTillEthereumBlock`] transaction for this
@@ -145,14 +145,17 @@ impl State {
             &self.db,
             head,
             self.canonical_quarantine,
-            self.genesis_block_hash(),
+            self.start_block_hash(),
         )
     }
 
-    /// Ethexe genesis block hash as stored in the database.
-    pub fn genesis_block_hash(&self) -> H256 {
-        use ethexe_common::db::ConfigStorageRO;
-        self.db.config().genesis_block_hash
+    /// The oldest block the local DB is guaranteed to have a header
+    /// for — equal to genesis for full-sync nodes, later for
+    /// fast-sync nodes. Used as the stop fence for canonical-chain
+    /// walks.
+    fn start_block_hash(&self) -> H256 {
+        use ethexe_common::db::GlobalsStorageRO;
+        self.db.globals().start_block_hash
     }
 
     pub async fn get_earliest_height(&self) -> Height {
@@ -215,7 +218,7 @@ impl State {
             head,
             advance,
             self.canonical_quarantine,
-            self.genesis_block_hash(),
+            self.start_block_hash(),
         )
         .map_err(|e| anyhow!("AdvanceTillEthereumBlock {advance} rejected: {e}"))
     }
