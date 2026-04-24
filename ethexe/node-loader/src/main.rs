@@ -21,7 +21,11 @@
 use crate::{
     abi::deploy_send_message_multicall,
     args::LoadParams,
-    batch::{BatchPool, LoadRunConfig, report::RunEndedBy, value::ValuePolicy},
+    batch::{
+        BatchPool, LoadRunConfig,
+        report::RunEndedBy,
+        value::{ValuePolicy, format_wvara},
+    },
 };
 use alloy::{
     hex,
@@ -43,9 +47,20 @@ mod batch;
 mod fuzz;
 mod utils;
 
+const DEFAULT_WORKER_MINT_AMOUNT: u128 = 500_000_000_000_000_000_000_000;
+const MIN_POLICY_WORKER_MINT_AMOUNT: u128 = 1_000_000_000_000_000;
+
 struct WorkerApis {
     apis: Vec<Ethereum>,
     addresses: Vec<gsigner::secp256k1::Address>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WorkerFundingPlan {
+    is_sender: bool,
+    mint_amount: u128,
+    approve_self: bool,
+    approve_multicall: bool,
 }
 
 /// Parses CLI arguments, initializes tracing, and dispatches to the selected mode.
@@ -94,7 +109,6 @@ async fn main() -> Result<()> {
 /// 4. fund and approve workers,
 /// 5. start the block listener and the batch worker pool.
 async fn load_node(params: LoadParams) -> Result<()> {
-    const MINT_AMOUNT: u128 = 500_000_000_000_000_000_000_000;
     let value_policy = ValuePolicy::from_parts(
         params.value_profile,
         params.max_msg_value,
@@ -111,15 +125,20 @@ async fn load_node(params: LoadParams) -> Result<()> {
 
     let router_addr = validate_load_params(&params)?;
     let deployer_api = create_deployer_api(&params, router_addr).await?;
-    let send_message_multicall = deploy_multicall(&deployer_api).await?;
+    let send_message_multicall = resolve_multicall(&params, &deployer_api).await?;
     let WorkerApis { apis, addresses } = initialize_worker_apis(&params, router_addr).await?;
+    let worker_mint_amount = worker_mint_amount(params.mint_amount, value_policy.as_ref());
+    info!(
+        amount = %format_wvara(worker_mint_amount),
+        "Configured worker WVARA target balance"
+    );
 
     fund_and_prepare_workers(
         &deployer_api,
         &apis,
         &addresses,
         send_message_multicall,
-        MINT_AMOUNT,
+        worker_mint_amount,
     )
     .await?;
 
@@ -211,7 +230,16 @@ async fn create_deployer_api(params: &LoadParams, router_addr: Address) -> Resul
         .await
 }
 
-async fn deploy_multicall(deployer_api: &Ethereum) -> Result<Address> {
+async fn resolve_multicall(params: &LoadParams, deployer_api: &Ethereum) -> Result<Address> {
+    if let Some(address) = &params.send_message_multicall_address {
+        let address = Address::from_str(address)?;
+        info!(
+            "reusing send-message multicall at 0x{}",
+            hex::encode(address.0)
+        );
+        return Ok(address);
+    }
+
     let send_message_multicall = deploy_send_message_multicall(deployer_api).await?;
     info!(
         "send-message multicall deployed at 0x{}",
@@ -292,32 +320,111 @@ async fn fund_and_prepare_workers(
     apis: &[Ethereum],
     worker_addresses: &[gsigner::secp256k1::Address],
     send_message_multicall: Address,
-    mint_amount: u128,
+    target_balance: u128,
 ) -> Result<()> {
+    let sender_address = deployer_api.sender_address();
+
     for (address, api) in worker_addresses.iter().zip(apis.iter()) {
-        deployer_api
+        let balance = deployer_api
             .wrapped_vara()
-            .mint((*address).into(), mint_amount)
+            .query()
+            .balance_of((*address).into())
             .await?;
-        tracing::debug!(
-            "Minted {} WVARA to 0x{}",
-            mint_amount,
-            hex::encode(address.0)
-        );
+        let plan = worker_funding_plan(*address, sender_address, target_balance, balance);
 
-        api.wrapped_vara().approve_all((*address).into()).await?;
-        tracing::debug!("Approved all WVARA for 0x{}", hex::encode(address.0));
+        if plan.is_sender {
+            tracing::debug!(
+                "Worker 0x{} uses the sender account",
+                hex::encode(address.0)
+            );
+        }
 
-        api.wrapped_vara()
-            .approve_all(send_message_multicall.into())
-            .await?;
-        tracing::debug!(
-            "Approved all WVARA for multicall 0x{}",
-            hex::encode(send_message_multicall.0)
-        );
+        if plan.mint_amount > 0 {
+            tracing::debug!(
+                "Funding worker 0x{} with {} WVARA",
+                hex::encode(address.0),
+                plan.mint_amount
+            );
+            deployer_api
+                .wrapped_vara()
+                .mint((*address).into(), plan.mint_amount)
+                .await?;
+            tracing::debug!(
+                "Minted {} WVARA to 0x{}",
+                plan.mint_amount,
+                hex::encode(address.0)
+            );
+        } else {
+            tracing::debug!(
+                "Worker 0x{} already has {} WVARA, target is {} WVARA",
+                hex::encode(address.0),
+                balance,
+                target_balance
+            );
+        }
+
+        if plan.approve_self {
+            tracing::debug!("Approving all WVARA for 0x{}", hex::encode(address.0));
+            api.wrapped_vara().approve_all((*address).into()).await?;
+            tracing::debug!("Approved all WVARA for 0x{}", hex::encode(address.0));
+        } else {
+            tracing::debug!(
+                "Skipping self WVARA approval for sender worker 0x{}",
+                hex::encode(address.0)
+            );
+        }
+
+        if plan.approve_multicall {
+            tracing::debug!(
+                "Approving all WVARA for multicall 0x{} from worker 0x{}",
+                hex::encode(send_message_multicall.0),
+                hex::encode(address.0)
+            );
+            api.wrapped_vara()
+                .approve_all(send_message_multicall.into())
+                .await?;
+            tracing::debug!(
+                "Approved all WVARA for multicall 0x{}",
+                hex::encode(send_message_multicall.0)
+            );
+        }
     }
 
     Ok(())
+}
+
+fn worker_funding_plan(
+    worker_address: gsigner::secp256k1::Address,
+    sender_address: gsigner::secp256k1::Address,
+    target_balance: u128,
+    current_balance: u128,
+) -> WorkerFundingPlan {
+    let is_sender = worker_address == sender_address;
+
+    WorkerFundingPlan {
+        is_sender,
+        mint_amount: target_balance.saturating_sub(current_balance),
+        approve_self: !is_sender,
+        approve_multicall: true,
+    }
+}
+
+fn worker_mint_amount(override_amount: Option<u128>, policy: Option<&ValuePolicy>) -> u128 {
+    if let Some(amount) = override_amount {
+        return amount;
+    }
+
+    let Some(policy) = policy else {
+        return DEFAULT_WORKER_MINT_AMOUNT;
+    };
+
+    let Some(total_budget) = policy.total_top_up_budget else {
+        return DEFAULT_WORKER_MINT_AMOUNT;
+    };
+
+    total_budget
+        .max(policy.max_top_up_value.unwrap_or_default())
+        .max(MIN_POLICY_WORKER_MINT_AMOUNT)
 }
 
 async fn run_load_runtime(
@@ -379,7 +486,11 @@ async fn run_load_runtime(
 
 #[cfg(test)]
 mod tests {
-    use super::validate_worker_private_keys_count;
+    use super::{
+        DEFAULT_WORKER_MINT_AMOUNT, MIN_POLICY_WORKER_MINT_AMOUNT, WorkerFundingPlan,
+        validate_worker_private_keys_count, worker_funding_plan, worker_mint_amount,
+    };
+    use crate::batch::value::{ValuePolicy, ValueProfile};
 
     fn keys(count: usize) -> Vec<String> {
         (0..count).map(|idx| format!("0x{idx}")).collect()
@@ -398,6 +509,83 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "worker private key count (1) must match workers (2)"
+        );
+    }
+
+    #[test]
+    fn worker_mint_amount_uses_explicit_override() {
+        let policy = ValuePolicy::from_parts(Some(ValueProfile::Mainnet), None, None, None, None)
+            .expect("policy");
+
+        assert_eq!(worker_mint_amount(Some(42), policy.as_ref()), 42);
+    }
+
+    #[test]
+    fn worker_mint_amount_uses_dev_fallback_when_uncapped() {
+        assert_eq!(worker_mint_amount(None, None), DEFAULT_WORKER_MINT_AMOUNT);
+
+        let policy = ValuePolicy::from_parts(Some(ValueProfile::Dev), None, None, None, None)
+            .expect("policy");
+        assert_eq!(
+            worker_mint_amount(None, policy.as_ref()),
+            DEFAULT_WORKER_MINT_AMOUNT
+        );
+    }
+
+    #[test]
+    fn worker_mint_amount_follows_top_up_budget_with_floor() {
+        let policy = ValuePolicy::from_parts(None, None, Some(9), None, Some(17))
+            .expect("policy")
+            .expect("enabled");
+        assert_eq!(
+            worker_mint_amount(None, Some(&policy)),
+            MIN_POLICY_WORKER_MINT_AMOUNT
+        );
+
+        let policy = ValuePolicy::from_parts(
+            None,
+            None,
+            Some(MIN_POLICY_WORKER_MINT_AMOUNT + 5),
+            None,
+            Some(MIN_POLICY_WORKER_MINT_AMOUNT + 3),
+        )
+        .expect("policy")
+        .expect("enabled");
+        assert_eq!(
+            worker_mint_amount(None, Some(&policy)),
+            MIN_POLICY_WORKER_MINT_AMOUNT + 5
+        );
+    }
+
+    #[test]
+    fn sender_worker_funding_plan_skips_self_approval() {
+        let worker = gsigner::secp256k1::Address([1; 20]);
+        let sender = worker;
+
+        assert_eq!(
+            worker_funding_plan(worker, sender, 100, 40),
+            WorkerFundingPlan {
+                is_sender: true,
+                mint_amount: 60,
+                approve_self: false,
+                approve_multicall: true,
+            }
+        );
+    }
+
+    #[test]
+    fn non_sender_worker_funding_plan_keeps_worker_approvals() {
+        let worker = gsigner::secp256k1::Address([1; 20]);
+        let sender = gsigner::secp256k1::Address([2; 20]);
+
+        assert_eq!(
+            worker_funding_plan(worker, sender, 100, 140),
+            WorkerFundingPlan {
+                is_sender: false,
+                mint_amount: 0,
+                approve_self: true,
+                approve_multicall: true,
+            }
         );
     }
 }

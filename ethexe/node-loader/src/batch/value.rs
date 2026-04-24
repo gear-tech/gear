@@ -5,7 +5,7 @@ use gear_call_gen::{
     ClaimValueArgs, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
     UploadProgramArgs,
 };
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng, rngs::SmallRng};
 use std::fmt;
 
 pub(crate) const DEFAULT_TOP_UP_VALUE: u128 = 500_000_000_000_000;
@@ -391,7 +391,7 @@ mod tests {
     use crate::batch::generator::Batch;
     use gear_call_gen::{CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadProgramArgs};
     use gprimitives::{ActorId, CodeId, MessageId};
-    use rand::{rngs::SmallRng, SeedableRng};
+    use rand::{SeedableRng, rngs::SmallRng};
 
     fn code(seed: u8) -> CodeId {
         CodeId::from([seed; 32])

@@ -557,13 +557,14 @@ async fn run_batch_impl(
                 let code_id = rpc_pool
                     .request_code_validation(endpoint_idx, &api, &call.arg.0.0)
                     .await?;
-                assert_eq!(code_id, CodeId::generate(&call.arg.0.0));
-                rpc_pool
-                    .wait_for_code_validation(endpoint_idx, &api, code_id)
-                    .await?;
-                tracing::trace!(code_id = %code_id, "Code validated");
+                assert_eq!(code_id, expected_code_id);
                 code_ids.push(code_id);
             }
+
+            rpc_pool
+                .wait_for_codes_validation(endpoint_idx, &api, code_ids.iter().copied())
+                .await?;
+            tracing::trace!(codes = code_ids.len(), "Codes validated");
 
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
@@ -641,13 +642,13 @@ async fn run_batch_impl(
                 let code_id = rpc_pool
                     .request_code_validation(endpoint_idx, &api, &arg.0)
                     .await?;
-                assert_eq!(code_id, CodeId::generate(&arg.0));
-                rpc_pool
-                    .wait_for_code_validation(endpoint_idx, &api, code_id)
-                    .await?;
-                tracing::debug!(code_id = %code_id, "Code validated");
+                assert_eq!(code_id, expected_code_id);
                 code_ids.push(code_id);
             }
+
+            rpc_pool
+                .wait_for_codes_validation(endpoint_idx, &api, code_ids.iter().copied())
+                .await?;
 
             tracing::debug!(
                 codes = code_ids.len(),

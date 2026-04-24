@@ -71,6 +71,9 @@ pub struct LoadParams {
     /// Whether to batch regular `send_message` calls through the multicall contract.
     #[arg(long, default_value_t = true, action = ArgAction::Set)]
     pub use_send_message_multicall: bool,
+    /// Existing BatchMulticall contract address to reuse instead of deploying a new one.
+    #[arg(long)]
+    pub send_message_multicall_address: Option<String>,
     /// Value policy preset for load-mode message and top-up amounts.
     #[arg(long, ignore_case = true, value_enum)]
     pub value_profile: Option<ValueProfile>,
@@ -86,6 +89,10 @@ pub struct LoadParams {
     /// Total top-up budget across the run in WVARA base units.
     #[arg(long)]
     pub total_top_up_budget: Option<u128>,
+    /// Target WVARA balance per worker before load starts. Defaults to a value-policy-derived
+    /// amount, or the dev-mode fallback when value spending is uncapped.
+    #[arg(long, env = "MINT_AMOUNT")]
+    pub mint_amount: Option<u128>,
 }
 
 /// Parses CLI arguments for the binary and returns the selected subcommand.
@@ -174,6 +181,10 @@ mod tests {
             "789",
             "--total-top-up-budget",
             "999",
+            "--mint-amount",
+            "111",
+            "--send-message-multicall-address",
+            "0x1111111111111111111111111111111111111111",
         ])
         .expect("parse");
 
@@ -186,6 +197,11 @@ mod tests {
         assert_eq!(load_params.max_top_up_value, Some(456));
         assert_eq!(load_params.total_msg_value_budget, Some(789));
         assert_eq!(load_params.total_top_up_budget, Some(999));
+        assert_eq!(load_params.mint_amount, Some(111));
+        assert_eq!(
+            load_params.send_message_multicall_address.as_deref(),
+            Some("0x1111111111111111111111111111111111111111")
+        );
     }
 
     #[test]
