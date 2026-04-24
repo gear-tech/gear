@@ -11,11 +11,12 @@
 //! - `dump`: materializes a generated Gear WASM module for a fixed seed to help
 //!   with reproducing failures.
 //!
-//! In load mode, the crate derives worker accounts from the standard Anvil
-//! mnemonic, funds them through the configured deployer account, deploys a
-//! multicall helper contract, and then keeps a pool of worker tasks running in
-//! parallel. A block subscription drives event collection so the loader can keep
-//! track of created programs, mailbox state, and reply outcomes between batches.
+//! In load mode, the crate either uses explicitly supplied worker private keys
+//! or derives worker accounts from the standard Anvil mnemonic, funds them
+//! through the configured deployer account, deploys a multicall helper contract,
+//! and then keeps a pool of worker tasks running in parallel. A block
+//! subscription drives event collection so the loader can keep track of created
+//! programs, mailbox state, and reply outcomes between batches.
 
 use crate::{
     abi::deploy_send_message_multicall,
@@ -87,9 +88,9 @@ async fn main() -> Result<()> {
 ///
 /// The setup sequence is:
 ///
-/// 1. validate worker counts and ethexe RPC URLs,
+/// 1. validate worker account configuration and ethexe RPC URLs,
 /// 2. create the deployer client and deploy the multicall helper,
-/// 3. derive and initialize one Ethereum client per worker account,
+/// 3. initialize one Ethereum client per worker account,
 /// 4. fund and approve workers,
 /// 5. start the block listener and the batch worker pool.
 async fn load_node(params: LoadParams) -> Result<()> {
@@ -160,13 +161,30 @@ fn validate_load_params(params: &LoadParams) -> Result<Address> {
         return Err(anyhow!("workers must be greater than 0"));
     }
 
-    utils::validate_worker_count(params.ethexe_nodes.len(), params.workers)?;
+    validate_worker_private_keys_count(params.workers, &params.worker_private_keys)?;
+    if params.worker_private_keys.is_empty() {
+        utils::validate_worker_count(params.ethexe_nodes.len(), params.workers)?;
+    }
 
     for arg in &params.ethexe_nodes {
         url::Url::parse(arg).map_err(|err| anyhow!("invalid Ethexe node URL '{arg}': {err}"))?;
     }
 
     Address::from_str(&params.router_address).map_err(Into::into)
+}
+
+fn validate_worker_private_keys_count(
+    workers: usize,
+    worker_private_keys: &[String],
+) -> Result<()> {
+    if !worker_private_keys.is_empty() && worker_private_keys.len() != workers {
+        return Err(anyhow!(
+            "worker private key count ({}) must match workers ({workers})",
+            worker_private_keys.len()
+        ));
+    }
+
+    Ok(())
 }
 
 async fn create_deployer_api(params: &LoadParams, router_addr: Address) -> Result<Ethereum> {
@@ -203,12 +221,30 @@ async fn deploy_multicall(deployer_api: &Ethereum) -> Result<Address> {
 }
 
 async fn initialize_worker_apis(params: &LoadParams, router_addr: Address) -> Result<WorkerApis> {
-    let mut init_tasks: JoinSet<Result<(u32, u32, gsigner::secp256k1::Address, Ethereum)>> =
-        JoinSet::new();
-    let worker_account_start = utils::worker_account_start(params.ethexe_nodes.len())?;
-    for worker_idx in 0..params.workers as u32 {
-        let account_index = worker_account_start + worker_idx;
-        let (signer, address) = utils::signer_from_anvil_account(account_index)?;
+    enum WorkerAccountSource {
+        Anvil(u32),
+        PrivateKey,
+    }
+
+    let mut init_tasks: JoinSet<
+        Result<(
+            usize,
+            WorkerAccountSource,
+            gsigner::secp256k1::Address,
+            Ethereum,
+        )>,
+    > = JoinSet::new();
+    for worker_idx in 0..params.workers {
+        let (source, signer, address) =
+            if let Some(private_key) = params.worker_private_keys.get(worker_idx) {
+                let (signer, address) = utils::signer_from_private_key(private_key)?;
+                (WorkerAccountSource::PrivateKey, signer, address)
+            } else {
+                let worker_account_start = utils::worker_account_start(params.ethexe_nodes.len())?;
+                let account_index = worker_account_start + u32::try_from(worker_idx)?;
+                let (signer, address) = utils::signer_from_anvil_account(account_index)?;
+                (WorkerAccountSource::Anvil(account_index), signer, address)
+            };
         let node = params.node.clone();
         let router = router_addr;
 
@@ -220,17 +256,27 @@ async fn initialize_worker_apis(params: &LoadParams, router_addr: Address) -> Re
                 .sender_address(address)
                 .build()
                 .await?;
-            Ok((worker_idx, account_index, address, api))
+            Ok((worker_idx, source, address, api))
         });
     }
 
     let mut workers = Vec::with_capacity(params.workers);
     while let Some(result) = init_tasks.join_next().await {
-        let (worker_idx, account_index, address, api) = result??;
-        info!(
-            "worker {worker_idx} (anvil account #{account_index}): 0x{}",
-            hex::encode(address.0)
-        );
+        let (worker_idx, source, address, api) = result??;
+        match source {
+            WorkerAccountSource::Anvil(account_index) => {
+                info!(
+                    "worker {worker_idx} (anvil account #{account_index}): 0x{}",
+                    hex::encode(address.0)
+                );
+            }
+            WorkerAccountSource::PrivateKey => {
+                info!(
+                    "worker {worker_idx} (provided account): 0x{}",
+                    hex::encode(address.0)
+                );
+            }
+        }
         workers.push((worker_idx, address, api));
     }
 
@@ -328,5 +374,30 @@ async fn run_load_runtime(
             println!("{run_report}");
             Err(err)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_worker_private_keys_count;
+
+    fn keys(count: usize) -> Vec<String> {
+        (0..count).map(|idx| format!("0x{idx}")).collect()
+    }
+
+    #[test]
+    fn worker_private_keys_can_be_omitted_for_anvil_fallback() {
+        validate_worker_private_keys_count(3, &[]).expect("no manual keys");
+    }
+
+    #[test]
+    fn worker_private_keys_must_match_worker_count_when_supplied() {
+        validate_worker_private_keys_count(2, &keys(2)).expect("matching keys");
+
+        let err = validate_worker_private_keys_count(2, &keys(1)).expect_err("mismatched keys");
+        assert_eq!(
+            err.to_string(),
+            "worker private key count (1) must match workers (2)"
+        );
     }
 }

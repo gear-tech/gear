@@ -59,6 +59,13 @@ pub struct LoadParams {
     /// Desirable amount of workers in task pool, bounded by available prebuilt Anvil accounts.
     #[arg(long, short, default_value = "1")]
     pub workers: usize,
+    /// Private keys for worker accounts. Repeat the flag once per worker.
+    #[arg(
+        long = "worker-private-key",
+        env = "WORKER_PRIVATE_KEYS",
+        value_delimiter = ','
+    )]
+    pub worker_private_keys: Vec<String>,
     #[arg(long, short, default_value = "1")]
     pub batch_size: usize,
     /// Whether to batch regular `send_message` calls through the multicall contract.
@@ -205,5 +212,27 @@ mod tests {
         assert_eq!(load_params.max_top_up_value, Some(0));
         assert_eq!(load_params.total_msg_value_budget, Some(0));
         assert_eq!(load_params.total_top_up_budget, Some(0));
+    }
+
+    #[test]
+    fn load_params_parse_multiple_worker_private_keys() {
+        let params = Params::try_parse_from([
+            "ethexe-node-loader",
+            "load",
+            "--workers",
+            "2",
+            "--worker-private-key",
+            "0x1111",
+            "--worker-private-key",
+            "0x2222",
+        ])
+        .expect("parse");
+
+        let Params::Load(load_params) = params else {
+            panic!("expected load params");
+        };
+
+        assert_eq!(load_params.workers, 2);
+        assert_eq!(load_params.worker_private_keys, vec!["0x1111", "0x2222"]);
     }
 }

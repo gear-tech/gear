@@ -17,6 +17,19 @@ Then run the loader with:
 
 - `RUST_LOG=debug,alloy_transport=off,alloy_provider=off,alloy_rpc_client=off,alloy_json_rpc=off,alloy_pubsub=off ./target/debug/ethexe-node-loader load --batch-size 4 --workers 16`
 
+By default, worker accounts are derived from the standard Anvil mnemonic. To use
+specific worker accounts, pass one private key per worker:
+
+```bash
+./target/debug/ethexe-node-loader load \
+  --workers 2 \
+  --worker-private-key 0x... \
+  --worker-private-key 0x...
+```
+
+`WORKER_PRIVATE_KEYS` can also be set to a comma-separated list of private keys.
+When manual keys are supplied, their count must match `--workers`.
+
 ## Value control for testnet and mainnet
 
 `load` mode now supports optional value control. If you do not pass any value flags, the
@@ -69,4 +82,4 @@ Runs a continuous load test against an `ethexe` dev node, generating randomized 
 
 to stress-test the runtime and networking stack.
 
-It derives worker accounts from the standard Anvil mnemonic, funds them, and then runs batch workers in parallel. It also subscribes to new blocks to drive batch scheduling.
+It uses supplied worker private keys or derives worker accounts from the standard Anvil mnemonic, funds them, and then runs batch workers in parallel. It also subscribes to new blocks to drive batch scheduling.
