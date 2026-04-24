@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
         Params::Load(load_params) => {
             info!("Starting load test on {}", load_params.node);
 
-            load_node(load_params).await
+            load_node(*load_params).await
         }
         Params::Fuzz(fuzz_params) => {
             info!("Starting syscall fuzz test on {}", fuzz_params.node);
