@@ -22,8 +22,8 @@ use super::types::CodeNotValidatedError;
 
 use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
+    SimpleBlockData,
+    db::{BlockMetaStorageRO, CodesStorageRO, MbStorageRO},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
     },
@@ -31,33 +31,70 @@ use ethexe_common::{
 use gprimitives::{ActorId, CodeId, H256};
 use std::collections::{HashMap, hash_map::Entry};
 
-pub fn collect_not_committed_predecessors<DB: AnnounceStorageRO + BlockMetaStorageRO>(
+/// Walk the MB chain from `mb_hash` up via `parent_mb_hash` and return the
+/// hashes of all MBs strictly between `last_committed_mb` (exclusive) and
+/// `mb_hash` (inclusive), in **chronological** order (oldest first).
+///
+/// `last_committed_mb == H256::zero()` means nothing has been committed
+/// on-chain yet — the walk continues through the genesis MB and stops when
+/// `parent_mb_hash` is `None`.
+///
+/// Errors out if the chain walk is exhausted without reaching
+/// `last_committed_mb` (i.e. the supplied head is not a descendant of the
+/// last committed MB), or if any MB along the way is not yet computed.
+pub fn collect_not_committed_mb_predecessors<DB: MbStorageRO>(
     db: &DB,
-    last_committed_announce_hash: HashOf<Announce>,
-    announce_hash: HashOf<Announce>,
-) -> Result<Vec<HashOf<Announce>>> {
-    let mut announces = Vec::new();
-    let mut current_announce = announce_hash;
+    last_committed_mb: H256,
+    mb_hash: H256,
+) -> Result<Vec<H256>> {
+    let mut mbs = Vec::new();
+    let mut current = mb_hash;
 
-    // Maybe remove this loop to prevent infinite searching
-    while current_announce != last_committed_announce_hash {
-        if !db.announce_meta(current_announce).computed {
-            // All announces till last committed must be computed.
-            // Even fast-sync guarantees that.
-            bail!("Not computed announce in chain {current_announce:?}")
+    while current != last_committed_mb {
+        if current == H256::zero() {
+            bail!(
+                "MB chain walk reached genesis without finding last_committed_mb {last_committed_mb}"
+            );
         }
 
-        announces.push(current_announce);
-        current_announce = db
-            .announce(current_announce)
-            .ok_or_else(|| anyhow!("Computed announce {current_announce:?} body not found in db"))?
-            .parent;
+        let meta = db.mb_meta(current);
+        if !meta.computed {
+            bail!("MB {current} in chain is not computed");
+        }
+
+        mbs.push(current);
+        current = meta.parent_mb_hash.unwrap_or(H256::zero());
     }
 
-    Ok(announces.into_iter().rev().collect())
+    Ok(mbs.into_iter().rev().collect())
 }
 
-pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
+/// `request.head` must be either `latest_finalized_mb` itself or one of its
+/// ancestors (via `parent_mb_hash`). Returns `Ok(true)` when the candidate is
+/// a non-strict ancestor of (or equal to) `latest_finalized_mb`. Returns
+/// `Ok(false)` when the chain walk exhausts without hitting the candidate.
+///
+/// `H256::zero()` is treated as the pre-genesis sentinel and is an ancestor
+/// of every MB.
+pub fn is_ancestor_or_equal<DB: MbStorageRO>(
+    db: &DB,
+    candidate: H256,
+    latest_finalized_mb: H256,
+) -> Result<bool> {
+    if candidate == H256::zero() {
+        return Ok(true);
+    }
+    let mut current = latest_finalized_mb;
+    while current != H256::zero() {
+        if current == candidate {
+            return Ok(true);
+        }
+        current = db.mb_meta(current).parent_mb_hash.unwrap_or(H256::zero());
+    }
+    Ok(false)
+}
+
+pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
     batch_parts: BatchParts,
@@ -71,14 +108,26 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + Annou
     } = batch_parts;
 
     let block_hash = block.hash;
-    if chain_commitment.is_none()
+
+    // An MB that finalized with no state transitions doesn't justify a chain
+    // commitment on its own — head can advance the next time the coordinator
+    // catches a non-empty MB. We still allow a batch *without* a chain
+    // commitment if there are codes / validators / rewards to commit.
+    let chain_has_transitions = chain_commitment
+        .as_ref()
+        .is_some_and(|c| !c.transitions.is_empty());
+
+    if !chain_has_transitions
         && code_commitments.is_empty()
         && validators_commitment.is_none()
         && rewards_commitment.is_none()
     {
-        tracing::debug!("No commitments for block {block_hash} - skip batch commitment",);
+        tracing::debug!("No commitments for block {block_hash} - skip batch commitment");
         return Ok(None);
     }
+
+    // Drop the chain commitment if its transitions list is empty — see comment above.
+    let chain_commitment = chain_commitment.filter(|c| !c.transitions.is_empty());
 
     let previous_batch = db
         .block_meta(block.hash)
@@ -87,11 +136,12 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + Annou
             || anyhow!("Cannot get from db last committed block for block {block_hash}",),
         )?;
 
-    let expiry = chain_commitment
-        .as_ref()
-        .map(|c| calculate_batch_expiry(db, block, c.head_announce, commitment_delay_limit))
-        .transpose()?
-        .flatten()
+    // For now we use a static expiry derived from `commitment_delay_limit` —
+    // batches need to land within that many Ethereum blocks of `block.hash`
+    // or they're rejected on-chain. Fine-grained expiry (depending on chain
+    // deepness) is dropped along with the producer-side announce flow.
+    let expiry: u8 = commitment_delay_limit
+        .try_into()
         .unwrap_or(u8::MAX);
 
     tracing::trace!("Batch commitment expiry for block {block_hash} is {expiry:?}",);
@@ -126,122 +176,57 @@ pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     Ok(commitments)
 }
 
-pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
+/// Build a chain commitment that covers all not-yet-committed MBs between
+/// `block.last_committed_mb` (exclusive) and `mb_head` (inclusive), feed it
+/// into the supplied `batch_filler`, and return the hash of the head MB
+/// that was actually included (might be older than `mb_head` if the size
+/// budget was hit mid-walk; might equal `last_committed_mb` if the head MB's
+/// outcome is empty and the filler skips the whole chain commitment).
+pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     db: &DB,
     at_block: H256,
-    head_announce_hash: HashOf<Announce>,
+    mb_head: H256,
     batch_filler: &mut BatchFiller,
-) -> Result<(HashOf<Announce>, u32)> {
-    if !db.announce_meta(head_announce_hash).computed {
-        anyhow::bail!(
-            "Head announce {head_announce_hash:?} is not computed, cannot aggregate chain commitment"
+) -> Result<H256> {
+    if !db.mb_meta(mb_head).computed {
+        anyhow::bail!("Head MB {mb_head} is not computed, cannot aggregate chain commitment");
+    }
+
+    let last_committed_mb = db
+        .block_meta(at_block)
+        .last_committed_mb
+        .unwrap_or(H256::zero());
+
+    let pending = collect_not_committed_mb_predecessors(db, last_committed_mb, mb_head)?;
+
+    // Aggregate transitions across the whole pending range; head advances to
+    // the actual head MB even if intermediate MBs had empty outcomes (we
+    // still want to advance the on-chain pointer past them next commit).
+    let mut transitions = Vec::new();
+    let mut last_included = last_committed_mb;
+    for mb_hash in &pending {
+        let Some(mb_transitions) = db.mb_outcome(*mb_hash) else {
+            anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
+        };
+        transitions.extend(mb_transitions);
+        last_included = *mb_hash;
+    }
+
+    let commitment = ChainCommitment {
+        head: last_included,
+        transitions,
+    };
+
+    if let Err(err) = batch_filler.include_chain_commitment(commitment) {
+        tracing::trace!(
+            "failed to include chain commitment for head MB {mb_head} because of error={err}"
         );
+        // include_chain_commitment only fails on size budget; report the head
+        // we tried to commit so the caller can record what didn't fit.
+        return Ok(last_committed_mb);
     }
 
-    let Some(last_committed_announce) = db.block_meta(at_block).last_committed_announce else {
-        anyhow::bail!("Last committed announce not found in db for prepared block: {at_block}",);
-    };
-
-    let pending = super::utils::collect_not_committed_predecessors(
-        &db,
-        last_committed_announce,
-        head_announce_hash,
-    )?;
-
-    let final_announce = pending.last().copied().unwrap_or(head_announce_hash);
-    let max_depth = pending.len() as u32;
-
-    for (depth, announce_hash) in pending.into_iter().enumerate() {
-        let Some(transitions) = db.announce_outcome(announce_hash) else {
-            anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
-        };
-        let commitment = ChainCommitment {
-            head_announce: announce_hash,
-            transitions,
-        };
-
-        if let Err(err) = batch_filler.include_chain_commitment(commitment, depth as u32) {
-            tracing::trace!(
-                "failed to include chain commitment for announce({announce_hash}) because of error={err}"
-            );
-            return Ok((announce_hash, depth as u32));
-        }
-    }
-    Ok((final_announce, max_depth))
-}
-
-pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
-    db: &DB,
-    block: &SimpleBlockData,
-    head_announce_hash: HashOf<Announce>,
-    commitment_delay_limit: u32,
-) -> Result<Option<u8>> {
-    let head_announce = db
-        .announce(head_announce_hash)
-        .ok_or_else(|| anyhow!("Cannot get announce by {head_announce_hash}"))?;
-
-    let head_announce_block_header = db
-        .block_header(head_announce.block_hash)
-        .ok_or_else(|| anyhow!("block header not found for({})", head_announce.block_hash))?;
-
-    let head_delay = block
-        .header
-        .height
-        .checked_sub(head_announce_block_header.height)
-        .ok_or_else(|| {
-            anyhow!(
-                "Head announce {} has bigger height {}, than batch height {}",
-                head_announce_hash,
-                head_announce_block_header.height,
-                block.header.height,
-            )
-        })?;
-
-    // Amount of announces which we should check to determine if there are not-base announces in the commitment.
-    let Some(announces_to_check_amount) = commitment_delay_limit.checked_sub(head_delay) else {
-        // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
-        return Ok(None);
-    };
-
-    if announces_to_check_amount == 0 {
-        // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
-        return Ok(None);
-    }
-
-    let mut oldest_not_base_announce_depth = (!head_announce.is_base()).then_some(0);
-    let mut current_announce_hash = head_announce.parent;
-
-    if announces_to_check_amount == 1 {
-        // If head announce is not base and older than commitment delay limit - 1, then expiry is only 1.
-        return Ok(oldest_not_base_announce_depth.map(|_| 1));
-    }
-
-    let last_committed_announce = db
-        .block_meta(block.hash)
-        .last_committed_announce
-        .ok_or_else(|| anyhow!("last committed announce not found for block {}", block.hash))?;
-
-    // from 1 because we have already checked head announce (note announces_to_check_amount > 1)
-    for i in 1..announces_to_check_amount {
-        if current_announce_hash == last_committed_announce {
-            break;
-        }
-
-        let current_announce = db
-            .announce(current_announce_hash)
-            .ok_or_else(|| anyhow!("Cannot get announce by {current_announce_hash}",))?;
-
-        if !current_announce.is_base() {
-            oldest_not_base_announce_depth = Some(i);
-        }
-
-        current_announce_hash = current_announce.parent;
-    }
-
-    Ok(oldest_not_base_announce_depth
-        .map(|depth| announces_to_check_amount - depth)
-        .map(TryInto::try_into)
-        .transpose()?)
+    Ok(last_included)
 }
 
 /// Squashes transitions for the same actor into a single transition per actor.
@@ -394,196 +379,115 @@ pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition])
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        mock::*,
-        validator::batch::{BatchLimits, filler::BatchFiller},
-    };
     use ethexe_common::{
-        COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT,
-        consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::*, mock::*,
+        Schedule,
+        db::{MbMeta, MbStorageRW},
+        mb::{ProcessQueuesLimits, SequencerBlock, Transaction},
     };
     use ethexe_db::Database;
 
-    const BATCH_LIMITS: BatchLimits = BatchLimits {
-        chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
-        commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
-        batch_size_limit: DEFAULT_BLOCK_GAS_LIMIT,
-    };
+    fn empty_mb(parent: H256) -> SequencerBlock {
+        SequencerBlock::new(
+            parent,
+            vec![Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            }],
+        )
+    }
 
-    #[test]
-    fn test_aggregate_chain_commitment() {
-        {
-            // Valid case, two transitions in the chain, but only one must be included
-            let db = Database::memory();
-            let chain = test_block_chain(10)
-                .tap_mut(|chain| {
-                    chain
-                        .block_top_announce_mut(3)
-                        .as_computed_mut()
-                        .outcome
-                        .push(test_state_transition(1));
-                    chain
-                        .block_top_announce_mut(5)
-                        .as_computed_mut()
-                        .outcome
-                        .push(test_state_transition(2));
-                    chain.blocks[10].as_prepared_mut().last_committed_announce =
-                        chain.block_top_announce_hash(3);
-                })
-                .setup(&db);
-            let block = chain.blocks[10].to_simple();
-            let head_announce_hash = chain.block_top_announce_hash(9);
-
-            let mut batch_filler = BatchFiller::new(BATCH_LIMITS);
-            let (_, deepness) = try_include_chain_commitment(
-                &db,
-                block.hash,
-                head_announce_hash,
-                &mut batch_filler,
-            )
-            .unwrap();
-            let commitment = batch_filler.into_parts().chain_commitment.unwrap();
-
-            assert_eq!(commitment.head_announce, head_announce_hash);
-            assert_eq!(commitment.transitions.len(), 1);
-            assert_eq!(deepness, 6);
-        }
-
-        {
-            // head announce not computed
-            let db = Database::memory();
-            let chain = test_block_chain(3)
-                .tap_mut(|chain| chain.block_top_announce_mut(3).computed = None)
-                .setup(&db);
-            let block = chain.blocks[3].to_simple();
-            let head_announce_hash = chain.block_top_announce_hash(3);
-            let mut batch_filler = BatchFiller::new(BATCH_LIMITS);
-
-            try_include_chain_commitment(&db, block.hash, head_announce_hash, &mut batch_filler)
-                .unwrap_err();
-        }
-
-        {
-            // announce in chain not computed
-            let db = Database::memory();
-            let chain = test_block_chain(3)
-                .tap_mut(|chain| chain.block_top_announce_mut(2).computed = None)
-                .setup(&db);
-            let block = chain.blocks[3].to_simple();
-            let head_announce_hash = chain.block_top_announce_hash(3);
-
-            let mut batch_filler = BatchFiller::new(BATCH_LIMITS);
-            try_include_chain_commitment(&db, block.hash, head_announce_hash, &mut batch_filler)
-                .unwrap_err();
-        }
-
-        {
-            // last committed announce missing in block meta
-            let db = Database::memory();
-            let chain = test_block_chain(3)
-                .tap_mut(|chain| chain.blocks[3].prepared = None)
-                .setup(&db);
-            let block = chain.blocks[3].to_simple();
-            let head_announce_hash = chain.block_top_announce_hash(2);
-
-            let mut batch_filler = BatchFiller::new(BATCH_LIMITS);
-            try_include_chain_commitment(&db, block.hash, head_announce_hash, &mut batch_filler)
-                .unwrap_err();
-        }
+    fn write_mb(
+        db: &Database,
+        parent_mb: H256,
+        height: u64,
+        outcome: Vec<StateTransition>,
+    ) -> H256 {
+        let block = empty_mb(parent_mb);
+        let hash = block.hash();
+        db.set_mb_block(hash, block);
+        db.set_mb_outcome(hash, outcome);
+        db.set_mb_schedule(hash, Schedule::default());
+        db.mutate_mb_meta(hash, |meta| {
+            meta.computed = true;
+            meta.height = height;
+            meta.parent_mb_hash = (parent_mb != H256::zero()).then_some(parent_mb);
+            meta.last_advanced_block = H256::zero();
+        });
+        db.set_mb_hash_at_height(height, hash);
+        hash
     }
 
     #[test]
-    fn test_aggregate_code_commitments() {
+    fn collect_predecessors_walks_chain() {
         let db = Database::memory();
-        let codes = vec![CodeId::from([1; 32]), CodeId::from([2; 32])];
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        let mb2 = write_mb(&db, mb1, 2, vec![]);
+        let mb3 = write_mb(&db, mb2, 3, vec![]);
 
-        // Test with valid codes
-        db.set_code_valid(codes[0], true);
-        db.set_code_valid(codes[1], false);
+        let walked = collect_not_committed_mb_predecessors(&db, H256::zero(), mb3).unwrap();
+        assert_eq!(walked, vec![mb1, mb2, mb3]);
 
-        let commitments = aggregate_code_commitments(&db, codes.clone(), false).unwrap();
-        assert_eq!(
-            commitments,
-            vec![
-                CodeCommitment {
-                    id: codes[0],
-                    valid: true,
-                },
-                CodeCommitment {
-                    id: codes[1],
-                    valid: false,
-                }
-            ]
-        );
-
-        let commitments =
-            aggregate_code_commitments(&db, vec![codes[0], CodeId::from([3; 32]), codes[1]], false)
-                .unwrap();
-        assert_eq!(
-            commitments,
-            vec![
-                CodeCommitment {
-                    id: codes[0],
-                    valid: true,
-                },
-                CodeCommitment {
-                    id: codes[1],
-                    valid: false,
-                }
-            ]
-        );
-
-        aggregate_code_commitments(&db, vec![CodeId::from([3; 32])], true).unwrap_err();
+        let from_mb1 = collect_not_committed_mb_predecessors(&db, mb1, mb3).unwrap();
+        assert_eq!(from_mb1, vec![mb2, mb3]);
     }
 
     #[test]
-    fn test_batch_expiry_calculation() {
-        {
-            let db = Database::memory();
-            let chain = test_block_chain(1).setup(&db);
-            let block = chain.blocks[1].to_simple();
-            let expiry =
-                calculate_batch_expiry(&db, &block, db.top_announce_hash(block.hash), 5).unwrap();
-            assert!(expiry.is_none(), "Expiry should be None");
-        }
+    fn collect_predecessors_returns_empty_when_at_target() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
 
-        {
-            let db = Database::memory();
-            let chain = test_block_chain(10)
-                .tap_mut(|c| {
-                    c.block_top_announce_mut(10).announce.gas_allowance = Some(10);
-                    c.blocks[10].as_prepared_mut().announces =
-                        Some([c.block_top_announce(10).announce.to_hash()].into());
-                })
-                .setup(&db);
+        let walked = collect_not_committed_mb_predecessors(&db, mb1, mb1).unwrap();
+        assert!(walked.is_empty());
+    }
 
-            let block = chain.blocks[10].to_simple();
-            let expiry =
-                calculate_batch_expiry(&db, &block, db.top_announce_hash(block.hash), 100).unwrap();
-            assert_eq!(
-                expiry,
-                Some(100),
-                "Expiry should be 100 as there is one not-base announce"
-            );
-        }
+    #[test]
+    fn collect_predecessors_errors_when_target_not_in_chain() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        let mb2 = write_mb(&db, mb1, 2, vec![]);
 
-        {
-            let db = Database::memory();
-            let batch = prepare_chain_for_batch_commitment(&db);
-            let block = db.simple_block_data(batch.block_hash);
-            let expiry = calculate_batch_expiry(
-                &db,
-                &block,
-                batch.chain_commitment.as_ref().unwrap().head_announce,
-                3,
-            )
-            .unwrap()
-            .unwrap();
-            assert_eq!(
-                expiry, batch.expiry,
-                "Expiry should match the one in the batch commitment"
-            );
-        }
+        // mb2 cannot trace back to a hash that's not on the chain.
+        let bogus = H256::from_low_u64_be(0xDEAD);
+        let err = collect_not_committed_mb_predecessors(&db, bogus, mb2).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("genesis"), "got: {msg}");
+    }
+
+    #[test]
+    fn collect_predecessors_errors_on_uncomputed_mb() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        let mb2 = write_mb(&db, mb1, 2, vec![]);
+        // Force mb2 to look uncomputed.
+        db.mutate_mb_meta(mb2, |meta| meta.computed = false);
+
+        let err = collect_not_committed_mb_predecessors(&db, H256::zero(), mb2).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("not computed"), "got: {msg}");
+    }
+
+    #[test]
+    fn is_ancestor_zero_is_universal_ancestor() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        assert!(is_ancestor_or_equal(&db, H256::zero(), mb1).unwrap());
+    }
+
+    #[test]
+    fn is_ancestor_self_is_ancestor() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        assert!(is_ancestor_or_equal(&db, mb1, mb1).unwrap());
+    }
+
+    #[test]
+    fn is_ancestor_resolves_proper_ancestor() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        let mb2 = write_mb(&db, mb1, 2, vec![]);
+        let mb3 = write_mb(&db, mb2, 3, vec![]);
+        assert!(is_ancestor_or_equal(&db, mb1, mb3).unwrap());
+        // Going the other way around is not an ancestor relationship.
+        assert!(!is_ancestor_or_equal(&db, mb3, mb1).unwrap());
     }
 
     #[test]
@@ -794,174 +698,6 @@ mod tests {
         assert!(!squashed[0].exited);
         assert_eq!(squashed[0].inheritor, ActorId::zero());
         assert_eq!(squashed[0].value_to_receive, 3);
-    }
-
-    #[test]
-    fn test_squash_comprehensive() {
-        use ethexe_common::gear::{Message, ValueClaim};
-        use gprimitives::MessageId;
-
-        // --- Actors ---
-        let actor_a = ActorId::from([0xAA; 32]); // appears in 3 blocks
-        let actor_b = ActorId::from([0xBB; 32]); // appears in 2 blocks; later non-exit is defensive
-        let actor_c = ActorId::from([0xCC; 32]); // appears only once (singleton)
-
-        let inheritor_1 = ActorId::from([0x11; 32]);
-
-        // --- Messages ---
-        let msg = |tag: &[u8], val: u128| Message {
-            id: MessageId::from(H256::from_slice(&{
-                let mut buf = [0u8; 32];
-                buf[..tag.len().min(32)].copy_from_slice(&tag[..tag.len().min(32)]);
-                buf
-            })),
-            destination: ActorId::from([0xDD; 32]),
-            payload: tag.to_vec(),
-            value: val,
-            reply_details: None,
-            call: false,
-        };
-        let m_a1 = msg(b"a1", 10);
-        let m_a2 = msg(b"a2", 20);
-        let m_a3 = msg(b"a3", 30);
-        let m_b1 = msg(b"b1", 100);
-        let m_b2 = msg(b"b2", 200);
-        let m_c1 = msg(b"c1", 50);
-
-        // --- Value claims ---
-        let vc = |id_byte: u8, val: u128| ValueClaim {
-            message_id: MessageId::from(H256::from([id_byte; 32])),
-            destination: ActorId::from([id_byte; 32]),
-            value: val,
-        };
-        let vc_a1 = vc(0x01, 5);
-        let vc_a2 = vc(0x02, 15);
-        let vc_b1 = vc(0x03, 7);
-
-        // Simulate transitions in chronological order (oldest first):
-        //
-        // Block 1: actor_a (state=H1, exit to inheritor_1, value=100, msg=a1, vc=vc_a1)
-        //          actor_b (state=H3, exited=true inheritor_1, value=50, msg=b1, vc=vc_b1)
-        // Block 2: actor_a (state=H2, no exit, value=200, msg=a2, vc=vc_a2)
-        //          actor_b (state=H4, exited=false, value=25, msg=b2)
-        // Block 3: actor_a (state=H_final, no exit, value=150, msg=a3, neg_sign=true)
-        //          actor_c (state=H5, no exit, value=1, msg=c1) -- singleton
-        let transitions = vec![
-            // Block 1
-            StateTransition {
-                actor_id: actor_a,
-                new_state_hash: H256::from([0x01; 32]),
-                exited: true,
-                inheritor: inheritor_1,
-                value_to_receive: 100,
-                value_to_receive_negative_sign: false,
-                value_claims: vec![vc_a1.clone()],
-                messages: vec![m_a1.clone()],
-            },
-            StateTransition {
-                actor_id: actor_b,
-                new_state_hash: H256::from([0x03; 32]),
-                exited: true,
-                inheritor: inheritor_1,
-                value_to_receive: 50,
-                value_to_receive_negative_sign: false,
-                value_claims: vec![vc_b1.clone()],
-                messages: vec![m_b1.clone()],
-            },
-            // Block 2
-            StateTransition {
-                actor_id: actor_a,
-                new_state_hash: H256::from([0x02; 32]),
-                exited: false,
-                inheritor: ActorId::zero(),
-                value_to_receive: 200,
-                value_to_receive_negative_sign: false,
-                value_claims: vec![vc_a2.clone()],
-                messages: vec![m_a2.clone()],
-            },
-            StateTransition {
-                actor_id: actor_b,
-                new_state_hash: H256::from([0x04; 32]),
-                exited: false,
-                inheritor: ActorId::zero(),
-                value_to_receive: 25,
-                value_to_receive_negative_sign: false,
-                value_claims: vec![],
-                messages: vec![m_b2.clone()],
-            },
-            // Block 3
-            StateTransition {
-                actor_id: actor_a,
-                new_state_hash: H256::from([0xFF; 32]),
-                exited: false,
-                inheritor: ActorId::zero(),
-                value_to_receive: 150,
-                value_to_receive_negative_sign: true,
-                value_claims: vec![],
-                messages: vec![m_a3.clone()],
-            },
-            StateTransition {
-                actor_id: actor_c,
-                new_state_hash: H256::from([0x05; 32]),
-                exited: false,
-                inheritor: ActorId::zero(),
-                value_to_receive: 1,
-                value_to_receive_negative_sign: false,
-                value_claims: vec![],
-                messages: vec![m_c1.clone()],
-            },
-        ];
-
-        let squashed = squash_transitions_by_actor(transitions);
-
-        // We look up each actor explicitly to keep assertions independent from
-        // the sign-based output ordering.
-        assert_eq!(squashed.len(), 3, "3 distinct actors expected");
-
-        // --- actor_a: 3 transitions squashed ---
-        let st_a = squashed.iter().find(|t| t.actor_id == actor_a).unwrap();
-        // Newest state hash (block 3)
-        assert_eq!(st_a.new_state_hash, H256::from([0xFF; 32]));
-        // Block 1 exited, but blocks 2 & 3 did not—however once exited the flag sticks
-        // only if any transition set exited=true. Here block 1 did, so exit_inheritor = inheritor_1
-        // but then block 2 did not exit (no override) and block 3 did not exit (no override).
-        // The latest exit was block 1 with inheritor_1.
-        assert!(st_a.exited);
-        assert_eq!(st_a.inheritor, inheritor_1);
-        // Messages in chronological order: a1, a2, a3
-        assert_eq!(st_a.messages, vec![m_a1, m_a2, m_a3]);
-        // Value claims accumulated: vc_a1, vc_a2
-        assert_eq!(st_a.value_claims, vec![vc_a1, vc_a2]);
-        // value_to_receive: 100 + 200 - 150 = 150
-        assert_eq!(st_a.value_to_receive, 150);
-        assert!(!st_a.value_to_receive_negative_sign);
-
-        // --- actor_b: 2 transitions squashed ---
-        let st_b = squashed.iter().find(|t| t.actor_id == actor_b).unwrap();
-        // Newest state hash (block 2)
-        assert_eq!(st_b.new_state_hash, H256::from([0x04; 32]));
-        // Block 1 exited with inheritor_1; block 2 does not exit. That second
-        // transition is defensive coverage for an otherwise unreachable state,
-        // so the latest exited transition is still block 1.
-        assert!(st_b.exited);
-        assert_eq!(st_b.inheritor, inheritor_1);
-        // Messages: b1, b2
-        assert_eq!(st_b.messages, vec![m_b1, m_b2]);
-        // Value claims: only vc_b1
-        assert_eq!(st_b.value_claims, vec![vc_b1]);
-        // value: 50 + 25 = 75
-        assert_eq!(st_b.value_to_receive, 75);
-        assert!(!st_b.value_to_receive_negative_sign);
-
-        // --- actor_c: singleton, passes through unchanged ---
-        let st_c = squashed.iter().find(|t| t.actor_id == actor_c).unwrap();
-        assert_eq!(st_c.new_state_hash, H256::from([0x05; 32]));
-        assert!(!st_c.exited);
-        assert_eq!(st_c.inheritor, ActorId::zero());
-        assert_eq!(st_c.messages, vec![m_c1]);
-        assert!(st_c.value_claims.is_empty());
-        assert_eq!(st_c.value_to_receive, 1);
-        assert!(!st_c.value_to_receive_negative_sign);
     }
 
     /// Exit in a later block overrides an earlier exit's inheritor.

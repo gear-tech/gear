@@ -26,7 +26,7 @@ use ethexe_common::{
     events::{
         BlockEvent, RouterEvent,
         router::{
-            AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
+            BatchCommittedEvent, ChainCommittedEvent, CodeGotValidatedEvent,
             CodeValidationRequestedEvent, ValidatorsCommittedForEraEvent,
         },
     },
@@ -298,7 +298,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
         .latest_era_validators_committed
         .ok_or(ComputeError::CommittedEraNotFound(parent))?;
 
-    let mut last_committed_announce_hash = None;
+    let mut last_committed_mb_hash = None;
 
     for event in block.events {
         match event {
@@ -316,8 +316,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
             })) => {
                 validated_codes.insert(code_id);
             }
-            BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
-                last_committed_announce_hash = Some(head);
+            BlockEvent::Router(RouterEvent::ChainCommitted(head)) => {
+                last_committed_mb_hash = Some(head);
             }
 
             BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(
@@ -340,19 +340,16 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
     codes_queue.retain(|code_id| !validated_codes.contains(code_id));
     codes_queue.extend(requested_codes);
 
-    let last_committed_announce_hash =
-        if let Some(AnnouncesCommittedEvent(hash)) = last_committed_announce_hash {
-            hash
-        } else {
-            parent_meta
-                .last_committed_announce
-                .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
-        };
+    let last_committed_mb_hash = if let Some(ChainCommittedEvent(hash)) = last_committed_mb_hash {
+        Some(hash)
+    } else {
+        parent_meta.last_committed_mb
+    };
 
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
         meta.codes_queue = Some(codes_queue);
-        meta.last_committed_announce = Some(last_committed_announce_hash);
+        meta.last_committed_mb = last_committed_mb_hash;
         meta.prepared = true;
         meta.latest_era_validators_committed = Some(latest_validators_committed_era);
     });
@@ -383,7 +380,7 @@ mod tests {
         let code2_id = CodeId::from([2u8; 32]);
         let batch_committed = Digest::random();
 
-        let block1_announce_hash = HashOf::<Announce>::random();
+        let block1_mb_hash = H256::random();
 
         let block = chain.blocks[1].to_simple().next_block();
         let block = BlockData {
@@ -393,8 +390,8 @@ mod tests {
                 BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
                     digest: batch_committed,
                 })),
-                BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
-                    block1_announce_hash,
+                BlockEvent::Router(RouterEvent::ChainCommitted(ChainCommittedEvent(
+                    block1_mb_hash,
                 ))),
                 BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id: code1_id,
@@ -417,7 +414,7 @@ mod tests {
         assert!(meta.prepared);
         assert_eq!(meta.codes_queue, Some(vec![code2_id].into()),);
         assert_eq!(meta.last_committed_batch, Some(batch_committed),);
-        assert_eq!(meta.last_committed_announce, Some(block1_announce_hash));
+        assert_eq!(meta.last_committed_mb, Some(block1_mb_hash));
     }
 
     #[tokio::test]

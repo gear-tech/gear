@@ -120,9 +120,10 @@ interface IRouter {
     /**
      * @notice Emitted when all necessary state transitions have been applied and states have changed.
      * @dev This is an *informational* event, signaling that the all transitions until head were committed.
-     * @param head The hash of committed announces chain head.
+     * @param head The hash of the most recent finalized MB covered by the
+     *             committed chain commitment.
      */
-    event AnnouncesCommitted(bytes32 head);
+    event ChainCommitted(bytes32 head);
 
     /**
      * @notice Emitted when a code, previously requested for validation, receives validation results, so its `Gear.CodeState` changed.
@@ -497,7 +498,7 @@ interface IRouter {
     /**
      * @dev Commits new batch of changes to `Router` state.
      *      `CodeGotValidated` event is emitted for each code in commitment.
-     *      `AnnouncesCommitted` event is emitted on success. Triggers multiple events for each corresponding `Mirror` instances.
+     *      `ChainCommitted` event is emitted on success. Triggers multiple events for each corresponding `Mirror` instances.
      * @param batchCommitment The batch commitment data.
      * @param signatureType The type of signature to validate.
      * @param signatures The signatures for the batch commitment.

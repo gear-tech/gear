@@ -48,8 +48,12 @@ pub struct BlockMeta {
     pub codes_queue: Option<VecDeque<CodeId>>,
     /// Last committed on-chain batch hash.
     pub last_committed_batch: Option<Digest>,
-    /// Last committed on-chain announce hash.
-    pub last_committed_announce: Option<HashOf<Announce>>,
+    /// Last committed on-chain MB hash visible from this Ethereum block.
+    /// Updated when the coordinator successfully submits a [`BatchCommitment`]
+    /// whose [`ChainCommitment`] head was an MB. Per-Eth-block (rather than
+    /// global) so reorgs don't lose track of what was committed on the
+    /// canonical chain.
+    pub last_committed_mb: Option<H256>,
     /// Latest era with committed validators.
     pub latest_era_validators_committed: Option<u64>,
 }
@@ -217,7 +221,8 @@ pub struct PreparedBlockData {
     pub codes_queue: VecDeque<CodeId>,
     pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
-    pub last_committed_announce: HashOf<Announce>,
+    /// `H256::zero()` for genesis (no MB committed on-chain yet).
+    pub last_committed_mb: H256,
 }
 
 pub struct ComputedAnnounceData {

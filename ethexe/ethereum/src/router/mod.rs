@@ -44,7 +44,7 @@ use ethexe_common::{
     },
 };
 use events::{
-    AnnouncesCommittedEventBuilder, BatchCommittedEventBuilder, CodeGotValidatedEventBuilder,
+    BatchCommittedEventBuilder, ChainCommittedEventBuilder, CodeGotValidatedEventBuilder,
     CodeValidationRequestedEventBuilder, ComputationSettingsChangedEventBuilder,
     ProgramCreatedEventBuilder, StorageSlotChangedEventBuilder,
     ValidatorsCommittedForEraEventBuilder, signatures,
@@ -739,8 +739,8 @@ impl<'a> RouterEvents<'a> {
         BatchCommittedEventBuilder::new(self.query)
     }
 
-    pub fn announces_committed(&self) -> AnnouncesCommittedEventBuilder<'a> {
-        AnnouncesCommittedEventBuilder::new(self.query)
+    pub fn chain_committed(&self) -> ChainCommittedEventBuilder<'a> {
+        ChainCommittedEventBuilder::new(self.query)
     }
 
     pub fn code_got_validated(&self) -> CodeGotValidatedEventBuilder<'a> {

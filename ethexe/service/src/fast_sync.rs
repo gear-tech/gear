@@ -28,7 +28,7 @@ use ethexe_common::{
     },
     events::{
         BlockEvent, RouterEvent,
-        router::{AnnouncesCommittedEvent, BatchCommittedEvent},
+        router::{BatchCommittedEvent, ChainCommittedEvent},
     },
     injected,
     network::{AnnouncesRequest, AnnouncesRequestUntil},
@@ -68,8 +68,8 @@ use std::{
 struct EventData {
     /// Latest committed since latest prepared block batch
     latest_committed_batch: Digest,
-    /// Latest committed on the chain and not computed announce hash
-    latest_committed_announce: HashOf<Announce>,
+    /// Latest committed-on-chain MB hash.
+    latest_committed_mb: H256,
 }
 
 impl EventData {
@@ -80,7 +80,7 @@ impl EventData {
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
-        let mut latest_committed: Option<(Digest, Option<HashOf<Announce>>)> = None;
+        let mut latest_committed: Option<(Digest, Option<H256>)> = None;
 
         let mut block = highest_block;
         'prepared: while !db.block_meta(block).prepared {
@@ -94,9 +94,7 @@ impl EventData {
                     })) if latest_committed.is_none() => {
                         latest_committed = Some((digest, None));
                     }
-                    BlockEvent::Router(RouterEvent::AnnouncesCommitted(
-                        AnnouncesCommittedEvent(head),
-                    )) => {
+                    BlockEvent::Router(RouterEvent::ChainCommitted(ChainCommittedEvent(head))) => {
                         let Some((_, latest_committed_head)) = latest_committed.as_mut() else {
                             anyhow::bail!(
                                 "Inconsistent block events: head commitment before batch commitment"
@@ -117,14 +115,13 @@ impl EventData {
             block = block_data.header.parent_hash;
         }
 
-        let Some((latest_committed_batch, Some(latest_committed_announce))) = latest_committed
-        else {
+        let Some((latest_committed_batch, Some(latest_committed_mb))) = latest_committed else {
             return Ok(None);
         };
 
         Ok(Some(Self {
             latest_committed_batch,
-            latest_committed_announce,
+            latest_committed_mb,
         }))
     }
 }
@@ -642,6 +639,19 @@ async fn set_tx_pool_data_requirement(
 }
 
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
+    // Fast-sync is currently broken in MB-driven mode — the announce
+    // chain it used as the recovery anchor no longer exists. The
+    // mechanism will be re-implemented against `last_committed_mb` and
+    // `MbStorage`, but for the POC we simply skip it.
+    let _ = service;
+    log::warn!(
+        "Fast synchronization is disabled while the MB-driven recovery path is being wired in"
+    );
+    Ok(())
+}
+
+#[allow(dead_code)]
+async fn _disabled_sync(service: &mut Service) -> Result<()> {
     let Service {
         observer,
         compute,
@@ -672,13 +682,14 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let Some(EventData {
         latest_committed_batch,
-        latest_committed_announce: announce_hash,
+        latest_committed_mb,
     }) = EventData::collect(&block_loader, db, finalized_block).await?
     else {
         log::warn!("No any committed block found. Skipping fast synchronization...");
         return Ok(());
     };
-
+    let announce_hash = HashOf::<Announce>::zero();
+    let _ = latest_committed_mb;
     let announce = collect_announce(network, db, announce_hash).await?;
     if db.block_meta(announce.block_hash).prepared {
         todo!(
@@ -747,7 +758,11 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             // TODO #4812: using `latest_committed_batch` here is not correct,
             // because `latest_committed_batch` is latest for finalized block, not for `block_hash`.
             last_committed_batch: latest_committed_batch,
-            last_committed_announce: announce_hash,
+            // TODO: fast-sync needs to recover the actual last_committed_mb
+            // from the on-chain Router state once the MB-driven coordinator
+            // path is wired in. For now we leave it at zero — coordinator
+            // will rebuild from finalized MBs.
+            last_committed_mb: H256::zero(),
         },
     );
 

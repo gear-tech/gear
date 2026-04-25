@@ -24,11 +24,17 @@ use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD, MAX_BATCH_SIZE_LIMIT},
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, MAX_BATCH_SIZE_LIMIT},
     gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
 };
 use ethexe_processor::DEFAULT_CHUNK_SIZE;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
+
+/// Default delay before the coordinator starts aggregating a batch
+/// commitment, in milliseconds. ~1.5s strikes a balance between giving
+/// participants time to catch up and not stalling on-chain commitment
+/// turnaround.
+const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 1500;
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;
@@ -108,10 +114,13 @@ pub struct NodeParams {
     #[serde(default, rename = "fast-sync")]
     pub fast_sync: bool,
 
-    /// Threshold for producer to submit commitment despite of no transitions
+    /// Coordinator-side delay (milliseconds) between observing a new
+    /// Ethereum chain head and starting batch aggregation. Buys time for
+    /// participants to receive the same head and lets the previous MB
+    /// finish executing.
     #[arg(long)]
-    #[serde(default, rename = "chain-deepness-threshold")]
-    pub chain_deepness_threshold: Option<u32>,
+    #[serde(default, rename = "coordinator-aggregation-delay-ms")]
+    pub coordinator_aggregation_delay_ms: Option<u64>,
 
     /// Path to genesis state dump file (.blob or .json) for initial chain state.
     #[arg(long)]
@@ -167,9 +176,10 @@ impl NodeParams {
                 .unwrap_or(Self::DEFAULT_PRE_FUNDED_ACCOUNTS)
                 .get(),
             fast_sync: self.fast_sync,
-            chain_deepness_threshold: self
-                .chain_deepness_threshold
-                .unwrap_or(DEFAULT_CHAIN_DEEPNESS_THRESHOLD),
+            coordinator_aggregation_delay: std::time::Duration::from_millis(
+                self.coordinator_aggregation_delay_ms
+                    .unwrap_or(DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS),
+            ),
             genesis_state_dump: self.genesis_state_dump,
         })
     }
@@ -250,9 +260,9 @@ impl MergeParams for NodeParams {
 
             fast_sync: self.fast_sync || with.fast_sync,
 
-            chain_deepness_threshold: self
-                .chain_deepness_threshold
-                .or(with.chain_deepness_threshold),
+            coordinator_aggregation_delay_ms: self
+                .coordinator_aggregation_delay_ms
+                .or(with.coordinator_aggregation_delay_ms),
 
             genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
         }

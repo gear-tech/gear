@@ -25,7 +25,7 @@ use ethexe_common::gear::{
 // TODO #5356: squash transitions before charging size so repeated actors are
 // counted against the actual committed payload rather than the pre-squash input.
 /// Stateful helper used by [`BatchCommitmentManager`](super::manager::BatchCommitmentManager)
-/// to assemble a candidate batch commitment under protocol size and deepness limits.
+/// to assemble a candidate batch commitment under protocol size limits.
 ///
 /// The manager decides which commitments are eligible, while `BatchFiller`
 /// tracks the accumulated parts and rejects additions that would exceed the
@@ -34,8 +34,6 @@ use ethexe_common::gear::{
 pub struct BatchFiller {
     /// Parts accumulated for the candidate batch being assembled.
     parts: BatchParts,
-    /// Protocol limits that decide whether candidate parts may be included.
-    limits: BatchLimits,
     /// Running payload budget for the ABI-encoded batch commitment.
     size_counter: BatchSizeCounter,
 }
@@ -61,7 +59,6 @@ impl BatchFiller {
         Self {
             parts: BatchParts::default(),
             size_counter: BatchSizeCounter::new(limits.batch_size_limit),
-            limits,
         }
     }
 
@@ -109,41 +106,20 @@ impl BatchFiller {
         Ok(())
     }
 
-    pub fn include_chain_commitment(
-        &mut self,
-        commitment: ChainCommitment,
-        deepness: u32,
-    ) -> FillerResult {
-        match self.parts.chain_commitment.as_mut() {
-            Some(chain_commitment) => {
-                // Once the chain header is present, only appended transitions consume extra space.
-                if !self
-                    .size_counter
-                    .charge_for_additional_transitions(&commitment.transitions)
-                {
-                    return Err(BatchIncludeError::SizeLimitExceeded);
-                }
-                chain_commitment.head_announce = commitment.head_announce;
-                chain_commitment.transitions.extend(commitment.transitions);
-            }
-            None => {
-                // NOTE: Empty transition chains are skipped until they become old enough to force inclusion.
-                if !self.should_include_chain_commitment(&commitment, deepness) {
-                    return Ok(());
-                }
-
-                let commitment = Some(commitment);
-                if !self.size_counter.charge_for_chain_commitment(&commitment) {
-                    return Err(BatchIncludeError::SizeLimitExceeded);
-                }
-                self.parts.chain_commitment = commitment;
-            }
+    /// Include a freshly aggregated chain commitment in the batch. Empty
+    /// transitions lists are skipped silently — the next coordinator round
+    /// will re-walk and pick up the same MBs along with whatever new ones
+    /// have finalized in the meantime.
+    pub fn include_chain_commitment(&mut self, commitment: ChainCommitment) -> FillerResult {
+        if commitment.transitions.is_empty() {
+            return Ok(());
         }
-        Ok(())
-    }
 
-    fn should_include_chain_commitment(&self, commitment: &ChainCommitment, deepness: u32) -> bool {
-        // A deep enough chain must eventually be committed even if it carries no transitions.
-        !commitment.transitions.is_empty() || deepness + 1 > self.limits.chain_deepness_threshold
+        let commitment = Some(commitment);
+        if !self.size_counter.charge_for_chain_commitment(&commitment) {
+            return Err(BatchIncludeError::SizeLimitExceeded);
+        }
+        self.parts.chain_commitment = commitment;
+        Ok(())
     }
 }

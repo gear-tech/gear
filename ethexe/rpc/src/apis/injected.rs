@@ -307,27 +307,32 @@ mod utils {
             crate::errors::internal()
         })?;
 
-        let next_producer = calculate_next_producer(db, now).map_err(|err| {
-            tracing::error!("calculate next producer error: {err}");
+        let next_coordinator = calculate_next_coordinator(db, now).map_err(|err| {
+            tracing::error!("calculate next coordinator error: {err}");
             crate::errors::internal()
         })?;
-        tx.recipient = next_producer;
+        tx.recipient = next_coordinator;
 
         Ok(())
     }
 
-    /// Calculates the producer address to route an injected transaction to.
-    pub(super) fn calculate_next_producer(db: &Database, now: Duration) -> Result<Address> {
+    /// Calculates the coordinator address to route an injected transaction to.
+    ///
+    /// The coordinator is responsible for submitting batch commitments
+    /// for the next Ethereum block; routing the tx to it gives the best
+    /// odds the tx gets gossip-amplified to malachite quickly.
+    pub(super) fn calculate_next_coordinator(db: &Database, now: Duration) -> Result<Address> {
         let timelines = db.config().timelines;
 
         // Calculate target timestamp, taking into account possible delays, so we append NEXT_PRODUCER_THRESHOLD_MS.
-        // The transaction should be included by the next producer, so we add `slot_duration` to the current time.
+        // The transaction should be processed by the next coordinator's
+        // round, so we add `slot_duration` to the current time.
         let target_timestamp = now
             .checked_add(Duration::from_millis(NEXT_PRODUCER_THRESHOLD_MS))
-            .context("current time is too close to u64::MAX, cannot calculate next producer")?
+            .context("current time is too close to u64::MAX, cannot calculate next coordinator")?
             .as_secs()
             .checked_add(timelines.slot.get())
-            .context("current time is too close to u64::MAX, cannot calculate next producer")?;
+            .context("current time is too close to u64::MAX, cannot calculate next coordinator")?;
 
         let era = timelines
             .era_from_ts(target_timestamp)
@@ -338,8 +343,8 @@ mod utils {
             .with_context(|| format!("validators not found for era={era}"))?;
 
         timelines
-            .block_producer_at(&validators, target_timestamp)
-            .context("failed to calculate block producer")
+            .block_coordinator_at(&validators, target_timestamp)
+            .context("failed to calculate block coordinator")
     }
 
     /// Returns the current time since [SystemTime::UNIX_EPOCH].

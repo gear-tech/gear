@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Announce, Digest, HashOf};
+use crate::Digest;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -28,8 +28,10 @@ pub struct BatchCommittedEvent {
     pub digest: Digest,
 }
 
+/// Emitted when an MB-driven chain commitment lands on-chain. The inner
+/// `H256` is the MB hash that became `last_committed_mb` for the block.
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AnnouncesCommittedEvent(pub HashOf<Announce>);
+pub struct ChainCommittedEvent(pub H256);
 
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeGotValidatedEvent {
@@ -74,7 +76,7 @@ pub struct ValidatorsCommittedForEraEvent {
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Event {
     BatchCommitted(BatchCommittedEvent),
-    AnnouncesCommitted(AnnouncesCommittedEvent),
+    ChainCommitted(ChainCommittedEvent),
     CodeGotValidated(CodeGotValidatedEvent),
     CodeValidationRequested(CodeValidationRequestedEvent),
     ComputationSettingsChanged(ComputationSettingsChangedEvent),
@@ -97,7 +99,7 @@ impl Event {
                 RequestEvent::ValidatorsCommittedForEra(event)
             }
             Self::CodeGotValidated { .. }
-            | Self::AnnouncesCommitted(_)
+            | Self::ChainCommitted(_)
             | Self::BatchCommitted { .. } => return None,
         })
     }

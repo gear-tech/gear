@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{IRouter, utils::*};
-use ethexe_common::{Digest, HashOf, events::router::*};
+use ethexe_common::{Digest, events::router::*};
 
 impl From<IRouter::BatchCommitted> for BatchCommittedEvent {
     fn from(value: IRouter::BatchCommitted) -> Self {
@@ -27,10 +27,9 @@ impl From<IRouter::BatchCommitted> for BatchCommittedEvent {
     }
 }
 
-impl From<IRouter::AnnouncesCommitted> for AnnouncesCommittedEvent {
-    fn from(value: IRouter::AnnouncesCommitted) -> Self {
-        // # Safety because of implementation
-        Self(unsafe { HashOf::new(value.head.0.into()) })
+impl From<IRouter::ChainCommitted> for ChainCommittedEvent {
+    fn from(value: IRouter::ChainCommitted) -> Self {
+        Self(bytes32_to_h256(value.head))
     }
 }
 

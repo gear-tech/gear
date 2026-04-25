@@ -85,7 +85,7 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
                     announces,
                     codes_queue,
                     last_committed_batch,
-                    last_committed_announce,
+                    last_committed_announce: _, // dropped — replaced by last_committed_mb
                 },
         } = block_small_data;
 
@@ -125,7 +125,11 @@ pub async fn migration_from_v2(_: &InitConfig, db: &RawDatabase) -> Result<()> {
                 prepared,
                 codes_queue,
                 last_committed_batch,
-                last_committed_announce,
+                // Old DBs tracked the last committed announce, which has no
+                // analogue in MB-driven world. Coordinator will rebuild
+                // `last_committed_mb` from on-chain state on next batch
+                // submission.
+                last_committed_mb: None,
                 latest_era_validators_committed,
             },
         };

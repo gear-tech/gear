@@ -118,7 +118,7 @@ impl From<(H256, HashOf<Announce>)> for AnnounceParams {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ChainCommitmentParams {
-    head_announce: Option<HashOf<Announce>>,
+    head: Option<H256>,
 }
 
 impl From<()> for ChainCommitmentParams {
@@ -127,11 +127,9 @@ impl From<()> for ChainCommitmentParams {
     }
 }
 
-impl From<HashOf<Announce>> for ChainCommitmentParams {
-    fn from(head_announce: HashOf<Announce>) -> Self {
-        Self {
-            head_announce: Some(head_announce),
-        }
+impl From<H256> for ChainCommitmentParams {
+    fn from(head: H256) -> Self {
+        Self { head: Some(head) }
     }
 }
 
@@ -310,19 +308,19 @@ impl Arbitrary for ChainCommitment {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
-        let head_announce = match args.head_announce {
-            Some(head_announce) => Just(head_announce).boxed(),
-            None => hash_of_strategy(),
+        let head = match args.head {
+            Some(head) => Just(head).boxed(),
+            None => h256_strategy(),
         };
 
         (
             StateTransition::arbitrary_with(()),
             StateTransition::arbitrary_with(()),
-            head_announce,
+            head,
         )
-            .prop_map(|(first, second, head_announce)| Self {
+            .prop_map(|(first, second, head)| Self {
                 transitions: vec![first, second],
-                head_announce,
+                head,
             })
             .boxed()
     }
@@ -369,7 +367,7 @@ impl Arbitrary for BatchCommitmentValidationRequest {
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         (
             digest_strategy(),
-            hash_of_strategy::<Announce>(),
+            h256_strategy(),
             code_id_strategy(),
             code_id_strategy(),
         )
@@ -471,7 +469,7 @@ pub struct PreparedBlockData {
     pub codes_queue: VecDeque<CodeId>,
     pub announces: Option<BTreeSet<HashOf<Announce>>>,
     pub last_committed_batch: Digest,
-    pub last_committed_announce: HashOf<Announce>,
+    pub last_committed_mb: H256,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -690,7 +688,7 @@ impl BlockChain {
                 codes_queue,
                 announces,
                 last_committed_batch,
-                last_committed_announce,
+                last_committed_mb,
             }) = prepared
             {
                 if let Some(announces) = announces {
@@ -702,7 +700,7 @@ impl BlockChain {
                         prepared: true,
                         codes_queue: Some(codes_queue),
                         last_committed_batch: Some(last_committed_batch),
-                        last_committed_announce: Some(last_committed_announce),
+                        last_committed_mb: Some(last_committed_mb),
                         ..*meta
                     };
                 });
@@ -775,7 +773,7 @@ impl BlockChain {
                             codes_queue: Default::default(),
                             announces: Some(Default::default()), // empty here, filled below with announces
                             last_committed_batch: Digest::zero(),
-                            last_committed_announce: HashOf::zero(),
+                            last_committed_mb: H256::zero(),
                         }),
                     }
                 },
@@ -796,7 +794,7 @@ impl BlockChain {
                     .as_mut()
                     .unwrap()
                     .insert(announce_hash);
-                prepared_data.last_committed_announce = *genesis_announce_hash;
+                let _ = genesis_announce_hash;
                 parent_announce_hash = announce_hash;
                 (
                     announce_hash,

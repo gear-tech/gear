@@ -32,7 +32,7 @@
 
 use anyhow::{Context as _, Result};
 use ethexe_common::db::{
-    AnnounceStorageRO, BlockMetaStorageRO, GlobalsStorageRO, OnChainStorageRO,
+    BlockMetaStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO,
 };
 use ethexe_db::Database;
 use futures::{FutureExt, Stream, stream::FusedStream};
@@ -277,15 +277,15 @@ async fn request_metrics(
     .context("Failed to request metrics")
 }
 
-/// Refreshes liveness gauges from the latest committed announce stored in the database.
+/// Refreshes liveness gauges from the latest committed MB stored in the database.
 ///
-/// If the node has not committed any announce yet, the gauges are left unchanged.
+/// If the node has not committed any MB yet, the gauges are left unchanged.
 fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
     let Some(latest_committed_block_header) = db
         .block_meta(db.globals().latest_prepared_block_hash)
-        .last_committed_announce
-        .and_then(|a| db.announce(a))
-        .and_then(|a| db.block_header(a.block_hash))
+        .last_committed_mb
+        .map(|mb_hash| db.mb_meta(mb_hash).last_advanced_block)
+        .and_then(|eth_block| db.block_header(eth_block))
     else {
         return;
     };

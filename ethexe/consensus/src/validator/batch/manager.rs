@@ -17,24 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, ValidationStatus};
-use crate::{
-    announces,
-    validator::{
-        batch::{filler::BatchFiller, types::BatchParts, utils},
-        core::{ElectionRequest, MiddlewareWrapper},
-    },
+use crate::validator::{
+    batch::{filler::BatchFiller, types::BatchParts, utils},
+    core::{ElectionRequest, MiddlewareWrapper},
 };
 
 use alloy::sol_types::SolValue;
 use anyhow::{Context as _, Result, anyhow, bail};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, ToDigest,
+    SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, OnChainStorageRO},
+    db::{BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
     gear::{BatchCommitment, ChainCommitment, RewardsCommitment, ValidatorsCommitment},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::abi::Gear;
+use gprimitives::H256;
 use hashbrown::HashSet;
 
 #[derive(derive_more::Debug, Clone)]
@@ -65,11 +63,18 @@ impl BatchCommitmentManager {
         std::mem::replace(&mut self.limits, new_limits)
     }
 
-    /// Creates a new [`BatchCommitment`] for producer.
+    /// Build a fresh [`BatchCommitment`] for the coordinator.
+    ///
+    /// Walks the MB chain from `latest_finalized_mb` (taken from
+    /// [`DBGlobals`](ethexe_common::db::DBGlobals)) backward to the block's
+    /// last committed MB, aggregates state transitions, and pairs them with
+    /// any pending validators / rewards / code commitments.
+    ///
+    /// Returns `Ok(None)` when there's nothing to commit (no transitions and
+    /// no auxiliary commitments) — see [`utils::create_batch_commitment`].
     pub async fn create_batch_commitment(
         self,
         block: SimpleBlockData,
-        announce_hash: HashOf<Announce>,
     ) -> Result<Option<BatchCommitment>> {
         let mut batch_filler = BatchFiller::new(self.limits.clone());
 
@@ -86,12 +91,15 @@ impl BatchCommitmentManager {
         }
 
         // NOTE: we prioritize state transitions over code commitments. So include them firstly.
-        super::utils::try_include_chain_commitment(
-            &self.db,
-            block.hash,
-            announce_hash,
-            &mut batch_filler,
-        )?;
+        let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
+        if !latest_finalized_mb.is_zero() {
+            super::utils::try_include_chain_commitment(
+                &self.db,
+                block.hash,
+                latest_finalized_mb,
+                &mut batch_filler,
+            )?;
+        }
 
         let queue = self.db.block_meta(block.hash).codes_queue.ok_or_else(|| {
             anyhow!(
@@ -119,6 +127,14 @@ impl BatchCommitmentManager {
         )
     }
 
+    /// Re-derive the batch the coordinator described in `request` and return
+    /// whether we agree with its digest.
+    ///
+    /// MB chain validation is intentionally simple: `request.head` must be
+    /// either equal to our `latest_finalized_mb` or an ancestor of it (per
+    /// `mb_meta.parent_mb_hash`). Anything else means we're behind or the
+    /// coordinator is on a different chain — we just drop our signature
+    /// rather than reject loudly.
     pub async fn validate_batch_commitment(
         self,
         block: SimpleBlockData,
@@ -189,75 +205,64 @@ impl BatchCommitmentManager {
             }
         };
 
-        if let Some(announce) = head {
-            // Head announce in validation request is best for `block`.
-            // This guarantees that announce is successor of last committed announce at `block`,
-            // but does not guarantee that announce is computed by this node.
-            if !self.db.announce_meta(announce).computed {
+        if let Some(head_mb) = head {
+            // Either the coordinator's head matches ours exactly, or it's an
+            // older MB on the same chain — both are fine. Anything else and
+            // we walk away silently (caller logs a warning so operators see
+            // it).
+            let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
+            if !utils::is_ancestor_or_equal(&self.db, head_mb, latest_finalized_mb)? {
                 return Ok(ValidationStatus::Rejected {
                     request,
-                    reason: ValidationRejectReason::HeadAnnounceNotComputed(announce),
+                    reason: ValidationRejectReason::HeadMbNotInChain(head_mb),
                 });
             }
 
-            let candidates = self.db.block_announces(block.hash).into_iter().flatten();
+            if !self.db.mb_meta(head_mb).computed {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadMbNotComputed(head_mb),
+                });
+            }
 
-            let best_announce_hash =
-                announces::best_announce(&self.db, candidates, self.limits.commitment_delay_limit)?;
+            let last_committed_mb = self
+                .db
+                .block_meta(block.hash)
+                .last_committed_mb
+                .unwrap_or(H256::zero());
 
-            let Some(last_committed_announce) =
-                self.db.block_meta(block.hash).last_committed_announce
-            else {
-                anyhow::bail!(
-                    "Last committed announce not found in db for prepared block: {}",
-                    block.hash
-                );
-            };
-
-            let not_committed_announces = match utils::collect_not_committed_predecessors(
+            let pending = match super::utils::collect_not_committed_mb_predecessors(
                 &self.db,
-                last_committed_announce,
-                best_announce_hash,
+                last_committed_mb,
+                head_mb,
             ) {
-                Ok(announces) => announces,
+                Ok(p) => p,
                 Err(err) => {
                     tracing::debug!(
                         block = %block.hash,
-                        best_announce = %best_announce_hash,
+                        head_mb = %head_mb,
                         error = %err,
-                        "failed to collect not committed predecessors for best announce during batch validation"
+                        "failed to collect not-committed MB predecessors during batch validation"
                     );
                     return Ok(ValidationStatus::Rejected {
                         request,
-                        reason: ValidationRejectReason::BestHeadAnnounceChainInvalid(
-                            best_announce_hash,
-                        ),
+                        reason: ValidationRejectReason::HeadMbNotInChain(head_mb),
                     });
                 }
             };
 
-            if !not_committed_announces.contains(&announce) {
-                return Ok(ValidationStatus::Rejected {
-                    request,
-                    reason: ValidationRejectReason::HeadAnnounceIsNotFromBestChain {
-                        requested: announce,
-                        best: best_announce_hash,
-                    },
-                });
-            }
-            // Set firstly for current announce.
+            // Aggregate transitions across the pending range. Empty outcome
+            // is fine — we only suppress the chain commitment if the squashed
+            // result is empty.
             let mut chain_commitment = ChainCommitment {
                 transitions: Vec::new(),
-                head_announce: announce,
+                head: head_mb,
             };
-            for announce_hash in not_committed_announces.into_iter() {
-                let Some(transitions) = self.db.announce_outcome(announce_hash) else {
-                    anyhow::bail!("Computed announce {announce_hash:?} outcome not found in db");
+            for mb_hash in pending.into_iter() {
+                let Some(mb_transitions) = self.db.mb_outcome(mb_hash) else {
+                    anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
                 };
-                chain_commitment.transitions.extend(transitions);
-                if announce_hash == announce {
-                    break;
-                }
+                chain_commitment.transitions.extend(mb_transitions);
             }
             chain_commitment.transitions = super::utils::squash_transitions_by_actor(
                 std::mem::take(&mut chain_commitment.transitions),

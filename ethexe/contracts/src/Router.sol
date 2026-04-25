@@ -528,7 +528,7 @@ contract Router is
     /**
      * @dev Commits new batch of changes to `Router` state.
      *      `CodeGotValidated` event is emitted for each code in commitment.
-     *      `AnnouncesCommitted` event is emitted on success. Triggers multiple events for each corresponding `Mirror` instances.
+     *      `ChainCommitted` event is emitted on success. Triggers multiple events for each corresponding `Mirror` instances.
      * @param _batch The batch commitment data.
      * @param _signatureType The type of signature to validate.
      * @param _signatures The signatures for the batch commitment.
@@ -622,7 +622,7 @@ contract Router is
 
         bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
 
-        emit AnnouncesCommitted(_commitment.head);
+        emit ChainCommitted(_commitment.head);
 
         return Gear.chainCommitmentHash(_transitionsHash, _commitment.head);
     }

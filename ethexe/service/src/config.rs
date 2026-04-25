@@ -96,7 +96,11 @@ pub struct NodeConfig {
     pub dev: bool,
     pub pre_funded_accounts: u32,
     pub fast_sync: bool,
-    pub chain_deepness_threshold: u32,
+    /// How long the coordinator should wait between observing a new
+    /// Ethereum chain head and starting batch aggregation. Buys time for
+    /// participants to receive the same chain head and lets the previous
+    /// MB finish executing.
+    pub coordinator_aggregation_delay: Duration,
     pub genesis_state_dump: Option<PathBuf>,
 }
 

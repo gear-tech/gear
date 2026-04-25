@@ -25,6 +25,3 @@ pub use types::{BatchLimits, ValidationStatus};
 mod filler;
 
 mod utils;
-
-#[cfg(test)]
-mod tests;

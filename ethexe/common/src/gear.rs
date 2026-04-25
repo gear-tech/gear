@@ -18,7 +18,7 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address, Announce, Digest, HashOf, ToDigest, ValidatorsVec};
+use crate::{Address, Digest, ToDigest, ValidatorsVec};
 use alloc::vec::Vec;
 use alloy_primitives::U256 as AlloyU256;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
@@ -64,21 +64,22 @@ pub struct AddressBook {
 }
 
 /// Squashed chain commitment that contains all state transitions and gear blocks.
+///
+/// `head` is the hash of the most recent finalized [`SequencerBlock`](crate::mb::SequencerBlock)
+/// covered by this commitment. It anchors the chain on the on-chain side so that
+/// commitments can't silently jump over MBs between batches.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub head_announce: HashOf<Announce>,
+    pub head: H256,
 }
 
 impl ToDigest for ChainCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let ChainCommitment {
-            transitions,
-            head_announce,
-        } = self;
+        let ChainCommitment { transitions, head } = self;
 
         hasher.update(transitions.to_digest());
-        hasher.update(head_announce.inner().0);
+        hasher.update(head.0);
     }
 }
 

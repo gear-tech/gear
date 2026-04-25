@@ -43,7 +43,7 @@ pub enum IntegrityVerifierError {
     BlockIsNotPrepared(H256),
     BlockAnnouncesLenNotOne(H256),
     NoBlockLastCommittedBatch(H256),
-    NoBlockLastCommittedAnnounce(H256),
+    NoBlockLastCommittedMb(H256),
     NoBlockLatestEraValidatorsCommitted(H256),
     BlockAnnouncesIsEmpty(H256),
     NoBlockAnnounces(H256),
@@ -162,9 +162,9 @@ impl DatabaseVisitor for IntegrityVerifier {
             self.errors
                 .push(IntegrityVerifierError::NoBlockLastCommittedBatch(block));
         }
-        if meta.last_committed_announce.is_none() {
+        if meta.last_committed_mb.is_none() {
             self.errors
-                .push(IntegrityVerifierError::NoBlockLastCommittedAnnounce(block));
+                .push(IntegrityVerifierError::NoBlockLastCommittedMb(block));
         }
         if meta.latest_era_validators_committed.is_none() {
             self.errors
@@ -699,7 +699,7 @@ mod tests {
         db.mutate_block_meta(block_hash, |meta| {
             meta.prepared = true;
             meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_announce = Some(announce_hash);
+            meta.last_committed_mb = Some(H256::zero());
             meta.codes_queue = Some(Default::default());
             meta.latest_era_validators_committed = Some(10);
         });

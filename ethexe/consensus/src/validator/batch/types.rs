@@ -18,24 +18,19 @@
 
 use alloy::sol_types::SolValue;
 use ethexe_common::{
-    Announce, COMMITMENT_DELAY_LIMIT, Digest, HashOf,
-    consensus::{
-        BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT,
-        DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
-    },
-    gear::{
-        ChainCommitment, CodeCommitment, RewardsCommitment, StateTransition, ValidatorsCommitment,
-    },
+    COMMITMENT_DELAY_LIMIT, Digest,
+    consensus::{BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT},
+    gear::{ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment},
 };
 use ethexe_ethereum::abi::Gear;
-use gprimitives::CodeId;
+use gprimitives::{CodeId, H256};
 
 /// Batch building limits.
 #[derive(Debug, Clone)]
 pub struct BatchLimits {
-    /// Minimum deepness threshold to create chain commitment even if there are no transitions.
-    pub chain_deepness_threshold: u32,
-    /// Time limit in blocks for announce to be committed after its creation.
+    /// Time limit in Ethereum blocks for a batch to be committed on-chain
+    /// after its `block_hash` is sealed. Maps directly to
+    /// [`BatchCommitment::expiry`](ethexe_common::gear::BatchCommitment).
     pub commitment_delay_limit: u32,
     /// The maximum size of abi encoded [`ethexe_common::gear::BatchCommitment`].
     pub batch_size_limit: u64,
@@ -44,7 +39,6 @@ pub struct BatchLimits {
 impl Default for BatchLimits {
     fn default() -> Self {
         BatchLimits {
-            chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
         }
@@ -90,12 +84,6 @@ impl BatchSizeCounter {
         self.charge_optional::<_, Gear::ChainCommitment>(commitment.clone())
     }
 
-    /// Charges only for appended transitions after the chain commitment header
-    /// has already been accounted for.
-    pub fn charge_for_additional_transitions(&mut self, transitions: &[StateTransition]) -> bool {
-        self.charge_many::<_, Gear::StateTransition>(transitions)
-    }
-
     pub fn charge_for_code_commitment(&mut self, commitment: &CodeCommitment) -> bool {
         let commitment: Gear::CodeCommitment = commitment.clone().into();
 
@@ -109,18 +97,6 @@ impl BatchSizeCounter {
     {
         let encoded: Vec<V> = value.into_iter().map(Into::into).collect();
         self.charge_value(&encoded)
-    }
-
-    fn charge_many<T, V>(&mut self, values: &[T]) -> bool
-    where
-        V: SolValue,
-        T: Into<V> + Clone,
-    {
-        let mut encoded_size = 0;
-        values.iter().cloned().for_each(|v| {
-            encoded_size += v.into().abi_encoded_size() as u64;
-        });
-        self.charge(encoded_size)
     }
 
     fn charge_value<V: SolValue>(&mut self, value: &V) -> bool {
@@ -167,15 +143,14 @@ pub enum ValidationRejectReason {
     CodeNotWaitingForCommitment(CodeId),
     #[display("code id {_0} is not processed yet")]
     CodeIsNotProcessedYet(CodeId),
-    #[display("requested head announce {requested} is not the best announce {best}")]
-    HeadAnnounceIsNotFromBestChain {
-        requested: HashOf<Announce>,
-        best: HashOf<Announce>,
-    },
-    #[display("requested head announce {_0} is not computed by this node")]
-    HeadAnnounceNotComputed(HashOf<Announce>),
-    #[display("cannot collect not committed predecessors for best announce {_0}")]
-    BestHeadAnnounceChainInvalid(HashOf<Announce>),
+    /// The MB the coordinator wants to commit is neither the participant's
+    /// `latest_finalized_mb` nor an ancestor of it. Either we are running
+    /// behind on MB finalization or the coordinator is on a different chain
+    /// — in both cases we drop the signature.
+    #[display("requested head MB {_0} is not an ancestor of latest finalized MB")]
+    HeadMbNotInChain(H256),
+    #[display("requested head MB {_0} is not computed by this node")]
+    HeadMbNotComputed(H256),
     #[display(
         "received batch contains validators commitment, but it's not time for validators election yet"
     )]

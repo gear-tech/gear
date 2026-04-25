@@ -62,9 +62,7 @@ use ethexe_common::{
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
-use ethexe_consensus::{
-    ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
-};
+use ethexe_consensus::{ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService};
 use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
@@ -145,7 +143,9 @@ pub struct Service {
     observer: ObserverService,
     blob_loader: Box<dyn BlobLoaderService>,
     compute: ComputeService,
-    consensus: Pin<Box<dyn ConsensusService>>,
+    /// `None` for connect (non-validator) nodes — they only observe and
+    /// execute MBs, they don't co-sign or submit batch commitments.
+    consensus: Option<Pin<Box<dyn ConsensusService>>>,
     malachite: Option<MalachiteService>,
     /// Per-MB gas allowance forwarded to compute when an MB is
     /// finalized — captured from [`MalachiteConfig::gas_allowance`] at
@@ -387,40 +387,38 @@ impl Service {
             Self::get_config_public_key(config.node.validator_session, &signer)
                 .with_context(|| "failed to get validator session private key")?;
 
-        let consensus: Pin<Box<dyn ConsensusService>> = {
-            if let Some(pub_key) = validator_pub_key {
-                let ethereum = EthereumBuilder::default()
-                    .rpc_url(&config.ethereum.rpc)
-                    .router_address(config.ethereum.router_address)
-                    .signer(signer.clone())
-                    .sender_address(pub_key.to_address())
-                    .eip1559_fee_increase_percentage(
-                        config.ethereum.eip1559_fee_increase_percentage,
-                    )
-                    .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
-                    .build()
-                    .await?;
-                Box::pin(ValidatorService::new(
-                    signer.clone(),
-                    ethereum.middleware().query(),
-                    ethereum.router(),
-                    db.clone(),
-                    ValidatorConfig {
-                        pub_key,
-                        signatures_threshold: threshold,
-                        block_gas_limit: config.node.block_gas_limit,
-                        // TODO: #4942 commitment_delay_limit is a protocol specific constant
-                        // which better to be configurable by router contract
-                        commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
-                        producer_delay: Duration::ZERO,
-                        router_address: config.ethereum.router_address,
-                        chain_deepness_threshold: config.node.chain_deepness_threshold,
-                        batch_size_limit: config.node.batch_size_limit,
-                    },
-                )?)
-            } else {
-                Box::pin(ConnectService::new(db.clone(), 3))
-            }
+        let consensus: Option<Pin<Box<dyn ConsensusService>>> = if let Some(pub_key) =
+            validator_pub_key
+        {
+            let ethereum = EthereumBuilder::default()
+                .rpc_url(&config.ethereum.rpc)
+                .router_address(config.ethereum.router_address)
+                .signer(signer.clone())
+                .sender_address(pub_key.to_address())
+                .eip1559_fee_increase_percentage(config.ethereum.eip1559_fee_increase_percentage)
+                .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
+                .build()
+                .await?;
+            Some(Box::pin(ValidatorService::new(
+                signer.clone(),
+                ethereum.middleware().query(),
+                ethereum.router(),
+                db.clone(),
+                ValidatorConfig {
+                    pub_key,
+                    signatures_threshold: threshold,
+                    // TODO: #4942 commitment_delay_limit is a protocol specific constant
+                    // which better to be configurable by router contract
+                    commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+                    router_address: config.ethereum.router_address,
+                    batch_size_limit: config.node.batch_size_limit,
+                    coordinator_aggregation_delay: config.node.coordinator_aggregation_delay,
+                },
+            )?))
+        } else {
+            // Connect nodes don't run a consensus service — they observe
+            // and execute MBs, that's it.
+            None
         };
 
         let network = if let Some(net_config) = &config.network {
@@ -547,7 +545,7 @@ impl Service {
         blob_loader: Box<dyn BlobLoaderService>,
         compute: ComputeService,
         signer: Signer,
-        consensus: Pin<Box<dyn ConsensusService>>,
+        consensus: Option<Pin<Box<dyn ConsensusService>>>,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcServer>,
@@ -621,7 +619,10 @@ impl Service {
             (None, None)
         };
 
-        let roles = vec!["Observer".to_string(), consensus.role()];
+        let mut roles = vec!["Observer".to_string()];
+        if let Some(c) = consensus.as_ref() {
+            roles.push(c.role());
+        }
         log::info!("⚙️ Node service starting, roles: {roles:?}");
 
         #[cfg(test)]
@@ -635,7 +636,7 @@ impl Service {
         loop {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
-                event = consensus.select_next_some() => event?.into(),
+                event = consensus.maybe_next_some() => event?.into(),
                 event = malachite.maybe_next_some() => event?.into(),
                 event = network.maybe_next_some() => event.into(),
                 event = observer.select_next_some() => event?.into(),
@@ -667,7 +668,9 @@ impl Service {
                         if let Some(m) = malachite.as_mut() {
                             m.receive_new_chain_head(block_data);
                         }
-                        consensus.receive_new_chain_head(block_data)?
+                        if let Some(c) = consensus.as_mut() {
+                            c.receive_new_chain_head(block_data)?;
+                        }
                     }
                     ObserverEvent::BlockSynced(block) => {
                         // NOTE: Observer guarantees that, if `BlockSynced` event is emitted,
@@ -675,7 +678,9 @@ impl Service {
                         // all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
                         compute.prepare_block(block);
-                        consensus.receive_synced_block(block)?;
+                        if let Some(c) = consensus.as_mut() {
+                            c.receive_synced_block(block)?;
+                        }
                         if let Some(network) = network.as_mut() {
                             network.set_chain_head(block)?;
                         }
@@ -690,23 +695,26 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes)?;
                     }
-                    ComputeEvent::AnnounceComputed(announce_hash) => {
-                        consensus.receive_computed_announce(announce_hash)?
+                    ComputeEvent::AnnounceComputed(_) => {
+                        // Legacy announce-driven path, ignored — MB-driven
+                        // execution is the canonical pipeline now.
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {
-                        consensus.receive_prepared_block(block_hash)?
+                        if let Some(c) = consensus.as_mut() {
+                            c.receive_prepared_block(block_hash)?;
+                        }
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
                     }
-                    ComputeEvent::Promise(promise, announce_hash) => {
-                        consensus.receive_promise_for_signing(promise, announce_hash)?;
+                    ComputeEvent::Promise(_, _) => {
+                        // Legacy announce-driven path, ignored.
                     }
                     ComputeEvent::MbComputed { mb_hash, height } => {
                         // Results are persisted in the `mb_*` keyspace
-                        // and consumed as input by the next MB; nothing
-                        // else to wire up yet — Ethereum batch
-                        // commitments will hook in here in a later step.
+                        // and consumed as input by the next MB. Coordinator
+                        // picks them up via `latest_finalized_mb_hash` on
+                        // the next chain-head round.
                         tracing::info!(height, mb_hash = %mb_hash, "🛠️ MB executed");
                     }
                 },
@@ -716,39 +724,41 @@ impl Service {
                     };
 
                     match event {
-                        NetworkEvent::ValidatorMessage(message) => {
-                            match message {
-                                VerifiedValidatorMessage::Announce(announce) => {
-                                    let announce = announce.map(|a| a.payload);
-                                    consensus.receive_announce(announce)?
-                                }
-                                VerifiedValidatorMessage::RequestBatchValidation(request) => {
+                        NetworkEvent::ValidatorMessage(message) => match message {
+                            VerifiedValidatorMessage::Announce(_) => {
+                                // Announce gossip is obsolete in the
+                                // MB-driven world; ignore stale messages
+                                // from peers that haven't migrated yet.
+                            }
+                            VerifiedValidatorMessage::RequestBatchValidation(request) => {
+                                if let Some(c) = consensus.as_mut() {
                                     let request = request.map(|r| r.payload);
-                                    consensus.receive_validation_request(request)?
+                                    c.receive_validation_request(request)?;
                                 }
-                                VerifiedValidatorMessage::ApproveBatch(reply) => {
+                            }
+                            VerifiedValidatorMessage::ApproveBatch(reply) => {
+                                if let Some(c) = consensus.as_mut() {
                                     let reply = reply.map(|r| r.payload);
                                     let (reply, _) = reply.into_parts();
-                                    consensus.receive_validation_reply(reply)?
+                                    c.receive_validation_reply(reply)?;
                                 }
-                            };
-                        }
+                            }
+                        },
                         NetworkEvent::InjectedTransaction(event) => match event {
                             ethexe_network::NetworkInjectedEvent::InboundTransaction {
                                 peer: _,
                                 transaction,
                                 channel,
                             } => {
-                                // Shadow the tx into the Malachite mempool too —
-                                // sequencer side keeps its own independent pool
-                                // for block-producer picks.
+                                // Forward to malachite mempool; consensus
+                                // crate no longer participates in injected
+                                // tx routing.
                                 if let Some(m) = malachite.as_mut() {
                                     m.receive_injected_transaction((*transaction).clone());
                                 }
-                                let res = consensus.receive_injected_transaction(*transaction);
-                                channel
-                                    .send(res.into())
-                                    .expect("channel must never be closed");
+                                let _ = channel.send(
+                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept,
+                                );
                             }
                             ethexe_network::NetworkInjectedEvent::OutboundAcceptance {
                                 transaction_hash,
@@ -778,21 +788,20 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            // zero address means that no matter what validator will insert this tx.
+                            // zero address means any validator may pick up the tx.
                             let is_zero_address = transaction.recipient == Address::default();
                             let is_our_address = Some(transaction.recipient) == validator_address;
 
                             if is_zero_address || is_our_address {
-                                // Also drop the TX into the Malachite
-                                // mempool so the sequencer can pick it
-                                // up on the producer side.
+                                // Hand the tx to the malachite mempool —
+                                // sequencer side will pick it up next time
+                                // it produces an MB.
                                 if let Some(m) = malachite.as_mut() {
                                     m.receive_injected_transaction(transaction.tx.clone());
                                 }
-                                let acceptance = consensus
-                                    .receive_injected_transaction(transaction.tx)
-                                    .into();
-                                let _res = response_sender.send(acceptance);
+                                let _res = response_sender.send(
+                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept,
+                                );
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
@@ -813,22 +822,6 @@ impl Service {
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
-                        compute.compute_announce(announce, promise_policy)
-                    }
-                    ConsensusEvent::PublishPromise(signed_promise) => {
-                        if rpc.is_none() && network.is_none() {
-                            panic!("Promise without network or rpc");
-                        }
-
-                        if let Some(rpc) = &rpc {
-                            rpc.provide_promise(signed_promise.clone());
-                        }
-
-                        if let Some(network) = &mut network {
-                            network.publish_promise(signed_promise);
-                        }
-                    }
                     ConsensusEvent::PublishMessage(message) => {
                         let Some(network) = network.as_mut() else {
                             continue;
@@ -841,16 +834,6 @@ impl Service {
                     }
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
-                    }
-                    ConsensusEvent::RequestAnnounces(request) => {
-                        let Some(network) = network.as_mut() else {
-                            panic!("Requesting announces is not allowed without network service");
-                        };
-
-                        network_fetcher.push(network.db_sync_handle().request(request.into()));
-                    }
-                    ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
-                        // TODO #4940: consider to publish network message
                     }
                 },
                 Event::Malachite(event) => match event {
@@ -935,8 +918,9 @@ impl Service {
                     };
 
                     match result {
-                        Ok(db_sync::Response::Announces(response)) => {
-                            consensus.receive_announces_response(response)?;
+                        Ok(db_sync::Response::Announces(_)) => {
+                            // Stale announce-fetch result; ignore (announce
+                            // sync is gone in MB-driven world).
                         }
                         Ok(resp) => {
                             panic!("only announces are requested currently, but got: {resp:?}");
