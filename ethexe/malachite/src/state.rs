@@ -38,8 +38,8 @@ use malachitebft_app_channel::app::types::core::{
 };
 use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
 
-use crate::block::{SequencerBlock, Transaction};
 use crate::codec::JsonCodec;
+use ethexe_common::mb::{SequencerBlock, Transaction};
 use crate::context::{
     Address, EthexeSigner, EthexeContext, Genesis, Height, ProposalData, ProposalFin,
     ProposalInit, ProposalPart, ValidatorSet, Value, sign_proposal_fin,
@@ -84,6 +84,13 @@ pub struct State {
     /// block to.
     pub canonical_quarantine: u8,
 
+    /// Hash of the last [`SequencerBlock`] this node has seen
+    /// finalized. Updated in [`Self::commit`] after a successful
+    /// commit, recovered from the store at startup. The producer uses
+    /// it to fill `SequencerBlock::parent`; validators check incoming
+    /// proposals' `parent` field against it.
+    pub latest_finalized_mb_hash: H256,
+
     pub store: Store,
     pub current_height: Height,
     pub current_round: Round,
@@ -101,6 +108,7 @@ impl State {
         store: Store,
         db: Database,
         canonical_quarantine: u8,
+        latest_finalized_mb_hash: H256,
     ) -> Self {
         Self {
             ctx,
@@ -116,6 +124,7 @@ impl State {
             db,
             latest_received_head: None,
             canonical_quarantine,
+            latest_finalized_mb_hash,
         }
     }
 
@@ -168,6 +177,8 @@ impl State {
     /// Validate an assembled proposal.
     ///
     /// Current checks:
+    /// - `block.parent` matches our [`Self::latest_finalized_mb_hash`]
+    ///   (chain continuity);
     /// - at most one [`Transaction::AdvanceTillEthereumBlock`] is
     ///   present — zero is legal (producer had no EB past quarantine
     ///   yet), two+ is a protocol violation;
@@ -186,6 +197,14 @@ impl State {
             .find_map(|p| p.as_data())
             .map(|d| &d.block)
             .ok_or_else(|| anyhow!("missing Data part in proposal"))?;
+
+        if block.parent != self.latest_finalized_mb_hash {
+            return Err(anyhow!(
+                "proposal parent mismatch: got {got}, expected {expected}",
+                got = block.parent,
+                expected = self.latest_finalized_mb_hash,
+            ));
+        }
 
         let mut advance_txs =
             block
@@ -294,6 +313,10 @@ impl State {
 
         let retain = Height::new(height.as_u64().saturating_sub(HISTORY_LENGTH));
         self.store.prune(height, retain).await?;
+
+        // Advance the parent-chain pointer so the next height's
+        // proposal can be checked against the correct predecessor.
+        self.latest_finalized_mb_hash = committed_block.hash();
 
         self.current_height = self.current_height.increment();
         self.current_round = Round::Nil;

@@ -97,7 +97,6 @@ use crate::context::{
 use crate::genesis::MalachiteGenesis;
 
 mod app;
-mod block;
 mod codec;
 mod context;
 mod genesis;
@@ -107,7 +106,7 @@ mod state;
 mod store;
 mod streaming;
 
-pub use crate::block::{
+pub use ethexe_common::mb::{
     ProcessQueuesLimits, ProgressTasksLimits, SequencerBlock, Transaction,
 };
 pub use crate::mempool::InjectedTxMempool;
@@ -149,14 +148,21 @@ pub enum MalachiteEvent {
         block: SequencerBlock,
     },
 
-    /// A sequencer block has been committed by the BFT quorum.
+    /// A sequencer block has been committed by the BFT quorum. Carries
+    /// both the commit certificate and the block contents — the latter
+    /// is needed by the executor (ethexe-compute) to actually run the
+    /// transactions.
     #[display(
-        "BlockFinalized(height: {}, block_hash: {}, sigs: {})",
-        _0.height,
-        _0.block_hash,
-        _0.signatures.len()
+        "BlockFinalized(height: {}, block_hash: {}, sigs: {}, txs: {})",
+        cert.height,
+        cert.block_hash,
+        cert.signatures.len(),
+        block.transactions.len()
     )]
-    BlockFinalized(CommitCertificate),
+    BlockFinalized {
+        cert: CommitCertificate,
+        block: SequencerBlock,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -551,11 +557,25 @@ impl MalachiteService {
         let (events_tx, events_rx) = mpsc::unbounded_channel();
         let (chain_head_tx, chain_head_rx) = mpsc::unbounded_channel();
 
-        let start_height = store
-            .max_decided_value_height()
-            .await
+        let max_decided_height = store.max_decided_value_height().await;
+        let start_height = max_decided_height
             .map(|h| h.increment())
             .unwrap_or(Height::INITIAL);
+
+        // On a fresh node, no MB has been committed yet → parent for
+        // the very first MB is zero. On restart, recover the last
+        // finalized MB's hash from the malachite store so the next
+        // proposal's `parent` links correctly.
+        let latest_finalized_mb_hash = match max_decided_height {
+            Some(h) => store
+                .get_decided_value(h)
+                .await
+                .ok()
+                .flatten()
+                .map(|dv| dv.value.block.hash())
+                .unwrap_or_default(),
+            None => H256::zero(),
+        };
 
         let state = State::new(
             ctx,
@@ -566,6 +586,7 @@ impl MalachiteService {
             store,
             db,
             config.canonical_quarantine,
+            latest_finalized_mb_hash,
         );
 
         let gas_allowance = config.gas_allowance;

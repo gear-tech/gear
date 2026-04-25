@@ -24,6 +24,7 @@ use crate::{
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, SignedInjectedTransaction},
+    mb::SequencerBlock,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -129,6 +130,41 @@ pub struct AnnounceMeta {
     pub computed: bool,
 }
 
+/// Per-Malachite-block metadata stored alongside the post-execution
+/// state. `mb_hash` here is `SequencerBlock::hash()`. `parent_mb_hash`
+/// links the MB chain in the same direction as Malachite heights — the
+/// MB executed at height N has parent the MB that was finalized at
+/// height N-1 (or `None` for the very first MB).
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
+pub struct MbMeta {
+    pub computed: bool,
+    pub height: u64,
+    pub parent_mb_hash: Option<H256>,
+}
+
+#[auto_impl::auto_impl(&, Box)]
+pub trait MbStorageRO {
+    /// Persisted block contents — used by the executor to walk the
+    /// parent chain (`block.parent`) when picking up uncomputed
+    /// predecessors of a freshly received proposal.
+    fn mb_block(&self, mb_hash: H256) -> Option<SequencerBlock>;
+    fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
+    fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
+    fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
+    fn mb_meta(&self, mb_hash: H256) -> MbMeta;
+    fn mb_hash_at_height(&self, height: u64) -> Option<H256>;
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait MbStorageRW: MbStorageRO {
+    fn set_mb_block(&self, mb_hash: H256, block: SequencerBlock);
+    fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
+    fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
+    fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
+    fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
+    fn set_mb_hash_at_height(&self, height: u64, mb_hash: H256);
+}
+
 #[auto_impl::auto_impl(&, Box)]
 pub trait AnnounceStorageRO {
     fn announce(&self, hash: HashOf<Announce>) -> Option<Announce>;
@@ -198,6 +234,10 @@ pub struct DBGlobals {
     pub latest_synced_block: SimpleBlockData,
     pub latest_prepared_block_hash: H256,
     pub latest_computed_announce_hash: HashOf<Announce>,
+    /// Hash of the most recent Malachite sequencer block this node
+    /// has seen finalized. `H256::zero()` means no MB has ever been
+    /// finalized. Updated on every `MalachiteEvent::BlockFinalized`.
+    pub latest_finalized_mb_hash: H256,
 }
 
 #[cfg(feature = "std")]
@@ -252,7 +292,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "af71cfe84dbd11ee47246e10dc1ad27e20a73ac080f7bf48ae9f3cf82848c85d";
+            "15dc8595aa16cae3f3a3d3bb57bf5b50b1c5968d6e2796adc33ccddee1d97907";
 
         let types = [
             meta_type::<BlockMeta>(),

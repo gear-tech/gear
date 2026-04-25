@@ -228,6 +228,7 @@ pub fn test_block_chain_with_validators(len: u32, validators: ValidatorsVec) -> 
         latest_synced_block: blocks.back().expect("chain has blocks").to_simple(),
         latest_prepared_block_hash: blocks.back().expect("chain has blocks").hash,
         latest_computed_announce_hash: parent_announce_hash,
+        latest_finalized_mb_hash: H256::zero(),
     };
 
     BlockChain {

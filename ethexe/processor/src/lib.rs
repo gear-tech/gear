@@ -157,9 +157,11 @@ pub use host::InstanceError;
 use core::num::NonZero;
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
+    db::OnChainStorageRO,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
     injected::{InjectedTransaction, Promise},
+    mb::Transaction,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -343,6 +345,91 @@ impl Processor {
         }
 
         Ok(transitions.finalize())
+    }
+
+    /// Execute a Malachite sequencer block: drive [`InBlockTransitions`]
+    /// through the supplied `transactions` list in order, applying each
+    /// step against the current handler. Mirrors the three stages of
+    /// [`Processor::process_programs`] but the order is dictated by the
+    /// transaction list rather than hard-coded.
+    ///
+    /// Per-variant semantics:
+    /// - [`Transaction::AdvanceTillEthereumBlock`]: read the canonical
+    ///   events for the referenced Ethereum block out of the local DB
+    ///   and feed them through the router/mirror request handlers. If
+    ///   the events aren't present, log and treat as no events.
+    /// - [`Transaction::Injected`]: append the signed user tx to the
+    ///   target program's injected queue.
+    /// - [`Transaction::ProgressTasks`]: drain scheduled tasks due at
+    ///   the current synthetic block height.
+    /// - [`Transaction::ProcessQueues`]: drain program message queues
+    ///   subject to `gas_allowance` and the configured soft limits.
+    ///   `block` is used here as the execution-time block header — the
+    ///   caller is responsible for synthesising sane height/timestamp
+    ///   values from the MB number.
+    pub async fn process_transitions(
+        &mut self,
+        initial_program_states: ProgramStates,
+        initial_schedule: Schedule,
+        block: SimpleBlockData,
+        transactions: &[Transaction],
+        gas_allowance: u64,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+    ) -> Result<FinalizedBlockTransitions> {
+        log::debug!(
+            "Processing {} MB transactions at synthetic block {block}",
+            transactions.len()
+        );
+
+        let transitions = InBlockTransitions::new(
+            block.header.height,
+            initial_program_states,
+            initial_schedule,
+        );
+        let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
+
+        for tx in transactions {
+            match tx {
+                Transaction::AdvanceTillEthereumBlock { eth_block_hash } => {
+                    let events = self.db.block_events(*eth_block_hash).unwrap_or_else(|| {
+                        log::debug!(
+                            "AdvanceTillEthereumBlock: no events for {eth_block_hash} in DB"
+                        );
+                        Default::default()
+                    });
+                    for event in events.into_iter().filter_map(|e| e.to_request()) {
+                        match event {
+                            BlockRequestEvent::Router(event) => {
+                                handler.handle_router_event(event)?;
+                            }
+                            BlockRequestEvent::Mirror { actor_id, event } => {
+                                handler.handle_mirror_event(actor_id, event)?;
+                            }
+                        }
+                    }
+                }
+                Transaction::Injected(signed) => {
+                    let verified = signed.clone().into_verified();
+                    let source = verified.address().into();
+                    let (data, _) = verified.into_parts();
+                    handler.handle_injected_transaction(source, data)?;
+                }
+                Transaction::ProgressTasks { limits: _ } => {
+                    let transitions = handler.into_transitions();
+                    let transitions = self.process_tasks(transitions);
+                    handler = ProcessingHandler::new(self.db.clone(), transitions);
+                }
+                Transaction::ProcessQueues { limits: _ } => {
+                    let transitions = handler.into_transitions();
+                    let transitions = self
+                        .process_queues(transitions, block, gas_allowance, promise_out_tx.clone())
+                        .await?;
+                    handler = ProcessingHandler::new(self.db.clone(), transitions);
+                }
+            }
+        }
+
+        Ok(handler.into_transitions().finalize())
     }
 
     fn handle_injected_and_events(

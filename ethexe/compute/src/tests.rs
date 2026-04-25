@@ -40,6 +40,7 @@ use tokio::{sync::mpsc, time::timeout};
 #[derive(Clone, Default)]
 pub(crate) struct MockProcessor {
     pub process_programs_result: Option<FinalizedBlockTransitions>,
+    pub process_transitions_result: Option<FinalizedBlockTransitions>,
     pub process_codes_result: Option<ProcessedCodeInfo>,
     pub process_code_calls: std::sync::Arc<std::sync::Mutex<Vec<CodeAndIdUnchecked>>>,
 }
@@ -48,6 +49,7 @@ impl MockProcessor {
     pub fn with_default_valid_code() -> Self {
         Self {
             process_programs_result: None,
+            process_transitions_result: None,
             process_codes_result: Some(ProcessedCodeInfo {
                 code_id: CodeId::zero(),
                 valid: Some(ValidCodeInfo {
@@ -84,6 +86,18 @@ impl ProcessorExt for MockProcessor {
         _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
         Ok(self.process_programs_result.take().unwrap_or_default())
+    }
+
+    async fn process_transitions(
+        &mut self,
+        _initial_program_states: ProgramStates,
+        _initial_schedule: Schedule,
+        _block: SimpleBlockData,
+        _transactions: Vec<Transaction>,
+        _gas_allowance: u64,
+        _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+    ) -> Result<FinalizedBlockTransitions> {
+        Ok(self.process_transitions_result.take().unwrap_or_default())
     }
 
     async fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {

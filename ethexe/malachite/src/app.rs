@@ -147,66 +147,85 @@ async fn handle_app_msg(
         } => {
             info!(%height, %round, "Consensus requesting value to propose");
 
-            // --- Build the SequencerBlock -----------------------------
-            //
-            //   1. AdvanceTillEthereumBlock — IFF the latest observer
-            //      chain head already has a quarantine-passed ancestor;
-            //      otherwise omit the tx entirely and let the next MB
-            //      carry it.
-            //   2. Any injected transactions drawn from the mempool.
-            //   3. A single ProgressTasks at the end.
-            //   4. A single ProcessQueues at the very end.
-            //
-            // `fetch` is non-destructive: txs whose reference_block is
-            // an ancestor of the latest received head are returned but
-            // stay in the pool until the MB is actually finalized
-            // (`AppMsg::Finalized` below calls `mempool.forget`).
-            let injected = match state.latest_received_head {
-                Some(head) => mempool.fetch(head, gas_allowance).await,
-                None => Vec::new(),
-            };
-            // Walk failed (missing header past start_block, etc.) →
-            // treat the same as Ok(None): skip the transaction.
-            let quarantine_anchor = match state.quarantine_anchor() {
-                Ok(maybe_hash) => maybe_hash,
-                Err(e) => {
-                    warn!(
-                        error = %e,
-                        "Quarantine anchor lookup failed; skipping AdvanceTillEthereumBlock"
-                    );
-                    None
-                }
-            };
-
-            let mut transactions = Vec::with_capacity(injected.len() + 3);
-            if let Some(eth_block_hash) = quarantine_anchor {
-                transactions.push(crate::Transaction::AdvanceTillEthereumBlock {
-                    eth_block_hash,
-                });
-            }
-            for tx in injected {
-                transactions.push(crate::Transaction::Injected(tx));
-            }
-            transactions.push(crate::Transaction::ProgressTasks {
-                limits: crate::ProgressTasksLimits::default(),
-            });
-            transactions.push(crate::Transaction::ProcessQueues {
-                limits: crate::ProcessQueuesLimits::default(),
-            });
-            let block = crate::SequencerBlock::new(transactions);
-
-            // Emit the BlockProposal outward (producer side).
-            let _ = event_tx.send(Ok(crate::MalachiteEvent::BlockProposal {
-                height: height.as_u64(),
-                block: block.clone(),
-            }));
-
+            // Engine may re-ask GetValue for the same (height, round) —
+            // for example after a re-broadcast or a restart. Reusing
+            // the previously stored proposal avoids:
+            //   1. wasted block-assembly work,
+            //   2. non-determinism (mempool / quarantine head can have
+            //      shifted since the first build),
+            //   3. duplicate / divergent BlockProposal events flowing
+            //      out to the executor.
             let proposal = match state.get_previously_built_value(height, round).await? {
                 Some(p) => {
                     info!(value = %p.value.id(), "Re-using previously built value");
                     p
                 }
-                None => state.propose_value(height, round, block).await?,
+                None => {
+                    // --- Build the SequencerBlock -------------------
+                    //
+                    //   1. AdvanceTillEthereumBlock — IFF the latest
+                    //      observer chain head already has a
+                    //      quarantine-passed ancestor; otherwise omit
+                    //      the tx entirely and let the next MB carry
+                    //      it.
+                    //   2. Any injected transactions drawn from the
+                    //      mempool.
+                    //   3. A single ProgressTasks at the end.
+                    //   4. A single ProcessQueues at the very end.
+                    //
+                    // `fetch` is non-destructive: txs whose
+                    // reference_block is an ancestor of the latest
+                    // received head are returned but stay in the pool
+                    // until the MB is actually finalized
+                    // (`AppMsg::Finalized` below calls
+                    // `mempool.forget`).
+                    let injected = match state.latest_received_head {
+                        Some(head) => mempool.fetch(head, gas_allowance).await,
+                        None => Vec::new(),
+                    };
+                    let quarantine_anchor = match state.quarantine_anchor() {
+                        Ok(maybe_hash) => maybe_hash,
+                        Err(e) => {
+                            warn!(
+                                error = %e,
+                                "Quarantine anchor lookup failed; \
+                                 skipping AdvanceTillEthereumBlock"
+                            );
+                            None
+                        }
+                    };
+
+                    let mut transactions = Vec::with_capacity(injected.len() + 3);
+                    if let Some(eth_block_hash) = quarantine_anchor {
+                        transactions.push(crate::Transaction::AdvanceTillEthereumBlock {
+                            eth_block_hash,
+                        });
+                    }
+                    for tx in injected {
+                        transactions.push(crate::Transaction::Injected(tx));
+                    }
+                    transactions.push(crate::Transaction::ProgressTasks {
+                        limits: crate::ProgressTasksLimits::default(),
+                    });
+                    transactions.push(crate::Transaction::ProcessQueues {
+                        limits: crate::ProcessQueuesLimits::default(),
+                    });
+                    // Self-contained block: parent links to the last
+                    // MB this node finalized (zero for the genesis
+                    // MB).
+                    let block =
+                        crate::SequencerBlock::new(state.latest_finalized_mb_hash, transactions);
+
+                    // Only emit the BlockProposal once we've actually
+                    // built a fresh proposal — the cached-reuse
+                    // branch above doesn't create new content.
+                    let _ = event_tx.send(Ok(crate::MalachiteEvent::BlockProposal {
+                        height: height.as_u64(),
+                        block: block.clone(),
+                    }));
+
+                    state.propose_value(height, round, block).await?
+                }
             };
 
             if reply.send(proposal.clone()).is_err() {
@@ -308,15 +327,18 @@ async fn handle_app_msg(
                     // ages out.
                     let injected: Vec<_> = committed_block
                         .transactions
-                        .into_iter()
+                        .iter()
                         .filter_map(|tx| match tx {
-                            crate::Transaction::Injected(signed) => Some(signed),
+                            crate::Transaction::Injected(signed) => Some(signed.clone()),
                             _ => None,
                         })
                         .collect();
                     mempool.forget(&injected).await;
 
-                    let _ = event_tx.send(Ok(MalachiteEvent::BlockFinalized(out_cert)));
+                    let _ = event_tx.send(Ok(MalachiteEvent::BlockFinalized {
+                        cert: out_cert,
+                        block: committed_block,
+                    }));
 
                     if reply
                         .send(Next::Start(

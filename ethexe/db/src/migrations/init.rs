@@ -224,6 +224,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         latest_synced_block: genesis_block,
         latest_prepared_block_hash: genesis_block.hash,
         latest_computed_announce_hash: genesis_announce_hash,
+        latest_finalized_mb_hash: H256::zero(),
     };
 
     db.kv.set_globals(globals);

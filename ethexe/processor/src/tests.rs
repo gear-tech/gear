@@ -19,14 +19,16 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
-    PrivateKey, ScheduledTask, SignedMessage, SimpleBlockData,
+    BlockHeader, DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT,
+    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PrivateKey, ScheduledTask, SignedMessage, SimpleBlockData,
     db::*,
     events::{
-        BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
+        BlockEvent, BlockRequestEvent, MirrorEvent, MirrorRequestEvent, RouterEvent,
+        RouterRequestEvent,
         mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
         router::ProgramCreatedEvent,
     },
+    mb::{ProcessQueuesLimits, ProgressTasksLimits},
     mock::*,
 };
 use ethexe_runtime_common::{RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue};
@@ -1751,6 +1753,175 @@ async fn injected_and_events_then_tasks_then_queues() {
          tasks (phase 2) enqueue woken dispatch after events (phase 1) already queued their messages"
     );
     assert_eq!(to_users[2].1.payload, b"DONE");
+}
+
+/// Drives a Malachite-style transaction list across two MBs through
+/// [`Processor::process_transitions`] and verifies each variant gets
+/// interpreted as expected:
+///
+/// MB1 — bootstrap: pull canonical events (ProgramCreated + balance
+/// top-up + an init PING) via `AdvanceTillEthereumBlock`, then drain
+/// the queues so the program runs init and replies PONG.
+///
+/// MB2 — exercise injected path on the now-initialized program: an
+/// `Injected` PING goes through `handle_injected_transaction`, gets
+/// queued into the injected queue, then drained by `ProcessQueues`.
+/// `ProgressTasks` is included to verify the variant is wired even
+/// when no tasks are scheduled.
+#[tokio::test]
+async fn process_transitions_drives_pipeline() {
+    init_logger();
+
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
+
+    let actor_id = ActorId::from(0x10000);
+    let canonical_user = ActorId::from(30);
+
+    // ---- MB1: create + init the program ------------------------------
+    let eth_block_init = chain.blocks[1].to_simple();
+    let init_events = vec![
+        BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
+            actor_id,
+            code_id,
+        })),
+        BlockEvent::Mirror {
+            actor_id,
+            event: MirrorEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent {
+                    value: 500_000_000_000,
+                },
+            ),
+        },
+        BlockEvent::Mirror {
+            actor_id,
+            event: MirrorEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                id: MessageId::from(1),
+                source: canonical_user,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            }),
+        },
+    ];
+    processor
+        .db
+        .set_block_events(eth_block_init.hash, &init_events);
+
+    let mb1_block = SimpleBlockData {
+        hash: H256::from([0xAB; 32]),
+        header: BlockHeader {
+            height: 1,
+            timestamp: 1,
+            parent_hash: H256::zero(),
+        },
+    };
+
+    let mb1_txs = vec![
+        Transaction::AdvanceTillEthereumBlock {
+            eth_block_hash: eth_block_init.hash,
+        },
+        Transaction::ProgressTasks {
+            limits: ProgressTasksLimits::default(),
+        },
+        Transaction::ProcessQueues {
+            limits: ProcessQueuesLimits::default(),
+        },
+    ];
+
+    let FinalizedBlockTransitions {
+        transitions: mb1_transitions,
+        states: mb1_states,
+        schedule: mb1_schedule,
+        program_creations,
+    } = processor
+        .process_transitions(
+            ProgramStates::default(),
+            Schedule::default(),
+            mb1_block,
+            &mb1_txs,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(program_creations, vec![(actor_id, code_id)]);
+    program_creations
+        .into_iter()
+        .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));
+
+    // Init replied PONG to the canonical sender.
+    let mb1_to_users: Vec<_> = mb1_transitions
+        .iter()
+        .flat_map(|t| t.messages.iter())
+        .collect();
+    assert_eq!(mb1_to_users.len(), 1);
+    assert_eq!(mb1_to_users[0].destination, canonical_user);
+    assert_eq!(mb1_to_users[0].payload, b"PONG");
+
+    // ---- MB2: injected PING against the now-initialized program ------
+    // No new canonical events for this MB.
+    let eth_block_followup = chain.blocks[2].to_simple();
+    processor
+        .db
+        .set_block_events(eth_block_followup.hash, &[]);
+
+    let injected_user_pk = PrivateKey::random();
+    let injected_tx = InjectedTransaction {
+        destination: actor_id,
+        payload: b"PING".to_vec().try_into().unwrap(),
+        value: 0,
+        reference_block: H256::random(),
+        salt: H256::random().0.to_vec().try_into().unwrap(),
+    };
+    let signed_injected = SignedMessage::create(injected_user_pk, injected_tx).unwrap();
+    let injected_user: ActorId = signed_injected.clone().into_verified().address().into();
+
+    let mb2_block = SimpleBlockData {
+        hash: H256::from([0xCD; 32]),
+        header: BlockHeader {
+            height: 2,
+            timestamp: 2,
+            parent_hash: mb1_block.hash,
+        },
+    };
+
+    let mb2_txs = vec![
+        Transaction::AdvanceTillEthereumBlock {
+            eth_block_hash: eth_block_followup.hash,
+        },
+        Transaction::Injected(signed_injected),
+        Transaction::ProgressTasks {
+            limits: ProgressTasksLimits::default(),
+        },
+        Transaction::ProcessQueues {
+            limits: ProcessQueuesLimits::default(),
+        },
+    ];
+
+    let FinalizedBlockTransitions {
+        transitions: mb2_transitions,
+        ..
+    } = processor
+        .process_transitions(
+            mb1_states,
+            mb1_schedule,
+            mb2_block,
+            &mb2_txs,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+
+    let mb2_to_users: Vec<_> = mb2_transitions
+        .iter()
+        .flat_map(|t| t.messages.iter())
+        .collect();
+    assert_eq!(mb2_to_users.len(), 1);
+    assert_eq!(mb2_to_users[0].destination, injected_user);
+    assert_eq!(mb2_to_users[0].payload, b"PONG");
 }
 
 #[tokio::test]

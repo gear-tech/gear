@@ -150,7 +150,10 @@ pub use compute::{
     ComputeConfig, ComputeSubService,
     utils::{find_canonical_events_post_quarantine, prepare_executable_for_announce},
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, injected::Promise};
+use ethexe_common::{
+    Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule, SimpleBlockData,
+    injected::Promise, mb::Transaction,
+};
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
@@ -160,11 +163,14 @@ use tokio::sync::mpsc;
 
 mod codes;
 mod compute;
+mod mb_compute;
 mod prepare;
 mod service;
 
 #[cfg(test)]
 mod tests;
+
+pub use mb_compute::MbComputeSubService;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BlockProcessed {
@@ -178,6 +184,11 @@ pub enum ComputeEvent {
     BlockPrepared(H256),
     AnnounceComputed(HashOf<Announce>),
     Promise(Promise, HashOf<Announce>),
+    /// A Malachite sequencer block has been executed and its
+    /// post-execution state persisted to the DB. Indexed by the MB
+    /// hash (`SequencerBlock::hash()`).
+    #[unwrap(ignore)]
+    MbComputed { mb_hash: H256, height: u64 },
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -215,6 +226,8 @@ pub enum ComputeError {
     ScheduleNotFound(HashOf<Announce>),
     #[error("Promise sender dropped")]
     PromiseSenderDropped,
+    #[error("MB block {0} not found in db while walking parent chain")]
+    MbBlockNotFound(H256),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -227,6 +240,19 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     fn process_programs(
         &mut self,
         executable: ExecutableData,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+    ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
+    /// Process a Malachite sequencer block — drives the executor by
+    /// stepping through the supplied transaction list against the
+    /// initial program states / schedule / synthetic block. Returns
+    /// the post-execution transitions.
+    fn process_transitions(
+        &mut self,
+        initial_program_states: ProgramStates,
+        initial_schedule: Schedule,
+        block: SimpleBlockData,
+        transactions: Vec<Transaction>,
+        gas_allowance: u64,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
     fn process_code(
@@ -244,6 +270,27 @@ impl ProcessorExt for Processor {
         self.process_programs(executable, promise_out_tx)
             .await
             .map_err(Into::into)
+    }
+
+    async fn process_transitions(
+        &mut self,
+        initial_program_states: ProgramStates,
+        initial_schedule: Schedule,
+        block: SimpleBlockData,
+        transactions: Vec<Transaction>,
+        gas_allowance: u64,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+    ) -> Result<FinalizedBlockTransitions> {
+        self.process_transitions(
+            initial_program_states,
+            initial_schedule,
+            block,
+            &transactions,
+            gas_allowance,
+            promise_out_tx,
+        )
+        .await
+        .map_err(Into::into)
     }
 
     async fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {

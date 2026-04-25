@@ -56,19 +56,20 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, gear::CodeState, network::VerifiedValidatorMessage,
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked,
+    db::{GlobalsStorageRW, MbStorageRW},
+    gear::CodeState,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_malachite::{
-    InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService,
-};
 use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
 use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_malachite::{InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
@@ -146,6 +147,11 @@ pub struct Service {
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     malachite: Option<MalachiteService>,
+    /// Per-MB gas allowance forwarded to compute when an MB is
+    /// finalized — captured from [`MalachiteConfig::gas_allowance`] at
+    /// construction time so the `select!` handler doesn't need access
+    /// to the full malachite config.
+    malachite_gas_allowance: u64,
     signer: Signer,
 
     // Optional services
@@ -481,6 +487,7 @@ impl Service {
             hex::encode(malachite_config.chain_id),
             malachite_config.listen_addr,
         );
+        let malachite_gas_allowance = malachite_config.gas_allowance;
         let malachite = if let Some(pub_key) = validator_pub_key {
             Some(
                 MalachiteService::new(
@@ -511,6 +518,7 @@ impl Service {
             compute,
             consensus,
             malachite,
+            malachite_gas_allowance,
             signer,
             prometheus,
             rpc,
@@ -553,6 +561,7 @@ impl Service {
             .join(format!("{}", std::process::id()));
         let _cfg = MalachiteConfig::from_ethexe_genesis(H256::zero(), _tmp);
         let malachite: Option<MalachiteService> = None;
+        let malachite_gas_allowance = MalachiteConfig::DEFAULT_GAS_ALLOWANCE;
         Ok(Self {
             db,
             observer,
@@ -560,6 +569,7 @@ impl Service {
             compute,
             consensus,
             malachite,
+            malachite_gas_allowance,
             signer,
             network,
             prometheus,
@@ -582,13 +592,14 @@ impl Service {
 
     async fn run_inner(self) -> Result<()> {
         let Service {
-            db: _,
+            db,
             mut network,
             mut observer,
             mut blob_loader,
             mut compute,
             mut consensus,
             mut malachite,
+            malachite_gas_allowance,
             signer: _signer,
             mut prometheus,
             rpc,
@@ -688,6 +699,13 @@ impl Service {
                     }
                     ComputeEvent::Promise(promise, announce_hash) => {
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
+                    }
+                    ComputeEvent::MbComputed { mb_hash, height } => {
+                        // Results are persisted in the `mb_*` keyspace
+                        // and consumed as input by the next MB; nothing
+                        // else to wire up yet — Ethereum batch
+                        // commitments will hook in here in a later step.
+                        tracing::info!(height, mb_hash = %mb_hash, "🛠️ MB executed");
                     }
                 },
                 Event::Network(event) => {
@@ -835,20 +853,42 @@ impl Service {
                 },
                 Event::Malachite(event) => match event {
                     MalachiteEvent::BlockProposal { height, block } => {
+                        let mb_hash = block.hash();
                         tracing::info!(
                             height,
+                            mb_hash = %mb_hash,
                             txs = block.transactions.len(),
                             transactions = ?block.transactions.iter().map(|t| t.tag()).collect::<Vec<_>>(),
                             "🧱 Malachite: BlockProposal",
                         );
+                        // Speculative compute: every proposal we see
+                        // is queued for execution. If the proposal
+                        // doesn't end up finalized the result lingers
+                        // in the `mb_*` keyspace until a future GC
+                        // step cleans it up.
+                        db.set_mb_block(mb_hash, block.clone());
+                        let parent_for_meta = (!block.parent.is_zero()).then_some(block.parent);
+                        db.mutate_mb_meta(mb_hash, |meta| {
+                            meta.height = height;
+                            meta.parent_mb_hash = parent_for_meta;
+                        });
+                        compute.compute_mb(height, block, malachite_gas_allowance);
                     }
-                    MalachiteEvent::BlockFinalized(cert) => {
+                    MalachiteEvent::BlockFinalized { cert, block } => {
                         tracing::info!(
                             height = cert.height,
                             block_hash = %cert.block_hash,
                             sigs = cert.signatures.len(),
+                            txs = block.transactions.len(),
+                            parent = %block.parent,
                             "✅ Malachite: BlockFinalized",
                         );
+                        // Update the canonical-chain pointer for
+                        // observers / future GC. Compute itself
+                        // already ran on BlockProposal.
+                        db.globals_mutate(|g| {
+                            g.latest_finalized_mb_hash = cert.block_hash;
+                        });
                     }
                 },
                 Event::Prometheus(event) => match event {

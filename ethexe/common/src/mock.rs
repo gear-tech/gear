@@ -833,6 +833,7 @@ impl BlockChain {
             latest_synced_block: blocks.back().unwrap().to_simple(),
             latest_prepared_block_hash: blocks.back().unwrap().hash,
             latest_computed_announce_hash: parent_announce_hash,
+            latest_finalized_mb_hash: H256::zero(),
         };
 
         Self {
@@ -953,6 +954,7 @@ impl Arbitrary for DBGlobals {
             SimpleBlockData::arbitrary_with(().into()),
             h256_strategy(),
             hash_of_strategy::<Announce>(),
+            h256_strategy(),
         )
             .prop_map(
                 |(
@@ -961,12 +963,14 @@ impl Arbitrary for DBGlobals {
                     latest_synced_block,
                     latest_prepared_block_hash,
                     latest_computed_announce_hash,
+                    latest_finalized_mb_hash,
                 )| Self {
                     start_block_hash,
                     start_announce_hash,
                     latest_synced_block,
                     latest_prepared_block_hash,
                     latest_computed_announce_hash,
+                    latest_finalized_mb_hash,
                 },
             )
             .boxed()

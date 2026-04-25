@@ -60,6 +60,7 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
         latest_synced_block: latest_data.synced_block,
         latest_prepared_block_hash: latest_data.prepared_block_hash,
         latest_computed_announce_hash: latest_data.computed_announce_hash,
+        latest_finalized_mb_hash: H256::zero(),
     };
 
     db.kv.put(&globals_key, globals.encode());
@@ -110,7 +111,7 @@ mod tests {
                 meta_type::<v0::ProtocolTimelines>(),
                 meta_type::<DBConfig>(),
             ],
-            "a0a685f32d4fedd5a3645f5b33fdf671759d88167a37dac24e82721dfe295c1b",
+            "0ee49f8adbfbae9cf338040dde760d895c1397d68319a3a176eb5286ed47a53d",
         );
     }
 }

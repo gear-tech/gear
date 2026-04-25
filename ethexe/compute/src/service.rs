@@ -22,9 +22,10 @@ use crate::{
     ComputeEvent, ProcessorExt, Result,
     codes::CodesSubService,
     compute::{ComputeConfig, ComputeSubService},
+    mb_compute::MbComputeSubService,
     prepare::PrepareSubService,
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked, PromisePolicy};
+use ethexe_common::{Announce, CodeAndIdUnchecked, PromisePolicy, mb::SequencerBlock};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
@@ -38,6 +39,7 @@ pub struct ComputeService<P: ProcessorExt = Processor> {
     codes_sub_service: CodesSubService<P>,
     prepare_sub_service: PrepareSubService,
     compute_sub_service: ComputeSubService<P>,
+    mb_compute_sub_service: MbComputeSubService<P>,
 }
 
 impl<P: ProcessorExt> ComputeService<P> {
@@ -46,6 +48,7 @@ impl<P: ProcessorExt> ComputeService<P> {
         Self {
             prepare_sub_service: PrepareSubService::new(db.clone()),
             compute_sub_service: ComputeSubService::new(config, db.clone(), processor.clone()),
+            mb_compute_sub_service: MbComputeSubService::new(db.clone(), processor.clone()),
             codes_sub_service: CodesSubService::new(db, processor),
         }
     }
@@ -87,6 +90,15 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.compute_sub_service
             .receive_announce_to_compute(announce, promise_policy);
     }
+
+    /// Queue a finalized Malachite sequencer block for execution.
+    /// `mb_hash` is derived from `block.hash()`; parent linkage comes
+    /// from `block.parent`. Results are persisted in the `mb_*`
+    /// keyspace and surfaced via [`ComputeEvent::MbComputed`].
+    pub fn compute_mb(&mut self, mb_height: u64, block: SequencerBlock, gas_allowance: u64) {
+        self.mb_compute_sub_service
+            .receive_mb(mb_height, block, gas_allowance);
+    }
 }
 
 impl<P: ProcessorExt> Stream for ComputeService<P> {
@@ -110,6 +122,10 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
         };
 
         if let Poll::Ready(event) = self.compute_sub_service.poll_next(cx) {
+            return Poll::Ready(Some(event));
+        };
+
+        if let Poll::Ready(event) = self.mb_compute_sub_service.poll_next(cx) {
             return Poll::Ready(Some(event));
         };
 

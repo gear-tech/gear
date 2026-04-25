@@ -57,7 +57,7 @@ use malachitebft_signing_ecdsa::{K256, K256Config};
 
 pub use malachitebft_test::Height;
 
-use crate::block::SequencerBlock;
+use ethexe_common::mb::SequencerBlock;
 
 pub type PublicKey = malachitebft_signing_ecdsa::PublicKey<K256Config>;
 pub type PrivateKey = malachitebft_signing_ecdsa::PrivateKey<K256Config>;
@@ -741,6 +741,7 @@ impl EthexeSigner {
         &self.private_key
     }
 
+    #[allow(dead_code)]
     pub fn public_key(&self) -> PublicKey {
         self.private_key.public_key()
     }

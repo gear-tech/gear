@@ -16,18 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Application-level block shape produced by the Malachite sequencer.
+//! Application-level block shape produced by the Malachite sequencer
+//! and consumed by the ethexe executor.
 //!
 //! A [`SequencerBlock`] is just an ordered list of [`Transaction`]s.
-//! The producer decides what sequence to put in; the executor side of
-//! ethexe (for now outside this crate) will interpret each transaction
-//! when the block has been finalized.
+//! The producer (Malachite) decides the sequence; the executor
+//! (ethexe-processor) interprets each transaction in order. The types
+//! live here (rather than inside `ethexe-malachite`) so that
+//! `ethexe-processor` can accept them without depending on the
+//! consensus layer.
 
-use ethexe_common::injected::SignedInjectedTransaction;
+use crate::injected::SignedInjectedTransaction;
+use alloc::vec::Vec;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
+use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
+
+#[cfg(feature = "std")]
+use serde::{Deserialize, Serialize};
 
 /// A single transaction in the sequencer block.
 ///
@@ -35,7 +42,8 @@ use sha3::{Digest, Keccak256};
 /// execution side of ethexe gets wired in. Only [`Transaction::Injected`]
 /// carries user-supplied data; the rest are service transactions
 /// produced by the block producer.
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum Transaction {
     /// Advance the executor's view of the canonical Ethereum chain up
     /// to (and including) the block at `eth_block_hash`. Producer picks
@@ -60,12 +68,14 @@ pub enum Transaction {
 
 /// Placeholder limits for [`Transaction::ProgressTasks`] — shape will
 /// be nailed down once executor-side plumbing lands.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ProgressTasksLimits {}
 
 /// Placeholder limits for [`Transaction::ProcessQueues`]. Minimum
 /// intended payload: a gas allowance.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ProcessQueuesLimits {}
 
 impl Transaction {
@@ -82,22 +92,42 @@ impl Transaction {
 
 /// A block of sequencer transactions produced by BFT consensus.
 ///
-/// The block is intentionally lightweight: no Ethereum anchor field,
-/// no gas allowance — those are represented as individual
-/// [`Transaction::AdvanceTillEthereumBlock`] / [`Transaction::ProcessQueues`]
-/// entries inside `transactions`.
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, Serialize, Deserialize)]
+/// Self-contained: `parent` is the hash of the previous finalized
+/// sequencer block (zero for the genesis MB at height 1), so a peer
+/// or executor can verify chain continuity without consulting an
+/// external index. The producer fills it in from its
+/// `latest_finalized_mb_hash`; validators reject proposals whose
+/// `parent` doesn't match their own.
+///
+/// Tendermint commits exactly one block per height in order, so
+/// `parent` is fully determined by `height-1` — the field is here for
+/// self-containment and forward-compat with non-linear BFT, not for
+/// safety beyond what consensus itself already provides.
+///
+/// Other than `parent`, the block is intentionally lightweight: no
+/// Ethereum anchor field, no gas allowance — those are represented
+/// as individual [`Transaction::AdvanceTillEthereumBlock`] /
+/// [`Transaction::ProcessQueues`] entries inside `transactions`.
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct SequencerBlock {
+    /// Hash of the previous finalized [`SequencerBlock`] (`H256::zero()`
+    /// for the genesis MB at height 1).
+    pub parent: H256,
     pub transactions: Vec<Transaction>,
 }
 
 impl SequencerBlock {
-    pub fn new(transactions: Vec<Transaction>) -> Self {
-        Self { transactions }
+    pub fn new(parent: H256, transactions: Vec<Transaction>) -> Self {
+        Self {
+            parent,
+            transactions,
+        }
     }
 
     /// Keccak-256 over the SCALE-encoded block — used as the value id
-    /// and as the block hash in [`MalachiteEvent::BlockFinalized`].
+    /// in Malachite consensus and as the MB hash that keys
+    /// post-execution state in the ethexe DB.
     pub fn hash(&self) -> H256 {
         let mut h = Keccak256::new();
         h.update(self.encode());

@@ -30,11 +30,12 @@ use ethexe_common::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
         BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, ConfigStorageRO, DBConfig, DBGlobals,
         GlobalsStorageRO, GlobalsStorageRW, HashStorageRO, InjectedStorageRO, InjectedStorageRW,
-        OnChainStorageRO, OnChainStorageRW,
+        MbMeta, MbStorageRO, MbStorageRW, OnChainStorageRO, OnChainStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, SignedInjectedTransaction},
+    mb::SequencerBlock,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -81,6 +82,13 @@ enum Key {
 
     Announces(HashOf<Announce>) = 17,
     BlockAnnounces(H256) = 18,
+
+    MbProgramStates(H256) = 19,
+    MbOutcome(H256) = 20,
+    MbSchedule(H256) = 21,
+    MbMeta(H256) = 22,
+    MbHashAtHeight(u64) = 23,
+    MbBlock(H256) = 24,
 }
 
 impl Key {
@@ -111,6 +119,16 @@ impl Key {
             | Self::AnnounceOutcome(hash)
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => bytes.extend(hash.as_ref()),
+
+            Self::MbProgramStates(hash)
+            | Self::MbOutcome(hash)
+            | Self::MbSchedule(hash)
+            | Self::MbMeta(hash)
+            | Self::MbBlock(hash) => bytes.extend(hash.as_ref()),
+
+            Self::MbHashAtHeight(height) => {
+                bytes.extend(height.to_le_bytes());
+            }
 
             Self::InjectedTransaction(hash) => bytes.extend(hash.as_ref()),
 
@@ -501,6 +519,107 @@ impl AnnounceStorageRW for RawDatabase {
     }
 }
 
+impl MbStorageRO for RawDatabase {
+    fn mb_block(&self, mb_hash: H256) -> Option<SequencerBlock> {
+        self.kv
+            .get(&Key::MbBlock(mb_hash).to_bytes())
+            .map(|data| {
+                SequencerBlock::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SequencerBlock`")
+            })
+    }
+
+    fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates> {
+        self.kv
+            .get(&Key::MbProgramStates(mb_hash).to_bytes())
+            .map(|data| {
+                ProgramStates::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `ProgramStates`")
+            })
+    }
+
+    fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>> {
+        self.kv
+            .get(&Key::MbOutcome(mb_hash).to_bytes())
+            .map(|data| {
+                Vec::<StateTransition>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<StateTransition>`")
+            })
+    }
+
+    fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule> {
+        self.kv
+            .get(&Key::MbSchedule(mb_hash).to_bytes())
+            .map(|data| {
+                Schedule::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Schedule`")
+            })
+    }
+
+    fn mb_meta(&self, mb_hash: H256) -> MbMeta {
+        self.kv
+            .get(&Key::MbMeta(mb_hash).to_bytes())
+            .map(|data| {
+                MbMeta::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `MbMeta`")
+            })
+            .unwrap_or_default()
+    }
+
+    fn mb_hash_at_height(&self, height: u64) -> Option<H256> {
+        self.kv
+            .get(&Key::MbHashAtHeight(height).to_bytes())
+            .map(|data| {
+                H256::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `H256`")
+            })
+    }
+}
+
+impl MbStorageRW for RawDatabase {
+    fn set_mb_block(&self, mb_hash: H256, block: SequencerBlock) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB block");
+        self.kv
+            .put(&Key::MbBlock(mb_hash).to_bytes(), block.encode());
+    }
+
+    fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB program states");
+        self.kv.put(
+            &Key::MbProgramStates(mb_hash).to_bytes(),
+            program_states.encode(),
+        );
+    }
+
+    fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB outcome");
+        self.kv
+            .put(&Key::MbOutcome(mb_hash).to_bytes(), outcome.encode());
+    }
+
+    fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule) {
+        tracing::trace!(mb_hash = %mb_hash, "Set MB schedule");
+        self.kv
+            .put(&Key::MbSchedule(mb_hash).to_bytes(), schedule.encode());
+    }
+
+    fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta)) {
+        tracing::trace!(mb_hash = %mb_hash, "Mutate MB meta");
+        let mut meta = self.mb_meta(mb_hash);
+        f(&mut meta);
+        self.kv
+            .put(&Key::MbMeta(mb_hash).to_bytes(), meta.encode());
+    }
+
+    fn set_mb_hash_at_height(&self, height: u64, mb_hash: H256) {
+        tracing::trace!(height, mb_hash = %mb_hash, "Set MB hash at height");
+        self.kv.put(
+            &Key::MbHashAtHeight(height).to_bytes(),
+            mb_hash.encode(),
+        );
+    }
+}
+
 impl OnChainStorageRO for RawDatabase {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
         self.kv
@@ -799,6 +918,7 @@ impl Database {
             latest_synced_block: SimpleBlockData::default(),
             latest_prepared_block_hash: H256::zero(),
             latest_computed_announce_hash: HashOf::zero(),
+            latest_finalized_mb_hash: H256::zero(),
         };
 
         <dyn KVDatabase>::set_config(&mem_db, config);
@@ -946,6 +1066,28 @@ impl AnnounceStorageRW for Database {
 impl InjectedStorageRO for Database {
     delegate!(to self.raw {
         fn injected_transaction(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedInjectedTransaction>;
+    });
+}
+
+impl MbStorageRO for Database {
+    delegate!(to self.raw {
+        fn mb_block(&self, mb_hash: H256) -> Option<SequencerBlock>;
+        fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
+        fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
+        fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
+        fn mb_meta(&self, mb_hash: H256) -> MbMeta;
+        fn mb_hash_at_height(&self, height: u64) -> Option<H256>;
+    });
+}
+
+impl MbStorageRW for Database {
+    delegate!(to self.raw {
+        fn set_mb_block(&self, mb_hash: H256, block: SequencerBlock);
+        fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
+        fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
+        fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
+        fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
+        fn set_mb_hash_at_height(&self, height: u64, mb_hash: H256);
     });
 }
 
