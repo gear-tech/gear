@@ -34,7 +34,7 @@ use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
+    consensus::DEFAULT_BATCH_SIZE_LIMIT,
     db::ConfigStorageRO,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{
@@ -45,7 +45,7 @@ use ethexe_common::{
     network::{SignedValidatorMessage, ValidatorMessage},
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
-use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
+use ethexe_consensus::{BatchCommitter, ConsensusService, ValidatorService};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
     Ethereum, EthereumBuilder,
@@ -646,7 +646,7 @@ impl TestEnv {
         self.db
             .config()
             .timelines
-            .block_producer_index_at(
+            .block_coordinator_index_at(
                 self.validators
                     .len()
                     .try_into()
@@ -979,7 +979,7 @@ impl Node {
             .await
             .unwrap();
 
-        let consensus: Pin<Box<dyn ConsensusService>> = {
+        let consensus: Option<Pin<Box<dyn ConsensusService>>> = {
             if let Some(config) = self.validator_config.as_ref() {
                 let committer = if let Some(custom_committer) = self.custom_committer.take() {
                     custom_committer
@@ -1000,7 +1000,7 @@ impl Node {
                         .into()
                 };
 
-                Box::pin(
+                Some(Box::pin(
                     ValidatorService::new(
                         self.signer.clone(),
                         self.election_provider.clone(),
@@ -1009,21 +1009,16 @@ impl Node {
                         ethexe_consensus::ValidatorConfig {
                             pub_key: config.public_key,
                             signatures_threshold: self.threshold,
-                            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                             commitment_delay_limit: self.commitment_delay_limit,
-                            producer_delay: self.eth_cfg.block_time / 6,
                             router_address: self.eth_cfg.router_address,
-                            chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
+                            coordinator_aggregation_delay: std::time::Duration::ZERO,
                         },
                     )
                     .unwrap(),
-                )
+                ) as Pin<Box<dyn ConsensusService>>)
             } else {
-                Box::pin(ConnectService::new(
-                    self.db.clone(),
-                    self.commitment_delay_limit,
-                ))
+                None
             }
         };
 

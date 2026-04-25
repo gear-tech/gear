@@ -288,30 +288,20 @@ impl TestingEventReceiver {
         .await
     }
 
-    pub async fn find_announce_rejected(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
-        let id = id.into();
-        log::info!("📗 waiting for announce rejected: {id:?}");
-        self.find_announce(id, |event| {
-            if let TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(hash)) = event {
-                Some(hash)
-            } else {
-                None
-            }
-        })
-        .await
+    pub async fn find_announce_rejected(
+        &mut self,
+        _id: impl Into<AnnounceId>,
+    ) -> HashOf<Announce> {
+        // Announce events are gone in MB-driven world; the helpers are
+        // kept as stubs so the disabled test bodies still parse.
+        unimplemented!("announce events were removed during the MB refactor");
     }
 
-    pub async fn find_announce_accepted(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
-        let id = id.into();
-        log::info!("📗 waiting for announce accepted: {id:?}");
-        self.find_announce(id, |event| {
-            if let TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(hash)) = event {
-                Some(hash)
-            } else {
-                None
-            }
-        })
-        .await
+    pub async fn find_announce_accepted(
+        &mut self,
+        _id: impl Into<AnnounceId>,
+    ) -> HashOf<Announce> {
+        unimplemented!("announce events were removed during the MB refactor");
     }
 
     pub async fn find_block_synced(&mut self) -> H256 {

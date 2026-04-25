@@ -216,7 +216,7 @@ mod tests {
                 meta_type::<BlockSmallData>(),
                 meta_type::<BlockMeta>(),
             ],
-            "973d91fffd0337947785011df816327c7ef63ca58c72af56cdb3f60f340ae1d6",
+            "dcef12daaff8cf42b54b3ad610863db211a5d5aaebbbafa4d661df0953c072d9",
         );
     }
 }

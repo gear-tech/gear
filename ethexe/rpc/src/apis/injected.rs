@@ -388,30 +388,30 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_next_producer_return_next() {
+    fn test_calculate_next_coordinator_return_next() {
         let db = Database::memory();
         let validators = setup_db(&db);
 
         let now = Duration::from_secs(SLOT / 2);
-        let producer = utils::calculate_next_producer(&db, now).unwrap();
+        let producer = utils::calculate_next_coordinator(&db, now).unwrap();
 
         assert_eq!(validators[1], producer);
     }
 
     #[test]
-    fn test_calculate_next_producer_return_next_next() {
+    fn test_calculate_next_coordinator_return_next_next() {
         let db = Database::memory();
         let validators = setup_db(&db);
 
         let half_threshold = utils::NEXT_PRODUCER_THRESHOLD_MS.to_u64().unwrap();
         let now = Duration::from_secs(SLOT).sub(Duration::from_millis(half_threshold));
-        let producer = utils::calculate_next_producer(&db, now).unwrap();
+        let producer = utils::calculate_next_coordinator(&db, now).unwrap();
 
         assert_eq!(validators[2], producer);
     }
 
     #[test]
-    fn test_calculate_next_producer_in_next_era() {
+    fn test_calculate_next_coordinator_in_next_era() {
         let db = Database::memory();
         let validators = setup_db(&db);
 
@@ -421,7 +421,7 @@ mod tests {
         db.set_validators(1, next_era_validators.clone());
 
         let now = Duration::from_secs(ERA).sub(Duration::from_secs(1));
-        let producer = utils::calculate_next_producer(&db, now).unwrap();
+        let producer = utils::calculate_next_coordinator(&db, now).unwrap();
 
         assert_eq!(next_era_validators[0], producer);
     }
