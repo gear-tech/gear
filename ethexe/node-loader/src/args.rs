@@ -1,5 +1,6 @@
 //! CLI args for the `ethexe-node-loader`
 
+use crate::batch::value::ValueProfile;
 use anyhow::{Error, anyhow};
 use clap::{ArgAction, Parser};
 use std::str::FromStr;
@@ -17,7 +18,7 @@ pub enum Params {
         seed: u64,
     },
     /// Perform load test on the node
-    Load(LoadParams),
+    Load(Box<LoadParams>),
     /// Fuzz-test syscalls via the mega contract
     Fuzz(FuzzParams),
 }
@@ -58,11 +59,40 @@ pub struct LoadParams {
     /// Desirable amount of workers in task pool, bounded by available prebuilt Anvil accounts.
     #[arg(long, short, default_value = "1")]
     pub workers: usize,
+    /// Private keys for worker accounts. Repeat the flag once per worker.
+    #[arg(
+        long = "worker-private-key",
+        env = "WORKER_PRIVATE_KEYS",
+        value_delimiter = ','
+    )]
+    pub worker_private_keys: Vec<String>,
     #[arg(long, short, default_value = "1")]
     pub batch_size: usize,
     /// Whether to batch regular `send_message` calls through the multicall contract.
     #[arg(long, default_value_t = true, action = ArgAction::Set)]
     pub use_send_message_multicall: bool,
+    /// Existing BatchMulticall contract address to reuse instead of deploying a new one.
+    #[arg(long)]
+    pub send_message_multicall_address: Option<String>,
+    /// Value policy preset for load-mode message and top-up amounts.
+    #[arg(long, ignore_case = true, value_enum)]
+    pub value_profile: Option<ValueProfile>,
+    /// Per-message value cap in wei.
+    #[arg(long)]
+    pub max_msg_value: Option<u128>,
+    /// Per-program top-up cap in WVARA base units.
+    #[arg(long)]
+    pub max_top_up_value: Option<u128>,
+    /// Total message value budget across the run in wei.
+    #[arg(long)]
+    pub total_msg_value_budget: Option<u128>,
+    /// Total top-up budget across the run in WVARA base units.
+    #[arg(long)]
+    pub total_top_up_budget: Option<u128>,
+    /// Target WVARA balance per worker before load starts. Defaults to a value-policy-derived
+    /// amount, or the dev-mode fallback when value spending is uncapped.
+    #[arg(long, env = "MINT_AMOUNT")]
+    pub mint_amount: Option<u128>,
 }
 
 /// Parses CLI arguments for the binary and returns the selected subcommand.
@@ -127,5 +157,98 @@ impl FromStr for SeedVariant {
             "constant" => Ok(SeedVariant::Constant(num)),
             v => Err(anyhow!("Invalid variant {v}")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::batch::value::ValueProfile;
+    use clap::Parser;
+
+    #[test]
+    fn load_params_parse_value_profile_and_overrides() {
+        let params = Params::try_parse_from([
+            "ethexe-node-loader",
+            "load",
+            "--value-profile",
+            "mainnet",
+            "--max-msg-value",
+            "123",
+            "--max-top-up-value",
+            "456",
+            "--total-msg-value-budget",
+            "789",
+            "--total-top-up-budget",
+            "999",
+            "--mint-amount",
+            "111",
+            "--send-message-multicall-address",
+            "0x1111111111111111111111111111111111111111",
+        ])
+        .expect("parse");
+
+        let Params::Load(load_params) = params else {
+            panic!("expected load params");
+        };
+
+        assert_eq!(load_params.value_profile, Some(ValueProfile::Mainnet));
+        assert_eq!(load_params.max_msg_value, Some(123));
+        assert_eq!(load_params.max_top_up_value, Some(456));
+        assert_eq!(load_params.total_msg_value_budget, Some(789));
+        assert_eq!(load_params.total_top_up_budget, Some(999));
+        assert_eq!(load_params.mint_amount, Some(111));
+        assert_eq!(
+            load_params.send_message_multicall_address.as_deref(),
+            Some("0x1111111111111111111111111111111111111111")
+        );
+    }
+
+    #[test]
+    fn load_params_accept_zero_caps_and_budgets() {
+        let params = Params::try_parse_from([
+            "ethexe-node-loader",
+            "load",
+            "--max-msg-value",
+            "0",
+            "--max-top-up-value",
+            "0",
+            "--total-msg-value-budget",
+            "0",
+            "--total-top-up-budget",
+            "0",
+        ])
+        .expect("parse");
+
+        let Params::Load(load_params) = params else {
+            panic!("expected load params");
+        };
+
+        assert_eq!(load_params.max_msg_value, Some(0));
+        assert_eq!(load_params.max_top_up_value, Some(0));
+        assert_eq!(load_params.total_msg_value_budget, Some(0));
+        assert_eq!(load_params.total_top_up_budget, Some(0));
+    }
+
+    #[test]
+    fn load_params_parse_multiple_worker_private_keys() {
+        let params = Params::try_parse_from([
+            "ethexe-node-loader",
+            "load",
+            "--workers",
+            "2",
+            "--worker-private-key",
+            "0x1111",
+            "--worker-private-key",
+            "0x2222",
+        ])
+        .expect("parse");
+
+        let Params::Load(load_params) = params else {
+            panic!("expected load params");
+        };
+
+        assert_eq!(load_params.workers, 2);
+        assert_eq!(load_params.worker_private_keys, vec!["0x1111", "0x2222"]);
     }
 }

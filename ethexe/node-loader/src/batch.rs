@@ -25,13 +25,13 @@ use ethexe_ethereum::{
     mirror::events::try_extract_event,
 };
 use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
-use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
+use gear_call_gen::{CallGenRng, ClaimValueArgs};
 use gear_core::{
     ids::prelude::{CodeIdExt, MessageIdExt},
     message::ReplyCode,
 };
 use gprimitives::{ActorId, CodeId, H256, MessageId};
-use rand::{RngCore, SeedableRng, rngs::SmallRng};
+use rand::{SeedableRng, rngs::SmallRng};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
@@ -49,11 +49,12 @@ use crate::{
     args::SeedVariant,
     batch::{
         context::{Context, ContextUpdate},
-        generator::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings},
+        generator::{BatchGenerator, RuntimeSettings},
         report::{
             BatchExecutionStats, BatchReport, BatchRunReport, LoadRunMetadata, LoadRunReport,
-            RunEndedBy,
+            RunEndedBy, ValueRunStats,
         },
+        value::{PreparedBatch, PreparedBatchWithSeed, ValueBudgetLedger, prepare_batch},
     },
     utils,
 };
@@ -62,6 +63,7 @@ pub mod context;
 pub mod generator;
 pub mod report;
 pub mod rpc_pool;
+pub mod value;
 
 use rpc_pool::EthexeRpcPool;
 
@@ -74,6 +76,7 @@ pub struct BatchPool<Rng: CallGenRng> {
     use_send_message_multicall: bool,
     context: Context,
     batch_stats: BatchExecutionStats,
+    value_ledger: Option<ValueBudgetLedger>,
     rx: Receiver<Header>,
     _marker: PhantomData<Rng>,
 }
@@ -84,38 +87,14 @@ pub struct LoadRunConfig {
     pub code_seed_type: Option<SeedVariant>,
     pub workers: usize,
     pub batch_size: usize,
+    pub value_policy: Option<crate::batch::value::ValuePolicy>,
 }
 
 type MidMap = Arc<RwLock<BTreeMap<MessageId, ActorId>>>;
 type WorkerBatchFuture =
     futures::future::BoxFuture<'static, (usize, EthexeRpcPool, Result<BatchRunReport>)>;
 
-/// Amount of wVARA (12 decimals) to top up each program's executable balance.
-const TOP_UP_AMOUNT: u128 = 500_000_000_000_000;
-
-const INJECTED_TX_RATIO_NUM: u8 = 7;
-const INJECTED_TX_RATIO_DEN: u8 = 10;
 const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
-
-/// Biases message traffic toward injected transactions while keeping some
-/// regular on-chain sends in circulation.
-fn prefer_injected_tx(rng: &mut impl RngCore) -> bool {
-    // Make injected txs common, but still keep some on-chain `send_message` calls.
-    (rng.next_u32() % INJECTED_TX_RATIO_DEN as u32) < INJECTED_TX_RATIO_NUM as u32
-}
-
-/// Produces a fuzzed message value used for init, send, and reply operations.
-fn fuzz_message_value(rng: &mut impl RngCore) -> u128 {
-    // 60% zero value
-    if rng.next_u32() % 10 < 6 {
-        return 0;
-    }
-
-    // 40% random value
-    let max_value = 1_000_000_000_000_000_000u128;
-    let random_value = ((rng.next_u64() as u128) << 64) | (rng.next_u64() as u128);
-    random_value % max_value
-}
 
 /// Converts an arbitrary salt buffer into the fixed 32-byte form expected by
 /// Ethereum ABI bindings.
@@ -247,6 +226,19 @@ fn apply_router_transition_update(
     }
 }
 
+fn schedule_initial_workers(
+    pool_size: usize,
+    mut schedule_worker: impl FnMut(usize) -> bool,
+) -> bool {
+    for worker_idx in 0..pool_size {
+        if schedule_worker(worker_idx) {
+            return true;
+        }
+    }
+
+    false
+}
+
 impl<Rng: CallGenRng> BatchPool<Rng> {
     /// Creates a batch pool with one dedicated ethexe RPC pool per worker.
     pub fn new(
@@ -279,6 +271,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             use_send_message_multicall,
             context: Context::new(),
             batch_stats: BatchExecutionStats::default(),
+            value_ledger: None,
             rx,
             _marker: PhantomData,
         })
@@ -305,6 +298,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         let seed = config.loader_seed.unwrap_or_else(gear_utils::now_millis);
         let mut rpc_rng = SmallRng::seed_from_u64(seed ^ 0xA17E_7E11);
         let mut shutting_down = *shutdown.borrow();
+        let mut budget_exhausted = false;
         tracing::info!(
             message = "Running task pool with params",
             seed,
@@ -312,20 +306,22 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             batch_size = self.batch_size
         );
 
+        self.value_ledger = config.value_policy.clone().map(ValueBudgetLedger::new);
+
         let rt_settings = RuntimeSettings::new()?;
         let mut batch_gen =
             BatchGenerator::<Rng>::new(seed, self.batch_size, config.code_seed_type, rt_settings);
 
         if !shutting_down {
-            for worker_idx in 0..self.pool_size {
+            budget_exhausted = schedule_initial_workers(self.pool_size, |worker_idx| {
                 self.schedule_batch(
                     &mut batches,
                     &mut batch_gen,
                     &mid_map,
                     &mut rpc_rng,
                     worker_idx,
-                );
-            }
+                )
+            });
         }
 
         while !batches.is_empty() {
@@ -359,8 +355,8 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                 }
             }
 
-            if !shutting_down {
-                self.schedule_batch(
+            if !shutting_down && !budget_exhausted {
+                budget_exhausted = self.schedule_batch(
                     &mut batches,
                     &mut batch_gen,
                     &mid_map,
@@ -378,11 +374,19 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             },
             ended_by: if *shutdown.borrow() {
                 RunEndedBy::Interrupted
+            } else if budget_exhausted
+                || self
+                    .value_ledger
+                    .as_ref()
+                    .is_some_and(ValueBudgetLedger::is_exhausted)
+            {
+                RunEndedBy::BudgetExhausted
             } else {
                 RunEndedBy::Completed
             },
             context: std::mem::take(&mut self.context),
             batch_stats: std::mem::take(&mut self.batch_stats),
+            value_stats: self.value_run_stats(),
         })
     }
 
@@ -400,8 +404,21 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         mid_map: &MidMap,
         rpc_rng: &mut SmallRng,
         worker_idx: usize,
-    ) {
+    ) -> bool {
         let batch_with_seed = batch_gen.generate(self.context.clone());
+        let prepared = prepare_batch(
+            batch_with_seed,
+            self.value_ledger.as_ref().map(ValueBudgetLedger::policy),
+        );
+        // Task 3 intentionally accounts for planned spend at scheduling time so
+        // the run can stop dispatching new work as soon as reservations exhaust
+        // the configured budget. Failed or partially observed execution is not
+        // reconciled here.
+        let budget_exhausted = self
+            .value_ledger
+            .as_mut()
+            .and_then(|ledger| ledger.reserve(prepared.spend))
+            .is_some();
         let api = self.apis[worker_idx].clone();
         let rpc_pool = self.rpc_pools[worker_idx]
             .take()
@@ -413,7 +430,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                 api,
                 rpc_pool,
                 endpoint_idx,
-                batch_with_seed,
+                prepared,
                 self.send_message_multicall,
                 self.use_send_message_multicall,
                 self.rx.resubscribe(),
@@ -421,6 +438,27 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             )
             .boxed(),
         );
+        budget_exhausted
+    }
+
+    fn value_run_stats(&self) -> Option<ValueRunStats> {
+        let ledger = self.value_ledger.as_ref()?;
+        let policy = ledger.policy().clone();
+
+        Some(ValueRunStats {
+            policy: Some(policy.clone()),
+            spent_msg_value: ledger.spent_msg_value(),
+            spent_top_up_value: ledger.spent_top_up_value(),
+            msg_value_budget: policy.total_msg_value_budget,
+            top_up_budget: policy.total_top_up_budget,
+            msg_value_overshoot: policy
+                .total_msg_value_budget
+                .map_or(0, |budget| ledger.spent_msg_value().saturating_sub(budget)),
+            top_up_overshoot: policy.total_top_up_budget.map_or(0, |budget| {
+                ledger.spent_top_up_value().saturating_sub(budget)
+            }),
+            exhausted: ledger.exhaustion(),
+        })
     }
 }
 
@@ -429,14 +467,13 @@ async fn run_batch(
     api: Ethereum,
     mut rpc_pool: EthexeRpcPool,
     endpoint_idx: usize,
-    batch: BatchWithSeed,
+    batch: PreparedBatchWithSeed,
     send_message_multicall: Address,
     use_send_message_multicall: bool,
     rx: Receiver<Header>,
     mid_map: MidMap,
 ) -> (EthexeRpcPool, Result<BatchRunReport>) {
-    let (seed, batch) = batch.into();
-    let mut rng = SmallRng::seed_from_u64(seed);
+    let PreparedBatchWithSeed { seed, batch, .. } = batch;
 
     let result = match run_batch_impl(
         api,
@@ -447,7 +484,6 @@ async fn run_batch(
         use_send_message_multicall,
         rx,
         mid_map,
-        &mut rng,
     )
     .await
     {
@@ -467,7 +503,7 @@ async fn run_batch_for_worker(
     api: Ethereum,
     rpc_pool: EthexeRpcPool,
     endpoint_idx: usize,
-    batch: BatchWithSeed,
+    batch: PreparedBatchWithSeed,
     send_message_multicall: Address,
     use_send_message_multicall: bool,
     rx: Receiver<Header>,
@@ -500,50 +536,49 @@ async fn run_batch_impl(
     api: Ethereum,
     rpc_pool: &mut EthexeRpcPool,
     endpoint_idx: usize,
-    batch: Batch,
+    batch: PreparedBatch,
     send_message_multicall: Address,
     use_send_message_multicall: bool,
     rx: Receiver<Header>,
     mid_map: MidMap,
-    rng: &mut SmallRng,
 ) -> Result<BatchReport> {
     match batch {
-        Batch::UploadProgram(args) => {
+        PreparedBatch::UploadProgram(args) => {
             tracing::info!(programs = args.len(), "Uploading programs");
             let mut code_ids = Vec::with_capacity(args.len());
 
-            for arg in args.iter() {
-                let expected_code_id = CodeId::generate(&arg.0.0);
+            for call in args.iter() {
+                let expected_code_id = CodeId::generate(&call.arg.0.0);
                 tracing::trace!(
                     code_id = %expected_code_id,
-                    bytes = arg.0.0.len(),
+                    bytes = call.arg.0.0.len(),
                     "Requesting code validation"
                 );
                 let code_id = rpc_pool
-                    .request_code_validation(endpoint_idx, &api, &arg.0.0)
+                    .request_code_validation(endpoint_idx, &api, &call.arg.0.0)
                     .await?;
-                assert_eq!(code_id, CodeId::generate(&arg.0.0));
-                rpc_pool
-                    .wait_for_code_validation(endpoint_idx, &api, code_id)
-                    .await?;
-                tracing::trace!(code_id = %code_id, "Code validated");
+                assert_eq!(code_id, expected_code_id);
                 code_ids.push(code_id);
             }
+
+            rpc_pool
+                .wait_for_codes_validation(endpoint_idx, &api, code_ids.iter().copied())
+                .await?;
+            tracing::trace!(codes = code_ids.len(), "Codes validated");
 
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
 
             let mut upload_calls = Vec::with_capacity(args.len());
-            for (call_id, (arg, code_id)) in args.iter().zip(code_ids.iter().copied()).enumerate() {
-                let salt = &arg.0.1;
-                let fuzzed_value = fuzz_message_value(rng);
+            for (call_id, (call, code_id)) in args.iter().zip(code_ids.iter().copied()).enumerate()
+            {
                 upload_calls.push((
                     call_id,
                     code_id,
-                    salt_to_h256(salt),
-                    arg.0.2.clone(),
-                    fuzzed_value,
-                    TOP_UP_AMOUNT,
+                    salt_to_h256(&call.arg.0.1),
+                    call.arg.0.2.clone(),
+                    call.arg.0.4,
+                    call.top_up_value,
                 ));
             }
 
@@ -592,7 +627,7 @@ async fn run_batch_impl(
             Ok(report)
         }
 
-        Batch::UploadCode(args) => {
+        PreparedBatch::UploadCode(args) => {
             tracing::info!(codes = args.len(), "Uploading codes");
             let mut code_ids = Vec::with_capacity(args.len());
             let start = std::time::Instant::now();
@@ -607,13 +642,13 @@ async fn run_batch_impl(
                 let code_id = rpc_pool
                     .request_code_validation(endpoint_idx, &api, &arg.0)
                     .await?;
-                assert_eq!(code_id, CodeId::generate(&arg.0));
-                rpc_pool
-                    .wait_for_code_validation(endpoint_idx, &api, code_id)
-                    .await?;
-                tracing::debug!(code_id = %code_id, "Code validated");
+                assert_eq!(code_id, expected_code_id);
                 code_ids.push(code_id);
             }
+
+            rpc_pool
+                .wait_for_codes_validation(endpoint_idx, &api, code_ids.iter().copied())
+                .await?;
 
             tracing::debug!(
                 codes = code_ids.len(),
@@ -629,7 +664,7 @@ async fn run_batch_impl(
             Ok(BatchReport { context_update })
         }
 
-        Batch::SendMessage(args) => {
+        PreparedBatch::SendMessage(args) => {
             tracing::info!(messages = args.len(), "Sending messages");
             let mut messages = BTreeMap::new();
             let mut injected_promises: BTreeMap<MessageId, Promise> = BTreeMap::new();
@@ -638,12 +673,18 @@ async fn run_batch_impl(
             let mut injected_tx_count = 0usize;
             let mut regular_tx_count = 0usize;
 
-            for (i, arg) in args.iter().enumerate() {
-                let to = arg.0.0;
-                let fuzzed_value = fuzz_message_value(rng);
-                if prefer_injected_tx(rng) {
+            for (i, call) in args.iter().enumerate() {
+                let to = call.arg.0.0;
+                let value = call.arg.0.3;
+                if call.use_injected {
                     let (message_id, promise) = rpc_pool
-                        .send_message_injected_and_watch(endpoint_idx, &api, to, &arg.0.1, 0)
+                        .send_message_injected_and_watch(
+                            endpoint_idx,
+                            &api,
+                            to,
+                            &call.arg.0.1,
+                            value,
+                        )
                         .await?;
                     messages.insert(message_id, (to, i));
                     injected_promises.insert(message_id, promise);
@@ -651,7 +692,7 @@ async fn run_batch_impl(
                     injected_tx_count = injected_tx_count.saturating_add(1);
                     tracing::trace!(call_id = i, %to, %message_id, "Injected message sent");
                 } else {
-                    regular_calls.push((i, to, arg.0.1.clone(), fuzzed_value));
+                    regular_calls.push((i, to, call.arg.0.1.clone(), value));
                 }
             }
 
@@ -686,7 +727,7 @@ async fn run_batch_impl(
             .await
         }
 
-        Batch::ClaimValue(args) => {
+        PreparedBatch::ClaimValue(args) => {
             let removed_from_mailbox = args.clone().into_iter().map(|ClaimValueArgs(mid)| mid);
 
             for (call_id, arg) in args.iter().enumerate() {
@@ -715,27 +756,27 @@ async fn run_batch_impl(
             Ok(BatchReport { context_update })
         }
 
-        Batch::SendReply(args) => {
-            let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
+        PreparedBatch::SendReply(args) => {
+            let removed_from_mailbox = args.iter().map(|call| call.arg.0.0);
 
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
 
-            for (call_id, arg) in args.iter().enumerate() {
-                let mid = arg.0.0;
-                let payload = &arg.0.1;
-                let fuzzed_value = fuzz_message_value(rng);
+            for (call_id, call) in args.iter().enumerate() {
+                let mid = call.arg.0.0;
+                let payload = &call.arg.0.1;
+                let value = call.arg.0.3;
                 let actor_id = *mid_map
                     .read()
                     .await
                     .get(&mid)
                     .ok_or_else(|| anyhow::anyhow!("Actor not found for message id {mid}"))?;
                 let mirror = api.mirror(actor_id);
-                let _ = mirror.send_reply(mid, payload, fuzzed_value).await?;
+                let _ = mirror.send_reply(mid, payload, value).await?;
                 let reply_mid = MessageId::generate_reply(mid);
                 mid_map.write().await.insert(reply_mid, actor_id);
                 messages.insert(mid, (actor_id, call_id));
-                tracing::trace!(call_id, %mid, value = fuzzed_value, "Reply sent");
+                tracing::trace!(call_id, %mid, value, "Reply sent");
             }
 
             let blocks_per_action = 1;
@@ -761,23 +802,20 @@ async fn run_batch_impl(
             Ok(report)
         }
 
-        Batch::CreateProgram(args) => {
+        PreparedBatch::CreateProgram(args) => {
             tracing::info!(programs = args.len(), "Creating programs");
             let mut messages = BTreeMap::new();
             let block_number = api.provider().get_block_number().await?;
 
             let mut upload_calls = Vec::with_capacity(args.len());
-            for (call_id, arg) in args.iter().enumerate() {
-                let code_id = arg.0.0;
-                let salt = &arg.0.1;
-                let fuzzed_value = fuzz_message_value(rng);
+            for (call_id, call) in args.iter().enumerate() {
                 upload_calls.push((
                     call_id,
-                    code_id,
-                    salt_to_h256(salt),
-                    arg.0.2.clone(),
-                    fuzzed_value,
-                    TOP_UP_AMOUNT,
+                    call.arg.0.0,
+                    salt_to_h256(&call.arg.0.1),
+                    call.arg.0.2.clone(),
+                    call.arg.0.4,
+                    call.top_up_value,
                 ));
             }
 
@@ -1503,7 +1541,7 @@ async fn process_events(
 mod tests {
     use super::{
         Event, TransitionedMessage, apply_mirror_event_update, apply_router_transition_update,
-        send_message_wait_window,
+        schedule_initial_workers, send_message_wait_window,
     };
     use crate::batch::context::ContextUpdate;
     use ethexe_common::events::{
@@ -1680,5 +1718,18 @@ mod tests {
     fn direct_send_mode_waits_longer_for_events() {
         assert_eq!(send_message_wait_window(3, true), 9);
         assert_eq!(send_message_wait_window(3, false), 18);
+    }
+
+    #[test]
+    fn first_exhausting_batch_stops_initial_scheduling_loop() {
+        let mut scheduled_workers = Vec::new();
+
+        let exhausted = schedule_initial_workers(4, |worker_idx| {
+            scheduled_workers.push(worker_idx);
+            worker_idx == 0
+        });
+
+        assert!(exhausted);
+        assert_eq!(scheduled_workers, vec![0]);
     }
 }
