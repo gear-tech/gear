@@ -755,6 +755,39 @@ mod tests {
         assert_ne!(derive_chain_id(h1), h1.to_fixed_bytes());
     }
 
+    #[test]
+    fn libp2p_secret_is_deterministic_and_distinct_from_validator() {
+        let validator = [0x42u8; 32];
+        let derived = derive_libp2p_secret(&validator);
+        // deterministic
+        assert_eq!(derived, derive_libp2p_secret(&validator));
+        // domain-separated: the libp2p secret must differ from the
+        // validator secret it was derived from, otherwise the whole
+        // point of two-key separation is moot.
+        assert_ne!(derived, validator);
+    }
+
+    #[test]
+    fn libp2p_secret_changes_per_validator() {
+        let v1 = [0x01u8; 32];
+        let v2 = [0x02u8; 32];
+        assert_ne!(derive_libp2p_secret(&v1), derive_libp2p_secret(&v2));
+    }
+
+    #[test]
+    fn malachite_libp2p_peer_id_matches_offline_derivation() {
+        // The peer_id must be a pure function of the validator secret
+        // — operators rely on this to compute persistent_peers
+        // multiaddrs without booting a node.
+        let secret = [0x77u8; 32];
+        let p1 = malachite_libp2p_peer_id(&secret);
+        let p2 = malachite_libp2p_peer_id(&secret);
+        assert_eq!(p1, p2);
+
+        let other = [0x88u8; 32];
+        assert_ne!(p1, malachite_libp2p_peer_id(&other));
+    }
+
     // NOTE: an end-to-end test that actually spins up the engine lives
     // in `ethexe-service` integration tests — we avoid doing it here
     // because it pulls in the whole Malachite libp2p stack and

@@ -108,3 +108,116 @@ impl MalachiteGenesis {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::context::PrivateKey;
+    use std::io::Write;
+
+    /// Generate a deterministic-ish secp256k1 keypair from a seed and
+    /// return (address-as-hex-string, public_key-as-json-value,
+    /// PublicKey).
+    fn keypair_from_seed(seed: u8) -> (String, serde_json::Value, PublicKey) {
+        let mut bytes = [0u8; 32];
+        bytes[31] = seed;
+        let priv_key = PrivateKey::from_slice(&bytes).expect("valid scalar");
+        let pub_key = priv_key.public_key();
+        let addr = Address::from_public_key(&pub_key);
+        let addr_hex = format!("{addr}");
+        let pub_json = serde_json::to_value(&pub_key).expect("PublicKey is serde");
+        (addr_hex, pub_json, pub_key)
+    }
+
+    fn write_genesis_to_temp(json: &str) -> tempfile::NamedTempFile {
+        let mut f = tempfile::NamedTempFile::new().expect("temp file");
+        f.write_all(json.as_bytes()).expect("write");
+        f
+    }
+
+    #[test]
+    fn load_rejects_missing_file() {
+        let path = std::path::PathBuf::from("/this/does/not/exist/genesis.json");
+        let err = MalachiteGenesis::load(&path).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("reading Malachite genesis"), "got: {msg}");
+    }
+
+    #[test]
+    fn load_rejects_empty_validator_set() {
+        let f = write_genesis_to_temp(r#"{ "validators": [] }"#);
+        let err = MalachiteGenesis::load(f.path()).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("empty validator set"), "got: {msg}");
+    }
+
+    #[test]
+    fn load_accepts_consistent_validator_entry() {
+        let (addr_hex, pub_json, _) = keypair_from_seed(1);
+        let json = format!(
+            r#"{{ "validators": [
+                {{ "address": "{addr_hex}",
+                   "public_key": {pub_json},
+                   "voting_power": 7 }}
+            ] }}"#
+        );
+        let f = write_genesis_to_temp(&json);
+        let g = MalachiteGenesis::load(f.path()).expect("load");
+        assert_eq!(g.validators.len(), 1);
+        assert_eq!(g.validators[0].voting_power, 7);
+    }
+
+    #[test]
+    fn load_rejects_address_pubkey_mismatch() {
+        // Generate two keypairs; pair the address from one with the
+        // pubkey from the other. The integrity check must reject.
+        let (addr_a, _, _) = keypair_from_seed(1);
+        let (_, pub_b_json, _) = keypair_from_seed(2);
+        let json = format!(
+            r#"{{ "validators": [
+                {{ "address": "{addr_a}",
+                   "public_key": {pub_b_json},
+                   "voting_power": 1 }}
+            ] }}"#
+        );
+        let f = write_genesis_to_temp(&json);
+        let err = MalachiteGenesis::load(f.path()).unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("does not match"),
+            "expected address/pubkey-mismatch error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn voting_power_defaults_to_one() {
+        let (addr_hex, pub_json, _) = keypair_from_seed(3);
+        // Note: no `voting_power` field in JSON.
+        let json = format!(
+            r#"{{ "validators": [
+                {{ "address": "{addr_hex}", "public_key": {pub_json} }}
+            ] }}"#
+        );
+        let f = write_genesis_to_temp(&json);
+        let g = MalachiteGenesis::load(f.path()).expect("load");
+        assert_eq!(g.validators[0].voting_power, 1);
+    }
+
+    #[test]
+    fn to_validator_set_preserves_entries() {
+        let (addr1, pub1, _) = keypair_from_seed(11);
+        let (addr2, pub2, _) = keypair_from_seed(12);
+        let json = format!(
+            r#"{{ "validators": [
+                {{ "address": "{addr1}", "public_key": {pub1}, "voting_power": 3 }},
+                {{ "address": "{addr2}", "public_key": {pub2}, "voting_power": 5 }}
+            ] }}"#
+        );
+        let f = write_genesis_to_temp(&json);
+        let g = MalachiteGenesis::load(f.path()).expect("load");
+        let vs = g.to_validator_set();
+        // Static-trait-bound check via use of the trait method.
+        use malachitebft_core_types::ValidatorSet as _;
+        assert_eq!(vs.count(), 2);
+    }
+}

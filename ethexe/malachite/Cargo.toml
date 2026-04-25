@@ -55,3 +55,4 @@ gear-workspace-hack.workspace = true
 # Enable the `mock` feature on the in-mem database so tests can call
 # `Database::memory()` without `unsafe`.
 ethexe-db = { workspace = true, features = ["mock"] }
+tempfile.workspace = true

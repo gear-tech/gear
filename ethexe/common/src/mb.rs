@@ -134,3 +134,90 @@ impl SequencerBlock {
         H256::from_slice(&h.finalize())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_block(parent: H256) -> SequencerBlock {
+        SequencerBlock::new(
+            parent,
+            alloc::vec![
+                Transaction::ProgressTasks {
+                    limits: ProgressTasksLimits::default(),
+                },
+                Transaction::ProcessQueues {
+                    limits: ProcessQueuesLimits::default(),
+                },
+            ],
+        )
+    }
+
+    #[test]
+    fn hash_is_deterministic_for_same_content() {
+        let p = H256::from_low_u64_be(1);
+        let a = empty_block(p);
+        let b = empty_block(p);
+        assert_eq!(a.hash(), b.hash());
+    }
+
+    #[test]
+    fn hash_changes_when_parent_changes() {
+        // Two blocks with identical transaction lists but different
+        // parents must hash to different values — this is what gives
+        // the chain structural integrity (a peer can't substitute a
+        // sibling block's parent without changing the hash).
+        let a = empty_block(H256::from_low_u64_be(1));
+        let b = empty_block(H256::from_low_u64_be(2));
+        assert_ne!(a.hash(), b.hash());
+    }
+
+    #[test]
+    fn hash_changes_when_transactions_change() {
+        let parent = H256::from_low_u64_be(1);
+        let mut a = empty_block(parent);
+        let b = empty_block(parent);
+        a.transactions.push(Transaction::AdvanceTillEthereumBlock {
+            eth_block_hash: H256::from_low_u64_be(0xEB),
+        });
+        assert_ne!(a.hash(), b.hash());
+    }
+
+    #[test]
+    fn transaction_tag_distinguishes_variants() {
+        // `tag()` is used in logs all over app.rs / service.rs;
+        // pin its mapping so renames are caught.
+        let advance = Transaction::AdvanceTillEthereumBlock {
+            eth_block_hash: H256::zero(),
+        };
+        let progress = Transaction::ProgressTasks {
+            limits: ProgressTasksLimits::default(),
+        };
+        let queues = Transaction::ProcessQueues {
+            limits: ProcessQueuesLimits::default(),
+        };
+        assert_eq!(advance.tag(), "advance-eth-block");
+        assert_eq!(progress.tag(), "progress-tasks");
+        assert_eq!(queues.tag(), "process-queues");
+    }
+
+    #[test]
+    fn scale_round_trip_preserves_hash() {
+        // SequencerBlock travels over JSON for malachite codec and
+        // SCALE for DB storage — make sure SCALE round-trip is
+        // hash-preserving (we identify decoded blocks by hash on the
+        // executor side).
+        use parity_scale_codec::Decode;
+
+        let original = SequencerBlock::new(
+            H256::from_low_u64_be(0x42),
+            alloc::vec![Transaction::AdvanceTillEthereumBlock {
+                eth_block_hash: H256::from_low_u64_be(0xEB)
+            }],
+        );
+        let encoded = original.encode();
+        let decoded = SequencerBlock::decode(&mut encoded.as_slice()).expect("decode");
+        assert_eq!(original, decoded);
+        assert_eq!(original.hash(), decoded.hash());
+    }
+}

@@ -292,3 +292,259 @@ impl Mempool for InjectedTxMempool {
         self.new_tx_notify.notified().await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{
+        BlockHeader, PrivateKey, SignedMessage, SimpleBlockData,
+        db::{BlockMetaStorageRW, GlobalsStorageRW, OnChainStorageRW},
+        injected::InjectedTransaction,
+    };
+    use gprimitives::ActorId;
+    use std::time::Duration;
+
+    /// Persist a synthetic linear chain of length `len` into the DB.
+    /// Returns blocks oldest-first; first block has parent_hash = 0
+    /// (genesis-like), later ones link to the previous hash.
+    fn linear_chain(db: &Database, len: usize) -> Vec<SimpleBlockData> {
+        let mut chain = Vec::with_capacity(len);
+        let mut parent = H256::zero();
+        for i in 0..len {
+            let mut hb = [0u8; 32];
+            hb[0] = 0x10 + (i as u8 % 0xF0);
+            hb[1] = (i >> 8) as u8;
+            hb[2] = i as u8;
+            let hash = H256::from(hb);
+            let header = BlockHeader {
+                height: i as u32,
+                timestamp: i as u64,
+                parent_hash: parent,
+            };
+            db.set_block_header(hash, header);
+            db.mutate_block_meta(hash, |_| {});
+            chain.push(SimpleBlockData { hash, header });
+            parent = hash;
+        }
+        chain
+    }
+
+    fn signed_tx(
+        pk: &PrivateKey,
+        destination: ActorId,
+        ref_block: H256,
+        salt: u8,
+    ) -> SignedInjectedTransaction {
+        SignedMessage::create(
+            pk.clone(),
+            InjectedTransaction {
+                destination,
+                payload: vec![1, 2, 3].try_into().unwrap(),
+                value: 0,
+                reference_block: ref_block,
+                salt: vec![salt; 32].try_into().unwrap(),
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn insert_unknown_ref_block_is_rejected() {
+        let db = Database::memory();
+        let pool = InjectedTxMempool::new(db);
+        let pk = PrivateKey::random();
+        // ref_block points at a hash that's not in the DB
+        let tx = signed_tx(&pk, ActorId::zero(), H256::random(), 1);
+        pool.insert(tx);
+        assert_eq!(pool.len(), 0);
+    }
+
+    #[test]
+    fn insert_then_fetch_round_trip() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 3);
+        let pool = InjectedTxMempool::new(db);
+
+        let pk = PrivateKey::random();
+        let tx = signed_tx(&pk, ActorId::zero(), chain[2].hash, 1);
+        let tx_hash = tx.data().to_hash();
+
+        pool.insert(tx.clone());
+        assert_eq!(pool.len(), 1);
+
+        // The pool fetches when ref_block is on the canonical chain
+        // of the head we hand it.
+        let head = chain[2];
+        let fetched = futures::executor::block_on(pool.fetch(head, 1_000_000));
+        assert_eq!(fetched.len(), 1);
+        assert_eq!(fetched[0].data().to_hash(), tx_hash);
+    }
+
+    #[test]
+    fn duplicate_insert_is_no_op() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        let pool = InjectedTxMempool::new(db);
+
+        let pk = PrivateKey::random();
+        let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 7);
+        pool.insert(tx.clone());
+        assert_eq!(pool.len(), 1);
+        pool.insert(tx);
+        assert_eq!(pool.len(), 1, "duplicate by hash should be a no-op");
+    }
+
+    #[test]
+    fn capacity_limit_blocks_further_inserts() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        let pool = InjectedTxMempool::with_capacity(db, 2);
+
+        let pk = PrivateKey::random();
+        for i in 0..3 {
+            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, i));
+        }
+        assert_eq!(pool.len(), 2, "third insert must hit the capacity cap");
+    }
+
+    #[test]
+    fn set_chain_head_purges_expired() {
+        let db = Database::memory();
+        // Build a chain long enough that `head_height -
+        // VALIDITY_WINDOW` passes some block we'll insert against.
+        let chain = linear_chain(&db, (VALIDITY_WINDOW as usize) + 5);
+        let pool = InjectedTxMempool::new(db);
+
+        let pk = PrivateKey::random();
+        // tx anchored at block 1 — height 1
+        let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
+        pool.insert(tx);
+        assert_eq!(pool.len(), 1);
+
+        // Advance head far enough that block 1's height is past the
+        // validity window. `is_expired` is `ref_height + WINDOW <= head_height`.
+        let head_idx = (VALIDITY_WINDOW as usize) + 1;
+        pool.set_chain_head(chain[head_idx]);
+        assert_eq!(
+            pool.len(),
+            0,
+            "set_chain_head should purge txs whose ref_block aged out"
+        );
+    }
+
+    #[test]
+    fn forget_moves_committed_to_seen_table() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        let pool = InjectedTxMempool::new(db);
+
+        let pk = PrivateKey::random();
+        let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 99);
+        pool.insert(tx.clone());
+        assert_eq!(pool.len(), 1);
+
+        futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
+        assert_eq!(pool.len(), 0);
+
+        // Re-inserting the same tx must be rejected (seen-hash hit).
+        pool.insert(tx);
+        assert_eq!(pool.len(), 0, "forgotten tx must not return to the pool");
+    }
+
+    #[test]
+    fn fetch_filters_non_canonical_branches() {
+        // Two branches diverging at block 1:
+        //   genesis (hash[0]) -> b1 (hash[1])
+        //                    \-> b1' (hash[1_alt])
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        // alt block off the same parent as chain[1]
+        let alt_hash = H256::from([0xAA; 32]);
+        let alt_header = BlockHeader {
+            height: 1,
+            timestamp: 1,
+            parent_hash: chain[0].hash,
+        };
+        db.set_block_header(alt_hash, alt_header);
+        db.mutate_block_meta(alt_hash, |_| {});
+
+        // Globals' start_block_hash defaults to zero in `Database::memory`,
+        // so the ancestor-walk fence won't trigger early. That's what we
+        // want for this test.
+        let _ = db.globals_mutate(|_| {});
+
+        let pool = InjectedTxMempool::new(db);
+        let pk = PrivateKey::random();
+
+        // tx anchored to the ALT branch
+        let tx_alt = signed_tx(&pk, ActorId::zero(), alt_hash, 1);
+        pool.insert(tx_alt);
+        assert_eq!(pool.len(), 1);
+
+        // Fetching for canonical branch (chain[1]) — alt tx must NOT
+        // surface.
+        let fetched = futures::executor::block_on(pool.fetch(chain[1], 1_000_000));
+        assert!(
+            fetched.is_empty(),
+            "tx on alt branch must not be fetched against canonical head"
+        );
+
+        // Pool still holds it for a possible reorg.
+        assert_eq!(pool.len(), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn wait_for_new_tx_wakes_on_insert() {
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        let pool = std::sync::Arc::new(InjectedTxMempool::new(db));
+
+        let waiter = {
+            let pool = pool.clone();
+            tokio::spawn(async move {
+                pool.wait_for_new_tx().await;
+            })
+        };
+
+        // Give the waiter a chance to register on the Notify.
+        tokio::time::sleep(Duration::from_millis(10)).await;
+
+        let pk = PrivateKey::random();
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0));
+
+        // Waiter should now wake up promptly.
+        tokio::time::timeout(Duration::from_secs(1), waiter)
+            .await
+            .expect("wait_for_new_tx must unblock after insert")
+            .expect("waiter task panicked");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn wait_for_new_tx_does_not_wake_on_rejected_insert() {
+        // A duplicate / capped / unknown-ref insert should not wake
+        // a waiter — Notify is signalled only on a successful insert.
+        let db = Database::memory();
+        let pool = std::sync::Arc::new(InjectedTxMempool::new(db));
+
+        let waiter = {
+            let pool = pool.clone();
+            tokio::spawn(async move {
+                pool.wait_for_new_tx().await;
+            })
+        };
+
+        tokio::time::sleep(Duration::from_millis(10)).await;
+
+        // ref_block isn't in the DB → rejected.
+        let pk = PrivateKey::random();
+        pool.insert(signed_tx(&pk, ActorId::zero(), H256::random(), 0));
+
+        // Waiter must still be pending.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(
+            !waiter.is_finished(),
+            "waiter must stay blocked when insert was rejected"
+        );
+        waiter.abort();
+    }
+}
