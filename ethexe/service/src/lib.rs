@@ -57,7 +57,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked,
-    db::{GlobalsStorageRW, MbStorageRW},
+    db::{GlobalsStorageRW, MbStorageRO, MbStorageRW},
     gear::CodeState,
     network::VerifiedValidatorMessage,
 };
@@ -478,14 +478,16 @@ impl Service {
             .join("malachite");
         let mut malachite_config =
             MalachiteConfig::from_ethexe_genesis(genesis_block_hash, malachite_home)
-                .with_listen_addr(config.malachite.listen_addr);
+                .with_listen_addr(config.malachite.listen_addr)
+                .with_persistent_peers(config.malachite.persistent_peers.clone());
         if let Some(moniker) = config.malachite.moniker.clone() {
             malachite_config.moniker = moniker;
         }
         log::info!(
-            "🪨 Malachite chain id: 0x{}  listen: {}",
+            "🪨 Malachite chain id: 0x{}  listen: {}  persistent_peers: {}",
             hex::encode(malachite_config.chain_id),
             malachite_config.listen_addr,
+            malachite_config.persistent_peers.len(),
         );
         let malachite_gas_allowance = malachite_config.gas_allowance;
         let malachite = if let Some(pub_key) = validator_pub_key {
@@ -866,11 +868,35 @@ impl Service {
                         // doesn't end up finalized the result lingers
                         // in the `mb_*` keyspace until a future GC
                         // step cleans it up.
+                        //
+                        // `last_advanced_block` is propagated forward:
+                        // the latest `AdvanceTillEthereumBlock` in
+                        // this MB's transactions wins; otherwise we
+                        // inherit the parent's value (or `H256::zero()`
+                        // for the genesis MB whose parent is zero).
+                        let parent_last_advanced = if block.parent.is_zero() {
+                            H256::zero()
+                        } else {
+                            db.mb_meta(block.parent).last_advanced_block
+                        };
+                        let last_advanced = block
+                            .transactions
+                            .iter()
+                            .rev()
+                            .find_map(|tx| match tx {
+                                ethexe_malachite::Transaction::AdvanceTillEthereumBlock {
+                                    eth_block_hash,
+                                } => Some(*eth_block_hash),
+                                _ => None,
+                            })
+                            .unwrap_or(parent_last_advanced);
+
                         db.set_mb_block(mb_hash, block.clone());
                         let parent_for_meta = (!block.parent.is_zero()).then_some(block.parent);
                         db.mutate_mb_meta(mb_hash, |meta| {
                             meta.height = height;
                             meta.parent_mb_hash = parent_for_meta;
+                            meta.last_advanced_block = last_advanced;
                         });
                         compute.compute_mb(height, block, malachite_gas_allowance);
                     }

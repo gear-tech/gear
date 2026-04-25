@@ -51,6 +51,15 @@ use crate::streaming::{PartStreamsMap, ProposalParts};
 /// Number of historical values to keep in the store
 const HISTORY_LENGTH: u64 = 1000;
 
+/// Extra slack added on top of the proposer's `SLOT_DURATION` wait
+/// window, used as the non-proposer's `Timeout::Propose`. The
+/// proposer aims to publish within `SLOT_DURATION`; this margin
+/// absorbs network latency (proposal stream + gossip) so the
+/// non-proposer doesn't trigger a round increment on a borderline
+/// slow propose.
+pub(crate) const NON_PROPOSER_PROPOSE_MARGIN: std::time::Duration =
+    std::time::Duration::from_secs(1);
+
 /// Internal state of the Malachite channel app.
 pub struct State {
     #[allow(dead_code)]
@@ -165,6 +174,23 @@ impl State {
     fn start_block_hash(&self) -> H256 {
         use ethexe_common::db::GlobalsStorageRO;
         self.db.globals().start_block_hash
+    }
+
+    /// Is `candidate` a strict descendant of `ancestor` along the
+    /// canonical `parent_hash` chain? Thin wrapper over
+    /// [`quarantine::is_strict_descendant_of`] that fills in the
+    /// `start_block_hash` fence from the local DB.
+    pub fn is_strict_descendant_of(
+        &self,
+        candidate: H256,
+        ancestor: H256,
+    ) -> Result<bool> {
+        quarantine::is_strict_descendant_of(
+            &self.db,
+            candidate,
+            ancestor,
+            self.start_block_hash(),
+        )
     }
 
     pub async fn get_earliest_height(&self) -> Height {
@@ -457,7 +483,23 @@ impl State {
     }
 
     pub fn get_timeouts(&self, _height: Height) -> LinearTimeouts {
-        LinearTimeouts::default()
+        // The propose phase is bounded by one Ethereum slot plus a
+        // small margin: within `SLOT_DURATION` a new EB always
+        // arrives, passes quarantine, and gives the producer a
+        // fresh `AdvanceTillEthereumBlock` to anchor an MB to. The
+        // proposer waits up to `SLOT_DURATION` for that signal in
+        // its `GetValue` handler, while non-proposers tolerate a
+        // bit longer (`+ NON_PROPOSER_PROPOSE_MARGIN`) so a propose
+        // that lands at the very last moment doesn't trigger a
+        // round increment due to network latency.
+        //
+        // Other timeouts stay default — voting phases are quick;
+        // the increased propose timeout doesn't slow down the
+        // happy path (proposer pings the moment content is ready).
+        let mut t = LinearTimeouts::default();
+        t.propose = alloy::eips::merge::SLOT_DURATION + NON_PROPOSER_PROPOSE_MARGIN;
+        t.propose_delta = std::time::Duration::from_secs(1);
+        t
     }
 
     /// Re-assemble a [`ProposedValue`] from its streamed parts. The

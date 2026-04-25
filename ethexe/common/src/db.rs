@@ -135,11 +135,22 @@ pub struct AnnounceMeta {
 /// links the MB chain in the same direction as Malachite heights — the
 /// MB executed at height N has parent the MB that was finalized at
 /// height N-1 (or `None` for the very first MB).
+///
+/// `last_advanced_block` tracks the most recent Ethereum block this
+/// MB's accumulated `AdvanceTillEthereumBlock` line has pinned. It's
+/// propagated forward: an MB that itself contains an
+/// `AdvanceTillEthereumBlock(x)` resets it to `x`; otherwise it
+/// inherits the parent's value. The very first MB inherits from
+/// `H256::zero()` (the pre-genesis sentinel — every Ethereum block is
+/// treated as a descendant of zero). The producer reads this field
+/// off the parent MB to decide whether the next quarantine-passed
+/// block is a genuine *new* advance or a re-pin of the same block.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
     pub height: u64,
     pub parent_mb_hash: Option<H256>,
+    pub last_advanced_block: H256,
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -292,7 +303,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "15dc8595aa16cae3f3a3d3bb57bf5b50b1c5968d6e2796adc33ccddee1d97907";
+            "18d7f64d528b6d899b7f295d170010a548dba5a5f0f3434fbca0c4fd1e093675";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -310,6 +321,8 @@ mod tests {
             meta_type::<StateTransition>(),
             meta_type::<Schedule>(),
             meta_type::<AnnounceMeta>(),
+            meta_type::<MbMeta>(),
+            meta_type::<crate::mb::SequencerBlock>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),
         ];

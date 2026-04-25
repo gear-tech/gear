@@ -9,6 +9,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+alloy = { workspace = true, features = ["eips"] }
 anyhow.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
@@ -49,3 +50,8 @@ gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring"
 gprimitives = { workspace = true, features = ["std"] }
 
 gear-workspace-hack.workspace = true
+
+[dev-dependencies]
+# Enable the `mock` feature on the in-mem database so tests can call
+# `Database::memory()` without `unsafe`.
+ethexe-db = { workspace = true, features = ["mock"] }

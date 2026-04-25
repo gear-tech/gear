@@ -21,7 +21,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
-use ethexe_common::SimpleBlockData;
+use ethexe_common::{SimpleBlockData, injected::SignedInjectedTransaction};
+use gprimitives::H256;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{error, info, warn};
@@ -65,8 +66,16 @@ pub async fn run(
                 let Some(msg) = msg else {
                     return Err(anyhow!("Consensus channel closed unexpectedly"));
                 };
-                handle_app_msg(&mut state, &mut channels, &*mempool, gas_allowance, &event_tx, msg)
-                    .await?;
+                handle_app_msg(
+                    &mut state,
+                    &mut channels,
+                    &*mempool,
+                    gas_allowance,
+                    &mut chain_head_rx,
+                    &event_tx,
+                    msg,
+                )
+                .await?;
             }
         }
     }
@@ -77,6 +86,7 @@ async fn handle_app_msg(
     channels: &mut Channels<EthexeContext>,
     mempool: &dyn Mempool,
     gas_allowance: u64,
+    chain_head_rx: &mut mpsc::UnboundedReceiver<SimpleBlockData>,
     event_tx: &mpsc::UnboundedSender<Result<MalachiteEvent>>,
     msg: AppMsg<EthexeContext>,
 ) -> Result<()> {
@@ -161,42 +171,48 @@ async fn handle_app_msg(
                     p
                 }
                 None => {
-                    // --- Build the SequencerBlock -------------------
+                    // Producer pacing decision tree
+                    // (mb_meta.last_advanced_block on parent MB
+                    // tells us where the previous MB chain pinned
+                    // the executor's view of the Ethereum chain):
                     //
-                    //   1. AdvanceTillEthereumBlock — IFF the latest
-                    //      observer chain head already has a
-                    //      quarantine-passed ancestor; otherwise omit
-                    //      the tx entirely and let the next MB carry
-                    //      it.
-                    //   2. Any injected transactions drawn from the
-                    //      mempool.
-                    //   3. A single ProgressTasks at the end.
-                    //   4. A single ProcessQueues at the very end.
+                    //   1. New advance available? — quarantine-passed
+                    //      candidate is a *strict* descendant of
+                    //      `last_advanced_block`. Propose immediately
+                    //      with `AdvanceTillEthereumBlock(candidate)`
+                    //      plus whatever injected txs we have.
                     //
-                    // `fetch` is non-destructive: txs whose
-                    // reference_block is an ancestor of the latest
-                    // received head are returned but stay in the pool
-                    // until the MB is actually finalized
-                    // (`AppMsg::Finalized` below calls
-                    // `mempool.forget`).
-                    let injected = match state.latest_received_head {
-                        Some(head) => mempool.fetch(head, gas_allowance).await,
-                        None => Vec::new(),
-                    };
-                    let quarantine_anchor = match state.quarantine_anchor() {
-                        Ok(maybe_hash) => maybe_hash,
-                        Err(e) => {
-                            warn!(
-                                error = %e,
-                                "Quarantine anchor lookup failed; \
-                                 skipping AdvanceTillEthereumBlock"
-                            );
-                            None
-                        }
-                    };
+                    //   2. Candidate exists but is **not** a
+                    //      descendant of `last_advanced_block` — that
+                    //      means a previously-pinned EB was reorged
+                    //      off the canonical chain (extraordinarily
+                    //      unlikely past the K-block quarantine).
+                    //      Log error and refuse to advance this MB;
+                    //      keep proposing if there are injected txs,
+                    //      otherwise fall through to wait.
+                    //
+                    //   3. No new advance, but injected txs present —
+                    //      propose immediately with txs only.
+                    //
+                    //   4. Nothing to propose — wait. Wake up on
+                    //      either a new chain-head event (re-check
+                    //      whether the quarantine candidate moved)
+                    //      or a new tx in the mempool. No deadline:
+                    //      ETH provides a fresh slot every ~12s, so
+                    //      in practice the wait is bounded; on a
+                    //      true ETH outage the round timer rotates
+                    //      proposers but no MB is produced until
+                    //      content arrives somewhere.
+                    let (advance, injected) = wait_for_proposable_content(
+                        state,
+                        mempool,
+                        chain_head_rx,
+                        gas_allowance,
+                    )
+                    .await;
 
                     let mut transactions = Vec::with_capacity(injected.len() + 3);
-                    if let Some(eth_block_hash) = quarantine_anchor {
+                    if let Some(eth_block_hash) = advance {
                         transactions.push(crate::Transaction::AdvanceTillEthereumBlock {
                             eth_block_hash,
                         });
@@ -460,4 +476,115 @@ async fn handle_app_msg(
 
 fn value_id_to_h256(id: crate::context::ValueId) -> gprimitives::H256 {
     id.0
+}
+
+/// Block the proposer until there is *something* worth putting into
+/// a [`SequencerBlock`] — and return that something already
+/// computed:
+///
+/// - `Some(eth_block_hash)` when a quarantine-passed EB is a strict
+///   descendant of the parent MB's `last_advanced_block` (a genuine
+///   advance);
+/// - `None` for the advance otherwise (no new advance, or a
+///   misbehaving candidate that we logged-and-skipped);
+///
+/// plus the freshly fetched mempool batch. The returned tuple is
+/// either `(Some, _)` (advance available) or `(_, non-empty)` (txs
+/// available); we never return `(None, [])` — in that case we keep
+/// waiting on chain-head events and mempool inserts.
+///
+/// While waiting, every chain-head delivery is fanned out to `state`
+/// and `mempool` (same as the outer `run` loop), so by the time we
+/// return, the local view is fully up to date.
+async fn wait_for_proposable_content(
+    state: &mut State,
+    mempool: &dyn Mempool,
+    chain_head_rx: &mut mpsc::UnboundedReceiver<SimpleBlockData>,
+    gas_allowance: u64,
+) -> (Option<H256>, Vec<SignedInjectedTransaction>) {
+    use ethexe_common::db::MbStorageRO;
+
+    let parent_advanced = if state.latest_finalized_mb_hash.is_zero() {
+        H256::zero()
+    } else {
+        state
+            .db
+            .mb_meta(state.latest_finalized_mb_hash)
+            .last_advanced_block
+    };
+
+    loop {
+        // Re-evaluate every iteration — chain head and mempool can
+        // both shift while we're waiting.
+        let advance = compute_advance_candidate(state, parent_advanced);
+        let injected = match state.latest_received_head {
+            Some(head) => mempool.fetch(head, gas_allowance).await,
+            None => Vec::new(),
+        };
+        if advance.is_some() || !injected.is_empty() {
+            return (advance, injected);
+        }
+
+        // Nothing to propose — wait for any signal.
+        tokio::select! {
+            biased;
+            head = chain_head_rx.recv() => {
+                let Some(head) = head else {
+                    // Producer of chain heads dropped: no more
+                    // input is coming. Best we can do is propose an
+                    // empty block to keep liveness; bail out of the
+                    // wait without an advance.
+                    warn!("chain_head channel closed; producing without advance");
+                    return (None, Vec::new());
+                };
+                state.set_latest_received_head(head);
+                mempool.set_chain_head(head);
+            }
+            _ = mempool.wait_for_new_tx() => {
+                // Loop and re-check via fetch — wait_for_new_tx is
+                // best-effort, the new tx may or may not pass the
+                // canonical-ancestor filter.
+            }
+        }
+    }
+}
+
+/// Resolve the next `AdvanceTillEthereumBlock` candidate for the
+/// producer, given the parent MB's `last_advanced_block`.
+///
+/// - Returns `Some(candidate)` when the local quarantine anchor is a
+///   strict descendant of `parent_advanced` (genuinely newer EB).
+/// - Returns `None` when there's no candidate, when it equals the
+///   parent's anchor (already pinned), or when the descendant check
+///   surfaces a structural issue (logs at `warn`/`error` accordingly
+///   and refuses to advance — the produced MB will still carry
+///   tasks/queues plus any mempool content).
+fn compute_advance_candidate(state: &State, parent_advanced: H256) -> Option<H256> {
+    let candidate = match state.quarantine_anchor() {
+        Ok(Some(c)) => c,
+        Ok(None) => return None,
+        Err(e) => {
+            warn!(error = %e, "quarantine anchor lookup failed; skipping advance");
+            return None;
+        }
+    };
+    if candidate == parent_advanced {
+        return None;
+    }
+    match state.is_strict_descendant_of(candidate, parent_advanced) {
+        Ok(true) => Some(candidate),
+        Ok(false) => None,
+        Err(e) => {
+            error!(
+                error = %e,
+                candidate = %candidate,
+                parent_advanced = %parent_advanced,
+                "quarantine-passed EB is not a canonical descendant of \
+                 parent's last_advanced_block — possible deep reorg of an \
+                 already-advanced block. Skipping AdvanceTillEthereumBlock \
+                 for this proposal."
+            );
+            None
+        }
+    }
 }

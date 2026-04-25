@@ -25,7 +25,7 @@
 use super::MergeParams;
 use anyhow::Result;
 use clap::Parser;
-use ethexe_malachite::MalachiteConfig;
+use ethexe_malachite::{MalachiteConfig, Multiaddr};
 use ethexe_service::config::MalachiteCliConfig;
 use serde::Deserialize;
 use std::net::SocketAddr;
@@ -43,7 +43,8 @@ pub struct MalachiteParams {
     /// This is a **separate** socket from `--network-listen-addr`
     /// (which serves the QUIC-based ethexe-network on port 20333 by
     /// default) — the Malachite swarm currently uses TCP and its own
-    /// ed25519 peer id.
+    /// secp256k1 peer id (deterministically derived from the
+    /// validator key, but distinct from the ethexe-network peer id).
     #[arg(long, aliases = &["mala-listen-addr", "malachite-listen"])]
     #[serde(rename = "listen-addr")]
     pub malachite_listen_addr: Option<SocketAddr>,
@@ -53,6 +54,18 @@ pub struct MalachiteParams {
     #[arg(long, aliases = &["mala-moniker"])]
     #[serde(rename = "moniker")]
     pub malachite_moniker: Option<String>,
+
+    /// Persistent peer multiaddrs the Malachite swarm should always
+    /// keep connections to. Each entry must include a
+    /// `/p2p/<peer_id>` suffix. Repeat the flag to add more than one
+    /// peer.
+    ///
+    /// Example for a 3-node test on localhost:
+    ///   `--malachite-persistent-peer /ip4/127.0.0.1/tcp/20335/p2p/12D3KooW...`
+    ///   `--malachite-persistent-peer /ip4/127.0.0.1/tcp/20336/p2p/12D3KooW...`
+    #[arg(long = "malachite-persistent-peer", aliases = &["mala-persistent-peer"])]
+    #[serde(default, rename = "persistent-peers")]
+    pub malachite_persistent_peers: Vec<Multiaddr>,
 }
 
 impl MalachiteParams {
@@ -65,17 +78,23 @@ impl MalachiteParams {
                 .malachite_listen_addr
                 .unwrap_or(MalachiteConfig::DEFAULT_LISTEN_ADDR),
             moniker: self.malachite_moniker,
+            persistent_peers: self.malachite_persistent_peers,
         })
     }
 }
 
 impl MergeParams for MalachiteParams {
     fn merge(self, with: Self) -> Self {
+        // Persistent peers concatenate (CLI list + file list). Empty
+        // lists merge to empty, which is the same as the default.
+        let mut persistent_peers = self.malachite_persistent_peers;
+        persistent_peers.extend(with.malachite_persistent_peers);
         Self {
             malachite_listen_addr: self
                 .malachite_listen_addr
                 .or(with.malachite_listen_addr),
             malachite_moniker: self.malachite_moniker.or(with.malachite_moniker),
+            malachite_persistent_peers: persistent_peers,
         }
     }
 }

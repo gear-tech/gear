@@ -84,6 +84,7 @@ use malachitebft_app_channel::app::config::{
     ConsensusConfig, DiscoveryConfig, LoggingConfig, MetricsConfig, NodeConfig, P2pConfig,
     PubSubProtocol, RuntimeConfig, TransportProtocol, ValuePayload, ValueSyncConfig,
 };
+pub use malachitebft_app::net::Multiaddr;
 use malachitebft_app_channel::app::metrics::SharedRegistry;
 use malachitebft_app_channel::app::types::core::Height as _;
 use malachitebft_app_channel::app::types::Keypair;
@@ -110,6 +111,7 @@ pub use ethexe_common::mb::{
     ProcessQueuesLimits, ProgressTasksLimits, SequencerBlock, Transaction,
 };
 pub use crate::mempool::InjectedTxMempool;
+pub use libp2p_identity::PeerId;
 
 use crate::codec::JsonCodec;
 use crate::context::EthexeContext;
@@ -205,6 +207,16 @@ pub trait Mempool: Send + Sync + 'static {
     /// the hashes so subsequent [`Self::insert`] calls for the same tx
     /// are rejected as duplicates, until the ref_block ages out.
     async fn forget(&self, committed: &[SignedInjectedTransaction]);
+
+    /// Block until at least one new transaction is accepted into the
+    /// pool. Used by the producer to wake up out of an idle wait the
+    /// moment fresh content arrives — without polling.
+    ///
+    /// The notification is best-effort: spurious wake-ups are
+    /// allowed (the producer must always re-check `fetch` after
+    /// returning). If the implementation never accepts new txs (e.g.
+    /// [`EmptyMempool`]), this future is allowed to be pending forever.
+    async fn wait_for_new_tx(&self);
 }
 
 /// Always-empty mempool, useful to bring up the service on an idle node.
@@ -226,6 +238,12 @@ impl Mempool for EmptyMempool {
     }
 
     async fn forget(&self, _committed: &[SignedInjectedTransaction]) {}
+
+    async fn wait_for_new_tx(&self) {
+        // Empty pool never accepts a tx — pend forever so the
+        // producer's select races only against chain_head_rx.
+        std::future::pending().await
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +275,14 @@ pub struct MalachiteConfig {
 
     /// Directory where Malachite stores its WAL and block DB.
     pub home_dir: PathBuf,
+
+    /// Multiaddrs the local node should keep persistent connections
+    /// to (analogue of `--bootnodes` for `ethexe-network`). Each entry
+    /// must include a `/p2p/<peer_id>` suffix so the swarm knows
+    /// who to expect on the other side. Discovery is currently off,
+    /// so multi-validator deployments need every node listed in here
+    /// (or at least transitively reachable).
+    pub persistent_peers: Vec<Multiaddr>,
 }
 
 impl MalachiteConfig {
@@ -284,6 +310,7 @@ impl MalachiteConfig {
             chain_id: derive_chain_id(ethexe_genesis_block_hash),
             listen_addr: Self::DEFAULT_LISTEN_ADDR,
             home_dir,
+            persistent_peers: Vec::new(),
         }
     }
 
@@ -291,6 +318,13 @@ impl MalachiteConfig {
     #[must_use]
     pub fn with_listen_addr(mut self, addr: SocketAddr) -> Self {
         self.listen_addr = addr;
+        self
+    }
+
+    /// Replace the Malachite persistent peers list.
+    #[must_use]
+    pub fn with_persistent_peers(mut self, peers: Vec<Multiaddr>) -> Self {
+        self.persistent_peers = peers;
         self
     }
 }
@@ -348,7 +382,7 @@ fn build_inner_config(cfg: &MalachiteConfig) -> InnerNodeConfig {
         p2p: P2pConfig {
             protocol: PubSubProtocol::default(),
             listen_addr: listen_multiaddr,
-            persistent_peers: Vec::new(),
+            persistent_peers: cfg.persistent_peers.clone(),
             discovery: DiscoveryConfig {
                 enabled: false,
                 ..Default::default()
@@ -392,14 +426,10 @@ pub fn derive_chain_id(ethexe_genesis_block_hash: H256) -> ChainId {
 // ---------------------------------------------------------------------------
 
 /// Pull the raw 32-byte secp256k1 secret for `validator_pub_key` out
-/// of the shared [`gsigner::Signer`]. Same secret is used to sign:
-/// - on-chain commitments (via ethexe-ethereum);
-/// - Malachite consensus votes (via [`EthexeSigner`]);
-/// - libp2p handshake (peer id is derived from the public key).
-///
-/// So the node has a single identity across all three layers and
-/// peers can verify votes against the same address the validator is
-/// registered under in genesis.
+/// of the shared [`gsigner::Signer`]. Same secret signs Malachite
+/// consensus votes (via [`EthexeSigner`]) and on-chain commitments
+/// (via ethexe-ethereum). The libp2p peer_id is intentionally **not**
+/// derived from this secret directly — see [`derive_libp2p_secret`].
 fn export_validator_secret(
     signer: &Signer<Secp256k1>,
     validator_pub_key: Secp256k1PublicKey,
@@ -408,6 +438,50 @@ fn export_validator_secret(
         .private_key(validator_pub_key)
         .context("exporting validator private key from gsigner keyring")?;
     Ok(priv_key.to_bytes())
+}
+
+/// Domain-separated secp256k1 secret for the Malachite libp2p swarm.
+///
+/// We never reuse the validator key as a libp2p peer_id source: the
+/// two layers serve different purposes (transport vs consensus) and
+/// having the same peer_id across two independent libp2p swarms in a
+/// single process is bad hygiene (operability, observability,
+/// future-proofing). Instead, we deterministically hash the master
+/// secret with a fixed domain tag — operators still manage a single
+/// key, but the libp2p peer_id ends up independent of the validator
+/// address.
+///
+/// The probability that the resulting 32 bytes are not a valid
+/// secp256k1 scalar (i.e., are zero or ≥ curve order) is on the order
+/// of 2^-128, so we panic on the (essentially impossible) failure.
+pub fn derive_libp2p_secret(validator_secret: &[u8; 32]) -> [u8; 32] {
+    const DOMAIN: &[u8] = b"ethexe-malachite-libp2p:v1:";
+    let mut hasher = Keccak256::new();
+    hasher.update(DOMAIN);
+    hasher.update(validator_secret);
+    hasher.finalize().into()
+}
+
+/// Compute the libp2p [`PeerId`] of the Malachite swarm associated
+/// with a given validator secret — without spinning up the engine.
+///
+/// Useful for offline tooling: operators preparing
+/// `--malachite-persistent-peer` multiaddrs for a multi-validator
+/// deployment can run this against each validator's keystore to
+/// produce the `/p2p/<peer_id>` suffix without booting the node.
+///
+/// The derivation matches the one [`MalachiteService::new`] performs
+/// internally, so the offline-computed peer_id will be identical to
+/// what the running service announces.
+pub fn malachite_libp2p_peer_id(validator_secret: &[u8; 32]) -> PeerId {
+    let mut derived = derive_libp2p_secret(validator_secret);
+    let secret = libp2p_identity::secp256k1::SecretKey::try_from_bytes(&mut derived)
+        .expect("derived libp2p secret is a valid secp256k1 scalar");
+    for byte in derived.iter_mut() {
+        *byte = 0;
+    }
+    let kp = libp2p_identity::secp256k1::Keypair::from(secret);
+    Keypair::from(kp).public().to_peer_id()
 }
 
 // ---------------------------------------------------------------------------
@@ -467,8 +541,17 @@ impl MalachiteService {
         let db_path = config.home_dir.join("store.db");
 
         // ---- keys & identity ---------------------------------------------
-        // Single identity across Malachite / libp2p / on-chain: pull
-        // the raw 32-byte secret out of the gsigner keyring once.
+        // The validator's signing key is what signs Malachite votes
+        // and on-chain commitments. The libp2p peer_id, however, is
+        // a *transport-level* identity — running two libp2p swarms
+        // (ethexe-network on QUIC/20333, malachite on TCP/20334) under
+        // the same peer_id is non-standard and confuses observability
+        // / future tooling, even though there's no functional clash.
+        //
+        // So we keep a single master secret (the validator key) but
+        // domain-separate-derive an independent secp256k1 secret for
+        // the malachite libp2p swarm. Operators still manage one key;
+        // ethexe-network and malachite end up with distinct peer_ids.
         let secret_bytes = export_validator_secret(&signer, validator_pub_key)
             .context("extracting validator secret for Malachite")?;
         let private_key = PrivateKey::from_slice(&secret_bytes)
@@ -478,19 +561,24 @@ impl MalachiteService {
         let signing_provider = EthexeSigner::new(private_key.clone());
 
         let libp2p_keypair: Keypair = {
-            let mut sk = secret_bytes;
-            let secret =
-                libp2p_identity::secp256k1::SecretKey::try_from_bytes(&mut sk)
-                    .expect("valid secp256k1 keypair bytes");
-            // zero the copy we handed off; the real secret still
-            // lives inside `private_key` and the gsigner keyring.
-            for byte in sk.iter_mut() {
+            let mut derived = derive_libp2p_secret(&secret_bytes);
+            let secret = libp2p_identity::secp256k1::SecretKey::try_from_bytes(&mut derived)
+                .expect("derived libp2p secret is a valid secp256k1 scalar");
+            // Zero our temp copy; the on-chain key is still in the
+            // gsigner keyring, the derived libp2p key now lives only
+            // inside the libp2p Keypair.
+            for byte in derived.iter_mut() {
                 *byte = 0;
             }
             let inner = libp2p_identity::secp256k1::Keypair::from(secret);
             Keypair::from(inner)
         };
         let peer_id_bytes = libp2p_keypair.public().to_peer_id().to_bytes();
+        // Bind libp2p peer_id to the validator's on-chain identity:
+        // the validator signs (validator_pubkey, peer_id_bytes), peers
+        // verify against the validator's public key from genesis. Even
+        // though peer_id != address now, the proof stitches them
+        // together so a peer can't impersonate a validator over libp2p.
         let proof = signing_provider
             .sign_validator_proof(public_key.to_vec(), peer_id_bytes)
             .await

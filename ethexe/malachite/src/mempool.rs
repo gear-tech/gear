@@ -40,7 +40,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 use async_trait::async_trait;
@@ -51,6 +51,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use gprimitives::H256;
+use tokio::sync::Notify;
 use tracing::{debug, trace};
 
 use crate::Mempool;
@@ -86,6 +87,10 @@ pub struct InjectedTxMempool {
     inner: Mutex<Inner>,
     db: Database,
     capacity: usize,
+    /// Signal raised on every successful tx insert. The producer
+    /// awaits on this from `Mempool::wait_for_new_tx` so it can wake
+    /// out of an idle wait the moment a fresh tx lands.
+    new_tx_notify: Arc<Notify>,
 }
 
 impl InjectedTxMempool {
@@ -98,6 +103,7 @@ impl InjectedTxMempool {
             inner: Mutex::new(Inner::default()),
             db,
             capacity,
+            new_tx_notify: Arc::new(Notify::new()),
         }
     }
 
@@ -235,6 +241,10 @@ impl Mempool for InjectedTxMempool {
         }
 
         inner.pool.insert(tx_hash, tx);
+        // Drop the lock before signaling so a waiter resumed
+        // immediately doesn't have to bounce on the mutex.
+        drop(inner);
+        self.new_tx_notify.notify_waiters();
     }
 
     fn set_chain_head(&self, head: SimpleBlockData) {
@@ -272,5 +282,13 @@ impl Mempool for InjectedTxMempool {
             inner.pool.remove(&tx_hash);
             inner.seen.insert(tx_hash, tx.data().reference_block);
         }
+    }
+
+    async fn wait_for_new_tx(&self) {
+        // `Notify::notified()` returns a future that's permitted to
+        // miss notifications fired *before* it's registered, so the
+        // caller must always re-check `fetch()` after we return —
+        // matches the trait's "best-effort" contract.
+        self.new_tx_notify.notified().await
     }
 }

@@ -19,6 +19,7 @@
 //! Application config in one place.
 
 use anyhow::Result;
+use ethexe_malachite::Multiaddr;
 use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -46,6 +47,12 @@ pub struct MalachiteCliConfig {
     /// Override the default `ethexe-malachite` moniker reported in
     /// Malachite logs and libp2p identify.
     pub moniker: Option<String>,
+    /// Persistent peers the local Malachite swarm should always
+    /// connect to. Each entry must include a `/p2p/<peer_id>` suffix.
+    /// Discovery is currently disabled, so for a multi-validator
+    /// deployment every peer must be listed (or transitively
+    /// reachable through the listed ones).
+    pub persistent_peers: Vec<Multiaddr>,
 }
 
 impl Default for MalachiteCliConfig {
@@ -53,6 +60,7 @@ impl Default for MalachiteCliConfig {
         Self {
             listen_addr: ethexe_malachite::MalachiteConfig::DEFAULT_LISTEN_ADDR,
             moniker: None,
+            persistent_peers: Vec::new(),
         }
     }
 }

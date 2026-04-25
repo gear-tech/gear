@@ -5754,6 +5754,7 @@ dependencies = [
 name = "ethexe-malachite"
 version = "1.10.0"
 dependencies = [
+ "alloy",
  "anyhow",
  "arc-malachitebft-app",
  "arc-malachitebft-app-channel",
