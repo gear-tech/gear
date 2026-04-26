@@ -547,9 +547,6 @@ pub fn get_custom_section_data<'a>(
     wasm: &'a [u8],
     section_name: &str,
 ) -> Result<Option<&'a [u8]>, wasmparser::BinaryReaderError> {
-    // `parse_all` rejects input without a valid magic + version preamble on
-    // the first iteration, so there's no need for a separate "was a version
-    // header observed?" flag.
     for payload in wasmparser::Parser::new(0).parse_all(wasm) {
         if let Payload::CustomSection(section) = payload?
             && section.name() == section_name

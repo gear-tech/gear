@@ -246,12 +246,12 @@ impl Api {
     }
 
     /// Reads a named custom section from the original WASM code stored
-    /// on-chain at specified block.
+    /// on-chain. When `block_hash` is `None`, the best block is used.
     ///
     /// Actually calls `gear_readWasmCustomSection` RPC method. Returns
     /// `None` if the code is not found or the section does not exist.
     /// Primary use case: retrieving a Sails IDL embedded in the
-    /// `sails:idl` custom section.
+    /// `sails:idl` custom section at specified block.
     #[at_block]
     pub async fn read_wasm_custom_section_at(
         &self,

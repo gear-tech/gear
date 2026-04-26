@@ -20,13 +20,15 @@
 
 use gear_core::code::get_custom_section_data;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, types::ErrorObjectOwned};
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Compact, Decode};
 use sc_client_api::StorageProvider;
 use sp_blockchain::HeaderBackend;
 use sp_core::{Bytes, H256, twox_128};
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::StorageKey;
 use std::{marker::PhantomData, sync::Arc};
+
+const ERROR_CODE: i32 = 9000;
 
 #[rpc(server)]
 pub(crate) trait WasmSection<BlockHash> {
@@ -49,21 +51,14 @@ pub(crate) trait WasmSection<BlockHash> {
 
 pub(crate) struct WasmSectionApi<C, Block, Backend> {
     client: Arc<C>,
-    original_code_prefix: Vec<u8>,
-    _marker1: PhantomData<Block>,
-    _marker2: PhantomData<Backend>,
+    _marker: PhantomData<(Block, Backend)>,
 }
 
 impl<C, Block, Backend> WasmSectionApi<C, Block, Backend> {
     pub(crate) fn new(client: Arc<C>) -> Self {
-        let mut original_code_prefix = twox_128(b"GearProgram").to_vec();
-        original_code_prefix.extend_from_slice(&twox_128(b"OriginalCodeStorage"));
-
         Self {
             client,
-            original_code_prefix,
-            _marker1: PhantomData,
-            _marker2: PhantomData,
+            _marker: PhantomData,
         }
     }
 }
@@ -83,24 +78,30 @@ where
     ) -> RpcResult<Option<Bytes>> {
         let at = at.unwrap_or_else(|| self.client.info().best_hash);
 
-        // Construct storage key: prefix ++ Identity(code_id)
-        let mut storage_key = self.original_code_prefix.clone();
+        // Keep in sync with `pallet-gear-program::OriginalCodeStorage` (StorageMap, Identity hasher).
+        let mut storage_key = twox_128(b"GearProgram").to_vec();
+        storage_key.extend_from_slice(&twox_128(b"OriginalCodeStorage"));
         storage_key.extend_from_slice(code_id.as_bytes());
 
         let wasm_data = self
             .client
             .storage(at, &StorageKey(storage_key))
-            .map_err(map_err_into_rpc_err)?;
+            .map_err(|e| rpc_err("WASM section read error", Some(e.to_string())))?;
 
         let Some(wasm_data) = wasm_data else {
             return Ok(None);
         };
 
-        // The storage value is SCALE-encoded Vec<u8>, so we need to decode it.
-        let wasm_bytes: Vec<u8> = Decode::decode(&mut wasm_data.0.as_slice())
-            .map_err(|e| rpc_err("Failed to decode stored WASM", Some(format!("{e:?}"))))?;
+        let mut input = wasm_data.0.as_slice();
+        let len = <Compact<u32>>::decode(&mut input)
+            .map_err(|e| rpc_err("Failed to decode stored WASM length", Some(e.to_string())))?
+            .0 as usize;
+        if input.len() < len {
+            return Err(rpc_err("Truncated stored WASM blob", None));
+        }
+        let wasm_bytes = &input[..len];
 
-        match get_custom_section_data(&wasm_bytes, &section_name) {
+        match get_custom_section_data(wasm_bytes, &section_name) {
             Ok(Some(data)) => Ok(Some(Bytes(data.to_vec()))),
             Ok(None) => Ok(None),
             Err(e) => Err(rpc_err("Failed to parse stored WASM", Some(e.to_string()))),
@@ -108,12 +109,8 @@ where
     }
 }
 
-fn map_err_into_rpc_err(err: impl std::fmt::Debug) -> ErrorObjectOwned {
-    rpc_err("WASM section read error", Some(format!("{err:?}")))
-}
-
 fn rpc_err(message: &str, data: Option<String>) -> ErrorObjectOwned {
     use jsonrpsee::types::error::ErrorObject;
 
-    ErrorObject::owned(9000, message, data)
+    ErrorObject::owned(ERROR_CODE, message, data)
 }
