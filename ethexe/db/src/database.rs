@@ -139,7 +139,7 @@ impl Key {
             "Key must be longer than H256, to avoid collision with CAS keys"
         );
         debug_assert!(
-            bytes.len() <= 2 * size_of::<H256>() + 2 * size_of::<u32>(),
+            bytes.len() <= 2 * size_of::<H256>() + size_of::<u32>(),
             "Key must not be longer than maximum possible length"
         );
 
@@ -1048,10 +1048,7 @@ mod tests {
         limited::LimitedVec,
     };
 
-    /// `migrations::v5` hardcodes the `InstrumentedCode` discriminant (= 8) to
-    /// drop legacy entries written under the previous `VERSION`. If the `Key`
-    /// enum gets reordered, this test fails loudly so the migration can be
-    /// updated.
+    /// `migrations::v5` hardcodes discriminant `8`; this test pins it.
     #[test]
     fn instrumented_code_key_discriminant_is_stable() {
         let bytes = Key::InstrumentedCode(0, CodeId::zero()).to_bytes();
@@ -1200,8 +1197,6 @@ mod tests {
             Some(instrumented_code.bytes())
         );
 
-        // Bumping `VERSION` must invalidate prior entries — that's the whole
-        // point of having it in the key.
         assert!(
             db.instrumented_code(version + 1, code_id).is_none(),
             "bumping version must invalidate prior entries"

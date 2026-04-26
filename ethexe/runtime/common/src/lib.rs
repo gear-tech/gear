@@ -63,11 +63,9 @@ mod schedule;
 mod transitions;
 
 // TODO: consider format.
-/// Version of the runtime. Bump this whenever the WASM instrumentation pipeline
-/// changes so cached `InstrumentedCode` entries get invalidated and re-instrumented
-/// on the next code observation. Used both by `Code::try_new` (as
-/// `instruction_weights_version`) and as the discriminator in the
-/// `InstrumentedCode` DB key.
+/// Instrumentation pipeline version. Used by `Code::try_new` and as the
+/// `InstrumentedCode` DB key discriminator; bumping it invalidates cached
+/// instrumented bytes.
 pub const VERSION: u32 = 2;
 
 /// Maximum number of outgoing messages per execution of one dispatch.

@@ -31,29 +31,21 @@ const _: () = const {
     );
 };
 
-/// v4 → v5: `ethexe_runtime_common::VERSION` was bumped (1 → 2) so the WASM
-/// instrumentation pipeline now strips custom sections before persisting
-/// `InstrumentedCode`. Pre-bump entries under the old `VERSION` are
-/// unreachable through the new key but still occupy disk; drop them.
+/// v4 → v5: drop every `InstrumentedCode` entry. `ethexe_runtime_common::VERSION`
+/// was bumped, so all prior entries are unreachable through the new key.
 ///
-/// There is no re-instrumentation mechanism today: the compute pipeline only
-/// produces `InstrumentedCode` for codes it freshly observes from
-/// `RouterEvent::CodeUploaded`. After this migration, every program whose
-/// instrumented code was wiped will surface `MissingInstrumentedCodeForProgram`
-/// on dispatch until the same `OriginalCode` is uploaded to the chain again.
-/// `OriginalCode` itself stays put in CAS, so the data isn't lost — only the
-/// derived bytes are. Acceptable pre-mainnet; if that ever changes, add a
-/// lazy re-instrument path in `instrumented_code_and_metadata`.
+/// There is no re-instrumentation mechanism: the compute pipeline only
+/// produces `InstrumentedCode` for codes it observes from
+/// `RouterEvent::CodeUploaded`. Affected programs surface
+/// `MissingInstrumentedCodeForProgram` on dispatch until their `OriginalCode`
+/// is uploaded again. `OriginalCode` itself stays in CAS.
 pub async fn migration_from_v4(_: &InitConfig, db: &RawDatabase) -> Result<()> {
-    // Matches `database::Key::InstrumentedCode`'s u64 discriminant (= 8).
+    // Matches `database::Key::InstrumentedCode`'s u64 discriminant (= 8). The
+    // accompanying test in `database.rs` pins this value.
     const INSTRUMENTED_CODE_DISCRIMINANT: u64 = 8;
 
     let prefix = H256::from_low_u64_be(INSTRUMENTED_CODE_DISCRIMINANT);
 
-    // The post-bump key shape `(version, code_id)` has the same byte length as
-    // the pre-bump one, so we can't filter stale entries by length. Every
-    // entry under this discriminant was written at the previous `VERSION` —
-    // wipe them all unconditionally.
     let stale_keys: Vec<Vec<u8>> = db
         .kv
         .iter_prefix(prefix.as_bytes())
@@ -62,11 +54,9 @@ pub async fn migration_from_v4(_: &InitConfig, db: &RawDatabase) -> Result<()> {
 
     let deleted = stale_keys.len();
     for key in stale_keys {
-        // SAFETY: every entry under the `InstrumentedCode` discriminant is
-        // stale relative to the new `VERSION`; the return value is discarded.
-        unsafe {
-            db.kv.take(&key);
-        }
+        // `KVDatabase::take` is unsafe purely for the data-loss risk — that's
+        // exactly the intent here.
+        let _ = unsafe { db.kv.take(&key) };
     }
 
     log::info!("migration v4→v5: dropped {deleted} stale InstrumentedCode entries");

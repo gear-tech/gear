@@ -27,11 +27,9 @@ use crate::{
     injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
 
-/// Mock equivalent of `ethexe_runtime_common::VERSION`.
-///
-/// `ethexe-runtime-common` depends on `ethexe-common`, so we can't pull the
-/// real constant in here without a dep cycle. `ethexe-runtime-common` has a
-/// matching-constants test that fails loudly if this drifts.
+/// Mock equivalent of `ethexe_runtime_common::VERSION` (can't import directly:
+/// `ethexe-runtime-common` depends on `ethexe-common`). A matching-constants
+/// test in `ethexe-runtime-common` fails if this drifts.
 pub const MOCK_VERSION: u32 = 2;
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
