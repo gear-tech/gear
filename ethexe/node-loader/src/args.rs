@@ -46,6 +46,14 @@ pub struct LoadParams {
     #[arg(long, default_value = "0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB")]
     pub wvara_address: String,
 
+    /// Percentage added on top of the default EIP-1559 fee estimate (e.g. 20 = +20 %).
+    #[arg(long, default_value_t = 20, env = "EIP1559_FEE_INCREASE_PERCENTAGE")]
+    pub eip1559_fee_increase_percentage: u64,
+
+    /// Multiplier for blob gas price estimation (EIP-4844 side of blob-carrying txs).
+    #[arg(long, default_value_t = 6, env = "BLOB_GAS_MULTIPLIER")]
+    pub blob_gas_multiplier: u128,
+
     /// A private key for sender account.
     #[arg(long, env = "SENDER_PRIVATE_KEY")]
     pub sender_private_key: Option<String>,
@@ -208,6 +216,34 @@ mod tests {
             load_params.send_message_multicall_address.as_deref(),
             Some("0x1111111111111111111111111111111111111111")
         );
+    }
+
+    #[test]
+    fn load_params_default_ethereum_fee_options() {
+        let params = Params::try_parse_from(["ethexe-node-loader", "load"]).expect("parse");
+        let Params::Load(load_params) = params else {
+            panic!("expected load params");
+        };
+        assert_eq!(load_params.eip1559_fee_increase_percentage, 20);
+        assert_eq!(load_params.blob_gas_multiplier, 6);
+    }
+
+    #[test]
+    fn load_params_custom_ethereum_fee_options() {
+        let params = Params::try_parse_from([
+            "ethexe-node-loader",
+            "load",
+            "--eip1559-fee-increase-percentage",
+            "30",
+            "--blob-gas-multiplier",
+            "3",
+        ])
+        .expect("parse");
+        let Params::Load(load_params) = params else {
+            panic!("expected load params");
+        };
+        assert_eq!(load_params.eip1559_fee_increase_percentage, 30);
+        assert_eq!(load_params.blob_gas_multiplier, 3);
     }
 
     #[test]

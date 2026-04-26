@@ -227,6 +227,8 @@ async fn create_deployer_api(params: &LoadParams, router_addr: Address) -> Resul
         .router_address(router_addr.into())
         .signer(deployer_signer.clone())
         .sender_address(deployer_address)
+        .blob_gas_multiplier(params.blob_gas_multiplier)
+        .eip1559_fee_increase_percentage(params.eip1559_fee_increase_percentage)
         .build()
         .await
 }
@@ -276,6 +278,8 @@ async fn initialize_worker_apis(params: &LoadParams, router_addr: Address) -> Re
             };
         let node = params.node.clone();
         let router = router_addr;
+        let blob_gas_multiplier = params.blob_gas_multiplier;
+        let eip1559_fee_increase_percentage = params.eip1559_fee_increase_percentage;
 
         init_tasks.spawn(async move {
             let api = EthereumBuilder::default()
@@ -283,6 +287,8 @@ async fn initialize_worker_apis(params: &LoadParams, router_addr: Address) -> Re
                 .router_address(router.into())
                 .signer(signer)
                 .sender_address(address)
+                .blob_gas_multiplier(blob_gas_multiplier)
+                .eip1559_fee_increase_percentage(eip1559_fee_increase_percentage)
                 .build()
                 .await?;
             Ok((worker_idx, source, address, api))
