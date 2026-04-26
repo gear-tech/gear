@@ -27,14 +27,11 @@ use crate::{
     injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
 
-/// Mock equivalent of `ethexe_runtime_common::RUNTIME_ID`.
+/// Mock equivalent of `ethexe_runtime_common::VERSION`.
 ///
 /// `ethexe-runtime-common` depends on `ethexe-common`, so we can't pull the
 /// real constant in here without a dep cycle. `ethexe-runtime-common` has a
 /// matching-constants test that fails loudly if this drifts.
-pub const MOCK_RUNTIME_ID: u32 = 1;
-
-/// Mock equivalent of `ethexe_runtime_common::VERSION`. See [`MOCK_RUNTIME_ID`].
 pub const MOCK_VERSION: u32 = 2;
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -735,7 +732,7 @@ impl BlockChain {
             db.set_original_code(&original_bytes);
 
             if let Some(InstrumentedCodeData { instrumented, meta }) = instrumented {
-                db.set_instrumented_code(MOCK_RUNTIME_ID, MOCK_VERSION, code_id, instrumented);
+                db.set_instrumented_code(MOCK_VERSION, code_id, instrumented);
                 db.set_code_metadata(code_id, meta);
                 db.set_code_blob_info(code_id, blob_info);
                 db.set_code_valid(code_id, true);

@@ -31,47 +31,45 @@ const _: () = const {
     );
 };
 
-/// v4 → v5: `InstrumentedCode` key layout gained a second `u32` slot
-/// (runtime_id, code_id) → (runtime_id, version, code_id). Drop any entries
-/// stored under the old 2-tuple layout so the cluster re-instruments them on
-/// next code observation. `OriginalCode` is preserved in CAS, so reprocessing
-/// does not need to re-fetch.
+/// v4 → v5: `ethexe_runtime_common::VERSION` was bumped (1 → 2) so the WASM
+/// instrumentation pipeline now strips custom sections before persisting
+/// `InstrumentedCode`. Pre-bump entries under the old `VERSION` are
+/// unreachable through the new key but still occupy disk; drop them.
 ///
-/// Note: this migration only cleans stale DB state. It does not itself
-/// re-instrument existing codes — that relies on the normal code processing
-/// pipeline observing the code again. Operators upgrading a live node should
-/// expect a brief window where existing programs return
-/// `MissingInstrumentedCodeForProgram` until their codes are re-observed.
+/// There is no re-instrumentation mechanism today: the compute pipeline only
+/// produces `InstrumentedCode` for codes it freshly observes from
+/// `RouterEvent::CodeUploaded`. After this migration, every program whose
+/// instrumented code was wiped will surface `MissingInstrumentedCodeForProgram`
+/// on dispatch until the same `OriginalCode` is uploaded to the chain again.
+/// `OriginalCode` itself stays put in CAS, so the data isn't lost — only the
+/// derived bytes are. Acceptable pre-mainnet; if that ever changes, add a
+/// lazy re-instrument path in `instrumented_code_and_metadata`.
 pub async fn migration_from_v4(_: &InitConfig, db: &RawDatabase) -> Result<()> {
     // Matches `database::Key::InstrumentedCode`'s u64 discriminant (= 8).
     const INSTRUMENTED_CODE_DISCRIMINANT: u64 = 8;
-    const PREFIX_LEN: usize = std::mem::size_of::<H256>();
-    // Old body: runtime_id(u32) + code_id(32 bytes).
-    const OLD_BODY_LEN: usize = std::mem::size_of::<u32>() + 32;
 
     let prefix = H256::from_low_u64_be(INSTRUMENTED_CODE_DISCRIMINANT);
 
-    let old_keys: Vec<Vec<u8>> = db
+    // The post-bump key shape `(version, code_id)` has the same byte length as
+    // the pre-bump one, so we can't filter stale entries by length. Every
+    // entry under this discriminant was written at the previous `VERSION` —
+    // wipe them all unconditionally.
+    let stale_keys: Vec<Vec<u8>> = db
         .kv
         .iter_prefix(prefix.as_bytes())
-        .filter_map(|(k, _)| {
-            // Old layout total length: prefix(32) + body(36) = 68 bytes.
-            (k.len() == PREFIX_LEN + OLD_BODY_LEN).then_some(k)
-        })
+        .map(|(k, _)| k)
         .collect();
 
-    let deleted = old_keys.len();
-    for key in old_keys {
-        // SAFETY: these entries are unreadable under the new 3-tuple key
-        // layout and the return value is intentionally discarded.
+    let deleted = stale_keys.len();
+    for key in stale_keys {
+        // SAFETY: every entry under the `InstrumentedCode` discriminant is
+        // stale relative to the new `VERSION`; the return value is discarded.
         unsafe {
             db.kv.take(&key);
         }
     }
 
-    log::info!(
-        "migration v4→v5: dropped {deleted} stale InstrumentedCode entries under old key layout"
-    );
+    log::info!("migration v4→v5: dropped {deleted} stale InstrumentedCode entries");
 
     let config = db.kv.config().context("Cannot find db config")?;
     db.kv.set_config(DBConfig {

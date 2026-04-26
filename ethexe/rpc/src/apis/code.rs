@@ -56,12 +56,12 @@ impl CodeServer for CodeApi {
             .ok_or_else(|| errors::db("Failed to get code by supplied id"))
     }
 
-    async fn get_instrumented_code(&self, runtime_id: u32, code_id: H256) -> RpcResult<Bytes> {
-        // Default to the current runtime's instrumentation version. Callers that
-        // need to target a specific historical version can query the DB directly;
-        // the RPC is for "whatever this node has for this code right now".
+    async fn get_instrumented_code(&self, _runtime_id: u32, code_id: H256) -> RpcResult<Bytes> {
+        // The `runtime_id` parameter is preserved for backward compatibility but
+        // ignored: the DB is keyed by `ethexe_runtime_common::VERSION` only, and
+        // the RPC always returns "whatever this node has for this code right now".
         self.db
-            .instrumented_code(runtime_id, ethexe_runtime_common::VERSION, code_id.into())
+            .instrumented_code(ethexe_runtime_common::VERSION, code_id.into())
             .map(|bytes| bytes.encode().into())
             .ok_or_else(|| errors::db("Failed to get code by supplied id"))
     }

@@ -63,9 +63,12 @@ mod schedule;
 mod transitions;
 
 // TODO: consider format.
-/// Version of the runtime.
+/// Version of the runtime. Bump this whenever the WASM instrumentation pipeline
+/// changes so cached `InstrumentedCode` entries get invalidated and re-instrumented
+/// on the next code observation. Used both by `Code::try_new` (as
+/// `instruction_weights_version`) and as the discriminator in the
+/// `InstrumentedCode` DB key.
 pub const VERSION: u32 = 2;
-pub const RUNTIME_ID: u32 = 1;
 
 /// Maximum number of outgoing messages per execution of one dispatch.
 pub const MAX_OUTGOING_MESSAGES_PER_EXECUTION: u32 = 4;
@@ -481,14 +484,13 @@ pub const fn unpack_i64_to_u32(val: i64) -> (u32, u32) {
 mod tests {
     use super::*;
 
-    /// Guards against drift between `ethexe-common`'s mock constants and the
-    /// real `RUNTIME_ID`/`VERSION` exported here. The mock can't `use` these
-    /// constants directly because `ethexe-runtime-common` depends on
-    /// `ethexe-common`, so a future bump of `VERSION` or `RUNTIME_ID` would
-    /// silently leave the mock stale. This test fails loudly instead.
+    /// Guards against drift between `ethexe-common`'s mock `MOCK_VERSION` and the
+    /// real `VERSION` exported here. The mock can't `use` this constant directly
+    /// because `ethexe-runtime-common` depends on `ethexe-common`, so a future
+    /// bump of `VERSION` would silently leave the mock stale. This test fails
+    /// loudly instead.
     #[test]
     fn mock_constants_match_runtime_constants() {
-        assert_eq!(RUNTIME_ID, ethexe_common::mock::MOCK_RUNTIME_ID);
         assert_eq!(VERSION, ethexe_common::mock::MOCK_VERSION);
     }
 }

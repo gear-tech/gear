@@ -476,7 +476,6 @@ async fn process_code_for_already_processed_valid_code_emits_code_processed() ->
     let code_id = db.set_original_code(&code);
 
     db.set_instrumented_code(
-        ethexe_runtime_common::RUNTIME_ID,
         ethexe_runtime_common::VERSION,
         code_id,
         InstrumentedCode::new(vec![0], InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0)),

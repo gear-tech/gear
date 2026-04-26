@@ -29,7 +29,7 @@ use ethexe_common::{
     },
     mock::*,
 };
-use ethexe_runtime_common::{RUNTIME_ID, VERSION, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue};
+use ethexe_runtime_common::{VERSION, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue};
 use gear_core::{
     ids::prelude::CodeIdExt,
     message::{ErrorReplyReason, ReplyCode, SuccessReplyReason},
@@ -92,7 +92,7 @@ mod utils {
 
         let db = &processor.db;
         db.set_original_code(&code);
-        db.set_instrumented_code(RUNTIME_ID, VERSION, code_id, instrumented_code);
+        db.set_instrumented_code(VERSION, code_id, instrumented_code);
         db.set_code_metadata(code_id, code_metadata);
         db.set_code_valid(code_id, true);
 

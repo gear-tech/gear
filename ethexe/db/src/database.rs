@@ -69,8 +69,9 @@ enum Key {
     AnnounceMeta(HashOf<Announce>) = 6,
 
     ProgramToCodeId(ActorId) = 7,
-    /// `(runtime_id, instrumentation_version, code_id)`.
-    InstrumentedCode(u32, u32, CodeId) = 8,
+    /// `(instrumentation_version, code_id)`. Bumping
+    /// `ethexe_runtime_common::VERSION` invalidates every prior entry.
+    InstrumentedCode(u32, CodeId) = 8,
     CodeMetadata(CodeId) = 9,
     CodeUploadInfo(CodeId) = 10,
     CodeValid(CodeId) = 11,
@@ -95,9 +96,9 @@ impl Key {
 
     fn to_bytes(&self) -> Vec<u8> {
         // Pre-allocate enough space for the largest possible key
-        // (InstrumentedCode carries two u32 prefixes in addition to the
+        // (InstrumentedCode carries a u32 prefix in addition to the
         // discriminant and CodeId).
-        let mut bytes = Vec::with_capacity(2 * size_of::<H256>() + 2 * size_of::<u32>());
+        let mut bytes = Vec::with_capacity(2 * size_of::<H256>() + size_of::<u32>());
         bytes.extend(self.prefix());
 
         match self {
@@ -123,8 +124,7 @@ impl Key {
             | Self::CodeUploadInfo(code_id)
             | Self::CodeValid(code_id) => bytes.extend(code_id.as_ref()),
 
-            Self::InstrumentedCode(runtime_id, version, code_id) => {
-                bytes.extend(runtime_id.to_le_bytes());
+            Self::InstrumentedCode(version, code_id) => {
                 bytes.extend(version.to_le_bytes());
                 bytes.extend(code_id.as_ref());
             }
@@ -613,19 +613,14 @@ impl CodesStorageRO for RawDatabase {
             })
     }
 
-    fn instrumented_code_exists(&self, runtime_id: u32, version: u32, code_id: CodeId) -> bool {
+    fn instrumented_code_exists(&self, version: u32, code_id: CodeId) -> bool {
         self.kv
-            .contains(&Key::InstrumentedCode(runtime_id, version, code_id).to_bytes())
+            .contains(&Key::InstrumentedCode(version, code_id).to_bytes())
     }
 
-    fn instrumented_code(
-        &self,
-        runtime_id: u32,
-        version: u32,
-        code_id: CodeId,
-    ) -> Option<InstrumentedCode> {
+    fn instrumented_code(&self, version: u32, code_id: CodeId) -> Option<InstrumentedCode> {
         self.kv
-            .get(&Key::InstrumentedCode(runtime_id, version, code_id).to_bytes())
+            .get(&Key::InstrumentedCode(version, code_id).to_bytes())
             .map(|data| {
                 Decode::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `InstrumentedCode`")
@@ -687,21 +682,14 @@ impl CodesStorageRW for RawDatabase {
         );
     }
 
-    fn set_instrumented_code(
-        &self,
-        runtime_id: u32,
-        version: u32,
-        code_id: CodeId,
-        code: InstrumentedCode,
-    ) {
+    fn set_instrumented_code(&self, version: u32, code_id: CodeId, code: InstrumentedCode) {
         tracing::trace!(
             code_id = ?code_id,
-            runtime_id = %runtime_id,
             version = %version,
             "Set instrumented code"
         );
         self.kv.put(
-            &Key::InstrumentedCode(runtime_id, version, code_id).to_bytes(),
+            &Key::InstrumentedCode(version, code_id).to_bytes(),
             code.encode(),
         );
     }
@@ -976,8 +964,8 @@ impl CodesStorageRO for Database {
         fn original_code_exists(&self, code_id: CodeId) -> bool;
         fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
         fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
-        fn instrumented_code_exists(&self, runtime_id: u32, version: u32, code_id: CodeId) -> bool;
-        fn instrumented_code(&self, runtime_id: u32, version: u32, code_id: CodeId) -> Option<InstrumentedCode>;
+        fn instrumented_code_exists(&self, version: u32, code_id: CodeId) -> bool;
+        fn instrumented_code(&self, version: u32, code_id: CodeId) -> Option<InstrumentedCode>;
         fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
         fn code_valid(&self, code_id: CodeId) -> Option<bool>;
         fn valid_codes(&self) -> BTreeSet<CodeId>;
@@ -988,7 +976,7 @@ impl CodesStorageRW for Database {
     delegate!(to self.raw {
         fn set_original_code(&self, code: &[u8]) -> CodeId;
         fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
-        fn set_instrumented_code(&self, runtime_id: u32, version: u32, code_id: CodeId, code: InstrumentedCode);
+        fn set_instrumented_code(&self, version: u32, code_id: CodeId, code: InstrumentedCode);
         fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
         fn set_code_valid(&self, code_id: CodeId, valid: bool);
     });
@@ -1061,11 +1049,12 @@ mod tests {
     };
 
     /// `migrations::v5` hardcodes the `InstrumentedCode` discriminant (= 8) to
-    /// drop legacy entries under the old 2-tuple key layout. If the `Key` enum
-    /// gets reordered, this test fails loudly so the migration can be updated.
+    /// drop legacy entries written under the previous `VERSION`. If the `Key`
+    /// enum gets reordered, this test fails loudly so the migration can be
+    /// updated.
     #[test]
     fn instrumented_code_key_discriminant_is_stable() {
-        let bytes = Key::InstrumentedCode(0, 0, CodeId::zero()).to_bytes();
+        let bytes = Key::InstrumentedCode(0, CodeId::zero()).to_bytes();
         assert_eq!(
             &bytes[..size_of::<H256>()],
             H256::from_low_u64_be(8).as_bytes(),
@@ -1199,30 +1188,23 @@ mod tests {
     fn test_instrumented_code() {
         let db = Database::memory();
 
-        let runtime_id = 1;
         let version = 2;
         let code_id = CodeId::default();
         let section_sizes = InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0);
         let instrumented_code = InstrumentedCode::new(vec![1, 2, 3, 4], section_sizes);
-        db.set_instrumented_code(runtime_id, version, code_id, instrumented_code.clone());
+        db.set_instrumented_code(version, code_id, instrumented_code.clone());
         assert_eq!(
-            db.instrumented_code(runtime_id, version, code_id)
+            db.instrumented_code(version, code_id)
                 .as_ref()
                 .map(|c| c.bytes()),
             Some(instrumented_code.bytes())
         );
 
-        // Different version under same runtime_id is a distinct namespace.
+        // Bumping `VERSION` must invalidate prior entries — that's the whole
+        // point of having it in the key.
         assert!(
-            db.instrumented_code(runtime_id, version + 1, code_id)
-                .is_none(),
+            db.instrumented_code(version + 1, code_id).is_none(),
             "bumping version must invalidate prior entries"
-        );
-        // Different runtime_id under same version is also distinct.
-        assert!(
-            db.instrumented_code(runtime_id + 1, version, code_id)
-                .is_none(),
-            "changing runtime_id must invalidate prior entries"
         );
     }
 

@@ -524,7 +524,6 @@ mod tests {
         let code_id = db.set_original_code(ORIGINAL_CODE);
         db.set_code_valid(code_id, true);
         db.set_instrumented_code(
-            ethexe_runtime_common::RUNTIME_ID,
             ethexe_runtime_common::VERSION,
             code_id,
             InstrumentedCode::new(
