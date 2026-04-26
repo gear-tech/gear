@@ -51,6 +51,18 @@ enum Scenario {
         #[arg(long)]
         wasm: PathBuf,
     },
+    /// `demo-fungible-token` Transfer over a populated state: init,
+    /// `TestSet(0..N)` to populate N balances (state spanning multiple
+    /// lazy pages), then measure one `Transfer` mutating two entries.
+    /// Setup gas is reported separately from the measured operation.
+    /// Sails-style state-heavy workload proxy.
+    StateHeavyTransfer {
+        #[arg(long)]
+        wasm: PathBuf,
+        /// How many accounts to populate before measuring the Transfer.
+        #[arg(long, default_value_t = 500)]
+        accounts: u64,
+    },
 }
 
 fn main() {
@@ -59,9 +71,15 @@ fn main() {
         Scenario::AsyncCommon { wasm } => scenarios::async_common(&wasm),
         Scenario::AsyncMutex { wasm } => scenarios::async_mutex(&wasm),
         Scenario::SyncPing { wasm } => scenarios::sync_ping(&wasm),
+        Scenario::StateHeavyTransfer { wasm, accounts } => {
+            scenarios::state_heavy_transfer(&wasm, accounts)
+        }
     };
     println!("scenario:           {}", result.name);
     println!("wasm:               {}", result.wasm.display());
+    if let Some(setup_gas) = result.setup_gas {
+        println!("setup_gas_burned:   {setup_gas}");
+    }
     println!("messages_processed: {}", result.messages);
     println!("total_gas_burned:   {}", result.total_gas);
     if !result.per_message.is_empty() {

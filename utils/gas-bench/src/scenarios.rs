@@ -15,7 +15,12 @@ const BASE_BALANCE: u128 = 100_000_000_000_000;
 pub struct ScenarioResult {
     pub name: &'static str,
     pub wasm: std::path::PathBuf,
+    /// Gas burned during scenario setup (init, populate state, etc).
+    /// `None` for scenarios where setup and measurement aren't separated.
+    pub setup_gas: Option<u64>,
+    /// Number of messages that contributed to `total_gas`.
     pub messages: usize,
+    /// Gas burned for the *measured* operation only.
     pub total_gas: u64,
     pub per_message: Vec<u64>,
 }
@@ -46,6 +51,21 @@ fn drain_blocks(sys: &System) -> (usize, u64, Vec<u64>) {
         }
     }
     (messages, total, per_msg)
+}
+
+/// Drains the queue without recording gas; used to skip past setup messages.
+fn drain_blocks_silent(sys: &System) -> u64 {
+    let mut setup_gas = 0u64;
+    loop {
+        let res = sys.run_next_block();
+        for (_id, gas) in &res.gas_burned {
+            setup_gas = setup_gas.saturating_add(*gas);
+        }
+        if res.total_processed == 0 {
+            break;
+        }
+    }
+    setup_gas
 }
 
 #[derive(Debug, Clone)]
@@ -114,6 +134,7 @@ fn run_async(wasm: &Path, name: &'static str, cmd: AsyncCommand) -> ScenarioResu
     ScenarioResult {
         name,
         wasm: wasm.to_path_buf(),
+        setup_gas: None,
         messages,
         total_gas,
         per_message,
@@ -142,6 +163,86 @@ pub fn sync_ping(wasm: &Path) -> ScenarioResult {
     ScenarioResult {
         name: "sync-ping",
         wasm: wasm.to_path_buf(),
+        setup_gas: None,
+        messages,
+        total_gas,
+        per_message,
+    }
+}
+
+// ----- demo-fungible-token shapes (kept in sync with examples/fungible-token/src/lib.rs)
+//
+// We mirror the SCALE-wire shape only; the on-chain ActorId is encoded as raw
+// 32 bytes, so we use `[u8; 32]` to avoid pulling in `gear-core`.
+
+#[derive(Encode)]
+struct FtInitConfig {
+    name: String,
+    symbol: String,
+    decimals: u8,
+    initial_capacity: Option<u32>,
+}
+
+#[derive(Encode)]
+enum FtAction {
+    TestSet(core::ops::Range<u64>, u128),
+    #[allow(dead_code)]
+    Mint(u128),
+    #[allow(dead_code)]
+    Burn(u128),
+    Transfer { from: [u8; 32], to: [u8; 32], amount: u128 },
+    #[allow(dead_code)]
+    Approve { to: [u8; 32], amount: u128 },
+    #[allow(dead_code)]
+    TotalSupply,
+    #[allow(dead_code)]
+    BalanceOf([u8; 32]),
+}
+
+pub fn state_heavy_transfer(wasm: &Path, accounts: u64) -> ScenarioResult {
+    let sys = System::new();
+    sys.init_logger();
+    sys.mint_to(USER_ID, BASE_BALANCE);
+
+    let prog = Program::from_binary_with_id(&sys, PROGRAM_ID, fs::read(wasm).unwrap());
+
+    // ---- Setup: init the token + populate `accounts` balance entries.
+    // demo-fungible-token's `init` takes an InitConfig.
+    let init_payload = FtInitConfig {
+        name: "MTK".to_string(),
+        symbol: "MTK".to_string(),
+        decimals: 18,
+        initial_capacity: Some(accounts as u32),
+    };
+    let init_msg = prog.send_bytes(USER_ID, init_payload.encode());
+    let init_res = sys.run_next_block();
+    assert!(
+        init_res.succeed.contains(&init_msg),
+        "init failed: {:?}",
+        init_res.failed
+    );
+
+    // TestSet populates `accounts` balance entries — heavy state writes.
+    // USER_ID (42) is included in the range so the subsequent Transfer
+    // from USER_ID has a balance to spend.
+    let test_set = FtAction::TestSet(0..accounts, 1_000_000_000);
+    let _setup_msg = prog.send_bytes(USER_ID, test_set.encode());
+    let setup_gas = drain_blocks_silent(&sys);
+
+    // ---- Measured op: Transfer between two existing accounts.
+    // From USER_ID (42) to account 100, amount = 1.
+    let transfer = FtAction::Transfer {
+        from: actor_id_bytes_from_u64(USER_ID),
+        to: actor_id_bytes_from_u64(100),
+        amount: 1,
+    };
+    let _msg = prog.send_bytes(USER_ID, transfer.encode());
+    let (messages, total_gas, per_message) = drain_blocks(&sys);
+
+    ScenarioResult {
+        name: "state-heavy-transfer",
+        wasm: wasm.to_path_buf(),
+        setup_gas: Some(setup_gas),
         messages,
         total_gas,
         per_message,
