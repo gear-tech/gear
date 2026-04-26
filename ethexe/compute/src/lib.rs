@@ -254,6 +254,7 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
         transactions: Vec<Transaction>,
         gas_allowance: u64,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        initial_advanced_block: H256,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
     fn process_code(
         &mut self,
@@ -280,6 +281,7 @@ impl ProcessorExt for Processor {
         transactions: Vec<Transaction>,
         gas_allowance: u64,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        initial_advanced_block: H256,
     ) -> Result<FinalizedBlockTransitions> {
         self.process_transitions(
             initial_program_states,
@@ -288,6 +290,7 @@ impl ProcessorExt for Processor {
             &transactions,
             gas_allowance,
             promise_out_tx,
+            initial_advanced_block,
         )
         .await
         .map_err(Into::into)

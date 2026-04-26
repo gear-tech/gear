@@ -183,6 +183,13 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         let initial_schedule = parent_mb_hash
             .and_then(|h| db.mb_schedule(h))
             .unwrap_or_default();
+        // The processor walks the canonical Eth chain starting at
+        // `last_advanced_block + 1` for each `AdvanceTillEthereumBlock`
+        // tx, so it needs the parent MB's anchor as the seed value.
+        // For genesis MB this is `H256::zero()`.
+        let initial_advanced_block = parent_mb_hash
+            .map(|h| db.mb_meta(h).last_advanced_block)
+            .unwrap_or_default();
 
         // Synthetic block header per MVP convention agreed with the
         // user: height/timestamp both come from the MB number. The
@@ -214,6 +221,7 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
                 block.transactions,
                 gas_allowance,
                 None,
+                initial_advanced_block,
             )
             .await?;
 

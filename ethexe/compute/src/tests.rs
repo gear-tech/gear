@@ -96,6 +96,7 @@ impl ProcessorExt for MockProcessor {
         _transactions: Vec<Transaction>,
         _gas_allowance: u64,
         _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        _initial_advanced_block: H256,
     ) -> Result<FinalizedBlockTransitions> {
         Ok(self.process_transitions_result.take().unwrap_or_default())
     }

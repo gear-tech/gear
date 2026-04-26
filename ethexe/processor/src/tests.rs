@@ -1842,6 +1842,11 @@ async fn process_transitions_drives_pipeline() {
             &mb1_txs,
             DEFAULT_BLOCK_GAS_LIMIT,
             None,
+            // Genesis MB: nothing advanced yet, so the executor walks
+            // the canonical chain back from the target until the
+            // header chain peters out, picking up every block in the
+            // local DB along the way.
+            H256::zero(),
         )
         .await
         .unwrap();
@@ -1911,6 +1916,7 @@ async fn process_transitions_drives_pipeline() {
             &mb2_txs,
             DEFAULT_BLOCK_GAS_LIMIT,
             None,
+            eth_block_init.hash,
         )
         .await
         .unwrap();

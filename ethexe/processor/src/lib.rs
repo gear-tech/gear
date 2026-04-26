@@ -204,6 +204,14 @@ pub enum ProcessorError {
     #[error("calling or instantiating runtime error: {0}")]
     Runtime(#[from] host::InstanceError),
 
+    #[error("AdvanceTillEthereumBlock walk hit a missing parent header at {hash}")]
+    AdvanceMissingHeader { hash: H256 },
+
+    #[error(
+        "AdvanceTillEthereumBlock walk from {target} to {last_advanced} exceeded the safety cap"
+    )]
+    AdvanceWalkTooDeep { target: H256, last_advanced: H256 },
+
     #[error("anyhow error: {0}")]
     Anyhow(#[from] anyhow::Error),
 }
@@ -375,6 +383,7 @@ impl Processor {
         transactions: &[Transaction],
         gas_allowance: u64,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        initial_advanced_block: H256,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!(
             "Processing {} MB transactions at synthetic block {block}",
@@ -388,25 +397,36 @@ impl Processor {
         );
         let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
 
+        // Tracks the youngest Ethereum block whose events have already
+        // been folded into this MB. Each `AdvanceTillEthereumBlock`
+        // covers the range from `current_anchor` (exclusive) up to and
+        // including its `eth_block_hash`, then the anchor advances.
+        let mut current_anchor = initial_advanced_block;
+
         for tx in transactions {
             match tx {
                 Transaction::AdvanceTillEthereumBlock { eth_block_hash } => {
-                    let events = self.db.block_events(*eth_block_hash).unwrap_or_else(|| {
-                        log::debug!(
-                            "AdvanceTillEthereumBlock: no events for {eth_block_hash} in DB"
-                        );
-                        Default::default()
-                    });
-                    for event in events.into_iter().filter_map(|e| e.to_request()) {
-                        match event {
-                            BlockRequestEvent::Router(event) => {
-                                handler.handle_router_event(event)?;
-                            }
-                            BlockRequestEvent::Mirror { actor_id, event } => {
-                                handler.handle_mirror_event(actor_id, event)?;
+                    let target = *eth_block_hash;
+                    let chain = self.collect_advance_chain(target, current_anchor)?;
+                    for hash in chain {
+                        let events = self.db.block_events(hash).unwrap_or_else(|| {
+                            log::debug!(
+                                "AdvanceTillEthereumBlock: no events for {hash} in DB"
+                            );
+                            Default::default()
+                        });
+                        for event in events.into_iter().filter_map(|e| e.to_request()) {
+                            match event {
+                                BlockRequestEvent::Router(event) => {
+                                    handler.handle_router_event(event)?;
+                                }
+                                BlockRequestEvent::Mirror { actor_id, event } => {
+                                    handler.handle_mirror_event(actor_id, event)?;
+                                }
                             }
                         }
                     }
+                    current_anchor = target;
                 }
                 Transaction::Injected(signed) => {
                     let verified = signed.clone().into_verified();
@@ -430,6 +450,59 @@ impl Processor {
         }
 
         Ok(handler.into_transitions().finalize())
+    }
+
+    /// Walk the canonical chain backwards from `target` through
+    /// `parent_hash` and return the list of Ethereum block hashes from
+    /// `last_advanced` (exclusive) up to and including `target`, in
+    /// chronological (oldest-first) order.
+    ///
+    /// `last_advanced == H256::zero()` is the "no MB has advanced yet"
+    /// sentinel — the walk in that case proceeds until it falls off
+    /// the start of the locally-known chain, which is the desired
+    /// behaviour for the very first `AdvanceTillEthereumBlock` after
+    /// genesis.
+    ///
+    /// Capped at 1024 steps: catastrophic catch-up should be split
+    /// across MBs anyway, and the cap protects the executor from a
+    /// malformed proposal pinning it on a long DB walk.
+    fn collect_advance_chain(
+        &self,
+        target: H256,
+        last_advanced: H256,
+    ) -> Result<Vec<H256>, ProcessorError> {
+        const MAX_ADVANCE_STEPS: usize = 1024;
+
+        if target == last_advanced {
+            return Ok(Vec::new());
+        }
+
+        let mut chain = Vec::new();
+        let mut current = target;
+        while current != last_advanced && current != H256::zero() {
+            if chain.len() >= MAX_ADVANCE_STEPS {
+                return Err(ProcessorError::AdvanceWalkTooDeep {
+                    target,
+                    last_advanced,
+                });
+            }
+            let Some(header) = self.db.block_header(current) else {
+                // The walk dropped off the locally-known chain. If
+                // this happens before we've collected anything, the
+                // target itself isn't in the DB — that's a real error.
+                // Otherwise we treat the missing header as a natural
+                // fence (e.g. genesis-of-our-view) and stop the walk.
+                if chain.is_empty() {
+                    return Err(ProcessorError::AdvanceMissingHeader { hash: current });
+                }
+                break;
+            };
+            chain.push(current);
+            current = header.parent_hash;
+        }
+
+        chain.reverse();
+        Ok(chain)
     }
 
     fn handle_injected_and_events(
