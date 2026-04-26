@@ -1,0 +1,19 @@
+[package]
+name = "gas-bench"
+description = "Deterministic gas-burn benchmark harness for Gear programs (used to A/B compare optimization changes)."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+gtest.workspace = true
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
+
+[[bin]]
+name = "gas-bench"
+path = "src/main.rs"
