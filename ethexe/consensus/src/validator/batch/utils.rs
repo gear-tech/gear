@@ -381,7 +381,7 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Schedule,
-        db::{MbMeta, MbStorageRW},
+        db::MbStorageRW,
         mb::{ProcessQueuesLimits, SequencerBlock, Transaction},
     };
     use ethexe_db::Database;

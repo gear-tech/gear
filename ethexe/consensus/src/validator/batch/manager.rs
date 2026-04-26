@@ -57,12 +57,6 @@ impl BatchCommitmentManager {
         }
     }
 
-    /// Replaces current limits with `new_limits` and returns the previous limits.
-    #[cfg(test)]
-    pub fn replace_limits(&mut self, new_limits: BatchLimits) -> BatchLimits {
-        std::mem::replace(&mut self.limits, new_limits)
-    }
-
     /// Build a fresh [`BatchCommitment`] for the coordinator.
     ///
     /// Walks the MB chain from `latest_finalized_mb` (taken from

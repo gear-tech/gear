@@ -1,0 +1,486 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2026 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Integration tests for [`BatchCommitmentManager`].
+//!
+//! The cases below exercise the end-to-end create→validate round-trip
+//! over the MB-driven flow: a batch is built from a chain of finalized
+//! MBs, a [`BatchCommitmentValidationRequest`] is derived, and the
+//! manager re-derives the same batch independently and signs (or
+//! rejects) it.
+
+use super::{BatchLimits, BatchCommitmentManager, ValidationStatus, types::ValidationRejectReason};
+use crate::validator::core::MiddlewareWrapper;
+use ethexe_common::{
+    Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest,
+    consensus::BatchCommitmentValidationRequest,
+    db::{BlockMetaStorageRW, GlobalsStorageRW, MbStorageRW},
+    gear::StateTransition,
+    mb::{ProcessQueuesLimits, SequencerBlock, Transaction},
+    mock::*,
+};
+use ethexe_db::Database;
+use ethexe_ethereum::middleware::{ElectionProvider, MockElectionProvider};
+use gear_core::ids::prelude::CodeIdExt;
+use gprimitives::{ActorId, CodeId, H256};
+
+const BLOCK_GAS_LIMIT: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
+
+fn mock_batch_manager_with_limits(db: Database, limits: BatchLimits) -> BatchCommitmentManager {
+    let mock_election: MockElectionProvider = MockElectionProvider::new();
+    let middleware =
+        MiddlewareWrapper::from_inner(Box::new(mock_election) as Box<dyn ElectionProvider>);
+    BatchCommitmentManager::new(limits, db, middleware)
+}
+
+fn mock_batch_manager(db: Database) -> BatchCommitmentManager {
+    mock_batch_manager_with_limits(db, BatchLimits::default())
+}
+
+/// Append a single MB to the chain. Sets the meta as `computed=true` so
+/// the manager treats it as finalized state available for batching.
+fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransition>) -> H256 {
+    let block = SequencerBlock::new(
+        parent,
+        vec![Transaction::ProcessQueues {
+            limits: ProcessQueuesLimits::default(),
+        }],
+    );
+    let mb_hash = block.hash();
+    db.set_mb_block(mb_hash, block);
+    db.set_mb_outcome(mb_hash, outcome);
+    db.set_mb_schedule(mb_hash, Schedule::default());
+    db.set_mb_program_states(mb_hash, ProgramStates::default());
+    db.mutate_mb_meta(mb_hash, |meta| {
+        meta.computed = true;
+        meta.height = height;
+        meta.parent_mb_hash = (parent != H256::zero()).then_some(parent);
+        meta.last_advanced_block = H256::zero();
+    });
+    db.set_mb_hash_at_height(height, mb_hash);
+    mb_hash
+}
+
+/// Set up an MB chain with the supplied per-MB outcomes and update
+/// `globals.latest_finalized_mb_hash` to the head. Returns the MB
+/// hashes in chronological order.
+fn setup_mb_chain(db: &Database, outcomes: Vec<Vec<StateTransition>>) -> Vec<H256> {
+    let mut parent = H256::zero();
+    let mut hashes = Vec::with_capacity(outcomes.len());
+    for (i, outcome) in outcomes.into_iter().enumerate() {
+        let h = append_mb(db, parent, (i + 1) as u64, outcome);
+        hashes.push(h);
+        parent = h;
+    }
+    db.globals_mutate(|g| g.latest_finalized_mb_hash = parent);
+    hashes
+}
+
+fn nonempty_transition(seed: u8) -> StateTransition {
+    StateTransition {
+        actor_id: ActorId::from([seed; 32]),
+        new_state_hash: H256::from([seed; 32]),
+        exited: false,
+        inheritor: ActorId::zero(),
+        value_to_receive: seed as u128,
+        value_to_receive_negative_sign: false,
+        value_claims: vec![],
+        messages: vec![],
+    }
+}
+
+/// Build a batch from a small canonical setup so multiple tests can
+/// share the scaffolding. Returns the chain head block plus the
+/// resulting batch.
+async fn prepare_canonical_batch(db: &Database) -> (SimpleBlockData, ethexe_common::gear::BatchCommitment) {
+    let chain = test_block_chain(3).setup(db);
+    let block = chain.blocks[3].to_simple();
+
+    setup_mb_chain(
+        db,
+        vec![
+            vec![nonempty_transition(1)],
+            vec![nonempty_transition(2)],
+        ],
+    );
+
+    let manager = mock_batch_manager(db.clone());
+    let batch = manager
+        .create_batch_commitment(block)
+        .await
+        .expect("create_batch_commitment must not error")
+        .expect("expected non-empty batch");
+    (block, batch)
+}
+
+fn test_block_chain(len: u32) -> ethexe_common::mock::BlockChain {
+    BlockChain::mock(len)
+}
+
+fn unwrap_rejected(status: ValidationStatus) -> ValidationRejectReason {
+    match status {
+        ValidationStatus::Rejected { reason, .. } => reason,
+        ValidationStatus::Accepted(d) => panic!("expected rejection, got accepted with digest {d}"),
+    }
+}
+
+// ---------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------
+
+#[tokio::test]
+async fn accepts_matching_request() {
+    let db = Database::memory();
+    let (block, batch) = prepare_canonical_batch(&db).await;
+
+    let manager = mock_batch_manager(db);
+    let expected_digest = batch.to_digest();
+    let request = BatchCommitmentValidationRequest::new(&batch);
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+
+    match status {
+        ValidationStatus::Accepted(digest) => assert_eq!(digest, expected_digest),
+        ValidationStatus::Rejected { reason, .. } => {
+            panic!("expected acceptance, got rejection: {reason:?}")
+        }
+    }
+}
+
+#[tokio::test]
+async fn rejects_duplicate_code_ids() {
+    let db = Database::memory();
+    let (block, batch) = prepare_canonical_batch(&db).await;
+
+    let manager = mock_batch_manager(db);
+
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
+    // Force duplicates: even an empty list with one repeated code is enough.
+    let dup_id = CodeId::from([0xAA; 32]);
+    request.codes = vec![dup_id, dup_id];
+
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    assert_eq!(unwrap_rejected(status), ValidationRejectReason::CodesHasDuplicates);
+}
+
+#[tokio::test]
+async fn rejects_unknown_code_in_request() {
+    let db = Database::memory();
+    let (block, batch) = prepare_canonical_batch(&db).await;
+
+    let manager = mock_batch_manager(db);
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
+
+    let missing_code = CodeId::from(H256::random().to_fixed_bytes());
+    request.codes.push(missing_code);
+
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    assert_eq!(
+        unwrap_rejected(status),
+        ValidationRejectReason::CodeNotWaitingForCommitment(missing_code)
+    );
+}
+
+#[tokio::test]
+async fn rejects_code_not_processed_yet() {
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+    setup_mb_chain(&db, vec![vec![nonempty_transition(1)]]);
+
+    // Queue a code id but don't mark it valid → "code not processed yet".
+    let pending_code = CodeId::generate(b"pending");
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.codes_queue
+            .as_mut()
+            .expect("codes_queue must exist after BlockChain::setup")
+            .push_back(pending_code);
+    });
+
+    let manager = mock_batch_manager(db.clone());
+    let batch = manager
+        .clone()
+        .create_batch_commitment(block)
+        .await
+        .unwrap()
+        .expect("expected non-empty batch");
+
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
+    // create_batch_commitment skips codes without `code_valid`, so we
+    // append it manually here to force aggregate_code_commitments to see it.
+    request.codes.push(pending_code);
+
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    assert_eq!(
+        unwrap_rejected(status),
+        ValidationRejectReason::CodeIsNotProcessedYet(pending_code)
+    );
+}
+
+#[tokio::test]
+async fn rejects_digest_mismatch() {
+    let db = Database::memory();
+    let (block, batch) = prepare_canonical_batch(&db).await;
+
+    let manager = mock_batch_manager(db);
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
+    let original = request.digest;
+    let mut wrong = original;
+    while wrong == original {
+        wrong = Digest::random();
+    }
+    request.digest = wrong;
+
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    assert!(matches!(
+        unwrap_rejected(status),
+        ValidationRejectReason::BatchDigestMismatch { expected, found }
+        if expected == wrong && found == original
+    ));
+}
+
+#[tokio::test]
+async fn rejects_head_mb_not_in_chain() {
+    let db = Database::memory();
+    let (block, batch) = prepare_canonical_batch(&db).await;
+
+    let manager = mock_batch_manager(db);
+
+    let mut request = BatchCommitmentValidationRequest::new(&batch);
+    // Substitute the head MB with one that's not on the chain at all —
+    // the manager must reject without signing.
+    let foreign_head = H256::from([0xFE; 32]);
+    request.head = Some(foreign_head);
+
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    assert_eq!(
+        unwrap_rejected(status),
+        ValidationRejectReason::HeadMbNotInChain(foreign_head)
+    );
+}
+
+#[tokio::test]
+async fn rejects_head_mb_not_computed() {
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    let mb_hashes = setup_mb_chain(
+        &db,
+        vec![vec![nonempty_transition(1)], vec![nonempty_transition(2)]],
+    );
+
+    let manager = mock_batch_manager(db.clone());
+    // Build a batch first (head MB is computed).
+    let batch = manager
+        .clone()
+        .create_batch_commitment(block)
+        .await
+        .unwrap()
+        .expect("expected non-empty batch");
+    let request = BatchCommitmentValidationRequest::new(&batch);
+
+    // Now flip the head MB to "not computed" — the manager must
+    // reject because it cannot trust the outcome.
+    let head = mb_hashes.last().copied().unwrap();
+    db.mutate_mb_meta(head, |meta| {
+        meta.computed = false;
+    });
+
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    assert_eq!(
+        unwrap_rejected(status),
+        ValidationRejectReason::HeadMbNotComputed(head)
+    );
+}
+
+#[tokio::test]
+async fn rejects_empty_batch_request() {
+    // No MBs and no committed codes → batch must be skipped on the
+    // build side. Constructing a "request" out of an empty
+    // BatchCommitment just to check that validation rejects it.
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    // No MBs in the chain at all (latest_finalized_mb_hash stays zero),
+    // and no codes pending.
+    let manager = mock_batch_manager(db.clone());
+    let batch = manager
+        .clone()
+        .create_batch_commitment(block)
+        .await
+        .unwrap();
+    assert!(batch.is_none(), "empty inputs must produce no batch");
+
+    // Synthesize an "empty" request anyway and feed it to validate.
+    let synthesized = BatchCommitmentValidationRequest {
+        digest: Digest::random(),
+        head: None,
+        codes: Vec::new(),
+        rewards: false,
+        validators: false,
+    };
+    let status = manager
+        .validate_batch_commitment(block, synthesized)
+        .await
+        .unwrap();
+    assert_eq!(unwrap_rejected(status), ValidationRejectReason::EmptyBatch);
+}
+
+#[tokio::test]
+async fn batch_size_limit_exceeded_is_rejected_on_validation() {
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    // Pile up a chain of MBs with many transitions each so the squashed
+    // batch easily exceeds a tight size limit.
+    let mut outcomes = Vec::new();
+    for mb_idx in 0..5u8 {
+        let mut o = Vec::new();
+        for actor in 0..40u8 {
+            // distinct actor per transition so squashing keeps them all
+            o.push(nonempty_transition(mb_idx * 50 + actor + 1));
+        }
+        outcomes.push(o);
+    }
+    setup_mb_chain(&db, outcomes);
+
+    // First build under a generous limit, then validate under a tight
+    // one — that's how the manager catches an oversize batch from a
+    // misbehaving coordinator.
+    let big_manager =
+        mock_batch_manager_with_limits(db.clone(), BatchLimits {
+            commitment_delay_limit: 100,
+            batch_size_limit: BLOCK_GAS_LIMIT, // large
+        });
+    let batch = big_manager
+        .create_batch_commitment(block)
+        .await
+        .unwrap()
+        .expect("expected non-empty batch");
+    let request = BatchCommitmentValidationRequest::new(&batch);
+
+    let strict_manager = mock_batch_manager_with_limits(
+        db,
+        BatchLimits {
+            commitment_delay_limit: 100,
+            batch_size_limit: 256, // intentionally tiny
+        },
+    );
+    let status = strict_manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    assert_eq!(
+        unwrap_rejected(status),
+        ValidationRejectReason::BatchSizeLimitExceeded
+    );
+}
+
+#[tokio::test]
+async fn squash_orders_negative_value_transitions_first() {
+    // Two actors, two MBs each. Negative value (sender returning value
+    // to the router) must come ahead of positive value (receiver) so
+    // the on-chain pull-then-push order keeps the router solvent.
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    let actor_negative = ActorId::from([0xA1; 32]);
+    let actor_positive = ActorId::from([0xB2; 32]);
+
+    let transition = |actor_id: ActorId,
+                      new_state_hash: H256,
+                      value_to_receive: u128,
+                      value_to_receive_negative_sign: bool| StateTransition {
+        actor_id,
+        new_state_hash,
+        exited: false,
+        inheritor: ActorId::zero(),
+        value_to_receive,
+        value_to_receive_negative_sign,
+        value_claims: vec![],
+        messages: vec![],
+    };
+
+    let mb1_neg = transition(actor_negative, H256::from([1; 32]), 70, true);
+    let mb1_pos = transition(actor_positive, H256::from([2; 32]), 30, false);
+    let mb2_neg = transition(actor_negative, H256::from([3; 32]), 20, false);
+    let mb2_pos = transition(actor_positive, H256::from([4; 32]), 10, false);
+
+    setup_mb_chain(
+        &db,
+        vec![vec![mb1_neg, mb1_pos], vec![mb2_neg, mb2_pos]],
+    );
+
+    let manager = mock_batch_manager(db.clone());
+    let batch = manager
+        .clone()
+        .create_batch_commitment(block)
+        .await
+        .unwrap()
+        .expect("expected non-empty batch");
+
+    let chain_commitment = batch.chain_commitment.as_ref().expect("chain commitment");
+    assert_eq!(
+        chain_commitment
+            .transitions
+            .iter()
+            .map(|t| t.actor_id)
+            .collect::<Vec<_>>(),
+        vec![actor_negative, actor_positive],
+        "negative-sign actor must come first after sort"
+    );
+    assert_eq!(chain_commitment.transitions[0].value_to_receive, 50);
+    assert!(chain_commitment.transitions[0].value_to_receive_negative_sign);
+    assert_eq!(chain_commitment.transitions[1].value_to_receive, 40);
+    assert!(!chain_commitment.transitions[1].value_to_receive_negative_sign);
+
+    // And the round-trip must accept.
+    let expected = batch.to_digest();
+    let status = manager
+        .validate_batch_commitment(block, BatchCommitmentValidationRequest::new(&batch))
+        .await
+        .unwrap();
+    match status {
+        ValidationStatus::Accepted(d) => assert_eq!(d, expected),
+        ValidationStatus::Rejected { reason, .. } => panic!("rejected: {reason:?}"),
+    }
+}
