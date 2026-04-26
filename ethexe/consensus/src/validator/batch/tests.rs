@@ -27,9 +27,9 @@
 use super::{BatchLimits, BatchCommitmentManager, ValidationStatus, types::ValidationRejectReason};
 use crate::validator::core::MiddlewareWrapper;
 use ethexe_common::{
-    Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest,
+    Address, Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRW, GlobalsStorageRW, MbStorageRW},
+    db::{BlockMetaStorageRW, GlobalsStorageRW, MbStorageRW, SetConfig},
     gear::StateTransition,
     mb::{ProcessQueuesLimits, SequencerBlock, Transaction},
     mock::*,
@@ -38,14 +38,30 @@ use ethexe_db::Database;
 use ethexe_ethereum::middleware::{ElectionProvider, MockElectionProvider};
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, CodeId, H256};
+use std::num::NonZeroU64;
 
 const BLOCK_GAS_LIMIT: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
 
 fn mock_batch_manager_with_limits(db: Database, limits: BatchLimits) -> BatchCommitmentManager {
-    let mock_election: MockElectionProvider = MockElectionProvider::new();
+    let (manager, _) = mock_batch_manager_with_limits_and_election(db, limits);
+    manager
+}
+
+/// Variant of [`mock_batch_manager_with_limits`] that returns the
+/// underlying [`MockElectionProvider`] handle so the caller can pre-load
+/// canned election results before calling
+/// [`BatchCommitmentManager::aggregate_validators_commitment`].
+///
+/// The handle is `Clone` and shares state with the one boxed into the
+/// manager — both observe the same `predefined_election_at` map.
+fn mock_batch_manager_with_limits_and_election(
+    db: Database,
+    limits: BatchLimits,
+) -> (BatchCommitmentManager, MockElectionProvider) {
+    let election = MockElectionProvider::new();
     let middleware =
-        MiddlewareWrapper::from_inner(Box::new(mock_election) as Box<dyn ElectionProvider>);
-    BatchCommitmentManager::new(limits, db, middleware)
+        MiddlewareWrapper::from_inner(Box::new(election.clone()) as Box<dyn ElectionProvider>);
+    (BatchCommitmentManager::new(limits, db, middleware), election)
 }
 
 fn mock_batch_manager(db: Database) -> BatchCommitmentManager {
@@ -483,4 +499,124 @@ async fn squash_orders_negative_value_transitions_first() {
         ValidationStatus::Accepted(d) => assert_eq!(d, expected),
         ValidationStatus::Rejected { reason, .. } => panic!("rejected: {reason:?}"),
     }
+}
+
+#[tokio::test]
+async fn test_aggregate_validators_commitment() {
+    // Shorten era/election so block index 5 lands exactly at election
+    // start for era 1 and block 15 lands at election start for era 2.
+    //
+    // Slot 10s, era 100s (10 slots), election 50s (5 slots) ⇒
+    //   era 0 covers ts ∈ [genesis, genesis+100); election for era 1
+    //   opens at genesis+50.
+    //   era 1 covers ts ∈ [genesis+100, genesis+200); election for
+    //   era 2 opens at genesis+150.
+    //
+    // BlockChain::mock(20) emits blocks at ts = genesis_ts + i*slot for
+    // i = chain index, so blocks[5] hits the era-1 election start and
+    // blocks[15] hits the era-2 election start.
+    let db = Database::memory();
+    let mut chain = test_block_chain(20);
+    {
+        let mut config = chain.config.clone();
+        config.timelines.era = NonZeroU64::new(10 * config.timelines.slot.get()).unwrap();
+        config.timelines.election = 5 * config.timelines.slot.get();
+        chain.config = config;
+    }
+    let chain = chain.setup(&db);
+    // Force the config back into the in-memory DB (BlockChain::setup
+    // wrote the original config first; we want the shortened one).
+    db.set_config(chain.config.clone());
+
+    let validators1: ValidatorsVec = vec![
+        Address([1; 20]),
+        Address([2; 20]),
+        Address([3; 20]),
+    ]
+    .try_into()
+    .unwrap();
+    let validators2: ValidatorsVec = vec![
+        Address([4; 20]),
+        Address([5; 20]),
+        Address([6; 20]),
+    ]
+    .try_into()
+    .unwrap();
+
+    let (manager, election) =
+        mock_batch_manager_with_limits_and_election(db.clone(), BatchLimits::default());
+    let timelines = chain.config.timelines;
+
+    election
+        .set_predefined_election_at(
+            timelines.era_election_start_ts(0).unwrap(),
+            validators1.clone(),
+        )
+        .await;
+    election
+        .set_predefined_election_at(
+            timelines.era_election_start_ts(1).unwrap(),
+            validators2.clone(),
+        )
+        .await;
+
+    // Before election start (era 0, ts < genesis+50) → no commitment.
+    let commitment = manager
+        .aggregate_validators_commitment(&chain.blocks[4].to_simple())
+        .await
+        .unwrap();
+    assert!(commitment.is_none(), "expected None before election period");
+
+    // Right at election start for era 1 → commits validators1.
+    let commitment = manager
+        .aggregate_validators_commitment(&chain.blocks[5].to_simple())
+        .await
+        .unwrap()
+        .expect("validators commitment expected");
+    assert_eq!(commitment.validators, validators1);
+    assert_eq!(commitment.era_index, 1);
+
+    // Inside era 1 election period → still validators1.
+    let commitment = manager
+        .aggregate_validators_commitment(&chain.blocks[7].to_simple())
+        .await
+        .unwrap()
+        .expect("validators commitment expected");
+    assert_eq!(commitment.validators, validators1);
+    assert_eq!(commitment.era_index, 1);
+
+    // Mark era 1 already committed for `block 7` → manager skips.
+    db.mutate_block_meta(chain.blocks[7].hash, |meta| {
+        meta.latest_era_validators_committed = Some(1);
+    });
+    let commitment = manager
+        .aggregate_validators_commitment(&chain.blocks[7].to_simple())
+        .await
+        .unwrap();
+    assert!(
+        commitment.is_none(),
+        "expected None when next-era validators already committed"
+    );
+
+    // At era-2 election start with only era 0 marked committed: warns
+    // about missed era 1 but still commits validators2 for era 2.
+    db.mutate_block_meta(chain.blocks[15].hash, |meta| {
+        meta.latest_era_validators_committed = Some(0);
+    });
+    let commitment = manager
+        .aggregate_validators_commitment(&chain.blocks[15].to_simple())
+        .await
+        .unwrap()
+        .expect("validators commitment expected");
+    assert_eq!(commitment.validators, validators2);
+    assert_eq!(commitment.era_index, 2);
+
+    // Bookkeeping past the next era is restricted — must error out.
+    db.mutate_block_meta(chain.blocks[15].hash, |meta| {
+        meta.latest_era_validators_committed = Some(3);
+    });
+    manager
+        .aggregate_validators_commitment(&chain.blocks[15].to_simple())
+        .await
+        .unwrap_err();
 }
