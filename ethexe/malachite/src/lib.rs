@@ -440,6 +440,45 @@ fn export_validator_secret(
     Ok(priv_key.to_bytes())
 }
 
+/// Test helper: derive a malachite genesis from an existing
+/// [`gsigner::Signer`] keystore + a list of validator public keys, and
+/// write it as JSON to `path`. Each `pub_key` must already exist in
+/// the signer's keyring; the call extracts each secret to compute the
+/// matching malachite-side public key and 20-byte address.
+///
+/// Used by ethexe integration tests to bootstrap a quorum without
+/// going through the real CLI/keygen flow.
+pub fn write_test_genesis(
+    path: &std::path::Path,
+    signer: &Signer<Secp256k1>,
+    pub_keys: &[Secp256k1PublicKey],
+) -> Result<()> {
+    use crate::context::{Address, PrivateKey};
+    use crate::genesis::{GenesisValidator, MalachiteGenesis};
+
+    let mut validators = Vec::with_capacity(pub_keys.len());
+    for pub_key in pub_keys {
+        let secret = export_validator_secret(signer, *pub_key)?;
+        let priv_key = PrivateKey::from_slice(&secret)
+            .map_err(|e| anyhow::anyhow!("constructing ECDSA private key: {e}"))?;
+        let public_key = priv_key.public_key();
+        let address = Address::from_public_key(&public_key);
+        validators.push(GenesisValidator {
+            address,
+            public_key,
+            voting_power: 1,
+        });
+    }
+
+    let genesis = MalachiteGenesis { validators };
+    let json = serde_json::to_string_pretty(&genesis)
+        .map_err(|e| anyhow::anyhow!("serializing MalachiteGenesis: {e}"))?;
+    std::fs::write(path, json).with_context(|| {
+        format!("writing MalachiteGenesis to {}", path.display())
+    })?;
+    Ok(())
+}
+
 /// Domain-separated secp256k1 secret for the Malachite libp2p swarm.
 ///
 /// We never reuse the validator key as a libp2p peer_id source: the

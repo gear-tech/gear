@@ -21,7 +21,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
-use ethexe_common::{SimpleBlockData, injected::SignedInjectedTransaction};
+use ethexe_common::{SimpleBlockData, db::MbStorageRO, injected::SignedInjectedTransaction};
+use ethexe_db::Database;
 use gprimitives::H256;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -213,9 +214,46 @@ async fn handle_app_msg(
 
                     let mut transactions = Vec::with_capacity(injected.len() + 3);
                     if let Some(eth_block_hash) = advance {
-                        transactions.push(crate::Transaction::AdvanceTillEthereumBlock {
+                        // The producer's `compute_advance_candidate`
+                        // returns just the youngest EB in the new
+                        // canonical range. We need one
+                        // `AdvanceTillEthereumBlock` tx **per block**
+                        // between `parent_advanced` (exclusive) and
+                        // `eth_block_hash` (inclusive) — otherwise
+                        // events from intermediate blocks (program
+                        // creations, mirror messages, etc.) silently
+                        // drop on the floor.
+                        let parent_advanced = if state.latest_finalized_mb_hash.is_zero() {
+                            H256::zero()
+                        } else {
+                            state.db.mb_meta(state.latest_finalized_mb_hash).last_advanced_block
+                        };
+                        match collect_advance_chain(
+                            &state.db,
                             eth_block_hash,
-                        });
+                            parent_advanced,
+                        ) {
+                            Ok(chain) => {
+                                for hash in chain {
+                                    transactions
+                                        .push(crate::Transaction::AdvanceTillEthereumBlock {
+                                            eth_block_hash: hash,
+                                        });
+                                }
+                            }
+                            Err(e) => {
+                                warn!(
+                                    error = %e,
+                                    candidate = %eth_block_hash,
+                                    parent_advanced = %parent_advanced,
+                                    "failed to walk advance-chain; falling back \
+                                     to a single AdvanceTillEthereumBlock"
+                                );
+                                transactions.push(crate::Transaction::AdvanceTillEthereumBlock {
+                                    eth_block_hash,
+                                });
+                            }
+                        }
                     }
                     for tx in injected {
                         transactions.push(crate::Transaction::Injected(tx));
@@ -547,6 +585,49 @@ async fn wait_for_proposable_content(
             }
         }
     }
+}
+
+/// Walk back from `candidate` through `parent_hash` until we hit
+/// `parent_advanced` and return the chain of block hashes from
+/// `parent_advanced + 1` to `candidate` in chronological order.
+///
+/// The producer adds one `AdvanceTillEthereumBlock` tx per block
+/// returned so the executor sees every event in the gap. The walk
+/// stops at `parent_advanced` (exclusive); when `parent_advanced` is
+/// zero we treat genesis as the stop fence.
+fn collect_advance_chain(
+    db: &Database,
+    candidate: H256,
+    parent_advanced: H256,
+) -> Result<Vec<H256>> {
+    use ethexe_common::db::OnChainStorageRO;
+
+    /// Hard cap on how far we'll walk in a single MB. 1024 ≫ a
+    /// realistic gap between consecutive proposer rounds; protects
+    /// against pathological catch-up.
+    const MAX_ADVANCE_LOOKBACK: usize = 1024;
+
+    let mut chain = Vec::new();
+    let mut current = candidate;
+    while current != parent_advanced {
+        if current == H256::zero() {
+            return Err(anyhow::anyhow!(
+                "advance walk reached genesis without finding parent_advanced {parent_advanced}"
+            ));
+        }
+        if chain.len() >= MAX_ADVANCE_LOOKBACK {
+            return Err(anyhow::anyhow!(
+                "advance walk exceeded {MAX_ADVANCE_LOOKBACK} blocks"
+            ));
+        }
+        let header = db.block_header(current).ok_or_else(|| {
+            anyhow::anyhow!("missing header for {current} during advance walk")
+        })?;
+        chain.push(current);
+        current = header.parent_hash;
+    }
+    chain.reverse();
+    Ok(chain)
 }
 
 /// Resolve the next `AdvanceTillEthereumBlock` candidate for the

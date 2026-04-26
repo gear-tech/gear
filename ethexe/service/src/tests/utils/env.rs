@@ -46,6 +46,7 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConsensusService, ValidatorService};
+use ethexe_malachite::{InjectedTxMempool, MalachiteConfig, MalachiteService, write_test_genesis};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
     Ethereum, EthereumBuilder,
@@ -430,6 +431,7 @@ impl TestEnv {
             fast_sync,
             compute_config: self.compute_config,
             commitment_delay_limit: self.commitment_delay_limit,
+            malachite_home: None,
             running_service_handle: None,
         }
     }
@@ -463,10 +465,7 @@ impl TestEnv {
         Ok(WaitForUploadCode {
             code_id,
             receiver,
-            hack: self
-                .continuous_block_generation
-                .not()
-                .then(|| (self.provider.clone(), self.eth_cfg.block_time)),
+            hack: self.force_mine_hack(),
         })
     }
 
@@ -511,6 +510,7 @@ impl TestEnv {
         Ok(WaitForProgramCreation {
             receiver,
             program_id,
+            hack: self.force_mine_hack(),
         })
     }
 
@@ -548,6 +548,7 @@ impl TestEnv {
         Ok(WaitForProgramCreation {
             receiver,
             program_id,
+            hack: self.force_mine_hack(),
         })
     }
 
@@ -578,7 +579,18 @@ impl TestEnv {
         Ok(WaitForReplyTo {
             receiver,
             message_id,
+            hack: self.force_mine_hack(),
         })
+    }
+
+    /// Returns a `(provider, block_time)` handle that
+    /// `WaitFor*::wait_for` can use to force-mine an Anvil block on
+    /// idle. `None` when the env is in continuous-block-generation
+    /// mode (Anvil already mines on its own).
+    fn force_mine_hack(&self) -> Option<(RootProvider, Duration)> {
+        self.continuous_block_generation
+            .not()
+            .then(|| (self.provider.clone(), self.eth_cfg.block_time))
     }
 
     #[allow(dead_code)]
@@ -946,6 +958,11 @@ pub struct Node {
     compute_config: ComputeConfig,
     commitment_delay_limit: u32,
 
+    /// Tempdir hosting the Malachite home (genesis.json + WAL + store.db).
+    /// Held here so it lives as long as the service does and is cleaned
+    /// up when the node is dropped.
+    malachite_home: Option<tempfile::TempDir>,
+
     running_service_handle: Option<JoinHandle<()>>,
 }
 
@@ -1027,6 +1044,49 @@ impl Node {
             .as_ref()
             .map(|c| c.public_key.to_address());
 
+        // Single-node Malachite quorum for the test. We boot a real
+        // engine (binding to 127.0.0.1:0 so each test instance gets a
+        // free port) so the MB-driven execution path is exercised end-
+        // to-end. Connect-only nodes (no validator key) keep
+        // `malachite = None` and rely on whichever validator in the
+        // test env is producing MBs.
+        let (malachite, malachite_gas_allowance, malachite_home) = if let Some(config) =
+            self.validator_config.as_ref()
+        {
+            let home = tempfile::tempdir().expect("malachite home tempdir");
+            let genesis_path = home.path().join("genesis.json");
+            write_test_genesis(&genesis_path, &self.signer, &[config.public_key])
+                .expect("write_test_genesis");
+
+            let genesis_block_hash = self
+                .router_query
+                .genesis_block_hash()
+                .await
+                .unwrap_or(H256::zero());
+            let mut mc = MalachiteConfig::from_ethexe_genesis(
+                genesis_block_hash,
+                home.path().to_path_buf(),
+            )
+            .with_listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)));
+            // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
+            mc.canonical_quarantine = self.compute_config.canonical_quarantine();
+            let gas_allowance = mc.gas_allowance;
+            let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
+            let svc = MalachiteService::new(
+                mc,
+                self.db.clone(),
+                self.signer.clone(),
+                config.public_key,
+                mempool,
+            )
+            .await
+            .expect("MalachiteService::new");
+            (Some(svc), gas_allowance, Some(home))
+        } else {
+            (None, MalachiteConfig::DEFAULT_GAS_ALLOWANCE, None)
+        };
+        self.malachite_home = malachite_home;
+
         let (sender, receiver) = events::channel(self.db.clone());
 
         let consensus_config = ConsensusLayerConfig {
@@ -1062,6 +1122,8 @@ impl Node {
             compute,
             self.signer.clone(),
             consensus,
+            malachite,
+            malachite_gas_allowance,
             network,
             None,
             rpc,
@@ -1313,6 +1375,10 @@ impl WaitForUploadCode {
 pub struct WaitForProgramCreation {
     receiver: ObserverEventReceiver,
     pub program_id: ActorId,
+    /// `(provider, block_time)`. While `Some`, every `block_time * 3`
+    /// idle interval triggers a forced Anvil mine so the coordinator
+    /// gets a fresh ETH head and a chance to commit the result.
+    hack: Option<(RootProvider, Duration)>,
 }
 
 #[derive(Debug)]
@@ -1325,23 +1391,32 @@ impl WaitForProgramCreation {
     pub async fn wait_for(self) -> anyhow::Result<ProgramCreationInfo> {
         log::info!("📗 Waiting for program {} creation", self.program_id);
 
-        let code_id = self
-            .receiver
-            .filter_map_block_synced()
-            .find_map(|event| {
-                match event {
-                    BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
-                        actor_id,
-                        code_id,
-                    })) if actor_id == self.program_id => {
-                        return Some(code_id);
-                    }
+        let mut receiver = self.receiver.filter_map_block_synced();
+        let wait_for_creation = receiver.find_map(|event| match event {
+            BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
+                actor_id,
+                code_id,
+            })) if actor_id == self.program_id => Some(code_id),
+            _ => None,
+        });
 
-                    _ => {}
+        let Some((provider, block_time)) = self.hack else {
+            return Ok(ProgramCreationInfo {
+                program_id: self.program_id,
+                code_id: wait_for_creation.await,
+            });
+        };
+
+        tokio::pin!(wait_for_creation);
+        let code_id = loop {
+            tokio::select! {
+                _ = tokio::time::sleep(block_time * 3) => {
+                    log::info!("⏱️ Reached program creation timeout, forcing new block");
+                    provider.evm_mine(None).await.unwrap();
                 }
-                None
-            })
-            .await;
+                code_id = &mut wait_for_creation => break code_id,
+            }
+        };
 
         Ok(ProgramCreationInfo {
             program_id: self.program_id,
@@ -1354,6 +1429,10 @@ impl WaitForProgramCreation {
 pub struct WaitForReplyTo {
     receiver: ObserverEventReceiver,
     pub message_id: MessageId,
+    /// `(provider, block_time)`. While `Some`, every `block_time * 3`
+    /// idle interval triggers a forced Anvil mine so the coordinator
+    /// gets a fresh ETH head and a chance to commit the reply.
+    hack: Option<(RootProvider, Duration)>,
 }
 
 #[derive(Debug)]
@@ -1370,35 +1449,49 @@ impl WaitForReplyTo {
         Self {
             receiver,
             message_id,
+            hack: None,
         }
     }
 
     pub async fn wait_for(self) -> anyhow::Result<ReplyInfo> {
         log::info!("📗 Waiting for reply to message {}", self.message_id);
 
-        let info = self
-            .receiver
-            .filter_map_block_synced()
-            .find_map(|event| match event {
-                BlockEvent::Mirror {
-                    actor_id,
-                    event:
-                        MirrorEvent::Reply(ReplyEvent {
-                            reply_to,
-                            payload,
-                            reply_code,
-                            value,
-                        }),
-                } if reply_to == self.message_id => Some(ReplyInfo {
-                    message_id: reply_to,
-                    program_id: actor_id,
-                    payload,
-                    code: reply_code,
-                    value,
-                }),
-                _ => None,
-            })
-            .await;
+        let message_id = self.message_id;
+        let mut receiver = self.receiver.filter_map_block_synced();
+        let wait_for_reply = receiver.find_map(|event| match event {
+            BlockEvent::Mirror {
+                actor_id,
+                event:
+                    MirrorEvent::Reply(ReplyEvent {
+                        reply_to,
+                        payload,
+                        reply_code,
+                        value,
+                    }),
+            } if reply_to == message_id => Some(ReplyInfo {
+                message_id: reply_to,
+                program_id: actor_id,
+                payload,
+                code: reply_code,
+                value,
+            }),
+            _ => None,
+        });
+
+        let Some((provider, block_time)) = self.hack else {
+            return Ok(wait_for_reply.await);
+        };
+
+        tokio::pin!(wait_for_reply);
+        let info = loop {
+            tokio::select! {
+                _ = tokio::time::sleep(block_time * 3) => {
+                    log::info!("⏱️ Reached reply timeout, forcing new block");
+                    provider.evm_mine(None).await.unwrap();
+                }
+                info = &mut wait_for_reply => break info,
+            }
+        };
 
         Ok(info)
     }

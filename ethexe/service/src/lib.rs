@@ -57,7 +57,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked,
-    db::{GlobalsStorageRW, MbStorageRO, MbStorageRW},
+    db::{GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRW},
     gear::CodeState,
     network::VerifiedValidatorMessage,
 };
@@ -546,6 +546,8 @@ impl Service {
         compute: ComputeService,
         signer: Signer,
         consensus: Option<Pin<Box<dyn ConsensusService>>>,
+        malachite: Option<MalachiteService>,
+        malachite_gas_allowance: u64,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcServer>,
@@ -553,15 +555,6 @@ impl Service {
         fast_sync: bool,
         validator_address: Option<Address>,
     ) -> Result<Self> {
-        // Tests don't yet exercise Malachite consensus directly; keep
-        // the field `None` and let the outer event loop idle that
-        // branch via `maybe_next_some`.
-        let _tmp = std::env::temp_dir()
-            .join("ethexe-malachite-test")
-            .join(format!("{}", std::process::id()));
-        let _cfg = MalachiteConfig::from_ethexe_genesis(H256::zero(), _tmp);
-        let malachite: Option<MalachiteService> = None;
-        let malachite_gas_allowance = MalachiteConfig::DEFAULT_GAS_ALLOWANCE;
         Ok(Self {
             db,
             observer,
@@ -664,6 +657,17 @@ impl Service {
                             parent_hash = %block_data.header.parent_hash,
                             "📦 receive a chain head",
                         );
+
+                        // Persist the header eagerly: malachite's
+                        // descendant check (and the producer's
+                        // `is_strict_descendant_of`) walks parent
+                        // headers from DB starting with this block.
+                        // The observer's full sync that re-writes the
+                        // header lands later via `BlockSynced`; without
+                        // this nudge the producer races the sync and
+                        // logs spurious "missing header for candidate"
+                        // errors.
+                        db.set_block_header(block_data.hash, block_data.header);
 
                         if let Some(m) = malachite.as_mut() {
                             m.receive_new_chain_head(block_data);
