@@ -359,9 +359,9 @@ contract Mirror is IMirror {
      *        and is necessary to show the available methods of `Mirror` smart contract on Etherscan.
      *        In case it is a Sails framework smart contract, the user can set his own ABI.
      * @param _isSmall The flag indicating if the program is small. See the description of `Mirror.isSmall` field for details.
-     * @param _value The initial executable balance to be transferred to the program.
+     * @param _initialExecutableBalance The initial executable balance to be transferred to the program.
      */
-    function initialize(address _initializer, address _abiInterface, bool _isSmall, uint128 _value)
+    function initialize(address _initializer, address _abiInterface, bool _isSmall, uint128 _initialExecutableBalance)
         external
         onlyRouter
     {
@@ -378,8 +378,8 @@ contract Mirror is IMirror {
         isSmall = _isSmall;
         implementationSlot.value = _abiInterface;
 
-        if (_value != 0) {
-            emit ExecutableBalanceTopUpRequested(_value);
+        if (_initialExecutableBalance != 0) {
+            emit ExecutableBalanceTopUpRequested(_initialExecutableBalance);
         }
     }
 

@@ -493,7 +493,7 @@ impl TestEnv {
 
         let (_, program_id) = if initial_executable_balance != 0 {
             router
-                .create_program_with_value(
+                .create_program_with_executable_balance(
                     code_id,
                     salt,
                     override_initializer,
@@ -528,7 +528,7 @@ impl TestEnv {
 
         let (_, program_id) = if initial_executable_balance != 0 {
             router
-                .create_program_with_abi_interface_and_value(
+                .create_program_with_abi_interface_and_executable_balance(
                     code_id,
                     salt,
                     override_initializer,

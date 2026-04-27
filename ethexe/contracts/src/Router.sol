@@ -674,7 +674,8 @@ contract Router is
     }
 
     /**
-     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer and value in WVARA ERC20 token.
+     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer and initial executable balance
+     *      in WVARA ERC20 token.
      *      Note that the program creation is deterministic, so if you try to create program with the same code ID and salt,
      *      you will get the same program address.
      *      Also note that the `Mirror` will be created with `isSmall = true` without "Solidity ABI Interface" support,
@@ -684,18 +685,18 @@ contract Router is
      * @param _salt The salt for the program creation.
      * @param _overrideInitializer The initializer address for the program that can send the first (init) message to the program.
      *                            If set to `address(0)`, `msg.sender` will be used as the initializer.
-     * @param _value The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
+     * @param _initialExecutableBalance The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
      * @param _deadline Deadline for the transaction to be executed.
      * @param _v ECDSA signature parameter.
      * @param _r ECDSA signature parameter.
      * @param _s ECDSA signature parameter.
      * @return mirror The address of the created program (`Mirror`).
      */
-    function createProgramWithValue(
+    function createProgramWithExecutableBalance(
         bytes32 _codeId,
         bytes32 _salt,
         address _overrideInitializer,
-        uint128 _value,
+        uint128 _initialExecutableBalance,
         uint256 _deadline,
         uint8 _v,
         bytes32 _r,
@@ -705,13 +706,16 @@ contract Router is
 
         IWrappedVara _wrappedVara = IWrappedVara(router.implAddresses.wrappedVara);
 
-        try _wrappedVara.permit(msg.sender, address(this), _value, _deadline, _v, _r, _s) {} catch {}
-        bool success = _wrappedVara.transferFrom(msg.sender, address(this), _value);
+        try _wrappedVara.permit(msg.sender, address(this), _initialExecutableBalance, _deadline, _v, _r, _s) {} catch {}
+        bool success = _wrappedVara.transferFrom(msg.sender, address(this), _initialExecutableBalance);
         require(success, TransferFromFailed());
 
         IMirror(mirror)
             .initialize(
-                _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, mirrorImpl(), true, _value
+                _overrideInitializer == address(0) ? msg.sender : _overrideInitializer,
+                mirrorImpl(),
+                true,
+                _initialExecutableBalance
             );
 
         return mirror;
@@ -746,7 +750,8 @@ contract Router is
     }
 
     /**
-     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer, ABI interface and value.
+     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer, ABI interface and initial executable balance
+     *      in WVARA ERC20 token.
      *      Note that the program creation is deterministic, so if you try to create program with the same code ID and salt,
      *      you will get the same program address.
      *      Also note that the `Mirror` will be created with `isSmall = false` WITH "Solidity ABI Interface" support,
@@ -757,19 +762,19 @@ contract Router is
      * @param _overrideInitializer The initializer address for the program that can send the first (init) message to the program.
      *                            If set to `address(0)`, `msg.sender` will be used as the initializer.
      * @param _abiInterface The ABI interface address for the program.
-     * @param _value The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
+     * @param _initialExecutableBalance The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
      * @param _deadline Deadline for the transaction to be executed.
      * @param _v ECDSA signature parameter.
      * @param _r ECDSA signature parameter.
      * @param _s ECDSA signature parameter.
      * @return mirror The address of the created program (`Mirror`).
      */
-    function createProgramWithAbiInterfaceAndValue(
+    function createProgramWithAbiInterfaceAndExecutableBalance(
         bytes32 _codeId,
         bytes32 _salt,
         address _overrideInitializer,
         address _abiInterface,
-        uint128 _value,
+        uint128 _initialExecutableBalance,
         uint256 _deadline,
         uint8 _v,
         bytes32 _r,
@@ -779,13 +784,16 @@ contract Router is
 
         IWrappedVara _wrappedVara = IWrappedVara(router.implAddresses.wrappedVara);
 
-        try _wrappedVara.permit(msg.sender, address(this), _value, _deadline, _v, _r, _s) {} catch {}
-        bool success = _wrappedVara.transferFrom(msg.sender, address(this), _value);
+        try _wrappedVara.permit(msg.sender, address(this), _initialExecutableBalance, _deadline, _v, _r, _s) {} catch {}
+        bool success = _wrappedVara.transferFrom(msg.sender, address(this), _initialExecutableBalance);
         require(success, TransferFromFailed());
 
         IMirror(mirror)
             .initialize(
-                _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface, false, _value
+                _overrideInitializer == address(0) ? msg.sender : _overrideInitializer,
+                _abiInterface,
+                false,
+                _initialExecutableBalance
             );
 
         return mirror;

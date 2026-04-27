@@ -260,35 +260,40 @@ impl Router {
         Ok((receipt, actor_id))
     }
 
-    pub async fn create_program_with_value(
+    pub async fn create_program_with_executable_balance(
         &self,
         code_id: CodeId,
         salt: H256,
         override_initializer: Option<ActorId>,
-        value: u128,
+        initial_executable_balance: u128,
     ) -> Result<(H256, ActorId)> {
-        self.create_program_with_value_and_receipt(code_id, salt, override_initializer, value)
-            .await
-            .map(|(receipt, actor_id)| ((*receipt.transaction_hash).into(), actor_id))
+        self.create_program_with_executable_balance_and_receipt(
+            code_id,
+            salt,
+            override_initializer,
+            initial_executable_balance,
+        )
+        .await
+        .map(|(receipt, actor_id)| ((*receipt.transaction_hash).into(), actor_id))
     }
 
-    pub async fn create_program_with_value_and_receipt(
+    pub async fn create_program_with_executable_balance_and_receipt(
         &self,
         code_id: CodeId,
         salt: H256,
         override_initializer: Option<ActorId>,
-        value: u128,
+        initial_executable_balance: u128,
     ) -> Result<(TransactionReceipt, ActorId)> {
         let Eip712PermitData { deadline, v, r, s } = Ethereum::prepare_permit_data(
             self.instance.provider(),
             self.wvara().query(),
             &self.sender,
             self.address().into(),
-            value,
+            initial_executable_balance,
         )
         .await?;
 
-        let builder = self.instance.createProgramWithValue(
+        let builder = self.instance.createProgramWithExecutableBalance(
             code_id.into_bytes().into(),
             salt.to_fixed_bytes().into(),
             override_initializer
@@ -297,7 +302,7 @@ impl Router {
                     AlloyAddress::new(initializer.0)
                 })
                 .unwrap_or_default(),
-            value,
+            initial_executable_balance,
             deadline,
             v,
             r,
@@ -382,61 +387,63 @@ impl Router {
         Ok((receipt, actor_id))
     }
 
-    pub async fn create_program_with_abi_interface_and_value(
+    pub async fn create_program_with_abi_interface_and_executable_balance(
         &self,
         code_id: CodeId,
         salt: H256,
         override_initializer: Option<ActorId>,
         abi_interface: ActorId,
-        value: u128,
+        initial_executable_balance: u128,
     ) -> Result<(H256, ActorId)> {
-        self.create_program_with_abi_interface_and_value_with_receipt(
+        self.create_program_with_abi_interface_and_executable_balance_with_receipt(
             code_id,
             salt,
             override_initializer,
             abi_interface,
-            value,
+            initial_executable_balance,
         )
         .await
         .map(|(receipt, actor_id)| ((*receipt.transaction_hash).into(), actor_id))
     }
 
-    pub async fn create_program_with_abi_interface_and_value_with_receipt(
+    pub async fn create_program_with_abi_interface_and_executable_balance_with_receipt(
         &self,
         code_id: CodeId,
         salt: H256,
         override_initializer: Option<ActorId>,
         abi_interface: ActorId,
-        value: u128,
+        initial_executable_balance: u128,
     ) -> Result<(TransactionReceipt, ActorId)> {
         let Eip712PermitData { deadline, v, r, s } = Ethereum::prepare_permit_data(
             self.instance.provider(),
             self.wvara().query(),
             &self.sender,
             self.address().into(),
-            value,
+            initial_executable_balance,
         )
         .await?;
 
         let abi_interface = Address::try_from(abi_interface).expect("infallible");
         let abi_interface = AlloyAddress::new(abi_interface.0);
 
-        let builder = self.instance.createProgramWithAbiInterfaceAndValue(
-            code_id.into_bytes().into(),
-            salt.to_fixed_bytes().into(),
-            override_initializer
-                .map(|initializer| {
-                    let initializer = Address::try_from(initializer).expect("infallible");
-                    AlloyAddress::new(initializer.0)
-                })
-                .unwrap_or_default(),
-            abi_interface,
-            value,
-            deadline,
-            v,
-            r,
-            s,
-        );
+        let builder = self
+            .instance
+            .createProgramWithAbiInterfaceAndExecutableBalance(
+                code_id.into_bytes().into(),
+                salt.to_fixed_bytes().into(),
+                override_initializer
+                    .map(|initializer| {
+                        let initializer = Address::try_from(initializer).expect("infallible");
+                        AlloyAddress::new(initializer.0)
+                    })
+                    .unwrap_or_default(),
+                abi_interface,
+                initial_executable_balance,
+                deadline,
+                v,
+                r,
+                s,
+            );
         let receipt = builder
             .send()
             .await?

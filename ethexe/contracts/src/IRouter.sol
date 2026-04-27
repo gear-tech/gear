@@ -575,7 +575,8 @@ interface IRouter {
     function createProgram(bytes32 codeId, bytes32 salt, address overrideInitializer) external returns (address);
 
     /**
-     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer and value in WVARA ERC20 token.
+     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer and initial executable balance
+     *      in WVARA ERC20 token.
      *      Note that the program creation is deterministic, so if you try to create program with the same code ID and salt,
      *      you will get the same program address.
      *      Also note that the `Mirror` will be created with `isSmall = true` without "Solidity ABI Interface" support,
@@ -585,18 +586,18 @@ interface IRouter {
      * @param salt The salt for the program creation.
      * @param overrideInitializer The initializer address for the program that can send the first (init) message to the program.
      *                            If set to `address(0)`, `msg.sender` will be used as the initializer.
-     * @param value The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
+     * @param initialExecutableBalance The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
      * @param deadline Deadline for the transaction to be executed.
      * @param v ECDSA signature parameter.
      * @param r ECDSA signature parameter.
      * @param s ECDSA signature parameter.
      * @return mirror The address of the created program (`Mirror`).
      */
-    function createProgramWithValue(
+    function createProgramWithExecutableBalance(
         bytes32 codeId,
         bytes32 salt,
         address overrideInitializer,
-        uint128 value,
+        uint128 initialExecutableBalance,
         uint256 deadline,
         uint8 v,
         bytes32 r,
@@ -625,7 +626,8 @@ interface IRouter {
     ) external returns (address);
 
     /**
-     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer, ABI interface and value.
+     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer, ABI interface and initial executable balance
+     *      in WVARA ERC20 token.
      *      Note that the program creation is deterministic, so if you try to create program with the same code ID and salt,
      *      you will get the same program address.
      *      Also note that the `Mirror` will be created with `isSmall = false` WITH "Solidity ABI Interface" support,
@@ -636,19 +638,19 @@ interface IRouter {
      * @param overrideInitializer The initializer address for the program that can send the first (init) message to the program.
      *                            If set to `address(0)`, `msg.sender` will be used as the initializer.
      * @param abiInterface The ABI interface address for the program.
-     * @param value The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
+     * @param initialExecutableBalance The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
      * @param deadline Deadline for the transaction to be executed.
      * @param v ECDSA signature parameter.
      * @param r ECDSA signature parameter.
      * @param s ECDSA signature parameter.
      * @return mirror The address of the created program (`Mirror`).
      */
-    function createProgramWithAbiInterfaceAndValue(
+    function createProgramWithAbiInterfaceAndExecutableBalance(
         bytes32 codeId,
         bytes32 salt,
         address overrideInitializer,
         address abiInterface,
-        uint128 value,
+        uint128 initialExecutableBalance,
         uint256 deadline,
         uint8 v,
         bytes32 r,

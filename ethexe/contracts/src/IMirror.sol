@@ -322,9 +322,10 @@ interface IMirror {
      *        and is necessary to show the available methods of `Mirror` smart contract on Etherscan.
      *        In case it is a Sails framework smart contract, the user can set his own ABI.
      * @param isSmall The flag indicating if the program is small. See the description of `Mirror.isSmall` field for details.
-     * @param value The initial executable balance to be transferred to the program.
+     * @param initialExecutableBalance The initial executable balance to be transferred to the program.
      */
-    function initialize(address initializer, address abiInterface, bool isSmall, uint128 value) external;
+    function initialize(address initializer, address abiInterface, bool isSmall, uint128 initialExecutableBalance)
+        external;
 
     /**
      * @dev Performs state transition for the `Mirror` contract.

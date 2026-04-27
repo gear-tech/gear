@@ -512,7 +512,7 @@ impl TxCommand {
                     let (receipt, actor_id) = if let Some(value) = value {
                         let raw_value = value.into_inner();
                         router
-                            .create_program_with_value_and_receipt(
+                            .create_program_with_executable_balance_and_receipt(
                                 code_id,
                                 salt,
                                 override_initializer,
@@ -615,7 +615,7 @@ impl TxCommand {
                     let (receipt, actor_id) = if let Some(value) = value {
                         let raw_value = value.into_inner();
                         router
-                            .create_program_with_abi_interface_and_value_with_receipt(
+                            .create_program_with_abi_interface_and_executable_balance_with_receipt(
                                 code_id,
                                 salt,
                                 override_initializer,
