@@ -55,6 +55,8 @@ pub use journal::{NativeJournalHandler as JournalHandler, WAIT_UP_TO_SAFE_DURATI
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
+#[cfg(any(test, feature = "mock"))]
+pub mod proptest;
 pub mod state;
 
 mod ext;
