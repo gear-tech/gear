@@ -57,7 +57,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked,
-    db::{GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRW},
+    db::OnChainStorageRW,
     gear::CodeState,
     network::VerifiedValidatorMessage,
 };
@@ -851,40 +851,14 @@ impl Service {
                             "🧱 Malachite: BlockProposal",
                         );
                         // Speculative compute: every proposal we see
-                        // is queued for execution. If the proposal
+                        // is queued for execution. The malachite
+                        // service has already persisted `mb_block`
+                        // and `mb_meta` (parent + last_advanced_block)
+                        // before raising this event, so compute can
+                        // walk parent links freely. If the proposal
                         // doesn't end up finalized the result lingers
                         // in the `mb_*` keyspace until a future GC
                         // step cleans it up.
-                        //
-                        // `last_advanced_block` is propagated forward:
-                        // the latest `AdvanceTillEthereumBlock` in
-                        // this MB's transactions wins; otherwise we
-                        // inherit the parent's value (or `H256::zero()`
-                        // for the genesis MB whose parent is zero).
-                        let parent_last_advanced = if block.parent.is_zero() {
-                            H256::zero()
-                        } else {
-                            db.mb_meta(block.parent).last_advanced_block
-                        };
-                        let last_advanced = block
-                            .transactions
-                            .iter()
-                            .rev()
-                            .find_map(|tx| match tx {
-                                ethexe_malachite::Transaction::AdvanceTillEthereumBlock {
-                                    eth_block_hash,
-                                } => Some(*eth_block_hash),
-                                _ => None,
-                            })
-                            .unwrap_or(parent_last_advanced);
-
-                        db.set_mb_block(mb_hash, block.clone());
-                        let parent_for_meta = (!block.parent.is_zero()).then_some(block.parent);
-                        db.mutate_mb_meta(mb_hash, |meta| {
-                            meta.height = height;
-                            meta.parent_mb_hash = parent_for_meta;
-                            meta.last_advanced_block = last_advanced;
-                        });
                         compute.compute_mb(height, block, malachite_gas_allowance);
                     }
                     MalachiteEvent::BlockFinalized { cert, block } => {
@@ -896,12 +870,11 @@ impl Service {
                             parent = %block.parent,
                             "✅ Malachite: BlockFinalized",
                         );
-                        // Update the canonical-chain pointer for
-                        // observers / future GC. Compute itself
-                        // already ran on BlockProposal.
-                        db.globals_mutate(|g| {
-                            g.latest_finalized_mb_hash = cert.block_hash;
-                        });
+                        // The malachite service has already advanced
+                        // `globals.latest_finalized_mb_hash` and
+                        // compute itself ran on the BlockProposal that
+                        // preceded this event — nothing else to do
+                        // here besides logging.
                     }
                 },
                 Event::Prometheus(event) => match event {

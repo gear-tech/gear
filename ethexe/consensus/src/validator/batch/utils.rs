@@ -42,6 +42,16 @@ use std::collections::{HashMap, hash_map::Entry};
 /// Errors out if the chain walk is exhausted without reaching
 /// `last_committed_mb` (i.e. the supplied head is not a descendant of the
 /// last committed MB), or if any MB along the way is not yet computed.
+///
+/// **Strict** semantics — used by the **participant** path of batch
+/// validation, where the coordinator's request must reference an MB
+/// chain that we have fully computed locally. The caller catches the
+/// error and converts it into a [`ValidationStatus::Rejected`] (i.e.
+/// the validator declines to sign), so the error stays scoped to one
+/// request and never crashes the consensus service. For the
+/// **producer** (coordinator) path that should commit whatever it
+/// can compute right now, see
+/// [`collect_computed_uncommitted_predecessors`].
 pub fn collect_not_committed_mb_predecessors<DB: MbStorageRO>(
     db: &DB,
     last_committed_mb: H256,
@@ -67,6 +77,63 @@ pub fn collect_not_committed_mb_predecessors<DB: MbStorageRO>(
     }
 
     Ok(mbs.into_iter().rev().collect())
+}
+
+/// Lenient variant of [`collect_not_committed_mb_predecessors`] for the
+/// **producer** path of batch commitment.
+///
+/// Walks the canonical MB chain from `mb_head` back via
+/// `parent_mb_hash`, then returns the longest **chronologically
+/// contiguous prefix that is fully computed** anchored at
+/// `last_committed_mb`. The chain commitment that goes on-chain has
+/// to start exactly where the previous one ended (state on the Router
+/// is at `last_committed_mb`), which is why we never skip a
+/// not-computed MB and resume — once compute is behind, only the
+/// prefix up to the gap is committable. The remainder accumulates and
+/// gets included in a later batch attempt.
+///
+/// Returns an empty `Vec` (rather than an error) when:
+/// - the very first successor of `last_committed_mb` is not yet
+///   computed — there's no progress to commit this round, or
+/// - the parent walk from `mb_head` exhausts before reaching
+///   `last_committed_mb` (e.g. immediately after a restart with a
+///   fresh malachite store, the local chain doesn't yet stretch back
+///   to the on-chain anchor).
+pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
+    db: &DB,
+    last_committed_mb: H256,
+    mb_head: H256,
+) -> Vec<H256> {
+    // Walk the parent chain backward from `mb_head` until we either
+    // reach `last_committed_mb` or run off the local chain.
+    let mut chain = Vec::new(); // newest-first
+    let mut current = mb_head;
+    while current != last_committed_mb && current != H256::zero() {
+        let meta = db.mb_meta(current);
+        chain.push((current, meta.computed));
+        current = meta.parent_mb_hash.unwrap_or(H256::zero());
+    }
+    if current != last_committed_mb {
+        // Couldn't trace back to the on-chain commit anchor — most
+        // likely a fast-restart or sync-lag situation. Caller skips
+        // this batch attempt; the next chain head will retry.
+        return Vec::new();
+    }
+
+    chain.reverse(); // chronological order
+
+    // Take the longest computed prefix. Stop at the first
+    // not-computed MB so the resulting range is anchored at
+    // `last_committed_mb` (contiguity required by the on-chain
+    // applier).
+    let mut collected = Vec::with_capacity(chain.len());
+    for (hash, computed) in chain {
+        if !computed {
+            break;
+        }
+        collected.push(hash);
+    }
+    collected
 }
 
 /// `request.head` must be either `latest_finalized_mb` itself or one of its
@@ -177,31 +244,43 @@ pub fn aggregate_code_commitments<DB: CodesStorageRO>(
 }
 
 /// Build a chain commitment that covers all not-yet-committed MBs between
-/// `block.last_committed_mb` (exclusive) and `mb_head` (inclusive), feed it
-/// into the supplied `batch_filler`, and return the hash of the head MB
-/// that was actually included (might be older than `mb_head` if the size
-/// budget was hit mid-walk; might equal `last_committed_mb` if the head MB's
-/// outcome is empty and the filler skips the whole chain commitment).
+/// `block.last_committed_mb` (exclusive) and `mb_head` (inclusive) **as
+/// far forward as compute has actually reached**, feed it into the
+/// supplied `batch_filler`, and return the hash of the head MB that
+/// was actually included.
+///
+/// Lenient by design (used by the producer):
+/// - if compute is still catching up to `mb_head`, the included head
+///   slides back to the most recent computed predecessor anchored at
+///   `last_committed_mb`;
+/// - if no computed predecessors exist yet (or the parent chain
+///   doesn't reach `last_committed_mb`), no chain commitment is
+///   added and the function returns `last_committed_mb` unchanged —
+///   the caller's batch is still allowed to ship code/validators/
+///   rewards commitments without a chain piece.
 pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     db: &DB,
     at_block: H256,
     mb_head: H256,
     batch_filler: &mut BatchFiller,
 ) -> Result<H256> {
-    if !db.mb_meta(mb_head).computed {
-        anyhow::bail!("Head MB {mb_head} is not computed, cannot aggregate chain commitment");
-    }
-
     let last_committed_mb = db
         .block_meta(at_block)
         .last_committed_mb
         .unwrap_or(H256::zero());
 
-    let pending = collect_not_committed_mb_predecessors(db, last_committed_mb, mb_head)?;
+    let pending = collect_computed_uncommitted_predecessors(db, last_committed_mb, mb_head);
 
-    // Aggregate transitions across the whole pending range; head advances to
-    // the actual head MB even if intermediate MBs had empty outcomes (we
-    // still want to advance the on-chain pointer past them next commit).
+    if pending.is_empty() {
+        // Nothing computed in the [last_committed_mb..mb_head] range yet
+        // (or the chain doesn't reach `last_committed_mb` locally).
+        // Producer skips chain commitment for this attempt; the
+        // accumulated transitions land in a later batch.
+        return Ok(last_committed_mb);
+    }
+
+    // Aggregate transitions across the computed prefix; head advances to
+    // the last MB we actually included.
     let mut transitions = Vec::new();
     let mut last_included = last_committed_mb;
     for mb_hash in &pending {
@@ -463,6 +542,69 @@ mod tests {
         let err = collect_not_committed_mb_predecessors(&db, H256::zero(), mb2).unwrap_err();
         let msg = format!("{err:#}");
         assert!(msg.contains("not computed"), "got: {msg}");
+    }
+
+    #[test]
+    fn lenient_collect_returns_full_range_when_all_computed() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        let mb2 = write_mb(&db, mb1, 2, vec![]);
+        let mb3 = write_mb(&db, mb2, 3, vec![]);
+
+        let walked = collect_computed_uncommitted_predecessors(&db, H256::zero(), mb3);
+        assert_eq!(walked, vec![mb1, mb2, mb3]);
+
+        let from_mb1 = collect_computed_uncommitted_predecessors(&db, mb1, mb3);
+        assert_eq!(from_mb1, vec![mb2, mb3]);
+    }
+
+    #[test]
+    fn lenient_collect_truncates_at_first_uncomputed() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        let mb2 = write_mb(&db, mb1, 2, vec![]);
+        let mb3 = write_mb(&db, mb2, 3, vec![]);
+        // Compute is lagging: mb2 hasn't finished yet.
+        db.mutate_mb_meta(mb2, |meta| meta.computed = false);
+
+        // Producer asks for the [zero..mb3] range. Only `mb1` is
+        // computed and contiguous from `last_committed_mb`; the
+        // suffix `[mb2, mb3]` is not committable because `mb2` would
+        // create a gap in the on-chain transitions.
+        let walked = collect_computed_uncommitted_predecessors(&db, H256::zero(), mb3);
+        assert_eq!(walked, vec![mb1]);
+    }
+
+    #[test]
+    fn lenient_collect_returns_empty_when_first_successor_uncomputed() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        db.mutate_mb_meta(mb1, |meta| meta.computed = false);
+
+        let walked = collect_computed_uncommitted_predecessors(&db, H256::zero(), mb1);
+        assert!(walked.is_empty());
+    }
+
+    #[test]
+    fn lenient_collect_returns_empty_when_chain_does_not_reach_anchor() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+
+        let bogus = H256::from_low_u64_be(0xDEAD);
+        // Chain walks back from mb1 to genesis (zero) without ever
+        // hitting `bogus` — producer skips chain commitment for this
+        // attempt instead of erroring.
+        let walked = collect_computed_uncommitted_predecessors(&db, bogus, mb1);
+        assert!(walked.is_empty());
+    }
+
+    #[test]
+    fn lenient_collect_returns_empty_when_at_target() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+
+        let walked = collect_computed_uncommitted_predecessors(&db, mb1, mb1);
+        assert!(walked.is_empty());
     }
 
     #[test]

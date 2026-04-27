@@ -46,7 +46,10 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConsensusService, ValidatorService};
-use ethexe_malachite::{InjectedTxMempool, MalachiteConfig, MalachiteService, write_test_genesis};
+use ethexe_malachite::{
+    InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
+    derive_libp2p_secret, malachite_libp2p_peer_id, write_test_genesis,
+};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
     Ethereum, EthereumBuilder,
@@ -89,6 +92,31 @@ use tracing::Instrument;
 /// Max network services which can be created by one test environment.
 const MAX_NETWORK_SERVICES_PER_TEST: usize = 1000;
 
+/// Pre-allocated malachite libp2p endpoint for one validator: the
+/// 127.0.0.1 TCP port the engine will bind to + the deterministic
+/// peer-id derived from the validator secret. Built at `TestEnv::new`
+/// time so each `Node::start_service` can dial peers it hasn't even
+/// constructed yet.
+#[derive(Clone, Debug)]
+pub struct MalachiteEndpoint {
+    pub pub_key: PublicKey,
+    pub listen_addr: SocketAddr,
+    pub peer_id: PeerId,
+}
+
+impl MalachiteEndpoint {
+    pub fn multiaddr(&self) -> MalachiteMultiaddr {
+        format!(
+            "/ip4/{}/tcp/{}/p2p/{}",
+            self.listen_addr.ip(),
+            self.listen_addr.port(),
+            self.peer_id,
+        )
+        .parse()
+        .expect("constructed multiaddr is well-formed")
+    }
+}
+
 pub struct TestEnv {
     pub eth_cfg: EthereumConfig,
     #[allow(unused)]
@@ -104,6 +132,10 @@ pub struct TestEnv {
     pub commitment_delay_limit: u32,
     pub compute_config: ComputeConfig,
     pub db: Database,
+    /// Malachite endpoints aligned with `validators` (same indexing).
+    /// Each node looks up its own endpoint by `pub_key` when booting
+    /// and dials the rest as `persistent_peers`.
+    pub malachite_endpoints: Vec<MalachiteEndpoint>,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -113,6 +145,49 @@ pub struct TestEnv {
     bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
 
     _anvil: Option<AnvilInstance>,
+}
+
+fn build_malachite_endpoints(
+    signer: &Signer,
+    validators: &[ValidatorConfig],
+) -> Vec<MalachiteEndpoint> {
+    use std::net::TcpListener;
+
+    // Bind every listener concurrently before reading any port — that
+    // way the OS hands out distinct ports to all of them.
+    let listeners: Vec<TcpListener> = (0..validators.len())
+        .map(|_| {
+            TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+                .expect("bind 127.0.0.1:0 for malachite endpoint")
+        })
+        .collect();
+    let addrs: Vec<SocketAddr> = listeners
+        .iter()
+        .map(|l| l.local_addr().expect("local_addr"))
+        .collect();
+    drop(listeners);
+
+    validators
+        .iter()
+        .zip(addrs)
+        .map(|(v, listen_addr)| {
+            let secret = signer
+                .private_key(v.public_key)
+                .expect("validator key in keyring")
+                .to_bytes();
+            let peer_id = malachite_libp2p_peer_id(&secret);
+            // `derive_libp2p_secret` is the identical derivation the
+            // engine runs internally; we don't use it here directly,
+            // but pulling it into scope makes the dependency on its
+            // semantic invariant explicit.
+            let _ = derive_libp2p_secret;
+            MalachiteEndpoint {
+                pub_key: v.public_key,
+                listen_addr,
+                peer_id,
+            }
+        })
+        .collect()
 }
 
 impl TestEnv {
@@ -357,6 +432,15 @@ impl TestEnv {
             (handle, bootstrap_address, nonce)
         });
 
+        // Pre-allocate malachite TCP endpoints for the whole
+        // validator set. We bind one TcpListener per validator
+        // simultaneously so the OS picks distinct free ports, then
+        // drop the listeners — `MalachiteService::new` will rebind to
+        // the same ports moments later. There's a tiny race window
+        // there, but it's bounded to this process and tests share
+        // the loopback interface.
+        let malachite_endpoints = build_malachite_endpoints(&signer, &validator_configs);
+
         Ok(TestEnv {
             eth_cfg,
             wallets,
@@ -370,6 +454,7 @@ impl TestEnv {
             continuous_block_generation,
             commitment_delay_limit,
             compute_config,
+            malachite_endpoints,
             router_query,
             observer_events,
             db,
@@ -431,6 +516,7 @@ impl TestEnv {
             fast_sync,
             compute_config: self.compute_config,
             commitment_delay_limit: self.commitment_delay_limit,
+            malachite_endpoints: self.malachite_endpoints.clone(),
             malachite_home: None,
             running_service_handle: None,
         }
@@ -963,6 +1049,11 @@ pub struct Node {
     /// up when the node is dropped.
     malachite_home: Option<tempfile::TempDir>,
 
+    /// Pre-allocated malachite endpoints for *every* validator in the
+    /// test env. The node boots its own at `self.validator_config`'s
+    /// `pub_key` and dials the rest as `persistent_peers`.
+    malachite_endpoints: Vec<MalachiteEndpoint>,
+
     running_service_handle: Option<JoinHandle<()>>,
 }
 
@@ -1044,18 +1135,36 @@ impl Node {
             .as_ref()
             .map(|c| c.public_key.to_address());
 
-        // Single-node Malachite quorum for the test. We boot a real
-        // engine (binding to 127.0.0.1:0 so each test instance gets a
-        // free port) so the MB-driven execution path is exercised end-
-        // to-end. Connect-only nodes (no validator key) keep
-        // `malachite = None` and rely on whichever validator in the
-        // test env is producing MBs.
+        // Boot a real Malachite engine for every validator in the
+        // test env. Genesis lists every validator's pub_key (so each
+        // node sees the full set), and `persistent_peers` covers
+        // every *other* validator's pre-allocated multiaddr. The
+        // engine binds to the matching pre-allocated TCP port. Quorum
+        // is whatever the test env's threshold says.
+        //
+        // Connect-only nodes (no validator key) keep `malachite =
+        // None` and rely on whichever validators are producing MBs.
         let (malachite, malachite_gas_allowance, malachite_home) = if let Some(config) =
             self.validator_config.as_ref()
         {
+            let me = self
+                .malachite_endpoints
+                .iter()
+                .find(|e| e.pub_key == config.public_key)
+                .cloned()
+                .expect("validator's malachite endpoint missing — env not aware of this key");
+            let persistent_peers: Vec<MalachiteMultiaddr> = self
+                .malachite_endpoints
+                .iter()
+                .filter(|e| e.pub_key != config.public_key)
+                .map(|e| e.multiaddr())
+                .collect();
+            let pub_keys: Vec<_> =
+                self.malachite_endpoints.iter().map(|e| e.pub_key).collect();
+
             let home = tempfile::tempdir().expect("malachite home tempdir");
             let genesis_path = home.path().join("genesis.json");
-            write_test_genesis(&genesis_path, &self.signer, &[config.public_key])
+            write_test_genesis(&genesis_path, &self.signer, &pub_keys)
                 .expect("write_test_genesis");
 
             let genesis_block_hash = self
@@ -1067,7 +1176,11 @@ impl Node {
                 genesis_block_hash,
                 home.path().to_path_buf(),
             )
-            .with_listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)));
+            .with_listen_addr(me.listen_addr)
+            .with_persistent_peers(persistent_peers);
+            if let Some(name) = self.name.as_ref() {
+                mc.moniker = name.clone();
+            }
             // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
             mc.canonical_quarantine = self.compute_config.canonical_quarantine();
             let gas_allowance = mc.gas_allowance;

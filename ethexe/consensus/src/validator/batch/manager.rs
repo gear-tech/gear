@@ -87,6 +87,14 @@ impl BatchCommitmentManager {
         // NOTE: we prioritize state transitions over code commitments. So include them firstly.
         let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
         if !latest_finalized_mb.is_zero() {
+            // `try_include_chain_commitment` is lenient on the
+            // producer side: it commits whatever is computed and
+            // contiguous from `last_committed_mb`, and just skips the
+            // chain piece (returning `last_committed_mb` unchanged)
+            // when compute hasn't caught up. So the only `?` paths
+            // here are genuine DB invariant violations (e.g. a
+            // computed MB with no `mb_outcome`), which should bubble
+            // up.
             super::utils::try_include_chain_commitment(
                 &self.db,
                 block.hash,

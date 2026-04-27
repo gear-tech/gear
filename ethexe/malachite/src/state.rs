@@ -104,6 +104,28 @@ pub struct State {
     pub current_height: Height,
     pub current_round: Round,
     pub current_proposer: Option<Address>,
+
+    /// Per-MB outbound events held back until the MB is `synced` —
+    /// i.e. has a complete `parent_mb_hash` chain back to the genesis
+    /// MB. The malachite app fans events into this buffer instead of
+    /// straight onto the outer event channel; the buffer is drained as
+    /// each MB along the chain is settled.
+    pub pending_events: HashMap<H256, PendingMbEvents>,
+
+    /// Reverse lookup: for each parent MB hash, the children that are
+    /// waiting on it to become `synced` before they themselves can be
+    /// settled. Populated together with [`Self::pending_events`].
+    pub pending_by_parent: HashMap<H256, Vec<H256>>,
+}
+
+/// Events buffered for an MB that has been recorded in the database
+/// but is not yet `synced` (i.e. some ancestor is still missing). At
+/// most one of each event kind per MB — duplicate emits collapse into
+/// the existing slot.
+#[derive(Default)]
+pub struct PendingMbEvents {
+    pub proposal: Option<crate::MalachiteEvent>,
+    pub finalized: Option<crate::MalachiteEvent>,
 }
 
 impl State {
@@ -134,6 +156,8 @@ impl State {
             latest_received_head: None,
             canonical_quarantine,
             latest_finalized_mb_hash,
+            pending_events: HashMap::new(),
+            pending_by_parent: HashMap::new(),
         }
     }
 
@@ -265,7 +289,14 @@ impl State {
             self.canonical_quarantine,
             self.start_block_hash(),
         )
-        .map_err(|e| anyhow!("AdvanceTillEthereumBlock {advance} rejected: {e}"))
+        .map_err(|e| {
+            anyhow!(
+                "AdvanceTillEthereumBlock {advance} rejected (local head {head_hash} h={head_h}, start {start}): {e}",
+                head_hash = head.hash,
+                head_h = head.header.height,
+                start = self.start_block_hash(),
+            )
+        })
     }
 
     /// Handle an incoming proposal part; returns a `ProposedValue`

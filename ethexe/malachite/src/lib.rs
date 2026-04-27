@@ -286,7 +286,7 @@ pub struct MalachiteConfig {
 }
 
 impl MalachiteConfig {
-    pub const DEFAULT_GAS_ALLOWANCE: u64 = 1_000_000_000;
+    pub const DEFAULT_GAS_ALLOWANCE: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
     /// Default matches [`ethexe_common::gear::CANONICAL_QUARANTINE`].
     pub const DEFAULT_CANONICAL_QUARANTINE: u8 =
         ethexe_common::gear::CANONICAL_QUARANTINE;
@@ -537,6 +537,17 @@ pub struct MalachiteService {
     engine: EngineHandle,
     #[allow(dead_code)]
     app_handle: JoinHandle<()>,
+}
+
+impl Drop for MalachiteService {
+    fn drop(&mut self) {
+        // Kill the engine actor first so its libp2p / consensus children
+        // shut down cleanly; without this the spawned ractor tree keeps
+        // running even after the JoinHandle is aborted.
+        self.engine.actor.kill();
+        self.app_handle.abort();
+        self.engine.handle.abort();
+    }
 }
 
 impl MalachiteService {

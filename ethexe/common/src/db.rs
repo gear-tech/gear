@@ -149,9 +149,22 @@ pub struct AnnounceMeta {
 /// treated as a descendant of zero). The producer reads this field
 /// off the parent MB to decide whether the next quarantine-passed
 /// block is a genuine *new* advance or a re-pin of the same block.
+///
+/// `synced` is the chain-completeness flag. It is `true` only when
+/// both this MB **and every one of its ancestors back to the genesis
+/// MB** have been recorded in the database. The malachite service
+/// holds back `BlockProposal` / `BlockFinalized` events until an MB
+/// can be marked `synced`, mirroring the contract that observer's
+/// `synced` and compute's `computed` flags provide for their layers.
+/// Without it, downstream consumers (compute, batch commitment) could
+/// see an MB whose `parent_mb_hash` chain has gaps — typically when
+/// value sync delivers a hole-filling MB out of order or when the
+/// node restarts with a fresh malachite store but a populated ethexe
+/// DB.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
+    pub synced: bool,
     pub height: u64,
     pub parent_mb_hash: Option<H256>,
     pub last_advanced_block: H256,
@@ -308,7 +321,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "5fef09d0377527b6ca4148fd1620f235502c2d4d9d979147a00f0a5b5584340d";
+            "bb2991db0cb7585f19ea94ed1ac760967ac33b1e38ed673e313fc28e6c8b7cad";
 
         let types = [
             meta_type::<BlockMeta>(),

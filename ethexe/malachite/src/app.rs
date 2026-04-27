@@ -21,7 +21,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
-use ethexe_common::{SimpleBlockData, injected::SignedInjectedTransaction};
+use ethexe_common::{
+    SimpleBlockData,
+    db::{GlobalsStorageRW, MbStorageRO, MbStorageRW},
+    injected::SignedInjectedTransaction,
+    mb::SequencerBlock,
+};
+use ethexe_db::Database;
 use gprimitives::H256;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
@@ -37,7 +43,7 @@ use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
 
 use crate::context::{EthexeContext, Height};
 use crate::state::{State, decode_value, encode_value};
-use crate::{CommitCertificate, MalachiteEvent, Mempool};
+use crate::{CommitCertificate, MalachiteEvent, Mempool, Transaction};
 
 /// Run the channel-app event loop. Terminates when either the consensus
 /// channel is closed (engine shut down) or `event_tx` is dropped (outer
@@ -127,14 +133,21 @@ async fn handle_app_msg(
             state.current_round = round;
             state.current_proposer = Some(proposer);
 
-            // Promote any pending parts for this (height, round) to undecided
+            // Promote any pending parts for this (height, round) to undecided.
+            // Buffered streams that completed while we were still on
+            // an earlier height also haven't surfaced as
+            // `BlockProposal` events yet — submit them here so the
+            // executor sees the MB before consensus eventually
+            // finalizes it.
             let pending_parts = state.store.get_pending_proposal_parts(height, round).await?;
             for parts in &pending_parts {
                 state.store.remove_pending_proposal_parts(parts.clone()).await?;
                 match state.validate_proposal_parts(parts) {
                     Ok(()) => {
                         let value = State::assemble_value_from_parts(parts.clone())?;
+                        let block = value.value.block.clone();
                         state.store.store_undecided_proposal(value).await?;
+                        submit_proposal(state, height.as_u64(), block, event_tx);
                     }
                     Err(e) => {
                         error!(?e, "Rejecting invalid pending proposal");
@@ -237,13 +250,13 @@ async fn handle_app_msg(
                     let block =
                         crate::SequencerBlock::new(state.latest_finalized_mb_hash, transactions);
 
-                    // Only emit the BlockProposal once we've actually
-                    // built a fresh proposal — the cached-reuse
-                    // branch above doesn't create new content.
-                    let _ = event_tx.send(Ok(crate::MalachiteEvent::BlockProposal {
-                        height: height.as_u64(),
-                        block: block.clone(),
-                    }));
+                    // Persist the MB and either emit a BlockProposal
+                    // immediately (if the chain back to genesis is
+                    // intact) or buffer it until the missing
+                    // ancestors arrive. The cached-reuse branch above
+                    // does not create new content, so it doesn't need
+                    // to re-submit.
+                    submit_proposal(state, height.as_u64(), block.clone(), event_tx);
 
                     state.propose_value(height, round, block).await?
                 }
@@ -284,12 +297,10 @@ async fn handle_app_msg(
             let proposed_value = state.received_proposal_part(from, part).await?;
 
             // If the stream assembled into a complete value and validated
-            // OK, announce it outward as well.
+            // OK, persist it and submit the proposal — `submit_proposal`
+            // handles emit-now vs buffer-until-synced internally.
             if let Some(ref pv) = proposed_value {
-                let _ = event_tx.send(Ok(crate::MalachiteEvent::BlockProposal {
-                    height: pv.height.as_u64(),
-                    block: pv.value.block.clone(),
-                }));
+                submit_proposal(state, pv.height.as_u64(), pv.value.block.clone(), event_tx);
             }
 
             if reply.send(proposed_value).is_err() {
@@ -356,10 +367,10 @@ async fn handle_app_msg(
                         .collect();
                     mempool.forget(&injected).await;
 
-                    let _ = event_tx.send(Ok(MalachiteEvent::BlockFinalized {
-                        cert: out_cert,
-                        block: committed_block,
-                    }));
+                    // Submit the finalization — advances the
+                    // canonical pointer and emits a `BlockFinalized`
+                    // either now or after the MB is fully synced.
+                    submit_finalized(state, out_cert, committed_block, event_tx);
 
                     if reply
                         .send(Next::Start(
@@ -414,6 +425,15 @@ async fn handle_app_msg(
                     validity: Validity::Valid,
                 };
                 state.store.store_undecided_proposal(proposed.clone()).await?;
+
+                // Sync delivers a value that bypassed both `GetValue`
+                // (we are not the proposer) and `ReceivedProposalPart`
+                // (we missed the gossip stream while lagging). Submit
+                // the proposal so the executor and batch commitment
+                // see it the moment its `parent_mb_hash` chain back
+                // to genesis is complete in our DB.
+                submit_proposal(state, height.as_u64(), proposed.value.block.clone(), event_tx);
+
                 if reply.send(Some(proposed)).is_err() {
                     error!("Failed to send ProcessSyncedValue reply");
                 }
@@ -481,6 +501,203 @@ async fn handle_app_msg(
 
 fn value_id_to_h256(id: crate::context::ValueId) -> gprimitives::H256 {
     id.0
+}
+
+/// Persist a sequencer block plus its derived metadata into the
+/// shared ethexe DB.
+///
+/// `last_advanced_block` is propagated forward: the latest
+/// `AdvanceTillEthereumBlock` in this MB's transactions wins;
+/// otherwise we inherit the parent's value (or `H256::zero()` for
+/// the genesis MB whose parent is zero).
+///
+/// Does **not** flip `mb_meta.synced` — that's owned by
+/// [`try_settle_chain`] which only flips it once the entire
+/// `parent_mb_hash` chain back to the genesis MB has been recorded.
+fn record_mb_in_db(db: &Database, height: u64, block: &SequencerBlock) {
+    let mb_hash = block.hash();
+
+    let parent_last_advanced = if block.parent.is_zero() {
+        H256::zero()
+    } else {
+        db.mb_meta(block.parent).last_advanced_block
+    };
+    let last_advanced = block
+        .transactions
+        .iter()
+        .rev()
+        .find_map(|tx| match tx {
+            Transaction::AdvanceTillEthereumBlock { eth_block_hash } => Some(*eth_block_hash),
+            _ => None,
+        })
+        .unwrap_or(parent_last_advanced);
+
+    db.set_mb_block(mb_hash, block.clone());
+    let parent_for_meta = (!block.parent.is_zero()).then_some(block.parent);
+    db.mutate_mb_meta(mb_hash, |meta| {
+        meta.height = height;
+        meta.parent_mb_hash = parent_for_meta;
+        meta.last_advanced_block = last_advanced;
+    });
+}
+
+/// Record an MB and queue a `BlockProposal` for it; emit it now if
+/// the chain back to genesis is intact, or buffer until the missing
+/// ancestors arrive.
+///
+/// Called from every path that surfaces a fresh `SequencerBlock` to
+/// the app: proposer (`GetValue`), peer stream completion
+/// (`ReceivedProposalPart`), buffered stream promotion (`StartedRound`),
+/// and value sync (`ProcessSyncedValue`). All routes share this
+/// helper so the synced-flag invariant holds regardless of how the
+/// MB landed in our DB.
+fn submit_proposal(
+    state: &mut State,
+    height: u64,
+    block: SequencerBlock,
+    event_tx: &mpsc::UnboundedSender<Result<MalachiteEvent>>,
+) {
+    let mb_hash = block.hash();
+    record_mb_in_db(&state.db, height, &block);
+
+    let event = MalachiteEvent::BlockProposal {
+        height,
+        block,
+    };
+
+    if state.db.mb_meta(mb_hash).synced {
+        // We already settled this MB on a previous call; the same
+        // hash coming back through a different path (e.g. proposer
+        // self-feed + peer stream + sync re-delivery) just re-emits.
+        let _ = event_tx.send(Ok(event));
+        return;
+    }
+
+    // Buffer the event and register it on the parent's wait list if
+    // the parent is still missing — `try_settle_chain` flips the
+    // synced flag and drains the buffer once the chain is complete.
+    let pending = state.pending_events.entry(mb_hash).or_default();
+    pending.proposal = Some(event);
+
+    let parent = state.db.mb_meta(mb_hash).parent_mb_hash;
+    if let Some(parent) = parent
+        && !state.db.mb_meta(parent).synced
+    {
+        let waiting = state.pending_by_parent.entry(parent).or_default();
+        if !waiting.contains(&mb_hash) {
+            waiting.push(mb_hash);
+        }
+    }
+
+    try_settle_chain(state, mb_hash, event_tx);
+}
+
+/// Queue a `BlockFinalized` for an MB; emit it now if the MB has
+/// been settled (or we can settle it on the spot), or buffer it
+/// until that happens.
+///
+/// Finalization advances [`DBGlobals::latest_finalized_mb_hash`]
+/// **before** any potential buffering — the canonical pointer
+/// represents what BFT has agreed on, not what our local executor has
+/// caught up to. The ordering still ensures every consumer that
+/// observes `BlockFinalized` for a hash sees the matching DB state
+/// for that MB (because the event only reaches them once `synced`).
+fn submit_finalized(
+    state: &mut State,
+    cert: CommitCertificate,
+    block: SequencerBlock,
+    event_tx: &mpsc::UnboundedSender<Result<MalachiteEvent>>,
+) {
+    let mb_hash = block.hash();
+
+    state
+        .db
+        .globals_mutate(|g| g.latest_finalized_mb_hash = mb_hash);
+
+    let event = MalachiteEvent::BlockFinalized {
+        cert,
+        block,
+    };
+
+    if state.db.mb_meta(mb_hash).synced {
+        let _ = event_tx.send(Ok(event));
+        return;
+    }
+
+    state
+        .pending_events
+        .entry(mb_hash)
+        .or_default()
+        .finalized = Some(event);
+
+    try_settle_chain(state, mb_hash, event_tx);
+}
+
+/// Mark `mb_hash` synced if its parent is synced (or it's the genesis
+/// MB), then cascade: flush its buffered events and recurse into any
+/// children that were waiting on this MB.
+///
+/// No-op when:
+/// - the MB is already synced (we still drain any leftover buffered
+///   events — defensive, normally already drained);
+/// - the parent isn't synced yet (the MB stays buffered and will be
+///   retried when the parent is settled).
+fn try_settle_chain(
+    state: &mut State,
+    mb_hash: H256,
+    event_tx: &mpsc::UnboundedSender<Result<MalachiteEvent>>,
+) {
+    let mut stack = vec![mb_hash];
+    while let Some(current) = stack.pop() {
+        let meta = state.db.mb_meta(current);
+        if meta.synced {
+            // Defensive drain — should already be empty.
+            if let Some(pending) = state.pending_events.remove(&current) {
+                if let Some(ev) = pending.proposal {
+                    let _ = event_tx.send(Ok(ev));
+                }
+                if let Some(ev) = pending.finalized {
+                    let _ = event_tx.send(Ok(ev));
+                }
+            }
+            // Children that registered as waiting on this MB still
+            // need to be tried now that we know it's synced.
+            if let Some(children) = state.pending_by_parent.remove(&current) {
+                stack.extend(children);
+            }
+            continue;
+        }
+
+        let parent_synced = match meta.parent_mb_hash {
+            None => true,
+            Some(parent) => state.db.mb_meta(parent).synced,
+        };
+        if !parent_synced {
+            // Parent still missing; keep this MB buffered.
+            continue;
+        }
+
+        // Chain is intact up to (and including) this MB. Mark it
+        // synced and flush any buffered events.
+        state.db.mutate_mb_meta(current, |meta| {
+            meta.synced = true;
+        });
+
+        if let Some(pending) = state.pending_events.remove(&current) {
+            if let Some(ev) = pending.proposal {
+                let _ = event_tx.send(Ok(ev));
+            }
+            if let Some(ev) = pending.finalized {
+                let _ = event_tx.send(Ok(ev));
+            }
+        }
+
+        // Cascade: any child waiting on `current` may now be
+        // settleable.
+        if let Some(children) = state.pending_by_parent.remove(&current) {
+            stack.extend(children);
+        }
+    }
 }
 
 /// Block the proposer until there is *something* worth putting into

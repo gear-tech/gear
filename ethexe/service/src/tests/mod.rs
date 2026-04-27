@@ -27,9 +27,12 @@
 //! event channel.
 pub(crate) mod utils;
 
-use crate::tests::utils::{NodeConfig, TestEnv, init_logger};
+use crate::tests::utils::{
+    EnvNetworkConfig, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig, init_logger,
+};
 use ethexe_common::db::CodesStorageRO;
 use gear_core::message::{ReplyCode, SuccessReplyReason};
+use parity_scale_codec::Encode;
 
 #[tokio::test]
 #[ntest::timeout(60_000)]
@@ -110,6 +113,212 @@ async fn ping() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.payload, b"");
     assert_eq!(res.value, 0);
+}
+
+/// Minimal multi-validator smoke: 3 validators, single ping round-trip.
+/// Used to isolate basic 3-of-3 quorum mechanics from the rest of the
+/// `multiple_validators` test which exercises async programs.
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn multiple_validators_ping() {
+    init_logger();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(3),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
+            .await;
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let ping_code_id = res.code_id;
+
+    let res = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = res.program_id;
+
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+}
+
+/// Multi-validator end-to-end smoke. Boots four validators, runs
+/// upload+create+message round-trips against `demo-ping` and
+/// `demo-async`, then exercises liveness while validators are
+/// stopped/restarted to check the BFT quorum bookkeeping.
+///
+/// Tendermint quorum is strictly > 2/3 of voting power, so with
+/// N=3 even one failure halts BFT. We use N=4 (quorum = 3) so the
+/// "stop one validator and keep going" half of the test remains
+/// meaningful, while "stop two" still falls below quorum.
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn multiple_validators() {
+    init_logger();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(4),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    assert_eq!(
+        env.validators.len(),
+        4,
+        "Currently only 4 validators are supported for this test"
+    );
+    assert!(
+        !env.continuous_block_generation,
+        "Currently continuous block generation is not supported for this test"
+    );
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
+            .await;
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let ping_code_id = res.code_id;
+
+    let res = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, ping_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let ping_id = res.program_id;
+
+    let res = env
+        .upload_code(demo_async::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let async_code_id = res.code_id;
+
+    let res = env
+        .create_program(async_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, ping_id.encode().as_slice())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, async_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let async_id = res.program_id;
+
+    let res = env
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.program_id, async_id);
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
+    assert_eq!(res.value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+
+    log::info!("📗 Stop validator 0 and check that ethexe is still working with 2/3 quorum");
+    validators[0].stop_service().await;
+
+    let res = env
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
+
+    log::info!("📗 Stop validator 1 and check that ethexe is not working below threshold");
+    validators[1].stop_service().await;
+
+    let wait_for_reply_to = env
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
+        .await
+        .unwrap();
+
+    tokio::time::timeout(
+        env.eth_cfg.block_time * 5,
+        wait_for_reply_to.clone().wait_for(),
+    )
+    .await
+    .expect_err("Timeout expected — only 1/3 validators alive");
+
+    log::info!("📗 Re-start validator 0; with 2/3 alive ethexe should make progress again");
+    validators[0].start_service().await;
+
+    let res = wait_for_reply_to.wait_for().await.unwrap();
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
 }
 
 #[cfg(any())]
