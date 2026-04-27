@@ -27,6 +27,11 @@ auto_impl.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
 gear-workspace-hack.workspace = true
 delegate.workspace = true
+proptest = { workspace = true, optional = true }
+
+[dev-dependencies]
+ethexe-common = { workspace = true, features = ["mock"] }
+proptest.workspace = true
 
 [features]
 default = ["std"]
@@ -39,4 +44,4 @@ std = [
     "serde/std",
     "ethexe-common/std",
 ]
-mock = ["std"]
+mock = ["std", "dep:proptest", "ethexe-common/mock"]

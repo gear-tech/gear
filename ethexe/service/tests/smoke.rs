@@ -18,10 +18,12 @@
 
 use ethexe_common::consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD};
 use ethexe_ethereum::Ethereum;
-use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
-use ethexe_service::{Service, config, config::Config};
+use ethexe_service::{
+    Service,
+    config::{self, Config, EthereumConfig},
+};
 use gsigner::secp256k1::Signer;
 use std::{
     net::{Ipv4Addr, SocketAddr},
@@ -57,6 +59,7 @@ async fn constructor() {
         fast_sync: false,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
         batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
+        genesis_state_dump: None,
     };
 
     let eth_cfg = EthereumConfig {

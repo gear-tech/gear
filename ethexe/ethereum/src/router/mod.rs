@@ -117,6 +117,16 @@ impl Router {
         Ok(receipt)
     }
 
+    pub async fn reinitialize(&self) -> Result<TransactionReceipt> {
+        let builder = self.instance.reinitialize();
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
+    }
+
     pub async fn lookup_genesis_hash(&self) -> Result<H256> {
         self.lookup_genesis_hash_with_receipt()
             .await
@@ -359,9 +369,12 @@ impl Router {
                 } else {
                     format!("{err}")
                 };
-                return Err(anyhow!(
+                log::error!(
                     "Failed to estimate gas for batch commitment: (error: {error}, block info: {latest_block}, calldata: 0x{}, batch commitment: {commitment:?})",
-                    hex::encode(calldata),
+                    hex::encode(calldata)
+                );
+                return Err(anyhow!(
+                    "Failed to estimate gas for batch commitment: {error}"
                 ));
             }
         };
@@ -529,7 +542,7 @@ impl RouterQuery {
             .signingThresholdFraction()
             .call()
             .await
-            .map(|res| (res._0, res._1))
+            .map(|res| (res.thresholdNumerator, res.thresholdDenominator))
             .map_err(Into::into)
     }
 

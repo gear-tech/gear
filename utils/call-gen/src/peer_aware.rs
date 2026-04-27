@@ -22,8 +22,8 @@ use crate::{
 use gear_core::ids::{ActorId, CodeId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    ActorKind, PtrParamAllowedValues, RandomizedGearWasmConfigBundle, RegularParamType,
-    SyscallsParamsConfig,
+    ActorKind, InvocableSyscall, PtrParamAllowedValues, RandomizedGearWasmConfigBundle,
+    RegularParamType, SyscallName, SyscallsParamsConfig,
 };
 use std::ops::RangeInclusive;
 
@@ -34,6 +34,7 @@ pub struct PeerAwareGenerationContext {
     pub programs: Option<NonEmpty<ActorId>>,
     pub codes: Option<NonEmpty<CodeId>>,
     pub log_info: Option<String>,
+    pub suppress_exit: bool,
 }
 
 pub fn generate_upload_program_args_peer_aware<Rng: CallGenRng>(
@@ -109,7 +110,18 @@ fn peer_aware_config(
         });
     }
 
-    RandomizedGearWasmConfigBundle::new_arbitrary(unstructured, ctx.log_info, params_config)
+    let mut config =
+        RandomizedGearWasmConfigBundle::new_arbitrary(unstructured, ctx.log_info, params_config);
+
+    if ctx.suppress_exit {
+        config.standard_gear_wasm_config_bundle.injection_types.set(
+            InvocableSyscall::Loose(SyscallName::Exit),
+            0,
+            0,
+        );
+    }
+
+    config
 }
 
 #[cfg(test)]
@@ -152,6 +164,7 @@ mod tests {
             programs: Some(NonEmpty::new(actor(1))),
             codes: Some(NonEmpty::new(code(2))),
             log_info: Some("fixed-peers".into()),
+            suppress_exit: false,
         };
 
         let first = generate_upload_program_args_peer_aware::<SmallRng>(7, 9, 10, ctx.clone());
@@ -180,6 +193,7 @@ mod tests {
             programs: Some(NonEmpty::new(actor(9))),
             codes: Some(NonEmpty::new(code(10))),
             log_info: Some("with-peers".into()),
+            suppress_exit: false,
         };
 
         let program = generate_upload_program_args_peer_aware::<SmallRng>(11, 12, 13, ctx.clone());
