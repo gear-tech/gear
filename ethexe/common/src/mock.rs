@@ -18,25 +18,30 @@
 
 use crate::{
     Address, Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    PromisePolicy, ProtocolTimelines, Rfm, Schedule, ScheduledTask, Sd, SimpleBlockData,
+    StateHashWithQueueSize, Sum, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
+    gear::{
+        BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
+    },
     injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     limited::LimitedVec,
+    tasks::ScheduledTask as CoreScheduledTask,
 };
-use gprimitives::{ActorId, CodeId, H256, MessageId};
+use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 use itertools::Itertools;
 use proptest::{
     arbitrary::Arbitrary,
     collection,
     prelude::{BoxedStrategy, Strategy, any},
+    prop_oneof,
     strategy::{Just, ValueTree},
     test_runner::TestRunner,
 };
@@ -199,6 +204,10 @@ fn message_id_strategy() -> BoxedStrategy<MessageId> {
     h256_strategy().prop_map(Into::into).boxed()
 }
 
+fn reservation_id_strategy() -> BoxedStrategy<ReservationId> {
+    any::<[u8; 32]>().prop_map(Into::into).boxed()
+}
+
 fn hash_of_strategy<T: 'static>() -> BoxedStrategy<HashOf<T>> {
     h256_strategy()
         .prop_map(|hash| unsafe { HashOf::new(hash) })
@@ -221,6 +230,52 @@ fn limited_bytes_strategy<const N: usize>(
             LimitedVec::try_from(bytes).expect("strategy range must fit within LimitedVec bound")
         })
         .boxed()
+}
+
+pub fn scheduled_task_strategy() -> BoxedStrategy<ScheduledTask> {
+    prop_oneof![
+        (
+            actor_id_strategy(),
+            actor_id_strategy(),
+            message_id_strategy()
+        )
+            .prop_map(|(program_id, user_id, message_id)| {
+                CoreScheduledTask::<Rfm, Sd, Sum>::RemoveFromMailbox(
+                    (program_id, user_id),
+                    message_id,
+                )
+            }),
+        (actor_id_strategy(), message_id_strategy()).prop_map(|(program_id, message_id)| {
+            CoreScheduledTask::<Rfm, Sd, Sum>::RemoveFromWaitlist(program_id, message_id)
+        }),
+        (actor_id_strategy(), message_id_strategy()).prop_map(|(program_id, message_id)| {
+            CoreScheduledTask::<Rfm, Sd, Sum>::WakeMessage(program_id, message_id)
+        }),
+        (actor_id_strategy(), message_id_strategy()).prop_map(|(program_id, message_id)| {
+            CoreScheduledTask::<Rfm, Sd, Sum>::SendDispatch((program_id, message_id))
+        }),
+        (message_id_strategy(), actor_id_strategy()).prop_map(|(message_id, to_mailbox)| {
+            CoreScheduledTask::<Rfm, Sd, Sum>::SendUserMessage {
+                message_id,
+                to_mailbox,
+            }
+        }),
+        (actor_id_strategy(), reservation_id_strategy()).prop_map(
+            |(program_id, reservation_id)| {
+                CoreScheduledTask::<Rfm, Sd, Sum>::RemoveGasReservation(program_id, reservation_id)
+            }
+        ),
+    ]
+    .boxed()
+}
+
+pub fn schedule_strategy() -> BoxedStrategy<Schedule> {
+    collection::btree_map(
+        any::<u32>(),
+        collection::btree_set(scheduled_task_strategy(), 0..=4),
+        0..=4,
+    )
+    .boxed()
 }
 
 impl Arbitrary for SimpleBlockData {
@@ -266,6 +321,39 @@ impl Arbitrary for ProtocolTimelines {
             slot: 10.try_into().unwrap(),
         })
         .boxed()
+    }
+}
+
+impl Arbitrary for MessageType {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        prop_oneof![Just(Self::Canonical), Just(Self::Injected)].boxed()
+    }
+}
+
+impl Arbitrary for PromisePolicy {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        prop_oneof![Just(Self::Disabled), Just(Self::Enabled)].boxed()
+    }
+}
+
+impl Arbitrary for StateHashWithQueueSize {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (h256_strategy(), any::<u8>(), any::<u8>())
+            .prop_map(|(hash, canonical_queue_size, injected_queue_size)| Self {
+                hash,
+                canonical_queue_size,
+                injected_queue_size,
+            })
+            .boxed()
     }
 }
 

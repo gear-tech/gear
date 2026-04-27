@@ -5522,6 +5522,7 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
+ "proptest",
  "serde",
 ]
 
