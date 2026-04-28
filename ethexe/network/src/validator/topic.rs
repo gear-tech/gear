@@ -329,7 +329,7 @@ mod tests {
     use crate::utils::tests::arb_value;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        Announce,
+        Announce, HashOf,
         ecdsa::SignedData,
         gear_core::{message::ReplyCode, rpc::ReplyInfo},
         injected::Promise,
@@ -393,18 +393,74 @@ mod tests {
         signer.signed_message(pub_key, promise, None).unwrap()
     }
 
-    fn private_key_strategy() -> impl Strategy<Value = PrivateKey> {
-        any::<[u8; 32]>().prop_filter_map("valid secp256k1 private key", |seed| {
-            PrivateKey::from_seed(seed).ok()
-        })
+    fn test_announce() -> Announce {
+        Announce {
+            block_hash: Default::default(),
+            parent: HashOf::zero(),
+            gas_allowance: Some(100),
+            injected_transactions: Vec::new(),
+        }
     }
 
-    fn distinct_private_keys() -> impl Strategy<Value = (PrivateKey, PrivateKey)> {
-        (private_key_strategy(), private_key_strategy()).prop_filter(
-            "distinct validator addresses",
-            |(message_key, next_key)| {
-                message_key.public_key().to_address() != next_key.public_key().to_address()
-            },
+    #[derive(Debug, Clone, Copy)]
+    enum EraRelation {
+        TooOld(u64),
+        Old,
+        Current,
+        Next,
+        TooNew(u64),
+    }
+
+    impl EraRelation {
+        fn message_era(self, snapshot_era: u64) -> u64 {
+            match self {
+                Self::TooOld(delta) => snapshot_era - delta,
+                Self::Old => snapshot_era - 1,
+                Self::Current => snapshot_era,
+                Self::Next => snapshot_era + 1,
+                Self::TooNew(delta) => snapshot_era + delta,
+            }
+        }
+
+        fn expected_verification(self, snapshot_era: u64) -> Result<(), VerifyMessageError> {
+            let message_era = self.message_era(snapshot_era);
+
+            match self {
+                Self::TooOld(_) => Err(VerifyMessageRejectReason::TooOldEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+                Self::Old => Err(VerifyMessageIgnoreReason::OldEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+                Self::Current => Ok(()),
+                Self::Next => Err(VerifyMessageCacheReason::NewEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+                Self::TooNew(_) => Err(VerifyMessageRejectReason::TooNewEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+            }
+        }
+    }
+
+    fn era_relation_strategy() -> impl Strategy<Value = (u64, EraRelation)> {
+        (
+            128u64..(u64::MAX - 128),
+            prop_oneof![
+                (2u64..128).prop_map(EraRelation::TooOld).boxed(),
+                Just(EraRelation::Old).boxed(),
+                Just(EraRelation::Current).boxed(),
+                Just(EraRelation::Next).boxed(),
+                (2u64..128).prop_map(EraRelation::TooNew).boxed(),
+            ],
         )
     }
 
@@ -412,111 +468,25 @@ mod tests {
         #![proptest_config(ProptestConfig::with_cases(64))]
 
         #[test]
-        fn proptest_current_era_messages_from_current_validators_are_accepted(
-            private_key in private_key_strategy(),
-            payload in any::<Announce>(),
+        fn proptest_message_era_is_checked_against_snapshot_era(
+            (snapshot_era, relation) in era_relation_strategy(),
         ) {
-            let message = validator_message_from_private_key(private_key, CHAIN_HEAD_ERA, payload);
-            let expected = message.clone();
-            let mut alice = new_topic(nonempty![expected.address()]);
-
-            let (acceptance, verified_msg) =
-                alice.verify_validator_message(PeerId::random(), message);
-
-            prop_assert!(matches!(acceptance, MessageAcceptance::Accept));
-            prop_assert_eq!(verified_msg, Some(expected));
-            prop_assert_eq!(alice.cached_messages.len(), 0);
-            prop_assert_eq!(alice.next_message(), None);
-        }
-
-        #[test]
-        fn proptest_next_era_messages_from_next_validators_are_cached_and_released_once(
-            private_key in private_key_strategy(),
-            payload in any::<Announce>(),
-        ) {
+            let private_key = PrivateKey::from_seed([1; 32]).expect("seed is valid");
+            let message_era = relation.message_era(snapshot_era);
             let message =
-                validator_message_from_private_key(private_key, CHAIN_HEAD_ERA + 1, payload);
-            let expected = message.clone();
+                validator_message_from_private_key(private_key, message_era, test_announce());
+            let validator = message.address();
             let snapshot = ValidatorListSnapshot {
-                current_era_index: CHAIN_HEAD_ERA,
-                current_validators: nonempty![Address::default()].into(),
-                next_validators: Some(nonempty![expected.address()].into()),
+                current_era_index: snapshot_era,
+                current_validators: nonempty![validator].into(),
+                next_validators: Some(nonempty![validator].into()),
             };
-            let mut alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
+            let alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
 
-            let (acceptance, verified_msg) =
-                alice.verify_validator_message(PeerId::random(), message);
-
-            prop_assert!(matches!(acceptance, MessageAcceptance::Ignore));
-            prop_assert_eq!(verified_msg, None);
-            prop_assert_eq!(alice.cached_messages.len(), 1);
-
-            alice.on_new_snapshot(new_snapshot(CHAIN_HEAD_ERA + 1, nonempty![expected.address()]));
-
-            prop_assert_eq!(alice.cached_messages.len(), 0);
-            prop_assert_eq!(alice.next_message(), Some(expected));
-            prop_assert_eq!(alice.next_message(), None);
-        }
-
-        #[test]
-        fn proptest_too_old_messages_are_rejected(
-            private_key in private_key_strategy(),
-            payload in any::<Announce>(),
-            era_index in 0u64..(CHAIN_HEAD_ERA - 1),
-        ) {
-            let message = validator_message_from_private_key(private_key, era_index, payload);
-            let mut alice = new_topic(nonempty![message.address()]);
-
-            let (acceptance, verified_msg) =
-                alice.verify_validator_message(PeerId::random(), message);
-
-            prop_assert!(matches!(acceptance, MessageAcceptance::Reject));
-            prop_assert_eq!(verified_msg, None);
-            prop_assert_eq!(alice.cached_messages.len(), 0);
-            prop_assert_eq!(alice.next_message(), None);
-        }
-
-        #[test]
-        fn proptest_too_new_messages_are_rejected(
-            private_key in private_key_strategy(),
-            payload in any::<Announce>(),
-            era_index in (CHAIN_HEAD_ERA + 2)..(CHAIN_HEAD_ERA + 102),
-        ) {
-            let message = validator_message_from_private_key(private_key, era_index, payload);
-            let mut alice = new_topic(nonempty![message.address()]);
-
-            let (acceptance, verified_msg) =
-                alice.verify_validator_message(PeerId::random(), message);
-
-            prop_assert!(matches!(acceptance, MessageAcceptance::Reject));
-            prop_assert_eq!(verified_msg, None);
-            prop_assert_eq!(alice.cached_messages.len(), 0);
-            prop_assert_eq!(alice.next_message(), None);
-        }
-
-        #[test]
-        fn proptest_next_era_messages_from_non_next_validators_are_rejected(
-            keys in distinct_private_keys(),
-            payload in any::<Announce>(),
-        ) {
-            let (message_key, next_key) = keys;
-            let message =
-                validator_message_from_private_key(message_key, CHAIN_HEAD_ERA + 1, payload);
-            let next_address = next_key.public_key().to_address();
-            let snapshot = ValidatorListSnapshot {
-                current_era_index: CHAIN_HEAD_ERA,
-                current_validators: nonempty![next_address].into(),
-                next_validators: Some(nonempty![next_address].into()),
-            };
-            let mut alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
-
-            let (acceptance, verified_msg) =
-                alice.verify_validator_message(PeerId::random(), message);
-
-            prop_assert!(matches!(acceptance, MessageAcceptance::Reject));
-            prop_assert_eq!(verified_msg, None);
-            prop_assert_eq!(alice.cached_messages.len(), 0);
-            prop_assert_eq!(alice.next_message(), None);
+            prop_assert_eq!(
+                alice.inner_verify_validator_message(&message),
+                relation.expected_verification(snapshot_era)
+            );
         }
     }
 
