@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
@@ -388,6 +388,16 @@ library Gear {
          * @dev The maximum number of validators for era.
          */
         uint16 maxValidators;
+        /**
+         * @dev The base fee of `Router.requestCodeValidation(...)` method.
+         *      This base fee is paid in WVARA ERC20 token.
+         */
+        uint256 requestCodeValidationBaseFee;
+        /**
+         * @dev The extra fee of `Router.requestCodeValidationOnBehalf(...)` method.
+         *      This extra fee is paid in WVARA ERC20 token.
+         */
+        uint256 requestCodeValidationExtraFee;
     }
 
     /**

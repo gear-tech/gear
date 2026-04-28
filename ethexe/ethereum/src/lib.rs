@@ -18,15 +18,21 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
-use abi::{IMirror, IRouter, IWrappedVara};
+use crate::{
+    abi::{
+        IMirror, IRouter, IWrappedVara,
+        utils::{self as abi_utils, Permit},
+    },
+    wvara::WVaraQuery,
+};
 use alloy::{
     consensus::SignableTransaction,
     eips::BlockId,
     network::{self, Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address as AlloyAddress, B256, ChainId, Signature, address},
+    primitives::{Address as AlloyAddress, B256, ChainId, Signature, U256 as AlloyU256, address},
     providers::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
-        RootProvider,
+        RootProvider, WalletProvider,
         fillers::{
             BlobGasEstimator, BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill,
             NonceFiller, SimpleNonceManager, WalletFiller,
@@ -38,7 +44,7 @@ use alloy::{
         self as alloy_signer, Error as SignerError, Result as SignerResult, Signer as AlloySigner,
         SignerSync, sign_transaction_with_chain_id,
     },
-    sol_types::SolEvent,
+    sol_types::{SolEvent, SolStruct},
     transports::RpcError,
 };
 use anyhow::{Context, Result, anyhow};
@@ -200,6 +206,14 @@ impl EthereumBuilder {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct Eip712PermitData {
+    pub deadline: AlloyU256,
+    pub v: u8,
+    pub r: B256,
+    pub s: B256,
+}
+
 #[derive(Clone)]
 pub struct Ethereum {
     router: AlloyAddress,
@@ -233,6 +247,9 @@ impl Ethereum {
     ///
     /// This is useful mostly on testnets, where a lot of L2s can spam the network with blob transactions.
     pub const INCREASED_BLOB_GAS_MULTIPLIER: u128 = 3;
+
+    /// Default offset for permit deadline from the current block timestamp.
+    pub const PERMIT_DEADLINE_OFFSET: u64 = 120; // 2 minutes
 
     pub(crate) async fn new(
         ethereum_rpc_url: &str,
@@ -283,6 +300,10 @@ impl Ethereum {
 
     pub fn signer(&self) -> &Signer {
         &self.signer
+    }
+
+    pub(crate) fn sender(&self) -> Sender {
+        Sender::new(self.signer.clone(), self.sender_address).expect("infallible")
     }
 
     pub fn sender_address(&self) -> Address {
@@ -336,12 +357,52 @@ impl Ethereum {
         Self::get_block_inner(&self.provider(), block_id).await
     }
 
+    pub(crate) async fn prepare_permit_data(
+        provider: &AlloyProvider,
+        wvara_query: WVaraQuery,
+        sender: &Sender,
+        spender: ActorId,
+        value: u128,
+    ) -> Result<Eip712PermitData> {
+        let signer_address = provider.default_signer_address();
+        let signer_actor_id = Address::from(signer_address).into();
+
+        let nonce = abi_utils::u256_to_uint256(wvara_query.nonces(signer_actor_id).await?);
+        let eip712_domain = wvara_query.eip712_domain().await?;
+        let SimpleBlockData {
+            header: BlockHeader { timestamp, .. },
+            ..
+        } = Self::get_latest_block_inner(provider).await?;
+        let deadline = AlloyU256::from(
+            timestamp
+                .checked_add(Self::PERMIT_DEADLINE_OFFSET)
+                .expect("infallible"),
+        );
+
+        let permit = Permit {
+            owner: signer_address,
+            spender: spender.into(),
+            value: AlloyU256::from(value),
+            nonce,
+            deadline,
+        };
+
+        let hash = permit.eip712_signing_hash(&eip712_domain);
+        let signature = sender.sign_hash(&hash).await?;
+
+        let v = (signature.v() as u8) + 27;
+        let r = signature.r().into();
+        let s = signature.s().into();
+
+        Ok(Eip712PermitData { deadline, v, r, s })
+    }
+
     pub fn mirror(&self, actor_id: ActorId) -> Mirror {
-        Mirror::new(actor_id.into(), self.provider())
+        Mirror::new(actor_id.into(), self.wvara, self.sender(), self.provider())
     }
 
     pub fn router(&self) -> Router {
-        Router::new(self.router, self.wvara, self.provider())
+        Router::new(self.router, self.wvara, self.sender(), self.provider())
     }
 
     pub fn wrapped_vara(&self) -> WVara {

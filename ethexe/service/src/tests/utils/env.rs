@@ -491,22 +491,20 @@ impl TestEnv {
         let receiver = self.new_observer_events();
         let router = self.ethereum.router();
 
-        let (_, program_id) = router
-            .create_program(code_id, salt, override_initializer)
-            .await?;
-
-        if initial_executable_balance != 0 {
+        let (_, program_id) = if initial_executable_balance != 0 {
             router
-                .wvara()
-                .approve(program_id, initial_executable_balance)
-                .await?;
-
-            let mirror = self.ethereum.mirror(program_id);
-
-            mirror
-                .executable_balance_top_up(initial_executable_balance)
-                .await?;
-        }
+                .create_program_with_executable_balance(
+                    code_id,
+                    salt,
+                    override_initializer,
+                    initial_executable_balance,
+                )
+                .await
+        } else {
+            router
+                .create_program(code_id, salt, override_initializer)
+                .await
+        }?;
 
         Ok(WaitForProgramCreation {
             receiver,
@@ -528,22 +526,26 @@ impl TestEnv {
         let receiver = self.new_observer_events();
         let router = self.ethereum.router();
 
-        let (_, program_id) = router
-            .create_program_with_abi_interface(code_id, salt, override_initializer, abi_interface)
-            .await?;
-
-        if initial_executable_balance != 0 {
+        let (_, program_id) = if initial_executable_balance != 0 {
             router
-                .wvara()
-                .approve(program_id, initial_executable_balance)
-                .await?;
-
-            let mirror = self.ethereum.mirror(program_id);
-
-            mirror
-                .executable_balance_top_up(initial_executable_balance)
-                .await?;
-        }
+                .create_program_with_abi_interface_and_executable_balance(
+                    code_id,
+                    salt,
+                    override_initializer,
+                    abi_interface,
+                    initial_executable_balance,
+                )
+                .await?
+        } else {
+            router
+                .create_program_with_abi_interface(
+                    code_id,
+                    salt,
+                    override_initializer,
+                    abi_interface,
+                )
+                .await?
+        };
 
         Ok(WaitForProgramCreation {
             receiver,

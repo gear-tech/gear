@@ -1,5 +1,8 @@
 use super::seed;
-use crate::{args::SeedVariant, batch::context::Context};
+use crate::{
+    args::SeedVariant,
+    batch::{WorkloadPolicy, context::Context},
+};
 use anyhow::Result;
 use ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
 use gear_call_gen::{
@@ -34,6 +37,7 @@ pub struct BatchGenerator<Rng> {
     pub batch_size: usize,
     code_seed_gen: Box<dyn CallGenRngCore>,
     rt_settings: RuntimeSettings,
+    workload_policy: WorkloadPolicy,
 }
 
 /// One logical group of homogeneous operations that a worker can execute.
@@ -113,6 +117,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         batch_size: usize,
         code_seed_type: Option<SeedVariant>,
         rt_settings: RuntimeSettings,
+        workload_policy: WorkloadPolicy,
     ) -> Self {
         let mut batch_gen_rng = Rng::seed_from_u64(seed);
         let code_seed_type =
@@ -125,13 +130,44 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
             batch_size,
             code_seed_gen: seed::some_generator::<Rng>(code_seed_type),
             rt_settings,
+            workload_policy,
         }
+    }
+
+    fn select_batch_id(&mut self, context: &Context) -> u8 {
+        if context.active_program_ids().is_empty() {
+            return self.select_program_creation_batch_id(context);
+        }
+
+        if self.batch_gen_rng.gen_range(0..100u8) < self.workload_policy.program_creation_ratio {
+            self.select_program_creation_batch_id(context)
+        } else {
+            self.select_non_creation_batch_id(context)
+        }
+    }
+
+    fn select_program_creation_batch_id(&mut self, context: &Context) -> u8 {
+        if context.all_code_ids().is_empty() || self.batch_gen_rng.gen_bool(0.5) {
+            0
+        } else {
+            3
+        }
+    }
+
+    fn select_non_creation_batch_id(&mut self, context: &Context) -> u8 {
+        let mut viable = vec![1, 2];
+        if !context.all_mailbox_message_ids().is_empty() {
+            viable.extend([4, 5]);
+        }
+
+        let idx = self.batch_gen_rng.gen_range(0..viable.len());
+        viable[idx]
     }
 
     /// Produces the next batch using the current shared execution context.
     pub fn generate(&mut self, context: Context) -> BatchWithSeed {
         let seed = self.batch_gen_rng.next_u64();
-        let batch_id = self.batch_gen_rng.gen_range(0..=5u8);
+        let batch_id = self.select_batch_id(&context);
         let rt_settings = self.rt_settings;
 
         let batch = self.generate_batch(batch_id, context, seed, rt_settings);
@@ -201,7 +237,11 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         seed: Seed,
         gas_limit: u64,
     ) -> Batch {
-        let peer_ctx = Self::peer_aware_generation_context(context, seed);
+        let peer_ctx = Self::peer_aware_generation_context(
+            context,
+            seed,
+            self.workload_policy.persistent_program_loading(),
+        );
         Self::log_peer_aware_generation_context("upload_program", &peer_ctx);
         let mut rng = Rng::seed_from_u64(seed);
         let batch = iter::repeat_with(|| {
@@ -222,7 +262,11 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
 
     #[instrument(skip_all, fields(seed = seed, batch_type = "upload_code"))]
     fn generate_upload_code_batch(&mut self, context: Context, seed: Seed) -> Batch {
-        let peer_ctx = Self::peer_aware_generation_context(context, seed);
+        let peer_ctx = Self::peer_aware_generation_context(
+            context,
+            seed,
+            self.workload_policy.persistent_program_loading(),
+        );
         Self::log_peer_aware_generation_context("upload_code", &peer_ctx);
         let batch = iter::repeat_with(|| {
             let code_seed = self.code_seed_gen.next_u64();
@@ -243,7 +287,11 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
         }
     }
 
-    fn peer_aware_generation_context(context: Context, seed: Seed) -> PeerAwareGenerationContext {
+    fn peer_aware_generation_context(
+        context: Context,
+        seed: Seed,
+        suppress_exit: bool,
+    ) -> PeerAwareGenerationContext {
         let known_programs = context.all_program_ids();
         let active_programs = context.active_program_ids();
         let active_program_count = active_programs.len();
@@ -263,6 +311,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                 active_program_count,
                 tracked_mailbox_owners,
             )),
+            suppress_exit,
         }
     }
 
@@ -303,7 +352,10 @@ mod tests {
     use super::{Batch, BatchGenerator, RuntimeSettings};
     use crate::{
         args::SeedVariant,
-        batch::context::{Context, ContextUpdate},
+        batch::{
+            WorkloadPolicy,
+            context::{Context, ContextUpdate},
+        },
     };
     use gprimitives::{ActorId, CodeId, MessageId};
     use rand::rngs::SmallRng;
@@ -341,8 +393,11 @@ mod tests {
 
     #[test]
     fn peer_context_uses_active_programs_only() {
-        let peer_ctx =
-            BatchGenerator::<SmallRng>::peer_aware_generation_context(context_with_programs(), 77);
+        let peer_ctx = BatchGenerator::<SmallRng>::peer_aware_generation_context(
+            context_with_programs(),
+            77,
+            false,
+        );
 
         let programs = peer_ctx.programs.expect("active program list present");
         let collected: Vec<_> = programs.into_iter().collect();
@@ -356,6 +411,7 @@ mod tests {
             2,
             Some(SeedVariant::Constant(11)),
             RuntimeSettings { gas_limit: 123 },
+            WorkloadPolicy::new(None),
         );
 
         match generator.generate_batch(
@@ -392,6 +448,7 @@ mod tests {
             1,
             Some(SeedVariant::Constant(22)),
             RuntimeSettings { gas_limit: 321 },
+            WorkloadPolicy::new(None),
         );
 
         match generator.generate_batch(
