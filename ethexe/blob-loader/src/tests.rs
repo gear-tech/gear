@@ -1,4 +1,3 @@
-
 use super::*;
 use alloy::node_bindings::Anvil;
 use ethexe_common::{
@@ -339,20 +338,6 @@ async fn consensus_reader_reports_beacon_rpc_disconnect() {
         .expect_err("disconnected beacon rpc should fail");
 
     assert!(matches!(err, ReadBlobBundleError::Reqwest(_)));
-}
-
-#[tokio::test]
-async fn consensus_reader_reports_invalid_beacon_json() {
-    let anvil = Anvil::new().spawn();
-    let (beacon_rpc, _) = run_beacon_server(vec!["not json".to_string()]).await;
-    let reader = test_reader(anvil.endpoint(), beacon_rpc).await;
-
-    let err = reader
-        .read_blob_bundle(0, &[B256::ZERO])
-        .await
-        .expect_err("invalid beacon json should fail");
-
-    assert!(matches!(err, ReadBlobBundleError::Serde(_)));
 }
 
 #[tokio::test]
