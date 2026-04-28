@@ -1,9 +1,6 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
-import {IMiddleware} from "./IMiddleware.sol";
-import {Gear} from "./libraries/Gear.sol";
-import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
@@ -14,6 +11,9 @@ import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
+import {IMiddleware} from "src/IMiddleware.sol";
+import {Gear} from "src/libraries/Gear.sol";
+import {MapWithTimeData} from "src/libraries/MapWithTimeData.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 import {INetworkRegistry} from "symbiotic-core/src/interfaces/INetworkRegistry.sol";
 import {IEntity} from "symbiotic-core/src/interfaces/common/IEntity.sol";

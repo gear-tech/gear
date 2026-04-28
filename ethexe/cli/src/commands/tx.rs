@@ -490,6 +490,7 @@ impl TxCommand {
                 code_id,
                 salt,
                 initializer,
+                value,
                 json,
             } => {
                 let create_result = (async || -> Result<CreateResultData> {
@@ -501,16 +502,31 @@ impl TxCommand {
                     eprintln!("  Code id:     {code_id}");
                     eprintln!("  Salt:        {salt:?}");
                     eprintln!("  Initializer: {initializer}");
+                    if let Some(value) = value {
+                        let raw_value = value.into_inner();
+                        let formatted_value = FormattedValue::<WrappedVaraCurrency>::new(raw_value);
+                        eprintln!("  Value:       {formatted_value} ({raw_value})");
+                    }
                     eprintln!();
 
-                    let (receipt, actor_id) = router
-                        .create_program_with_receipt(code_id, salt, override_initializer)
-                        .await
-                        .with_context(|| {
-                            format!(
-                                "failed to create program from code id {code_id} and salt {salt:?}"
+                    let (receipt, actor_id) = if let Some(value) = value {
+                        let raw_value = value.into_inner();
+                        router
+                            .create_program_with_executable_balance_and_receipt(
+                                code_id,
+                                salt,
+                                override_initializer,
+                                raw_value,
                             )
-                        })?;
+                            .await
+                    } else {
+                        router
+                            .create_program_with_receipt(code_id, salt, override_initializer)
+                            .await
+                    }
+                    .with_context(|| {
+                        format!("failed to create program from code id {code_id} and salt {salt:?}")
+                    })?;
 
                     let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
@@ -576,6 +592,7 @@ impl TxCommand {
                 salt,
                 initializer,
                 abi_interface,
+                value,
                 json,
             } => {
                 let create_abi_result = (async || -> Result<CreateResultData> {
@@ -588,21 +605,39 @@ impl TxCommand {
                     eprintln!("  Salt:          {salt:?}");
                     eprintln!("  Initializer:   {initializer}");
                     eprintln!("  ABI interface: {abi_interface}");
+                    if let Some(value) = value {
+                        let raw_value = value.into_inner();
+                        let formatted_value = FormattedValue::<WrappedVaraCurrency>::new(raw_value);
+                        eprintln!("  Value:         {formatted_value} ({raw_value})");
+                    }
                     eprintln!();
 
-                    let (receipt, actor_id) = router
-                        .create_program_with_abi_interface_with_receipt(
-                            code_id,
-                            salt,
-                            override_initializer,
-                            abi_interface.into(),
-                        )
-                        .await
-                        .with_context(|| {
-                            format!(
-                                "failed to create program with ABI interface from code id {code_id} and salt {salt:?}"
+                    let (receipt, actor_id) = if let Some(value) = value {
+                        let raw_value = value.into_inner();
+                        router
+                            .create_program_with_abi_interface_and_executable_balance_with_receipt(
+                                code_id,
+                                salt,
+                                override_initializer,
+                                abi_interface.into(),
+                                raw_value
                             )
-                        })?;
+                            .await
+                    } else {
+                        router
+                            .create_program_with_abi_interface_with_receipt(
+                                code_id,
+                                salt,
+                                override_initializer,
+                                abi_interface.into(),
+                            )
+                            .await
+                    }
+                    .with_context(|| {
+                        format!(
+                            "failed to create program with ABI interface from code id {code_id} and salt {salt:?}"
+                        )
+                    })?;
 
                     let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
@@ -855,6 +890,7 @@ impl TxCommand {
                 mirror,
                 value,
                 approve,
+                permit,
                 watch,
                 json,
             } => {
@@ -889,9 +925,16 @@ impl TxCommand {
                             .await?;
                     }
 
-                    let receipt = mirror
-                        .executable_balance_top_up_with_receipt(raw_value)
-                        .await
+                    let receipt_result = if permit {
+                        mirror
+                            .executable_balance_top_up_with_permit_and_receipt(raw_value)
+                            .await
+                    } else {
+                        mirror
+                            .executable_balance_top_up_with_receipt(raw_value)
+                            .await
+                    };
+                    let receipt = receipt_result
                         .with_context(|| "failed to top up executable balance of mirror")?;
 
                     let tx_hash = (*receipt.transaction_hash).into();
@@ -1705,6 +1748,9 @@ pub enum TxSubcommand {
         /// Override initializer address. If not provided, sender is used.
         #[arg(short, long)]
         initializer: Option<Address>,
+        /// Initial executable balance in WVARA to send to mirror. If not provided, no executable balance is sent.
+        #[arg(short, long)]
+        value: Option<RawOrFormattedValue<WrappedVaraCurrency>>,
         /// Flag to output result in JSON format. If false, human-readable format is used.
         #[arg(short, long, default_value = "false")]
         json: bool,
@@ -1724,6 +1770,9 @@ pub enum TxSubcommand {
         /// to interact with the Sails contract via etherscan.
         #[arg()]
         abi_interface: Address,
+        /// Initial executable balance in WVARA to send to mirror. If not provided, no executable balance is sent.
+        #[arg(short, long)]
+        value: Option<RawOrFormattedValue<WrappedVaraCurrency>>,
         /// Flag to output result in JSON format. If false, human-readable format is used.
         #[arg(short, long, default_value = "false")]
         json: bool,
@@ -1764,8 +1813,11 @@ pub enum TxSubcommand {
         #[arg()]
         value: RawOrFormattedValue<WrappedVaraCurrency>,
         /// Flag to first approve given value on WVARA ERC20 contract.
-        #[arg(short, long, default_value = "false")]
+        #[arg(short, long, conflicts_with = "permit", default_value = "false")]
         approve: bool,
+        /// Flag to use permit version of top up executable balance.
+        #[arg(short, long, conflicts_with = "approve", default_value = "false")]
+        permit: bool,
         /// Flag to watch for mirror state change. If false, command will do not wait mirror state change.
         #[arg(short, long, default_value = "false")]
         watch: bool,
