@@ -23,7 +23,9 @@ use ethexe_common::{
     db::{
         AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
     },
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::{
+        InjectedTransaction, SignedInjectedTransaction, TransactionError, TransactionErrorReason,
+    },
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -41,6 +43,12 @@ pub(crate) struct InjectedTxPool<DB = Database> {
     /// HashSet of (reference_block, injected_tx_hash).
     inner: HashSet<(H256, HashOf<InjectedTransaction>)>,
     db: DB,
+}
+
+#[derive(Default)]
+pub(crate) struct PoolDelta {
+    pub selected: Vec<SignedInjectedTransaction>,
+    pub removed: Vec<TransactionError>,
 }
 
 impl<DB> InjectedTxPool<DB>
@@ -76,11 +84,13 @@ where
         &mut self,
         block: SimpleBlockData,
         parent_announce: HashOf<Announce>,
-    ) -> Result<Vec<SignedInjectedTransaction>> {
+    ) -> Result<PoolDelta> {
         tracing::trace!(block = ?block.hash, "start collecting injected transactions");
 
         let tx_checker =
             TxValidityChecker::new_for_announce(self.db.clone(), block, parent_announce)?;
+
+        let mut delta = PoolDelta::default();
 
         let mut touched_programs = crate::utils::block_touched_programs(&self.db, block.hash)?;
         if touched_programs.len() > MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize {
@@ -90,11 +100,10 @@ where
                 touched_programs.len(),
                 MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE
             );
-            return Ok(vec![]);
+            return Ok(delta);
         }
 
-        let mut selected_txs = vec![];
-        let mut remove_txs = vec![];
+        let mut remove_data = vec![];
         let mut size_counter = 0usize;
 
         for (reference_block, tx_hash) in self.inner.iter() {
@@ -129,7 +138,7 @@ where
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
 
                     touched_programs.insert(program_id);
-                    selected_txs.push(tx);
+                    delta.selected.push(tx);
                     size_counter += tx_size;
                 }
                 TxValidity::Duplicate => {
@@ -150,7 +159,11 @@ where
                 }
                 TxValidity::Outdated => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is outdated, removing from pool");
-                    remove_txs.push((*reference_block, *tx_hash))
+                    remove_data.push((*reference_block, *tx_hash));
+                    delta.removed.push(TransactionError {
+                        tx_hash: *tx_hash,
+                        reason: TransactionErrorReason::Outdated,
+                    });
                 }
                 TxValidity::UninitializedDestination => {
                     // Keep in pool, in case destination actor gets initialized later.
@@ -174,16 +187,20 @@ where
                         tx = ?tx.data(),
                         "tx has non-zero value, removing from pool"
                     );
-                    remove_txs.push((*reference_block, *tx_hash))
+                    remove_data.push((*reference_block, *tx_hash));
+                    delta.removed.push(TransactionError {
+                        tx_hash: *tx_hash,
+                        reason: TransactionErrorReason::NonZeroValue,
+                    });
                 }
             }
         }
 
-        remove_txs.into_iter().for_each(|key| {
+        remove_data.into_iter().for_each(|key| {
             self.inner.remove(&key);
         });
 
-        Ok(selected_txs)
+        Ok(delta)
     }
 }
 
@@ -269,14 +286,14 @@ mod tests {
                 .unwrap(),
         );
 
-        let selected_txs = tx_pool
+        let delta = tx_pool
             .select_for_announce(
                 chain.blocks[10].to_simple(),
                 chain.block_top_announce_hash(9),
             )
             .unwrap();
         assert_eq!(
-            selected_txs,
+            delta.selected,
             vec![signed_tx],
             "tx should be selected for announce"
         );
@@ -359,7 +376,7 @@ mod tests {
             tx_pool.handle_tx(signed_tx);
         }
 
-        let selected_txs = tx_pool
+        let delta = tx_pool
             .select_for_announce(
                 chain.blocks[10].to_simple(),
                 chain.block_top_announce_hash(9),
@@ -367,7 +384,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            selected_txs.len(),
+            delta.selected.len(),
             MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE as usize - 90
         );
     }

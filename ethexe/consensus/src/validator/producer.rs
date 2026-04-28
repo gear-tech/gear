@@ -22,7 +22,7 @@ use super::{
 use crate::{
     ConsensusEvent,
     announces::{self, DBAnnouncesExt},
-    validator::DefaultProcessing,
+    validator::{DefaultProcessing, tx_pool::PoolDelta},
 };
 use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
@@ -197,11 +197,17 @@ impl Producer {
             self.ctx.core.commitment_delay_limit,
         )?;
 
-        let injected_transactions = self
+        let PoolDelta {
+            selected: injected_transactions,
+            removed,
+        } = self
             .ctx
             .core
             .injected_pool
             .select_for_announce(self.block, parent)?;
+
+        removed.into_iter().for_each(|_err| {
+        });
 
         let announce = Announce {
             block_hash: self.block.hash,

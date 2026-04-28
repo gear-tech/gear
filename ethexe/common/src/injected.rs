@@ -161,6 +161,47 @@ impl ToDigest for Promise {
     }
 }
 
+/// Represents the result of [InjectedTransaction].
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransactionResult {
+    Promise(Promise),
+    Error(TransactionError),
+}
+
+// TODO !!!: check the correctness of ToDigest
+impl ToDigest for TransactionResult {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        match self {
+            Self::Promise(promise) => {
+                hasher.update([0]);
+                hasher.update(promise.to_digest().0);
+            }
+            Self::Error(_err) => {
+                hasher.update([1]);
+            }
+        }
+    }
+}
+
+pub type SignedTransactionResult = SignedMessage<TransactionResult>;
+
+/// Represents the reason why [InjectedTransaction] was not included.
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransactionError {
+    pub tx_hash: HashOf<InjectedTransaction>,
+    pub reason: TransactionErrorReason,
+}
+
+// TODO: think about creating the general error for `TxValidity` and `ErrorReason`
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransactionErrorReason {
+    Outdated,
+    NonZeroValue,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

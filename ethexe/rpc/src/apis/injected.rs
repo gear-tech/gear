@@ -24,7 +24,7 @@ use ethexe_common::{
     db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedPromise,
+        SignedInjectedTransaction, SignedPromise, SignedTransactionResult,
     },
 };
 use ethexe_db::Database;
