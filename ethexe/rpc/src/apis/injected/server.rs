@@ -49,7 +49,7 @@ pub struct InjectedApi {
     metrics: InjectedApiMetrics,
 }
 
-// TODO: add metrics middleware for InjectedApi
+// TODO: Issue #5387
 #[async_trait]
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
@@ -112,6 +112,7 @@ impl InjectedApi {
         self.relayer.relay(transaction).await
     }
 
+    // TODO: Issue #5386.
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,

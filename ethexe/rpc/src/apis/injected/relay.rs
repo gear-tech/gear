@@ -44,7 +44,6 @@ impl TransactionsRelayer {
         let tx_hash = transaction.tx.data().to_hash();
         trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 
-        // TODO: maybe should implement the transaction validator.
         if transaction.tx.data().value != 0 {
             warn!(
                 tx_hash = %tx_hash,

@@ -149,7 +149,6 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             }
         }
 
-        // TODO: maybe implement `switch_to_announce` for BoundPromiseSink
         let promise_sink = promise_sender.map(|s| BoundPromiseSink::new(s, announce_hash));
         // Compute the target announce
         Self::compute_one(

@@ -28,10 +28,7 @@ use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{trace, warn};
 
-// TODO (kuzmindev): Currently, PromiseSubscriptionManager do not check, that transaction was
-// sent by validator, so there must be pre-validation for data received from network (SignedCompactPromise).
-
-// TODO (kuzmindev): think about using `moka::sync::Cache` instead of DashMap.
+// TODO: Issues #5384 and #5385.
 type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactPromise>>;
 
@@ -168,9 +165,12 @@ impl PromiseSubscriptionManager {
 mod utils {
     use ethexe_common::db::ConfigStorageRO;
 
+    /// The maximum number of slots RPC will wait for transaction promise.
+    const MAX_PROMISE_WAITING_SLOTS: u64 = 20;
+
     /// Returns the maximum time that spawned [super::PendingSubscriber] will wait for promise.
     pub fn promise_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> std::time::Duration {
         let slot_duration_secs = db.config().timelines.slot.get();
-        std::time::Duration::from_secs(slot_duration_secs * 20)
+        std::time::Duration::from_secs(slot_duration_secs * MAX_PROMISE_WAITING_SLOTS)
     }
 }

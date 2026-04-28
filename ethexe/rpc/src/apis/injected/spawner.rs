@@ -33,7 +33,6 @@ pub fn spawn_pending_subscriber<F>(
 {
     let (tx_hash, receiver) = subscriber.into_parts();
 
-    // TODO: think about using this handle for aborting runtime tasks in case of long waiting.
     let _handle = tokio::spawn(async move {
         let _guard = scopeguard::guard(tx_hash, on_finish);
 

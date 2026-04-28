@@ -923,7 +923,6 @@ async fn overlay_execution() {
 async fn injected_ping_pong() {
     init_logger();
 
-    // TODO: !!! Make easier to work with `promise_receiver`.
     let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
     let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::random());
     let (mut processor, chain, [code_id]) =
