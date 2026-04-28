@@ -399,7 +399,7 @@ mod tests {
         db::{CodesStorageRW, OnChainStorageRW},
         gear_core::ids::prelude::CodeIdExt,
     };
-    use ethexe_db::Database as EthexeDatabase;
+    use ethexe_db::Database;
     use ethexe_ethereum::deploy::EthereumDeployer;
     use futures::{FutureExt, StreamExt};
     use gsigner::secp256k1::{PrivateKey, Signer};
@@ -417,7 +417,7 @@ mod tests {
         (0..len).map(|i| (i % 251) as u8).collect()
     }
 
-    fn set_blob_info(db: &EthexeDatabase, code_id: CodeId, tx_hash: H256) {
+    fn set_blob_info(db: &Database, code_id: CodeId, tx_hash: H256) {
         db.set_code_blob_info(
             code_id,
             CodeBlobInfo {
@@ -515,7 +515,7 @@ mod tests {
         url
     }
 
-    async fn expect_blob_loaded(loader: &mut BlobLoader<EthexeDatabase>) -> CodeAndIdUnchecked {
+    async fn expect_blob_loaded(loader: &mut BlobLoader<Database>) -> CodeAndIdUnchecked {
         match timeout(Duration::from_secs(2), loader.next())
             .await
             .expect("loader must emit before timeout")
@@ -558,8 +558,8 @@ mod tests {
             .request_code_validation(&code)
             .await
             .unwrap();
-        #[allow(unused_unsafe)]
-        let db = unsafe { EthexeDatabase::memory() };
+
+        let db = Database::memory();
         set_blob_info(&db, code_id, tx_hash);
 
         let mut loader = BlobLoader::new(db, consensus_cfg)
@@ -611,8 +611,8 @@ mod tests {
     #[tokio::test]
     async fn load_codes_fails_when_code_blob_info_is_missing() {
         let anvil = Anvil::new().spawn();
-        #[allow(unused_unsafe)]
-        let db = unsafe { EthexeDatabase::memory() };
+
+        let db = Database::memory();
         let reader = test_reader(anvil.endpoint(), anvil.endpoint()).await;
         let mut loader = BlobLoader::new_with_consensus_reader(db, reader);
         let code_id = CodeId::generate(&[1, 2, 3, 4]);
@@ -628,8 +628,8 @@ mod tests {
     #[tokio::test]
     async fn already_loaded_code_is_emitted_without_remote_read() {
         let anvil = Anvil::new().spawn();
-        #[allow(unused_unsafe)]
-        let db = unsafe { EthexeDatabase::memory() };
+
+        let db = Database::memory();
         let code = generated_code(64);
         let code_id = db.set_original_code(&code);
         let tx_hash = H256::random();
@@ -653,8 +653,8 @@ mod tests {
     #[tokio::test]
     async fn reader_failure_does_not_emit_success_or_terminate_stream() {
         let anvil = Anvil::new().spawn();
-        #[allow(unused_unsafe)]
-        let db = unsafe { EthexeDatabase::memory() };
+
+        let db = Database::memory();
         let code = generated_code(128);
         let code_id = CodeId::generate(&code);
         let tx_hash = H256::random();
@@ -682,8 +682,8 @@ mod tests {
         let code = generated_code(128);
         let (anvil, tx_hash, code_id) =
             request_code_validation(31337, beacon_block_time, &code).await;
-        #[allow(unused_unsafe)]
-        let db = unsafe { EthexeDatabase::memory() };
+
+        let db = Database::memory();
         set_blob_info(&db, code_id, tx_hash);
 
         let reader =
