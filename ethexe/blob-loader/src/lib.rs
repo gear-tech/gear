@@ -86,6 +86,26 @@ enum ReaderError {
 type LoaderResult<T> = Result<T, BlobLoaderError>;
 type ReaderResult<T> = Result<T, ReaderError>;
 
+trait BlobReader: Clone + Send + Unpin + 'static {
+    fn read_blob(
+        &self,
+        expected_code_id: CodeId,
+        tx_hash: H256,
+    ) -> BoxFuture<'static, ReaderResult<Vec<u8>>>;
+}
+
+impl BlobReader for ConsensusLayerBlobReader {
+    fn read_blob(
+        &self,
+        expected_code_id: CodeId,
+        tx_hash: H256,
+    ) -> BoxFuture<'static, ReaderResult<Vec<u8>>> {
+        let reader = self.clone();
+        async move { ConsensusLayerBlobReader::read_blob(&reader, expected_code_id, tx_hash).await }
+            .boxed()
+    }
+}
+
 pub trait BlobLoaderService:
     Stream<Item = LoaderResult<BlobLoaderEvent>> + FusedStream + Send + Unpin
 {
@@ -246,15 +266,16 @@ impl ConsensusLayerBlobReader {
 pub trait Database: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static {}
 impl<T: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static> Database for T {}
 
-pub struct BlobLoader<DB: Database> {
+#[allow(private_bounds, private_interfaces)]
+pub struct BlobLoader<DB: Database, R: BlobReader = ConsensusLayerBlobReader> {
     futures: FuturesUnordered<BoxFuture<'static, ReaderResult<CodeAndIdUnchecked>>>,
     codes_loading: HashSet<CodeId>,
 
-    blobs_reader: ConsensusLayerBlobReader,
+    blobs_reader: R,
     db: DB,
 }
 
-impl<DB: Database> Stream for BlobLoader<DB> {
+impl<DB: Database, R: BlobReader> Stream for BlobLoader<DB, R> {
     type Item = LoaderResult<BlobLoaderEvent>;
 
     fn poll_next(
@@ -276,13 +297,13 @@ impl<DB: Database> Stream for BlobLoader<DB> {
     }
 }
 
-impl<DB: Database> FusedStream for BlobLoader<DB> {
+impl<DB: Database, R: BlobReader> FusedStream for BlobLoader<DB, R> {
     fn is_terminated(&self) -> bool {
         false
     }
 }
 
-impl<DB: Database> BlobLoader<DB> {
+impl<DB: Database> BlobLoader<DB, ConsensusLayerBlobReader> {
     pub async fn new(db: DB, consensus_cfg: ConsensusLayerConfig) -> LoaderResult<Self> {
         Ok(Self {
             futures: FuturesUnordered::new(),
@@ -300,7 +321,20 @@ impl<DB: Database> BlobLoader<DB> {
     }
 }
 
-impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
+#[allow(private_bounds)]
+impl<DB: Database, R: BlobReader> BlobLoader<DB, R> {
+    #[cfg(test)]
+    fn new_with_reader(db: DB, blobs_reader: R) -> Self {
+        Self {
+            futures: FuturesUnordered::new(),
+            codes_loading: HashSet::new(),
+            blobs_reader,
+            db,
+        }
+    }
+}
+
+impl<DB: Database, R: BlobReader> BlobLoaderService for BlobLoader<DB, R> {
     fn into_box(self) -> Box<dyn BlobLoaderService> {
         Box::new(self)
     }
@@ -383,14 +417,109 @@ fn handle_blob(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy::{node_bindings::Anvil, providers::ext::AnvilApi};
-    use ethexe_common::gear_core::ids::prelude::CodeIdExt;
+    use alloy::node_bindings::Anvil;
+    use ethexe_common::{
+        CodeBlobInfo,
+        db::{CodesStorageRW, OnChainStorageRW},
+        gear_core::ids::prelude::CodeIdExt,
+    };
+    use ethexe_db::Database as EthexeDatabase;
     use ethexe_ethereum::deploy::EthereumDeployer;
+    use futures::{FutureExt, StreamExt};
     use gsigner::secp256k1::{PrivateKey, Signer};
+    use std::{
+        collections::HashMap,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+    use tokio::time::{Duration, timeout};
 
-    #[ignore = "until blob will be available on beacon node"]
-    #[tokio::test]
-    async fn test_read_code_from_tx_hash() {
+    const BLOB_CHUNK_SIZE: usize = 128 * 1024;
+
+    #[derive(Clone)]
+    #[allow(dead_code)]
+    enum MockReadResult {
+        Ok(Vec<u8>),
+        TransactionNotFound,
+    }
+
+    impl MockReadResult {
+        fn into_reader_result(self, tx_hash: H256) -> ReaderResult<Vec<u8>> {
+            match self {
+                Self::Ok(code) => Ok(code),
+                Self::TransactionNotFound => Err(ReaderError::TransactionNotFound(tx_hash)),
+            }
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct MockBlobReader {
+        responses: Arc<HashMap<H256, MockReadResult>>,
+        calls: Arc<AtomicUsize>,
+    }
+
+    #[allow(dead_code)]
+    impl MockBlobReader {
+        fn with_response(tx_hash: H256, response: MockReadResult) -> Self {
+            Self {
+                responses: Arc::new(HashMap::from([(tx_hash, response)])),
+                calls: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+
+        fn calls(&self) -> usize {
+            self.calls.load(Ordering::SeqCst)
+        }
+    }
+
+    impl BlobReader for MockBlobReader {
+        fn read_blob(
+            &self,
+            _expected_code_id: CodeId,
+            tx_hash: H256,
+        ) -> BoxFuture<'static, ReaderResult<Vec<u8>>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let response = self
+                .responses
+                .get(&tx_hash)
+                .cloned()
+                .unwrap_or(MockReadResult::TransactionNotFound)
+                .into_reader_result(tx_hash);
+
+            futures::future::ready(response).boxed()
+        }
+    }
+
+    fn generated_code(len: usize) -> Vec<u8> {
+        (0..len).map(|i| (i % 251) as u8).collect()
+    }
+
+    fn set_blob_info(db: &EthexeDatabase, code_id: CodeId, tx_hash: H256) {
+        db.set_code_blob_info(
+            code_id,
+            CodeBlobInfo {
+                timestamp: 0,
+                tx_hash,
+            },
+        );
+    }
+
+    async fn expect_blob_loaded<R: BlobReader>(
+        loader: &mut BlobLoader<EthexeDatabase, R>,
+    ) -> CodeAndIdUnchecked {
+        match timeout(Duration::from_secs(2), loader.next())
+            .await
+            .expect("loader must emit before timeout")
+            .expect("loader stream should yield an event")
+            .expect("loader event should be ok")
+        {
+            BlobLoaderEvent::BlobLoaded(code_and_id) => code_and_id,
+        }
+    }
+
+    async fn run_anvil_blob_loader_test(code: Vec<u8>) {
         let signer = Signer::memory();
         let private_key: PrivateKey =
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
@@ -417,30 +546,181 @@ mod tests {
             attempts: const { NonZero::new(3).unwrap() },
         };
 
-        let blobs_reader = ConsensusLayerBlobReader {
-            provider: ProviderBuilder::default()
-                .connect(&consensus_cfg.ethereum_rpc)
-                .await
-                .unwrap(),
-            http_client: Client::new(),
-            config: consensus_cfg,
-        };
-
-        let code = &[];
-        let (tx_hash, expected_code_id) = ethereum
+        let (tx_hash, code_id) = ethereum
             .router()
-            .request_code_validation(code)
+            .request_code_validation(&code)
             .await
             .unwrap();
 
-        // set chain id to 1 to avoid anvil special case
-        blobs_reader.provider.anvil_set_chain_id(1).await.unwrap();
+        // SAFETY: The in-memory database is isolated to this test and does not share state.
+        let db = unsafe { EthexeDatabase::memory() };
+        set_blob_info(&db, code_id, tx_hash);
 
-        let code = blobs_reader
-            .read_blob(expected_code_id, tx_hash)
+        let mut loader = BlobLoader::new(db, consensus_cfg)
             .await
-            .unwrap();
-        assert_eq!(expected_code_id, CodeId::generate(&code));
+            .expect("blob loader should connect to anvil");
+        loader
+            .load_codes(HashSet::from([code_id]))
+            .expect("CodeBlobInfo was inserted");
+
+        let loaded = expect_blob_loaded(&mut loader).await;
+        assert_eq!(loaded.code_id, code_id);
+        assert_eq!(loaded.code, code);
+    }
+
+    #[tokio::test]
+    async fn load_codes_fails_when_code_blob_info_is_missing() {
+        // SAFETY: The in-memory database is isolated to this test and does not share state.
+        let db = unsafe { EthexeDatabase::memory() };
+        let mut loader = BlobLoader::new_with_reader(db, MockBlobReader::default());
+        let code_id = CodeId::generate(&[1, 2, 3, 4]);
+
+        let err = loader
+            .load_codes(HashSet::from([code_id]))
+            .expect_err("missing CodeBlobInfo must fail");
+
+        assert!(matches!(err, BlobLoaderError::CodeBlobInfoNotFound(id) if id == code_id));
+        assert_eq!(loader.pending_codes_len(), 0);
+    }
+
+    #[tokio::test]
+    async fn already_loaded_code_is_emitted_without_remote_read() {
+        // SAFETY: The in-memory database is isolated to this test and does not share state.
+        let db = unsafe { EthexeDatabase::memory() };
+        let code = generated_code(64);
+        let code_id = db.set_original_code(&code);
+        let tx_hash = H256::random();
+        set_blob_info(&db, code_id, tx_hash);
+
+        let reader = MockBlobReader::with_response(tx_hash, MockReadResult::TransactionNotFound);
+        let mut loader = BlobLoader::new_with_reader(db, reader.clone());
+
+        loader
+            .load_codes(HashSet::from([code_id]))
+            .expect("metadata exists");
+
+        assert_eq!(loader.pending_codes_len(), 1);
+        let loaded = expect_blob_loaded(&mut loader).await;
+
+        assert_eq!(loaded.code_id, code_id);
+        assert_eq!(loaded.code, code);
+        assert_eq!(reader.calls(), 0);
+        assert_eq!(loader.pending_codes_len(), 0);
+    }
+
+    #[tokio::test]
+    async fn remote_code_is_emitted_and_pending_state_is_cleared() {
+        // SAFETY: The in-memory database is isolated to this test and does not share state.
+        let db = unsafe { EthexeDatabase::memory() };
+        let code = generated_code(128);
+        let code_id = CodeId::generate(&code);
+        let tx_hash = H256::random();
+        set_blob_info(&db, code_id, tx_hash);
+
+        let reader = MockBlobReader::with_response(tx_hash, MockReadResult::Ok(code.clone()));
+        let mut loader = BlobLoader::new_with_reader(db, reader.clone());
+
+        loader
+            .load_codes(HashSet::from([code_id]))
+            .expect("metadata exists");
+
+        assert_eq!(loader.pending_codes_len(), 1);
+        let loaded = expect_blob_loaded(&mut loader).await;
+
+        assert_eq!(loaded.code_id, code_id);
+        assert_eq!(loaded.code, code);
+        assert_eq!(reader.calls(), 1);
+        assert_eq!(loader.pending_codes_len(), 0);
+    }
+
+    #[tokio::test]
+    async fn remote_code_larger_than_three_blob_chunks_round_trips() {
+        // SAFETY: The in-memory database is isolated to this test and does not share state.
+        let db = unsafe { EthexeDatabase::memory() };
+        let code = generated_code(3 * BLOB_CHUNK_SIZE + 17);
+        let code_id = CodeId::generate(&code);
+        let tx_hash = H256::random();
+        set_blob_info(&db, code_id, tx_hash);
+
+        let reader = MockBlobReader::with_response(tx_hash, MockReadResult::Ok(code.clone()));
+        let mut loader = BlobLoader::new_with_reader(db, reader.clone());
+
+        loader
+            .load_codes(HashSet::from([code_id]))
+            .expect("metadata exists");
+
+        let loaded = expect_blob_loaded(&mut loader).await;
+
+        assert_eq!(loaded.code_id, code_id);
+        assert_eq!(loaded.code.len(), 3 * BLOB_CHUNK_SIZE + 17);
+        assert_eq!(loaded.code, code);
+        assert_eq!(reader.calls(), 1);
+        assert_eq!(loader.pending_codes_len(), 0);
+    }
+
+    #[tokio::test]
+    async fn reader_failure_does_not_emit_success_or_terminate_stream() {
+        // SAFETY: The in-memory database is isolated to this test and does not share state.
+        let db = unsafe { EthexeDatabase::memory() };
+        let code = generated_code(128);
+        let code_id = CodeId::generate(&code);
+        let tx_hash = H256::random();
+        set_blob_info(&db, code_id, tx_hash);
+
+        let reader = MockBlobReader::with_response(tx_hash, MockReadResult::TransactionNotFound);
+        let mut loader = BlobLoader::new_with_reader(db, reader.clone());
+
+        loader
+            .load_codes(HashSet::from([code_id]))
+            .expect("metadata exists");
+
+        let no_event = timeout(Duration::from_millis(100), loader.next()).await;
+
+        assert!(
+            no_event.is_err(),
+            "reader failure should be logged and skipped, not emitted as success"
+        );
+        assert!(!loader.is_terminated());
+        assert_eq!(reader.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn repeated_load_codes_for_pending_code_schedules_one_remote_read() {
+        // SAFETY: The in-memory database is isolated to this test and does not share state.
+        let db = unsafe { EthexeDatabase::memory() };
+        let code = generated_code(128);
+        let code_id = CodeId::generate(&code);
+        let tx_hash = H256::random();
+        set_blob_info(&db, code_id, tx_hash);
+
+        let reader = MockBlobReader::with_response(tx_hash, MockReadResult::Ok(code));
+        let mut loader = BlobLoader::new_with_reader(db, reader.clone());
+
+        loader
+            .load_codes(HashSet::from([code_id]))
+            .expect("first request should be accepted");
+        loader
+            .load_codes(HashSet::from([code_id]))
+            .expect("duplicate pending request should be ignored");
+
+        assert_eq!(loader.pending_codes_len(), 1);
+        let _ = expect_blob_loaded(&mut loader).await;
+        assert!(
+            loader.next().now_or_never().is_none(),
+            "duplicate pending request must not queue another ready event"
+        );
+        assert_eq!(reader.calls(), 1);
+        assert_eq!(loader.pending_codes_len(), 0);
+    }
+
+    #[tokio::test]
+    async fn blob_loader_reads_code_from_anvil_tx() {
+        run_anvil_blob_loader_test(generated_code(128)).await;
+    }
+
+    #[tokio::test]
+    async fn blob_loader_reads_code_larger_than_three_blob_chunks_from_anvil_tx() {
+        run_anvil_blob_loader_test(generated_code(3 * BLOB_CHUNK_SIZE + 17)).await;
     }
 
     #[test]

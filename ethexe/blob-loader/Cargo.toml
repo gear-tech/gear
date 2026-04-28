@@ -22,6 +22,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
+ethexe-db.workspace = true
 gprimitives = { workspace = true, features = ["ethexe", "std"] }
 gsigner.workspace = true
 ethexe-ethereum.workspace = true
