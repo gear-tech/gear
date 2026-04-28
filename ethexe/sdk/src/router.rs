@@ -254,6 +254,40 @@ impl<'a> Router<'a> {
             .await
     }
 
+    pub async fn create_program_with_executable_balance(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.router_client
+            .create_program_with_executable_balance(
+                code_id,
+                salt,
+                override_initializer,
+                initial_executable_balance,
+            )
+            .await
+    }
+
+    pub async fn create_program_with_executable_balance_and_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        self.router_client
+            .create_program_with_executable_balance_and_receipt(
+                code_id,
+                salt,
+                override_initializer,
+                initial_executable_balance,
+            )
+            .await
+    }
+
     pub async fn create_program_with_abi_interface(
         &self,
         code_id: CodeId,
@@ -279,6 +313,44 @@ impl<'a> Router<'a> {
                 salt,
                 override_initializer,
                 abi_interface,
+            )
+            .await
+    }
+
+    pub async fn create_program_with_abi_interface_and_executable_balance(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.router_client
+            .create_program_with_abi_interface_and_executable_balance(
+                code_id,
+                salt,
+                override_initializer,
+                abi_interface,
+                initial_executable_balance,
+            )
+            .await
+    }
+
+    pub async fn create_program_with_abi_interface_and_executable_balance_with_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        self.router_client
+            .create_program_with_abi_interface_and_executable_balance_with_receipt(
+                code_id,
+                salt,
+                override_initializer,
+                abi_interface,
+                initial_executable_balance,
             )
             .await
     }
