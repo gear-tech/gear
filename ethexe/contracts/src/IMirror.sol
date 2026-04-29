@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
-import {Gear} from "./libraries/Gear.sol";
+import {Gear} from "src/libraries/Gear.sol";
 
 // TODO (breathx): sort here everything.
 /**
@@ -287,9 +287,22 @@ interface IMirror {
     /**
      * @dev Tops up the executable balance of the program.
      *      As result of execution, the `ExecutableBalanceTopUpRequested` event will be emitted.
-     * @param value The amount of WVARA to be transferred from user to `Router` as executable balance top up.
+     * @param value The amount of WVARA ERC20 token to be transferred from user to `Router` as executable balance top up.
      */
     function executableBalanceTopUp(uint128 value) external;
+
+    /**
+     * @dev Tops up the executable balance of the program.
+     *      Unlike `Mirror.executableBalanceTopUp(...)`, this method allows to transfer WVARA ERC20 token from user to `Router`
+     *      using permit signature, which can save one transaction for user.
+     *      As result of execution, the `ExecutableBalanceTopUpRequested` event will be emitted.
+     * @param value The amount of WVARA ERC20 token to be transferred from user to `Router` as executable balance top up.
+     * @param deadline Deadline for the transaction to be executed.
+     * @param v ECDSA signature parameter.
+     * @param r ECDSA signature parameter.
+     * @param s ECDSA signature parameter.
+     */
+    function executableBalanceTopUpWithPermit(uint128 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
 
     /**
      * @dev Transfers locked value to the inheritor.
@@ -309,8 +322,10 @@ interface IMirror {
      *        and is necessary to show the available methods of `Mirror` smart contract on Etherscan.
      *        In case it is a Sails framework smart contract, the user can set his own ABI.
      * @param isSmall The flag indicating if the program is small. See the description of `Mirror.isSmall` field for details.
+     * @param initialExecutableBalance The initial executable balance to be transferred to the program.
      */
-    function initialize(address initializer, address abiInterface, bool isSmall) external;
+    function initialize(address initializer, address abiInterface, bool isSmall, uint128 initialExecutableBalance)
+        external;
 
     /**
      * @dev Performs state transition for the `Mirror` contract.

@@ -237,18 +237,35 @@ impl InBlockTransitions {
         self.block_height
     }
 
-    #[cfg(feature = "mock")]
+    #[cfg(any(test, feature = "mock"))]
+    pub fn from_parts(
+        block_height: u32,
+        states: ProgramStates,
+        schedule: Schedule,
+        modifications: BTreeMap<ActorId, NonFinalTransition>,
+        program_creations: BTreeMap<ActorId, CodeId>,
+    ) -> Self {
+        Self {
+            block_height,
+            states,
+            schedule,
+            modifications,
+            program_creations,
+        }
+    }
+
+    #[cfg(any(test, feature = "mock"))]
     pub fn modifications_mut(&mut self) -> &mut BTreeMap<ActorId, NonFinalTransition> {
         &mut self.modifications
     }
 
-    #[cfg(feature = "mock")]
+    #[cfg(any(test, feature = "mock"))]
     pub fn block_height_mut(&mut self) -> &mut u32 {
         &mut self.block_height
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct NonFinalTransition {
     initial_state: H256,
     pub inheritor: Option<ActorId>,
@@ -265,5 +282,27 @@ impl NonFinalTransition {
             && current_state == self.initial_state
             // check if with unchanged state needs commitment (op)
             && (self.inheritor.is_none() && self.value_to_receive == 0 && self.claims.is_empty() && self.messages.is_empty())
+    }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn initial_state(&self) -> H256 {
+        self.initial_state
+    }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn new(
+        initial_state: H256,
+        inheritor: Option<ActorId>,
+        value_to_receive: i128,
+        claims: Vec<ValueClaim>,
+        messages: Vec<Message>,
+    ) -> Self {
+        Self {
+            initial_state,
+            inheritor,
+            value_to_receive,
+            claims,
+            messages,
+        }
     }
 }

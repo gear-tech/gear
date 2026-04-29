@@ -159,15 +159,21 @@ impl Service {
     /// Number of reserved dev accounts (deployer, validator).
     const RESERVED_DEV_ACCOUNTS: u32 = 2;
     /// Expected Foundry toolchain commit sha.
-    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f1abb2ca347187bb6dea8c3881ca44ce50aab1e7";
+    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f83bad912a9dba7bf0371def1e70bb1896048356";
+    /// Expected Foundry toolchain version.
+    const FOUNDRY_TOOLCHAIN_VERSION: &str = "1.7.0";
 
     fn check_foundry_toolchain_version(client_commit_sha: Option<String>) -> Result<()> {
         if let Some(client_commit_sha) = client_commit_sha
             && client_commit_sha != Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA
         {
+            // bail!(
+            //     "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install nightly-{commit_sha} --force`.",
+            //     commit_sha = Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA,
+            // );
             bail!(
-                "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install nightly-{commit_sha} --force`.",
-                commit_sha = Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA,
+                "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install {version} --force`.",
+                version = Self::FOUNDRY_TOOLCHAIN_VERSION,
             );
         }
 
