@@ -95,6 +95,7 @@ impl OngoingResponses {
                         + entry_size;
 
                     if next_response_size > MAX_RESPONSE_SIZE as usize {
+                        // don't try to put other hashes data to prevent abusive database reads
                         break;
                     }
 
