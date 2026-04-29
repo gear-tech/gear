@@ -251,6 +251,9 @@ impl BlockLoader for EthereumBlockLoader {
     }
 
     async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>> {
+        if range.is_empty() {
+            return Ok(HashMap::new());
+        }
         log::trace!("Querying blocks batch in {range:?} range");
 
         let header_batches = range.clone().step_by(MAX_BLOCK_BATCH_SIZE).map(|start| {

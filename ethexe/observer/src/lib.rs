@@ -44,8 +44,6 @@ mod sync;
 pub mod utils;
 
 #[cfg(test)]
-mod bench;
-#[cfg(test)]
 mod tests;
 
 type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription<Header>>>;
