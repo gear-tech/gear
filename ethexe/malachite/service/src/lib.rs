@@ -134,7 +134,7 @@ impl std::fmt::Display for MalachiteEvent {
                     "BlockProposal(height: {}, block_hash: {}, txs: {})",
                     height,
                     block_hash,
-                    block.transactions.len()
+                    block.len()
                 )
             }
             Self::BlockFinalized { cert, block } => write!(
@@ -143,7 +143,7 @@ impl std::fmt::Display for MalachiteEvent {
                 cert.height,
                 cert.block_hash,
                 cert.signatures.len(),
-                block.transactions.len()
+                block.len()
             ),
         }
     }

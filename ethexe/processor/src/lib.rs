@@ -371,17 +371,16 @@ impl Processor {
     /// - [`Transaction::ProgressTasks`]: drain scheduled tasks due at
     ///   the current synthetic block height.
     /// - [`Transaction::ProcessQueues`]: drain program message queues
-    ///   subject to `gas_allowance` and the configured soft limits.
-    ///   `block` is used here as the execution-time block header — the
-    ///   caller is responsible for synthesising sane height/timestamp
-    ///   values from the MB number.
+    ///   subject to `limits.gas_allowance` and the configured soft
+    ///   limits. `block` is used here as the execution-time block
+    ///   header — the caller is responsible for synthesising sane
+    ///   height/timestamp values from the MB number.
     pub async fn process_transitions(
         &mut self,
         initial_program_states: ProgramStates,
         initial_schedule: Schedule,
         block: SimpleBlockData,
         transactions: &[Transaction],
-        gas_allowance: u64,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
         initial_advanced_block: H256,
     ) -> Result<FinalizedBlockTransitions> {
@@ -437,10 +436,15 @@ impl Processor {
                     let transitions = self.process_tasks(transitions);
                     handler = ProcessingHandler::new(self.db.clone(), transitions);
                 }
-                Transaction::ProcessQueues { limits: _ } => {
+                Transaction::ProcessQueues { limits } => {
                     let transitions = handler.into_transitions();
                     let transitions = self
-                        .process_queues(transitions, block, gas_allowance, promise_out_tx.clone())
+                        .process_queues(
+                            transitions,
+                            block,
+                            limits.gas_allowance,
+                            promise_out_tx.clone(),
+                        )
                         .await?;
                     handler = ProcessingHandler::new(self.db.clone(), transitions);
                 }

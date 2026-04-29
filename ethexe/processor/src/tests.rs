@@ -1825,7 +1825,9 @@ async fn process_transitions_drives_pipeline() {
             limits: ProgressTasksLimits::default(),
         },
         Transaction::ProcessQueues {
-            limits: ProcessQueuesLimits::default(),
+            limits: ProcessQueuesLimits {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+            },
         },
     ];
 
@@ -1840,7 +1842,6 @@ async fn process_transitions_drives_pipeline() {
             Schedule::default(),
             mb1_block,
             &mb1_txs,
-            DEFAULT_BLOCK_GAS_LIMIT,
             None,
             // Genesis MB: nothing advanced yet, so the executor walks
             // the canonical chain back from the target until the
@@ -1899,7 +1900,9 @@ async fn process_transitions_drives_pipeline() {
             limits: ProgressTasksLimits::default(),
         },
         Transaction::ProcessQueues {
-            limits: ProcessQueuesLimits::default(),
+            limits: ProcessQueuesLimits {
+                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
+            },
         },
     ];
 
@@ -1912,7 +1915,6 @@ async fn process_transitions_drives_pipeline() {
             mb1_schedule,
             mb2_block,
             &mb2_txs,
-            DEFAULT_BLOCK_GAS_LIMIT,
             None,
             eth_block_init.hash,
         )

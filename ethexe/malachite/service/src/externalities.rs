@@ -113,7 +113,6 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             self.db.mb_meta(parent).last_advanced_block
         };
         let last_advanced = payload
-            .transactions
             .iter()
             .rev()
             .find_map(|tx| match tx {
@@ -169,7 +168,6 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         // their hashes to the seen-set so a re-gossip can't slip them
         // back in before they age out.
         let injected: Vec<SignedInjectedTransaction> = payload
-            .transactions
             .iter()
             .filter_map(|tx| match tx {
                 Transaction::Injected(t) => Some(t.clone()),
@@ -227,7 +225,9 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             limits: ProgressTasksLimits::default(),
         });
         transactions.push(Transaction::ProcessQueues {
-            limits: ProcessQueuesLimits::default(),
+            limits: ProcessQueuesLimits {
+                gas_allowance: self.gas_allowance,
+            },
         });
         Ok(Transactions::new(transactions))
     }
@@ -245,7 +245,6 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         // legal (chain still too close to genesis); two+ is a
         // protocol violation.
         let advances: Vec<H256> = payload
-            .transactions
             .iter()
             .filter_map(|tx| match tx {
                 Transaction::AdvanceTillEthereumBlock { eth_block_hash } => Some(*eth_block_hash),

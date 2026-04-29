@@ -94,7 +94,6 @@ impl ProcessorExt for MockProcessor {
         _initial_schedule: Schedule,
         _block: SimpleBlockData,
         _transactions: Vec<Transaction>,
-        _gas_allowance: u64,
         _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
         _initial_advanced_block: H256,
     ) -> Result<FinalizedBlockTransitions> {

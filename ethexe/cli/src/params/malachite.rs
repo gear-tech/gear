@@ -23,12 +23,13 @@
 //! discovery, persistent peers, timeouts, gas budget, etc.
 
 use super::MergeParams;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use ethexe_malachite::{MalachiteConfig, Multiaddr};
 use ethexe_service::config::MalachiteCliConfig;
+use gsigner::secp256k1::{Address, PublicKey};
 use serde::Deserialize;
-use std::net::SocketAddr;
+use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf};
 
 /// Parameters for the Malachite consensus service.
 ///
@@ -60,6 +61,27 @@ pub struct MalachiteParams {
     #[arg(long = "malachite-persistent-peer", aliases = &["mala-persistent-peer"])]
     #[serde(default, rename = "persistent-peers")]
     pub malachite_persistent_peers: Vec<Multiaddr>,
+
+    /// Path to a JSON file mapping validator Ethereum addresses to
+    /// their Malachite secp256k1 public keys.
+    ///
+    /// The Router contract stores the validator set as Ethereum
+    /// addresses; the Malachite engine needs the matching public
+    /// keys to verify votes and proposals. At startup, the service
+    /// loads this table and looks every on-chain validator address
+    /// up in it (in router order) to build the final validator set.
+    ///
+    /// File format (a flat JSON object — both address and key are
+    /// hex-encoded with `0x` prefix):
+    /// ```json
+    /// {
+    ///   "0xaaaa...": "0x02bbbb...",
+    ///   "0xcccc...": "0x03dddd..."
+    /// }
+    /// ```
+    #[arg(long = "validators-malachite-pub-keys", aliases = &["mala-validator-keys"])]
+    #[serde(rename = "validator-pub-keys")]
+    pub validators_malachite_pub_keys: Option<PathBuf>,
 }
 
 impl MalachiteParams {
@@ -67,13 +89,36 @@ impl MalachiteParams {
     /// [`MalachiteCliConfig`]. Missing fields fall back to sensible
     /// defaults from [`MalachiteConfig`].
     pub fn into_config(self) -> Result<MalachiteCliConfig> {
+        let validator_pub_keys = match self.validators_malachite_pub_keys {
+            Some(path) => load_validator_pub_keys_table(&path)?,
+            None => BTreeMap::new(),
+        };
         Ok(MalachiteCliConfig {
             listen_addr: self
                 .malachite_listen_addr
                 .unwrap_or(MalachiteConfig::DEFAULT_LISTEN_ADDR),
             persistent_peers: self.malachite_persistent_peers,
+            validator_pub_keys,
         })
     }
+}
+
+/// Read a JSON file with the validator-pubkey table. The map is
+/// `{ "0x<address>": "0x<pubkey>" }`. Errors include the file path
+/// for easier diagnosis.
+fn load_validator_pub_keys_table(path: &std::path::Path) -> Result<BTreeMap<Address, PublicKey>> {
+    let content = std::fs::read_to_string(path).with_context(|| {
+        format!(
+            "failed to read malachite validator pub keys file at {}",
+            path.display()
+        )
+    })?;
+    serde_json::from_str(&content).with_context(|| {
+        format!(
+            "failed to parse malachite validator pub keys file at {}",
+            path.display()
+        )
+    })
 }
 
 impl MergeParams for MalachiteParams {
@@ -85,6 +130,9 @@ impl MergeParams for MalachiteParams {
         Self {
             malachite_listen_addr: self.malachite_listen_addr.or(with.malachite_listen_addr),
             malachite_persistent_peers: persistent_peers,
+            validators_malachite_pub_keys: self
+                .validators_malachite_pub_keys
+                .or(with.validators_malachite_pub_keys),
         }
     }
 }

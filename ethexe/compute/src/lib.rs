@@ -249,14 +249,15 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     /// Process a Malachite sequencer block — drives the executor by
     /// stepping through the supplied transaction list against the
     /// initial program states / schedule / synthetic block. Returns
-    /// the post-execution transitions.
+    /// the post-execution transitions. The gas budget for any
+    /// `ProcessQueues` step is carried inside the transaction itself
+    /// (see [`ethexe_common::mb::ProcessQueuesLimits`]).
     fn process_transitions(
         &mut self,
         initial_program_states: ProgramStates,
         initial_schedule: Schedule,
         block: SimpleBlockData,
         transactions: Vec<Transaction>,
-        gas_allowance: u64,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
         initial_advanced_block: H256,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
@@ -283,7 +284,6 @@ impl ProcessorExt for Processor {
         initial_schedule: Schedule,
         block: SimpleBlockData,
         transactions: Vec<Transaction>,
-        gas_allowance: u64,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
         initial_advanced_block: H256,
     ) -> Result<FinalizedBlockTransitions> {
@@ -292,7 +292,6 @@ impl ProcessorExt for Processor {
             initial_schedule,
             block,
             &transactions,
-            gas_allowance,
             promise_out_tx,
             initial_advanced_block,
         )

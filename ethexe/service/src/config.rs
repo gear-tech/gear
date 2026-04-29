@@ -24,7 +24,7 @@ use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use gsigner::secp256k1::{Address, PublicKey};
-use std::{net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
+use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 
 #[derive(Debug)]
 pub struct Config {
@@ -49,6 +49,15 @@ pub struct MalachiteCliConfig {
     /// deployment every peer must be listed (or transitively
     /// reachable through the listed ones).
     pub persistent_peers: Vec<Multiaddr>,
+    /// Map from validator Ethereum [`Address`] to its Malachite
+    /// secp256k1 [`PublicKey`]. The on-chain Router contract stores
+    /// the validator set as Ethereum addresses; Malachite needs the
+    /// matching public keys to verify votes/proposals. The service
+    /// resolves the final validator set by walking the on-chain
+    /// validator list (in router order) and looking each address up
+    /// in this table, so the table must contain every active
+    /// validator's address.
+    pub validator_pub_keys: BTreeMap<Address, PublicKey>,
 }
 
 impl Default for MalachiteCliConfig {
@@ -56,6 +65,7 @@ impl Default for MalachiteCliConfig {
         Self {
             listen_addr: ethexe_malachite::MalachiteConfig::DEFAULT_LISTEN_ADDR,
             persistent_peers: Vec::new(),
+            validator_pub_keys: BTreeMap::new(),
         }
     }
 }

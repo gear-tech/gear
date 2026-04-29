@@ -32,6 +32,7 @@
 
 use crate::injected::SignedInjectedTransaction;
 use alloc::vec::Vec;
+use derive_more::{Deref, DerefMut, IntoIterator};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -61,7 +62,7 @@ pub enum Transaction {
     ProgressTasks { limits: ProgressTasksLimits },
 
     /// Run one drain of the message queues subject to `limits`
-    /// (minimum: `gas_allowance`). Producer emits this at the very
+    /// (`gas_allowance` budget). Producer emits this at the very
     /// end of each sequencer block.
     ProcessQueues { limits: ProcessQueuesLimits },
 
@@ -75,11 +76,18 @@ pub enum Transaction {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ProgressTasksLimits {}
 
-/// Placeholder limits for [`Transaction::ProcessQueues`]. Minimum
-/// intended payload: a gas allowance.
+/// Limits for [`Transaction::ProcessQueues`]. The gas budget is
+/// embedded in the transaction so each MB carries its execution
+/// allowance on the wire — the executor doesn't need a side channel
+/// to know how long it may run.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct ProcessQueuesLimits {}
+pub struct ProcessQueuesLimits {
+    /// Block gas budget for this `ProcessQueues` step. Producer
+    /// reads it from the consensus config and the executor charges
+    /// queue work against it via `GasAllowanceCounter`.
+    pub gas_allowance: u64,
+}
 
 impl Transaction {
     /// Short human-readable tag, used in logs and debug dumps.
@@ -101,15 +109,15 @@ impl Transaction {
 /// this hash, so any place that holds a [`crate::db::CompactBlock`]
 /// can fetch the matching `Transactions` from the CAS without further
 /// coordination.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo, Deref, DerefMut, IntoIterator,
+)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct Transactions {
-    pub transactions: Vec<Transaction>,
-}
+pub struct Transactions(pub Vec<Transaction>);
 
 impl Transactions {
     pub fn new(transactions: Vec<Transaction>) -> Self {
-        Self { transactions }
+        Self(transactions)
     }
 
     /// Blake2b-256 over the SCALE-encoded list — the CAS key under
@@ -145,7 +153,7 @@ mod tests {
     fn hash_changes_when_transactions_change() {
         let mut a = empty_txs();
         let b = empty_txs();
-        a.transactions.push(Transaction::AdvanceTillEthereumBlock {
+        a.push(Transaction::AdvanceTillEthereumBlock {
             eth_block_hash: H256::from_low_u64_be(0xEB),
         });
         assert_ne!(a.hash(), b.hash());

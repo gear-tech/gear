@@ -66,11 +66,11 @@ use std::{
 /// `ethexe_malachite_core::Block`) under which the malachite service
 /// has stored the matching [`crate::CompactBlock`] + transactions
 /// blob. The compute layer reads both back from the DB on demand —
-/// the request only carries the hash and the gas budget.
+/// the request only carries the hash; the per-step gas budget lives
+/// inside each `Transaction::ProcessQueues` payload.
 #[derive(Debug)]
 pub(crate) struct MbComputeRequest {
     pub mb_hash: H256,
-    pub gas_allowance: u64,
 }
 
 /// Successful completion payload — the values a [`ComputeEvent::MbComputed`]
@@ -101,11 +101,8 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         }
     }
 
-    pub fn receive_mb(&mut self, mb_hash: H256, gas_allowance: u64) {
-        self.input.push_back(MbComputeRequest {
-            mb_hash,
-            gas_allowance,
-        });
+    pub fn receive_mb(&mut self, mb_hash: H256) {
+        self.input.push_back(MbComputeRequest { mb_hash });
     }
 
     async fn compute(db: Database, mut processor: P, req: MbComputeRequest) -> Result<MbComputeOk> {
@@ -142,21 +139,13 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         }
 
         for (height, hash, txs) in predecessors {
-            Self::compute_one(&db, &mut processor, height, hash, txs, req.gas_allowance).await?;
+            Self::compute_one(&db, &mut processor, height, hash, txs).await?;
         }
 
         let target_txs = db
             .transactions(target_compact.transactions_hash)
             .ok_or(ComputeError::MbBlockNotFound(target_hash))?;
-        Self::compute_one(
-            &db,
-            &mut processor,
-            target_height,
-            target_hash,
-            target_txs,
-            req.gas_allowance,
-        )
-        .await?;
+        Self::compute_one(&db, &mut processor, target_height, target_hash, target_txs).await?;
 
         Ok(MbComputeOk {
             mb_hash: target_hash,
@@ -170,7 +159,6 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         mb_height: u64,
         mb_hash: H256,
         block: Transactions,
-        gas_allowance: u64,
     ) -> Result<()> {
         // Parent linkage lives in `mb_compact_block`, populated by the
         // malachite service before BlockProposal fires for `mb_hash`.
@@ -211,7 +199,7 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             mb_height,
             mb_hash,
             parent_mb_hash,
-            block.transactions.len(),
+            block.len(),
         );
 
         let processing_result = processor
@@ -219,8 +207,7 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
                 initial_program_states,
                 initial_schedule,
                 synthetic_block,
-                block.transactions,
-                gas_allowance,
+                block.0,
                 None,
                 initial_advanced_block,
             )
@@ -390,7 +377,7 @@ mod tests {
         // Queue ONLY the tail — the sub-service must walk back and
         // catch the previous four uncomputed MBs.
         let (tail_height, tail_hash) = *hashes.last().unwrap();
-        sub.receive_mb(tail_hash, 1_000_000);
+        sub.receive_mb(tail_hash);
 
         let event = sub.next().await.unwrap();
         match event {
@@ -425,7 +412,7 @@ mod tests {
             meta.computed = true; // pretend a previous run finished it
         });
 
-        sub.receive_mb(mb_hash, 1_000_000);
+        sub.receive_mb(mb_hash);
 
         let event = sub.next().await.unwrap();
         match event {

@@ -65,7 +65,9 @@ use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
 use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
-use ethexe_malachite::{InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService};
+use ethexe_malachite::{
+    InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
+};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
@@ -82,7 +84,7 @@ use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     num::NonZero,
     path::PathBuf,
     pin::Pin,
@@ -135,6 +137,36 @@ impl ExternalDataProvider for RouterDataProvider {
     }
 }
 
+/// Build the Malachite validator set from the on-chain validator
+/// list (in router order) by looking each address up in the
+/// `address -> public key` table loaded from the
+/// `--validators-malachite-pub-keys` JSON file.
+///
+/// Voting power is fixed at 1 — Malachite quorum is `> 2/3` of the
+/// total, which under uniform weights matches the Router's
+/// signature threshold. If/when the Router exposes per-validator
+/// stake, the lookup here is the natural place to plumb it through.
+fn build_malachite_validator_set(
+    on_chain_validators: impl IntoIterator<Item = Address>,
+    pub_keys: &BTreeMap<Address, PublicKey>,
+) -> Result<Vec<ValidatorEntry>> {
+    on_chain_validators
+        .into_iter()
+        .map(|addr| {
+            let pub_key = pub_keys.get(&addr).copied().with_context(|| {
+                format!(
+                    "validator address {addr} has no entry in --validators-malachite-pub-keys; \
+                     every on-chain validator must be present in the table"
+                )
+            })?;
+            Ok(ValidatorEntry {
+                public_key: pub_key,
+                voting_power: 1,
+            })
+        })
+        .collect()
+}
+
 /// ethexe service.
 pub struct Service {
     db: Database,
@@ -145,11 +177,6 @@ pub struct Service {
     /// execute MBs, they don't co-sign or submit batch commitments.
     consensus: Option<Pin<Box<dyn ConsensusService>>>,
     malachite: Option<MalachiteService>,
-    /// Per-MB gas allowance forwarded to compute when an MB is
-    /// finalized — captured from [`MalachiteConfig::gas_allowance`] at
-    /// construction time so the `select!` handler doesn't need access
-    /// to the full malachite config.
-    malachite_gas_allowance: u64,
     signer: Signer,
 
     // Optional services
@@ -438,7 +465,7 @@ impl Service {
 
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: latest_block_data.header,
-                latest_validators: validators,
+                latest_validators: validators.clone(),
                 validator_key: validator_pub_key,
                 general_signer: signer.clone(),
                 network_signer,
@@ -470,16 +497,27 @@ impl Service {
             .node
             .database_path_for(config.ethereum.router_address)
             .join("malachite");
-        let malachite_config = MalachiteConfig::from_home_dir(malachite_home)
+        let malachite_base_config = MalachiteConfig::from_home_dir(malachite_home)
             .with_listen_addr(config.malachite.listen_addr)
             .with_persistent_peers(config.malachite.persistent_peers.clone());
         log::info!(
             "🪨 Malachite listen: {}  persistent_peers: {}",
-            malachite_config.listen_addr,
-            malachite_config.persistent_peers.len(),
+            malachite_base_config.listen_addr,
+            malachite_base_config.persistent_peers.len(),
         );
-        let malachite_gas_allowance = malachite_config.gas_allowance;
         let malachite = if let Some(pub_key) = validator_pub_key {
+            // Resolve the on-chain validator set to its Malachite
+            // public-key view. Only validator nodes need this — full
+            // nodes don't start the engine at all.
+            let malachite_validator_set = build_malachite_validator_set(
+                validators.iter().copied(),
+                &config.malachite.validator_pub_keys,
+            )?;
+            log::info!(
+                "🪨 Malachite validators: {}",
+                malachite_validator_set.len()
+            );
+            let malachite_config = malachite_base_config.with_validators(malachite_validator_set);
             Some(
                 MalachiteService::new(
                     malachite_config,
@@ -509,7 +547,6 @@ impl Service {
             compute,
             consensus,
             malachite,
-            malachite_gas_allowance,
             signer,
             prometheus,
             rpc,
@@ -538,7 +575,6 @@ impl Service {
         signer: Signer,
         consensus: Option<Pin<Box<dyn ConsensusService>>>,
         malachite: Option<MalachiteService>,
-        malachite_gas_allowance: u64,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcServer>,
@@ -553,7 +589,6 @@ impl Service {
             compute,
             consensus,
             malachite,
-            malachite_gas_allowance,
             signer,
             network,
             prometheus,
@@ -583,7 +618,6 @@ impl Service {
             mut compute,
             mut consensus,
             mut malachite,
-            malachite_gas_allowance,
             signer: _signer,
             mut prometheus,
             rpc,
@@ -840,8 +874,8 @@ impl Service {
                         tracing::info!(
                             height,
                             mb_hash = %block_hash,
-                            txs = block.transactions.len(),
-                            transactions = ?block.transactions,
+                            txs = block.len(),
+                            transactions = ?*block,
                             "🧱 Malachite: BlockProposal",
                         );
                         // Speculative compute: every proposal we see
@@ -849,15 +883,16 @@ impl Service {
                         // service has already persisted CompactBlock
                         // + CAS transactions + mb_meta before raising
                         // this event, so compute can walk parent
-                        // links freely.
-                        compute.compute_mb(block_hash, malachite_gas_allowance);
+                        // links freely. Per-step gas budget is
+                        // carried inside each `ProcessQueues` tx.
+                        compute.compute_mb(block_hash);
                     }
                     MalachiteEvent::BlockFinalized { cert, block } => {
                         tracing::info!(
                             height = cert.height,
                             block_hash = %cert.block_hash,
                             sigs = cert.signatures.len(),
-                            txs = block.transactions.len(),
+                            txs = block.len(),
                             "✅ Malachite: BlockFinalized",
                         );
                         // The malachite service has already advanced

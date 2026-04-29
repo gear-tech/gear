@@ -1144,52 +1144,50 @@ impl Node {
         //
         // Connect-only nodes (no validator key) keep `malachite =
         // None` and rely on whichever validators are producing MBs.
-        let (malachite, malachite_gas_allowance, malachite_home) =
-            if let Some(config) = self.validator_config.as_ref() {
-                let me = self
-                    .malachite_endpoints
-                    .iter()
-                    .find(|e| e.pub_key == config.public_key)
-                    .cloned()
-                    .expect("validator's malachite endpoint missing — env not aware of this key");
-                let persistent_peers: Vec<MalachiteMultiaddr> = self
-                    .malachite_endpoints
-                    .iter()
-                    .filter(|e| e.pub_key != config.public_key)
-                    .map(|e| e.multiaddr())
-                    .collect();
-                let validators: Vec<ValidatorEntry> = self
-                    .malachite_endpoints
-                    .iter()
-                    .map(|e| ValidatorEntry {
-                        public_key: e.pub_key,
-                        voting_power: 1,
-                    })
-                    .collect();
+        let (malachite, malachite_home) = if let Some(config) = self.validator_config.as_ref() {
+            let me = self
+                .malachite_endpoints
+                .iter()
+                .find(|e| e.pub_key == config.public_key)
+                .cloned()
+                .expect("validator's malachite endpoint missing — env not aware of this key");
+            let persistent_peers: Vec<MalachiteMultiaddr> = self
+                .malachite_endpoints
+                .iter()
+                .filter(|e| e.pub_key != config.public_key)
+                .map(|e| e.multiaddr())
+                .collect();
+            let validators: Vec<ValidatorEntry> = self
+                .malachite_endpoints
+                .iter()
+                .map(|e| ValidatorEntry {
+                    public_key: e.pub_key,
+                    voting_power: 1,
+                })
+                .collect();
 
-                let home = tempfile::tempdir().expect("malachite home tempdir");
+            let home = tempfile::tempdir().expect("malachite home tempdir");
 
-                let mut mc = MalachiteConfig::from_home_dir(home.path().to_path_buf())
-                    .with_listen_addr(me.listen_addr)
-                    .with_persistent_peers(persistent_peers)
-                    .with_validators(validators);
-                // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
-                mc.canonical_quarantine = self.compute_config.canonical_quarantine();
-                let gas_allowance = mc.gas_allowance;
-                let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
-                let svc = MalachiteService::new(
-                    mc,
-                    self.db.clone(),
-                    self.signer.clone(),
-                    config.public_key,
-                    mempool,
-                )
-                .await
-                .expect("MalachiteService::new");
-                (Some(svc), gas_allowance, Some(home))
-            } else {
-                (None, MalachiteConfig::DEFAULT_GAS_ALLOWANCE, None)
-            };
+            let mut mc = MalachiteConfig::from_home_dir(home.path().to_path_buf())
+                .with_listen_addr(me.listen_addr)
+                .with_persistent_peers(persistent_peers)
+                .with_validators(validators);
+            // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
+            mc.canonical_quarantine = self.compute_config.canonical_quarantine();
+            let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
+            let svc = MalachiteService::new(
+                mc,
+                self.db.clone(),
+                self.signer.clone(),
+                config.public_key,
+                mempool,
+            )
+            .await
+            .expect("MalachiteService::new");
+            (Some(svc), Some(home))
+        } else {
+            (None, None)
+        };
         self.malachite_home = malachite_home;
 
         let (sender, receiver) = events::channel(self.db.clone());
@@ -1228,7 +1226,6 @@ impl Node {
             self.signer.clone(),
             consensus,
             malachite,
-            malachite_gas_allowance,
             network,
             None,
             rpc,

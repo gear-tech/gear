@@ -101,9 +101,8 @@ impl<P: ProcessorExt> ComputeService<P> {
     /// blob. Parent linkage is read from `mb_compact_block.parent`.
     /// Results are persisted in the `mb_*` keyspace and surfaced via
     /// [`ComputeEvent::MbComputed`].
-    pub fn compute_mb(&mut self, mb_hash: H256, gas_allowance: u64) {
-        self.mb_compute_sub_service
-            .receive_mb(mb_hash, gas_allowance);
+    pub fn compute_mb(&mut self, mb_hash: H256) {
+        self.mb_compute_sub_service.receive_mb(mb_hash);
     }
 }
 
