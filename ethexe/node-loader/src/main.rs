@@ -437,12 +437,18 @@ fn worker_mint_amount(override_amount: Option<u128>, policy: Option<&ValuePolicy
 /// Resolves on the first SIGINT or SIGTERM. Without SIGTERM `docker stop`
 /// hard-kills the run before drain.
 async fn wait_for_shutdown_signal() -> std::io::Result<&'static str> {
-    use tokio::signal::unix::{SignalKind, signal};
-
-    let mut sigterm = signal(SignalKind::terminate())?;
-    tokio::select! {
-        result = tokio::signal::ctrl_c() => result.map(|()| "Ctrl+C / SIGINT"),
-        _ = sigterm.recv() => Ok("SIGTERM"),
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut sigterm = signal(SignalKind::terminate())?;
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => result.map(|()| "Ctrl+C / SIGINT"),
+            _ = sigterm.recv() => Ok("SIGTERM"),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c().await.map(|()| "Ctrl+C / SIGINT")
     }
 }
 
