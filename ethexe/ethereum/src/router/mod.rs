@@ -553,9 +553,10 @@ impl Router {
             .provider()
             .estimate_eip1559_fees_with(self.eip1559_estimator.clone())
             .await?;
-        let eip1559_max_fee_per_gas_in_gwei = self.eip1559_max_fee_per_gas_in_gwei;
-        let eip1559_max_fee_per_gas_in_wei =
-            eip1559_max_fee_per_gas_in_gwei.saturating_mul(GWEI_TO_WEI as _);
+
+        let eip1559_max_fee_per_gas_in_wei = self
+            .eip1559_max_fee_per_gas_in_gwei
+            .saturating_mul(GWEI_TO_WEI as _);
 
         if eip1559_max_fee_per_gas_in_wei > 0 && max_fee_per_gas >= eip1559_max_fee_per_gas_in_wei {
             log::error!(
