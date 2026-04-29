@@ -22,6 +22,7 @@ use crate::{
         InnerProgramIdsResponse, InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
+    utils::ParityScaleCodec,
 };
 use ethexe_common::{
     Announce, HashOf,
@@ -29,8 +30,9 @@ use ethexe_common::{
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use libp2p::request_response;
+use parity_scale_codec::Encode;
 use std::{
-    collections::VecDeque,
+    collections::{BTreeMap, VecDeque},
     num::NonZeroU32,
     task::{Context, Poll},
 };
@@ -74,15 +76,31 @@ impl OngoingResponses {
         db: Box<dyn DbSyncDatabase>,
         max_chain_len_for_announces_response: NonZeroU32,
     ) -> InnerResponse {
+        const MAX_RESPONSE_SIZE: u64 = ParityScaleCodec::<(), ()>::MAX_RESPONSE_SIZE;
+
         match request {
-            InnerRequest::Hashes(request) => InnerHashesResponse(
-                request
-                    .0
-                    .into_iter()
-                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                    .collect(),
-            )
-            .into(),
+            InnerRequest::Hashes(request) => {
+                let mut response = BTreeMap::new();
+
+                for hash in request.0 {
+                    let Some(data) = db.read_by_hash(hash) else {
+                        continue;
+                    };
+
+                    if 1 // `InnerResponse` discriminant
+                        + response.encoded_size()
+                        + hash.encoded_size()
+                        + data.encoded_size()
+                        > MAX_RESPONSE_SIZE as usize
+                    {
+                        break;
+                    }
+
+                    response.insert(hash, data);
+                }
+
+                InnerHashesResponse(response).into()
+            }
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
                 db.block_announces(request.at)
                     .into_iter()
