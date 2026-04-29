@@ -32,8 +32,7 @@
 //! [`ProtocolTimelines::block_coordinator_at`].
 
 use super::{
-    Participant, StateHandler, ValidatorContext, ValidatorState,
-    coordinator::CoordinatorBoot,
+    Participant, StateHandler, ValidatorContext, ValidatorState, coordinator::CoordinatorBoot,
 };
 use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};

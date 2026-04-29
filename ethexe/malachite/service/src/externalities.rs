@@ -237,7 +237,10 @@ impl ethexe_malachite_core::Externalities<SequencerBlock> for EthexeExternalitie
         Ok(SequencerBlock::new(transactions))
     }
 
-    async fn validate_block_above(&self, block: &ethexe_malachite_core::Block<SequencerBlock>) -> Result<bool> {
+    async fn validate_block_above(
+        &self,
+        block: &ethexe_malachite_core::Block<SequencerBlock>,
+    ) -> Result<bool> {
         let payload = &block.payload;
 
         // Parent linkage is enforced by ethexe-malachite-core via `Block::parent_hash`
@@ -677,5 +680,128 @@ mod tests {
             }]),
         );
         assert!(ext.validate_block_above(&block).await.unwrap());
+    }
+
+    /// Stub mempool that records every `forget` argument so the test
+    /// can assert which txs reached the mempool eviction path.
+    #[derive(Default)]
+    struct ForgetTracker {
+        seen: tokio::sync::Mutex<Vec<SignedInjectedTransaction>>,
+    }
+
+    #[async_trait::async_trait]
+    impl Mempool for ForgetTracker {
+        fn insert(&self, _tx: SignedInjectedTransaction) {}
+        fn set_chain_head(&self, _head: SimpleBlockData) {}
+        async fn fetch(
+            &self,
+            _head: SimpleBlockData,
+            _gas_budget: u64,
+        ) -> Vec<SignedInjectedTransaction> {
+            Vec::new()
+        }
+        async fn forget(&self, committed: &[SignedInjectedTransaction]) {
+            self.seen.lock().await.extend_from_slice(committed);
+        }
+        async fn wait_for_new_tx(&self) {
+            std::future::pending().await
+        }
+    }
+
+    /// `mark_block_as_finalized` must hand exactly the
+    /// [`Transaction::Injected`] subset of the committed block to
+    /// [`Mempool::forget`] (and nothing else — service txs like
+    /// `ProcessQueues` stay out of the mempool round trip).
+    #[tokio::test]
+    async fn finalize_forgets_injected_txs() {
+        use ethexe_common::{
+            PrivateKey, SignedMessage, db::OnChainStorageRW, injected::InjectedTransaction,
+        };
+        use gprimitives::ActorId;
+
+        let db = Database::memory();
+        // Set up a single chain block so the injected txs reference a
+        // valid `reference_block` — even though the stub mempool's
+        // `insert` is a no-op, the value still travels through the
+        // committed block intact.
+        let ref_hash = H256::repeat_byte(0x42);
+        let header = BlockHeader {
+            height: 1,
+            timestamp: 0,
+            parent_hash: H256::zero(),
+        };
+        db.set_block_header(ref_hash, header);
+
+        let pk = PrivateKey::random();
+        let mk_tx = |salt: u8| {
+            SignedMessage::create(
+                pk.clone(),
+                InjectedTransaction {
+                    destination: ActorId::zero(),
+                    payload: vec![1, 2, 3].try_into().unwrap(),
+                    value: 0,
+                    reference_block: ref_hash,
+                    salt: vec![salt; 32].try_into().unwrap(),
+                },
+            )
+            .unwrap()
+        };
+        let tx_a = mk_tx(1);
+        let tx_b = mk_tx(2);
+
+        let tracker = Arc::new(ForgetTracker::default());
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+        let ext = EthexeExternalities {
+            db: db.clone(),
+            mempool: Arc::clone(&tracker) as Arc<dyn Mempool>,
+            chain_head: Arc::new(RwLock::new(None)),
+            chain_head_notify: Arc::new(Notify::new()),
+            event_tx,
+            gas_allowance: 1_000_000,
+            canonical_quarantine: 0,
+        };
+
+        let payload = SequencerBlock::new(vec![
+            // service tx — must NOT show up in `forget`
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            // user tx #1 — must show up
+            Transaction::Injected(tx_a.clone()),
+            // service tx — must NOT
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+            // user tx #2 — must show up
+            Transaction::Injected(tx_b.clone()),
+        ]);
+        ext.save_block(
+            H256::zero(),
+            ethexe_malachite_core::Block::new(H256::zero(), 1, payload),
+        )
+        .await
+        .unwrap();
+        // Drain the BlockProposal event the save emits.
+        let _ = event_rx.recv().await;
+        ext.mark_block_as_finalized(
+            H256::zero(),
+            ethexe_malachite_core::CommitCertificate {
+                height: 1,
+                block_hash: H256::zero(),
+                signatures: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        let seen = tracker.seen.lock().await.clone();
+        let seen_hashes: Vec<_> = seen.iter().map(|t| t.data().to_hash()).collect();
+        assert_eq!(
+            seen.len(),
+            2,
+            "exactly two injected txs should be forgotten"
+        );
+        assert!(seen_hashes.contains(&tx_a.data().to_hash()));
+        assert!(seen_hashes.contains(&tx_b.data().to_hash()));
     }
 }

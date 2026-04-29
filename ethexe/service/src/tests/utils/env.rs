@@ -46,16 +46,16 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConsensusService, ValidatorService};
-use ethexe_malachite::{
-    InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
-    ValidatorEntry, derive_libp2p_secret, malachite_libp2p_peer_id,
-};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
     Ethereum, EthereumBuilder,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
     middleware::MockElectionProvider,
     router::RouterQuery,
+};
+use ethexe_malachite::{
+    InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
+    ValidatorEntry, derive_libp2p_secret, malachite_libp2p_peer_id,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
@@ -1044,9 +1044,9 @@ pub struct Node {
     compute_config: ComputeConfig,
     commitment_delay_limit: u32,
 
-    /// Tempdir hosting the Malachite home (genesis.json + WAL + store.db).
-    /// Held here so it lives as long as the service does and is cleaned
-    /// up when the node is dropped.
+    /// Tempdir hosting the Malachite home (WAL + store.db). Held here
+    /// so it lives as long as the service does and is cleaned up when
+    /// the node is dropped.
     malachite_home: Option<tempfile::TempDir>,
 
     /// Pre-allocated malachite endpoints for *every* validator in the
@@ -1144,53 +1144,52 @@ impl Node {
         //
         // Connect-only nodes (no validator key) keep `malachite =
         // None` and rely on whichever validators are producing MBs.
-        let (malachite, malachite_gas_allowance, malachite_home) = if let Some(config) =
-            self.validator_config.as_ref()
-        {
-            let me = self
-                .malachite_endpoints
-                .iter()
-                .find(|e| e.pub_key == config.public_key)
-                .cloned()
-                .expect("validator's malachite endpoint missing — env not aware of this key");
-            let persistent_peers: Vec<MalachiteMultiaddr> = self
-                .malachite_endpoints
-                .iter()
-                .filter(|e| e.pub_key != config.public_key)
-                .map(|e| e.multiaddr())
-                .collect();
-            let validators: Vec<ValidatorEntry> = self
-                .malachite_endpoints
-                .iter()
-                .map(|e| ValidatorEntry {
-                    public_key: e.pub_key,
-                    voting_power: 1,
-                })
-                .collect();
+        let (malachite, malachite_gas_allowance, malachite_home) =
+            if let Some(config) = self.validator_config.as_ref() {
+                let me = self
+                    .malachite_endpoints
+                    .iter()
+                    .find(|e| e.pub_key == config.public_key)
+                    .cloned()
+                    .expect("validator's malachite endpoint missing — env not aware of this key");
+                let persistent_peers: Vec<MalachiteMultiaddr> = self
+                    .malachite_endpoints
+                    .iter()
+                    .filter(|e| e.pub_key != config.public_key)
+                    .map(|e| e.multiaddr())
+                    .collect();
+                let validators: Vec<ValidatorEntry> = self
+                    .malachite_endpoints
+                    .iter()
+                    .map(|e| ValidatorEntry {
+                        public_key: e.pub_key,
+                        voting_power: 1,
+                    })
+                    .collect();
 
-            let home = tempfile::tempdir().expect("malachite home tempdir");
+                let home = tempfile::tempdir().expect("malachite home tempdir");
 
-            let mut mc = MalachiteConfig::from_home_dir(home.path().to_path_buf())
-                .with_listen_addr(me.listen_addr)
-                .with_persistent_peers(persistent_peers)
-                .with_validators(validators);
-            // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
-            mc.canonical_quarantine = self.compute_config.canonical_quarantine();
-            let gas_allowance = mc.gas_allowance;
-            let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
-            let svc = MalachiteService::new(
-                mc,
-                self.db.clone(),
-                self.signer.clone(),
-                config.public_key,
-                mempool,
-            )
-            .await
-            .expect("MalachiteService::new");
-            (Some(svc), gas_allowance, Some(home))
-        } else {
-            (None, MalachiteConfig::DEFAULT_GAS_ALLOWANCE, None)
-        };
+                let mut mc = MalachiteConfig::from_home_dir(home.path().to_path_buf())
+                    .with_listen_addr(me.listen_addr)
+                    .with_persistent_peers(persistent_peers)
+                    .with_validators(validators);
+                // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
+                mc.canonical_quarantine = self.compute_config.canonical_quarantine();
+                let gas_allowance = mc.gas_allowance;
+                let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
+                let svc = MalachiteService::new(
+                    mc,
+                    self.db.clone(),
+                    self.signer.clone(),
+                    config.public_key,
+                    mempool,
+                )
+                .await
+                .expect("MalachiteService::new");
+                (Some(svc), gas_allowance, Some(home))
+            } else {
+                (None, MalachiteConfig::DEFAULT_GAS_ALLOWANCE, None)
+            };
         self.malachite_home = malachite_home;
 
         let (sender, receiver) = events::channel(self.db.clone());

@@ -83,9 +83,7 @@ impl MergeParams for MalachiteParams {
         let mut persistent_peers = self.malachite_persistent_peers;
         persistent_peers.extend(with.malachite_persistent_peers);
         Self {
-            malachite_listen_addr: self
-                .malachite_listen_addr
-                .or(with.malachite_listen_addr),
+            malachite_listen_addr: self.malachite_listen_addr.or(with.malachite_listen_addr),
             malachite_persistent_peers: persistent_peers,
         }
     }

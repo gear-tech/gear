@@ -207,9 +207,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     // batches need to land within that many Ethereum blocks of `block.hash`
     // or they're rejected on-chain. Fine-grained expiry (depending on chain
     // deepness) is dropped along with the producer-side announce flow.
-    let expiry: u8 = commitment_delay_limit
-        .try_into()
-        .unwrap_or(u8::MAX);
+    let expiry: u8 = commitment_delay_limit.try_into().unwrap_or(u8::MAX);
 
     tracing::trace!("Batch commitment expiry for block {block_hash} is {expiry:?}",);
 
@@ -465,13 +463,18 @@ mod tests {
     };
     use ethexe_db::Database;
 
-    fn empty_mb(parent: H256) -> SequencerBlock {
-        SequencerBlock::new(
-            parent,
-            vec![Transaction::ProcessQueues {
+    /// Build a block with a height-derived `AdvanceTillEthereumBlock`
+    /// salt so each height's hash is unique even though the rest of
+    /// the txs are identical.
+    fn empty_mb(height: u64) -> SequencerBlock {
+        SequencerBlock::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                eth_block_hash: H256::from_low_u64_be(0xEB00 + height),
+            },
+            Transaction::ProcessQueues {
                 limits: ProcessQueuesLimits::default(),
-            }],
-        )
+            },
+        ])
     }
 
     fn write_mb(
@@ -480,7 +483,7 @@ mod tests {
         height: u64,
         outcome: Vec<StateTransition>,
     ) -> H256 {
-        let block = empty_mb(parent_mb);
+        let block = empty_mb(height);
         let hash = block.hash();
         db.set_mb_block(hash, block);
         db.set_mb_outcome(hash, outcome);

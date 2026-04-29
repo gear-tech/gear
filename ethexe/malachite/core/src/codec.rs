@@ -33,9 +33,11 @@ use malachitebft_sync::{
     PeerId, RawDecidedValue, Request, Response, Status, ValueRequest, ValueResponse,
 };
 
-use crate::context::{Height, MalachiteCtx, Proposal, ProposalPart, Value, ValueId, Vote};
-use crate::signing::{Signature, signature_from_vec, signature_to_vec};
-use crate::types::Address;
+use crate::{
+    context::{Height, MalachiteCtx, Proposal, ProposalPart, Value, ValueId, Vote},
+    signing::{Signature, signature_from_vec, signature_to_vec},
+    types::Address,
+};
 
 /// SCALE codec for malachite wire types. Zero-sized handle.
 #[derive(Copy, Clone, Debug, Default)]

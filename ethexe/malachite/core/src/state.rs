@@ -12,10 +12,14 @@
 use std::{marker::PhantomData, time::Duration};
 
 use anyhow::{Result, anyhow};
-use malachitebft_app_channel::app::consensus::ProposedValue;
-use malachitebft_app_channel::app::streaming::{StreamContent, StreamId, StreamMessage};
-use malachitebft_app_channel::app::types::core::{LinearTimeouts, Round, Validity};
-use malachitebft_app_channel::app::types::{LocallyProposedValue, PeerId};
+use malachitebft_app_channel::app::{
+    consensus::ProposedValue,
+    streaming::{StreamContent, StreamId, StreamMessage},
+    types::{
+        LocallyProposedValue, PeerId,
+        core::{LinearTimeouts, Round, Validity},
+    },
+};
 
 use crate::{
     context::{

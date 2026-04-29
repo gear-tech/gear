@@ -35,9 +35,11 @@ use derive_where::derive_where;
 use parity_scale_codec::{Decode, Encode};
 use rocksdb::{DB, Options, WriteBatch};
 
-use crate::context::Height;
-use crate::externalities::BlockPayload;
-use crate::types::{Block, CommitCertificate, H256};
+use crate::{
+    context::Height,
+    externalities::BlockPayload,
+    types::{Block, CommitCertificate, H256},
+};
 
 mod prefix {
     pub const BLOCK: u8 = 0x01;

@@ -24,10 +24,9 @@ fn init_tracing() {
     ONCE.call_once(|| {
         let _ = tracing_subscriber::fmt()
             .with_env_filter(
-                tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| {
-                        tracing_subscriber::EnvFilter::new("warn,ethexe_malachite_core=info")
-                    }),
+                tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                    tracing_subscriber::EnvFilter::new("warn,ethexe_malachite_core=info")
+                }),
             )
             .with_test_writer()
             .try_init();

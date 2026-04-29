@@ -127,4 +127,3 @@ pub enum MalachiteEvent {
     BlockProposal { block_hash: H256 },
     BlockFinalized { block_hash: H256 },
 }
-

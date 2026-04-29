@@ -48,9 +48,7 @@ use anyhow::Result;
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, SimpleBlockData,
-    consensus::VerifiedValidationRequest,
-    db::ConfigStorageRO,
+    Address, SimpleBlockData, consensus::VerifiedValidationRequest, db::ConfigStorageRO,
     ecdsa::PublicKey,
 };
 use ethexe_db::Database;

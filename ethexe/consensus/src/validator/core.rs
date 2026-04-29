@@ -80,7 +80,6 @@ impl Clone for ValidatorCore {
     }
 }
 
-
 /// Trait for committing batch commitments to the blockchain.
 #[async_trait]
 pub trait BatchCommitter: Send {

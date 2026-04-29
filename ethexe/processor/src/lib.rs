@@ -410,9 +410,7 @@ impl Processor {
                     let chain = self.collect_advance_chain(target, current_anchor)?;
                     for hash in chain {
                         let events = self.db.block_events(hash).unwrap_or_else(|| {
-                            log::debug!(
-                                "AdvanceTillEthereumBlock: no events for {hash} in DB"
-                            );
+                            log::debug!("AdvanceTillEthereumBlock: no events for {hash} in DB");
                             Default::default()
                         });
                         for event in events.into_iter().filter_map(|e| e.to_request()) {

@@ -56,9 +56,7 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked,
-    db::OnChainStorageRW,
-    gear::CodeState,
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, db::OnChainStorageRW, gear::CodeState,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};

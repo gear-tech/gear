@@ -303,14 +303,14 @@ impl Mempool for InjectedTxMempool {
             );
             return;
         };
-        if let Some(head_height) = inner.latest_head_height {
-            if Self::is_expired(head_height, ref_height) {
-                debug!(
-                    %tx_hash, %ref_block, ref_height, head_height,
-                    "rejecting tx: reference_block past VALIDITY_WINDOW"
-                );
-                return;
-            }
+        if let Some(head_height) = inner.latest_head_height
+            && Self::is_expired(head_height, ref_height)
+        {
+            debug!(
+                %tx_hash, %ref_block, ref_height, head_height,
+                "rejecting tx: reference_block past VALIDITY_WINDOW"
+            );
+            return;
         }
 
         if inner.pool.len() >= self.capacity {
@@ -549,7 +549,7 @@ mod tests {
         // Globals' start_block_hash defaults to zero in `Database::memory`,
         // so the ancestor-walk fence won't trigger early. That's what we
         // want for this test.
-        let _ = db.globals_mutate(|_| {});
+        db.globals_mutate(|_| {});
 
         let pool = InjectedTxMempool::new(db);
         let pk = PrivateKey::random();

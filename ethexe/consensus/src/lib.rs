@@ -146,6 +146,6 @@ pub enum ConsensusEvent {
     Warning(String),
 }
 
+pub use ethexe_common::consensus::BatchCommitmentValidationRequest;
 pub use utils::MultisignedBatchCommitment;
 pub use validator::batch::{BatchLimits, ValidationStatus};
-pub use ethexe_common::consensus::BatchCommitmentValidationRequest;

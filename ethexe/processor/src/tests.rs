@@ -1868,9 +1868,7 @@ async fn process_transitions_drives_pipeline() {
     // ---- MB2: injected PING against the now-initialized program ------
     // No new canonical events for this MB.
     let eth_block_followup = chain.blocks[2].to_simple();
-    processor
-        .db
-        .set_block_events(eth_block_followup.hash, &[]);
+    processor.db.set_block_events(eth_block_followup.hash, &[]);
 
     let injected_user_pk = PrivateKey::random();
     let injected_tx = InjectedTransaction {

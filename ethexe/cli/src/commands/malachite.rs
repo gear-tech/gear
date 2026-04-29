@@ -68,14 +68,11 @@ impl MalachiteCommand {
     }
 
     pub fn exec(self) -> Result<()> {
-        let key_store = self
-            .key_store
-            .expect("must never be empty after merging");
+        let key_store = self.key_store.expect("must never be empty after merging");
 
         match self.command {
             MalachiteSubcommand::PeerId { validator } => {
-                let signer =
-                    Signer::fs(key_store).context("opening validator keystore")?;
+                let signer = Signer::fs(key_store).context("opening validator keystore")?;
                 let secret = signer
                     .private_key(validator)
                     .context("validator key not found in keystore")?

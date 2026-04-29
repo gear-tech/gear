@@ -521,12 +521,10 @@ impl AnnounceStorageRW for RawDatabase {
 
 impl MbStorageRO for RawDatabase {
     fn mb_block(&self, mb_hash: H256) -> Option<SequencerBlock> {
-        self.kv
-            .get(&Key::MbBlock(mb_hash).to_bytes())
-            .map(|data| {
-                SequencerBlock::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `SequencerBlock`")
-            })
+        self.kv.get(&Key::MbBlock(mb_hash).to_bytes()).map(|data| {
+            SequencerBlock::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `SequencerBlock`")
+        })
     }
 
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates> {
@@ -560,8 +558,7 @@ impl MbStorageRO for RawDatabase {
         self.kv
             .get(&Key::MbMeta(mb_hash).to_bytes())
             .map(|data| {
-                MbMeta::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `MbMeta`")
+                MbMeta::decode(&mut data.as_slice()).expect("Failed to decode data into `MbMeta`")
             })
             .unwrap_or_default()
     }
@@ -570,8 +567,7 @@ impl MbStorageRO for RawDatabase {
         self.kv
             .get(&Key::MbHashAtHeight(height).to_bytes())
             .map(|data| {
-                H256::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `H256`")
+                H256::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
             })
     }
 }
@@ -607,16 +603,13 @@ impl MbStorageRW for RawDatabase {
         tracing::trace!(mb_hash = %mb_hash, "Mutate MB meta");
         let mut meta = self.mb_meta(mb_hash);
         f(&mut meta);
-        self.kv
-            .put(&Key::MbMeta(mb_hash).to_bytes(), meta.encode());
+        self.kv.put(&Key::MbMeta(mb_hash).to_bytes(), meta.encode());
     }
 
     fn set_mb_hash_at_height(&self, height: u64, mb_hash: H256) {
         tracing::trace!(height, mb_hash = %mb_hash, "Set MB hash at height");
-        self.kv.put(
-            &Key::MbHashAtHeight(height).to_bytes(),
-            mb_hash.encode(),
-        );
+        self.kv
+            .put(&Key::MbHashAtHeight(height).to_bytes(), mb_hash.encode());
     }
 }
 

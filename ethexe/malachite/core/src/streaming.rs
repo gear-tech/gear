@@ -9,17 +9,22 @@
 //! complete, returns the assembled [`ProposalParts`] in sequence
 //! order.
 
-use std::cmp::Ordering;
-use std::collections::{BTreeMap, BinaryHeap, HashSet};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, BinaryHeap, HashSet},
+};
 
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input, Output};
 
-use malachitebft_app_channel::app::streaming::{Sequence, StreamId, StreamMessage};
-use malachitebft_app_channel::app::types::PeerId;
-use malachitebft_app_channel::app::types::core::Round;
+use malachitebft_app_channel::app::{
+    streaming::{Sequence, StreamId, StreamMessage},
+    types::{PeerId, core::Round},
+};
 
-use crate::context::{Height, ProposalInit, ProposalPart};
-use crate::types::Address;
+use crate::{
+    context::{Height, ProposalInit, ProposalPart},
+    types::Address,
+};
 
 /// Min-heap wrapper that orders `StreamMessage`s by ascending sequence.
 struct MinSeq<T>(StreamMessage<T>);
@@ -205,8 +210,10 @@ impl PartStreamsMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::{ProposalData, ProposalInit};
-    use crate::signing::{MalachiteSigner, private_key_from_bytes};
+    use crate::{
+        context::{ProposalData, ProposalInit},
+        signing::{MalachiteSigner, private_key_from_bytes},
+    };
     use malachitebft_app_channel::app::streaming::StreamContent;
 
     fn peer_id(byte: u8) -> PeerId {

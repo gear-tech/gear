@@ -19,13 +19,18 @@ use parity_scale_codec::{Decode, Encode};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
-use malachitebft_app_channel::app::engine::host::{HeightParams, Next};
-use malachitebft_app_channel::app::streaming::StreamContent;
-use malachitebft_app_channel::app::types::ProposedValue;
-use malachitebft_app_channel::app::types::core::utils::height::HeightRangeExt;
-use malachitebft_app_channel::app::types::core::{Height as _HeightTrait, Round, Validity};
-use malachitebft_app_channel::app::types::sync::RawDecidedValue;
-use malachitebft_app_channel::{AppMsg, Channels, NetworkMsg};
+use malachitebft_app_channel::{
+    AppMsg, Channels, NetworkMsg,
+    app::{
+        engine::host::{HeightParams, Next},
+        streaming::StreamContent,
+        types::{
+            ProposedValue,
+            core::{Height as _HeightTrait, Round, Validity, utils::height::HeightRangeExt},
+            sync::RawDecidedValue,
+        },
+    },
+};
 
 use crate::{
     codec::{decode_value, encode_value},

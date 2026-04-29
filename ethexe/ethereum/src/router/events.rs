@@ -197,8 +197,7 @@ impl<'a> ChainCommittedEventBuilder<'a> {
 
     pub async fn subscribe(
         self,
-    ) -> Result<impl Stream<Item = Result<(ChainCommittedEvent, Log), Error>> + Unpin + use<>>
-    {
+    ) -> Result<impl Stream<Item = Result<(ChainCommittedEvent, Log), Error>> + Unpin + use<>> {
         Ok(self
             .event
             .subscribe()

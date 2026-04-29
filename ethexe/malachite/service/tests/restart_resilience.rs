@@ -72,9 +72,7 @@ fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
 }
 
 /// Spin up an ephemeral keystore and generate one secp256k1 keypair.
-fn build_signer(
-    home: &Path,
-) -> (Signer<Secp256k1>, gsigner::schemes::secp256k1::PublicKey) {
+fn build_signer(home: &Path) -> (Signer<Secp256k1>, gsigner::schemes::secp256k1::PublicKey) {
     let key_dir = home.join("keystore");
     std::fs::create_dir_all(&key_dir).expect("mkdir keystore");
     let signer = Signer::<Secp256k1>::fs(key_dir).expect("open keystore");
@@ -119,7 +117,7 @@ fn build_config(
 /// finalize events observed.
 async fn collect_until_finalized(
     service: &mut MalachiteService,
-    pending_heads: &mut std::vec::IntoIter<SimpleBlockData>,
+    pending_heads: &mut dyn Iterator<Item = SimpleBlockData>,
     target: u64,
     budget: Duration,
 ) -> (u64, u64) {
@@ -192,7 +190,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     // `last_advanced_block` is the previous head; same-hash returns
     // `Ok(false)` from `is_strict_descendant_of` and the producer
     // would idle).
-    let mut pending = chain[..32].to_vec().into_iter();
+    let mut pending = chain[..32].iter().copied();
     let (high1, finalized1) =
         collect_until_finalized(&mut svc, &mut pending, 5, Duration::from_secs(60)).await;
     assert!(
@@ -232,7 +230,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     )
     .await
     .expect("restart malachite service");
-    let mut pending2 = chain[32..].to_vec().into_iter();
+    let mut pending2 = chain[32..].iter().copied();
     let (high2, finalized2) =
         collect_until_finalized(&mut svc2, &mut pending2, 3, Duration::from_secs(60)).await;
     assert!(

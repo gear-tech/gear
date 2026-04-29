@@ -26,11 +26,9 @@ use parity_scale_codec::{Decode, Encode, Error as CodecError, Input, Output};
 use serde::{Deserialize, Serialize};
 use sha3::{Digest as _, Keccak256};
 
-use malachitebft_core_types::ValidatorSet as _ValidatorSetTrait;
-use malachitebft_core_types::Value as _ValueTrait;
 use malachitebft_core_types::{
     Context, LinearTimeouts, NilOrVal, Round, SignedExtension, SignedMessage, SignedProposal,
-    SignedVote, VoteType, VotingPower,
+    SignedVote, ValidatorSet as _ValidatorSetTrait, Value as _ValueTrait, VoteType, VotingPower,
 };
 use malachitebft_signing::{Error as SigningError, SigningProvider, VerificationResult};
 use malachitebft_signing_ecdsa::K256;

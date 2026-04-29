@@ -13,13 +13,7 @@ alloy = { workspace = true, features = ["eips"] }
 anyhow.workspace = true
 async-trait.workspace = true
 futures.workspace = true
-hex.workspace = true
-log.workspace = true
 parity-scale-codec.workspace = true
-serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
-sha3.workspace = true
-thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 tracing.workspace = true
 

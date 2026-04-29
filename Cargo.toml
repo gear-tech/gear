@@ -342,13 +342,8 @@ ethexe-node-wrapper = {path = "ethexe/node-wrapper", default-features = false}
 ethexe-malachite = { path = "ethexe/malachite/service", default-features = false }
 ethexe-malachite-core = { path = "ethexe/malachite/core", default-features = false }
 
-# secp256k1 curve back-end for the Malachite signing layer + libp2p
-# peer-id derivation. Pinned to the version the malachite fork below
-# already drags in transitively, so we don't end up with two `k256`
-# in the dependency graph.
-k256 = { version = "0.13", default-features = false, features = ["ecdsa", "serde", "std"] }
+# libp2p-identity for ethexe-malachite-core's swarm peer-id derivation.
 libp2p-identity = { version = "0.2", default-features = false, features = ["secp256k1"] }
-serde_bytes = { version = "0.11", default-features = false }
 # Pinned at the version `ethexe-db`'s librocksdb-sys uses — only one
 # `links = "rocksdb"` crate may live in the dependency graph.
 rocksdb = { version = "0.21", default-features = false, features = ["snappy"] }

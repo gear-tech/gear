@@ -35,8 +35,7 @@ use ethexe_common::{
     Address, SimpleBlockData, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
     gear::BatchCommitment, network::ValidatorMessage,
 };
-use futures::FutureExt;
-use futures::future::BoxFuture;
+use futures::{FutureExt, future::BoxFuture};
 use gsigner::secp256k1::Secp256k1SignerExt;
 use std::{
     collections::BTreeSet,
@@ -110,10 +109,7 @@ impl StateHandler for CoordinatorBoot {
         self.ctx
     }
 
-    fn poll_next_state(
-        mut self,
-        cx: &mut Context<'_>,
-    ) -> Result<(Poll<()>, ValidatorState)> {
+    fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         let Some(future) = self.pending.as_mut() else {
             return Ok((Poll::Pending, self.into()));
         };

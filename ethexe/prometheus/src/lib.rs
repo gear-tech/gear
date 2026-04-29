@@ -31,9 +31,7 @@
 //! - merges everything into a single Prometheus text response.
 
 use anyhow::{Context as _, Result};
-use ethexe_common::db::{
-    BlockMetaStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO,
-};
+use ethexe_common::db::{BlockMetaStorageRO, GlobalsStorageRO, MbStorageRO, OnChainStorageRO};
 use ethexe_db::Database;
 use futures::{FutureExt, Stream, stream::FusedStream};
 use hyper::{

@@ -24,7 +24,7 @@
 //! manager re-derives the same batch independently and signs (or
 //! rejects) it.
 
-use super::{BatchLimits, BatchCommitmentManager, ValidationStatus, types::ValidationRejectReason};
+use super::{BatchCommitmentManager, BatchLimits, ValidationStatus, types::ValidationRejectReason};
 use crate::validator::core::MiddlewareWrapper;
 use ethexe_common::{
     Address, Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest, ValidatorsVec,
@@ -61,7 +61,10 @@ fn mock_batch_manager_with_limits_and_election(
     let election = MockElectionProvider::new();
     let middleware =
         MiddlewareWrapper::from_inner(Box::new(election.clone()) as Box<dyn ElectionProvider>);
-    (BatchCommitmentManager::new(limits, db, middleware), election)
+    (
+        BatchCommitmentManager::new(limits, db, middleware),
+        election,
+    )
 }
 
 fn mock_batch_manager(db: Database) -> BatchCommitmentManager {
@@ -70,13 +73,18 @@ fn mock_batch_manager(db: Database) -> BatchCommitmentManager {
 
 /// Append a single MB to the chain. Sets the meta as `computed=true` so
 /// the manager treats it as finalized state available for batching.
+///
+/// The `AdvanceTillEthereumBlock` salt is keyed off `height` so each
+/// MB has a unique hash even with otherwise identical contents.
 fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransition>) -> H256 {
-    let block = SequencerBlock::new(
-        parent,
-        vec![Transaction::ProcessQueues {
+    let block = SequencerBlock::new(vec![
+        Transaction::AdvanceTillEthereumBlock {
+            eth_block_hash: H256::from_low_u64_be(0xEB00 + height),
+        },
+        Transaction::ProcessQueues {
             limits: ProcessQueuesLimits::default(),
-        }],
-    );
+        },
+    ]);
     let mb_hash = block.hash();
     db.set_mb_block(mb_hash, block);
     db.set_mb_outcome(mb_hash, outcome);
@@ -123,16 +131,15 @@ fn nonempty_transition(seed: u8) -> StateTransition {
 /// Build a batch from a small canonical setup so multiple tests can
 /// share the scaffolding. Returns the chain head block plus the
 /// resulting batch.
-async fn prepare_canonical_batch(db: &Database) -> (SimpleBlockData, ethexe_common::gear::BatchCommitment) {
+async fn prepare_canonical_batch(
+    db: &Database,
+) -> (SimpleBlockData, ethexe_common::gear::BatchCommitment) {
     let chain = test_block_chain(3).setup(db);
     let block = chain.blocks[3].to_simple();
 
     setup_mb_chain(
         db,
-        vec![
-            vec![nonempty_transition(1)],
-            vec![nonempty_transition(2)],
-        ],
+        vec![vec![nonempty_transition(1)], vec![nonempty_transition(2)]],
     );
 
     let manager = mock_batch_manager(db.clone());
@@ -196,7 +203,10 @@ async fn rejects_duplicate_code_ids() {
         .validate_batch_commitment(block, request)
         .await
         .unwrap();
-    assert_eq!(unwrap_rejected(status), ValidationRejectReason::CodesHasDuplicates);
+    assert_eq!(
+        unwrap_rejected(status),
+        ValidationRejectReason::CodesHasDuplicates
+    );
 }
 
 #[tokio::test]
@@ -401,11 +411,13 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
     // First build under a generous limit, then validate under a tight
     // one — that's how the manager catches an oversize batch from a
     // misbehaving coordinator.
-    let big_manager =
-        mock_batch_manager_with_limits(db.clone(), BatchLimits {
+    let big_manager = mock_batch_manager_with_limits(
+        db.clone(),
+        BatchLimits {
             commitment_delay_limit: 100,
             batch_size_limit: BLOCK_GAS_LIMIT, // large
-        });
+        },
+    );
     let batch = big_manager
         .create_batch_commitment(block)
         .await
@@ -461,10 +473,7 @@ async fn squash_orders_negative_value_transitions_first() {
     let mb2_neg = transition(actor_negative, H256::from([3; 32]), 20, false);
     let mb2_pos = transition(actor_positive, H256::from([4; 32]), 10, false);
 
-    setup_mb_chain(
-        &db,
-        vec![vec![mb1_neg, mb1_pos], vec![mb2_neg, mb2_pos]],
-    );
+    setup_mb_chain(&db, vec![vec![mb1_neg, mb1_pos], vec![mb2_neg, mb2_pos]]);
 
     let manager = mock_batch_manager(db.clone());
     let batch = manager
@@ -528,20 +537,12 @@ async fn test_aggregate_validators_commitment() {
     // wrote the original config first; we want the shortened one).
     db.set_config(chain.config.clone());
 
-    let validators1: ValidatorsVec = vec![
-        Address([1; 20]),
-        Address([2; 20]),
-        Address([3; 20]),
-    ]
-    .try_into()
-    .unwrap();
-    let validators2: ValidatorsVec = vec![
-        Address([4; 20]),
-        Address([5; 20]),
-        Address([6; 20]),
-    ]
-    .try_into()
-    .unwrap();
+    let validators1: ValidatorsVec = vec![Address([1; 20]), Address([2; 20]), Address([3; 20])]
+        .try_into()
+        .unwrap();
+    let validators2: ValidatorsVec = vec![Address([4; 20]), Address([5; 20]), Address([6; 20])]
+        .try_into()
+        .unwrap();
 
     let (manager, election) =
         mock_batch_manager_with_limits_and_election(db.clone(), BatchLimits::default());
