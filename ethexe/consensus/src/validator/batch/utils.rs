@@ -73,7 +73,10 @@ pub fn collect_not_committed_mb_predecessors<DB: MbStorageRO>(
         }
 
         mbs.push(current);
-        current = meta.parent_mb_hash.unwrap_or(H256::zero());
+        current = db
+            .mb_compact_block(current)
+            .map(|c| c.parent)
+            .unwrap_or(H256::zero());
     }
 
     Ok(mbs.into_iter().rev().collect())
@@ -111,7 +114,10 @@ pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
     while current != last_committed_mb && current != H256::zero() {
         let meta = db.mb_meta(current);
         chain.push((current, meta.computed));
-        current = meta.parent_mb_hash.unwrap_or(H256::zero());
+        current = db
+            .mb_compact_block(current)
+            .map(|c| c.parent)
+            .unwrap_or(H256::zero());
     }
     if current != last_committed_mb {
         // Couldn't trace back to the on-chain commit anchor — most
@@ -156,7 +162,10 @@ pub fn is_ancestor_or_equal<DB: MbStorageRO>(
         if current == candidate {
             return Ok(true);
         }
-        current = db.mb_meta(current).parent_mb_hash.unwrap_or(H256::zero());
+        current = db
+            .mb_compact_block(current)
+            .map(|c| c.parent)
+            .unwrap_or(H256::zero());
     }
     Ok(false)
 }
@@ -458,16 +467,16 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Schedule,
-        db::MbStorageRW,
-        mb::{ProcessQueuesLimits, SequencerBlock, Transaction},
+        db::{CompactBlock, MbStorageRW},
+        mb::{ProcessQueuesLimits, Transaction, Transactions},
     };
     use ethexe_db::Database;
 
-    /// Build a block with a height-derived `AdvanceTillEthereumBlock`
-    /// salt so each height's hash is unique even though the rest of
-    /// the txs are identical.
-    fn empty_mb(height: u64) -> SequencerBlock {
-        SequencerBlock::new(vec![
+    /// Build a [`Transactions`] with a height-derived
+    /// `AdvanceTillEthereumBlock` salt so each height's CAS hash is
+    /// unique even though the rest of the txs are identical.
+    fn empty_txs(height: u64) -> Transactions {
+        Transactions::new(vec![
             Transaction::AdvanceTillEthereumBlock {
                 eth_block_hash: H256::from_low_u64_be(0xEB00 + height),
             },
@@ -477,25 +486,35 @@ mod tests {
         ])
     }
 
+    /// Service-side seeding helper. Mirrors what the malachite
+    /// `save_block` externalities do at finalize time, plus the
+    /// `meta.computed` flip that the executor would do later.
     fn write_mb(
         db: &Database,
         parent_mb: H256,
         height: u64,
         outcome: Vec<StateTransition>,
     ) -> H256 {
-        let block = empty_mb(height);
-        let hash = block.hash();
-        db.set_mb_block(hash, block);
-        db.set_mb_outcome(hash, outcome);
-        db.set_mb_schedule(hash, Schedule::default());
-        db.mutate_mb_meta(hash, |meta| {
+        let txs = empty_txs(height);
+        let transactions_hash = db.set_transactions(txs);
+        // Synthetic mb_hash — uniqueness is what matters, not the
+        // exact hashing scheme.
+        let mb_hash = H256::from_low_u64_be(0x1000 + height);
+        db.set_mb_compact_block(
+            mb_hash,
+            CompactBlock {
+                parent: parent_mb,
+                height,
+                transactions_hash,
+            },
+        );
+        db.set_mb_outcome(mb_hash, outcome);
+        db.set_mb_schedule(mb_hash, Schedule::default());
+        db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true;
-            meta.height = height;
-            meta.parent_mb_hash = (parent_mb != H256::zero()).then_some(parent_mb);
             meta.last_advanced_block = H256::zero();
         });
-        db.set_mb_hash_at_height(height, hash);
-        hash
+        mb_hash
     }
 
     #[test]

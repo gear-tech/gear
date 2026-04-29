@@ -25,7 +25,7 @@ use crate::{
     mb_compute::MbComputeSubService,
     prepare::PrepareSubService,
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked, PromisePolicy, mb::SequencerBlock};
+use ethexe_common::{Announce, CodeAndIdUnchecked, PromisePolicy};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
@@ -92,13 +92,18 @@ impl<P: ProcessorExt> ComputeService<P> {
     }
 
     /// Queue a finalized Malachite sequencer block for execution.
-    /// `mb_hash` is derived from `block.hash()`; parent linkage comes
-    /// from [`MbMeta::parent_mb_hash`](ethexe_common::db::MbMeta).
+    ///
+    /// `mb_hash` is the consensus envelope hash (Blake2b over
+    /// `ethexe_malachite_core::Block`) — the same key the malachite
+    /// service used when writing the matching
+    /// [`CompactBlock`](ethexe_common::db::CompactBlock) and
+    /// CAS-stored [`Transactions`](ethexe_common::mb::Transactions)
+    /// blob. Parent linkage is read from `mb_compact_block.parent`.
     /// Results are persisted in the `mb_*` keyspace and surfaced via
     /// [`ComputeEvent::MbComputed`].
-    pub fn compute_mb(&mut self, mb_height: u64, block: SequencerBlock, gas_allowance: u64) {
+    pub fn compute_mb(&mut self, mb_hash: H256, gas_allowance: u64) {
         self.mb_compute_sub_service
-            .receive_mb(mb_height, block, gas_allowance);
+            .receive_mb(mb_hash, gas_allowance);
     }
 }
 

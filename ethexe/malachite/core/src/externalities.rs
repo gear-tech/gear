@@ -77,19 +77,22 @@ pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
     /// genesis block.
     async fn build_block_above(&self, parent_hash: H256) -> Result<P>;
 
-    /// Application-side validation of an incoming proposal.
+    /// Application-side validation of an incoming proposal's
+    /// **payload only**.
     ///
-    /// Service guarantees `block.parent_hash` is finalized at call
-    /// time (or zero for the genesis block), so the application can
-    /// read whatever ancestor state it needs to perform deep checks.
+    /// Parent linkage and height progression are validated inside
+    /// the consensus layer before this hook fires; the caller still
+    /// passes `parent_hash` for context (e.g. to read ancestor state
+    /// from an application-side store) but is not expected to
+    /// re-check `block.parent_hash`. `parent_hash == H256::zero()`
+    /// signals the genesis block.
+    ///
     /// Typical responsibilities:
-    /// - the proposer is the address authorized at this height /
-    ///   round (if the application maintains its own authorization
-    ///   on top of malachite's validator set);
-    /// - the block builds on top of `block.parent_hash` per the
-    ///   application's chain-link semantics;
-    /// - any application-layer protocol invariants (gas budget,
-    ///   transactions are well-formed, etc.).
+    /// - the payload is well-formed against the application's
+    ///   protocol invariants (gas budget, single anchor advance,
+    ///   transaction shape, etc.).
+    /// - Optionally a stronger proposer-authorization check on top
+    ///   of malachite's validator set.
     ///
     /// Returns `Ok(true)` to vote for the proposal, `Ok(false)` to
     /// reject without crashing, `Err(_)` for an unexpected internal
@@ -97,5 +100,5 @@ pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
     ///
     /// Not called on the sync path — sync values come with a quorum
     /// commit certificate and are accepted on that basis alone.
-    async fn validate_block_above(&self, block: &Block<P>) -> Result<bool>;
+    async fn validate_block_above(&self, parent_hash: H256, payload: P) -> Result<bool>;
 }

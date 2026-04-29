@@ -93,7 +93,7 @@ pub struct BatchCommitmentValidationRequest {
     ///
     /// `None` if the batch carries no chain commitment (codes/validators/rewards
     /// only). Otherwise, the hash of the most recent finalized
-    /// [`SequencerBlock`](crate::mb::SequencerBlock) covered by this batch.
+    /// `ethexe_malachite_core::Block` envelope covered by this batch.
     pub head: Option<H256>,
     /// List of codes which are part of the batch
     pub codes: Vec<CodeId>,

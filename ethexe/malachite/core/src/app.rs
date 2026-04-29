@@ -444,8 +444,11 @@ where
             local_parent
         ));
     }
+    // Parent + height already validated above. The application only
+    // sees the parent hash + payload — payload-level checks live
+    // there.
     let valid = externalities
-        .validate_block_above(&block)
+        .validate_block_above(block.parent_hash, block.payload)
         .await
         .context("Externalities::validate_block_above")?;
     if !valid {

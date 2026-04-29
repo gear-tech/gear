@@ -34,20 +34,19 @@
 //!   [`MalachiteEvent::BlockFinalized`].
 //! - [`EthexeExternalities::build_block_above`] — when this node is
 //!   proposer, wait for proposable content (a new EB past quarantine
-//!   or a non-empty mempool), then assemble a [`SequencerBlock`].
+//!   or a non-empty mempool), then assemble a [`Transactions`].
 //! - [`EthexeExternalities::validate_block_above`] — for an incoming
 //!   peer proposal, run ethexe's quarantine + parent-link checks
 //!   before voting.
 //!
-//! ## Hash bridging
-//! ethexe-malachite-core identifies blocks by Blake2b of its own [`Block<P>`]
-//! envelope; ethexe identifies MBs by Keccak of [`SequencerBlock`].
-//! We bridge the two by writing `mb_hash_at_height(height)` in
-//! [`Self::save_block`] (using ethexe-malachite-core's strict ancestor-first
-//! ordering, every height is recorded before its successor needs it)
-//! and reading it back in [`Self::mark_block_as_finalized`] /
-//! [`Self::build_block_above`]. No new key prefixes are needed; the
-//! existing ethexe-db schema covers the round-trip.
+//! ## Storage layout
+//! All MB-keyed storage in the ethexe DB is keyed by the
+//! `ethexe_malachite_core::Block` envelope hash (Blake2b over
+//! `(parent_hash, height, payload_hash, reserved)`). [`Self::save_block`]
+//! writes a [`CompactBlock`] under that key (carrying parent + height
+//! + the Blake2b hash of the [`Transactions`] payload) and CAS-stores
+//! the `Transactions` blob; [`Self::mark_block_as_finalized`] reads
+//! both back via the same key the consensus layer hands in.
 
 use std::sync::{Arc, RwLock};
 
@@ -55,9 +54,9 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
     SimpleBlockData,
-    db::{GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
+    db::{CompactBlock, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
     injected::SignedInjectedTransaction,
-    mb::{ProcessQueuesLimits, ProgressTasksLimits, SequencerBlock, Transaction},
+    mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
 };
 use ethexe_db::Database;
 use gprimitives::H256;
@@ -92,37 +91,26 @@ pub(crate) struct EthexeExternalities {
 }
 
 #[async_trait]
-impl ethexe_malachite_core::Externalities<SequencerBlock> for EthexeExternalities {
+impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities {
     async fn save_block(
         &self,
-        _block_hash: H256,
-        block: ethexe_malachite_core::Block<SequencerBlock>,
+        block_hash: H256,
+        block: ethexe_malachite_core::Block<Transactions>,
     ) -> Result<()> {
-        let height = block.height;
+        // The DB is keyed by the consensus envelope hash (Blake2b
+        // over `Block`), passed in `block_hash`. Parent linkage lives
+        // in [`CompactBlock::parent`]; the transactions list itself
+        // lives in CAS keyed by [`CompactBlock::transactions_hash`].
+        let parent = block.parent_hash;
         let payload = block.payload;
-        let mb_keccak = payload.hash();
-
-        // ethexe-malachite-core guarantees ancestor-first save order, so the parent
-        // (if any) is already indexed at `height - 1`. For genesis the
-        // parent is the pre-genesis sentinel `H256::zero()`.
-        let parent_keccak = if height <= 1 {
-            H256::zero()
-        } else {
-            self.db.mb_hash_at_height(height - 1).ok_or_else(|| {
-                anyhow!(
-                    "save_block: parent at height {} not indexed (height={height}, mb={mb_keccak})",
-                    height - 1
-                )
-            })?
-        };
 
         // Propagate `last_advanced_block` forward — the latest
         // `AdvanceTillEthereumBlock` in this MB wins; otherwise we
         // inherit the parent's value (zero if pre-genesis).
-        let parent_advanced = if parent_keccak.is_zero() {
+        let parent_advanced = if parent.is_zero() {
             H256::zero()
         } else {
-            self.db.mb_meta(parent_keccak).last_advanced_block
+            self.db.mb_meta(parent).last_advanced_block
         };
         let last_advanced = payload
             .transactions
@@ -134,20 +122,29 @@ impl ethexe_malachite_core::Externalities<SequencerBlock> for EthexeExternalitie
             })
             .unwrap_or(parent_advanced);
 
-        self.db.set_mb_block(mb_keccak, payload.clone());
-        let parent_for_meta = (!parent_keccak.is_zero()).then_some(parent_keccak);
-        self.db.mutate_mb_meta(mb_keccak, |meta| {
-            meta.height = height;
-            meta.parent_mb_hash = parent_for_meta;
+        // CAS-store transactions first so the contract — "if
+        // CompactBlock exists, transactions are reachable" — holds
+        // unconditionally.
+        let transactions_hash = self.db.set_transactions(payload.clone());
+        self.db.set_mb_compact_block(
+            block_hash,
+            CompactBlock {
+                parent,
+                height: block.height,
+                transactions_hash,
+            },
+        );
+        self.db.mutate_mb_meta(block_hash, |meta| {
             meta.last_advanced_block = last_advanced;
-            // ethexe-malachite-core's ancestor-first ordering means the chain back
-            // to genesis is intact by the time `save_block` fires.
+            // ethexe-malachite-core's ancestor-first ordering means
+            // the chain back to genesis is intact by the time
+            // `save_block` fires.
             meta.synced = true;
         });
-        self.db.set_mb_hash_at_height(height, mb_keccak);
 
         let _ = self.event_tx.send(Ok(MalachiteEvent::BlockProposal {
-            height,
+            height: block.height,
+            block_hash,
             block: payload,
         }));
         Ok(())
@@ -155,21 +152,23 @@ impl ethexe_malachite_core::Externalities<SequencerBlock> for EthexeExternalitie
 
     async fn mark_block_as_finalized(
         &self,
-        _block_hash: H256,
+        block_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
     ) -> Result<()> {
-        let height = cert.height;
-        let mb_keccak = self.db.mb_hash_at_height(height).ok_or_else(|| {
-            anyhow!("mark_finalized: no MB indexed at height {height} (save_block must run first)")
+        let compact = self.db.mb_compact_block(block_hash).ok_or_else(|| {
+            anyhow!("mark_finalized: no CompactBlock for {block_hash} (save_block must run first)")
         })?;
-        let block = self.db.mb_block(mb_keccak).ok_or_else(|| {
-            anyhow!("mark_finalized: no SequencerBlock for {mb_keccak} at height {height}")
+        let payload = self.db.transactions(compact.transactions_hash).ok_or_else(|| {
+            anyhow!(
+                "mark_finalized: transactions blob {} missing for block {block_hash}",
+                compact.transactions_hash
+            )
         })?;
 
         // Flush the committed injected txs from the mempool and add
         // their hashes to the seen-set so a re-gossip can't slip them
         // back in before they age out.
-        let injected: Vec<SignedInjectedTransaction> = block
+        let injected: Vec<SignedInjectedTransaction> = payload
             .transactions
             .iter()
             .filter_map(|tx| match tx {
@@ -185,37 +184,33 @@ impl ethexe_malachite_core::Externalities<SequencerBlock> for EthexeExternalitie
         // (compute, batch commitment) walk to find the last
         // BFT-finalized MB.
         self.db
-            .globals_mutate(|g| g.latest_finalized_mb_hash = mb_keccak);
+            .globals_mutate(|g| g.latest_finalized_mb_hash = block_hash);
 
         let app_cert = CommitCertificate {
-            height,
-            block_hash: mb_keccak,
+            height: cert.height,
+            block_hash,
             signatures: cert.signatures,
         };
         let _ = self.event_tx.send(Ok(MalachiteEvent::BlockFinalized {
             cert: app_cert,
-            block,
+            block: payload,
         }));
         Ok(())
     }
 
-    async fn build_block_above(&self, _parent_hash: H256) -> Result<SequencerBlock> {
-        // Parent linkage is owned by ethexe-malachite-core (`Block::parent_hash`);
-        // we only need the parent's keccak to seed the producer's
-        // `last_advanced_block` lookup. `globals.latest_finalized_mb_hash`
-        // is advanced by [`Self::mark_block_as_finalized`] before
-        // build_block_above runs for the next height, so it's the
-        // parent's keccak. For genesis it's `H256::zero()`.
-        let parent_keccak = self.db.globals().latest_finalized_mb_hash;
-        let parent_advanced = if parent_keccak.is_zero() {
+    async fn build_block_above(&self, parent_hash: H256) -> Result<Transactions> {
+        // `parent_hash` is the consensus envelope hash of the parent
+        // (zero for genesis). Use it directly to seed the producer's
+        // `last_advanced_block` lookup.
+        let parent_advanced = if parent_hash.is_zero() {
             H256::zero()
         } else {
-            self.db.mb_meta(parent_keccak).last_advanced_block
+            self.db.mb_meta(parent_hash).last_advanced_block
         };
 
         let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await;
 
-        // Producer pacing — mirrors the old app.rs flow:
+        // Producer pacing:
         //   1. AdvanceTillEthereumBlock first (if a fresh
         //      quarantine-passed EB exists),
         //   2. then injected user txs,
@@ -234,19 +229,17 @@ impl ethexe_malachite_core::Externalities<SequencerBlock> for EthexeExternalitie
         transactions.push(Transaction::ProcessQueues {
             limits: ProcessQueuesLimits::default(),
         });
-        Ok(SequencerBlock::new(transactions))
+        Ok(Transactions::new(transactions))
     }
 
     async fn validate_block_above(
         &self,
-        block: &ethexe_malachite_core::Block<SequencerBlock>,
+        _parent_hash: H256,
+        payload: Transactions,
     ) -> Result<bool> {
-        let payload = &block.payload;
-
-        // Parent linkage is enforced by ethexe-malachite-core via `Block::parent_hash`
-        // — the consensus layer already rejects proposals that don't
-        // extend the locally-finalized chain — so the application has
-        // nothing of its own to verify on that axis.
+        // Parent linkage and height progression are validated by
+        // ethexe-malachite-core itself; here we only check the
+        // payload-level invariants.
 
         // (1) At most one AdvanceTillEthereumBlock per MB. Zero is
         // legal (chain still too close to genesis); two+ is a
@@ -393,14 +386,14 @@ mod tests {
         (ext, event_rx)
     }
 
-    /// Build a [`SequencerBlock`] for unit tests.
+    /// Build a [`Transactions`] for unit tests.
     ///
     /// The `salt` byte is encoded as the number of leading
     /// `ProgressTasks` placeholders, which gives each block a unique
     /// hash without dragging an extraneous `AdvanceTillEthereumBlock`
     /// through the test (the `last_advanced_block_propagates` case
     /// would otherwise see an unintended advance).
-    fn payload(advance: Option<H256>, salt: u8) -> SequencerBlock {
+    fn payload(advance: Option<H256>, salt: u8) -> Transactions {
         let mut txs = Vec::with_capacity(salt as usize + 3);
         if let Some(eth) = advance {
             txs.push(Transaction::AdvanceTillEthereumBlock {
@@ -418,15 +411,15 @@ mod tests {
         txs.push(Transaction::ProcessQueues {
             limits: ProcessQueuesLimits::default(),
         });
-        SequencerBlock::new(txs)
+        Transactions::new(txs)
     }
 
     fn wrap(
-        payload: SequencerBlock,
+        payload: Transactions,
         height: u64,
         parent_hash: H256,
-    ) -> ethexe_malachite_core::Block<SequencerBlock> {
-        ethexe_malachite_core::Block::<SequencerBlock>::new(parent_hash, height, payload)
+    ) -> ethexe_malachite_core::Block<Transactions> {
+        ethexe_malachite_core::Block::<Transactions>::new(parent_hash, height, payload)
     }
 
     fn fake_cert(height: u64) -> ethexe_malachite_core::CommitCertificate {
@@ -447,20 +440,27 @@ mod tests {
         let (ext, mut rx) = make_externalities(db.clone());
         let p = payload(None, 1);
         let block = wrap(p.clone(), 1, H256::zero());
-        let mala_hash = block.hash();
-        ext.save_block(mala_hash, block).await.unwrap();
+        let mb_hash = block.hash();
+        ext.save_block(mb_hash, block).await.unwrap();
 
-        let mb_keccak = p.hash();
-        let meta = db.mb_meta(mb_keccak);
-        assert_eq!(meta.height, 1);
+        let compact = db.mb_compact_block(mb_hash).expect("CompactBlock saved");
+        assert_eq!(compact.height, 1);
+        assert_eq!(compact.parent, H256::zero());
+        let txs = db
+            .transactions(compact.transactions_hash)
+            .expect("transactions in CAS");
+        assert_eq!(txs, p);
+        let meta = db.mb_meta(mb_hash);
         assert!(meta.synced);
-        assert_eq!(meta.parent_mb_hash, None);
-        assert_eq!(db.mb_hash_at_height(1), Some(mb_keccak));
-        assert_eq!(db.mb_block(mb_keccak).unwrap(), p);
 
         match rx.try_recv().expect("event").expect("ok") {
-            MalachiteEvent::BlockProposal { height, block } => {
+            MalachiteEvent::BlockProposal {
+                height,
+                block_hash,
+                block,
+            } => {
                 assert_eq!(height, 1);
+                assert_eq!(block_hash, mb_hash);
                 assert_eq!(block, p);
             }
             other => panic!("expected BlockProposal, got {other:?}"),
@@ -470,28 +470,28 @@ mod tests {
         assert!(db.globals().latest_finalized_mb_hash.is_zero());
     }
 
-    /// `mark_block_as_finalized` resolves the saved block via
-    /// `mb_hash_at_height`, advances `globals.latest_finalized_mb_hash`,
-    /// and emits a `BlockFinalized`.
+    /// `mark_block_as_finalized` reads the [`CompactBlock`] +
+    /// transactions blob keyed by the consensus envelope hash,
+    /// advances `globals.latest_finalized_mb_hash`, and emits a
+    /// `BlockFinalized`.
     #[tokio::test]
     async fn finalize_advances_globals_and_emits_event() {
         use ethexe_common::db::GlobalsStorageRO;
         let db = Database::memory();
         let (ext, mut rx) = make_externalities(db.clone());
         let p = payload(None, 5);
-        ext.save_block(H256::zero(), wrap(p.clone(), 1, H256::zero()))
-            .await
-            .unwrap();
+        let block = wrap(p.clone(), 1, H256::zero());
+        let mb_hash = block.hash();
+        ext.save_block(mb_hash, block).await.unwrap();
         let _ = rx.recv().await; // BlockProposal
-        ext.mark_block_as_finalized(H256::zero(), fake_cert(1))
+        ext.mark_block_as_finalized(mb_hash, fake_cert(1))
             .await
             .unwrap();
-        let mb_keccak = p.hash();
-        assert_eq!(db.globals().latest_finalized_mb_hash, mb_keccak);
+        assert_eq!(db.globals().latest_finalized_mb_hash, mb_hash);
         match rx.try_recv().expect("event").expect("ok") {
             MalachiteEvent::BlockFinalized { cert, block } => {
                 assert_eq!(cert.height, 1);
-                assert_eq!(cert.block_hash, mb_keccak);
+                assert_eq!(cert.block_hash, mb_hash);
                 assert_eq!(block, p);
             }
             other => panic!("expected BlockFinalized, got {other:?}"),
@@ -500,27 +500,27 @@ mod tests {
 
     /// Crash-recovery: build externalities A on a fresh DB, save +
     /// finalize K MBs, drop A, build externalities B on the same DB.
-    /// B sees the persisted globals and `mb_hash_at_height` index;
-    /// the next `save_block` correctly resolves the parent at
-    /// `height-1`. Mirrors what ethexe-malachite-core does after a process restart
-    /// once it resumes from `max_finalized_height + 1`.
+    /// B sees the persisted globals and `CompactBlock` chain; the
+    /// next `save_block` correctly chains off the previous head.
     #[tokio::test]
     async fn restart_continues_from_persisted_chain() {
         use ethexe_common::db::{GlobalsStorageRO, MbStorageRO};
         let db = Database::memory();
         let (ext_a, mut rx_a) = make_externalities(db.clone());
-        let mut payloads = Vec::new();
+
+        let mut chain: Vec<(H256, Transactions)> = Vec::new();
+        let mut parent = H256::zero();
         for i in 1..=3u64 {
             let p = payload(None, i as u8);
-            payloads.push(p.clone());
+            let block = wrap(p.clone(), i, parent);
+            let mb_hash = block.hash();
+            ext_a.save_block(mb_hash, block).await.unwrap();
             ext_a
-                .save_block(H256::zero(), wrap(p, i, H256::zero()))
+                .mark_block_as_finalized(mb_hash, fake_cert(i))
                 .await
                 .unwrap();
-            ext_a
-                .mark_block_as_finalized(H256::zero(), fake_cert(i))
-                .await
-                .unwrap();
+            chain.push((mb_hash, p));
+            parent = mb_hash;
         }
         // Drain events so the channel doesn't hold stale references.
         while rx_a.try_recv().is_ok() {}
@@ -531,37 +531,29 @@ mod tests {
         let (ext_b, mut rx_b) = make_externalities(db.clone());
 
         // Pre-restart pointers must survive.
-        assert_eq!(db.globals().latest_finalized_mb_hash, payloads[2].hash());
-        for (i, p) in payloads.iter().enumerate() {
-            let h = (i + 1) as u64;
-            assert_eq!(db.mb_hash_at_height(h), Some(p.hash()));
-            assert_eq!(
-                db.mb_meta(p.hash()).parent_mb_hash,
-                if i == 0 {
-                    None
-                } else {
-                    Some(payloads[i - 1].hash())
-                }
-            );
+        let last_pre = chain.last().unwrap().0;
+        assert_eq!(db.globals().latest_finalized_mb_hash, last_pre);
+        for (i, (mb_hash, _)) in chain.iter().enumerate() {
+            let compact = db.mb_compact_block(*mb_hash).expect("compact");
+            assert_eq!(compact.height, (i + 1) as u64);
+            let expected_parent = if i == 0 { H256::zero() } else { chain[i - 1].0 };
+            assert_eq!(compact.parent, expected_parent);
         }
 
-        // Save + finalize MB at height 4 — the parent resolution
-        // must see the height-3 record left by the previous run.
+        // Save + finalize MB at height 4 chained off the head — the
+        // parent resolution must see the height-3 record left by the
+        // previous run.
         let p4 = payload(None, 99);
-        ext_b
-            .save_block(H256::zero(), wrap(p4.clone(), 4, H256::zero()))
-            .await
-            .unwrap();
+        let block4 = wrap(p4.clone(), 4, last_pre);
+        let mb4 = block4.hash();
+        ext_b.save_block(mb4, block4).await.unwrap();
         let _ = rx_b.recv().await; // proposal
         ext_b
-            .mark_block_as_finalized(H256::zero(), fake_cert(4))
+            .mark_block_as_finalized(mb4, fake_cert(4))
             .await
             .unwrap();
-        assert_eq!(
-            db.mb_meta(p4.hash()).parent_mb_hash,
-            Some(payloads[2].hash())
-        );
-        assert_eq!(db.globals().latest_finalized_mb_hash, p4.hash());
+        assert_eq!(db.mb_compact_block(mb4).unwrap().parent, last_pre);
+        assert_eq!(db.globals().latest_finalized_mb_hash, mb4);
     }
 
     /// `last_advanced_block` is propagated forward: an MB without an
@@ -573,29 +565,34 @@ mod tests {
         let db = Database::memory();
         let (ext, mut rx) = make_externalities(db.clone());
 
-        let h1 = payload(None, 1);
-        let h2 = payload(Some(H256::repeat_byte(0xAB)), 2);
-        let h3 = payload(None, 3);
-
-        for (i, p) in [&h1, &h2, &h3].iter().enumerate() {
+        let mut chain: Vec<H256> = Vec::new();
+        let mut parent = H256::zero();
+        let payloads = [
+            payload(None, 1),
+            payload(Some(H256::repeat_byte(0xAB)), 2),
+            payload(None, 3),
+        ];
+        for (i, p) in payloads.iter().enumerate() {
             let height = (i + 1) as u64;
-            ext.save_block(H256::zero(), wrap((*p).clone(), height, H256::zero()))
+            let block = wrap(p.clone(), height, parent);
+            let mb_hash = block.hash();
+            ext.save_block(mb_hash, block).await.unwrap();
+            ext.mark_block_as_finalized(mb_hash, fake_cert(height))
                 .await
                 .unwrap();
-            ext.mark_block_as_finalized(H256::zero(), fake_cert(height))
-                .await
-                .unwrap();
+            chain.push(mb_hash);
+            parent = mb_hash;
         }
         while rx.try_recv().is_ok() {}
 
-        assert!(db.mb_meta(h1.hash()).last_advanced_block.is_zero());
+        assert!(db.mb_meta(chain[0]).last_advanced_block.is_zero());
         assert_eq!(
-            db.mb_meta(h2.hash()).last_advanced_block,
+            db.mb_meta(chain[1]).last_advanced_block,
             H256::repeat_byte(0xAB),
             "h2 should anchor to its own AdvanceTillEthereumBlock"
         );
         assert_eq!(
-            db.mb_meta(h3.hash()).last_advanced_block,
+            db.mb_meta(chain[2]).last_advanced_block,
             H256::repeat_byte(0xAB),
             "h3 inherits h2's anchor"
         );
@@ -607,19 +604,19 @@ mod tests {
     async fn validate_rejects_two_advances() {
         let db = Database::memory();
         let (ext, _rx) = make_externalities(db.clone());
-        let block = ethexe_malachite_core::Block::<SequencerBlock>::new(
-            H256::zero(),
-            1,
-            SequencerBlock::new(vec![
-                Transaction::AdvanceTillEthereumBlock {
-                    eth_block_hash: H256::repeat_byte(0xAA),
-                },
-                Transaction::AdvanceTillEthereumBlock {
-                    eth_block_hash: H256::repeat_byte(0xBB),
-                },
-            ]),
+        let payload = Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                eth_block_hash: H256::repeat_byte(0xAA),
+            },
+            Transaction::AdvanceTillEthereumBlock {
+                eth_block_hash: H256::repeat_byte(0xBB),
+            },
+        ]);
+        assert!(
+            !ext.validate_block_above(H256::zero(), payload)
+                .await
+                .unwrap()
         );
-        assert!(!ext.validate_block_above(&block).await.unwrap());
     }
 
     #[tokio::test]
@@ -628,17 +625,15 @@ mod tests {
         // application can't verify the candidate's quarantine status,
         // so the vote is `Ok(false)` rather than `Err`.
         let db = Database::memory();
-        // The `start_block` fence + missing chain-head trigger the
-        // abstain path.
         let (ext, _rx) = make_externalities(db.clone());
-        let block = ethexe_malachite_core::Block::<SequencerBlock>::new(
-            H256::zero(),
-            1,
-            SequencerBlock::new(vec![Transaction::AdvanceTillEthereumBlock {
-                eth_block_hash: H256::repeat_byte(0xCC),
-            }]),
+        let payload = Transactions::new(vec![Transaction::AdvanceTillEthereumBlock {
+            eth_block_hash: H256::repeat_byte(0xCC),
+        }]);
+        assert!(
+            !ext.validate_block_above(H256::zero(), payload)
+                .await
+                .unwrap()
         );
-        assert!(!ext.validate_block_above(&block).await.unwrap());
     }
 
     #[tokio::test]
@@ -672,14 +667,14 @@ mod tests {
         let (ext, _rx) = make_externalities(db.clone());
         *ext.chain_head.write().unwrap() = Some(head);
 
-        let block = ethexe_malachite_core::Block::<SequencerBlock>::new(
-            H256::zero(),
-            1,
-            SequencerBlock::new(vec![Transaction::AdvanceTillEthereumBlock {
-                eth_block_hash: chain_hashes[1].0,
-            }]),
+        let payload = Transactions::new(vec![Transaction::AdvanceTillEthereumBlock {
+            eth_block_hash: chain_hashes[1].0,
+        }]);
+        assert!(
+            ext.validate_block_above(H256::zero(), payload)
+                .await
+                .unwrap()
         );
-        assert!(ext.validate_block_above(&block).await.unwrap());
     }
 
     /// Stub mempool that records every `forget` argument so the test
@@ -761,7 +756,7 @@ mod tests {
             canonical_quarantine: 0,
         };
 
-        let payload = SequencerBlock::new(vec![
+        let payload = Transactions::new(vec![
             // service tx — must NOT show up in `forget`
             Transaction::ProgressTasks {
                 limits: ProgressTasksLimits::default(),
@@ -775,19 +770,16 @@ mod tests {
             // user tx #2 — must show up
             Transaction::Injected(tx_b.clone()),
         ]);
-        ext.save_block(
-            H256::zero(),
-            ethexe_malachite_core::Block::new(H256::zero(), 1, payload),
-        )
-        .await
-        .unwrap();
+        let block = ethexe_malachite_core::Block::new(H256::zero(), 1, payload);
+        let mb_hash = block.hash();
+        ext.save_block(mb_hash, block).await.unwrap();
         // Drain the BlockProposal event the save emits.
         let _ = event_rx.recv().await;
         ext.mark_block_as_finalized(
-            H256::zero(),
+            mb_hash,
             ethexe_malachite_core::CommitCertificate {
                 height: 1,
-                block_hash: H256::zero(),
+                block_hash: mb_hash,
                 signatures: vec![],
             },
         )

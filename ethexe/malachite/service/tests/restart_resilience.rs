@@ -26,14 +26,16 @@
 //! 1. `BlockProposal` and `BlockFinalized` events are emitted in
 //!    height-non-decreasing order.
 //! 2. After a `drop` + rebuild on the same home directory and
-//!    `ethexe-db`, finalization picks up where it left off — no gaps
-//!    in `mb_hash_at_height`, no rewound `latest_finalized_mb_hash`.
+//!    `ethexe-db`, finalization picks up where it left off — the
+//!    `CompactBlock` chain reachable from
+//!    `globals.latest_finalized_mb_hash` is gap-free across the
+//!    restart boundary, and the latest pointer never rewinds.
 
 use std::{path::Path, sync::Arc, time::Duration};
 
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
-    db::{BlockMetaStorageRW, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
+    db::{BlockMetaStorageRW, CompactBlock, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
@@ -197,18 +199,14 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         finalized1 >= 5,
         "first run only saw {finalized1} finalized blocks (highest={high1})"
     );
-    let pre_restart_height = db.globals().latest_finalized_mb_hash;
+    let pre_restart_head = db.globals().latest_finalized_mb_hash;
     assert!(
-        !pre_restart_height.is_zero(),
+        !pre_restart_head.is_zero(),
         "globals.latest_finalized_mb_hash must advance during the first run"
     );
-    let pre_restart_count = (1..=high1)
-        .filter(|h| db.mb_hash_at_height(*h).is_some())
-        .count() as u64;
-    assert_eq!(
-        pre_restart_count, high1,
-        "every height up to {high1} must be indexed before restart"
-    );
+    // Walk back from the head via `CompactBlock.parent` and check
+    // the height chain is contiguous and matches `high1`.
+    assert_chain_contiguous(&db, pre_restart_head, high1);
 
     // ---- shutdown --------------------------------------------------
     // `shutdown().await` waits for the engine actor + RocksDB store
@@ -242,13 +240,44 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         "post-restart highest finalize height {high2} must exceed pre-restart {high1}"
     );
 
-    // Continuity: every height between 1 and `high2` must be
-    // recorded in the DB; no gaps across the restart boundary.
-    for h in 1..=high2 {
-        assert!(
-            db.mb_hash_at_height(h).is_some(),
-            "missing MB hash at height {h} after restart"
-        );
-    }
+    // Continuity: walking back from the post-restart head must hit
+    // every height between `high2` and 1 exactly once.
+    let post_restart_head = db.globals().latest_finalized_mb_hash;
+    assert_chain_contiguous(&db, post_restart_head, high2);
     svc2.shutdown().await;
+}
+
+/// Walk back from `head` via [`CompactBlock::parent`] and assert
+/// the height chain is contiguous (`expected_height`, `expected_height - 1`,
+/// …, 1) and that each step is reachable from the DB.
+fn assert_chain_contiguous(db: &Database, head: H256, expected_height: u64) {
+    let mut current = head;
+    let mut expected = expected_height;
+    loop {
+        let compact: CompactBlock = db
+            .mb_compact_block(current)
+            .unwrap_or_else(|| panic!("missing CompactBlock for {current}"));
+        assert_eq!(
+            compact.height, expected,
+            "chain height mismatch at {current}: expected {expected}, got {}",
+            compact.height
+        );
+        // Transactions blob must be reachable too — that's the
+        // contract behind CompactBlock existence.
+        assert!(
+            db.transactions(compact.transactions_hash).is_some(),
+            "missing transactions blob {} for MB {current}",
+            compact.transactions_hash
+        );
+        if expected == 1 {
+            assert!(
+                compact.parent.is_zero(),
+                "genesis MB must have parent == zero, got {}",
+                compact.parent
+            );
+            break;
+        }
+        current = compact.parent;
+        expected -= 1;
+    }
 }

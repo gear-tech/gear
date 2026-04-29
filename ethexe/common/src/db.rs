@@ -24,7 +24,7 @@ use crate::{
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, SignedInjectedTransaction},
-    mb::SequencerBlock,
+    mb::Transactions,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -134,21 +134,36 @@ pub struct AnnounceMeta {
     pub computed: bool,
 }
 
-/// Per-Malachite-block metadata stored alongside the post-execution
-/// state. `mb_hash` here is `SequencerBlock::hash()`. `parent_mb_hash`
-/// links the MB chain in the same direction as Malachite heights — the
-/// MB executed at height N has parent the MB that was finalized at
-/// height N-1 (or `None` for the very first MB).
+/// Per-Malachite-block static identity record.
+///
+/// Keyed by the `ethexe_malachite_core::Block` envelope hash (Blake2b
+/// of `(parent_hash, height, payload_hash, reserved)`). Once a
+/// [`CompactBlock`] exists in storage for a given key, the matching
+/// [`Transactions`] blob is guaranteed to be in the content-addressed
+/// half of the DB at [`Self::transactions_hash`] — callers can fetch
+/// it via [`MbStorageRO::transactions`] without further coordination.
+///
+/// `parent` is the hash of the parent block envelope (`H256::zero()`
+/// for the genesis MB).
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
+pub struct CompactBlock {
+    pub parent: H256,
+    pub height: u64,
+    pub transactions_hash: H256,
+}
+
+/// Per-Malachite-block dynamic flags.
 ///
 /// `last_advanced_block` tracks the most recent Ethereum block this
 /// MB's accumulated `AdvanceTillEthereumBlock` line has pinned. It's
-/// propagated forward: an MB that itself contains an
-/// `AdvanceTillEthereumBlock(x)` resets it to `x`; otherwise it
-/// inherits the parent's value. The very first MB inherits from
-/// `H256::zero()` (the pre-genesis sentinel — every Ethereum block is
-/// treated as a descendant of zero). The producer reads this field
-/// off the parent MB to decide whether the next quarantine-passed
-/// block is a genuine *new* advance or a re-pin of the same block.
+/// propagated forward by the malachite service at save time: an MB
+/// that itself contains an `AdvanceTillEthereumBlock(x)` resets it
+/// to `x`; otherwise it inherits the parent's value. The very first
+/// MB inherits from `H256::zero()` (the pre-genesis sentinel — every
+/// Ethereum block is treated as a descendant of zero). The producer
+/// reads this field off the parent MB to decide whether the next
+/// quarantine-passed block is a genuine *new* advance or a re-pin
+/// of the same block.
 ///
 /// `synced` is the chain-completeness flag. It is `true` only when
 /// both this MB **and every one of its ancestors back to the genesis
@@ -156,42 +171,40 @@ pub struct AnnounceMeta {
 /// holds back `BlockProposal` / `BlockFinalized` events until an MB
 /// can be marked `synced`, mirroring the contract that observer's
 /// `synced` and compute's `computed` flags provide for their layers.
-/// Without it, downstream consumers (compute, batch commitment) could
-/// see an MB whose `parent_mb_hash` chain has gaps — typically when
-/// value sync delivers a hole-filling MB out of order or when the
-/// node restarts with a fresh malachite store but a populated ethexe
-/// DB.
+///
+/// Block identity (height, parent) lives in [`CompactBlock`] —
+/// `MbMeta` is dynamic state only.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
     pub synced: bool,
-    pub height: u64,
-    pub parent_mb_hash: Option<H256>,
     pub last_advanced_block: H256,
 }
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait MbStorageRO {
-    /// Persisted block contents — paired with
-    /// [`MbStorageRO::mb_meta`] (which carries `parent_mb_hash` for
-    /// the executor's chain walk) when picking up uncomputed
-    /// predecessors of a freshly received proposal.
-    fn mb_block(&self, mb_hash: H256) -> Option<SequencerBlock>;
+    /// Static identity (parent + height + `transactions_hash`).
+    /// Existence implies the matching [`Transactions`] blob is in the
+    /// CAS at `transactions_hash`.
+    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactBlock>;
+    /// Read the [`Transactions`] blob from CAS by its content hash.
+    fn transactions(&self, transactions_hash: H256) -> Option<Transactions>;
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
     fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
     fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
     fn mb_meta(&self, mb_hash: H256) -> MbMeta;
-    fn mb_hash_at_height(&self, height: u64) -> Option<H256>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait MbStorageRW: MbStorageRO {
-    fn set_mb_block(&self, mb_hash: H256, block: SequencerBlock);
+    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactBlock);
+    /// Write a [`Transactions`] blob into the CAS and return its hash
+    /// (the value stored in [`CompactBlock::transactions_hash`]).
+    fn set_transactions(&self, transactions: Transactions) -> H256;
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
     fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
-    fn set_mb_hash_at_height(&self, height: u64, mb_hash: H256);
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -322,7 +335,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "56fcdfd45d9d52ef1ebea03a8586cfad247b8f35c094b157f86d9e32c47a4eae";
+            "732821407b470b475ea7dd4025a58ef357adbf5cd900c14243fc733d6351addc";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -341,7 +354,8 @@ mod tests {
             meta_type::<Schedule>(),
             meta_type::<AnnounceMeta>(),
             meta_type::<MbMeta>(),
-            meta_type::<crate::mb::SequencerBlock>(),
+            meta_type::<CompactBlock>(),
+            meta_type::<crate::mb::Transactions>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),
         ];

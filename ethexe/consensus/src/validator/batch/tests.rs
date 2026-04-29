@@ -29,9 +29,9 @@ use crate::validator::core::MiddlewareWrapper;
 use ethexe_common::{
     Address, Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRW, GlobalsStorageRW, MbStorageRW, SetConfig},
+    db::{BlockMetaStorageRW, CompactBlock, GlobalsStorageRW, MbStorageRW, SetConfig},
     gear::StateTransition,
-    mb::{ProcessQueuesLimits, SequencerBlock, Transaction},
+    mb::{ProcessQueuesLimits, Transaction, Transactions},
     mock::*,
 };
 use ethexe_db::Database;
@@ -71,13 +71,10 @@ fn mock_batch_manager(db: Database) -> BatchCommitmentManager {
     mock_batch_manager_with_limits(db, BatchLimits::default())
 }
 
-/// Append a single MB to the chain. Sets the meta as `computed=true` so
-/// the manager treats it as finalized state available for batching.
-///
-/// The `AdvanceTillEthereumBlock` salt is keyed off `height` so each
-/// MB has a unique hash even with otherwise identical contents.
+/// Append a single MB to the chain. Sets the meta as `computed=true`
+/// so the manager treats it as finalized state available for batching.
 fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransition>) -> H256 {
-    let block = SequencerBlock::new(vec![
+    let txs = Transactions::new(vec![
         Transaction::AdvanceTillEthereumBlock {
             eth_block_hash: H256::from_low_u64_be(0xEB00 + height),
         },
@@ -85,18 +82,24 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
             limits: ProcessQueuesLimits::default(),
         },
     ]);
-    let mb_hash = block.hash();
-    db.set_mb_block(mb_hash, block);
+    let transactions_hash = db.set_transactions(txs);
+    // Synthetic mb_hash — uniqueness is what matters here.
+    let mb_hash = H256::from_low_u64_be(0x1000 + height);
+    db.set_mb_compact_block(
+        mb_hash,
+        CompactBlock {
+            parent,
+            height,
+            transactions_hash,
+        },
+    );
     db.set_mb_outcome(mb_hash, outcome);
     db.set_mb_schedule(mb_hash, Schedule::default());
     db.set_mb_program_states(mb_hash, ProgramStates::default());
     db.mutate_mb_meta(mb_hash, |meta| {
         meta.computed = true;
-        meta.height = height;
-        meta.parent_mb_hash = (parent != H256::zero()).then_some(parent);
         meta.last_advanced_block = H256::zero();
     });
-    db.set_mb_hash_at_height(height, mb_hash);
     mb_hash
 }
 

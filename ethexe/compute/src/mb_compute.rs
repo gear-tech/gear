@@ -32,14 +32,15 @@
 //! `announce.parent` and computes uncomputed predecessors first).
 //!
 //! # DB layout used here
-//! - `mb_block(hash) -> SequencerBlock` — persisted by the service at
-//!   `BlockFinalized` time so the walk can re-fetch ancestor blocks.
-//! - `mb_meta(hash) -> { computed, height, parent_mb_hash }` — the
-//!   service stamps `height`/`parent_mb_hash` at `BlockFinalized` time
-//!   and we flip `computed = true` here once execution finishes.
+//! - `mb_compact_block(hash) -> CompactBlock` — persisted by the
+//!   service at `BlockFinalized` time so the walk can pull ancestor
+//!   identity (parent + height + transactions_hash).
+//! - `transactions(hash) -> Transactions` — CAS-stored payload,
+//!   referenced by `CompactBlock::transactions_hash`.
+//! - `mb_meta(hash) -> { computed, synced, last_advanced_block }` —
+//!   we flip `computed = true` here once execution finishes.
 //! - `mb_program_states / mb_outcome / mb_schedule(hash)` — written
 //!   on successful execution.
-//! - `mb_hash_at_height(h) -> hash` — convenience index.
 //!
 //! Hooking the MB results into Ethereum batch commitments is a
 //! follow-up step.
@@ -48,7 +49,7 @@ use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubServic
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
     db::{CodesStorageRW, MbStorageRO, MbStorageRW},
-    mb::SequencerBlock,
+    mb::Transactions,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::FinalizedBlockTransitions;
@@ -60,10 +61,15 @@ use std::{
 };
 
 /// Single MB-execution request queued up for the sub-service.
+///
+/// `mb_hash` is the consensus envelope hash (Blake2b over
+/// `ethexe_malachite_core::Block`) under which the malachite service
+/// has stored the matching [`crate::CompactBlock`] + transactions
+/// blob. The compute layer reads both back from the DB on demand —
+/// the request only carries the hash and the gas budget.
 #[derive(Debug)]
 pub(crate) struct MbComputeRequest {
-    pub mb_height: u64,
-    pub block: SequencerBlock,
+    pub mb_hash: H256,
     pub gas_allowance: u64,
 }
 
@@ -95,17 +101,19 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         }
     }
 
-    pub fn receive_mb(&mut self, mb_height: u64, block: SequencerBlock, gas_allowance: u64) {
+    pub fn receive_mb(&mut self, mb_hash: H256, gas_allowance: u64) {
         self.input.push_back(MbComputeRequest {
-            mb_height,
-            block,
+            mb_hash,
             gas_allowance,
         });
     }
 
     async fn compute(db: Database, mut processor: P, req: MbComputeRequest) -> Result<MbComputeOk> {
-        let target_hash = req.block.hash();
-        let target_height = req.mb_height;
+        let target_hash = req.mb_hash;
+        let target_compact = db
+            .mb_compact_block(target_hash)
+            .ok_or(ComputeError::MbBlockNotFound(target_hash))?;
+        let target_height = target_compact.height;
 
         // Idempotent: if the target has already been computed (e.g.,
         // service queued it again after restart), there's nothing to
@@ -117,10 +125,10 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             });
         }
 
-        // Walk back from the target via `mb_meta.parent_mb_hash`,
+        // Walk back from the target via `mb_compact_block.parent`,
         // collecting uncomputed predecessors. Linear heights mean
         // each step simply decrements by 1. We stop at:
-        // - the genesis predecessor (`parent_mb_hash` is None), or
+        // - the genesis predecessor (parent is `H256::zero()`), or
         // - the first computed ancestor (already done).
         let predecessors = collect_uncomputed_predecessors(&db, target_hash, target_height)?;
 
@@ -133,16 +141,19 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             );
         }
 
-        for (height, hash, block) in predecessors {
-            Self::compute_one(&db, &mut processor, height, hash, block, req.gas_allowance).await?;
+        for (height, hash, txs) in predecessors {
+            Self::compute_one(&db, &mut processor, height, hash, txs, req.gas_allowance).await?;
         }
 
+        let target_txs = db
+            .transactions(target_compact.transactions_hash)
+            .ok_or(ComputeError::MbBlockNotFound(target_hash))?;
         Self::compute_one(
             &db,
             &mut processor,
             target_height,
             target_hash,
-            req.block,
+            target_txs,
             req.gas_allowance,
         )
         .await?;
@@ -158,12 +169,14 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         processor: &mut P,
         mb_height: u64,
         mb_hash: H256,
-        block: SequencerBlock,
+        block: Transactions,
         gas_allowance: u64,
     ) -> Result<()> {
-        // Parent linkage lives in `mb_meta`, populated by the
+        // Parent linkage lives in `mb_compact_block`, populated by the
         // malachite service before BlockProposal fires for `mb_hash`.
-        let parent_mb_hash = db.mb_meta(mb_hash).parent_mb_hash;
+        let parent_mb_hash = db
+            .mb_compact_block(mb_hash)
+            .and_then(|c| (!c.parent.is_zero()).then_some(c.parent));
 
         let initial_program_states = parent_mb_hash
             .and_then(|h| db.mb_program_states(h))
@@ -231,20 +244,18 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         db.set_mb_schedule(mb_hash, schedule);
         db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true;
-            meta.height = mb_height;
-            meta.parent_mb_hash = parent_mb_hash;
         });
-        db.set_mb_hash_at_height(mb_height, mb_hash);
 
         Ok(())
     }
 }
 
 /// Walk the parent chain from `target_hash` collecting the
-/// (height, hash, block) of every uncomputed ancestor — oldest first.
+/// (height, hash, transactions) of every uncomputed ancestor —
+/// oldest first.
 ///
-/// Parent linkage is read from [`MbMeta::parent_mb_hash`]. Stops at:
-/// - genesis (`parent_mb_hash` is `None`) — no further ancestors;
+/// Parent linkage is read from [`CompactBlock::parent`]. Stops at:
+/// - genesis (parent is `H256::zero()`) — no further ancestors;
 /// - the first ancestor with `mb_meta(hash).computed == true` —
 ///   everything older has already been processed in some earlier run.
 ///
@@ -256,21 +267,26 @@ fn collect_uncomputed_predecessors(
     db: &Database,
     target_hash: H256,
     target_height: u64,
-) -> Result<VecDeque<(u64, H256, SequencerBlock)>> {
+) -> Result<VecDeque<(u64, H256, Transactions)>> {
     let mut chain = VecDeque::new();
-    let mut current_parent = db.mb_meta(target_hash).parent_mb_hash;
+    let mut current_parent = db
+        .mb_compact_block(target_hash)
+        .map(|c| c.parent)
+        .unwrap_or(H256::zero());
     let mut current_height = target_height.saturating_sub(1);
 
-    while let Some(parent_hash) = current_parent {
-        if db.mb_meta(parent_hash).computed {
+    while !current_parent.is_zero() {
+        if db.mb_meta(current_parent).computed {
             break;
         }
-        let parent_block = db
-            .mb_block(parent_hash)
-            .ok_or(ComputeError::MbBlockNotFound(parent_hash))?;
-        let next_parent = db.mb_meta(parent_hash).parent_mb_hash;
-        chain.push_front((current_height, parent_hash, parent_block));
-        current_parent = next_parent;
+        let parent_compact = db
+            .mb_compact_block(current_parent)
+            .ok_or(ComputeError::MbBlockNotFound(current_parent))?;
+        let parent_txs = db
+            .transactions(parent_compact.transactions_hash)
+            .ok_or(ComputeError::MbBlockNotFound(current_parent))?;
+        chain.push_front((current_height, current_parent, parent_txs));
+        current_parent = parent_compact.parent;
         current_height = current_height.saturating_sub(1);
     }
 
@@ -306,12 +322,16 @@ impl<P: ProcessorExt> SubService for MbComputeSubService<P> {
 mod tests {
     use super::*;
     use crate::tests::MockProcessor;
-    use ethexe_common::mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction};
+    use ethexe_common::{
+        db::CompactBlock,
+        mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction},
+    };
 
-    fn dummy_block(tag: u8) -> SequencerBlock {
+    fn dummy_txs(tag: u8) -> Transactions {
         // Tag-derived AdvanceTillEthereumBlock makes each block's
-        // transaction list (and thus its hash) unique across heights.
-        SequencerBlock::new(vec![
+        // transaction list (and thus its CAS hash) unique across
+        // heights.
+        Transactions::new(vec![
             Transaction::AdvanceTillEthereumBlock {
                 eth_block_hash: H256::from_low_u64_be(0xEB00 + tag as u64),
             },
@@ -324,6 +344,21 @@ mod tests {
         ])
     }
 
+    /// Service-side seeding helper. Stores `txs` in the CAS, writes a
+    /// `CompactBlock` keyed by `mb_hash`, mirroring what the malachite
+    /// `save_block` externalities do at finalize time.
+    fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, txs: Transactions) {
+        let transactions_hash = db.set_transactions(txs);
+        db.set_mb_compact_block(
+            mb_hash,
+            CompactBlock {
+                parent,
+                height,
+                transactions_hash,
+            },
+        );
+    }
+
     /// Crash-recovery walk: only the tail MB is queued, but every
     /// uncomputed predecessor in the parent chain ends up computed in
     /// height order.
@@ -334,34 +369,28 @@ mod tests {
         let processor = MockProcessor::default();
         let mut sub = MbComputeSubService::new(db.clone(), processor);
 
-        // Build a 5-block chain. genesis has parent == zero. Each
-        // subsequent block's parent is the previous block's hash.
+        // Build a 5-block chain. Genesis's parent is `H256::zero()`.
+        // Each subsequent block's parent is the previous block's
+        // synthetic mb_hash (keyed `0x1000 + i`).
         const N: u64 = 5;
         let mut hashes = Vec::with_capacity(N as usize);
         let mut parent = H256::zero();
         for i in 1..=N {
-            let block = dummy_block(i as u8);
-            let hash = block.hash();
-            // Service-side persistence (mirrors what BlockFinalized
-            // handler does for every finalized MB).
-            db.set_mb_block(hash, block.clone());
-            db.mutate_mb_meta(hash, |meta| {
-                meta.height = i;
-                meta.parent_mb_hash = (!parent.is_zero()).then_some(parent);
-            });
-            hashes.push((i, hash, block));
-            parent = hash;
+            let mb_hash = H256::from_low_u64_be(0x1000 + i);
+            seed_mb(&db, mb_hash, parent, i, dummy_txs(i as u8));
+            hashes.push((i, mb_hash));
+            parent = mb_hash;
         }
 
         // Sanity: nothing computed yet.
-        for (_, hash, _) in &hashes {
+        for (_, hash) in &hashes {
             assert!(!db.mb_meta(*hash).computed);
         }
 
         // Queue ONLY the tail — the sub-service must walk back and
         // catch the previous four uncomputed MBs.
-        let (tail_height, tail_hash, tail_block) = hashes.last().unwrap().clone();
-        sub.receive_mb(tail_height, tail_block, 1_000_000);
+        let (tail_height, tail_hash) = *hashes.last().unwrap();
+        sub.receive_mb(tail_hash, 1_000_000);
 
         let event = sub.next().await.unwrap();
         match event {
@@ -372,14 +401,13 @@ mod tests {
             other => panic!("expected MbComputed, got {other:?}"),
         }
 
-        // Every MB in the chain must now be marked computed AND
-        // indexed by height. This proves the walk visited every
-        // ancestor.
-        for (i, hash, _) in &hashes {
-            let meta = db.mb_meta(*hash);
-            assert!(meta.computed, "MB at height {i} should be computed");
-            assert_eq!(meta.height, *i);
-            assert_eq!(db.mb_hash_at_height(*i), Some(*hash));
+        // Every MB in the chain must now be marked computed. This
+        // proves the walk visited every ancestor.
+        for (i, hash) in &hashes {
+            assert!(
+                db.mb_meta(*hash).computed,
+                "MB at height {i} should be computed"
+            );
         }
     }
 
@@ -391,20 +419,18 @@ mod tests {
         let processor = MockProcessor::default();
         let mut sub = MbComputeSubService::new(db.clone(), processor);
 
-        let block = dummy_block(0);
-        let hash = block.hash();
-        db.set_mb_block(hash, block.clone());
-        db.mutate_mb_meta(hash, |meta| {
-            meta.height = 1;
+        let mb_hash = H256::from_low_u64_be(0xCAFE);
+        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_txs(0));
+        db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true; // pretend a previous run finished it
         });
 
-        sub.receive_mb(1, block, 1_000_000);
+        sub.receive_mb(mb_hash, 1_000_000);
 
         let event = sub.next().await.unwrap();
         match event {
-            ComputeEvent::MbComputed { mb_hash, height } => {
-                assert_eq!(mb_hash, hash);
+            ComputeEvent::MbComputed { mb_hash: out, height } => {
+                assert_eq!(out, mb_hash);
                 assert_eq!(height, 1);
             }
             other => panic!("expected MbComputed, got {other:?}"),

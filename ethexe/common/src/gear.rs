@@ -65,9 +65,10 @@ pub struct AddressBook {
 
 /// Squashed chain commitment that contains all state transitions and gear blocks.
 ///
-/// `head` is the hash of the most recent finalized [`SequencerBlock`](crate::mb::SequencerBlock)
-/// covered by this commitment. It anchors the chain on the on-chain side so that
-/// commitments can't silently jump over MBs between batches.
+/// `head` is the hash of the most recent finalized
+/// `ethexe_malachite_core::Block` envelope covered by this commitment.
+/// It anchors the chain on the on-chain side so that commitments can't
+/// silently jump over MBs between batches.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,

@@ -56,7 +56,7 @@ pub struct MalachiteService {
     /// [`Self::shutdown`] can `take` it and `await` its
     /// async-shutdown method without violating the `Drop` signature.
     inner:
-        Option<ethexe_malachite_core::MalachiteService<crate::SequencerBlock, EthexeExternalities>>,
+        Option<ethexe_malachite_core::MalachiteService<crate::Transactions, EthexeExternalities>>,
 }
 
 impl Drop for MalachiteService {

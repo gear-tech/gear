@@ -832,25 +832,25 @@ impl Service {
                     }
                 },
                 Event::Malachite(event) => match event {
-                    MalachiteEvent::BlockProposal { height, block } => {
-                        let mb_hash = block.hash();
+                    MalachiteEvent::BlockProposal {
+                        height,
+                        block_hash,
+                        block,
+                    } => {
                         tracing::info!(
                             height,
-                            mb_hash = %mb_hash,
+                            mb_hash = %block_hash,
                             txs = block.transactions.len(),
-                            transactions = ?block.transactions.iter().map(|t| t.tag()).collect::<Vec<_>>(),
+                            transactions = ?block.transactions,
                             "🧱 Malachite: BlockProposal",
                         );
                         // Speculative compute: every proposal we see
                         // is queued for execution. The malachite
-                        // service has already persisted `mb_block`
-                        // and `mb_meta` (parent + last_advanced_block)
-                        // before raising this event, so compute can
-                        // walk parent links freely. If the proposal
-                        // doesn't end up finalized the result lingers
-                        // in the `mb_*` keyspace until a future GC
-                        // step cleans it up.
-                        compute.compute_mb(height, block, malachite_gas_allowance);
+                        // service has already persisted CompactBlock
+                        // + CAS transactions + mb_meta before raising
+                        // this event, so compute can walk parent
+                        // links freely.
+                        compute.compute_mb(block_hash, malachite_gas_allowance);
                     }
                     MalachiteEvent::BlockFinalized { cert, block } => {
                         tracing::info!(

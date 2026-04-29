@@ -232,14 +232,17 @@ impl Externalities<TestPayload> for TestExt {
         Ok(TestPayload { nonce: 0 })
     }
 
-    async fn validate_block_above(&self, block: &Block<TestPayload>) -> Result<bool> {
+    async fn validate_block_above(
+        &self,
+        parent_hash: H256,
+        _payload: TestPayload,
+    ) -> Result<bool> {
         let mut s = self.state.lock().unwrap();
         if let Some(last_fin) = s.finalized.last().copied()
-            && block.parent_hash != last_fin
+            && parent_hash != last_fin
         {
             s.violations.push(format!(
-                "validate_block_above: parent_hash mismatch — expected {:?}, got {:?}",
-                last_fin, block.parent_hash
+                "validate_block_above: parent_hash mismatch — expected {last_fin:?}, got {parent_hash:?}"
             ));
         }
         Ok(true)

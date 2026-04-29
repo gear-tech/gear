@@ -185,8 +185,9 @@ pub enum ComputeEvent {
     AnnounceComputed(HashOf<Announce>),
     Promise(Promise, HashOf<Announce>),
     /// A Malachite sequencer block has been executed and its
-    /// post-execution state persisted to the DB. Indexed by the MB
-    /// hash (`SequencerBlock::hash()`).
+    /// post-execution state persisted to the DB. Indexed by the
+    /// consensus envelope hash (Blake2b over
+    /// `ethexe_malachite_core::Block`).
     #[unwrap(ignore)]
     MbComputed {
         mb_hash: H256,

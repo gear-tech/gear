@@ -19,19 +19,22 @@
 //! Application-level block shape produced by the Malachite sequencer
 //! and consumed by the ethexe executor.
 //!
-//! A [`SequencerBlock`] is just an ordered list of [`Transaction`]s.
-//! The producer (Malachite) decides the sequence; the executor
-//! (ethexe-processor) interprets each transaction in order. The types
-//! live here (rather than inside `ethexe-malachite`) so that
-//! `ethexe-processor` can accept them without depending on the
-//! consensus layer.
+//! [`Transactions`] is the application's `BlockPayload` — an ordered
+//! list of [`Transaction`]s. Block-level identity (parent linkage,
+//! height) lives in [`crate::db::CompactBlock`], indexed by the
+//! `ethexe_malachite_core::Block` envelope hash. The transaction list
+//! itself is stored in the content-addressed half of [`ethexe_db`]
+//! and referenced by [`CompactBlock::transactions_hash`].
+//!
+//! These types live in `ethexe-common` (rather than inside
+//! `ethexe-malachite`) so `ethexe-processor` can accept them without
+//! depending on the consensus layer.
 
 use crate::injected::SignedInjectedTransaction;
 use alloc::vec::Vec;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sha3::{Digest, Keccak256};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -90,36 +93,29 @@ impl Transaction {
     }
 }
 
-/// A block of sequencer transactions produced by BFT consensus.
+/// Application's `BlockPayload`: an ordered list of [`Transaction`]s.
 ///
-/// Lightweight: no Ethereum anchor field, no gas allowance, no parent
-/// link — those are represented elsewhere. Parent linkage lives
-/// inside the consensus envelope (`ethexe_malachite_core::Block::parent_hash`) and
-/// is mirrored into [`crate::db::MbMeta::parent_mb_hash`] for the
-/// executor; chain progression is owned entirely by the consensus
-/// layer, so the application block doesn't need to carry it.
-///
-/// Service transactions (`AdvanceTillEthereumBlock`, `ProgressTasks`,
-/// `ProcessQueues`) and any user-injected entries all live inside
-/// `transactions`.
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+/// Stored in the content-addressed half of [`ethexe_db`]; the
+/// reference key is [`Self::hash`] (Blake2b-256 over the
+/// SCALE-encoded list). `CompactBlock::transactions_hash` is exactly
+/// this hash, so any place that holds a [`crate::db::CompactBlock`]
+/// can fetch the matching `Transactions` from the CAS without further
+/// coordination.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct SequencerBlock {
+pub struct Transactions {
     pub transactions: Vec<Transaction>,
 }
 
-impl SequencerBlock {
+impl Transactions {
     pub fn new(transactions: Vec<Transaction>) -> Self {
         Self { transactions }
     }
 
-    /// Keccak-256 over the SCALE-encoded block — used as the value id
-    /// in Malachite consensus and as the MB hash that keys
-    /// post-execution state in the ethexe DB.
+    /// Blake2b-256 over the SCALE-encoded list — the CAS key under
+    /// which this `Transactions` blob lives in [`ethexe_db`].
     pub fn hash(&self) -> H256 {
-        let mut h = Keccak256::new();
-        h.update(self.encode());
-        H256::from_slice(&h.finalize())
+        gear_core::utils::hash(&self.encode()).into()
     }
 }
 
@@ -127,8 +123,8 @@ impl SequencerBlock {
 mod tests {
     use super::*;
 
-    fn empty_block() -> SequencerBlock {
-        SequencerBlock::new(alloc::vec![
+    fn empty_txs() -> Transactions {
+        Transactions::new(alloc::vec![
             Transaction::ProgressTasks {
                 limits: ProgressTasksLimits::default(),
             },
@@ -140,15 +136,15 @@ mod tests {
 
     #[test]
     fn hash_is_deterministic_for_same_content() {
-        let a = empty_block();
-        let b = empty_block();
+        let a = empty_txs();
+        let b = empty_txs();
         assert_eq!(a.hash(), b.hash());
     }
 
     #[test]
     fn hash_changes_when_transactions_change() {
-        let mut a = empty_block();
-        let b = empty_block();
+        let mut a = empty_txs();
+        let b = empty_txs();
         a.transactions.push(Transaction::AdvanceTillEthereumBlock {
             eth_block_hash: H256::from_low_u64_be(0xEB),
         });
@@ -157,8 +153,6 @@ mod tests {
 
     #[test]
     fn transaction_tag_distinguishes_variants() {
-        // `tag()` is used in logs all over app.rs / service.rs;
-        // pin its mapping so renames are caught.
         let advance = Transaction::AdvanceTillEthereumBlock {
             eth_block_hash: H256::zero(),
         };
@@ -175,17 +169,18 @@ mod tests {
 
     #[test]
     fn scale_round_trip_preserves_hash() {
-        // SequencerBlock is SCALE-encoded for both the consensus wire
-        // payload and DB storage — make sure SCALE round-trip is
-        // hash-preserving (we identify decoded blocks by hash on the
-        // executor side).
+        // `Transactions` is SCALE-encoded for both the CAS payload
+        // and the consensus wire payload — make sure round-trip is
+        // hash-preserving so peers and the executor agree on the
+        // CAS key.
         use parity_scale_codec::Decode;
 
-        let original = SequencerBlock::new(alloc::vec![Transaction::AdvanceTillEthereumBlock {
-            eth_block_hash: H256::from_low_u64_be(0xEB)
-        }]);
+        let original =
+            Transactions::new(alloc::vec![Transaction::AdvanceTillEthereumBlock {
+                eth_block_hash: H256::from_low_u64_be(0xEB)
+            }]);
         let encoded = original.encode();
-        let decoded = SequencerBlock::decode(&mut encoded.as_slice()).expect("decode");
+        let decoded = Transactions::decode(&mut encoded.as_slice()).expect("decode");
         assert_eq!(original, decoded);
         assert_eq!(original.hash(), decoded.hash());
     }

@@ -134,7 +134,7 @@ impl BatchCommitmentManager {
     ///
     /// MB chain validation is intentionally simple: `request.head` must be
     /// either equal to our `latest_finalized_mb` or an ancestor of it (per
-    /// `mb_meta.parent_mb_hash`). Anything else means we're behind or the
+    /// `mb_compact_block.parent`). Anything else means we're behind or the
     /// coordinator is on a different chain — we just drop our signature
     /// rather than reject loudly.
     pub async fn validate_batch_commitment(

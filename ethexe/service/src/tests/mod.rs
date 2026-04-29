@@ -116,8 +116,6 @@ async fn ping() {
 }
 
 /// Minimal multi-validator smoke: 3 validators, single ping round-trip.
-/// Used to isolate basic 3-of-3 quorum mechanics from the rest of the
-/// `multiple_validators` test which exercises async programs.
 #[tokio::test]
 #[ntest::timeout(60_000)]
 async fn multiple_validators_ping() {
