@@ -48,7 +48,7 @@ use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConsensusService, ValidatorService};
 use ethexe_malachite::{
     InjectedTxMempool, MalachiteConfig, MalachiteService, Multiaddr as MalachiteMultiaddr, PeerId,
-    derive_libp2p_secret, malachite_libp2p_peer_id, write_test_genesis,
+    ValidatorEntry, derive_libp2p_secret, malachite_libp2p_peer_id,
 };
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
@@ -1159,28 +1159,21 @@ impl Node {
                 .filter(|e| e.pub_key != config.public_key)
                 .map(|e| e.multiaddr())
                 .collect();
-            let pub_keys: Vec<_> =
-                self.malachite_endpoints.iter().map(|e| e.pub_key).collect();
+            let validators: Vec<ValidatorEntry> = self
+                .malachite_endpoints
+                .iter()
+                .map(|e| ValidatorEntry {
+                    public_key: e.pub_key,
+                    voting_power: 1,
+                })
+                .collect();
 
             let home = tempfile::tempdir().expect("malachite home tempdir");
-            let genesis_path = home.path().join("genesis.json");
-            write_test_genesis(&genesis_path, &self.signer, &pub_keys)
-                .expect("write_test_genesis");
 
-            let genesis_block_hash = self
-                .router_query
-                .genesis_block_hash()
-                .await
-                .unwrap_or(H256::zero());
-            let mut mc = MalachiteConfig::from_ethexe_genesis(
-                genesis_block_hash,
-                home.path().to_path_buf(),
-            )
-            .with_listen_addr(me.listen_addr)
-            .with_persistent_peers(persistent_peers);
-            if let Some(name) = self.name.as_ref() {
-                mc.moniker = name.clone();
-            }
+            let mut mc = MalachiteConfig::from_home_dir(home.path().to_path_buf())
+                .with_listen_addr(me.listen_addr)
+                .with_persistent_peers(persistent_peers)
+                .with_validators(validators);
             // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
             mc.canonical_quarantine = self.compute_config.canonical_quarantine();
             let gas_allowance = mc.gas_allowance;

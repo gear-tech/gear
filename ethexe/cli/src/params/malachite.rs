@@ -49,12 +49,6 @@ pub struct MalachiteParams {
     #[serde(rename = "listen-addr")]
     pub malachite_listen_addr: Option<SocketAddr>,
 
-    /// Human-readable node name reported by Malachite. Used in logs
-    /// and in the libp2p `agent_version` on connection.
-    #[arg(long, aliases = &["mala-moniker"])]
-    #[serde(rename = "moniker")]
-    pub malachite_moniker: Option<String>,
-
     /// Persistent peer multiaddrs the Malachite swarm should always
     /// keep connections to. Each entry must include a
     /// `/p2p/<peer_id>` suffix. Repeat the flag to add more than one
@@ -77,7 +71,6 @@ impl MalachiteParams {
             listen_addr: self
                 .malachite_listen_addr
                 .unwrap_or(MalachiteConfig::DEFAULT_LISTEN_ADDR),
-            moniker: self.malachite_moniker,
             persistent_peers: self.malachite_persistent_peers,
         })
     }
@@ -93,7 +86,6 @@ impl MergeParams for MalachiteParams {
             malachite_listen_addr: self
                 .malachite_listen_addr
                 .or(with.malachite_listen_addr),
-            malachite_moniker: self.malachite_moniker.or(with.malachite_moniker),
             malachite_persistent_peers: persistent_peers,
         }
     }

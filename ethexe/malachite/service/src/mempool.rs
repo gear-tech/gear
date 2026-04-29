@@ -16,23 +16,30 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! In-memory pool of injected transactions that the Malachite
-//! sequencer draws from when this node is the block producer.
+//! Source of injected transactions for the Malachite producer.
 //!
-//! Lifecycle rules (see also `ethexe-consensus/src/tx_validation.rs`):
+//! Two layers in this module:
 //!
-//! - Every tx carries `reference_block: H256`. The tx is valid as
-//!   long as `ref_block.height + VALIDITY_WINDOW > head.height`.
-//! - On insert we drop any tx whose `ref_block` is already outside
-//!   the validity window relative to the latest observed head, or
-//!   whose `ref_block` is not yet in the database.
-//! - On fetch we return only txs whose `ref_block` is a canonical
-//!   ancestor of the given `head`. Non-ancestors are kept — a reorg
-//!   can make them eligible again.
-//! - On forget (finalized MB) we remove the tx from the pool and
-//!   remember its hash in a seen-hash table. Subsequent inserts of
-//!   the same tx are rejected. Seen-hashes age out by the same
-//!   VALIDITY_WINDOW rule as pool entries.
+//! 1. The [`Mempool`] trait — abstract dependency consumed by
+//!    [`crate::EthexeExternalities`] when [`ethexe_malachite_core::Externalities::build_block_above`]
+//!    fires. Tests can stub it with [`EmptyMempool`]; production
+//!    uses the [`InjectedTxMempool`] in this file.
+//!
+//! 2. [`InjectedTxMempool`] — the in-memory pool itself. Lifecycle
+//!    rules (see also `ethexe-consensus/src/tx_validation.rs`):
+//!
+//!    - Every tx carries `reference_block: H256`. The tx is valid as
+//!      long as `ref_block.height + VALIDITY_WINDOW > head.height`.
+//!    - On insert we drop any tx whose `ref_block` is already outside
+//!      the validity window relative to the latest observed head, or
+//!      whose `ref_block` is not yet in the database.
+//!    - On fetch we return only txs whose `ref_block` is a canonical
+//!      ancestor of the given `head`. Non-ancestors are kept — a
+//!      reorg can make them eligible again.
+//!    - On forget (finalized MB) we remove the tx from the pool and
+//!      remember its hash in a seen-hash table. Subsequent inserts
+//!      of the same tx are rejected. Seen-hashes age out by the
+//!      same `VALIDITY_WINDOW` rule as pool entries.
 //!
 //! The pool makes heavy use of `ethexe_db::Database::block_header` to
 //! resolve `reference_block` into heights and to walk ancestor links;
@@ -54,7 +61,78 @@ use gprimitives::H256;
 use tokio::sync::Notify;
 use tracing::{debug, trace};
 
-use crate::Mempool;
+/// Source of injected transactions to pack into the next sequencer
+/// block.
+///
+/// The pool is fed new chain heads via [`Self::set_chain_head`] so it
+/// can garbage-collect entries whose `reference_block` has aged past
+/// [`ethexe_common::injected::VALIDITY_WINDOW`]. [`Self::fetch`] is
+/// non-destructive: a tx is only removed once the MB it ends up in
+/// is finalized and passed to [`Self::forget`], at which point the
+/// pool must remember the tx hash until it's safe to forget (also
+/// bounded by `VALIDITY_WINDOW`).
+#[async_trait]
+pub trait Mempool: Send + Sync + 'static {
+    /// Accept a transaction into the pool. Implementations may reject
+    /// txs whose `reference_block` has already aged out or whose hash
+    /// has recently been committed; the current interface is
+    /// fire-and-forget so rejections are swallowed silently (logged).
+    fn insert(&self, tx: SignedInjectedTransaction);
+
+    /// Notify the pool of a newly observed Ethereum chain head.
+    /// Drives expiration GC for both the pool and the seen-hash dedup
+    /// table.
+    fn set_chain_head(&self, head: SimpleBlockData);
+
+    /// Return a batch of TXs whose `reference_block` is an ancestor
+    /// of `head` and that fit within the given gas budget. Non-ancestor
+    /// txs stay in the pool — they become eligible again if the chain
+    /// reorgs back to their branch.
+    async fn fetch(&self, head: SimpleBlockData, gas_budget: u64)
+    -> Vec<SignedInjectedTransaction>;
+
+    /// Drop the given TXs after they have been included in a committed
+    /// (finalized) sequencer block. Implementations should also record
+    /// the hashes so subsequent [`Self::insert`] calls for the same
+    /// tx are rejected as duplicates, until the ref_block ages out.
+    async fn forget(&self, committed: &[SignedInjectedTransaction]);
+
+    /// Block until at least one new transaction is accepted into the
+    /// pool. Used by the producer to wake up out of an idle wait the
+    /// moment fresh content arrives — without polling.
+    ///
+    /// The notification is best-effort: spurious wake-ups are allowed
+    /// (the producer must always re-check `fetch` after returning).
+    /// Empty implementations may pend forever.
+    async fn wait_for_new_tx(&self);
+}
+
+/// Always-empty mempool, useful to bring up the service on an idle node.
+#[derive(Clone, Default)]
+pub struct EmptyMempool;
+
+#[async_trait]
+impl Mempool for EmptyMempool {
+    fn insert(&self, _tx: SignedInjectedTransaction) {}
+
+    fn set_chain_head(&self, _head: SimpleBlockData) {}
+
+    async fn fetch(
+        &self,
+        _head: SimpleBlockData,
+        _gas_budget: u64,
+    ) -> Vec<SignedInjectedTransaction> {
+        Vec::new()
+    }
+
+    async fn forget(&self, _committed: &[SignedInjectedTransaction]) {}
+
+    async fn wait_for_new_tx(&self) {
+        // Empty pool never accepts a tx — pend forever so the
+        // producer's select races only against chain_head signals.
+        std::future::pending().await
+    }
+}
 
 /// Default cap on the number of pending TXs the in-memory pool holds.
 /// We start rejecting new inserts once this is reached — better than
@@ -546,5 +624,180 @@ mod tests {
             "waiter must stay blocked when insert was rejected"
         );
         waiter.abort();
+    }
+
+    // ----------------------------------------------------------------
+    // Property tests
+    // ----------------------------------------------------------------
+    //
+    // The pool's contract is a small set of invariants that must hold
+    // for arbitrary insert/forget/fetch orderings:
+    //
+    //   I1. `pool.len()` never exceeds `capacity`.
+    //   I2. `forget` removes every committed tx (and the pool still
+    //       respects (I1)).
+    //   I3. `fetch(head, ...)` returns only txs whose `reference_block`
+    //       is on the canonical ancestry of `head`.
+    //   I4. After `forget(tx)`, re-inserting the same tx is a no-op
+    //       (seen-hash dedup).
+    //
+    // Property tests below sample arbitrary insert/forget transcripts
+    // and check the invariants hold at every step.
+
+    use proptest::prelude::*;
+
+    /// Build a deterministic linear chain in `db` and return the
+    /// blocks oldest-first. `seed` makes hashes predictable across
+    /// proptest cases (same input → same chain).
+    fn linear_chain_seeded(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
+        let mut chain = Vec::with_capacity(len);
+        let mut parent = H256::zero();
+        for i in 0..len {
+            let mut hb = [0u8; 32];
+            // Spread across the high bytes so different `seed`s never
+            // alias each other within reasonable lengths.
+            hb[0] = (seed & 0xff) as u8;
+            hb[1] = ((seed >> 8) & 0xff) as u8;
+            hb[2] = (i & 0xff) as u8;
+            hb[3] = ((i >> 8) & 0xff) as u8;
+            // Bias high so the hash is non-zero even if the seed is.
+            hb[4] = 0x80;
+            let hash = H256::from(hb);
+            let header = BlockHeader {
+                height: i as u32,
+                timestamp: i as u64,
+                parent_hash: parent,
+            };
+            db.set_block_header(hash, header);
+            db.mutate_block_meta(hash, |_| {});
+            chain.push(SimpleBlockData { hash, header });
+            parent = hash;
+        }
+        chain
+    }
+
+    #[derive(Clone, Debug)]
+    enum Action {
+        Insert { ref_idx: usize, salt: u8 },
+        Forget { which: usize },
+    }
+
+    fn arb_action(chain_len: usize) -> impl Strategy<Value = Action> {
+        let insert = (0..chain_len, any::<u8>())
+            .prop_map(|(ref_idx, salt)| Action::Insert { ref_idx, salt });
+        let forget = (0..32usize).prop_map(|which| Action::Forget { which });
+        prop_oneof![3 => insert, 1 => forget]
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(48))]
+
+        /// Capacity is never exceeded regardless of the order of
+        /// inserts or forgets.
+        #[test]
+        fn capacity_invariant_holds(
+            actions in proptest::collection::vec(arb_action(8), 1..40),
+            cap in 1usize..16,
+            seed in any::<u32>(),
+        ) {
+            let db = Database::memory();
+            let chain = linear_chain_seeded(&db, 8, seed);
+            let pool = InjectedTxMempool::with_capacity(db.clone(), cap);
+            let pk = PrivateKey::random();
+            // Track inserted (and not-yet-forgotten) txs so Forget
+            // can target a real entry.
+            let mut live: Vec<SignedInjectedTransaction> = Vec::new();
+            for action in actions {
+                match action {
+                    Action::Insert { ref_idx, salt } => {
+                        let tx = signed_tx(&pk, ActorId::zero(), chain[ref_idx].hash, salt);
+                        pool.insert(tx.clone());
+                        live.push(tx);
+                    }
+                    Action::Forget { which } => {
+                        if !live.is_empty() {
+                            let idx = which % live.len();
+                            let victim = live.swap_remove(idx);
+                            futures::executor::block_on(pool.forget(std::slice::from_ref(&victim)));
+                        }
+                    }
+                }
+                // Capacity invariant — must hold after every step.
+                prop_assert!(
+                    pool.len() <= cap,
+                    "pool.len()={} exceeded capacity {}",
+                    pool.len(),
+                    cap
+                );
+            }
+        }
+
+        /// `fetch(head, _)` only returns txs whose `reference_block`
+        /// is a canonical ancestor of `head`. Build a canonical
+        /// chain plus an alt branch off block 0; insert txs against
+        /// each; assert the alt-branch tx is NEVER returned for the
+        /// canonical head.
+        #[test]
+        fn fetch_filters_alt_branch(
+            n_txs in 1usize..8,
+            seed in any::<u32>(),
+        ) {
+            let db = Database::memory();
+            let chain = linear_chain_seeded(&db, 4, seed);
+            // Alt block off block 0, distinct from chain[1].
+            let alt_hash = {
+                let mut hb = [0u8; 32];
+                hb[0] = 0xAA;
+                hb[1] = (seed & 0xff) as u8;
+                H256::from(hb)
+            };
+            let alt_header = BlockHeader {
+                height: 1,
+                timestamp: 999,
+                parent_hash: chain[0].hash,
+            };
+            db.set_block_header(alt_hash, alt_header);
+            db.mutate_block_meta(alt_hash, |_| {});
+            let pool = InjectedTxMempool::new(db);
+            let pk = PrivateKey::random();
+
+            // Inserts: alternating canonical-tail and alt anchors.
+            for i in 0..n_txs {
+                let anchor = if i % 2 == 0 { chain[3].hash } else { alt_hash };
+                pool.insert(signed_tx(&pk, ActorId::zero(), anchor, i as u8));
+            }
+
+            let head = chain[3];
+            let fetched = futures::executor::block_on(pool.fetch(head, 1_000_000));
+            for tx in &fetched {
+                prop_assert_ne!(
+                    tx.data().reference_block, alt_hash,
+                    "alt-branch tx surfaced on canonical fetch"
+                );
+            }
+        }
+
+        /// After `forget(tx)`, re-inserting the same tx must be a
+        /// no-op while its `reference_block` is still inside the
+        /// validity window.
+        #[test]
+        fn forget_then_reinsert_is_noop(
+            salt in any::<u8>(),
+            seed in any::<u32>(),
+        ) {
+            let db = Database::memory();
+            let chain = linear_chain_seeded(&db, 2, seed);
+            let pool = InjectedTxMempool::new(db);
+            let pk = PrivateKey::random();
+            let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, salt);
+            pool.insert(tx.clone());
+            prop_assert_eq!(pool.len(), 1);
+            futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
+            prop_assert_eq!(pool.len(), 0);
+            // Re-insert: rejected because the hash sits in the
+            // seen-set and `reference_block` hasn't aged out.
+            pool.insert(tx);
+            prop_assert_eq!(pool.len(), 0);
+        }
     }
 }

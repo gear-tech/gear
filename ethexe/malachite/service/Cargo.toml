@@ -1,5 +1,5 @@
 [package]
-description = "Malachite-backed consensus service for ethexe"
+description = "Ethexe-side wrapper around ethexe-malachite-core (the Malachite BFT consensus service)."
 name = "ethexe-malachite"
 version.workspace = true
 authors.workspace = true
@@ -12,14 +12,10 @@ repository.workspace = true
 alloy = { workspace = true, features = ["eips"] }
 anyhow.workspace = true
 async-trait.workspace = true
-bytes.workspace = true
-derive_more.workspace = true
 futures.workspace = true
 hex.workspace = true
 log.workspace = true
 parity-scale-codec.workspace = true
-prost = { version = "0.13", default-features = false }
-rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sha3.workspace = true
@@ -27,21 +23,10 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 tracing.workspace = true
 
-# Malachite BFT engine
-malachitebft-app-channel.workspace = true
-malachitebft-app.workspace = true
-malachitebft-codec.workspace = true
-malachitebft-core-consensus.workspace = true
-malachitebft-core-types.workspace = true
-malachitebft-engine.workspace = true
-malachitebft-proto.workspace = true
-malachitebft-signing.workspace = true
-malachitebft-signing-ecdsa.workspace = true
-malachitebft-sync.workspace = true
-malachitebft-test.workspace = true
-k256 = { version = "0.13", features = ["ecdsa", "serde"] }
-libp2p-identity = { version = "0.2", features = ["secp256k1"] }
-serde_bytes = "0.11"
+# Generic Malachite-backed consensus service. Carries the engine,
+# libp2p swarm, store, and codec; ethexe-malachite only ships the
+# application glue (Mempool, Externalities, event translation).
+ethexe-malachite-core.workspace = true
 
 # ethexe
 ethexe-common = { workspace = true, features = ["std"] }
@@ -55,4 +40,7 @@ gear-workspace-hack.workspace = true
 # Enable the `mock` feature on the in-mem database so tests can call
 # `Database::memory()` without `unsafe`.
 ethexe-db = { workspace = true, features = ["mock"] }
+proptest.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "test-util", "time"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

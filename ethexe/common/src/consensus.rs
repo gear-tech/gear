@@ -41,10 +41,7 @@ pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 
 // TODO #4553: temporary implementation, should be improved
 /// Returns batch coordinator index for time slot. Next slot is the next validator in the list.
-pub const fn block_coordinator_index_for_slot(
-    validators_amount: NonZeroUsize,
-    slot: u64,
-) -> usize {
+pub const fn block_coordinator_index_for_slot(validators_amount: NonZeroUsize, slot: u64) -> usize {
     (slot % validators_amount.get() as u64) as usize
 }
 

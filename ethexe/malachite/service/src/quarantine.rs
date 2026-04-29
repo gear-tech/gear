@@ -293,4 +293,101 @@ mod tests {
         let res = is_strict_descendant_of(&db, hashes[4], orphan, hashes[0]);
         assert!(res.is_err(), "expected Err for orphan ancestor: {res:?}");
     }
+
+    // ----------------------------------------------------------------
+    // Property tests
+    // ----------------------------------------------------------------
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        /// `anchor(head)` walks back exactly `canonical_quarantine`
+        /// steps along the canonical chain, so for any pair
+        /// (chain_len, q) with `q < chain_len` the returned hash is
+        /// the block at index `chain_len - 1 - q`.
+        #[test]
+        fn anchor_walks_exactly_q_steps(
+            chain_len in 2usize..32,
+            q in 0u8..16,
+        ) {
+            let q_usize = q as usize;
+            prop_assume!(q_usize < chain_len);
+            let db = Database::memory();
+            let hashes = linear_chain(&db, chain_len);
+            let head = SimpleBlockData {
+                hash: hashes[chain_len - 1],
+                header: ethexe_common::BlockHeader {
+                    height: (chain_len - 1) as u32,
+                    timestamp: (chain_len - 1) as u64,
+                    parent_hash: if chain_len >= 2 { hashes[chain_len - 2] } else { H256::zero() },
+                },
+            };
+            // start_block = genesis (so the fence never trips).
+            let result = anchor(&db, head, q, hashes[0]).unwrap();
+            let expected = hashes[chain_len - 1 - q_usize];
+            prop_assert_eq!(result, Some(expected));
+        }
+
+        /// `is_strict_descendant_of(c, a)` is the transitive closure
+        /// of "next-block": for any (i, j) on a single chain, with
+        /// `i > j > 0`, the chain[i] descends from chain[j]; with
+        /// `i == j`, it does NOT (strictness).
+        #[test]
+        fn descendant_relation_matches_chain_indices(
+            chain_len in 2usize..16,
+            i in 1usize..16,
+            j in 0usize..16,
+        ) {
+            prop_assume!(i < chain_len);
+            prop_assume!(j < chain_len);
+            let db = Database::memory();
+            let hashes = linear_chain(&db, chain_len);
+
+            let result = is_strict_descendant_of(&db, hashes[i], hashes[j], hashes[0]);
+            if i > j {
+                prop_assert_eq!(result.unwrap(), true);
+            } else if i == j {
+                prop_assert_eq!(result.unwrap(), false);
+            } else {
+                // i < j → walking back from i never reaches j.
+                // The walk hits genesis (parent_hash zero) → Err.
+                prop_assert!(result.is_err());
+            }
+        }
+
+        /// `verify_passed(head, candidate)` succeeds iff `candidate`
+        /// sits at depth >= q from `head` on the canonical chain.
+        #[test]
+        fn verify_passed_matches_depth(
+            chain_len in 4usize..16,
+            head_idx in 0usize..16,
+            cand_idx in 0usize..16,
+            q in 0u8..6,
+        ) {
+            prop_assume!(head_idx < chain_len);
+            prop_assume!(cand_idx <= head_idx);
+            let db = Database::memory();
+            let hashes = linear_chain(&db, chain_len);
+            let head_hash = hashes[head_idx];
+            let head_height = head_idx as u32;
+            let head_parent = if head_idx > 0 { hashes[head_idx - 1] } else { H256::zero() };
+            let head = SimpleBlockData {
+                hash: head_hash,
+                header: ethexe_common::BlockHeader {
+                    height: head_height,
+                    timestamp: head_idx as u64,
+                    parent_hash: head_parent,
+                },
+            };
+            let depth = head_idx - cand_idx;
+            let result = verify_passed(&db, head, hashes[cand_idx], q, hashes[0]);
+            if depth >= q as usize {
+                prop_assert!(result.is_ok(), "expected pass: {result:?}");
+            } else {
+                prop_assert!(result.is_err(), "expected too-shallow err: {result:?}");
+            }
+        }
+    }
 }

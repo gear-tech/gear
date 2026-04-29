@@ -188,7 +188,10 @@ pub enum ComputeEvent {
     /// post-execution state persisted to the DB. Indexed by the MB
     /// hash (`SequencerBlock::hash()`).
     #[unwrap(ignore)]
-    MbComputed { mb_hash: H256, height: u64 },
+    MbComputed {
+        mb_hash: H256,
+        height: u64,
+    },
 }
 
 #[derive(thiserror::Error, Debug)]

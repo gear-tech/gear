@@ -93,8 +93,9 @@ impl<P: ProcessorExt> ComputeService<P> {
 
     /// Queue a finalized Malachite sequencer block for execution.
     /// `mb_hash` is derived from `block.hash()`; parent linkage comes
-    /// from `block.parent`. Results are persisted in the `mb_*`
-    /// keyspace and surfaced via [`ComputeEvent::MbComputed`].
+    /// from [`MbMeta::parent_mb_hash`](ethexe_common::db::MbMeta).
+    /// Results are persisted in the `mb_*` keyspace and surfaced via
+    /// [`ComputeEvent::MbComputed`].
     pub fn compute_mb(&mut self, mb_height: u64, block: SequencerBlock, gas_allowance: u64) {
         self.mb_compute_sub_service
             .receive_mb(mb_height, block, gas_allowance);

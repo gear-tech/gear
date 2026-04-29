@@ -467,23 +467,16 @@ impl Service {
         let processor = Processor::with_config(processor_config, db.clone())?;
         let compute = ComputeService::new(compute_config, db.clone(), processor);
 
-        // Malachite consensus service. Genesis is derived
-        // deterministically from the ethexe genesis block hash so
-        // every node on the same deployment agrees on the chain id.
+        // Malachite consensus service.
         let malachite_home = config
             .node
             .database_path_for(config.ethereum.router_address)
             .join("malachite");
-        let mut malachite_config =
-            MalachiteConfig::from_ethexe_genesis(genesis_block_hash, malachite_home)
-                .with_listen_addr(config.malachite.listen_addr)
-                .with_persistent_peers(config.malachite.persistent_peers.clone());
-        if let Some(moniker) = config.malachite.moniker.clone() {
-            malachite_config.moniker = moniker;
-        }
+        let malachite_config = MalachiteConfig::from_home_dir(malachite_home)
+            .with_listen_addr(config.malachite.listen_addr)
+            .with_persistent_peers(config.malachite.persistent_peers.clone());
         log::info!(
-            "🪨 Malachite chain id: 0x{}  listen: {}  persistent_peers: {}",
-            hex::encode(malachite_config.chain_id),
+            "🪨 Malachite listen: {}  persistent_peers: {}",
             malachite_config.listen_addr,
             malachite_config.persistent_peers.len(),
         );
@@ -867,7 +860,6 @@ impl Service {
                             block_hash = %cert.block_hash,
                             sigs = cert.signatures.len(),
                             txs = block.transactions.len(),
-                            parent = %block.parent,
                             "✅ Malachite: BlockFinalized",
                         );
                         // The malachite service has already advanced

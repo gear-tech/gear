@@ -5756,6 +5756,33 @@ version = "1.10.0"
 dependencies = [
  "alloy",
  "anyhow",
+ "async-trait",
+ "ethexe-common",
+ "ethexe-db",
+ "ethexe-malachite-core",
+ "futures",
+ "gear-workspace-hack",
+ "gprimitives",
+ "gsigner",
+ "hex",
+ "log",
+ "parity-scale-codec",
+ "proptest",
+ "serde",
+ "serde_json",
+ "sha3",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "ethexe-malachite-core"
+version = "1.10.0"
+dependencies = [
+ "anyhow",
  "arc-malachitebft-app",
  "arc-malachitebft-app-channel",
  "arc-malachitebft-codec",
@@ -5769,10 +5796,9 @@ dependencies = [
  "arc-malachitebft-test",
  "async-trait",
  "bytes",
- "derive_more 2.1.1",
- "ethexe-common",
- "ethexe-db",
+ "derive-where",
  "futures",
+ "gear-core",
  "gear-workspace-hack",
  "gprimitives",
  "gsigner",
@@ -5781,8 +5807,8 @@ dependencies = [
  "libp2p-identity",
  "log",
  "parity-scale-codec",
- "prost 0.13.5",
- "rand 0.8.5",
+ "proptest",
+ "rocksdb",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -5791,6 +5817,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

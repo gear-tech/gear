@@ -92,37 +92,25 @@ impl Transaction {
 
 /// A block of sequencer transactions produced by BFT consensus.
 ///
-/// Self-contained: `parent` is the hash of the previous finalized
-/// sequencer block (zero for the genesis MB at height 1), so a peer
-/// or executor can verify chain continuity without consulting an
-/// external index. The producer fills it in from its
-/// `latest_finalized_mb_hash`; validators reject proposals whose
-/// `parent` doesn't match their own.
+/// Lightweight: no Ethereum anchor field, no gas allowance, no parent
+/// link — those are represented elsewhere. Parent linkage lives
+/// inside the consensus envelope (`ethexe_malachite_core::Block::parent_hash`) and
+/// is mirrored into [`crate::db::MbMeta::parent_mb_hash`] for the
+/// executor; chain progression is owned entirely by the consensus
+/// layer, so the application block doesn't need to carry it.
 ///
-/// Tendermint commits exactly one block per height in order, so
-/// `parent` is fully determined by `height-1` — the field is here for
-/// self-containment and forward-compat with non-linear BFT, not for
-/// safety beyond what consensus itself already provides.
-///
-/// Other than `parent`, the block is intentionally lightweight: no
-/// Ethereum anchor field, no gas allowance — those are represented
-/// as individual [`Transaction::AdvanceTillEthereumBlock`] /
-/// [`Transaction::ProcessQueues`] entries inside `transactions`.
+/// Service transactions (`AdvanceTillEthereumBlock`, `ProgressTasks`,
+/// `ProcessQueues`) and any user-injected entries all live inside
+/// `transactions`.
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct SequencerBlock {
-    /// Hash of the previous finalized [`SequencerBlock`] (`H256::zero()`
-    /// for the genesis MB at height 1).
-    pub parent: H256,
     pub transactions: Vec<Transaction>,
 }
 
 impl SequencerBlock {
-    pub fn new(parent: H256, transactions: Vec<Transaction>) -> Self {
-        Self {
-            parent,
-            transactions,
-        }
+    pub fn new(transactions: Vec<Transaction>) -> Self {
+        Self { transactions }
     }
 
     /// Keccak-256 over the SCALE-encoded block — used as the value id
@@ -139,44 +127,28 @@ impl SequencerBlock {
 mod tests {
     use super::*;
 
-    fn empty_block(parent: H256) -> SequencerBlock {
-        SequencerBlock::new(
-            parent,
-            alloc::vec![
-                Transaction::ProgressTasks {
-                    limits: ProgressTasksLimits::default(),
-                },
-                Transaction::ProcessQueues {
-                    limits: ProcessQueuesLimits::default(),
-                },
-            ],
-        )
+    fn empty_block() -> SequencerBlock {
+        SequencerBlock::new(alloc::vec![
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+        ])
     }
 
     #[test]
     fn hash_is_deterministic_for_same_content() {
-        let p = H256::from_low_u64_be(1);
-        let a = empty_block(p);
-        let b = empty_block(p);
+        let a = empty_block();
+        let b = empty_block();
         assert_eq!(a.hash(), b.hash());
     }
 
     #[test]
-    fn hash_changes_when_parent_changes() {
-        // Two blocks with identical transaction lists but different
-        // parents must hash to different values — this is what gives
-        // the chain structural integrity (a peer can't substitute a
-        // sibling block's parent without changing the hash).
-        let a = empty_block(H256::from_low_u64_be(1));
-        let b = empty_block(H256::from_low_u64_be(2));
-        assert_ne!(a.hash(), b.hash());
-    }
-
-    #[test]
     fn hash_changes_when_transactions_change() {
-        let parent = H256::from_low_u64_be(1);
-        let mut a = empty_block(parent);
-        let b = empty_block(parent);
+        let mut a = empty_block();
+        let b = empty_block();
         a.transactions.push(Transaction::AdvanceTillEthereumBlock {
             eth_block_hash: H256::from_low_u64_be(0xEB),
         });
@@ -203,18 +175,15 @@ mod tests {
 
     #[test]
     fn scale_round_trip_preserves_hash() {
-        // SequencerBlock travels over JSON for malachite codec and
-        // SCALE for DB storage — make sure SCALE round-trip is
+        // SequencerBlock is SCALE-encoded for both the consensus wire
+        // payload and DB storage — make sure SCALE round-trip is
         // hash-preserving (we identify decoded blocks by hash on the
         // executor side).
         use parity_scale_codec::Decode;
 
-        let original = SequencerBlock::new(
-            H256::from_low_u64_be(0x42),
-            alloc::vec![Transaction::AdvanceTillEthereumBlock {
-                eth_block_hash: H256::from_low_u64_be(0xEB)
-            }],
-        );
+        let original = SequencerBlock::new(alloc::vec![Transaction::AdvanceTillEthereumBlock {
+            eth_block_hash: H256::from_low_u64_be(0xEB)
+        }]);
         let encoded = original.encode();
         let decoded = SequencerBlock::decode(&mut encoded.as_slice()).expect("decode");
         assert_eq!(original, decoded);

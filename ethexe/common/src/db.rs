@@ -172,8 +172,9 @@ pub struct MbMeta {
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait MbStorageRO {
-    /// Persisted block contents — used by the executor to walk the
-    /// parent chain (`block.parent`) when picking up uncomputed
+    /// Persisted block contents — paired with
+    /// [`MbStorageRO::mb_meta`] (which carries `parent_mb_hash` for
+    /// the executor's chain walk) when picking up uncomputed
     /// predecessors of a freshly received proposal.
     fn mb_block(&self, mb_hash: H256) -> Option<SequencerBlock>;
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
@@ -321,7 +322,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "bb2991db0cb7585f19ea94ed1ac760967ac33b1e38ed673e313fc28e6c8b7cad";
+            "56fcdfd45d9d52ef1ebea03a8586cfad247b8f35c094b157f86d9e32c47a4eae";
 
         let types = [
             meta_type::<BlockMeta>(),
