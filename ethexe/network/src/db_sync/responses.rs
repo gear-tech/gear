@@ -29,8 +29,9 @@ use ethexe_common::{
     db::{AnnounceStorageRO, ConfigStorageRO, GlobalsStorageRO},
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
+use gprimitives::H256;
 use libp2p::request_response;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Compact, Encode};
 use std::{
     collections::{BTreeMap, VecDeque},
     num::NonZeroU32,
@@ -87,10 +88,7 @@ impl OngoingResponses {
                         continue;
                     };
 
-                    if 1 // `InnerResponse` discriminant
-                        + response.encoded_size()
-                        + hash.encoded_size()
-                        + data.encoded_size()
+                    if Self::hashes_response_encoded_size_with(&response, hash, &data)
                         > MAX_RESPONSE_SIZE as usize
                     {
                         break;
@@ -128,6 +126,22 @@ impl OngoingResponses {
                 }
             }
         }
+    }
+
+    fn hashes_response_encoded_size_with(
+        response: &BTreeMap<H256, Vec<u8>>,
+        hash: H256,
+        data: &[u8],
+    ) -> usize {
+        let response_len_size = Compact(response.len() as u64).encoded_size();
+        let response_entries_size = response.encoded_size() - response_len_size;
+        let next_response_len_size = Compact((response.len() + 1) as u64).encoded_size();
+
+        1 // `InnerResponse` discriminant
+            + next_response_len_size
+            + response_entries_size
+            + hash.encoded_size()
+            + data.encoded_size()
     }
 
     fn process_announce_request<DB: AnnounceStorageRO + GlobalsStorageRO + ConfigStorageRO>(
@@ -262,13 +276,15 @@ enum ProcessAnnounceError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, db_sync::requests::ResponseHandler};
+    use crate::{
+        DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        db_sync::{HashesRequest, requests::ResponseHandler},
+    };
     use ethexe_common::{
         Announce, HashOf, ProtocolTimelines,
         db::{AnnounceStorageRW, DBConfig, GlobalsStorageRW, SetConfig},
     };
     use ethexe_db::Database;
-    use gprimitives::H256;
     use std::num::{NonZeroU32, NonZeroU64};
 
     fn make_announce(block: u64, parent: HashOf<Announce>) -> Announce {
@@ -292,6 +308,48 @@ mod tests {
         });
 
         db.globals_mutate(|globals| globals.start_announce_hash = start);
+    }
+
+    #[test]
+    fn response_from_db_truncates_hashes_response_at_encoded_limit() {
+        const ENTRIES_BEFORE_COMPACT_BOUNDARY: u64 = 0b0011_1111;
+        const MAX_RESPONSE_SIZE: usize = ParityScaleCodec::<(), ()>::MAX_RESPONSE_SIZE as usize;
+
+        let db = Database::memory();
+
+        let entries = (0..ENTRIES_BEFORE_COMPACT_BOUNDARY as u8)
+            .map(|i| vec![i])
+            .collect::<Vec<_>>();
+        let entries_size = entries
+            .iter()
+            .map(|data| H256::zero().encoded_size() + data.encoded_size())
+            .sum::<usize>();
+        for data in &entries {
+            db.cas().write(data);
+        }
+
+        let last_entry_size = MAX_RESPONSE_SIZE
+            - 1 // `InnerResponse` discriminant
+            - Compact(ENTRIES_BEFORE_COMPACT_BOUNDARY + 1).encoded_size()
+            - entries_size
+            - H256::zero().encoded_size();
+        let last_entry = vec![42; last_entry_size];
+        let last_entry_hash = db.cas().write(&last_entry);
+
+        let request = entries
+            .iter()
+            .map(|data| ethexe_db::hash(data))
+            .chain(Some(last_entry_hash))
+            .collect();
+        let response = OngoingResponses::response_from_db(
+            HashesRequest(request).into(),
+            Box::new(db),
+            DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        );
+
+        let response = response.unwrap_hashes();
+        assert_eq!(response.0.len(), ENTRIES_BEFORE_COMPACT_BOUNDARY as usize);
+        assert!(InnerResponse::Hashes(response).encoded_size() <= MAX_RESPONSE_SIZE);
     }
 
     #[test]

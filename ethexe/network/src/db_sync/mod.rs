@@ -365,7 +365,7 @@ pub(crate) struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 pub(crate) struct InnerAnnouncesResponse(Vec<Announce>);
 
 /// Network-only type to be encoded-decoded and sent over the network
-#[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]
+#[derive(Debug, Eq, PartialEq, derive_more::From, derive_more::Unwrap, Encode, Decode)]
 pub(crate) enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
@@ -859,6 +859,37 @@ pub(crate) mod tests {
         assert_eq!(
             response,
             Response::Hashes([(data_0, DATA[0].to_vec()), (data_1, DATA[1].to_vec())].into())
+        );
+    }
+
+    #[tokio::test]
+    async fn truncated_hashes_response_completed_from_same_peer() {
+        const DATA_LEN: usize = 6 * 1024 * 1024;
+
+        init_logger();
+
+        let (mut alice, _alice_db, _data_provider) = new_swarm().await;
+        let alice_handle = alice.behaviour().handle();
+        let (mut bob, bob_db, _data_provider) = new_swarm().await;
+
+        let data_0 = vec![0; DATA_LEN];
+        let data_1 = vec![1; DATA_LEN];
+        let hash_0 = bob_db.cas().write(&data_0);
+        let hash_1 = bob_db.cas().write(&data_1);
+
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let request = alice_handle.request(Request::hashes([hash_0, hash_1]));
+        let request_id = request.request_id();
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::RequestSucceed { request_id });
+
+        let response = request.await.unwrap();
+        assert_eq!(
+            response,
+            Response::Hashes([(hash_0, data_0), (hash_1, data_1)].into())
         );
     }
 
