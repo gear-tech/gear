@@ -22,7 +22,7 @@ pub use metrics::*;
 pub use middleware::RpcMetricsLayer;
 
 mod middleware {
-    use super::metrics::{DEFAULT_TRACKED_METHODS, MethodMetrics};
+    use super::metrics::MethodMetrics;
     use futures::future::BoxFuture;
     use jsonrpsee::{
         server::{MethodResponse, middleware::rpc::RpcServiceT},
@@ -30,6 +30,13 @@ mod middleware {
     };
     use std::{collections::HashMap, sync::Arc, time::Instant};
     use tower::Layer;
+
+    /// Default methods names tracked by [super::RpcMetricsLayer].
+    pub const TRACKED_METHODS: &[&str] = &[
+        "injected_sendTransaction",
+        "injected_sendTransactionAndWatch",
+        "program_calculateReplyForHandle",
+    ];
 
     /// A methods metrics registry for [RpcMetricsLayer].
     /// Internally it uses the mapping `method_name` => [MethodMetrics], so the
@@ -41,7 +48,8 @@ mod middleware {
 
     impl RpcMetricsRegistry {
         pub fn new(methods: &'static [&'static str]) -> Self {
-            let mut methods_map = HashMap::new();
+            let mut methods_map = HashMap::with_capacity(methods.len());
+
             methods.iter().copied().for_each(|method_name| {
                 let method_metrics = MethodMetrics::new_with_labels(&[("method", method_name)]);
                 methods_map.insert(method_name, method_metrics);
@@ -59,14 +67,14 @@ mod middleware {
 
     impl Default for RpcMetricsRegistry {
         fn default() -> Self {
-            Self::new(DEFAULT_TRACKED_METHODS)
+            Self::new(TRACKED_METHODS)
         }
     }
 
     /// Metrics layer for [jsonrpsee::server::RpcServiceBuilder].
     /// Uses [RpcMetricsService] to wrap each request to metrics collection logic.
     ///
-    /// Note: [Self::default] creates itself from registry with [DEFAULT_TRACKED_METHODS].
+    /// Note: [Self::default] creates itself from registry with [TRACKED_METHODS].
     #[derive(Clone, Default)]
     pub struct RpcMetricsLayer {
         registry: RpcMetricsRegistry,
@@ -97,14 +105,12 @@ mod middleware {
         type Future = BoxFuture<'a, MethodResponse>;
 
         fn call(&self, request: Request<'a>) -> Self::Future {
-            let metrics = self.registry.get(request.method_name()).cloned();
+            let Some(metrics) = self.registry.get(request.method_name()).cloned() else {
+                return Box::pin(self.service.call(request));
+            };
+
             let future = self.service.call(request);
-
             Box::pin(async move {
-                let Some(metrics) = metrics else {
-                    return future.await;
-                };
-
                 metrics.on_incoming_request();
                 let started_at = Instant::now();
 
@@ -122,13 +128,6 @@ mod metrics {
     use jsonrpsee::server::MethodResponse;
     use metrics::{Counter, Gauge, Histogram};
     use std::time::Instant;
-
-    /// Default methods names tracked by [super::RpcMetricsLayer].
-    pub const DEFAULT_TRACKED_METHODS: &[&str] = &[
-        "injected_sendTransaction",
-        "injected_sendTransactionAndWatch",
-        "program_calculateReplyForHandle",
-    ];
 
     /// Unified bundle of metrics for RPC method.
     /// [metrics_derive::Metrics] macro will register all metrics under the `ethexe_rpc_*` scope.
