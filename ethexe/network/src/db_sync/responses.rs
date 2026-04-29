@@ -29,7 +29,6 @@ use ethexe_common::{
     db::{AnnounceStorageRO, ConfigStorageRO, GlobalsStorageRO},
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
-use gprimitives::H256;
 use libp2p::request_response;
 use parity_scale_codec::{Compact, Encode};
 use std::{
@@ -82,18 +81,24 @@ impl OngoingResponses {
         match request {
             InnerRequest::Hashes(request) => {
                 let mut response = BTreeMap::new();
+                let mut entries_size = 0;
 
                 for hash in request.0 {
                     let Some(data) = db.read_by_hash(hash) else {
                         continue;
                     };
 
-                    if Self::hashes_response_encoded_size_with(&response, hash, &data)
-                        > MAX_RESPONSE_SIZE as usize
-                    {
+                    let entry_size = hash.encoded_size() + data.encoded_size();
+                    let next_response_size = 1 // InnerResponse discriminant size
+                        + Compact((response.len() + 1) as u64).encoded_size()
+                        + entries_size
+                        + entry_size;
+
+                    if next_response_size > MAX_RESPONSE_SIZE as usize {
                         break;
                     }
 
+                    entries_size += entry_size;
                     response.insert(hash, data);
                 }
 
@@ -126,22 +131,6 @@ impl OngoingResponses {
                 }
             }
         }
-    }
-
-    fn hashes_response_encoded_size_with(
-        response: &BTreeMap<H256, Vec<u8>>,
-        hash: H256,
-        data: &[u8],
-    ) -> usize {
-        let response_len_size = Compact(response.len() as u64).encoded_size();
-        let response_entries_size = response.encoded_size() - response_len_size;
-        let next_response_len_size = Compact((response.len() + 1) as u64).encoded_size();
-
-        1 // `InnerResponse` discriminant
-            + next_response_len_size
-            + response_entries_size
-            + hash.encoded_size()
-            + data.encoded_size()
     }
 
     fn process_announce_request<DB: AnnounceStorageRO + GlobalsStorageRO + ConfigStorageRO>(
@@ -285,6 +274,7 @@ mod tests {
         db::{AnnounceStorageRW, DBConfig, GlobalsStorageRW, SetConfig},
     };
     use ethexe_db::Database;
+    use gprimitives::H256;
     use std::num::{NonZeroU32, NonZeroU64};
 
     fn make_announce(block: u64, parent: HashOf<Announce>) -> Announce {
