@@ -47,7 +47,8 @@ use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{
-    TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
+    EthereumBuilder, TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams,
+    router::Router,
 };
 use ethexe_observer::ObserverEvent;
 use ethexe_processor::Processor;
@@ -72,6 +73,30 @@ use tokio::sync::{
 };
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
+
+#[derive(Clone)]
+struct RecordingCommitter {
+    router: Router,
+    committed_batches: Arc<Mutex<Vec<BatchCommitment>>>,
+}
+
+#[async_trait::async_trait]
+impl BatchCommitter for RecordingCommitter {
+    fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+        Box::new(self.clone())
+    }
+
+    async fn commit(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> anyhow::Result<H256> {
+        self.committed_batches.lock().await.push(batch.clone());
+        Box::new(self.router.clone())
+            .commit(batch, signatures)
+            .await
+    }
+}
 
 #[tokio::test]
 #[ntest::timeout(30_000)]
@@ -1018,6 +1043,132 @@ async fn value_send_program_to_user_and_replied() {
 
 #[tokio::test]
 #[ntest::timeout(60_000)]
+async fn batch_commitment_squashes_repeated_ping_transitions() {
+    init_logger();
+
+    let mut env = TestEnv::new(TestEnvConfig {
+        commitment_delay_limit: 5,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let committed_batches = Arc::new(Mutex::new(Vec::new()));
+    let recording_committer = RecordingCommitter {
+        router: EthereumBuilder::default()
+            .rpc_url(&env.eth_cfg.rpc)
+            .router_address(env.eth_cfg.router_address)
+            .signer(env.signer.clone())
+            .sender_address(env.validators[0].public_key.to_address())
+            .eip1559_fee_increase_percentage(env.eth_cfg.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier(env.eth_cfg.blob_gas_multiplier)
+            .build()
+            .await
+            .unwrap()
+            .router(),
+        committed_batches: committed_batches.clone(),
+    };
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.custom_committer = Some(Box::new(recording_committer.clone()));
+    node.start_service().await;
+
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = program.program_id;
+
+    committed_batches.lock().await.clear();
+
+    node.stop_service().await;
+
+    let first_ping = env.send_message(ping_id, b"PING").await.unwrap();
+    let second_ping = env.send_message(ping_id, b"PING").await.unwrap();
+
+    env.skip_blocks(env.commitment_delay_limit + 2).await;
+
+    node.custom_committer = Some(Box::new(recording_committer));
+    node.start_service().await;
+    env.force_new_block().await;
+
+    let first_reply = first_ping.wait_for().await.unwrap();
+    assert_eq!(first_reply.program_id, ping_id);
+    assert_eq!(
+        first_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(first_reply.payload, b"PONG");
+
+    let second_reply = second_ping.wait_for().await.unwrap();
+    assert_eq!(second_reply.program_id, ping_id);
+    assert_eq!(
+        second_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(second_reply.payload, b"PONG");
+
+    let committed_batches = committed_batches.lock().await.clone();
+    let matching_batch = committed_batches
+        .iter()
+        .find(|batch| {
+            batch.chain_commitment.as_ref().is_some_and(|chain| {
+                chain.transitions.iter().any(|transition| {
+                    transition.actor_id == ping_id && transition.messages.len() == 2
+                })
+            })
+        })
+        .expect("expected committed batch with a squashed ping program transition");
+    let chain_commitment = matching_batch
+        .chain_commitment
+        .as_ref()
+        .expect("expected chain commitment");
+
+    assert_eq!(
+        chain_commitment
+            .transitions
+            .iter()
+            .filter(|transition| transition.actor_id == ping_id)
+            .count(),
+        1,
+        "repeated transitions for the same actor must be squashed before commit"
+    );
+
+    let squashed_transition = chain_commitment
+        .transitions
+        .iter()
+        .find(|transition| transition.actor_id == ping_id)
+        .expect("expected squashed transition for ping actor");
+    assert_eq!(
+        squashed_transition.messages.len(),
+        2,
+        "squashed transition must carry both reply messages"
+    );
+    assert!(
+        squashed_transition
+            .messages
+            .iter()
+            .all(|message| message.payload == b"PONG"),
+        "expected both outgoing messages to be PONG replies"
+    );
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
 async fn incoming_transfers() {
     init_logger();
 
@@ -1459,9 +1610,12 @@ async fn multiple_validators() {
         .await
         .unwrap();
 
-    tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
-        .await
-        .expect_err("Timeout expected");
+    tokio::time::timeout(
+        env.eth_cfg.block_time * 5,
+        wait_for_reply_to.clone().wait_for(),
+    )
+    .await
+    .expect_err("Timeout expected");
 
     log::info!(
         "📗 Re-start validator 0 and check, that now ethexe is working, validator 1 is still stopped"
@@ -1725,9 +1879,9 @@ async fn fast_sync() {
                 bob_meta.last_committed_batch
             );
 
-            let Some((alice_announces, bob_announces)) =
-                alice_meta.announces.zip(bob_meta.announces)
-            else {
+            let alice_announces = alice.db.block_announces(block);
+            let bob_announces = bob.db.block_announces(block);
+            let Some((alice_announces, bob_announces)) = alice_announces.zip(bob_announces) else {
                 panic!("alice or bob has no announces");
             };
 
@@ -2967,7 +3121,7 @@ async fn announces_conflicts() {
 
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
-        let era_index = timelines.era_from_ts(block.header.timestamp);
+        let era_index = timelines.era_from_ts(block.header.timestamp).unwrap();
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
         let announce_hash = announce.to_hash();
         validator0
@@ -3038,7 +3192,7 @@ async fn announces_conflicts() {
         // skip slots for validators 3, 4, 5 and go to the timestamp, where next block producer is validator 6
         env.provider
             .anvil_set_next_block_timestamp(
-                env.latest_block().await.header.timestamp + env.block_time.as_secs() * 4,
+                env.latest_block().await.header.timestamp + env.eth_cfg.block_time.as_secs() * 4,
             )
             .await
             .unwrap();
@@ -3065,7 +3219,7 @@ async fn announces_conflicts() {
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
-        let era_index = timelines.era_from_ts(block.header.timestamp);
+        let era_index = timelines.era_from_ts(block.header.timestamp).unwrap();
         let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
         let announce6_hash = announce6.to_hash();
         validator6
@@ -3089,10 +3243,9 @@ async fn announces_conflicts() {
         // so must be rejected by validators 1..=5
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
-        let era_index = timelines.era_from_ts(block.header.timestamp);
+        let era_index = timelines.era_from_ts(block.header.timestamp).unwrap();
         let parent = validator1_db
-            .block_meta(block.header.parent_hash)
-            .announces
+            .block_announces(block.header.parent_hash)
             .into_iter()
             .flatten()
             .find(|&announce_hash| validator1_db.announce(announce_hash).unwrap().is_base())

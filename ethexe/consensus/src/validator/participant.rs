@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::batch::ValidationStatus};
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, SimpleBlockData,
@@ -106,7 +106,8 @@ impl StateHandler for Participant {
                         .ctx
                         .core
                         .timelines
-                        .era_from_ts(self.block.header.timestamp);
+                        .era_from_ts(self.block.header.timestamp)
+                        .context("failed to calculate era from block timestamp")?;
                     let reply = ValidatorMessage {
                         era_index,
                         payload: reply,

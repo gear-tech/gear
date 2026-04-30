@@ -37,7 +37,6 @@ use std::{
     collections::VecDeque,
     pin::Pin,
     task::{Context, Poll, ready},
-    time::Duration,
 };
 use sync::ChainSync;
 
@@ -52,16 +51,6 @@ type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription
 /// The wrapper on top of [`ChainSync::sync`] future.
 /// It is needed to measure time taken for syncing a block.
 type SyncFuture = future_timing::Timed<BoxFuture<'static, Result<H256>>>;
-
-#[derive(Clone, Debug)]
-pub struct EthereumConfig {
-    pub rpc: String,
-    pub beacon_rpc: String,
-    pub router_address: Address,
-    pub block_time: Duration,
-    pub eip1559_fee_increase_percentage: u64,
-    pub blob_gas_multiplier: u128,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
@@ -147,7 +136,6 @@ impl Stream for ObserverService {
             let Some(header) = res else {
                 log::warn!("Alloy headers stream ended. Creating a new one...");
 
-                // TODO #4568: test creating a new subscription in case when Receiver becomes invalid
                 let provider = self.provider().clone();
                 let _fut = provider.get_block_by_number(alloy::eips::BlockNumberOrTag::Earliest);
                 self.subscription_future = Some(provider.subscribe_blocks().into_future());

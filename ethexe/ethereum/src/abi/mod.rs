@@ -160,14 +160,30 @@ pub mod symbiotic_abi {
 }
 
 pub mod utils {
-    use alloy::primitives::{FixedBytes, Uint};
+    use alloy::{
+        primitives::{FixedBytes, Uint},
+        sol,
+    };
     use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
+    use serde::Serialize;
 
     pub use alloy::primitives::Bytes;
 
     pub type Bytes32 = FixedBytes<32>;
     pub type Uint256 = Uint<256, 4>;
     pub type Uint48 = Uint<48, 1>;
+
+    sol! {
+        #[allow(missing_docs)]
+        #[derive(Debug, Serialize)]
+        struct Permit {
+            address owner;
+            address spender;
+            uint256 value;
+            uint256 nonce;
+            uint256 deadline;
+        }
+    }
 
     pub fn actor_id_to_address_lossy(actor_id: ActorId) -> alloy::primitives::Address {
         actor_id.to_address_lossy().to_fixed_bytes().into()

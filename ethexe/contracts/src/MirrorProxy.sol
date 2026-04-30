@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
 /**
@@ -19,7 +19,7 @@ pragma solidity ^0.8.33;
  *      How it works:
  *      1. User calls `IRouter.createProgram(bytes32 codeId, bytes32 salt, address overrideInitializer)`
  *         and it returns address of new `Mirror` contract (e.g. `0x123...`).
- *         Each `Mirror` is about 670 bytes in size (in current `MirrorProxy` implementation).
+ *         Each `Mirror` is about 763 bytes in size (in current `MirrorProxy` implementation).
  *
  *         Look at the implementation of `function _createProgram(bytes32 _codeId, bytes32 _salt, bool _isSmall)` in `Router`.
  *         As you can see, it uses the `Clones` / `ClonesSmall` library, which will ultimately lead to the creation of contract
@@ -70,6 +70,15 @@ contract MirrorProxy {
     }
 
     function executableBalanceTopUp(uint128 value) external {
+        _delegate();
+    }
+
+    // TODO: We also need to regenerate `Clones.sol` file so that all new Sails framework programs include this new method.
+    //       Unfortunately, old `MirrorProxy` contracts won't have this method.
+    //
+    //       We might also need to update `ERC1967Utils.IMPLEMENTATION_SLOT` in all `Mirror`-s that are set to
+    //      `isSmall = true` to the new `Mirror` address so that this method is visible on Etherscan.
+    function executableBalanceTopUpWithPermit(uint128 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
         _delegate();
     }
 
