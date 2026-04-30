@@ -44,6 +44,8 @@ use futures::{Stream, stream::FusedStream};
 use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 
+use gprimitives::H256;
+
 use crate::{MalachiteConfig, MalachiteEvent, Mempool, externalities::EthexeExternalities};
 
 /// Public consensus service.
@@ -52,6 +54,11 @@ pub struct MalachiteService {
     chain_head: Arc<RwLock<Option<SimpleBlockData>>>,
     chain_head_notify: Arc<Notify>,
     mempool: Arc<dyn Mempool>,
+    /// Shared with the inner engine — held here so
+    /// [`Self::notify_block_synced`] can release pending events
+    /// whose `last_advanced_block` Eth block has just been synced
+    /// by the observer.
+    externalities: Arc<EthexeExternalities>,
     /// Inner ethexe-malachite-core service. Held in an `Option` so
     /// [`Self::shutdown`] can `take` it and `await` its
     /// async-shutdown method without violating the `Drop` signature.
@@ -149,19 +156,22 @@ impl MalachiteService {
             chain_head: Arc::clone(&chain_head),
             chain_head_notify: Arc::clone(&chain_head_notify),
             event_tx: events_tx,
+            pending_events: std::sync::Mutex::new(std::collections::VecDeque::new()),
             gas_allowance: config.gas_allowance,
             canonical_quarantine: config.canonical_quarantine,
         });
 
-        let inner = ethexe_malachite_core::MalachiteService::new(svc_cfg, externalities)
-            .await
-            .map_err(|e| anyhow!("starting ethexe-malachite-core: {e}"))?;
+        let inner =
+            ethexe_malachite_core::MalachiteService::new(svc_cfg, Arc::clone(&externalities))
+                .await
+                .map_err(|e| anyhow!("starting ethexe-malachite-core: {e}"))?;
 
         Ok(Self {
             events_rx,
             chain_head,
             chain_head_notify,
             mempool,
+            externalities,
             inner: Some(inner),
         })
     }
@@ -183,6 +193,21 @@ impl MalachiteService {
         // [`crate::EthexeExternalities::wait_for_proposable_content`].
         self.chain_head_notify.notify_waiters();
         self.mempool.set_chain_head(head);
+    }
+
+    /// Tell the service the observer has finished syncing `synced`
+    /// (and, by ethexe-observer's contract, every canonical
+    /// ancestor too). Drains any queued
+    /// [`MalachiteEvent::BlockProposal`] / [`MalachiteEvent::BlockFinalized`]
+    /// whose `last_advanced_block` Eth block has now landed in the
+    /// local DB — preserves their original FIFO order, which is the
+    /// strict ordering requirement compute and the malachite engine
+    /// both rely on. The `synced` argument is informational; the
+    /// drain itself decides per-entry by looking at the local
+    /// `block_events` lookup.
+    pub fn notify_block_synced(&self, synced: H256) {
+        let _ = synced;
+        self.externalities.drain_pending_events();
     }
 
     /// Shut the inner ethexe-malachite-core service down deterministically.

@@ -56,7 +56,9 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, db::OnChainStorageRW, gear::CodeState,
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, SimpleBlockData,
+    db::{OnChainStorageRO, OnChainStorageRW},
+    gear::CodeState,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
@@ -186,6 +188,14 @@ pub struct Service {
 
     fast_sync: bool,
     validator_address: Option<Address>,
+
+    /// When set, the run loop selects on this receiver and exits
+    /// gracefully on the first signal — finalizing the malachite
+    /// engine through [`MalachiteService::shutdown`] so the RocksDB
+    /// advisory lock and libp2p listener are released before
+    /// returning. Defaults to `None`, in which case `run` only exits
+    /// on a sub-service error or natural EOS.
+    shutdown_rx: Option<oneshot::Receiver<()>>,
 
     #[cfg(test)]
     sender: tests::utils::TestingEventSender,
@@ -552,6 +562,7 @@ impl Service {
             rpc,
             fast_sync,
             validator_address,
+            shutdown_rx: None,
             #[cfg(test)]
             sender: unreachable!(),
         })
@@ -596,7 +607,20 @@ impl Service {
             sender,
             fast_sync,
             validator_address,
+            shutdown_rx: None,
         })
+    }
+
+    /// Install a graceful-shutdown channel. The returned sender,
+    /// when fired, breaks the run loop at the next yield and then
+    /// awaits [`MalachiteService::shutdown`] before `run` returns —
+    /// freeing the RocksDB advisory lock and libp2p listener
+    /// synchronously, which a plain `JoinHandle::abort` does not
+    /// guarantee.
+    pub fn install_shutdown_channel(&mut self) -> oneshot::Sender<()> {
+        let (tx, rx) = oneshot::channel();
+        self.shutdown_rx = Some(rx);
+        tx
     }
 
     pub async fn run(mut self) -> Result<()> {
@@ -623,9 +647,15 @@ impl Service {
             rpc,
             fast_sync: _,
             validator_address,
+            shutdown_rx,
             #[cfg(test)]
             sender,
         } = self;
+        // The select! arms below need a polling target whether or
+        // not the caller installed a shutdown channel. `pending()`
+        // never resolves, so when `shutdown_rx` is None the arm
+        // contributes nothing to the select.
+        let mut shutdown_rx = shutdown_rx;
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
             log::info!("🌐 Rpc server starting at: {}", rpc.port());
@@ -665,6 +695,10 @@ impl Service {
                 _ = rpc_handle.as_mut().maybe() => {
                     bail!("`RPCWorker` has terminated, shutting down...")
                 }
+                _ = async { shutdown_rx.as_mut().unwrap().await }, if shutdown_rx.is_some() => {
+                    log::info!("Graceful shutdown requested");
+                    break;
+                }
             };
 
             log::trace!("Primary service produced event, start handling: {event:?}");
@@ -682,21 +716,6 @@ impl Service {
                             parent_hash = %block_data.header.parent_hash,
                             "📦 receive a chain head",
                         );
-
-                        // Persist the header eagerly: malachite's
-                        // descendant check (and the producer's
-                        // `is_strict_descendant_of`) walks parent
-                        // headers from DB starting with this block.
-                        // The observer's full sync that re-writes the
-                        // header lands later via `BlockSynced`; without
-                        // this nudge the producer races the sync and
-                        // logs spurious "missing header for candidate"
-                        // errors.
-                        db.set_block_header(block_data.hash, block_data.header);
-
-                        if let Some(m) = malachite.as_mut() {
-                            m.receive_new_chain_head(block_data);
-                        }
                         if let Some(c) = consensus.as_mut() {
                             c.receive_new_chain_head(block_data)?;
                         }
@@ -712,6 +731,34 @@ impl Service {
                         }
                         if let Some(network) = network.as_mut() {
                             network.set_chain_head(block)?;
+                        }
+                        // Feed malachite the chain head only after
+                        // the observer has fully synced its parent
+                        // chain, so the producer's
+                        // `is_strict_descendant_of` walk and the
+                        // executor's `AdvanceTillEthereumBlock`
+                        // walk both find every header they need
+                        // already in the DB. Otherwise a node that
+                        // just restarted (or just deployed) can
+                        // race the sync and emit a hard error from
+                        // compute.
+                        if let Some(m) = malachite.as_mut() {
+                            let header = db.block_header(block).expect(
+                                "BlockSynced contract: header is in DB by the time this fires",
+                            );
+                            m.receive_new_chain_head(SimpleBlockData {
+                                hash: block,
+                                header,
+                            });
+                            // Release any BlockProposal / BlockFinalized
+                            // events that were waiting on this Eth
+                            // block (or any of its ancestors) to be
+                            // synced — the sync-replay path inside
+                            // malachite never calls validate, so this
+                            // is the only place those events can
+                            // safely fire on a node that's still
+                            // catching up.
+                            m.notify_block_synced(block);
                         }
                     }
                 },
@@ -937,6 +984,15 @@ impl Service {
                 }
             }
         }
+
+        // Graceful tear-down: hand the malachite engine a chance to
+        // flush its WAL and release the RocksDB advisory lock and
+        // libp2p listener. Without this, an immediate restart on
+        // the same home directory races the previous lock release.
+        if let Some(m) = malachite.take() {
+            m.shutdown().await;
+        }
+        Ok(())
     }
 }
 

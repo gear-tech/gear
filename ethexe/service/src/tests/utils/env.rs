@@ -86,7 +86,10 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
-use tokio::task::{self, JoinHandle};
+use tokio::{
+    sync::oneshot,
+    task::{self, JoinHandle},
+};
 use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.
@@ -496,6 +499,15 @@ impl TestEnv {
                 .expect("failed to generate network key")
         });
 
+        // Allocate the malachite home once, at node-construction time —
+        // its lifetime mirrors the node's, mirroring production where the
+        // RocksDB store + WAL persist across service restarts.
+        // `start_service` reuses the same dir, so a stop+start cycle
+        // resumes consensus from where it left off.
+        let malachite_home = validator_config
+            .as_ref()
+            .map(|_| tempfile::tempdir().expect("malachite home tempdir"));
+
         Node {
             name,
             db,
@@ -517,8 +529,9 @@ impl TestEnv {
             compute_config: self.compute_config,
             commitment_delay_limit: self.commitment_delay_limit,
             malachite_endpoints: self.malachite_endpoints.clone(),
-            malachite_home: None,
+            malachite_home,
             running_service_handle: None,
+            shutdown_tx: None,
         }
     }
 
@@ -1055,6 +1068,12 @@ pub struct Node {
     malachite_endpoints: Vec<MalachiteEndpoint>,
 
     running_service_handle: Option<JoinHandle<()>>,
+    /// Sender end of the graceful-shutdown channel installed on the
+    /// running service. `stop_service` fires it instead of
+    /// `JoinHandle::abort` so the malachite engine flushes its WAL
+    /// and releases the RocksDB advisory lock + libp2p listener
+    /// before the next `start_service` re-opens the same home dir.
+    shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
 impl Node {
@@ -1144,7 +1163,7 @@ impl Node {
         //
         // Connect-only nodes (no validator key) keep `malachite =
         // None` and rely on whichever validators are producing MBs.
-        let (malachite, malachite_home) = if let Some(config) = self.validator_config.as_ref() {
+        let malachite = if let Some(config) = self.validator_config.as_ref() {
             let me = self
                 .malachite_endpoints
                 .iter()
@@ -1166,9 +1185,17 @@ impl Node {
                 })
                 .collect();
 
-            let home = tempfile::tempdir().expect("malachite home tempdir");
+            // Reuse the home dir allocated in `new_node`, so a
+            // stop+start cycle picks up the WAL/store left by the
+            // previous run instead of bootstrapping from genesis.
+            let home_path = self
+                .malachite_home
+                .as_ref()
+                .expect("validator node must have a malachite home allocated in new_node")
+                .path()
+                .to_path_buf();
 
-            let mut mc = MalachiteConfig::from_home_dir(home.path().to_path_buf())
+            let mut mc = MalachiteConfig::from_home_dir(home_path)
                 .with_listen_addr(me.listen_addr)
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
@@ -1184,11 +1211,10 @@ impl Node {
             )
             .await
             .expect("MalachiteService::new");
-            (Some(svc), Some(home))
+            Some(svc)
         } else {
-            (None, None)
+            None
         };
-        self.malachite_home = malachite_home;
 
         let (sender, receiver) = events::channel(self.db.clone());
 
@@ -1236,6 +1262,9 @@ impl Node {
         .await
         .expect("Failed to construct test service");
 
+        let mut service = service;
+        let shutdown_tx = service.install_shutdown_channel();
+
         let name = self.name.clone();
         let handle = task::spawn(async move {
             service
@@ -1245,6 +1274,7 @@ impl Node {
                 .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
         self.running_service_handle = Some(handle);
+        self.shutdown_tx = Some(shutdown_tx);
 
         if self.fast_sync {
             self.latest_fast_synced_block = Some(
@@ -1276,9 +1306,22 @@ impl Node {
             .running_service_handle
             .take()
             .expect("Service is not running");
-        handle.abort();
 
-        assert!(handle.await.unwrap_err().is_cancelled());
+        // Prefer graceful shutdown so the malachite engine flushes
+        // its WAL and releases the RocksDB advisory lock + libp2p
+        // listener before `start_service` re-opens the same dir. If
+        // the receiver was already dropped (e.g. the run loop
+        // exited on its own) fall back to abort.
+        if let Some(tx) = self.shutdown_tx.take()
+            && tx.send(()).is_ok()
+        {
+            handle
+                .await
+                .unwrap_or_else(|err| panic!("service task failed during shutdown: {err}"));
+        } else {
+            handle.abort();
+            assert!(handle.await.unwrap_err().is_cancelled());
+        }
 
         self.receiver = None;
     }

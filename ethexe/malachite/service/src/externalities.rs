@@ -48,13 +48,19 @@
 //! the `Transactions` blob; [`Self::mark_block_as_finalized`] reads
 //! both back via the same key the consensus layer hands in.
 
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex, RwLock},
+};
 
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
     SimpleBlockData,
-    db::{CompactBlock, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
+    db::{
+        CompactBlock, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW,
+        OnChainStorageRO,
+    },
     injected::SignedInjectedTransaction,
     mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
 };
@@ -84,10 +90,31 @@ pub(crate) struct EthexeExternalities {
     /// [`Mempool::wait_for_new_tx`] notify into a single select.
     pub(crate) chain_head_notify: Arc<Notify>,
     /// Outbound event channel — drained by
-    /// [`crate::MalachiteService::poll_next`].
+    /// [`crate::MalachiteService::poll_next`]. We wrap each emit in
+    /// [`Self::try_emit_or_queue`] so that events whose
+    /// `last_advanced_block` Eth-block isn't fully synced into the
+    /// local DB are held back until the observer catches up.
     pub(crate) event_tx: mpsc::UnboundedSender<Result<MalachiteEvent>>,
+    /// Buffer for [`MalachiteEvent`]s whose downstream
+    /// `compute_mb` walk would step through Eth blocks the
+    /// observer hasn't synced yet. Drained in FIFO order by
+    /// [`Self::drain_pending_events`] (called from
+    /// [`crate::MalachiteService::notify_block_synced`]) — preserves
+    /// the strict ordering of save / finalize cascades.
+    pub(crate) pending_events: Mutex<VecDeque<PendingEvent>>,
     pub(crate) gas_allowance: u64,
     pub(crate) canonical_quarantine: u8,
+}
+
+/// One outbound [`MalachiteEvent`] that can't be released until its
+/// `prerequisite` Eth block is fully synced into the local DB.
+pub(crate) struct PendingEvent {
+    pub event: MalachiteEvent,
+    /// Eth-block hash whose `block_events` entry must be present
+    /// before this event can fire — i.e. the MB's
+    /// `last_advanced_block`. `H256::zero()` skips the gate (genesis
+    /// or an MB that never advanced past the pre-genesis sentinel).
+    pub prerequisite: H256,
 }
 
 #[async_trait]
@@ -141,11 +168,14 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             meta.synced = true;
         });
 
-        let _ = self.event_tx.send(Ok(MalachiteEvent::BlockProposal {
-            height: block.height,
-            block_hash,
-            block: payload,
-        }));
+        self.try_emit_or_queue(
+            MalachiteEvent::BlockProposal {
+                height: block.height,
+                block_hash,
+                block: payload,
+            },
+            last_advanced,
+        );
         Ok(())
     }
 
@@ -189,10 +219,17 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             block_hash,
             signatures: cert.signatures,
         };
-        let _ = self.event_tx.send(Ok(MalachiteEvent::BlockFinalized {
-            cert: app_cert,
-            block: payload,
-        }));
+        // Same prerequisite as the matching BlockProposal — by the
+        // time `mark_block_as_finalized` runs, `save_block` has
+        // already populated `mb_meta(block_hash).last_advanced_block`.
+        let last_advanced = self.db.mb_meta(block_hash).last_advanced_block;
+        self.try_emit_or_queue(
+            MalachiteEvent::BlockFinalized {
+                cert: app_cert,
+                block: payload,
+            },
+            last_advanced,
+        );
         Ok(())
     }
 
@@ -234,7 +271,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
 
     async fn validate_block_above(
         &self,
-        _parent_hash: H256,
+        parent_hash: H256,
         payload: Transactions,
     ) -> Result<bool> {
         // Parent linkage and height progression are validated by
@@ -271,17 +308,85 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             return Ok(false);
         };
         let start = self.db.globals().start_block_hash;
-        match quarantine::verify_passed(&self.db, head, advance, self.canonical_quarantine, start) {
-            Ok(()) => Ok(true),
-            Err(e) => {
-                warn!(error = %e, advance = %advance, "validate: quarantine reject");
-                Ok(false)
-            }
+        if let Err(e) =
+            quarantine::verify_passed(&self.db, head, advance, self.canonical_quarantine, start)
+        {
+            warn!(error = %e, advance = %advance, "validate: quarantine reject");
+            return Ok(false);
         }
+
+        // (3) Local-sync gate: every Eth block compute will visit
+        // (`advance` walked back to the parent MB's
+        // `last_advanced_block`) must already be fully synced into
+        // the local DB. This upholds the contract that
+        // `compute_mb` is called only when all headers + events
+        // the executor needs are present — without it a node that
+        // just restarted (or just deployed) and hasn't caught up to
+        // the proposer's chain-tip would force compute to walk
+        // missing headers and bail.
+        let parent_advanced = if parent_hash.is_zero() {
+            H256::zero()
+        } else {
+            self.db.mb_meta(parent_hash).last_advanced_block
+        };
+        if !self.advance_chain_locally_synced(advance, parent_advanced) {
+            warn!(
+                %advance,
+                %parent_advanced,
+                "validate: advance-chain not yet locally synced — abstaining"
+            );
+            return Ok(false);
+        }
+        Ok(true)
     }
 }
 
 impl EthexeExternalities {
+    /// True iff `prerequisite.is_zero()` (no prerequisite — genesis
+    /// or pre-advance) or its events are already in the local DB.
+    /// Observer-side `BlockSynced` populates `block_events` after
+    /// the full ancestor chain is in place, so this is exactly the
+    /// "downstream `compute_mb` won't trip on a missing header"
+    /// condition.
+    fn prerequisite_satisfied(&self, prerequisite: H256) -> bool {
+        prerequisite.is_zero() || self.db.block_events(prerequisite).is_some()
+    }
+
+    /// Forward `event` to the outbound channel right away when its
+    /// `prerequisite` Eth block is locally synced AND no earlier
+    /// queued event is still waiting; otherwise push it onto the
+    /// pending buffer to keep ordering. Held entries are released
+    /// from the front by [`Self::drain_pending_events`] once their
+    /// prerequisite lands.
+    pub(crate) fn try_emit_or_queue(&self, event: MalachiteEvent, prerequisite: H256) {
+        let mut queue = self.pending_events.lock().expect("pending_events poisoned");
+        if queue.is_empty() && self.prerequisite_satisfied(prerequisite) {
+            // Channel receiver dropped only on shutdown — best-effort.
+            let _ = self.event_tx.send(Ok(event));
+        } else {
+            queue.push_back(PendingEvent {
+                event,
+                prerequisite,
+            });
+        }
+    }
+
+    /// Pop and emit pending events from the front while their
+    /// prerequisite is satisfied. Stops at the first still-blocked
+    /// entry so ordering is preserved (later events may have a
+    /// later prerequisite, but FIFO drain only releases what's
+    /// safely ready right now).
+    pub(crate) fn drain_pending_events(&self) {
+        let mut queue = self.pending_events.lock().expect("pending_events poisoned");
+        while let Some(front) = queue.front() {
+            if !self.prerequisite_satisfied(front.prerequisite) {
+                break;
+            }
+            let entry = queue.pop_front().expect("just peeked");
+            let _ = self.event_tx.send(Ok(entry.event));
+        }
+    }
+
     /// Block until either a quarantine-passed EB advance is available
     /// or the mempool has injected txs whose `reference_block` is on
     /// the local canonical chain. Returns the (advance, injected)
@@ -349,6 +454,50 @@ impl EthexeExternalities {
             }
         }
     }
+
+    /// Return `true` iff every Eth block on the canonical walk from
+    /// `advance` (inclusive) back to `parent_advanced` (exclusive) has
+    /// both its header and its events present in the local DB.
+    ///
+    /// Mirrors the walk `ethexe_processor::Processor::collect_advance_chain`
+    /// performs at execution time, but bails early instead of erroring
+    /// — used by [`Self::validate_block_above`] to abstain from voting
+    /// on a proposal whose required Eth state we haven't fully synced.
+    /// Treated as a transient condition: subsequent rounds re-run this
+    /// check after the observer makes more progress.
+    fn advance_chain_locally_synced(&self, advance: H256, parent_advanced: H256) -> bool {
+        if advance == parent_advanced {
+            return true;
+        }
+        // Same safety cap as `Processor::collect_advance_chain`.
+        const MAX_STEPS: u32 = 1024;
+        let mut current = advance;
+        for _ in 0..MAX_STEPS {
+            let Some(header) = self.db.block_header(current) else {
+                return false;
+            };
+            // BlockSynced fires only after both header and events
+            // have landed; a missing events entry is the tightest
+            // signal that the observer hasn't finished syncing
+            // `current` yet.
+            if self.db.block_events(current).is_none() {
+                return false;
+            }
+            if current == parent_advanced {
+                return true;
+            }
+            let parent = header.parent_hash;
+            if parent.is_zero() {
+                // Genesis. If we haven't yet hit `parent_advanced`,
+                // either the parent chain doesn't reach it (proposal
+                // is on a different fork) or `parent_advanced` is
+                // also zero — handled at the top.
+                return parent_advanced.is_zero();
+            }
+            current = parent;
+        }
+        false
+    }
 }
 
 #[cfg(test)]
@@ -379,6 +528,7 @@ mod tests {
             chain_head: Arc::new(RwLock::new(None)),
             chain_head_notify: Arc::new(Notify::new()),
             event_tx,
+            pending_events: Mutex::new(VecDeque::new()),
             gas_allowance: 1_000_000,
             canonical_quarantine: 0,
         };
@@ -751,6 +901,7 @@ mod tests {
             chain_head: Arc::new(RwLock::new(None)),
             chain_head_notify: Arc::new(Notify::new()),
             event_tx,
+            pending_events: Mutex::new(VecDeque::new()),
             gas_allowance: 1_000_000,
             canonical_quarantine: 0,
         };
