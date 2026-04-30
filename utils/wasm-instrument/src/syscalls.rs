@@ -218,6 +218,11 @@ impl SyscallName {
             .collect()
     }
 
+    /// Checks whether the syscall is available in the Vara runtime.
+    pub fn is_vara(self) -> bool {
+        self != Self::SystemBreak
+    }
+
     /// Checks whether the syscall is available under the `ethexe` feature.
     ///
     /// Keep this in sync with the `#[cfg(not(feature = "ethexe"))]` gates in

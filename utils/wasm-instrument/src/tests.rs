@@ -594,6 +594,7 @@ fn ethexe_syscall_availability_matches_gsys_cfg_gates() {
     ];
 
     for syscall in SyscallName::instrumentable(SyscallKind::Vara) {
+        assert!(syscall.is_vara());
         assert_eq!(
             syscall.is_eth(),
             !unavailable.contains(&syscall),
@@ -608,6 +609,7 @@ fn ethexe_syscall_availability_matches_gsys_cfg_gates() {
         SyscallKind::Eth.instrumentable().collect::<Vec<_>>()
     );
     assert!(!eth_syscalls.is_empty());
+    assert!(eth_syscalls.iter().all(|syscall| syscall.is_vara()));
     assert!(eth_syscalls.iter().all(|syscall| syscall.is_eth()));
     assert!(
         unavailable
