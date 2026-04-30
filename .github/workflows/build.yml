@@ -294,6 +294,9 @@ jobs:
           ./scripts/gear.sh show
           forge --version
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: "Build: Init"
         run: ./scripts/gear.sh init cargo
 
