@@ -827,22 +827,6 @@ mod tests {
         )
     }
 
-    #[test]
-    fn encode_decode_identity() {
-        let signer = Signer::memory();
-        let validator_key = signer.generate().unwrap();
-        let keypair = Keypair::generate_secp256k1();
-        let identity = ValidatorIdentity {
-            addresses: ValidatorAddresses::new(keypair.public().to_peer_id(), test_addr()),
-            creation_time: 999_999,
-        };
-        let identity = identity.sign(&signer, validator_key, &keypair).unwrap();
-
-        let decoded_identity =
-            SignedValidatorIdentity::decode(&mut &identity.encode()[..]).unwrap();
-        assert_eq!(identity, decoded_identity);
-    }
-
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(64))]
 
