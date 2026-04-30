@@ -140,7 +140,9 @@ fn randomized_eth_config_omits_non_eth_syscall_imports() {
         .expect("failed generating wasm");
     let imports = gear_imports(&code);
 
-    for syscall in SyscallName::instrumentable_vara().filter(|syscall| !syscall.is_eth()) {
+    for syscall in
+        SyscallName::instrumentable(SyscallKind::Vara).filter(|syscall| !syscall.is_eth())
+    {
         assert!(
             !imports.contains(syscall.to_str()),
             "generated ethexe code imports forbidden syscall {}",
@@ -846,7 +848,7 @@ fn error_processing_works_for_fallible_syscalls() {
     let mut unstructured = Unstructured::new(&buf);
     let mut unstructured2 = Unstructured::new(&buf);
 
-    let fallible_syscalls = SyscallName::instrumentable_vara().filter_map(|syscall| {
+    let fallible_syscalls = SyscallName::instrumentable(SyscallKind::Vara).filter_map(|syscall| {
         let invocable_syscall = InvocableSyscall::Loose(syscall);
         invocable_syscall.is_fallible().then_some(invocable_syscall)
     });
@@ -920,7 +922,7 @@ fn precise_syscalls_works() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let precise_syscalls = SyscallName::instrumentable_vara().filter_map(|syscall| {
+    let precise_syscalls = SyscallName::instrumentable(SyscallKind::Vara).filter_map(|syscall| {
         InvocableSyscall::has_precise_variant(syscall).then_some(InvocableSyscall::Precise(syscall))
     });
 

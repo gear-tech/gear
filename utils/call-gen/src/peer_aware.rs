@@ -230,7 +230,9 @@ mod tests {
         let code = generate_upload_code_args_peer_aware::<SmallRng>(11, ctx);
         let imports = gear_imports(&code.0);
 
-        for syscall in SyscallName::instrumentable_vara().filter(|syscall| !syscall.is_eth()) {
+        for syscall in
+            SyscallName::instrumentable(SyscallKind::Vara).filter(|syscall| !syscall.is_eth())
+        {
             assert!(
                 !imports.contains(syscall.to_str()),
                 "generated ethexe code imports forbidden syscall {}",

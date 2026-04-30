@@ -121,17 +121,12 @@ pub enum SyscallKind {
 impl SyscallKind {
     /// Returns all instrumentable syscalls available for this runtime.
     pub fn instrumentable(self) -> impl Iterator<Item = SyscallName> {
-        SyscallName::instrumentable().filter(move |syscall| match self {
-            Self::Vara => true,
-            Self::Eth => syscall.is_eth(),
-        })
+        SyscallName::instrumentable(self)
     }
 
     /// Returns map of syscall string values to syscall names for this runtime.
     pub fn instrumentable_map(self) -> BTreeMap<String, SyscallName> {
-        self.instrumentable()
-            .map(|syscall| (syscall.to_str().into(), syscall))
-            .collect()
+        SyscallName::instrumentable_map(self)
     }
 }
 
@@ -203,35 +198,24 @@ impl SyscallName {
         enum_iterator::all()
     }
 
-    /// Returns iterator of all syscall names (actually supported by this module
-    /// syscalls).
-    pub fn instrumentable() -> impl Iterator<Item = Self> {
+    /// Returns iterator of all syscall names available for the given runtime.
+    pub fn instrumentable(kind: SyscallKind) -> impl Iterator<Item = Self> {
+        Self::instrumentable_all().filter(move |syscall| match kind {
+            SyscallKind::Vara => true,
+            SyscallKind::Eth => syscall.is_eth(),
+        })
+    }
+
+    /// Returns iterator of all syscall names (actually supported by this module syscalls).
+    pub fn instrumentable_all() -> impl Iterator<Item = Self> {
         Self::all().filter(|syscall| *syscall != Self::SystemBreak)
     }
 
-    /// Returns all instrumentable syscalls available in the Vara runtime.
-    pub fn instrumentable_vara() -> impl Iterator<Item = Self> {
-        SyscallKind::Vara.instrumentable()
-    }
-
-    /// Returns all instrumentable syscalls available in the ethexe runtime.
-    pub fn instrumentable_eth() -> impl Iterator<Item = Self> {
-        SyscallKind::Eth.instrumentable()
-    }
-
-    /// Returns map of all syscall string values to syscall names.
-    pub fn instrumentable_map() -> BTreeMap<String, SyscallName> {
-        Self::instrumentable_vara_map()
-    }
-
-    /// Returns map of all Vara syscall string values to syscall names.
-    pub fn instrumentable_vara_map() -> BTreeMap<String, SyscallName> {
-        SyscallKind::Vara.instrumentable_map()
-    }
-
-    /// Returns map of all ethexe syscall string values to syscall names.
-    pub fn instrumentable_eth_map() -> BTreeMap<String, SyscallName> {
-        SyscallKind::Eth.instrumentable_map()
+    /// Returns map of syscall string values to syscall names for the given runtime.
+    pub fn instrumentable_map(kind: SyscallKind) -> BTreeMap<String, SyscallName> {
+        Self::instrumentable(kind)
+            .map(|syscall| (syscall.to_str().into(), syscall))
+            .collect()
     }
 
     /// Checks whether the syscall is available under the `ethexe` feature.

@@ -100,34 +100,33 @@ impl SyscallsInjectionTypes {
         syscall_kind: SyscallKind,
         unstructured: &mut Unstructured,
     ) -> Self {
+        let instrumentable_syscalls = SyscallName::instrumentable(syscall_kind).collect::<Vec<_>>();
         Self {
             syscall_kind,
-            inner: SyscallName::instrumentable_vara()
+            inner: SyscallName::instrumentable(SyscallKind::Vara)
                 .map(|name| {
                     let range = unstructured.int_in_range(1..=3).unwrap()
                         ..=unstructured.int_in_range(3..=20).unwrap();
-                    let injection_type =
-                        if syscall_kind.instrumentable().any(|syscall| syscall == name) {
-                            SyscallInjectionType::Function(range)
-                        } else {
-                            SyscallInjectionType::None
-                        };
+                    let injection_type = if instrumentable_syscalls.contains(&name) {
+                        SyscallInjectionType::Function(range)
+                    } else {
+                        SyscallInjectionType::None
+                    };
                     (InvocableSyscall::Loose(name), injection_type)
                 })
                 .chain(
-                    SyscallName::instrumentable_vara()
+                    SyscallName::instrumentable(SyscallKind::Vara)
                         .filter(|&name| InvocableSyscall::has_precise_variant(name))
                         .map(|name| {
-                            let injection_type =
-                                if syscall_kind.instrumentable().any(|syscall| syscall == name) {
-                                    SyscallInjectionType::Function(
-                                        /*unstructured.int_in_range(1..=3).unwrap()
-                                        ..=unstructured.int_in_range(3..=20).unwrap(),*/
-                                        1..=3,
-                                    )
-                                } else {
-                                    SyscallInjectionType::None
-                                };
+                            let injection_type = if instrumentable_syscalls.contains(&name) {
+                                SyscallInjectionType::Function(
+                                    /*unstructured.int_in_range(1..=3).unwrap()
+                                    ..=unstructured.int_in_range(3..=20).unwrap(),*/
+                                    1..=3,
+                                )
+                            } else {
+                                SyscallInjectionType::None
+                            };
                             (InvocableSyscall::Precise(name), injection_type.clone())
                         }),
                 )
@@ -141,29 +140,32 @@ impl SyscallsInjectionTypes {
         syscall_kind: SyscallKind,
         injection_type: SyscallInjectionType,
     ) -> Self {
+        let instrumentable_syscalls = SyscallName::instrumentable(syscall_kind).collect::<Vec<_>>();
         Self {
             syscall_kind,
-            inner: SyscallName::instrumentable_vara()
+            inner: SyscallName::instrumentable(SyscallKind::Vara)
                 .map(|name| {
                     (
                         InvocableSyscall::Loose(name),
-                        if syscall_kind.instrumentable().any(|syscall| syscall == name) {
+                        if instrumentable_syscalls.contains(&name) {
                             injection_type.clone()
                         } else {
                             SyscallInjectionType::None
                         },
                     )
                 })
-                .chain(SyscallName::instrumentable_vara().filter_map(|name| {
-                    InvocableSyscall::has_precise_variant(name).then_some((
-                        InvocableSyscall::Precise(name),
-                        if syscall_kind.instrumentable().any(|syscall| syscall == name) {
-                            injection_type.clone()
-                        } else {
-                            SyscallInjectionType::None
-                        },
-                    ))
-                }))
+                .chain(
+                    SyscallName::instrumentable(SyscallKind::Vara).filter_map(|name| {
+                        InvocableSyscall::has_precise_variant(name).then_some((
+                            InvocableSyscall::Precise(name),
+                            if instrumentable_syscalls.contains(&name) {
+                                injection_type.clone()
+                            } else {
+                                SyscallInjectionType::None
+                            },
+                        ))
+                    }),
+                )
                 .collect(),
             order: IndexSet::new(),
         }
@@ -249,8 +251,7 @@ impl SyscallsInjectionTypes {
             InvocableSyscall::Loose(syscall) | InvocableSyscall::Precise(syscall) => syscall,
         };
 
-        self.syscall_kind
-            .instrumentable()
+        SyscallName::instrumentable(self.syscall_kind)
             .any(|allowed_syscall| allowed_syscall == syscall)
     }
 }
