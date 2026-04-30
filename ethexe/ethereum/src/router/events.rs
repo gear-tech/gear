@@ -33,7 +33,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::events::{
     RouterEvent, RouterRequestEvent,
     router::{
-        BatchCommittedEvent, ChainCommittedEvent, CodeGotValidatedEvent,
+        BatchCommittedEvent, AnnouncesCommittedEvent, CodeGotValidatedEvent,
         CodeValidationRequestedEvent, ComputationSettingsChangedEvent, ProgramCreatedEvent,
         StorageSlotChangedEvent, ValidatorsCommittedForEraEvent,
     },
@@ -48,7 +48,7 @@ pub mod signatures {
     crate::signatures_consts! {
         IRouter;
         BATCH_COMMITTED: BatchCommitted,
-        CHAIN_COMMITTED: ChainCommitted,
+        ANNOUNCES_COMMITTED: AnnouncesCommitted,
         CODE_GOT_VALIDATED: CodeGotValidated,
         CODE_VALIDATION_REQUESTED: CodeValidationRequested,
         COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
@@ -75,8 +75,8 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
         BATCH_COMMITTED => {
             RouterEvent::BatchCommitted(decode_log::<IRouter::BatchCommitted>(log)?.into())
         }
-        CHAIN_COMMITTED => {
-            RouterEvent::ChainCommitted(decode_log::<IRouter::ChainCommitted>(log)?.into())
+        ANNOUNCES_COMMITTED => {
+            RouterEvent::AnnouncesCommitted(decode_log::<IRouter::AnnouncesCommitted>(log)?.into())
         }
         CODE_GOT_VALIDATED => {
             RouterEvent::CodeGotValidated(decode_log::<IRouter::CodeGotValidated>(log)?.into())
@@ -142,7 +142,7 @@ impl<'a> AllEventsBuilder<'a> {
             .address(*self.query.instance.address())
             .event_signature(Topic::from_iter([
                 signatures::BATCH_COMMITTED,
-                signatures::CHAIN_COMMITTED,
+                signatures::ANNOUNCES_COMMITTED,
                 signatures::CODE_GOT_VALIDATED,
                 signatures::CODE_VALIDATION_REQUESTED,
                 signatures::COMPUTATION_SETTINGS_CHANGED,
@@ -184,20 +184,20 @@ impl<'a> BatchCommittedEventBuilder<'a> {
     }
 }
 
-pub struct ChainCommittedEventBuilder<'a> {
-    event: Event<&'a RootProvider, IRouter::ChainCommitted>,
+pub struct AnnouncesCommittedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IRouter::AnnouncesCommitted>,
 }
 
-impl<'a> ChainCommittedEventBuilder<'a> {
+impl<'a> AnnouncesCommittedEventBuilder<'a> {
     pub(crate) fn new(query: &'a RouterQuery) -> Self {
         Self {
-            event: query.instance.ChainCommitted_filter(),
+            event: query.instance.AnnouncesCommitted_filter(),
         }
     }
 
     pub async fn subscribe(
         self,
-    ) -> Result<impl Stream<Item = Result<(ChainCommittedEvent, Log), Error>> + Unpin + use<>> {
+    ) -> Result<impl Stream<Item = Result<(AnnouncesCommittedEvent, Log), Error>> + Unpin + use<>> {
         Ok(self
             .event
             .subscribe()

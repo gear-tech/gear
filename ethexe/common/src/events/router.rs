@@ -31,7 +31,7 @@ pub struct BatchCommittedEvent {
 /// Emitted when an MB-driven chain commitment lands on-chain. The inner
 /// `H256` is the MB hash that became `last_committed_mb` for the block.
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ChainCommittedEvent(pub H256);
+pub struct AnnouncesCommittedEvent(pub H256);
 
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeGotValidatedEvent {
@@ -76,7 +76,7 @@ pub struct ValidatorsCommittedForEraEvent {
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Event {
     BatchCommitted(BatchCommittedEvent),
-    ChainCommitted(ChainCommittedEvent),
+    AnnouncesCommitted(AnnouncesCommittedEvent),
     CodeGotValidated(CodeGotValidatedEvent),
     CodeValidationRequested(CodeValidationRequestedEvent),
     ComputationSettingsChanged(ComputationSettingsChangedEvent),
@@ -99,7 +99,7 @@ impl Event {
                 RequestEvent::ValidatorsCommittedForEra(event)
             }
             Self::CodeGotValidated { .. }
-            | Self::ChainCommitted(_)
+            | Self::AnnouncesCommitted(_)
             | Self::BatchCommitted { .. } => return None,
         })
     }

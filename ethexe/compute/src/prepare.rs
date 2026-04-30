@@ -26,7 +26,7 @@ use ethexe_common::{
     events::{
         BlockEvent, RouterEvent,
         router::{
-            BatchCommittedEvent, ChainCommittedEvent, CodeGotValidatedEvent,
+            BatchCommittedEvent, AnnouncesCommittedEvent, CodeGotValidatedEvent,
             CodeValidationRequestedEvent, ValidatorsCommittedForEraEvent,
         },
     },
@@ -316,7 +316,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
             })) => {
                 validated_codes.insert(code_id);
             }
-            BlockEvent::Router(RouterEvent::ChainCommitted(head)) => {
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
                 last_committed_mb_hash = Some(head);
             }
 
@@ -340,7 +340,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
     codes_queue.retain(|code_id| !validated_codes.contains(code_id));
     codes_queue.extend(requested_codes);
 
-    let last_committed_mb_hash = if let Some(ChainCommittedEvent(hash)) = last_committed_mb_hash {
+    let last_committed_mb_hash = if let Some(AnnouncesCommittedEvent(hash)) = last_committed_mb_hash {
         Some(hash)
     } else {
         parent_meta.last_committed_mb
@@ -390,7 +390,7 @@ mod tests {
                 BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
                     digest: batch_committed,
                 })),
-                BlockEvent::Router(RouterEvent::ChainCommitted(ChainCommittedEvent(
+                BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
                     block1_mb_hash,
                 ))),
                 BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {

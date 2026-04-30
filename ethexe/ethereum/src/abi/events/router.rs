@@ -27,8 +27,8 @@ impl From<IRouter::BatchCommitted> for BatchCommittedEvent {
     }
 }
 
-impl From<IRouter::ChainCommitted> for ChainCommittedEvent {
-    fn from(value: IRouter::ChainCommitted) -> Self {
+impl From<IRouter::AnnouncesCommitted> for AnnouncesCommittedEvent {
+    fn from(value: IRouter::AnnouncesCommitted) -> Self {
         Self(bytes32_to_h256(value.head))
     }
 }
