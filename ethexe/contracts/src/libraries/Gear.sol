@@ -740,6 +740,7 @@ library Gear {
         bytes[] calldata _signatures,
         uint256 ts
     ) internal returns (bool) {
+        // forge-lint: disable-start(block-timestamp)
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
         if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
             require(ts >= router.genesisBlock.timestamp, ValidationBeforeGenesis());
@@ -756,6 +757,7 @@ library Gear {
 
             // Validation must be done using current era validators.
         }
+        // forge-lint: disable-end(block-timestamp)
 
         Validators storage validators = validatorsAt(router, ts);
         bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);

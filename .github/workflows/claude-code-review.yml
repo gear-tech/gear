@@ -7,8 +7,15 @@ on:
     types: [created]
 
 jobs:
+  # Temporarily disabled: anthropics/claude-code-action@v1.0.96 fails on every
+  # run with an OIDC token fetch error and the upstream `tsconfig.json` fd 4
+  # crash. v1.0.97+ has the same Bun/tsconfig regression
+  # (anthropics/claude-code-action#1205, #1234), so bumping the pin won't help.
+  # Drop the `false &&` once a working release exists. Latest failing run:
+  # https://github.com/gear-tech/gear/actions/runs/25102428333.
   full-review:
     if: >-
+      false &&
       github.event_name == 'pull_request' &&
       github.event.label.name == 'A0-pleasereview'
     runs-on: ubuntu-latest
@@ -116,7 +123,9 @@ jobs:
             At the end of the summary, add: "\n---\n> After pushing new commits, comment `/review-delta` to get an incremental review."
 
   delta-review:
+    # Disabled together with full-review above; see comment there.
     if: >-
+      false &&
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
       github.event.sender.type == 'User' &&
