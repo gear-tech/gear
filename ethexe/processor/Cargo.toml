@@ -22,7 +22,7 @@ core-processor.workspace = true
 
 futures.workspace = true
 thiserror.workspace = true
-wasmtime = "43.0.1"
+wasmtime = "44.0.1"
 log.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 sp-allocator = { workspace = true, features = ["std"] }
