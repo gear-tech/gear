@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+// TODO (breathx): remove cloning of slices from wasm memory.
+
 use crate::host::{StoreData, context};
 use ethexe_runtime_common::pack_u32_to_i64;
 use gear_sandbox_host::host::{
