@@ -76,6 +76,7 @@ jobs:
       linux-aarch64: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E5-forcelinuxaarch64') }}
       release: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E3-forcerelease') }}
       production: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}
+      docker: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'E0-forcedocker') }}
 
   validator:
     needs: gate

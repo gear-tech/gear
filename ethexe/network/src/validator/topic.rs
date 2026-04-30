@@ -326,16 +326,18 @@ impl ValidatorTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::tests::arb_value;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        Announce,
+        Announce, HashOf,
+        ecdsa::SignedData,
         gear_core::{message::ReplyCode, rpc::ReplyInfo},
         injected::Promise,
-        mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
-    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+    use gsigner::secp256k1::{PrivateKey, Secp256k1SignerExt, Signer};
     use nonempty::{NonEmpty, nonempty};
+    use proptest::{prelude::*, test_runner::Config as ProptestConfig};
 
     const CHAIN_HEAD_ERA: u64 = 10;
 
@@ -357,22 +359,23 @@ mod tests {
         )
     }
 
-    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
-        let signer = Signer::memory();
-        let pub_key = signer.generate().unwrap();
-
-        signer
-            .signed_data(
-                pub_key,
-                ValidatorMessage {
-                    era_index,
-                    payload: Announce::mock(()),
-                },
-                None,
-            )
+    fn validator_message_from_private_key(
+        private_key: PrivateKey,
+        era_index: u64,
+        payload: Announce,
+    ) -> VerifiedValidatorMessage {
+        SignedData::create(&private_key, ValidatorMessage { era_index, payload })
             .map(SignedValidatorMessage::from)
             .unwrap()
             .into_verified()
+    }
+
+    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
+        validator_message_from_private_key(
+            PrivateKey::random(),
+            era_index,
+            arb_value::<Announce>(()),
+        )
     }
 
     fn signed_promise() -> SignedPromise {
@@ -388,6 +391,103 @@ mod tests {
         };
 
         signer.signed_message(pub_key, promise, None).unwrap()
+    }
+
+    fn test_announce() -> Announce {
+        Announce {
+            block_hash: Default::default(),
+            parent: HashOf::zero(),
+            gas_allowance: Some(100),
+            injected_transactions: Vec::new(),
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum EraRelation {
+        TooOld(u64),
+        Old,
+        Current,
+        Next,
+        TooNew(u64),
+    }
+
+    impl EraRelation {
+        fn message_era(self, snapshot_era: u64) -> u64 {
+            match self {
+                Self::TooOld(delta) => snapshot_era - delta,
+                Self::Old => snapshot_era - 1,
+                Self::Current => snapshot_era,
+                Self::Next => snapshot_era + 1,
+                Self::TooNew(delta) => snapshot_era + delta,
+            }
+        }
+
+        fn expected_verification(self, snapshot_era: u64) -> Result<(), VerifyMessageError> {
+            let message_era = self.message_era(snapshot_era);
+
+            match self {
+                Self::TooOld(_) => Err(VerifyMessageRejectReason::TooOldEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+                Self::Old => Err(VerifyMessageIgnoreReason::OldEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+                Self::Current => Ok(()),
+                Self::Next => Err(VerifyMessageCacheReason::NewEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+                Self::TooNew(_) => Err(VerifyMessageRejectReason::TooNewEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+            }
+        }
+    }
+
+    fn era_relation_strategy() -> impl Strategy<Value = (u64, EraRelation)> {
+        (
+            128u64..(u64::MAX - 128),
+            prop_oneof![
+                (2u64..128).prop_map(EraRelation::TooOld).boxed(),
+                Just(EraRelation::Old).boxed(),
+                Just(EraRelation::Current).boxed(),
+                Just(EraRelation::Next).boxed(),
+                (2u64..128).prop_map(EraRelation::TooNew).boxed(),
+            ],
+        )
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        #[test]
+        fn proptest_message_era_is_checked_against_snapshot_era(
+            (snapshot_era, relation) in era_relation_strategy(),
+        ) {
+            let private_key = PrivateKey::from_seed([1; 32]).expect("seed is valid");
+            let message_era = relation.message_era(snapshot_era);
+            let message =
+                validator_message_from_private_key(private_key, message_era, test_announce());
+            let validator = message.address();
+            let snapshot = ValidatorListSnapshot {
+                current_era_index: snapshot_era,
+                current_validators: nonempty![validator].into(),
+                next_validators: Some(nonempty![validator].into()),
+            };
+            let alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
+
+            prop_assert_eq!(
+                alice.inner_verify_validator_message(&message),
+                relation.expected_verification(snapshot_era)
+            );
+        }
     }
 
     #[test]

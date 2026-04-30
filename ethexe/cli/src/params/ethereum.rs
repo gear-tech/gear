@@ -56,10 +56,15 @@ pub struct EthereumParams {
     #[serde(rename = "eip1559-fee-increase-percentage")]
     pub eip1559_fee_increase_percentage: Option<u64>,
 
+    /// EIP-1559 max fee per gas in gwei for transaction fee estimation (for batch commitments).
+    #[arg(long, alias = "eip1559-max-fee-per-gas-in-gwei")]
+    #[serde(rename = "eip1559-max-fee-per-gas-in-gwei")]
+    pub eip1559_max_fee_per_gas_in_gwei: Option<u64>,
+
     /// Blob gas multiplier.
     #[arg(long, alias = "blob-gas-multiplier")]
     #[serde(rename = "blob-gas-multiplier")]
-    pub blob_gas_multiplier: Option<u128>,
+    pub blob_gas_multiplier: Option<u64>,
 }
 
 impl EthereumParams {
@@ -76,8 +81,12 @@ impl EthereumParams {
     pub const DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE: u64 =
         Ethereum::INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE;
 
+    /// Default EIP-1559 max fee per gas in gwei for transaction fee estimation (for batch commitments).
+    pub const DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI: u64 =
+        Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI as u64;
+
     /// Default blob gas multiplier.
-    pub const DEFAULT_BLOB_GAS_MULTIPLIER: u128 = Ethereum::INCREASED_BLOB_GAS_MULTIPLIER;
+    pub const DEFAULT_BLOB_GAS_MULTIPLIER: u64 = Ethereum::INCREASED_BLOB_GAS_MULTIPLIER as u64;
 
     /// Converts Ethereum-facing CLI/TOML parameters into [`EthereumConfig`].
     ///
@@ -98,9 +107,14 @@ impl EthereumParams {
             eip1559_fee_increase_percentage: self
                 .eip1559_fee_increase_percentage
                 .unwrap_or(Self::DEFAULT_EIP1559_FEE_INCREASE_PERCENTAGE),
+            eip1559_max_fee_per_gas_in_gwei: self
+                .eip1559_max_fee_per_gas_in_gwei
+                .unwrap_or(Self::DEFAULT_EIP1559_MAX_FEE_PER_GAS_IN_GWEI)
+                as u128,
             blob_gas_multiplier: self
                 .blob_gas_multiplier
-                .unwrap_or(Self::DEFAULT_BLOB_GAS_MULTIPLIER),
+                .unwrap_or(Self::DEFAULT_BLOB_GAS_MULTIPLIER)
+                as u128,
         })
     }
 }
@@ -115,6 +129,9 @@ impl MergeParams for EthereumParams {
             eip1559_fee_increase_percentage: self
                 .eip1559_fee_increase_percentage
                 .or(with.eip1559_fee_increase_percentage),
+            eip1559_max_fee_per_gas_in_gwei: self
+                .eip1559_max_fee_per_gas_in_gwei
+                .or(with.eip1559_max_fee_per_gas_in_gwei),
             blob_gas_multiplier: self.blob_gas_multiplier.or(with.blob_gas_multiplier),
         }
     }
