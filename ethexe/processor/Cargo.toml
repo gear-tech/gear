@@ -32,7 +32,6 @@ itertools = { workspace = true, features = ["use_std"] }
 gear-workspace-hack.workspace = true
 anyhow.workspace = true
 derive_more.workspace = true
-scopeguard.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
