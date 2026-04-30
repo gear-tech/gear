@@ -507,9 +507,15 @@ impl Service {
             .node
             .database_path_for(config.ethereum.router_address)
             .join("malachite");
-        let malachite_base_config = MalachiteConfig::from_home_dir(malachite_home)
+        let mut malachite_base_config = MalachiteConfig::from_home_dir(malachite_home)
             .with_listen_addr(config.malachite.listen_addr)
             .with_persistent_peers(config.malachite.persistent_peers.clone());
+        // Keep the malachite producer/validator's quarantine depth in
+        // lockstep with the compute layer's, otherwise the producer
+        // proposes an `AdvanceTillEthereumBlock` to a block N
+        // descendants from head while validators reject it as
+        // "needs ≥ default-quarantine" — and consensus deadlocks.
+        malachite_base_config.canonical_quarantine = config.node.canonical_quarantine;
         log::info!(
             "🪨 Malachite listen: {}  persistent_peers: {}",
             malachite_base_config.listen_addr,

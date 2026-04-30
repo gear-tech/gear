@@ -34,7 +34,14 @@ use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 /// commitment, in milliseconds. ~1.5s strikes a balance between giving
 /// participants time to catch up and not stalling on-chain commitment
 /// turnaround.
-const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 1500;
+// 0 by default in the MB-driven world: the coordinator no longer
+// has to wait for compute to catch up to a specific Ethereum block
+// (compute keys off `latest_finalized_mb_hash` which advances inside
+// BFT, not on chain head). With anvil's 2 s block time + a non-zero
+// delay the coordinator's pending future is reset by the next chain
+// head before it ever submits — operators tune this up only when
+// participants need extra time to converge on the same head.
+const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 0;
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;
