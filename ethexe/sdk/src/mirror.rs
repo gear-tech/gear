@@ -327,6 +327,21 @@ impl<'a> Mirror<'a> {
             .await
     }
 
+    pub async fn executable_balance_top_up_with_permit(&self, value: u128) -> Result<H256> {
+        self.mirror_client
+            .executable_balance_top_up_with_permit(value)
+            .await
+    }
+
+    pub async fn executable_balance_top_up_with_permit_and_receipt(
+        &self,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
+        self.mirror_client
+            .executable_balance_top_up_with_permit_and_receipt(value)
+            .await
+    }
+
     pub async fn transfer_locked_value_to_inheritor(&self) -> Result<H256> {
         self.mirror_client
             .transfer_locked_value_to_inheritor()

@@ -71,9 +71,6 @@ pub struct NetworkParams {
 }
 
 impl NetworkParams {
-    /// Default network port.
-    pub const DEFAULT_NETWORK_PORT: u16 = 20333;
-
     /// Converts networking parameters into an optional [`NetworkConfig`].
     ///
     /// When networking is enabled, the method either parses an explicit network key or
@@ -121,7 +118,9 @@ impl NetworkParams {
 
         let network_listen_addr = self.network_listen_addr.unwrap_or_default();
 
-        let port = self.network_port.unwrap_or(Self::DEFAULT_NETWORK_PORT);
+        let port = self
+            .network_port
+            .unwrap_or(ethexe_network::DEFAULT_LISTEN_PORT);
 
         let listen_addresses = if network_listen_addr.is_empty() {
             [

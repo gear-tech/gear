@@ -108,6 +108,28 @@ pub enum SyscallName {
     SystemReserveGas,
 }
 
+/// Runtime syscall set.
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash)]
+pub enum SyscallKind {
+    /// Syscalls available in Vara.
+    #[default]
+    Vara,
+    /// Syscalls available in ethexe.
+    Eth,
+}
+
+impl SyscallKind {
+    /// Returns all instrumentable syscalls available for this runtime.
+    pub fn instrumentable(self) -> impl Iterator<Item = SyscallName> {
+        SyscallName::instrumentable(self)
+    }
+
+    /// Returns map of syscall string values to syscall names for this runtime.
+    pub fn instrumentable_map(self) -> BTreeMap<String, SyscallName> {
+        SyscallName::instrumentable_map(self)
+    }
+}
+
 impl SyscallName {
     /// Returns name of the syscall.
     pub fn to_str(&self) -> &'static str {
@@ -176,17 +198,56 @@ impl SyscallName {
         enum_iterator::all()
     }
 
-    /// Returns iterator of all syscall names (actually supported by this module
-    /// syscalls).
-    pub fn instrumentable() -> impl Iterator<Item = Self> {
+    /// Returns iterator of all syscall names available for the given runtime.
+    pub fn instrumentable(kind: SyscallKind) -> impl Iterator<Item = Self> {
+        Self::instrumentable_all().filter(move |syscall| match kind {
+            SyscallKind::Vara => true,
+            SyscallKind::Eth => syscall.is_eth(),
+        })
+    }
+
+    /// Returns iterator of all syscall names (actually supported by this module syscalls).
+    pub fn instrumentable_all() -> impl Iterator<Item = Self> {
         Self::all().filter(|syscall| *syscall != Self::SystemBreak)
     }
 
-    /// Returns map of all syscall string values to syscall names.
-    pub fn instrumentable_map() -> BTreeMap<String, SyscallName> {
-        Self::instrumentable()
+    /// Returns map of syscall string values to syscall names for the given runtime.
+    pub fn instrumentable_map(kind: SyscallKind) -> BTreeMap<String, SyscallName> {
+        Self::instrumentable(kind)
             .map(|syscall| (syscall.to_str().into(), syscall))
             .collect()
+    }
+
+    /// Checks whether the syscall is available in the Vara runtime.
+    pub fn is_vara(self) -> bool {
+        self != Self::SystemBreak
+    }
+
+    /// Checks whether the syscall is available under the `ethexe` feature.
+    ///
+    /// Keep this in sync with the `#[cfg(not(feature = "ethexe"))]` gates in
+    /// `gsys`.
+    pub fn is_eth(self) -> bool {
+        !matches!(
+            self,
+            Self::CreateProgramWGas
+                | Self::ReplyDeposit
+                | Self::SignalCode
+                | Self::SignalFrom
+                | Self::ReplyCommitWGas
+                | Self::ReplyInputWGas
+                | Self::ReplyWGas
+                | Self::ReservationReplyCommit
+                | Self::ReservationReply
+                | Self::ReservationSendCommit
+                | Self::ReservationSend
+                | Self::ReserveGas
+                | Self::SendCommitWGas
+                | Self::SendInputWGas
+                | Self::SendWGas
+                | Self::SystemReserveGas
+                | Self::UnreserveGas
+        )
     }
 
     /// Returns signature for syscall by name.

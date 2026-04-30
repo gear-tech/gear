@@ -21,9 +21,11 @@ use crate::{
     abi::{self, IWrappedVara, utils},
 };
 use alloy::{
+    dyn_abi::Eip712Domain,
     primitives::{Address as AlloyAddress, U256 as AlloyU256},
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::TransactionReceipt,
+    sol_types::eip712_domain,
 };
 use anyhow::Result;
 use events::{AllEventsBuilder, ApprovalEventBuilder, TransferEventBuilder};
@@ -215,6 +217,31 @@ impl WVaraQuery {
             .call()
             .await
             .map(|res| U256(res.into_limbs()))
+            .map_err(Into::into)
+    }
+
+    pub async fn nonces(&self, owner: ActorId) -> Result<U256> {
+        self.0
+            .nonces(owner.into())
+            .call()
+            .await
+            .map(|res| U256(res.into_limbs()))
+            .map_err(Into::into)
+    }
+
+    pub(crate) async fn eip712_domain(&self) -> Result<Eip712Domain> {
+        self.0
+            .eip712Domain()
+            .call()
+            .await
+            .map(|res| {
+                eip712_domain! {
+                    name: res.name,
+                    version: res.version,
+                    chain_id: res.chainId.try_into().expect("chainId should fit into u64"),
+                    verifying_contract: res.verifyingContract,
+                }
+            })
             .map_err(Into::into)
     }
 }

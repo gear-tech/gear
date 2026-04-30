@@ -403,10 +403,10 @@ impl NetworkBehaviour for Behaviour {
 mod tests {
     use super::*;
     use crate::{
-        utils::tests::init_logger,
+        utils::tests::{arb_value, init_logger},
         validator::discovery::{SignedValidatorIdentity, ValidatorAddresses, ValidatorIdentity},
     };
-    use ethexe_common::{injected::InjectedTransaction, mock::Mock};
+    use ethexe_common::injected::InjectedTransaction;
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use libp2p::{
         Swarm, Transport,
@@ -420,7 +420,7 @@ mod tests {
         let signer = Signer::memory();
         let pub_key = signer.generate().unwrap();
 
-        let tx = InjectedTransaction::mock(());
+        let tx = arb_value::<InjectedTransaction>(());
         let tx = signer.signed_message(pub_key, tx, None).unwrap();
 
         AddressedInjectedTransaction { recipient, tx }

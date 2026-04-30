@@ -16,14 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{InitConfig, v0};
+use super::{InitConfig, v0, v4::migrated_types::DBConfig};
 use crate::RawDatabase;
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result};
-use ethexe_common::{
-    ProtocolTimelines,
-    db::{DBConfig, DBGlobals},
-};
+use ethexe_common::{ProtocolTimelines, db::DBGlobals};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
@@ -31,7 +28,7 @@ pub const VERSION: u32 = 1;
 
 const _: () = const {
     assert!(
-        crate::VERSION == super::v2::VERSION,
+        crate::VERSION == super::v4::VERSION,
         "Check migration code for types changing in case of version change: DBConfig, DBGlobals, ProtocolTimelines"
     );
 };
@@ -78,9 +75,15 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
         router_address: config.router_address,
         timelines: ProtocolTimelines {
             genesis_ts: timelines.genesis_ts,
-            era: timelines.era,
+            era: timelines
+                .era
+                .try_into()
+                .context("era duration must be non-zero")?,
             election: timelines.election,
-            slot: config.slot_duration_secs,
+            slot: config
+                .slot_duration_secs
+                .try_into()
+                .context("slot duration must be non-zero")?,
         },
         genesis_block_hash: latest_data.genesis_block_hash,
         genesis_announce_hash: latest_data.genesis_announce_hash,
@@ -94,7 +97,7 @@ pub async fn migration_from_v0(config: &InitConfig, db: &RawDatabase) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::migrations::test::assert_migration_types_hash;
+    use crate::migrations::migration::test::assert_migration_types_hash;
     use scale_info::meta_type;
 
     #[test]
@@ -107,7 +110,7 @@ mod tests {
                 meta_type::<v0::ProtocolTimelines>(),
                 meta_type::<DBConfig>(),
             ],
-            "68246d1aef14df71d8ba42d0a3b81f87c51c58c6ab24fe0348f1882e9c7d5a5a",
+            "a0a685f32d4fedd5a3645f5b33fdf671759d88167a37dac24e82721dfe295c1b",
         );
     }
 }

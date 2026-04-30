@@ -32,7 +32,18 @@ use scale_info::{
 
 /// Status of the instrumentation.
 #[derive(
-    Clone, Copy, Debug, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo, PartialEq, Eq, Hash,
+    Clone,
+    Copy,
+    Debug,
+    Decode,
+    DecodeAsType,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
+    PartialEq,
+    Eq,
+    Hash,
+    derive_more::IsVariant,
 )]
 pub enum InstrumentationStatus {
     /// Code is not instrumented yet.

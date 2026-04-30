@@ -1,9 +1,6 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
-import {IMiddleware} from "./IMiddleware.sol";
-import {Gear} from "./libraries/Gear.sol";
-import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
@@ -14,6 +11,9 @@ import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
+import {IMiddleware} from "src/IMiddleware.sol";
+import {Gear} from "src/libraries/Gear.sol";
+import {MapWithTimeData} from "src/libraries/MapWithTimeData.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 import {INetworkRegistry} from "symbiotic-core/src/interfaces/INetworkRegistry.sol";
 import {IEntity} from "symbiotic-core/src/interfaces/common/IEntity.sol";
@@ -40,7 +40,6 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
 
     using EnumerableMap for EnumerableMap.AddressToAddressMap;
-    using MapWithTimeData for EnumerableMap.AddressToAddressMap;
 
     using Subnetwork for address;
 
@@ -50,7 +49,9 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
     bytes32 private constant DEFAULT_ADMIN_ROLE = 0x00;
     uint8 private constant NETWORK_IDENTIFIER = 0;
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
+    /**
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
     constructor() {
         _disableInitializers();
     }
@@ -87,7 +88,9 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         _validateStorage($);
     }
 
-    /// @custom:oz-upgrades-validate-as-initializer
+    /**
+     * @custom:oz-upgrades-validate-as-initializer
+     */
     function reinitialize() public onlyOwner reinitializer(2) {
         __Ownable_init(owner());
 
@@ -128,7 +131,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    // # Views
+    /* # Views */
+
     function eraDuration() public view returns (uint48) {
         return _storage().eraDuration;
     }
@@ -185,7 +189,7 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
         return _storage().symbiotic;
     }
 
-    // # Calls.
+    /* # Calls */
 
     function changeSlashRequester(address newRole) external {
         Storage storage $ = _storage();

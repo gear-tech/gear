@@ -86,7 +86,6 @@ enum ReaderError {
 type LoaderResult<T> = Result<T, BlobLoaderError>;
 type ReaderResult<T> = Result<T, ReaderError>;
 
-// TODO (#4674): write tests for BlobLoaderService implementations
 pub trait BlobLoaderService:
     Stream<Item = LoaderResult<BlobLoaderEvent>> + FusedStream + Send + Unpin
 {
@@ -345,7 +344,7 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
     }
 }
 
-// TODO: #5092 temporary solution to protect against inconsistent blob data,
+// TODO: #4995 temporary solution to protect against inconsistent blob data,
 // we have second check of code id in ethexe-processor in handle_new_code as well,
 // so this solution must be reconsidered.
 fn handle_blob(
