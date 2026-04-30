@@ -22,8 +22,8 @@ use crate::{
 use gear_core::ids::{ActorId, CodeId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    ActorKind, FuzzerType, InvocableSyscall, PtrParamAllowedValues, RandomizedGearWasmConfigBundle,
-    RegularParamType, SyscallName, SyscallsParamsConfig,
+    ActorKind, InvocableSyscall, PtrParamAllowedValues, RandomizedGearWasmConfigBundle,
+    RegularParamType, SyscallKind, SyscallName, SyscallsParamsConfig,
 };
 use std::ops::RangeInclusive;
 
@@ -35,7 +35,7 @@ pub struct PeerAwareGenerationContext {
     pub codes: Option<NonEmpty<CodeId>>,
     pub log_info: Option<String>,
     pub suppress_exit: bool,
-    pub fuzzer_type: FuzzerType,
+    pub syscall_kind: SyscallKind,
 }
 
 pub fn generate_upload_program_args_peer_aware<Rng: CallGenRng>(
@@ -80,7 +80,7 @@ fn peer_aware_config(
         codes,
         log_info,
         suppress_exit,
-        fuzzer_type,
+        syscall_kind,
     } = ctx;
     let actor_kind = programs
         .and_then(|non_empty| NonEmpty::collect(non_empty.into_iter().map(|pid| pid.into())))
@@ -117,9 +117,9 @@ fn peer_aware_config(
         });
     }
 
-    let mut config = RandomizedGearWasmConfigBundle::new_arbitrary_for_fuzzer(
+    let mut config = RandomizedGearWasmConfigBundle::new_arbitrary_for_syscall_kind(
         unstructured,
-        fuzzer_type,
+        syscall_kind,
         log_info,
         params_config,
     );
@@ -144,7 +144,7 @@ mod tests {
     use crate::generate_gear_program;
     use gear_core::ids::{ActorId, CodeId};
     use gear_utils::NonEmpty;
-    use gear_wasm_gen::{FuzzerType, StandardGearWasmConfigsBundle, SyscallName};
+    use gear_wasm_gen::{StandardGearWasmConfigsBundle, SyscallKind, SyscallName};
     use rand::rngs::SmallRng;
     use std::collections::BTreeSet;
 
@@ -177,7 +177,7 @@ mod tests {
             codes: Some(NonEmpty::new(code(2))),
             log_info: Some("fixed-peers".into()),
             suppress_exit: false,
-            fuzzer_type: FuzzerType::Gear,
+            syscall_kind: SyscallKind::Vara,
         };
 
         let first = generate_upload_program_args_peer_aware::<SmallRng>(7, 9, 10, ctx.clone());
@@ -207,7 +207,7 @@ mod tests {
             codes: Some(NonEmpty::new(code(10))),
             log_info: Some("with-peers".into()),
             suppress_exit: false,
-            fuzzer_type: FuzzerType::Gear,
+            syscall_kind: SyscallKind::Vara,
         };
 
         let program = generate_upload_program_args_peer_aware::<SmallRng>(11, 12, 13, ctx.clone());
@@ -224,7 +224,7 @@ mod tests {
             codes: Some(NonEmpty::new(code(10))),
             log_info: Some("ethexe".into()),
             suppress_exit: false,
-            fuzzer_type: FuzzerType::Eth,
+            syscall_kind: SyscallKind::Eth,
         };
 
         let code = generate_upload_code_args_peer_aware::<SmallRng>(11, ctx);

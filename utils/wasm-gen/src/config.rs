@@ -95,7 +95,7 @@
 
 use crate::InvocableSyscall;
 use arbitrary::Unstructured;
-use gear_wasm_instrument::SyscallName;
+use gear_wasm_instrument::{SyscallKind, SyscallName};
 use std::num::NonZero;
 
 mod generator;
@@ -114,16 +114,6 @@ pub trait ConfigsBundle {
     /// Convert a "bundle" type into configs required for gear wasm creation
     /// from [`crate::generate_gear_program_code`] and [`crate::generate_gear_program_module`].
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams);
-}
-
-/// Runtime target for generated fuzzer programs.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum FuzzerType {
-    /// Generate programs for the regular Gear runtime.
-    #[default]
-    Gear,
-    /// Generate programs for the ethexe runtime.
-    Eth,
 }
 
 /// Mock implementation.
@@ -246,12 +236,17 @@ impl RandomizedGearWasmConfigBundle {
         log_info: Option<String>,
         params_config: SyscallsParamsConfig,
     ) -> Self {
-        Self::new_arbitrary_for_fuzzer(unstructured, FuzzerType::Gear, log_info, params_config)
+        Self::new_arbitrary_for_syscall_kind(
+            unstructured,
+            SyscallKind::Vara,
+            log_info,
+            params_config,
+        )
     }
 
-    pub fn new_arbitrary_for_fuzzer(
+    pub fn new_arbitrary_for_syscall_kind(
         unstructured: &mut Unstructured,
-        fuzzer_type: FuzzerType,
+        syscall_kind: SyscallKind,
         log_info: Option<String>,
         params_config: SyscallsParamsConfig,
     ) -> Self {
@@ -276,8 +271,10 @@ impl RandomizedGearWasmConfigBundle {
         let initial_pages = 2;
         // pump up injection rates of syscalls when there's control instructions and lower it when there's no control
         // instructions (no control => all syscalls should be executed, control => some won't be executed due to if's or loops)
-        let mut injection_types =
-            SyscallsInjectionTypes::all_with_range(if no_control { 1..=2 } else { 1..=10 });
+        let mut injection_types = SyscallsInjectionTypes::all_with_range_for(
+            syscall_kind,
+            if no_control { 1..=2 } else { 1..=10 },
+        );
 
         injection_types.set_multiple(
             [
@@ -314,17 +311,6 @@ impl RandomizedGearWasmConfigBundle {
             .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
             .into_iter(),
         );
-
-        let instrumentable_syscalls = match fuzzer_type {
-            FuzzerType::Gear => SyscallName::instrumentable_vara().collect::<Vec<_>>(),
-            FuzzerType::Eth => SyscallName::instrumentable_eth().collect(),
-        };
-        for syscall in SyscallName::instrumentable_vara() {
-            if !instrumentable_syscalls.contains(&syscall) {
-                injection_types.disable(InvocableSyscall::Loose(syscall));
-                injection_types.disable(InvocableSyscall::Precise(syscall));
-            }
-        }
 
         RandomizedGearWasmConfigBundle {
             standard_gear_wasm_config_bundle: StandardGearWasmConfigsBundle {

@@ -6,13 +6,13 @@ use crate::{
 use anyhow::Result;
 use ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
 use gear_call_gen::{
-    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, FuzzerType,
+    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs,
     PeerAwareGenerationContext, Seed, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
     UploadProgramArgs, generate_upload_code_args_peer_aware,
     generate_upload_program_args_peer_aware,
 };
 use gear_utils::NonEmpty;
-use gear_wasm_gen::StandardGearWasmConfigsBundle;
+use gear_wasm_gen::{StandardGearWasmConfigsBundle, SyscallKind};
 use std::iter;
 use tracing::instrument;
 
@@ -312,7 +312,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                 tracked_mailbox_owners,
             )),
             suppress_exit,
-            fuzzer_type: FuzzerType::Eth,
+            syscall_kind: SyscallKind::Eth,
         }
     }
 

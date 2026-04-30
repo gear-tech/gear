@@ -129,9 +129,9 @@ fn randomized_eth_config_omits_non_eth_syscall_imports() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let configs_bundle = RandomizedGearWasmConfigBundle::new_arbitrary_for_fuzzer(
+    let configs_bundle = RandomizedGearWasmConfigBundle::new_arbitrary_for_syscall_kind(
         &mut unstructured,
-        FuzzerType::Eth,
+        SyscallKind::Eth,
         Some("ethexe".into()),
         Default::default(),
     );
