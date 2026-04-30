@@ -434,6 +434,24 @@ fn worker_mint_amount(override_amount: Option<u128>, policy: Option<&ValuePolicy
         .max(MIN_POLICY_WORKER_MINT_AMOUNT)
 }
 
+/// Resolves on the first SIGINT or SIGTERM. Without SIGTERM `docker stop`
+/// hard-kills the run before drain.
+async fn wait_for_shutdown_signal() -> std::io::Result<&'static str> {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut sigterm = signal(SignalKind::terminate())?;
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => result.map(|()| "Ctrl+C / SIGINT"),
+            _ = sigterm.recv() => Ok("SIGTERM"),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c().await.map(|()| "Ctrl+C / SIGINT")
+    }
+}
+
 async fn run_load_runtime(
     batch_pool: BatchPool<SmallRng>,
     config: LoadRunConfig,
@@ -444,11 +462,11 @@ async fn run_load_runtime(
     let (listener_shutdown_tx, listener_shutdown_rx) = tokio::sync::watch::channel(false);
     let pool_task = batch_pool.run(config, pool_shutdown_rx);
     let block_listener = utils::listen_blocks(tx, provider, listener_shutdown_rx);
-    let ctrl_c = tokio::signal::ctrl_c();
+    let shutdown_signal = wait_for_shutdown_signal();
 
     tokio::pin!(pool_task);
     tokio::pin!(block_listener);
-    tokio::pin!(ctrl_c);
+    tokio::pin!(shutdown_signal);
 
     let mut interrupted = false;
     let mut pool_result = None;
@@ -464,10 +482,10 @@ async fn run_load_runtime(
                 listener_result = Some(result);
                 let _ = pool_shutdown_tx.send(true);
             }
-            signal = &mut ctrl_c, if !interrupted => {
-                signal?;
+            signal = &mut shutdown_signal, if !interrupted => {
+                let kind = signal?;
                 interrupted = true;
-                info!("Ctrl+C received; stopping new batches and draining in-flight work");
+                info!("{kind} received; stopping new batches and draining in-flight work");
                 let _ = pool_shutdown_tx.send(true);
             }
         }
