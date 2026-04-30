@@ -534,7 +534,7 @@ test_gas_counter_injection! {
 
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    for syscall in SyscallName::instrumentable() {
+    for syscall in SyscallName::instrumentable_vara() {
         let signature = syscall.signature();
         let size_param_indexes = signature
             .params()
@@ -559,7 +559,7 @@ fn check_memory_array_pointers_definition_correctness() {
 /// signatures has occurred.
 #[test]
 fn check_syscall_err_ptr_position() {
-    for syscall in SyscallName::instrumentable() {
+    for syscall in SyscallName::instrumentable_vara() {
         if syscall.is_fallible() {
             let signature = syscall.signature();
             let err_ptr = signature

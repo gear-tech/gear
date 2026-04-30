@@ -159,7 +159,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
         .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Import))?;
 
-    let syscalls = SyscallName::instrumentable_map();
+    let syscalls = SyscallName::instrumentable_vara_map();
 
     let mut visited_imports = BTreeSet::new();
 

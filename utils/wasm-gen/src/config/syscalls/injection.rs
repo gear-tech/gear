@@ -78,7 +78,7 @@ impl SyscallsInjectionTypes {
 
     pub fn all_from_unstructured(unstructured: &mut Unstructured) -> Self {
         Self {
-            inner: SyscallName::instrumentable()
+            inner: SyscallName::instrumentable_vara()
                 .map(|name| {
                     let range = unstructured.int_in_range(1..=3).unwrap()
                         ..=unstructured.int_in_range(3..=20).unwrap();
@@ -86,7 +86,7 @@ impl SyscallsInjectionTypes {
                     (InvocableSyscall::Loose(name), injection_type)
                 })
                 .chain(
-                    SyscallName::instrumentable()
+                    SyscallName::instrumentable_vara()
                         .filter(|&name| InvocableSyscall::has_precise_variant(name))
                         .map(|name| {
                             let injection_type = SyscallInjectionType::Function(
@@ -105,9 +105,9 @@ impl SyscallsInjectionTypes {
     /// Instantiate a syscalls map with given injection type.
     fn new_with_injection_type(injection_type: SyscallInjectionType) -> Self {
         Self {
-            inner: SyscallName::instrumentable()
+            inner: SyscallName::instrumentable_vara()
                 .map(|name| (InvocableSyscall::Loose(name), injection_type.clone()))
-                .chain(SyscallName::instrumentable().filter_map(|name| {
+                .chain(SyscallName::instrumentable_vara().filter_map(|name| {
                     InvocableSyscall::has_precise_variant(name)
                         .then_some((InvocableSyscall::Precise(name), injection_type.clone()))
                 }))

@@ -116,6 +116,16 @@ pub trait ConfigsBundle {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams);
 }
 
+/// Runtime target for generated fuzzer programs.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FuzzerType {
+    /// Generate programs for the regular Gear runtime.
+    #[default]
+    Gear,
+    /// Generate programs for the ethexe runtime.
+    Eth,
+}
+
 /// Mock implementation.
 impl ConfigsBundle for () {
     fn into_parts(self) -> (GearWasmGeneratorConfig, SelectableParams) {
@@ -236,6 +246,15 @@ impl RandomizedGearWasmConfigBundle {
         log_info: Option<String>,
         params_config: SyscallsParamsConfig,
     ) -> Self {
+        Self::new_arbitrary_for_fuzzer(unstructured, FuzzerType::Gear, log_info, params_config)
+    }
+
+    pub fn new_arbitrary_for_fuzzer(
+        unstructured: &mut Unstructured,
+        fuzzer_type: FuzzerType,
+        log_info: Option<String>,
+        params_config: SyscallsParamsConfig,
+    ) -> Self {
         // Observation: with balance increased and no control instructions we get *a lot* of programs executed even if we're
         // running fuzzer for just 5 minutes. Without balance increase disabling control results in gas limit exceeding quite often.
         let no_control = unstructured.ratio(1, 4).unwrap();
@@ -295,6 +314,17 @@ impl RandomizedGearWasmConfigBundle {
             .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
             .into_iter(),
         );
+
+        let instrumentable_syscalls = match fuzzer_type {
+            FuzzerType::Gear => SyscallName::instrumentable_vara().collect::<Vec<_>>(),
+            FuzzerType::Eth => SyscallName::instrumentable_eth().collect(),
+        };
+        for syscall in SyscallName::instrumentable_vara() {
+            if !instrumentable_syscalls.contains(&syscall) {
+                injection_types.disable(InvocableSyscall::Loose(syscall));
+                injection_types.disable(InvocableSyscall::Precise(syscall));
+            }
+        }
 
         RandomizedGearWasmConfigBundle {
             standard_gear_wasm_config_bundle: StandardGearWasmConfigsBundle {

@@ -6,9 +6,9 @@ use crate::{
 use anyhow::Result;
 use ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
 use gear_call_gen::{
-    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs,
-    ETHEXE_FORBIDDEN_SYSCALLS, PeerAwareGenerationContext, Seed, SendMessageArgs, SendReplyArgs,
-    UploadCodeArgs, UploadProgramArgs, generate_upload_code_args_peer_aware,
+    CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, FuzzerType,
+    PeerAwareGenerationContext, Seed, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
+    UploadProgramArgs, generate_upload_code_args_peer_aware,
     generate_upload_program_args_peer_aware,
 };
 use gear_utils::NonEmpty;
@@ -312,7 +312,7 @@ impl<Rng: CallGenRng> BatchGenerator<Rng> {
                 tracked_mailbox_owners,
             )),
             suppress_exit,
-            forbidden_syscalls: ETHEXE_FORBIDDEN_SYSCALLS.to_vec(),
+            fuzzer_type: FuzzerType::Eth,
         }
     }
 

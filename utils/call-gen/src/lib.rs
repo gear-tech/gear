@@ -30,7 +30,7 @@ mod upload_program;
 pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
 pub use peer_aware::{
-    ETHEXE_FORBIDDEN_SYSCALLS, PeerAwareGenerationContext, generate_upload_code_args_peer_aware,
+    PeerAwareGenerationContext, generate_upload_code_args_peer_aware,
     generate_upload_program_args_peer_aware,
 };
 pub use rand_utils::{CallGenRng, CallGenRngCore};
@@ -40,6 +40,7 @@ pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
 pub(crate) use gear_wasm_gen::ConfigsBundle as GearWasmGenConfigsBundle;
+pub use gear_wasm_gen::FuzzerType;
 
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("Can't convert to gear call {0:?} call")]

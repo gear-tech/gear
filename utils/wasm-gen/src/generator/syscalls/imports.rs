@@ -163,7 +163,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             self.unstructured.len()
         );
 
-        for syscall in SyscallName::instrumentable() {
+        for syscall in SyscallName::instrumentable_vara() {
             let syscall_generation_data = self.generate_syscall_import(syscall)?;
             if let Some(syscall_generation_data) = syscall_generation_data {
                 self.syscalls_imports

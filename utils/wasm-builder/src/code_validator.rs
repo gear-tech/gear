@@ -237,7 +237,7 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
                 name: import_name,
             },
             InvalidImportFnSignature(_) => {
-                let syscalls = SyscallName::instrumentable_map();
+                let syscalls = SyscallName::instrumentable_vara_map();
                 let Some(syscall) = syscalls.get(&import_name) else {
                     bail!("failed to get syscall by name");
                 };

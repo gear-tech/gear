@@ -182,11 +182,60 @@ impl SyscallName {
         Self::all().filter(|syscall| *syscall != Self::SystemBreak)
     }
 
+    /// Returns all instrumentable syscalls available in the Vara runtime.
+    pub fn instrumentable_vara() -> impl Iterator<Item = Self> {
+        Self::instrumentable()
+    }
+
+    /// Returns all instrumentable syscalls available in the ethexe runtime.
+    pub fn instrumentable_eth() -> impl Iterator<Item = Self> {
+        Self::instrumentable().filter(|syscall| syscall.is_eth())
+    }
+
     /// Returns map of all syscall string values to syscall names.
     pub fn instrumentable_map() -> BTreeMap<String, SyscallName> {
-        Self::instrumentable()
+        Self::instrumentable_vara_map()
+    }
+
+    /// Returns map of all Vara syscall string values to syscall names.
+    pub fn instrumentable_vara_map() -> BTreeMap<String, SyscallName> {
+        Self::instrumentable_vara()
             .map(|syscall| (syscall.to_str().into(), syscall))
             .collect()
+    }
+
+    /// Returns map of all ethexe syscall string values to syscall names.
+    pub fn instrumentable_eth_map() -> BTreeMap<String, SyscallName> {
+        Self::instrumentable_eth()
+            .map(|syscall| (syscall.to_str().into(), syscall))
+            .collect()
+    }
+
+    /// Checks whether the syscall is available under the `ethexe` feature.
+    ///
+    /// Keep this in sync with the `#[cfg(not(feature = "ethexe"))]` gates in
+    /// `gsys`.
+    pub fn is_eth(self) -> bool {
+        !matches!(
+            self,
+            Self::CreateProgramWGas
+                | Self::ReplyDeposit
+                | Self::SignalCode
+                | Self::SignalFrom
+                | Self::ReplyCommitWGas
+                | Self::ReplyInputWGas
+                | Self::ReplyWGas
+                | Self::ReservationReplyCommit
+                | Self::ReservationReply
+                | Self::ReservationSendCommit
+                | Self::ReservationSend
+                | Self::ReserveGas
+                | Self::SendCommitWGas
+                | Self::SendInputWGas
+                | Self::SendWGas
+                | Self::SystemReserveGas
+                | Self::UnreserveGas
+        )
     }
 
     /// Returns signature for syscall by name.

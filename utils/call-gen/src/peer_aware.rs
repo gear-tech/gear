@@ -22,36 +22,12 @@ use crate::{
 use gear_core::ids::{ActorId, CodeId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
-    ActorKind, InvocableSyscall, PtrParamAllowedValues, RandomizedGearWasmConfigBundle,
+    ActorKind, FuzzerType, InvocableSyscall, PtrParamAllowedValues, RandomizedGearWasmConfigBundle,
     RegularParamType, SyscallName, SyscallsParamsConfig,
 };
 use std::ops::RangeInclusive;
 
 const ZERO_VALUE_RANGE: RangeInclusive<u128> = 0..=0;
-
-/// Syscalls unavailable under the `ethexe` feature.
-///
-/// Keep this in sync with the `#[cfg(not(feature = "ethexe"))]` gates in
-/// `gsys`.
-pub const ETHEXE_FORBIDDEN_SYSCALLS: &[SyscallName] = &[
-    SyscallName::CreateProgramWGas,
-    SyscallName::ReplyDeposit,
-    SyscallName::SignalCode,
-    SyscallName::SignalFrom,
-    SyscallName::ReplyCommitWGas,
-    SyscallName::ReplyInputWGas,
-    SyscallName::ReplyWGas,
-    SyscallName::ReservationReplyCommit,
-    SyscallName::ReservationReply,
-    SyscallName::ReservationSendCommit,
-    SyscallName::ReservationSend,
-    SyscallName::ReserveGas,
-    SyscallName::SendCommitWGas,
-    SyscallName::SendInputWGas,
-    SyscallName::SendWGas,
-    SyscallName::SystemReserveGas,
-    SyscallName::UnreserveGas,
-];
 
 #[derive(Debug, Clone, Default)]
 pub struct PeerAwareGenerationContext {
@@ -59,7 +35,7 @@ pub struct PeerAwareGenerationContext {
     pub codes: Option<NonEmpty<CodeId>>,
     pub log_info: Option<String>,
     pub suppress_exit: bool,
-    pub forbidden_syscalls: Vec<SyscallName>,
+    pub fuzzer_type: FuzzerType,
 }
 
 pub fn generate_upload_program_args_peer_aware<Rng: CallGenRng>(
@@ -104,7 +80,7 @@ fn peer_aware_config(
         codes,
         log_info,
         suppress_exit,
-        forbidden_syscalls,
+        fuzzer_type,
     } = ctx;
     let actor_kind = programs
         .and_then(|non_empty| NonEmpty::collect(non_empty.into_iter().map(|pid| pid.into())))
@@ -141,19 +117,12 @@ fn peer_aware_config(
         });
     }
 
-    let mut config =
-        RandomizedGearWasmConfigBundle::new_arbitrary(unstructured, log_info, params_config);
-
-    for syscall in forbidden_syscalls {
-        config
-            .standard_gear_wasm_config_bundle
-            .injection_types
-            .disable(InvocableSyscall::Loose(syscall));
-        config
-            .standard_gear_wasm_config_bundle
-            .injection_types
-            .disable(InvocableSyscall::Precise(syscall));
-    }
+    let mut config = RandomizedGearWasmConfigBundle::new_arbitrary_for_fuzzer(
+        unstructured,
+        fuzzer_type,
+        log_info,
+        params_config,
+    );
 
     if suppress_exit {
         config.standard_gear_wasm_config_bundle.injection_types.set(
@@ -169,13 +138,13 @@ fn peer_aware_config(
 #[cfg(test)]
 mod tests {
     use super::{
-        ETHEXE_FORBIDDEN_SYSCALLS, PeerAwareGenerationContext,
-        generate_upload_code_args_peer_aware, generate_upload_program_args_peer_aware,
+        PeerAwareGenerationContext, generate_upload_code_args_peer_aware,
+        generate_upload_program_args_peer_aware,
     };
     use crate::generate_gear_program;
     use gear_core::ids::{ActorId, CodeId};
     use gear_utils::NonEmpty;
-    use gear_wasm_gen::StandardGearWasmConfigsBundle;
+    use gear_wasm_gen::{FuzzerType, StandardGearWasmConfigsBundle, SyscallName};
     use rand::rngs::SmallRng;
     use std::collections::BTreeSet;
 
@@ -208,7 +177,7 @@ mod tests {
             codes: Some(NonEmpty::new(code(2))),
             log_info: Some("fixed-peers".into()),
             suppress_exit: false,
-            forbidden_syscalls: Vec::new(),
+            fuzzer_type: FuzzerType::Gear,
         };
 
         let first = generate_upload_program_args_peer_aware::<SmallRng>(7, 9, 10, ctx.clone());
@@ -238,7 +207,7 @@ mod tests {
             codes: Some(NonEmpty::new(code(10))),
             log_info: Some("with-peers".into()),
             suppress_exit: false,
-            forbidden_syscalls: Vec::new(),
+            fuzzer_type: FuzzerType::Gear,
         };
 
         let program = generate_upload_program_args_peer_aware::<SmallRng>(11, 12, 13, ctx.clone());
@@ -249,19 +218,19 @@ mod tests {
     }
 
     #[test]
-    fn ethexe_peer_aware_generation_omits_forbidden_syscall_imports() {
+    fn ethexe_peer_aware_generation_omits_non_eth_syscall_imports() {
         let ctx = PeerAwareGenerationContext {
             programs: Some(NonEmpty::new(actor(9))),
             codes: Some(NonEmpty::new(code(10))),
             log_info: Some("ethexe".into()),
             suppress_exit: false,
-            forbidden_syscalls: ETHEXE_FORBIDDEN_SYSCALLS.to_vec(),
+            fuzzer_type: FuzzerType::Eth,
         };
 
         let code = generate_upload_code_args_peer_aware::<SmallRng>(11, ctx);
         let imports = gear_imports(&code.0);
 
-        for syscall in ETHEXE_FORBIDDEN_SYSCALLS {
+        for syscall in SyscallName::instrumentable_vara().filter(|syscall| !syscall.is_eth()) {
             assert!(
                 !imports.contains(syscall.to_str()),
                 "generated ethexe code imports forbidden syscall {}",
