@@ -75,6 +75,8 @@ pub trait BlockLoader {
 pub struct EthereumBlockLoader {
     provider: RootProvider,
     router_address: Address,
+    logs_chunk_size: u64,
+    logs_max_concurrency: usize,
 }
 
 impl EthereumBlockLoader {
@@ -82,7 +84,19 @@ impl EthereumBlockLoader {
         Self {
             provider,
             router_address,
+            logs_chunk_size: LOGS_CHUNK_SIZE,
+            logs_max_concurrency: LOGS_MAX_CONCURRENCY,
         }
+    }
+
+    pub fn with_logs_chunk_size(mut self, chunk_size: u64) -> Self {
+        self.logs_chunk_size = chunk_size;
+        self
+    }
+
+    pub fn with_logs_max_concurrency(mut self, max_concurrency: usize) -> Self {
+        self.logs_max_concurrency = max_concurrency;
+        self
     }
 
     fn log_filter() -> Filter {
@@ -172,8 +186,9 @@ impl EthereumBlockLoader {
 
     /// Fetches all router/mirror logs for `range` using alloy's chunked-event helper.
     ///
-    /// The helper attempts the full range first, then splits into [`LOGS_CHUNK_SIZE`]-block
-    /// windows queried up to [`LOGS_MAX_CONCURRENCY`] at a time, and finally falls back to
+    /// The helper attempts the full range first, then splits into `logs_chunk_size`-block
+    /// windows (default [`LOGS_CHUNK_SIZE`]) queried up to `logs_max_concurrency`
+    /// (default [`LOGS_MAX_CONCURRENCY`]) at a time, and finally falls back to
     /// per-block queries for any chunk that still fails.
     async fn request_logs(&self, range: RangeInclusive<u64>) -> Result<Vec<Log>> {
         let filter = Self::log_filter()
@@ -184,8 +199,8 @@ impl EthereumBlockLoader {
         // we pass `IRouter::BatchCommitted` solely to satisfy the `SolEvent` trait bound.
         let chunked = Event::<_, IRouter::BatchCommitted>::new(self.provider.clone(), filter)
             .chunked()
-            .chunk_size(LOGS_CHUNK_SIZE)
-            .concurrent(LOGS_MAX_CONCURRENCY);
+            .chunk_size(self.logs_chunk_size)
+            .concurrent(self.logs_max_concurrency);
 
         chunked
             .query_raw()
