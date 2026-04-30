@@ -30,7 +30,7 @@ mod upload_program;
 pub use claim_value::ClaimValueArgs;
 pub use create_program::CreateProgramArgs;
 pub use peer_aware::{
-    PeerAwareGenerationContext, generate_upload_code_args_peer_aware,
+    ETHEXE_FORBIDDEN_SYSCALLS, PeerAwareGenerationContext, generate_upload_code_args_peer_aware,
     generate_upload_program_args_peer_aware,
 };
 pub use rand_utils::{CallGenRng, CallGenRngCore};

@@ -153,6 +153,12 @@ impl SyscallsInjectionTypes {
         }
     }
 
+    /// Disables import and invocation generation for the given syscall.
+    pub fn disable(&mut self, name: InvocableSyscall) {
+        self.inner.insert(name, SyscallInjectionType::None);
+        self.order.shift_remove(&name);
+    }
+
     /// Imports the given syscall, if possible.
     pub(crate) fn enable_syscall_import(&mut self, name: InvocableSyscall) {
         if let Some(injection_type @ SyscallInjectionType::None) = self.inner.get_mut(&name) {
