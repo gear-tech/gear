@@ -143,19 +143,25 @@ pub enum ComputeEvent {
     /// post-execution state persisted to the DB. Indexed by the
     /// consensus envelope hash (Blake2b over
     /// `ethexe_malachite_core::Block`).
-    ///
-    /// `promises` carries every reply promise the runtime emitted
-    /// during this block's execution (one per injected transaction
-    /// whose dispatch terminated in a reply). The producer node uses
-    /// these to sign + gossip `SignedPromise`s; non-producer nodes
-    /// emit the same vector for symmetry but the caller is expected
-    /// to ignore them.
     #[unwrap(ignore)]
     MbComputed {
         mb_hash: H256,
         height: u64,
-        promises: Vec<Promise>,
     },
+    /// Reply promise emitted by the runtime mid-MB, *before*
+    /// `MbComputed` fires. Streamed one-by-one via the per-MB
+    /// promise channel so the service can sign and gossip each
+    /// `SignedPromise` immediately — the cumulative gas budget for
+    /// a full MB ranges into seconds, but a single dispatch's reply
+    /// usually lands in milliseconds, and the on-chain block-time
+    /// floor is the only latency the loader's subscription should
+    /// observe.
+    ///
+    /// `mb_hash` identifies the MB whose execution produced the
+    /// promise; non-validator nodes can use it to drop promises
+    /// that don't match the MB they're tracking, but the producer
+    /// just signs and publishes regardless.
+    Promise(Promise, H256),
 }
 
 #[derive(thiserror::Error, Debug)]

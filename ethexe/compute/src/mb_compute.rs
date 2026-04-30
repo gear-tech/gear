@@ -52,10 +52,11 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::FinalizedBlockTransitions;
-use futures::{FutureExt, future::BoxFuture};
+use futures::{FutureExt, Stream, StreamExt, future::BoxFuture};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
+    pin::Pin,
     task::{Context, Poll},
 };
 use tokio::sync::mpsc;
@@ -75,18 +76,37 @@ pub(crate) struct MbComputeRequest {
 
 /// Successful completion payload — the values a [`ComputeEvent::MbComputed`]
 /// needs to carry upward.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct MbComputeOk {
     mb_hash: H256,
     height: u64,
-    /// Reply promises emitted by the runtime during this MB's
-    /// execution (and during any predecessor MBs walked here for
-    /// crash-recovery). Producer-side service signs + gossips them;
-    /// non-producer nodes simply discard.
-    promises: Vec<Promise>,
 }
 
 type ComputationFuture = BoxFuture<'static, Result<MbComputeOk>>;
+
+/// Wraps the receiver end of a per-MB promise channel into a
+/// [`Stream`] that yields ready-to-emit
+/// [`ComputeEvent::Promise`]s. Closes (yields `None`) once every
+/// sender clone — including the one held by the executor's
+/// thread-locals — has been dropped, which happens by the time
+/// `compute_one` returns. We then unhook the stream and let
+/// `MbComputed` go out next.
+struct MbPromisesStream {
+    receiver: mpsc::UnboundedReceiver<Promise>,
+    mb_hash: H256,
+}
+
+impl Stream for MbPromisesStream {
+    type Item = ComputeEvent;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mb_hash = self.mb_hash;
+        Poll::Ready(
+            futures::ready!(self.receiver.poll_recv(cx))
+                .map(|promise| ComputeEvent::Promise(promise, mb_hash)),
+        )
+    }
+}
 
 pub struct MbComputeSubService<P: ProcessorExt> {
     db: Database,
@@ -94,6 +114,18 @@ pub struct MbComputeSubService<P: ProcessorExt> {
 
     input: VecDeque<MbComputeRequest>,
     computation: Option<ComputationFuture>,
+    /// Live per-MB promise stream. Holds the receiver end of the
+    /// channel that the executor writes into via `ext_publish_promise`.
+    /// Polled before `computation` so promises surface as soon as
+    /// the runtime emits them — the loader's subscription gets each
+    /// reply within ~one-block latency instead of waiting for the
+    /// MB's whole gas budget to drain.
+    promises_stream: Option<MbPromisesStream>,
+    /// Holds back an `MbComputed` event until the corresponding
+    /// `promises_stream` has been fully drained — otherwise the
+    /// service-level handler could see `MbComputed` before the last
+    /// promise from the same MB and gossip them out of order.
+    pending_event: Option<Result<ComputeEvent>>,
 }
 
 impl<P: ProcessorExt> MbComputeSubService<P> {
@@ -103,6 +135,8 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             processor,
             input: VecDeque::new(),
             computation: None,
+            promises_stream: None,
+            pending_event: None,
         }
     }
 
@@ -110,7 +144,12 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         self.input.push_back(MbComputeRequest { mb_hash });
     }
 
-    async fn compute(db: Database, mut processor: P, req: MbComputeRequest) -> Result<MbComputeOk> {
+    async fn compute(
+        db: Database,
+        mut processor: P,
+        req: MbComputeRequest,
+        promise_out_tx: mpsc::UnboundedSender<Promise>,
+    ) -> Result<MbComputeOk> {
         let target_hash = req.mb_hash;
         let target_compact = db
             .mb_compact_block(target_hash)
@@ -124,7 +163,6 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             return Ok(MbComputeOk {
                 mb_hash: target_hash,
                 height: target_height,
-                promises: Vec::new(),
             });
         }
 
@@ -142,11 +180,14 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
                 target_height,
                 target_hash,
             );
-        }
-
-        let mut promises: Vec<Promise> = Vec::new();
-        for (height, hash, txs) in predecessors {
-            Self::compute_one(&db, &mut processor, height, hash, txs, &mut promises).await?;
+            // Predecessor MBs ran on a previous chain head; we
+            // execute them only to bring the local DB up to date,
+            // not to publish their replies (other validators have
+            // already gossiped those promises). Pass `None` for the
+            // promise channel so we don't double-emit.
+            for (height, hash, txs) in predecessors {
+                Self::compute_one(&db, &mut processor, height, hash, txs, None).await?;
+            }
         }
 
         let target_txs = db
@@ -158,14 +199,13 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             target_height,
             target_hash,
             target_txs,
-            &mut promises,
+            Some(promise_out_tx),
         )
         .await?;
 
         Ok(MbComputeOk {
             mb_hash: target_hash,
             height: target_height,
-            promises,
         })
     }
 
@@ -175,7 +215,7 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         mb_height: u64,
         mb_hash: H256,
         block: Transactions,
-        promises_sink: &mut Vec<Promise>,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<()> {
         // Parent linkage lives in `mb_compact_block`, populated by the
         // malachite service before BlockProposal fires for `mb_hash`.
@@ -219,28 +259,22 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             block.len(),
         );
 
-        // The runtime sends a [`Promise`] through this channel for
-        // every injected dispatch that completes with a reply
-        // (`ext_publish_promise` host fn). The sender is moved into
-        // the executor and cloned per worker — once
-        // `process_transitions` returns, every clone has been
-        // dropped, so the receiver's `recv` loop terminates as soon
-        // as it drains the buffered messages.
-        let (promise_tx, mut promise_rx) = mpsc::unbounded_channel();
+        // The runtime forwards each [`Promise`] through `promise_out_tx`
+        // as soon as `ext_publish_promise` fires inside the executor.
+        // The sub-service-level stream keeps the receiver and
+        // surfaces the events to the service one by one, so we don't
+        // need to drain anything here — handing the sender clone off
+        // to the processor is enough.
         let processing_result = processor
             .process_transitions(
                 initial_program_states,
                 initial_schedule,
                 synthetic_block,
                 block.0,
-                Some(promise_tx),
+                promise_out_tx,
                 initial_advanced_block,
             )
             .await?;
-
-        while let Some(promise) = promise_rx.recv().await {
-            promises_sink.push(promise);
-        }
 
         let FinalizedBlockTransitions {
             transitions,
@@ -313,22 +347,60 @@ impl<P: ProcessorExt> SubService for MbComputeSubService<P> {
     type Output = ComputeEvent;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
+        // (1) Pick up the next request whenever no work is in flight.
         if self.computation.is_none()
+            && self.promises_stream.is_none()
+            && self.pending_event.is_none()
             && let Some(req) = self.input.pop_front()
         {
-            self.computation =
-                Some(Self::compute(self.db.clone(), self.processor.clone(), req).boxed());
+            let mb_hash = req.mb_hash;
+            let (sender, receiver) = mpsc::unbounded_channel();
+            self.promises_stream = Some(MbPromisesStream { receiver, mb_hash });
+            self.computation = Some(
+                Self::compute(self.db.clone(), self.processor.clone(), req, sender).boxed(),
+            );
         }
 
+        // (2) Forward streaming promises before anything else so the
+        // service handler sees them as the runtime emits them.
+        if let Some(ref mut stream) = self.promises_stream
+            && let Poll::Ready(maybe_event) = stream.poll_next_unpin(cx)
+        {
+            match maybe_event {
+                Some(event) => return Poll::Ready(Ok(event)),
+                None => {
+                    // Channel is fully drained — the executor has
+                    // dropped every sender clone, which means
+                    // `compute_one` is past the `process_transitions`
+                    // await (and thus `computation` is at most a
+                    // book-keeping step away from completing).
+                    self.promises_stream = None;
+                }
+            }
+        }
+
+        // (3) An MbComputed result waiting for the stream to close
+        // gets released next.
+        if let Some(event) = self.pending_event.take() {
+            return Poll::Ready(event);
+        }
+
+        // (4) Drive the computation future. Hold the resulting
+        // `MbComputed` back if the promise stream still has buffered
+        // sends — preserves "all promises before MbComputed" ordering.
         if let Some(ref mut computation) = self.computation
             && let Poll::Ready(result) = computation.poll_unpin(cx)
         {
             self.computation = None;
-            return Poll::Ready(result.map(|ok| ComputeEvent::MbComputed {
+            let event = result.map(|ok| ComputeEvent::MbComputed {
                 mb_hash: ok.mb_hash,
                 height: ok.height,
-                promises: ok.promises,
-            }));
+            });
+            if self.promises_stream.is_some() {
+                self.pending_event = Some(event);
+                return Poll::Pending;
+            }
+            return Poll::Ready(event);
         }
 
         Poll::Pending
@@ -411,14 +483,9 @@ mod tests {
 
         let event = sub.next().await.unwrap();
         match event {
-            ComputeEvent::MbComputed {
-                mb_hash,
-                height,
-                promises,
-            } => {
+            ComputeEvent::MbComputed { mb_hash, height } => {
                 assert_eq!(mb_hash, tail_hash);
                 assert_eq!(height, tail_height);
-                assert!(promises.is_empty());
             }
             other => panic!("expected MbComputed, got {other:?}"),
         }
@@ -454,11 +521,9 @@ mod tests {
             ComputeEvent::MbComputed {
                 mb_hash: out,
                 height,
-                promises,
             } => {
                 assert_eq!(out, mb_hash);
                 assert_eq!(height, 1);
-                assert!(promises.is_empty());
             }
             other => panic!("expected MbComputed, got {other:?}"),
         }

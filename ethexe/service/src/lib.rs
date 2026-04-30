@@ -795,47 +795,38 @@ impl Service {
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
                     }
-                    ComputeEvent::MbComputed {
-                        mb_hash,
-                        height,
-                        promises,
-                    } => {
+                    ComputeEvent::MbComputed { mb_hash, height } => {
                         // Results are persisted in the `mb_*` keyspace
                         // and consumed as input by the next MB. Coordinator
                         // picks them up via `latest_finalized_mb_hash` on
                         // the next chain-head round.
                         tracing::info!(height, mb_hash = %mb_hash, "🛠️ MB executed");
-
-                        // The runtime may have produced one reply
-                        // promise per injected dispatch that
-                        // terminated in a reply. Validators sign
-                        // them and gossip via the validator-only
-                        // promise topic; non-validators have nothing
-                        // to publish, so they drop the list.
-                        //
-                        // Gossipsub doesn't echo published messages
-                        // to the local subscriber, so the producer
-                        // also feeds the signed promise straight
-                        // into its own RPC server — otherwise an
-                        // RPC client connected to the producer would
-                        // never see its own subscription fire.
-                        if !promises.is_empty()
-                            && let Some(pub_key) = validator_pub_key
-                        {
+                    }
+                    ComputeEvent::Promise(promise, _mb_hash) => {
+                        // Streamed reply promise — sign and gossip
+                        // immediately. Gossipsub doesn't echo
+                        // published messages to the local
+                        // subscriber, so the producer also feeds the
+                        // signed promise straight into its own RPC
+                        // server — otherwise an RPC client connected
+                        // to the producer would never see its own
+                        // subscription fire. Non-validator nodes
+                        // shouldn't receive these (the compute layer
+                        // gates on `promise_out_tx`), but if they
+                        // ever do we just drop them.
+                        if let Some(pub_key) = validator_pub_key {
                             let private_key = signer.private_key(pub_key)?;
-                            for promise in promises {
-                                match SignedPromise::create(private_key.clone(), promise) {
-                                    Ok(signed) => {
-                                        if let Some(net) = network.as_mut() {
-                                            net.publish_promise(signed.clone());
-                                        }
-                                        if let Some(rpc) = &rpc {
-                                            rpc.provide_promise(signed);
-                                        }
+                            match SignedPromise::create(private_key, promise) {
+                                Ok(signed) => {
+                                    if let Some(net) = network.as_mut() {
+                                        net.publish_promise(signed.clone());
                                     }
-                                    Err(err) => {
-                                        log::warn!("failed to sign reply promise: {err}");
+                                    if let Some(rpc) = &rpc {
+                                        rpc.provide_promise(signed);
                                     }
+                                }
+                                Err(err) => {
+                                    log::warn!("failed to sign reply promise: {err}");
                                 }
                             }
                         }
