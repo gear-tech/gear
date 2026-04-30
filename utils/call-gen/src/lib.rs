@@ -40,6 +40,7 @@ pub use upload_code::UploadCodeArgs;
 pub use upload_program::UploadProgramArgs;
 
 pub(crate) use gear_wasm_gen::ConfigsBundle as GearWasmGenConfigsBundle;
+pub use gear_wasm_gen::SyscallKind;
 
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("Can't convert to gear call {0:?} call")]

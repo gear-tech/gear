@@ -6711,6 +6711,7 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "thiserror 2.0.17",
+ "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
