@@ -48,6 +48,12 @@ use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 /// Push synthetic linear Ethereum chain headers into the DB and
 /// return blocks oldest-first. Headers are deterministic per `seed`,
 /// so two test runs see the same hashes.
+///
+/// Empty `block_events` are also populated for every block, since
+/// [`crate::EthexeExternalities::validate_block_above`] requires
+/// every Eth block in the advance walk to be locally synced (header
+/// AND events). Without the events entry the validator would
+/// abstain from voting on its own proposals.
 fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
     let mut chain = Vec::with_capacity(len);
     let mut parent = H256::zero();
@@ -66,6 +72,7 @@ fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
             parent_hash: parent,
         };
         db.set_block_header(hash, header);
+        db.set_block_events(hash, &[]);
         db.mutate_block_meta(hash, |_| {});
         chain.push(SimpleBlockData { hash, header });
         parent = hash;

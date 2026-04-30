@@ -22,7 +22,7 @@ use crate::Event;
 use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, HashOf, SimpleBlockData,
     db::*,
     events::BlockEvent,
     injected::{
@@ -163,17 +163,6 @@ impl TestingEvent {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, derive_more::From)]
-pub enum AnnounceId {
-    /// Wait for any next computed announce
-    #[default]
-    Any,
-    /// Wait for announce computed with a specific hash
-    AnnounceHash(HashOf<Announce>),
-    /// Wait for announce computed with a specific block hash
-    BlockHash(H256),
-}
-
 pub trait InfiniteStreamExt: StreamExt + Sized + Unpin {
     #[must_use]
     async fn find_map<U>(&mut self, mut f: impl FnMut(Self::Item) -> Option<U>) -> U {
@@ -249,55 +238,6 @@ impl<T: Clone> EventReceiver<T> {
 }
 
 impl TestingEventReceiver {
-    async fn find_announce<F>(&mut self, id: AnnounceId, event_to_hash: F) -> HashOf<Announce>
-    where
-        F: Fn(TestingEvent) -> Option<HashOf<Announce>>,
-    {
-        let db = self.db.clone();
-        self.find_map(|event| {
-            let announce_hash = event_to_hash(event)?;
-
-            match id {
-                AnnounceId::Any => Some(announce_hash),
-                AnnounceId::AnnounceHash(waited_announce_hash) => {
-                    (waited_announce_hash == announce_hash).then_some(announce_hash)
-                }
-                AnnounceId::BlockHash(block_hash) => db
-                    .announce(announce_hash)
-                    .unwrap_or_else(|| {
-                        panic!("Accepted announce {announce_hash} not found in listener's node DB")
-                    })
-                    .block_hash
-                    .eq(&block_hash)
-                    .then_some(announce_hash),
-            }
-        })
-        .await
-    }
-
-    pub async fn find_announce_computed(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
-        let id = id.into();
-        log::info!("📗 waiting for announce computed: {id:?}");
-        self.find_announce(id, |event| {
-            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(announce_hash)) = event {
-                Some(announce_hash)
-            } else {
-                None
-            }
-        })
-        .await
-    }
-
-    pub async fn find_announce_rejected(&mut self, _id: impl Into<AnnounceId>) -> HashOf<Announce> {
-        // Announce events are gone in MB-driven world; the helpers are
-        // kept as stubs so the disabled test bodies still parse.
-        unimplemented!("announce events were removed during the MB refactor");
-    }
-
-    pub async fn find_announce_accepted(&mut self, _id: impl Into<AnnounceId>) -> HashOf<Announce> {
-        unimplemented!("announce events were removed during the MB refactor");
-    }
-
     pub async fn find_block_synced(&mut self) -> H256 {
         self.find_map(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {

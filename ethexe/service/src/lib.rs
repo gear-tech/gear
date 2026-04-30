@@ -43,8 +43,8 @@
 //!
 //! Each node runs [`Service`] using `Service::new_from_parts`.
 //! Tests observe service behavior through `TestingEvent` streams, which mirror the
-//! internal [`Event`] flow and allow waiting for startup, block sync, announce
-//! processing, network activity, and RPC requests.
+//! internal [`Event`] flow and allow waiting for startup, block sync,
+//! MB processing, network activity, and RPC requests.
 
 use crate::config::{Config, ConfigPublicKey};
 use alloy::{
@@ -57,7 +57,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, SimpleBlockData,
-    db::{OnChainStorageRO, OnChainStorageRW},
+    db::OnChainStorageRO,
     gear::CodeState,
     network::VerifiedValidatorMessage,
 };
@@ -771,10 +771,6 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes)?;
                     }
-                    ComputeEvent::AnnounceComputed(_) => {
-                        // Legacy announce-driven path, ignored — MB-driven
-                        // execution is the canonical pipeline now.
-                    }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         if let Some(c) = consensus.as_mut() {
                             c.receive_prepared_block(block_hash)?;
@@ -782,9 +778,6 @@ impl Service {
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
-                    }
-                    ComputeEvent::Promise(_, _) => {
-                        // Legacy announce-driven path, ignored.
                     }
                     ComputeEvent::MbComputed { mb_hash, height } => {
                         // Results are persisted in the `mb_*` keyspace
@@ -801,11 +794,6 @@ impl Service {
 
                     match event {
                         NetworkEvent::ValidatorMessage(message) => match message {
-                            VerifiedValidatorMessage::Announce(_) => {
-                                // Announce gossip is obsolete in the
-                                // MB-driven world; ignore stale messages
-                                // from peers that haven't migrated yet.
-                            }
                             VerifiedValidatorMessage::RequestBatchValidation(request) => {
                                 if let Some(c) = consensus.as_mut() {
                                     let request = request.map(|r| r.payload);
@@ -967,12 +955,10 @@ impl Service {
                     };
 
                     match result {
-                        Ok(db_sync::Response::Announces(_)) => {
-                            // Stale announce-fetch result; ignore (announce
-                            // sync is gone in MB-driven world).
-                        }
                         Ok(resp) => {
-                            panic!("only announces are requested currently, but got: {resp:?}");
+                            // No active fetch consumers in the MB-driven
+                            // path yet; just drop responses if any arrive.
+                            log::trace!("ignoring db_sync response: {resp:?}");
                         }
                         Err((err, request)) => {
                             log::trace!(

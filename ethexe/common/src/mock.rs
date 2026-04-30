@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    Address, BlockData, BlockHeader, CodeBlobInfo, Digest, ProtocolTimelines, SimpleBlockData,
+    ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
@@ -40,7 +40,7 @@ use proptest::{
     strategy::{Just, ValueTree},
     test_runner::TestRunner,
 };
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::VecDeque;
 pub use tap::Tap;
 
 fn arbitrary_value<T>(args: T::Parameters) -> T
@@ -82,36 +82,6 @@ impl From<H256> for BlockHeaderParams {
     fn from(parent_hash: H256) -> Self {
         Self {
             parent_hash: Some(parent_hash),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct AnnounceParams {
-    block_hash: Option<H256>,
-    parent: Option<HashOf<Announce>>,
-}
-
-impl From<()> for AnnounceParams {
-    fn from((): ()) -> Self {
-        Self::default()
-    }
-}
-
-impl From<H256> for AnnounceParams {
-    fn from(block_hash: H256) -> Self {
-        Self {
-            block_hash: Some(block_hash),
-            parent: None,
-        }
-    }
-}
-
-impl From<(H256, HashOf<Announce>)> for AnnounceParams {
-    fn from((block_hash, parent): (H256, HashOf<Announce>)) -> Self {
-        Self {
-            block_hash: Some(block_hash),
-            parent: Some(parent),
         }
     }
 }
@@ -197,12 +167,6 @@ fn message_id_strategy() -> BoxedStrategy<MessageId> {
     h256_strategy().prop_map(Into::into).boxed()
 }
 
-fn hash_of_strategy<T: 'static>() -> BoxedStrategy<HashOf<T>> {
-    h256_strategy()
-        .prop_map(|hash| unsafe { HashOf::new(hash) })
-        .boxed()
-}
-
 fn private_key_strategy() -> BoxedStrategy<PrivateKey> {
     any::<[u8; 32]>()
         .prop_filter_map("valid secp256k1 private key", |seed| {
@@ -264,31 +228,6 @@ impl Arbitrary for ProtocolTimelines {
             slot: 10.try_into().unwrap(),
         })
         .boxed()
-    }
-}
-
-impl Arbitrary for Announce {
-    type Parameters = AnnounceParams;
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
-        let block_hash = match args.block_hash {
-            Some(block_hash) => Just(block_hash).boxed(),
-            None => h256_strategy(),
-        };
-        let parent = match args.parent {
-            Some(parent) => Just(parent).boxed(),
-            None => hash_of_strategy(),
-        };
-
-        (block_hash, parent)
-            .prop_map(|(block_hash, parent)| Self {
-                block_hash,
-                parent,
-                gas_allowance: Some(100),
-                injected_transactions: vec![],
-            })
-            .boxed()
     }
 }
 
@@ -467,7 +406,6 @@ pub struct SyncedBlockData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedBlockData {
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: Option<BTreeSet<HashOf<Announce>>>,
     pub last_committed_batch: Digest,
     pub last_committed_mb: H256,
 }
@@ -509,44 +447,6 @@ impl BlockFullData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct MockComputedAnnounceData {
-    pub outcome: Vec<StateTransition>,
-    pub program_states: ProgramStates,
-    pub schedule: Schedule,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AnnounceData {
-    pub announce: Announce,
-    pub computed: Option<MockComputedAnnounceData>,
-}
-
-impl AnnounceData {
-    pub fn as_computed(&self) -> &MockComputedAnnounceData {
-        self.computed.as_ref().expect("announce not computed")
-    }
-
-    pub fn as_computed_mut(&mut self) -> &mut MockComputedAnnounceData {
-        self.computed.as_mut().expect("announce not computed")
-    }
-
-    pub fn setup(self, db: &impl AnnounceStorageRW) -> Self {
-        let announce_hash = db.set_announce(self.announce.clone());
-
-        if let Some(computed) = &self.computed {
-            db.set_announce_outcome(announce_hash, computed.outcome.clone());
-            db.set_announce_program_states(announce_hash, computed.program_states.clone());
-            db.set_announce_schedule(announce_hash, computed.schedule.clone());
-            db.mutate_announce_meta(announce_hash, |meta| {
-                *meta = AnnounceMeta { computed: true }
-            });
-        }
-
-        self
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstrumentedCodeData {
     pub instrumented: InstrumentedCode,
@@ -573,7 +473,6 @@ impl CodeData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockChain {
     pub blocks: VecDeque<BlockFullData>,
-    pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
     pub validators: ValidatorsVec,
     pub config: DBConfig,
@@ -582,81 +481,12 @@ pub struct BlockChain {
 
 impl BlockChain {
     #[track_caller]
-    pub fn block_top_announce_hash(&self, block_index: usize) -> HashOf<Announce> {
-        self.blocks
-            .get(block_index)
-            .expect("block index overflow")
-            .as_prepared()
-            .announces
-            .iter()
-            .flatten()
-            .next()
-            .copied()
-            .expect("no announces found for block")
-    }
-
-    #[track_caller]
-    pub fn block_top_announce(&self, block_index: usize) -> &AnnounceData {
-        self.announces
-            .get(&self.block_top_announce_hash(block_index))
-            .expect("announce not found")
-    }
-
-    #[track_caller]
-    pub fn block_top_announce_mut(&mut self, block_index: usize) -> &mut AnnounceData {
-        self.announces
-            .get_mut(&self.block_top_announce_hash(block_index))
-            .expect("announce not found")
-    }
-
-    #[track_caller]
-    pub fn block_top_announce_mutate(
-        &mut self,
-        block_index: usize,
-        f: impl FnOnce(&mut AnnounceData),
-    ) -> HashOf<Announce> {
-        let announce_hash = self.block_top_announce_hash(block_index);
-        let mut announce_data = self
-            .announces
-            .remove(&announce_hash)
-            .expect("Announce not found");
-        f(&mut announce_data);
-
-        self.blocks[block_index]
-            .prepared
-            .as_mut()
-            .expect("block not prepared")
-            .announces
-            .as_mut()
-            .expect("block announces not found")
-            .remove(&announce_hash);
-
-        let new_announce_hash = announce_data.announce.to_hash();
-        self.announces.insert(new_announce_hash, announce_data);
-
-        self.blocks[block_index]
-            .as_prepared_mut()
-            .announces
-            .as_mut()
-            .expect("block announces not found")
-            .insert(new_announce_hash);
-
-        new_announce_hash
-    }
-
-    #[track_caller]
     pub fn setup<DB>(self, db: &DB) -> Self
     where
-        DB: AnnounceStorageRW
-            + BlockMetaStorageRW
-            + OnChainStorageRW
-            + CodesStorageRW
-            + SetConfig
-            + SetGlobals,
+        DB: BlockMetaStorageRW + OnChainStorageRW + CodesStorageRW + SetConfig + SetGlobals,
     {
         let BlockChain {
             blocks,
-            announces,
             codes,
             validators,
             config,
@@ -686,15 +516,10 @@ impl BlockChain {
 
             if let Some(PreparedBlockData {
                 codes_queue,
-                announces,
                 last_committed_batch,
                 last_committed_mb,
             }) = prepared
             {
-                if let Some(announces) = announces {
-                    db.set_block_announces(hash, announces);
-                }
-
                 db.mutate_block_meta(hash, |meta| {
                     *meta = BlockMeta {
                         prepared: true,
@@ -706,10 +531,6 @@ impl BlockChain {
                 });
             }
         }
-
-        announces.into_iter().for_each(|(_, data)| {
-            let _ = data.setup(db);
-        });
 
         for (
             code_id,
@@ -744,7 +565,7 @@ impl BlockChain {
         // i = 2, h = 1 - first block
         // ...
         // i = len + 1, h = len - last block
-        let mut blocks: VecDeque<_> = (0..len + 2)
+        let blocks: VecDeque<_> = (0..len + 2)
             .map(|i| {
                 if let Some(h) = i.checked_sub(1) {
                     // Human readable blocks, to avoid zero values append some readable numbers
@@ -771,43 +592,12 @@ impl BlockChain {
                         }),
                         prepared: Some(PreparedBlockData {
                             codes_queue: Default::default(),
-                            announces: Some(Default::default()), // empty here, filled below with announces
                             last_committed_batch: Digest::zero(),
                             last_committed_mb: H256::zero(),
                         }),
                     }
                 },
             )
-            .collect();
-
-        let mut genesis_announce_hash = None;
-        let mut parent_announce_hash = HashOf::zero();
-        let announces = blocks
-            .iter_mut()
-            .map(|block| {
-                let announce = Announce::base(block.hash, parent_announce_hash);
-                let announce_hash = announce.to_hash();
-                let genesis_announce_hash = genesis_announce_hash.get_or_insert(announce_hash);
-                let prepared_data = block.prepared.as_mut().unwrap();
-                prepared_data
-                    .announces
-                    .as_mut()
-                    .unwrap()
-                    .insert(announce_hash);
-                let _ = genesis_announce_hash;
-                parent_announce_hash = announce_hash;
-                (
-                    announce_hash,
-                    AnnounceData {
-                        announce,
-                        computed: Some(MockComputedAnnounceData {
-                            outcome: Default::default(),
-                            program_states: Default::default(),
-                            schedule: Default::default(),
-                        }),
-                    },
-                )
-            })
             .collect();
 
         let config = DBConfig {
@@ -821,22 +611,18 @@ impl BlockChain {
                 slot: slot.try_into().unwrap(),
             },
             genesis_block_hash: blocks[0].hash,
-            genesis_announce_hash: genesis_announce_hash.unwrap(),
             max_validators: 10,
         };
 
         let globals = DBGlobals {
             start_block_hash: blocks[0].hash,
-            start_announce_hash: genesis_announce_hash.unwrap(),
             latest_synced_block: blocks.back().unwrap().to_simple(),
             latest_prepared_block_hash: blocks.back().unwrap().hash,
-            latest_computed_announce_hash: parent_announce_hash,
             latest_finalized_mb_hash: H256::zero(),
         };
 
         Self {
             blocks,
-            announces,
             codes: Default::default(),
             validators,
             config,
@@ -858,10 +644,9 @@ impl Arbitrary for BlockChain {
 
 pub trait DBMockExt {
     fn simple_block_data(&self, block: H256) -> SimpleBlockData;
-    fn top_announce_hash(&self, block: H256) -> HashOf<Announce>;
 }
 
-impl<DB: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO> DBMockExt for DB {
+impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
     #[track_caller]
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
@@ -869,15 +654,6 @@ impl<DB: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO> DBMockExt fo
             hash: block,
             header,
         }
-    }
-
-    #[track_caller]
-    fn top_announce_hash(&self, block: H256) -> HashOf<Announce> {
-        self.block_announces(block)
-            .expect("block announces not found")
-            .into_iter()
-            .next()
-            .expect("must be at list one announce")
     }
 }
 
@@ -921,22 +697,15 @@ impl Arbitrary for DBConfig {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (
-            ProtocolTimelines::arbitrary_with(()),
-            h256_strategy(),
-            hash_of_strategy::<Announce>(),
-        )
-            .prop_map(
-                |(timelines, genesis_block_hash, genesis_announce_hash)| Self {
-                    version: 0,
-                    chain_id: 0,
-                    router_address: Address::default(),
-                    timelines,
-                    genesis_block_hash,
-                    genesis_announce_hash,
-                    max_validators: 0,
-                },
-            )
+        (ProtocolTimelines::arbitrary_with(()), h256_strategy())
+            .prop_map(|(timelines, genesis_block_hash)| Self {
+                version: 0,
+                chain_id: 0,
+                router_address: Address::default(),
+                timelines,
+                genesis_block_hash,
+                max_validators: 0,
+            })
             .boxed()
     }
 }
@@ -948,26 +717,20 @@ impl Arbitrary for DBGlobals {
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         (
             h256_strategy(),
-            hash_of_strategy::<Announce>(),
             SimpleBlockData::arbitrary_with(().into()),
             h256_strategy(),
-            hash_of_strategy::<Announce>(),
             h256_strategy(),
         )
             .prop_map(
                 |(
                     start_block_hash,
-                    start_announce_hash,
                     latest_synced_block,
                     latest_prepared_block_hash,
-                    latest_computed_announce_hash,
                     latest_finalized_mb_hash,
                 )| Self {
                     start_block_hash,
-                    start_announce_hash,
                     latest_synced_block,
                     latest_prepared_block_hash,
-                    latest_computed_announce_hash,
                     latest_finalized_mb_hash,
                 },
             )

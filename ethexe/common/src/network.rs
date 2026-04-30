@@ -17,16 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, HashOf, ToDigest,
+    Address, ToDigest,
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
     ecdsa::{SignedData, VerifiedData},
 };
-use alloc::vec::Vec;
-use core::{hash::Hash, num::NonZeroU32};
+use core::hash::Hash;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
-pub type ValidatorAnnounce = ValidatorMessage<Announce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
 pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
 
@@ -46,7 +44,6 @@ impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum SignedValidatorMessage {
-    Announce(SignedData<ValidatorAnnounce>),
     RequestBatchValidation(SignedData<ValidatorRequest>),
     ApproveBatch(SignedData<ValidatorReply>),
 }
@@ -54,7 +51,6 @@ pub enum SignedValidatorMessage {
 impl SignedValidatorMessage {
     pub fn into_verified(self) -> VerifiedValidatorMessage {
         match self {
-            SignedValidatorMessage::Announce(announce) => announce.into_verified().into(),
             SignedValidatorMessage::RequestBatchValidation(request) => {
                 request.into_verified().into()
             }
@@ -66,7 +62,6 @@ impl SignedValidatorMessage {
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum VerifiedValidatorMessage {
-    Announce(VerifiedData<ValidatorAnnounce>),
     RequestBatchValidation(VerifiedData<ValidatorRequest>),
     ApproveBatch(VerifiedData<ValidatorReply>),
 }
@@ -74,7 +69,6 @@ pub enum VerifiedValidatorMessage {
 impl VerifiedValidatorMessage {
     pub fn era_index(&self) -> u64 {
         match self {
-            VerifiedValidatorMessage::Announce(announce) => announce.data().era_index,
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().era_index,
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().era_index,
         }
@@ -82,59 +76,8 @@ impl VerifiedValidatorMessage {
 
     pub fn address(&self) -> Address {
         match self {
-            VerifiedValidatorMessage::Announce(announce) => announce.address(),
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
         }
-    }
-}
-
-/// Until condition for announces request (see [`AnnouncesRequest`]).
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode, derive_more::From)]
-pub enum AnnouncesRequestUntil {
-    /// Request until a specific tail announce hash
-    Tail(HashOf<Announce>),
-    /// Request until a specific chain length
-    ChainLen(NonZeroU32),
-}
-
-/// Request announces body (see [`Announce`]) chain from `head_announce_hash`,
-/// to announce defined by `until` condition.
-/// If `until` is `Tail`, then tail must not be included in the response.
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode)]
-pub struct AnnouncesRequest {
-    /// Hash of the requested chain head announce
-    pub head: HashOf<Announce>,
-    /// Request until this condition is met
-    pub until: AnnouncesRequestUntil,
-}
-
-/// Checked announces response ensuring that it matches the corresponding request.
-#[derive(derive_more::Debug, Clone, Eq, PartialEq, derive_more::From)]
-pub struct AnnouncesResponse {
-    /// Corresponding request for this response
-    request: AnnouncesRequest,
-    /// List of announces
-    announces: Vec<Announce>,
-}
-
-impl AnnouncesResponse {
-    /// # Safety
-    ///
-    /// Response must be only created by network service
-    pub unsafe fn from_parts(request: AnnouncesRequest, announces: Vec<Announce>) -> Self {
-        Self { request, announces }
-    }
-
-    pub fn request(&self) -> &AnnouncesRequest {
-        &self.request
-    }
-
-    pub fn announces(&self) -> &[Announce] {
-        &self.announces
-    }
-
-    pub fn into_parts(self) -> (AnnouncesRequest, Vec<Announce>) {
-        (self.request, self.announces)
     }
 }

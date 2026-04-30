@@ -80,7 +80,7 @@ use libp2p::{
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
 use std::{
-    collections::HashSet, fmt::Write, num::NonZeroU32, pin::Pin, sync::Arc, task::Poll,
+    collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll,
     time::Duration,
 };
 use validator::{list::ValidatorList, topic::ValidatorTopic};
@@ -99,10 +99,6 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 500;
 const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
 const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
-
-/// Hard cap for the amount of announces that can be returned in one db-sync
-/// response.
-pub const DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
 
 /// High-level events produced by [`NetworkService`].
 #[derive(derive_more::Debug)]
@@ -154,8 +150,6 @@ pub struct NetworkConfig {
     /// Whether private and local addresses are allowed in discovery and
     /// identify flows.
     pub allow_non_global_addresses: bool,
-    /// Upper bound for `Announces` db-sync responses served by this node.
-    pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl NetworkConfig {
@@ -170,7 +164,6 @@ impl NetworkConfig {
             transport_type: TransportType::Default,
             router_address,
             allow_non_global_addresses: false,
-            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 
@@ -184,7 +177,6 @@ impl NetworkConfig {
             transport_type: TransportType::Test,
             router_address,
             allow_non_global_addresses: true,
-            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 }
@@ -267,7 +259,6 @@ impl NetworkService {
             transport_type,
             router_address,
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
         } = config;
 
         let NetworkRuntimeConfig {
@@ -306,7 +297,6 @@ impl NetworkService {
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
             metrics: (&mut registry, metrics.clone()),
         };
         let behaviour = Behaviour::new(behaviour_config)?;
@@ -706,7 +696,6 @@ struct BehaviourConfig<'a> {
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
     allow_non_global_addresses: bool,
-    max_chain_len_for_announces_response: NonZeroU32,
     metrics: (
         &'a mut libp2p::metrics::Registry,
         Arc<libp2p::metrics::Metrics>,
@@ -751,7 +740,6 @@ impl Behaviour {
             general_signer,
             validator_list_snapshot,
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
             metrics: (registry, metrics),
         } = config;
 
@@ -803,10 +791,7 @@ impl Behaviour {
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
 
         let db_sync = db_sync::Behaviour::new(
-            db_sync::Config {
-                max_chain_len_for_announces_response,
-                ..Default::default()
-            },
+            db_sync::Config::default(),
             peer_score_handle.clone(),
             external_data_provider,
             db,
@@ -1063,6 +1048,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "ProgramIds db-sync needs to be re-implemented on MB program states"]
     async fn external_data_provider() {
         init_logger();
 

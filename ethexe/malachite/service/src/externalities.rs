@@ -40,13 +40,15 @@
 //!   before voting.
 //!
 //! ## Storage layout
+//!
 //! All MB-keyed storage in the ethexe DB is keyed by the
 //! `ethexe_malachite_core::Block` envelope hash (Blake2b over
-//! `(parent_hash, height, payload_hash, reserved)`). [`Self::save_block`]
-//! writes a [`CompactBlock`] under that key (carrying parent + height
-//! + the Blake2b hash of the [`Transactions`] payload) and CAS-stores
-//! the `Transactions` blob; [`Self::mark_block_as_finalized`] reads
-//! both back via the same key the consensus layer hands in.
+//! `(parent_hash, height, payload_hash, reserved)`).
+//! [`EthexeExternalities::save_block`] writes a [`CompactBlock`] under
+//! that key (carrying parent + height + the Blake2b hash of the
+//! [`Transactions`] payload) and CAS-stores the `Transactions` blob;
+//! [`EthexeExternalities::mark_block_as_finalized`] reads both back
+//! via the same key the consensus layer hands in.
 
 use std::{
     collections::VecDeque,
@@ -803,6 +805,10 @@ mod tests {
                     parent_hash: parent,
                 };
                 db.set_block_header(hash, header);
+                // `validate_block_above` also checks events presence
+                // for every Eth block on the advance walk — set an
+                // empty vector so the gate passes.
+                db.set_block_events(hash, &[]);
                 db.mutate_block_meta(hash, |_| {});
                 hashes.push((hash, header));
                 parent = hash;

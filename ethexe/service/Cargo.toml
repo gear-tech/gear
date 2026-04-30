@@ -42,7 +42,6 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 rand.workspace = true
 derive_more.workspace = true
 async-trait.workspace = true
-hex.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]

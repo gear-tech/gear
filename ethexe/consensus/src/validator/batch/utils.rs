@@ -214,8 +214,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
 
     // For now we use a static expiry derived from `commitment_delay_limit` —
     // batches need to land within that many Ethereum blocks of `block.hash`
-    // or they're rejected on-chain. Fine-grained expiry (depending on chain
-    // deepness) is dropped along with the producer-side announce flow.
+    // or they're rejected on-chain.
     let expiry: u8 = commitment_delay_limit.try_into().unwrap_or(u8::MAX);
 
     tracing::trace!("Batch commitment expiry for block {block_hash} is {expiry:?}",);

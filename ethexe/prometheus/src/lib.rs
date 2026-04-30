@@ -25,7 +25,7 @@
 //!
 //! [`PrometheusService`] runs an HTTP server and yields [`PrometheusEvent`]s to
 //! the parent service. When `/metrics` is requested, the service:
-//! - refreshes liveness gauges derived from the latest committed announce,
+//! - refreshes liveness gauges derived from the latest committed MB,
 //! - renders metrics from the global `metrics` recorder,
 //! - asks the parent service for extra registry dumps,
 //! - merges everything into a single Prometheus text response.
@@ -91,13 +91,13 @@ pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyL
 
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_liveness")]
-/// Liveness gauges derived from the latest committed announce in the database.
+/// Liveness gauges derived from the latest committed MB in the database.
 pub struct LivenessMetrics {
-    /// Height of the block referenced by the latest committed announce.
+    /// Height of the block referenced by the latest committed MB.
     pub latest_committed_block_number: Gauge,
-    /// Timestamp of the block referenced by the latest committed announce.
+    /// Timestamp of the block referenced by the latest committed MB.
     pub latest_committed_block_timestamp: Gauge,
-    /// Seconds between the latest synced block and the latest committed announce.
+    /// Seconds between the latest synced block and the latest committed MB.
     pub time_since_latest_committed_secs: Gauge,
 }
 

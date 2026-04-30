@@ -19,8 +19,8 @@
 //! Common db types and traits.
 
 use crate::{
-    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, SimpleBlockData, ValidatorsVec,
+    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
+    SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, SignedInjectedTransaction},
@@ -129,11 +129,6 @@ pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
-pub struct AnnounceMeta {
-    pub computed: bool,
-}
-
 /// Per-Malachite-block static identity record.
 ///
 /// Keyed by the `ethexe_malachite_core::Block` envelope hash (Blake2b
@@ -207,56 +202,14 @@ pub trait MbStorageRW: MbStorageRO {
     fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
 }
 
-#[auto_impl::auto_impl(&, Box)]
-pub trait AnnounceStorageRO {
-    fn announce(&self, hash: HashOf<Announce>) -> Option<Announce>;
-    fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates>;
-    fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
-    fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
-    fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
-    fn block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
-}
-
-#[auto_impl::auto_impl(&)]
-pub trait AnnounceStorageRW: AnnounceStorageRO {
-    fn set_announce(&self, announce: Announce) -> HashOf<Announce>;
-    fn set_block_announces(&self, block_hash: H256, announces: BTreeSet<HashOf<Announce>>);
-    fn set_announce_program_states(
-        &self,
-        announce_hash: HashOf<Announce>,
-        program_states: ProgramStates,
-    );
-    fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
-    fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
-
-    fn mutate_announce_meta(
-        &self,
-        announce_hash: HashOf<Announce>,
-        f: impl FnOnce(&mut AnnounceMeta),
-    );
-    fn mutate_block_announces(
-        &self,
-        block_hash: H256,
-        f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
-    );
-}
-
 pub struct PreparedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
     pub latest_era_with_committed_validators: u64,
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
     /// `H256::zero()` for genesis (no MB committed on-chain yet).
     pub last_committed_mb: H256,
-}
-
-pub struct ComputedAnnounceData {
-    pub announce: Announce,
-    pub program_states: ProgramStates,
-    pub outcome: Vec<StateTransition>,
-    pub schedule: Schedule,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
@@ -266,17 +219,14 @@ pub struct DBConfig {
     pub router_address: Address,
     pub timelines: ProtocolTimelines,
     pub genesis_block_hash: H256,
-    pub genesis_announce_hash: HashOf<Announce>,
     pub max_validators: u16,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct DBGlobals {
     pub start_block_hash: H256,
-    pub start_announce_hash: HashOf<Announce>,
     pub latest_synced_block: SimpleBlockData,
     pub latest_prepared_block_hash: H256,
-    pub latest_computed_announce_hash: HashOf<Announce>,
     /// Hash of the most recent Malachite sequencer block this node
     /// has seen finalized. `H256::zero()` means no MB has ever been
     /// finalized. Updated on every `MalachiteEvent::BlockFinalized`.
@@ -335,7 +285,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "66460e4e15a4d4ec3e2230cea3092080758e39200935f3daa4b4806d342b5e4d";
+            "05fd7189c74d7df78bd1f9e86c3dcae43f9a45e1c4be0f10d577ffd250dcec05";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -348,11 +298,9 @@ mod tests {
             meta_type::<ProtocolTimelines>(),
             meta_type::<HashOf<InjectedTransaction>>(),
             meta_type::<SignedInjectedTransaction>(),
-            meta_type::<Announce>(),
             meta_type::<ProgramStates>(),
             meta_type::<StateTransition>(),
             meta_type::<Schedule>(),
-            meta_type::<AnnounceMeta>(),
             meta_type::<MbMeta>(),
             meta_type::<CompactBlock>(),
             meta_type::<crate::mb::Transactions>(),

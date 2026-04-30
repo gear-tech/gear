@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, Digest, ProtocolTimelines, ToDigest,
+    Address, Digest, ProtocolTimelines, ToDigest,
     ecdsa::{ContractSignature, VerifiedData},
     gear::BatchCommitment,
     validators::ValidatorsVec,
@@ -35,7 +35,6 @@ pub const MAX_BATCH_SIZE_LIMIT: u64 = 120 * 1024;
 /// The default batch size - 100 KB.
 pub const DEFAULT_BATCH_SIZE_LIMIT: u64 = 100 * 1024;
 
-pub type VerifiedAnnounce = VerifiedData<Announce>;
 pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 

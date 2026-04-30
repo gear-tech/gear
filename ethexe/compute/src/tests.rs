@@ -18,7 +18,7 @@
 
 use super::*;
 use ethexe_common::{
-    CodeBlobInfo, PromisePolicy,
+    CodeBlobInfo,
     db::*,
     events::{
         BlockEvent, RouterEvent,
@@ -39,7 +39,6 @@ use tokio::{sync::mpsc, time::timeout};
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
 #[derive(Clone, Default)]
 pub(crate) struct MockProcessor {
-    pub process_programs_result: Option<FinalizedBlockTransitions>,
     pub process_transitions_result: Option<FinalizedBlockTransitions>,
     pub process_codes_result: Option<ProcessedCodeInfo>,
     pub process_code_calls: std::sync::Arc<std::sync::Mutex<Vec<CodeAndIdUnchecked>>>,
@@ -48,7 +47,6 @@ pub(crate) struct MockProcessor {
 impl MockProcessor {
     pub fn with_default_valid_code() -> Self {
         Self {
-            process_programs_result: None,
             process_transitions_result: None,
             process_codes_result: Some(ProcessedCodeInfo {
                 code_id: CodeId::zero(),
@@ -80,14 +78,6 @@ impl MockProcessor {
 }
 
 impl ProcessorExt for MockProcessor {
-    async fn process_programs(
-        &mut self,
-        _executable: ExecutableData,
-        _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-    ) -> Result<FinalizedBlockTransitions> {
-        Ok(self.process_programs_result.take().unwrap_or_default())
-    }
-
     async fn process_transitions(
         &mut self,
         _initial_program_states: ProgramStates,
@@ -163,12 +153,6 @@ fn mark_as_not_prepared(chain: &mut BlockChain) {
     for block in chain.blocks.iter_mut().skip(1) {
         block.prepared = None;
     }
-
-    // remove all announces except genesis announce
-    let genesis_announce_hash = chain.block_top_announce_hash(0);
-    chain
-        .announces
-        .retain(|hash, _| *hash == genesis_announce_hash);
 }
 
 struct TestEnv {
@@ -235,39 +219,6 @@ impl TestEnv {
         let prepared_block = event.unwrap_block_prepared();
         assert_eq!(prepared_block, block);
     }
-
-    async fn compute_and_assert_announce(&mut self, announce: Announce) {
-        let announce_hash = announce.to_hash();
-        self.compute
-            .compute_announce(announce.clone(), PromisePolicy::Disabled);
-
-        let event = self
-            .compute
-            .next()
-            .await
-            .unwrap()
-            .expect("expect block will be processing");
-
-        let computed_announce = event.unwrap_announce_computed();
-        assert_eq!(computed_announce, announce_hash);
-
-        self.db
-            .mutate_block_announces(announce.block_hash, |announces| {
-                announces.insert(announce_hash);
-            });
-    }
-}
-
-#[track_caller]
-fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> Announce {
-    let parent_hash = db.block_header(block_hash).unwrap().parent_hash;
-    let parent_announce_hash = db.top_announce_hash(parent_hash);
-    Announce {
-        block_hash,
-        parent: parent_announce_hash,
-        gas_allowance,
-        injected_transactions: vec![],
-    }
 }
 
 #[tokio::test]
@@ -278,51 +229,6 @@ async fn block_computation_basic() -> Result<()> {
 
     for block in env.chain.blocks.clone().iter().skip(1) {
         env.prepare_and_assert_block(block.hash).await;
-
-        let announce = new_announce(&env.db, block.hash, Some(100));
-        env.compute_and_assert_announce(announce).await;
-    }
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn multiple_preparation_and_one_processing() -> Result<()> {
-    gear_utils::init_default_logger();
-
-    let mut env = TestEnv::new(3, 3);
-
-    for block in env.chain.blocks.clone().iter().skip(1) {
-        env.prepare_and_assert_block(block.hash).await;
-    }
-
-    // append announces to prepared blocks, except the last one, so that it can be computed
-    for i in 1..3 {
-        let announce = new_announce(&env.db, env.chain.blocks[i].hash, Some(100));
-        env.db
-            .mutate_block_announces(announce.block_hash, |announces| {
-                announces.insert(announce.to_hash());
-            });
-        env.db.set_announce(announce);
-    }
-
-    let announce = new_announce(&env.db, env.chain.blocks[3].hash, Some(100));
-    env.compute_and_assert_announce(announce).await;
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn one_preparation_and_multiple_processing() -> Result<()> {
-    gear_utils::init_default_logger();
-
-    let mut env = TestEnv::new(3, 3);
-
-    env.prepare_and_assert_block(env.chain.blocks[3].hash).await;
-
-    for block in env.chain.blocks.clone().iter().skip(1) {
-        let announce = new_announce(&env.db, block.hash, Some(100));
-        env.compute_and_assert_announce(announce).await;
     }
 
     Ok(())
@@ -347,10 +253,6 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
     env.db
         .set_block_events(env.chain.blocks[1].hash, &block_events);
     env.prepare_and_assert_block(env.chain.blocks[1].hash).await;
-
-    let announce = new_announce(&env.db, env.chain.blocks[1].hash, Some(100));
-    env.compute_and_assert_announce(announce.clone()).await;
-    env.compute_and_assert_announce(announce.clone()).await;
 
     Ok(())
 }

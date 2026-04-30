@@ -364,7 +364,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{Announce, Digest, HashOf, events::BlockEvent, mock::*};
+    use ethexe_common::{Digest, events::BlockEvent, mock::*};
     use ethexe_db::Database;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::H256;

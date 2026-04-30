@@ -18,14 +18,14 @@
 
 use std::collections::BTreeMap;
 
-use super::{InitConfig, LATEST_VERSION, MIGRATIONS, OLDEST_SUPPORTED_VERSION};
+use super::{InitConfig, LATEST_VERSION};
 use crate::{Database, RawDatabase, dump::StateDump, migrations::GenesisInitializer};
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, bail, ensure};
 use ethexe_common::{
-    Announce, BlockHeader, HashOf, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
+    BlockHeader, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
     StateHashWithQueueSize,
-    db::{CodesStorageRO, CodesStorageRW, ComputedAnnounceData, PreparedBlockData},
+    db::{CodesStorageRO, CodesStorageRW, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
 };
 use ethexe_ethereum::router::RouterQuery;
@@ -51,57 +51,12 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
         let db_version = db_version.unwrap_or(0);
 
         ensure!(
-            db_version <= LATEST_VERSION,
-            "Cannot initialize database to version {LATEST_VERSION} from version {}",
-            db_version
+            db_version == LATEST_VERSION,
+            "Database version {db_version} is not supported; expected version {LATEST_VERSION} \
+             (legacy migrations were removed; please wipe the database)",
         );
 
         log::info!("Database has version {db_version}");
-
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if db_version < OLDEST_SUPPORTED_VERSION {
-            log::info!(
-                "The oldest supported database version is {}",
-                OLDEST_SUPPORTED_VERSION
-            );
-            bail!(
-                "Database version is too old: expected at least {}, found {}",
-                OLDEST_SUPPORTED_VERSION,
-                db_version
-            );
-        }
-
-        for (i, &migration) in MIGRATIONS.iter().enumerate() {
-            let from_version = i as u32 + OLDEST_SUPPORTED_VERSION;
-
-            if from_version >= db_version {
-                log::info!(
-                    "Migrating the database from version {} to version {}",
-                    from_version,
-                    from_version + 1
-                );
-
-                migration.migrate(&config, &db).await?;
-
-                let version_after_migration = db
-                    .kv
-                    .version()
-                    .and_then(|v| v.context("Config not found"))
-                    .context("Cannot retrieve database version after migration")?;
-                ensure!(
-                    version_after_migration == from_version + 1,
-                    "Expected database version {}, but found {}",
-                    from_version + 1,
-                    version_after_migration
-                );
-
-                log::info!(
-                    "Migration from version {} to version {} completed",
-                    from_version,
-                    from_version + 1
-                );
-            }
-        }
 
         validate_db(config, &db).await?;
     }
@@ -157,28 +112,11 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         },
     };
 
-    let genesis_announce = Announce {
-        block_hash: genesis_block.hash,
-        parent: HashOf::zero(),
-        gas_allowance: None,
-        injected_transactions: vec![],
-    };
-
-    let (program_states, schedule) = if let Some(initializer) = config.genesis_initializer {
+    let (_program_states, _schedule) = if let Some(initializer) = config.genesis_initializer {
         genesis_data_initialization(initializer, db, genesis_block).await?
     } else {
-        (Default::default(), Default::default())
+        (ProgramStates::default(), Schedule::default())
     };
-
-    let genesis_announce_hash = ethexe_common::setup_announce_in_db(
-        &db,
-        ComputedAnnounceData {
-            announce: genesis_announce,
-            program_states,
-            schedule,
-            outcome: Default::default(),
-        },
-    );
 
     ethexe_common::setup_block_in_db(
         &db,
@@ -187,7 +125,6 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
             header: genesis_block.header,
             events: Default::default(),
             codes_queue: Default::default(),
-            announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
             last_committed_mb: H256::zero(),
             latest_era_with_committed_validators: 0,
@@ -213,17 +150,14 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
                 .context("slot duration must be non-zero")?,
         },
         genesis_block_hash: genesis.hash,
-        genesis_announce_hash,
         max_validators: storage_view.maxValidators,
     };
 
-    // NOTE: start block and announce could be changed later by fast-sync
+    // NOTE: start block could be changed later by fast-sync
     let globals = ethexe_common::db::DBGlobals {
         start_block_hash: genesis_block.hash,
-        start_announce_hash: genesis_announce_hash,
         latest_synced_block: genesis_block,
         latest_prepared_block_hash: genesis_block.hash,
-        latest_computed_announce_hash: genesis_announce_hash,
         latest_finalized_mb_hash: H256::zero(),
     };
 

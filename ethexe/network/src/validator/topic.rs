@@ -328,7 +328,7 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        Announce,
+        consensus::BatchCommitmentValidationRequest,
         gear_core::{message::ReplyCode, rpc::ReplyInfo},
         injected::Promise,
         mock::Mock,
@@ -366,7 +366,7 @@ mod tests {
                 pub_key,
                 ValidatorMessage {
                     era_index,
-                    payload: Announce::mock(()),
+                    payload: BatchCommitmentValidationRequest::mock(()),
                 },
                 None,
             )

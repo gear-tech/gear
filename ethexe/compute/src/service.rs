@@ -21,11 +21,11 @@ use crate::tests::MockProcessor;
 use crate::{
     ComputeEvent, ProcessorExt, Result,
     codes::CodesSubService,
-    compute::{ComputeConfig, ComputeSubService},
+    compute::ComputeConfig,
     mb_compute::MbComputeSubService,
     prepare::PrepareSubService,
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked, PromisePolicy};
+use ethexe_common::CodeAndIdUnchecked;
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
@@ -38,16 +38,14 @@ use std::{
 pub struct ComputeService<P: ProcessorExt = Processor> {
     codes_sub_service: CodesSubService<P>,
     prepare_sub_service: PrepareSubService,
-    compute_sub_service: ComputeSubService<P>,
     mb_compute_sub_service: MbComputeSubService<P>,
 }
 
 impl<P: ProcessorExt> ComputeService<P> {
     /// Creates new compute service.
-    pub fn new(config: ComputeConfig, db: Database, processor: P) -> Self {
+    pub fn new(_config: ComputeConfig, db: Database, processor: P) -> Self {
         Self {
             prepare_sub_service: PrepareSubService::new(db.clone()),
-            compute_sub_service: ComputeSubService::new(config, db.clone(), processor.clone()),
             mb_compute_sub_service: MbComputeSubService::new(db.clone(), processor.clone()),
             codes_sub_service: CodesSubService::new(db, processor),
         }
@@ -76,19 +74,12 @@ impl ComputeService<MockProcessor> {
 }
 
 impl<P: ProcessorExt> ComputeService<P> {
-    // TODO #4550: consider to create Processor inside ComputeService
-
     pub fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) {
         self.codes_sub_service.receive_code_to_process(code_and_id);
     }
 
     pub fn prepare_block(&mut self, block: H256) {
         self.prepare_sub_service.receive_block_to_prepare(block);
-    }
-
-    pub fn compute_announce(&mut self, announce: Announce, promise_policy: PromisePolicy) {
-        self.compute_sub_service
-            .receive_announce_to_compute(announce, promise_policy);
     }
 
     /// Queue a finalized Malachite sequencer block for execution.
@@ -124,10 +115,6 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
 
         if let Poll::Ready(result) = self.prepare_sub_service.poll_next(cx) {
             return Poll::Ready(Some(result.map(ComputeEvent::from)));
-        };
-
-        if let Poll::Ready(event) = self.compute_sub_service.poll_next(cx) {
-            return Poll::Ready(Some(event));
         };
 
         if let Poll::Ready(event) = self.mb_compute_sub_service.poll_next(cx) {
@@ -185,40 +172,6 @@ mod tests {
 
         // Verify block is marked as prepared in DB
         assert!(db.block_meta(block.hash).prepared);
-    }
-
-    /// Test ComputeService block processing functionality
-    #[tokio::test]
-    async fn compute_announce() {
-        gear_utils::init_default_logger();
-
-        let db = DB::memory();
-        let mut service = ComputeService::new_mock_processor(db.clone());
-
-        let chain = BlockChain::mock(1).setup(&db);
-
-        let block = chain.blocks[1].to_simple().next_block().setup(&db);
-
-        service.prepare_block(block.hash);
-        let event = service.next().await.unwrap().unwrap();
-        assert_eq!(event, ComputeEvent::BlockPrepared(block.hash));
-
-        // Request computation
-        let announce = Announce {
-            block_hash: block.hash,
-            parent: chain.block_top_announce_hash(1),
-            gas_allowance: Some(42),
-            injected_transactions: vec![],
-        };
-        let announce_hash = announce.to_hash();
-        service.compute_announce(announce, PromisePolicy::Disabled);
-
-        // Poll service to process the block
-        let event = service.next().await.unwrap().unwrap();
-        assert_eq!(event, ComputeEvent::AnnounceComputed(announce_hash));
-
-        // Verify block is marked as computed in DB
-        assert!(db.announce_meta(announce_hash).computed);
     }
 
     /// Test ComputeService code processing functionality

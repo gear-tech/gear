@@ -5577,7 +5577,6 @@ dependencies = [
  "clap 4.5.54",
  "directories",
  "ethexe-common",
- "ethexe-compute",
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-malachite",
@@ -5636,13 +5635,11 @@ dependencies = [
 name = "ethexe-compute"
 version = "1.10.0"
 dependencies = [
- "demo-ping",
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
  "ethexe-runtime-common",
- "future-timing",
  "futures",
  "gear-core",
  "gear-utils",
@@ -5712,7 +5709,6 @@ dependencies = [
  "gprimitives",
  "gsigner",
  "hex",
- "indoc",
  "log",
  "parity-scale-codec",
  "paste",
@@ -5721,7 +5717,6 @@ dependencies = [
  "scopeguard",
  "serde",
  "serde_json",
- "sha3",
  "tempfile",
  "tracing",
 ]
@@ -5838,7 +5833,6 @@ dependencies = [
  "parity-scale-codec",
  "prometheus-client 0.23.1",
  "rand 0.8.5",
- "thiserror 2.0.17",
  "tokio",
  "tracing-subscriber",
 ]
@@ -6086,7 +6080,6 @@ dependencies = [
  "gear-workspace-hack",
  "gprimitives",
  "gsigner",
- "hex",
  "jsonrpsee",
  "log",
  "ntest",

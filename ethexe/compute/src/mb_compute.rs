@@ -22,14 +22,12 @@
 //! service feeds it into this sub-service via
 //! [`ComputeService::compute_mb`](crate::ComputeService::compute_mb).
 //! For every requested MB the sub-service first walks the parent
-//! chain (via `mb_meta.parent_mb_hash`), collecting any ancestors
-//! that the DB says are not yet computed — this catches uncomputed
-//! MBs left behind by a crash between malachite-side persistence and
-//! our finishing the execution. The collected predecessors then run
-//! oldest-first, followed by the original target.
-//!
-//! Mirrors the announce pipeline in `compute.rs` (which walks
-//! `announce.parent` and computes uncomputed predecessors first).
+//! chain (via [`CompactBlock::parent`](ethexe_common::db::CompactBlock)),
+//! collecting any ancestors that the DB says are not yet computed —
+//! this catches uncomputed MBs left behind by a crash between
+//! malachite-side persistence and our finishing the execution. The
+//! collected predecessors then run oldest-first, followed by the
+//! original target.
 //!
 //! # DB layout used here
 //! - `mb_compact_block(hash) -> CompactBlock` — persisted by the
