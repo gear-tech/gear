@@ -185,7 +185,7 @@ impl RunContext for OverlaidRunContext {
             .program_code_id(program_id)
             .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))?;
 
-        run::instrumented_code_and_metadata(&self.inner.db, code_id)
+        run::instrumented_code_and_metadata(&self.inner.db, &self.inner.instance_creator, code_id)
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {

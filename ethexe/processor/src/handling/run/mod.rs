@@ -118,7 +118,7 @@ use ethexe_common::{
     BlockHeader, CALL_REPLY_SOFT_LIMIT, OUTGOING_MESSAGES_BYTES_SOFT_LIMIT,
     OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT, PromisePolicy,
     StateHashWithQueueSize,
-    db::CodesStorageRO,
+    db::{CodesStorageRO, CodesStorageRW},
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
     injected::Promise,
 };
@@ -341,7 +341,7 @@ pub(super) trait RunContext {
 pub(crate) struct CommonRunContext {
     pub(super) db: Database,
     pub(super) transitions: InBlockTransitions,
-    instance_creator: InstanceCreator,
+    pub(super) instance_creator: InstanceCreator,
     gas_allowance_counter: GasAllowanceCounter,
     outgoing_messages_limiter: u32,
     outgoing_messages_bytes_limiter: u32,
@@ -409,7 +409,7 @@ impl RunContext for CommonRunContext {
                     .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))
             })?;
 
-        instrumented_code_and_metadata(&self.db, code_id)
+        instrumented_code_and_metadata(&self.db, &self.instance_creator, code_id)
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
@@ -427,14 +427,32 @@ impl RunContext for CommonRunContext {
 
 pub(super) fn instrumented_code_and_metadata(
     db: &Database,
+    instance_creator: &InstanceCreator,
     code_id: CodeId,
 ) -> Result<(InstrumentedCode, CodeMetadata)> {
-    db.instrumented_code(ethexe_runtime_common::VERSION, code_id)
-        .and_then(|instrumented_code| {
-            db.code_metadata(code_id)
-                .map(|metadata| (instrumented_code, metadata))
-        })
-        .ok_or_else(|| ProcessorError::MissingInstrumentedCodeForProgram(code_id))
+    if let Some(instrumented_code) = db.instrumented_code(ethexe_runtime_common::VERSION, code_id)
+        && let Some(metadata) = db.code_metadata(code_id)
+    {
+        return Ok((instrumented_code, metadata));
+    }
+
+    let original_code = db
+        .original_code(code_id)
+        .ok_or(ProcessorError::MissingOriginalCodeForProgram(code_id))?;
+
+    let mut instance = instance_creator.instantiate()?;
+    let (instrumented_code, code_metadata) = instance
+        .instrument(&original_code)?
+        .ok_or(ProcessorError::MissingInstrumentedCodeForProgram(code_id))?;
+
+    db.set_instrumented_code(
+        ethexe_runtime_common::VERSION,
+        code_id,
+        instrumented_code.clone(),
+    );
+    db.set_code_metadata(code_id, code_metadata.clone());
+
+    Ok((instrumented_code, code_metadata))
 }
 
 pub(super) fn states(
