@@ -333,7 +333,7 @@ async fn process_programs_instruments_valid_code_missing_current_runtime_instrum
     assert!(db.instrumented_code(RUNTIME_ID, code_id).is_none());
 
     let actor_id = ActorId::from(0x10000);
-    let mut handler = setup_handler(db.clone(), block1.clone());
+    let mut handler = setup_handler(db.clone(), block1);
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
             actor_id,
