@@ -59,6 +59,7 @@ use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, SimpleBlockData,
     db::OnChainStorageRO,
     gear::CodeState,
+    injected::SignedPromise,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
@@ -188,6 +189,11 @@ pub struct Service {
 
     fast_sync: bool,
     validator_address: Option<Address>,
+    /// Public key matching `validator_address`, retained so the run
+    /// loop can resolve the corresponding `PrivateKey` from the
+    /// `Signer` when it needs to sign reply promises produced by
+    /// `compute_mb`.
+    validator_pub_key: Option<PublicKey>,
 
     /// When set, the run loop selects on this receiver and exits
     /// gracefully on the first signal — finalizing the malachite
@@ -568,6 +574,7 @@ impl Service {
             rpc,
             fast_sync,
             validator_address,
+            validator_pub_key,
             shutdown_rx: None,
             #[cfg(test)]
             sender: unreachable!(),
@@ -598,6 +605,7 @@ impl Service {
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
         validator_address: Option<Address>,
+        validator_pub_key: Option<PublicKey>,
     ) -> Result<Self> {
         Ok(Self {
             db,
@@ -613,6 +621,7 @@ impl Service {
             sender,
             fast_sync,
             validator_address,
+            validator_pub_key,
             shutdown_rx: None,
         })
     }
@@ -648,11 +657,12 @@ impl Service {
             mut compute,
             mut consensus,
             mut malachite,
-            signer: _signer,
+            signer,
             mut prometheus,
             rpc,
             fast_sync: _,
             validator_address,
+            validator_pub_key,
             shutdown_rx,
             #[cfg(test)]
             sender,
@@ -785,12 +795,50 @@ impl Service {
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
                     }
-                    ComputeEvent::MbComputed { mb_hash, height } => {
+                    ComputeEvent::MbComputed {
+                        mb_hash,
+                        height,
+                        promises,
+                    } => {
                         // Results are persisted in the `mb_*` keyspace
                         // and consumed as input by the next MB. Coordinator
                         // picks them up via `latest_finalized_mb_hash` on
                         // the next chain-head round.
                         tracing::info!(height, mb_hash = %mb_hash, "🛠️ MB executed");
+
+                        // The runtime may have produced one reply
+                        // promise per injected dispatch that
+                        // terminated in a reply. Validators sign
+                        // them and gossip via the validator-only
+                        // promise topic; non-validators have nothing
+                        // to publish, so they drop the list.
+                        //
+                        // Gossipsub doesn't echo published messages
+                        // to the local subscriber, so the producer
+                        // also feeds the signed promise straight
+                        // into its own RPC server — otherwise an
+                        // RPC client connected to the producer would
+                        // never see its own subscription fire.
+                        if !promises.is_empty()
+                            && let Some(pub_key) = validator_pub_key
+                        {
+                            let private_key = signer.private_key(pub_key)?;
+                            for promise in promises {
+                                match SignedPromise::create(private_key.clone(), promise) {
+                                    Ok(signed) => {
+                                        if let Some(net) = network.as_mut() {
+                                            net.publish_promise(signed.clone());
+                                        }
+                                        if let Some(rpc) = &rpc {
+                                            rpc.provide_promise(signed);
+                                        }
+                                    }
+                                    Err(err) => {
+                                        log::warn!("failed to sign reply promise: {err}");
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
                 Event::Network(event) => {

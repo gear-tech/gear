@@ -143,10 +143,18 @@ pub enum ComputeEvent {
     /// post-execution state persisted to the DB. Indexed by the
     /// consensus envelope hash (Blake2b over
     /// `ethexe_malachite_core::Block`).
+    ///
+    /// `promises` carries every reply promise the runtime emitted
+    /// during this block's execution (one per injected transaction
+    /// whose dispatch terminated in a reply). The producer node uses
+    /// these to sign + gossip `SignedPromise`s; non-producer nodes
+    /// emit the same vector for symmetry but the caller is expected
+    /// to ignore them.
     #[unwrap(ignore)]
     MbComputed {
         mb_hash: H256,
         height: u64,
+        promises: Vec<Promise>,
     },
 }
 

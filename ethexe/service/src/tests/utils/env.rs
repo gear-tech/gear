@@ -1152,10 +1152,8 @@ impl Node {
             }
         };
 
-        let validator_address = self
-            .validator_config
-            .as_ref()
-            .map(|c| c.public_key.to_address());
+        let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
+        let validator_address = validator_pub_key.map(|key| key.to_address());
 
         // Boot a real Malachite engine for every validator in the
         // test env. Genesis lists every validator's pub_key (so each
@@ -1261,6 +1259,7 @@ impl Node {
             sender,
             self.fast_sync,
             validator_address,
+            validator_pub_key,
         )
         .await
         .expect("Failed to construct test service");

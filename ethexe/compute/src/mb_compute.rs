@@ -47,6 +47,7 @@ use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubServic
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
     db::{CodesStorageRW, MbStorageRO, MbStorageRW},
+    injected::Promise,
     mb::Transactions,
 };
 use ethexe_db::Database;
@@ -57,6 +58,7 @@ use std::{
     collections::VecDeque,
     task::{Context, Poll},
 };
+use tokio::sync::mpsc;
 
 /// Single MB-execution request queued up for the sub-service.
 ///
@@ -73,10 +75,15 @@ pub(crate) struct MbComputeRequest {
 
 /// Successful completion payload — the values a [`ComputeEvent::MbComputed`]
 /// needs to carry upward.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct MbComputeOk {
     mb_hash: H256,
     height: u64,
+    /// Reply promises emitted by the runtime during this MB's
+    /// execution (and during any predecessor MBs walked here for
+    /// crash-recovery). Producer-side service signs + gossips them;
+    /// non-producer nodes simply discard.
+    promises: Vec<Promise>,
 }
 
 type ComputationFuture = BoxFuture<'static, Result<MbComputeOk>>;
@@ -117,6 +124,7 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             return Ok(MbComputeOk {
                 mb_hash: target_hash,
                 height: target_height,
+                promises: Vec::new(),
             });
         }
 
@@ -136,18 +144,28 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             );
         }
 
+        let mut promises: Vec<Promise> = Vec::new();
         for (height, hash, txs) in predecessors {
-            Self::compute_one(&db, &mut processor, height, hash, txs).await?;
+            Self::compute_one(&db, &mut processor, height, hash, txs, &mut promises).await?;
         }
 
         let target_txs = db
             .transactions(target_compact.transactions_hash)
             .ok_or(ComputeError::MbBlockNotFound(target_hash))?;
-        Self::compute_one(&db, &mut processor, target_height, target_hash, target_txs).await?;
+        Self::compute_one(
+            &db,
+            &mut processor,
+            target_height,
+            target_hash,
+            target_txs,
+            &mut promises,
+        )
+        .await?;
 
         Ok(MbComputeOk {
             mb_hash: target_hash,
             height: target_height,
+            promises,
         })
     }
 
@@ -157,6 +175,7 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
         mb_height: u64,
         mb_hash: H256,
         block: Transactions,
+        promises_sink: &mut Vec<Promise>,
     ) -> Result<()> {
         // Parent linkage lives in `mb_compact_block`, populated by the
         // malachite service before BlockProposal fires for `mb_hash`.
@@ -200,16 +219,28 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             block.len(),
         );
 
+        // The runtime sends a [`Promise`] through this channel for
+        // every injected dispatch that completes with a reply
+        // (`ext_publish_promise` host fn). The sender is moved into
+        // the executor and cloned per worker — once
+        // `process_transitions` returns, every clone has been
+        // dropped, so the receiver's `recv` loop terminates as soon
+        // as it drains the buffered messages.
+        let (promise_tx, mut promise_rx) = mpsc::unbounded_channel();
         let processing_result = processor
             .process_transitions(
                 initial_program_states,
                 initial_schedule,
                 synthetic_block,
                 block.0,
-                None,
+                Some(promise_tx),
                 initial_advanced_block,
             )
             .await?;
+
+        while let Some(promise) = promise_rx.recv().await {
+            promises_sink.push(promise);
+        }
 
         let FinalizedBlockTransitions {
             transitions,
@@ -296,6 +327,7 @@ impl<P: ProcessorExt> SubService for MbComputeSubService<P> {
             return Poll::Ready(result.map(|ok| ComputeEvent::MbComputed {
                 mb_hash: ok.mb_hash,
                 height: ok.height,
+                promises: ok.promises,
             }));
         }
 
@@ -379,9 +411,14 @@ mod tests {
 
         let event = sub.next().await.unwrap();
         match event {
-            ComputeEvent::MbComputed { mb_hash, height } => {
+            ComputeEvent::MbComputed {
+                mb_hash,
+                height,
+                promises,
+            } => {
                 assert_eq!(mb_hash, tail_hash);
                 assert_eq!(height, tail_height);
+                assert!(promises.is_empty());
             }
             other => panic!("expected MbComputed, got {other:?}"),
         }
@@ -414,9 +451,14 @@ mod tests {
 
         let event = sub.next().await.unwrap();
         match event {
-            ComputeEvent::MbComputed { mb_hash: out, height } => {
+            ComputeEvent::MbComputed {
+                mb_hash: out,
+                height,
+                promises,
+            } => {
                 assert_eq!(out, mb_hash);
                 assert_eq!(height, 1);
+                assert!(promises.is_empty());
             }
             other => panic!("expected MbComputed, got {other:?}"),
         }
