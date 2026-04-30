@@ -42,13 +42,7 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
         );
         initialize_empty_db(config, &db).await?;
     } else {
-        let db_version = db.kv.version()?;
-
-        ensure!(
-            db_version != Some(0),
-            "Database at version 0 must not have config, but we found it. Consider to clean up database"
-        );
-        let db_version = db_version.unwrap_or(0);
+        let db_version = db.kv.version()?.context("Version not found")?;
 
         ensure!(
             db_version == LATEST_VERSION,

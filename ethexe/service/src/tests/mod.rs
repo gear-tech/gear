@@ -32,9 +32,18 @@ use std::collections::HashSet;
 use crate::tests::utils::{
     EnvNetworkConfig, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig, init_logger,
 };
+use alloy::{
+    primitives::U256,
+    providers::{Provider, WalletProvider, ext::AnvilApi},
+};
 use ethexe_common::db::CodesStorageRO;
+use ethexe_ethereum::TryGetReceipt;
+use ethexe_runtime_common::state::Storage;
 use gear_core::message::{ReplyCode, SuccessReplyReason};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::Encode;
+
+const ETHER: u128 = 1_000_000_000_000_000_000;
 
 #[tokio::test]
 #[ntest::timeout(60_000)]
@@ -115,6 +124,8 @@ async fn ping() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.payload, b"");
     assert_eq!(res.value, 0);
+
+    node.stop_service().await;
 }
 
 /// Minimal multi-validator smoke: 3 validators, single ping round-trip.
@@ -168,6 +179,10 @@ async fn multiple_validators_ping() {
         .unwrap();
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
     assert_eq!(res.payload, b"PONG");
+
+    for v in validators.iter_mut() {
+        v.stop_service().await;
+    }
 }
 
 /// Multi-validator end-to-end smoke. Boots four validators, runs
@@ -427,6 +442,1015 @@ async fn whole_network_restore() {
     assert!(seen_messages.insert(init_res.message_id));
 }
 
+#[tokio::test]
+#[ntest::timeout(30_000)]
+async fn invalid_code() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let wasm_binary = [1; 10]; // Invalid WASM binary
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(!res.valid);
+
+    // Graceful shutdown so the malachite engine releases its
+    // RocksDB lock + libp2p listener — without this nextest's leak
+    // detector flags the test as leaky on fast paths.
+    node.stop_service().await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn write_memory_to_last_byte() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let wat = r#"
+(module
+    (import "env" "memory" (memory 32768))
+    (export "init" (func $init))
+    (func $init
+        (i32.store8
+            (i32.const 2147483647)
+            (i32.const 0xff)
+        )
+    )
+)"#;
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse module");
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, wasm_binary);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, &[])
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(res.payload.is_empty());
+    assert_eq!(res.value, 0);
+
+    node.stop_service().await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn value_send_program_to_program() {
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    // Send init message to value receiver program (demo_ping)
+    let _ = env
+        .send_message(res.program_id, &[])
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let value_receiver_id = res.program_id;
+    let value_receiver = env
+        .ethereum
+        .mirror(value_receiver_id.to_address_lossy().into());
+
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
+    assert_eq!(value_receiver_on_eth_balance, 0);
+
+    let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
+    let value_receiver_local_balance = node
+        .db
+        .program_state(value_receiver_state_hash)
+        .unwrap()
+        .balance;
+    assert_eq!(value_receiver_local_balance, 0);
+
+    let res = env
+        .upload_code(demo_value_sender_ethexe::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    // Send init message to value sender program with value to be sent to value receiver
+    let res = env
+        .send_message_with_params(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.value, 0);
+
+    let value_sender_id = res.program_id;
+    let value_sender = env
+        .ethereum
+        .mirror(value_sender_id.to_address_lossy().into());
+
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
+    assert_eq!(value_sender_on_eth_balance, VALUE_SENT);
+
+    let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
+    let value_sender_local_balance = node
+        .db
+        .program_state(value_sender_state_hash)
+        .unwrap()
+        .balance;
+    assert_eq!(value_sender_local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.value, 0);
+
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
+    assert_eq!(value_sender_on_eth_balance, 0);
+
+    let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
+    let value_sender_local_balance = node
+        .db
+        .program_state(value_sender_state_hash)
+        .unwrap()
+        .balance;
+    assert_eq!(value_sender_local_balance, 0);
+
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
+    assert_eq!(value_receiver_on_eth_balance, VALUE_SENT);
+
+    let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
+    let value_receiver_local_balance = node
+        .db
+        .program_state(value_receiver_state_hash)
+        .unwrap()
+        .balance;
+    assert_eq!(value_receiver_local_balance, VALUE_SENT);
+
+    // get router balance
+    let router_address = env.ethereum.router().address();
+    let router_balance = env
+        .ethereum
+        .provider()
+        .get_balance(router_address.into())
+        .await
+        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
+        .unwrap();
+
+    assert_eq!(router_balance, 0);
+
+    node.stop_service().await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn ping_deep_sync() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+    assert_eq!(init_res.payload, b"PONG");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(
+        init_res.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+
+    let ping_id = res.program_id;
+
+    node.stop_service().await;
+
+    env.skip_blocks(150).await;
+
+    let send_message = env.send_message(ping_id, b"PING").await.unwrap();
+
+    env.skip_blocks(150).await;
+
+    node.start_service().await;
+
+    // Important: mine one block to sent block event to the started service.
+    env.force_new_block().await;
+
+    let res = send_message.wait_for().await.unwrap();
+    assert_eq!(res.program_id, ping_id);
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+
+    node.stop_service().await;
+}
+
+#[tokio::test]
+#[ntest::timeout(240_000)]
+async fn many_validators_repeated_ping() {
+    init_logger();
+
+    const VALIDATORS_COUNT: usize = 16;
+    const PING_ROUNDS: usize = 4;
+
+    log::info!(
+        "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
+    );
+
+    let signer = Signer::memory();
+    let validators: Vec<_> = (0..VALIDATORS_COUNT)
+        .map(|_| signer.generate().expect("must generate validator key"))
+        .collect();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::ProvidedValidators(validators),
+        network: EnvNetworkConfig::Enabled,
+        signer: signer.clone(),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("📗 Top-up balances for all validator accounts");
+    let validator_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    for validator in &env.validators {
+        env.provider
+            .anvil_set_balance(validator.public_key.to_address().into(), validator_balance)
+            .await
+            .unwrap();
+    }
+
+    let mut running_validators = Vec::with_capacity(VALIDATORS_COUNT);
+    for (i, validator_cfg) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut node = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg))
+            .await;
+        node.start_service().await;
+        running_validators.push(node);
+    }
+
+    log::info!("📗 Upload demo_ping code");
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    log::info!("📗 Create demo_ping program");
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_id = program.program_id;
+    for i in 0..PING_ROUNDS {
+        log::info!("📗 PING round {}/{}", i + 1, PING_ROUNDS);
+        let reply = env
+            .send_message(ping_id, b"PING")
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            reply.program_id, ping_id,
+            "unexpected program for round {i}"
+        );
+        assert_eq!(
+            reply.code,
+            ReplyCode::Success(SuccessReplyReason::Manual),
+            "unexpected reply code for round {i}"
+        );
+        assert_eq!(reply.payload, b"PONG", "unexpected payload for round {i}");
+        assert_eq!(reply.value, 0, "unexpected value for round {i}");
+    }
+
+    log::info!("📗 Completed all ping rounds successfully");
+
+    assert_eq!(running_validators.len(), VALIDATORS_COUNT);
+
+    for v in running_validators.iter_mut() {
+        v.stop_service().await;
+    }
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn incoming_transfers() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, &env.sender_id.encode())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
+
+    let on_eth_balance = ping.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    // Force the validator to advance past the top-up Eth event by
+    // sending a PING and waiting for its reply. By the time the
+    // reply lands, every prior Eth event (including the top-up
+    // we just submitted) has been folded into a finalised MB and
+    // the resulting batch committed on-chain.
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+
+    let on_eth_balance = ping.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message_with_params(ping_id, b"PING", VALUE_SENT)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.value, 0);
+
+    let on_eth_balance = ping.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 2 * VALUE_SENT);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 2 * VALUE_SENT);
+
+    node.stop_service().await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn value_reply_program_to_user() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let piggy_bank_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    // Force the validator to advance past the top-up Eth event by
+    // sending a no-op `b""` message and waiting for its reply. By
+    // the time the reply lands, the deposit has been folded into a
+    // finalised MB and committed on-chain.
+    let res = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message(piggy_bank_id, b"smash_with_reply")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.value, VALUE_SENT);
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    let sender_address = env.ethereum.provider().default_signer_address();
+    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
+    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    let balance = env
+        .ethereum
+        .provider()
+        .get_balance(sender_address)
+        .await
+        .unwrap();
+    assert!(default_anvil_balance - balance <= measurement_error);
+
+    node.stop_service().await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn value_send_program_to_user_and_claimed() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let piggy_bank_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    // Force the validator to fold the deposit into a finalised
+    // MB by sending a no-op message and waiting for the reply.
+    let res = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message(piggy_bank_id, b"smash")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.value, 0);
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    let router_address = env.ethereum.router().address();
+    let router_balance = env
+        .ethereum
+        .provider()
+        .get_balance(router_address.into())
+        .await
+        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
+        .unwrap();
+
+    assert_eq!(router_balance, VALUE_SENT);
+
+    let sender_address = env.ethereum.provider().default_signer_address();
+
+    let program_state = node.db.program_state(state_hash).unwrap();
+    let mailbox = node
+        .db
+        .mailbox(program_state.mailbox_hash.to_inner().unwrap())
+        .unwrap();
+    let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
+    let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
+
+    piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
+
+    // Force-process the claim by sending a follow-up no-op message
+    // through the program. Once its reply lands, the claim has been
+    // executed in the executor and committed to the mirror.
+    let _ = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
+    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    let balance = env
+        .ethereum
+        .provider()
+        .get_balance(sender_address)
+        .await
+        .unwrap();
+    assert!(default_anvil_balance - balance <= measurement_error);
+
+    node.stop_service().await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn value_send_program_to_user_and_replied() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let piggy_bank_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    // Force-fold the deposit into the next finalised MB.
+    let res = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message(piggy_bank_id, b"smash")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.value, 0);
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    let router_address = env.ethereum.router().address();
+    let router_balance = env
+        .ethereum
+        .provider()
+        .get_balance(router_address.into())
+        .await
+        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
+        .unwrap();
+
+    assert_eq!(router_balance, VALUE_SENT);
+
+    let sender_address = env.ethereum.provider().default_signer_address();
+
+    let program_state = node.db.program_state(state_hash).unwrap();
+    let mailbox = node
+        .db
+        .mailbox(program_state.mailbox_hash.to_inner().unwrap())
+        .unwrap();
+    let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
+    let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
+
+    piggy_bank
+        .send_reply(mailboxed_msg_id, "", 0)
+        .await
+        .unwrap();
+
+    // Force-process the reply by sending a follow-up no-op message.
+    let _ = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
+    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    let balance = env
+        .ethereum
+        .provider()
+        .get_balance(sender_address)
+        .await
+        .unwrap();
+    assert!(default_anvil_balance - balance <= measurement_error);
+
+    node.stop_service().await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn reply_callback() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_reply_callback::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, demo_reply_callback::WASM_BINARY);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.payload, b"");
+    assert_eq!(res.value, 0);
+
+    let program_id = res.program_id;
+
+    let provider = env.ethereum.provider();
+    let demo_caller = ethexe_ethereum::abi::IDemoCaller::deploy(provider.clone(), program_id.into())
+        .await
+        .expect("deploying DemoCaller failed");
+
+    assert!(!demo_caller.replyOnMethodNameCalled().call().await.unwrap());
+
+    demo_caller
+        .methodName(false)
+        .send()
+        .await
+        .unwrap()
+        .try_get_receipt()
+        .await
+        .unwrap();
+
+    // Force the validator to fold the demo_caller's call (and the
+    // resulting reply back into the contract) into a finalised MB
+    // by sending a no-op message + wait_for_reply.
+    let _ = env
+        .send_message(program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(demo_caller.replyOnMethodNameCalled().call().await.unwrap());
+
+    assert!(!demo_caller.onErrorReplyCalled().call().await.unwrap());
+
+    demo_caller
+        .methodName(true)
+        .send()
+        .await
+        .unwrap()
+        .try_get_receipt()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
+
+    node.stop_service().await;
+}
+
 #[cfg(any())]
 mod disabled_until_mb_test_harness_lands {
 
@@ -508,177 +1532,6 @@ mod disabled_until_mb_test_harness_lands {
                 .commit(batch, signatures)
                 .await
         }
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(30_000)]
-    async fn invalid_code() {
-        init_logger();
-
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let wasm_binary = [1; 10]; // Invalid WASM binary
-        let res = env
-            .upload_code(&wasm_binary)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert!(!res.valid);
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn write_memory_to_last_byte() {
-        init_logger();
-
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let wat = r#"
-(module
-    (import "env" "memory" (memory 32768))
-    (export "init" (func $init))
-    (func $init
-        (i32.store8
-            (i32.const 2147483647)
-            (i32.const 0xff)
-        )
-    )
-)"#;
-        let wasm_binary = wat::parse_str(wat).expect("failed to parse module");
-        let res = env
-            .upload_code(&wasm_binary)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert!(res.valid);
-
-        let code_id = res.code_id;
-
-        let code = node
-            .db
-            .original_code(code_id)
-            .expect("After approval, the code is guaranteed to be in the database");
-        assert_eq!(code, wasm_binary);
-
-        let _ = node
-            .db
-            .instrumented_code(1, code_id)
-            .expect("After approval, instrumented code is guaranteed to be in the database");
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert_eq!(res.code_id, code_id);
-
-        let res = env
-            .send_message(res.program_id, &[])
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-        assert!(res.payload.is_empty());
-        assert_eq!(res.value, 0);
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn ping() {
-        init_logger();
-
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let res = env
-            .upload_code(demo_ping::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert!(res.valid);
-
-        let code_id = res.code_id;
-
-        let code = node
-            .db
-            .original_code(code_id)
-            .expect("After approval, the code is guaranteed to be in the database");
-        assert_eq!(code, demo_ping::WASM_BINARY);
-
-        let _ = node
-            .db
-            .instrumented_code(1, code_id)
-            .expect("After approval, instrumented code is guaranteed to be in the database");
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert_eq!(res.code_id, code_id);
-
-        let res = env
-            .send_message(res.program_id, b"PING")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-        assert_eq!(res.payload, b"PONG");
-        assert_eq!(res.value, 0);
-
-        let ping_id = res.program_id;
-
-        let res = env
-            .send_message(ping_id, b"PING")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert_eq!(res.program_id, ping_id);
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-        assert_eq!(res.payload, b"PONG");
-        assert_eq!(res.value, 0);
-
-        let res = env
-            .send_message(ping_id, b"PUNK")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert_eq!(res.program_id, ping_id);
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-        assert_eq!(res.payload, b"");
-        assert_eq!(res.value, 0);
     }
 
     #[tokio::test]
@@ -1081,377 +1934,8 @@ mod disabled_until_mb_test_harness_lands {
         assert!(schedule.is_empty(), "{schedule:?}");
     }
 
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn value_reply_program_to_user() {
-        init_logger();
 
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let res = env
-            .upload_code(demo_piggy_bank::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let code_id = res.code_id;
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let _ = env
-            .send_message(res.program_id, b"")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let piggy_bank_id = res.program_id;
-
-        let wvara = env.ethereum.router().wvara();
-
-        assert_eq!(wvara.query().decimals().await.unwrap(), 12);
-
-        let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
-
-        let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, 0);
-
-        let state_hash = piggy_bank.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, 0);
-
-        // 1_000 ETH
-        const VALUE_SENT: u128 = 1_000 * ETHER;
-
-        let receiver = env.new_observer_events();
-
-        piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
-
-        receiver
-            .filter_map_block_synced()
-            .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
-            .await;
-
-        let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, VALUE_SENT);
-
-        let state_hash = piggy_bank.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, VALUE_SENT);
-
-        let res = env
-            .send_message(piggy_bank_id, b"smash_with_reply")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-        assert_eq!(res.value, VALUE_SENT);
-
-        let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, 0);
-
-        let state_hash = piggy_bank.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, 0);
-
-        let sender_address = env.ethereum.provider().default_signer_address();
-        let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
-        let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-        let balance = env
-            .ethereum
-            .provider()
-            .get_balance(sender_address)
-            .await
-            .unwrap();
-        assert!(default_anvil_balance - balance <= measurement_error);
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn value_send_program_to_user_and_claimed() {
-        init_logger();
-
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let res = env
-            .upload_code(demo_piggy_bank::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let code_id = res.code_id;
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let _ = env
-            .send_message(res.program_id, b"")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let piggy_bank_id = res.program_id;
-
-        let wvara = env.ethereum.router().wvara();
-
-        assert_eq!(wvara.query().decimals().await.unwrap(), 12);
-
-        let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
-
-        let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, 0);
-
-        let state_hash = piggy_bank.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, 0);
-
-        // 1_000 ETH
-        const VALUE_SENT: u128 = 1_000 * ETHER;
-
-        let receiver = env.new_observer_events();
-
-        piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
-
-        receiver
-            .clone()
-            .filter_map_block_synced()
-            .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
-            .await;
-
-        let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, VALUE_SENT);
-
-        let state_hash = piggy_bank.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, VALUE_SENT);
-
-        let res = env
-            .send_message(piggy_bank_id, b"smash")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-        assert_eq!(res.value, 0);
-
-        let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, 0);
-
-        let state_hash = piggy_bank.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, 0);
-
-        let router_address = env.ethereum.router().address();
-        let router_balance = env
-            .ethereum
-            .provider()
-            .get_balance(router_address.into())
-            .await
-            .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-            .unwrap();
-
-        assert_eq!(router_balance, VALUE_SENT);
-
-        let sender_address = env.ethereum.provider().default_signer_address();
-
-        let program_state = node.db.program_state(state_hash).unwrap();
-        let mailbox = node
-            .db
-            .mailbox(program_state.mailbox_hash.to_inner().unwrap())
-            .unwrap();
-        let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
-        let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
-
-        piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
-
-        receiver
-            .filter_map_block_synced()
-            .find(|e| {
-                matches!(e, BlockEvent::Mirror {
-                actor_id,
-                event: MirrorEvent::ValueClaimed ( ValueClaimedEvent { claimed_id, .. } ),
-            } if *actor_id == piggy_bank_id && *claimed_id == mailboxed_msg_id)
-            })
-            .await;
-
-        let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
-        let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-        let balance = env
-            .ethereum
-            .provider()
-            .get_balance(sender_address)
-            .await
-            .unwrap();
-        assert!(default_anvil_balance - balance <= measurement_error);
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn value_send_program_to_user_and_replied() {
-        init_logger();
-
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let res = env
-            .upload_code(demo_piggy_bank::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let code_id = res.code_id;
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let _ = env
-            .send_message(res.program_id, b"")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let piggy_bank_id = res.program_id;
-
-        let wvara = env.ethereum.router().wvara();
-
-        assert_eq!(wvara.query().decimals().await.unwrap(), 12);
-
-        let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
-
-        let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, 0);
-
-        let state_hash = piggy_bank.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, 0);
-
-        // 1_000 ETH
-        const VALUE_SENT: u128 = 1_000 * ETHER;
-
-        let receiver = env.new_observer_events();
-
-        piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
-
-        receiver
-            .clone()
-            .filter_map_block_synced()
-            .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
-            .await;
-
-        let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, VALUE_SENT);
-
-        let state_hash = piggy_bank.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, VALUE_SENT);
-
-        let res = env
-            .send_message(piggy_bank_id, b"smash")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-        assert_eq!(res.value, 0);
-
-        let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, 0);
-
-        let state_hash = piggy_bank.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, 0);
-
-        let router_address = env.ethereum.router().address();
-        let router_balance = env
-            .ethereum
-            .provider()
-            .get_balance(router_address.into())
-            .await
-            .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-            .unwrap();
-
-        assert_eq!(router_balance, VALUE_SENT);
-
-        let sender_address = env.ethereum.provider().default_signer_address();
-
-        let program_state = node.db.program_state(state_hash).unwrap();
-        let mailbox = node
-            .db
-            .mailbox(program_state.mailbox_hash.to_inner().unwrap())
-            .unwrap();
-        let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
-        let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
-
-        piggy_bank
-            .send_reply(mailboxed_msg_id, "", 0)
-            .await
-            .unwrap();
-
-        receiver
-            .filter_map_block_synced()
-            .find(|e| {
-                matches!(e, BlockEvent::Mirror {
-                actor_id,
-                event: MirrorEvent::ValueClaimed ( ValueClaimedEvent { claimed_id, .. } ),
-            } if *actor_id == piggy_bank_id && *claimed_id == mailboxed_msg_id)
-            })
-            .await;
-
-        let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
-        let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-        let balance = env
-            .ethereum
-            .provider()
-            .get_balance(sender_address)
-            .await
-            .unwrap();
-        assert!(default_anvil_balance - balance <= measurement_error);
-    }
 
     #[tokio::test]
     #[ntest::timeout(60_000)]
@@ -1577,96 +2061,6 @@ mod disabled_until_mb_test_harness_lands {
                 .all(|message| message.payload == b"PONG"),
             "expected both outgoing messages to be PONG replies"
         );
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn incoming_transfers() {
-        init_logger();
-
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let res = env
-            .upload_code(demo_ping::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let code_id = res.code_id;
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let _ = env
-            .send_message(res.program_id, &env.sender_id.encode())
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let ping_id = res.program_id;
-
-        let wvara = env.ethereum.router().wvara();
-
-        assert_eq!(wvara.query().decimals().await.unwrap(), 12);
-
-        let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
-
-        let on_eth_balance = ping.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, 0);
-
-        let state_hash = ping.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, 0);
-
-        // 1_000 ETH
-        const VALUE_SENT: u128 = 1_000 * ETHER;
-
-        let observer_events = env.new_observer_events();
-
-        ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
-
-        observer_events
-            .filter_map_block_synced()
-            .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
-            .await;
-
-        let on_eth_balance = ping.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, VALUE_SENT);
-
-        let state_hash = ping.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, VALUE_SENT);
-
-        let res = env
-            .send_message_with_params(ping_id, b"PING", VALUE_SENT)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-        assert_eq!(res.value, 0);
-
-        let on_eth_balance = ping.query().balance().await.unwrap();
-        assert_eq!(on_eth_balance, 2 * VALUE_SENT);
-
-        let state_hash = ping.query().state_hash().await.unwrap();
-        let local_balance = node.db.program_state(state_hash).unwrap().balance;
-        assert_eq!(local_balance, 2 * VALUE_SENT);
     }
 
     #[tokio::test]
@@ -1798,73 +2192,6 @@ mod disabled_until_mb_test_harness_lands {
 
     // Stop service - waits 150 blocks - send message - waits 150 blocks - start service.
     // Deep sync must load chain in batch.
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn ping_deep_sync() {
-        init_logger();
-
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let res = env
-            .upload_code(demo_ping::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert!(res.valid);
-
-        let code_id = res.code_id;
-
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        let init_res = env
-            .send_message(res.program_id, b"PING")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert_eq!(res.code_id, code_id);
-        assert_eq!(init_res.payload, b"PONG");
-        assert_eq!(init_res.value, 0);
-        assert_eq!(
-            init_res.code,
-            ReplyCode::Success(SuccessReplyReason::Manual)
-        );
-
-        let ping_id = res.program_id;
-
-        node.stop_service().await;
-
-        env.skip_blocks(150).await;
-
-        let send_message = env.send_message(ping_id, b"PING").await.unwrap();
-
-        env.skip_blocks(150).await;
-
-        node.start_service().await;
-
-        // Important: mine one block to sent block event to the started service.
-        env.force_new_block().await;
-
-        let res = send_message.wait_for().await.unwrap();
-        assert_eq!(res.program_id, ping_id);
-        assert_eq!(res.payload, b"PONG");
-        assert_eq!(res.value, 0);
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-    }
-
     #[tokio::test]
     #[ntest::timeout(60_000)]
     async fn multiple_validators() {
@@ -2051,98 +2378,6 @@ mod disabled_until_mb_test_harness_lands {
 
         let res = wait_for_reply_to.wait_for().await.unwrap();
         assert_eq!(res.payload, res.message_id.encode().as_slice());
-    }
-
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn many_validators_repeated_ping() {
-        init_logger();
-
-        const VALIDATORS_COUNT: usize = 16;
-        const PING_ROUNDS: usize = 4;
-
-        log::info!(
-            "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
-        );
-
-        let signer = Signer::memory();
-        let validators: Vec<_> = (0..VALIDATORS_COUNT)
-            .map(|_| signer.generate().expect("must generate validator key"))
-            .collect();
-
-        let config = TestEnvConfig {
-            validators: ValidatorsConfig::ProvidedValidators(validators),
-            network: EnvNetworkConfig::Enabled,
-            signer: signer.clone(),
-            ..Default::default()
-        };
-        let mut env = TestEnv::new(config).await.unwrap();
-
-        log::info!("📗 Top-up balances for all validator accounts");
-        let validator_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-        for validator in &env.validators {
-            env.provider
-                .anvil_set_balance(validator.public_key.to_address().into(), validator_balance)
-                .await
-                .unwrap();
-        }
-
-        let mut running_validators = Vec::with_capacity(VALIDATORS_COUNT);
-        for (i, validator_cfg) in env.validators.clone().into_iter().enumerate() {
-            log::info!("📗 Starting validator-{i}");
-            let mut node = env
-                .new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg))
-                .await;
-            node.start_service().await;
-            running_validators.push(node);
-        }
-
-        log::info!("📗 Upload demo_ping code");
-        let uploaded_code = env
-            .upload_code(demo_ping::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert!(uploaded_code.valid);
-
-        log::info!("📗 Create demo_ping program");
-        let program = env
-            .create_program(uploaded_code.code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let ping_id = program.program_id;
-        for i in 0..PING_ROUNDS {
-            log::info!("📗 PING round {}/{}", i + 1, PING_ROUNDS);
-            let reply = env
-                .send_message(ping_id, b"PING")
-                .await
-                .unwrap()
-                .wait_for()
-                .await
-                .unwrap();
-
-            assert_eq!(
-                reply.program_id, ping_id,
-                "unexpected program for round {i}"
-            );
-            assert_eq!(
-                reply.code,
-                ReplyCode::Success(SuccessReplyReason::Manual),
-                "unexpected reply code for round {i}"
-            );
-            assert_eq!(reply.payload, b"PONG", "unexpected payload for round {i}");
-            assert_eq!(reply.value, 0, "unexpected value for round {i}");
-        }
-
-        log::info!("📗 Completed all ping rounds successfully");
-
-        assert_eq!(running_validators.len(), VALIDATORS_COUNT);
     }
 
     #[tokio::test]
@@ -2729,153 +2964,6 @@ mod disabled_until_mb_test_harness_lands {
         );
     }
 
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn value_send_program_to_program() {
-        // 1_000 ETH
-        const VALUE_SENT: u128 = 1_000 * ETHER;
-
-        init_logger();
-
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let res = env
-            .upload_code(demo_ping::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let code_id = res.code_id;
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        // Send init message to value receiver program (demo_ping)
-        let _ = env
-            .send_message(res.program_id, &[])
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let value_receiver_id = res.program_id;
-        let value_receiver = env
-            .ethereum
-            .mirror(value_receiver_id.to_address_lossy().into());
-
-        let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
-        assert_eq!(value_receiver_on_eth_balance, 0);
-
-        let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
-        let value_receiver_local_balance = node
-            .db
-            .program_state(value_receiver_state_hash)
-            .unwrap()
-            .balance;
-        assert_eq!(value_receiver_local_balance, 0);
-
-        let res = env
-            .upload_code(demo_value_sender_ethexe::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let code_id = res.code_id;
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        // Send init message to value sender program with value to be sent to value receiver
-        let res = env
-            .send_message_with_params(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-        assert_eq!(res.value, 0);
-
-        let value_sender_id = res.program_id;
-        let value_sender = env
-            .ethereum
-            .mirror(value_sender_id.to_address_lossy().into());
-
-        let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
-        assert_eq!(value_sender_on_eth_balance, VALUE_SENT);
-
-        let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
-        let value_sender_local_balance = node
-            .db
-            .program_state(value_sender_state_hash)
-            .unwrap()
-            .balance;
-        assert_eq!(value_sender_local_balance, VALUE_SENT);
-
-        let res = env
-            .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode())
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-        assert_eq!(res.value, 0);
-
-        let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
-        assert_eq!(value_sender_on_eth_balance, 0);
-
-        let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
-        let value_sender_local_balance = node
-            .db
-            .program_state(value_sender_state_hash)
-            .unwrap()
-            .balance;
-        assert_eq!(value_sender_local_balance, 0);
-
-        let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
-        assert_eq!(value_receiver_on_eth_balance, VALUE_SENT);
-
-        let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
-        let value_receiver_local_balance = node
-            .db
-            .program_state(value_receiver_state_hash)
-            .unwrap()
-            .balance;
-        assert_eq!(value_receiver_local_balance, VALUE_SENT);
-
-        // get router balance
-        let router_address = env.ethereum.router().address();
-        let router_balance = env
-            .ethereum
-            .provider()
-            .get_balance(router_address.into())
-            .await
-            .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-            .unwrap();
-
-        assert_eq!(router_balance, 0);
-    }
 
     #[tokio::test]
     #[ntest::timeout(60_000)]
@@ -3964,103 +4052,6 @@ mod disabled_until_mb_test_harness_lands {
         }
     }
 
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn reply_callback() {
-        init_logger();
-
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-        let mut node = env
-            .new_node(NodeConfig::default().validator(env.validators[0]))
-            .await;
-        node.start_service().await;
-
-        let res = env
-            .upload_code(demo_reply_callback::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert!(res.valid);
-
-        let code_id = res.code_id;
-
-        let code = node
-            .db
-            .original_code(code_id)
-            .expect("After approval, the code is guaranteed to be in the database");
-        assert_eq!(code, demo_reply_callback::WASM_BINARY);
-
-        let _ = node
-            .db
-            .instrumented_code(1, code_id)
-            .expect("After approval, instrumented code is guaranteed to be in the database");
-        let res = env
-            .create_program(code_id, 500_000_000_000_000)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-        assert_eq!(res.code_id, code_id);
-
-        let res = env
-            .send_message(res.program_id, b"")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-        assert_eq!(res.payload, b"");
-        assert_eq!(res.value, 0);
-
-        let program_id = res.program_id;
-
-        let provider = env.ethereum.provider();
-        let demo_caller = IDemoCaller::deploy(provider.clone(), program_id.into())
-            .await
-            .expect("deploying DemoCaller failed");
-
-        assert!(!demo_caller.replyOnMethodNameCalled().call().await.unwrap());
-
-        demo_caller
-            .methodName(false)
-            .send()
-            .await
-            .unwrap()
-            .try_get_receipt()
-            .await
-            .unwrap();
-
-        env.new_observer_events()
-            .filter_map_block_synced()
-            .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
-            .await;
-
-        assert!(demo_caller.replyOnMethodNameCalled().call().await.unwrap());
-
-        assert!(!demo_caller.onErrorReplyCalled().call().await.unwrap());
-
-        demo_caller
-            .methodName(true)
-            .send()
-            .await
-            .unwrap()
-            .try_get_receipt()
-            .await
-            .unwrap();
-
-        env.new_observer_events()
-            .filter_map_block_synced()
-            .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
-            .await;
-
-        assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
-    }
 
     #[tokio::test]
     #[ntest::timeout(60_000)]
