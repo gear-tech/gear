@@ -1,0 +1,45 @@
+name: retry-cmd
+description: Run a shell command with exponential-backoff retries on failure.
+
+inputs:
+  command:
+    description: "Shell command(s) to run. Multi-line allowed."
+    required: true
+  attempts:
+    description: "Maximum number of attempts."
+    required: false
+    default: "5"
+  initial-delay:
+    description: "Initial delay between attempts (seconds). Doubles each attempt."
+    required: false
+    default: "5"
+  shell:
+    description: "Shell to use (bash by default)."
+    required: false
+    default: "bash"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        RETRY_CMD: ${{ inputs.command }}
+        RETRY_ATTEMPTS: ${{ inputs.attempts }}
+        RETRY_DELAY: ${{ inputs.initial-delay }}
+        RETRY_SHELL: ${{ inputs.shell }}
+      run: |
+        set -u
+        delay="$RETRY_DELAY"
+        for i in $(seq 1 "$RETRY_ATTEMPTS"); do
+          if "$RETRY_SHELL" -c "$RETRY_CMD"; then
+            exit 0
+          fi
+          rc=$?
+          if [ "$i" -eq "$RETRY_ATTEMPTS" ]; then
+            echo "::error::Command failed after $RETRY_ATTEMPTS attempts (last exit code: $rc)"
+            exit "$rc"
+          fi
+          echo "::warning::Attempt $i/$RETRY_ATTEMPTS failed (exit code: $rc); sleeping ${delay}s before retry"
+          sleep "$delay"
+          delay=$((delay * 2))
+        done
