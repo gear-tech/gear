@@ -409,6 +409,11 @@ pub(crate) mod tests {
         utils::{ConnectionMap, ExponentialBackoffInterval},
     };
     use libp2p::swarm::ConnectionId;
+    use proptest::{
+        arbitrary::Arbitrary,
+        strategy::{Strategy, ValueTree},
+        test_runner::TestRunner,
+    };
     use std::{collections::HashSet, future, time::Duration};
     use tokio::time;
     use tracing_subscriber::EnvFilter;
@@ -421,6 +426,16 @@ pub(crate) mod tests {
             .with_env_filter(EnvFilter::from_default_env())
             .with_test_writer()
             .try_init();
+    }
+
+    pub fn arb_value<T>(args: impl Into<T::Parameters>) -> T
+    where
+        T: Arbitrary + 'static,
+    {
+        T::arbitrary_with(args.into())
+            .new_tree(&mut TestRunner::default())
+            .expect("strategy must produce a value")
+            .current()
     }
 
     #[test]
