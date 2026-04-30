@@ -57,7 +57,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, SimpleBlockData,
-    db::OnChainStorageRO,
+    db::{InjectedStorageRW, OnChainStorageRO},
     gear::CodeState,
     injected::SignedPromise,
     network::VerifiedValidatorMessage,
@@ -868,9 +868,13 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
-                                // Forward to malachite mempool; consensus
-                                // crate no longer participates in injected
-                                // tx routing.
+                                // Persist the tx so the local RPC's
+                                // `injected_getTransactions` can find it
+                                // when clients query, then hand it to the
+                                // malachite mempool — the sequencer pulls
+                                // from the same pool when assembling the
+                                // next MB.
+                                db.set_injected_transaction((*transaction).clone());
                                 if let Some(m) = malachite.as_mut() {
                                     m.receive_injected_transaction((*transaction).clone());
                                 }
@@ -911,9 +915,11 @@ impl Service {
                             let is_our_address = Some(transaction.recipient) == validator_address;
 
                             if is_zero_address || is_our_address {
-                                // Hand the tx to the malachite mempool —
+                                // Persist for `injected_getTransactions`,
+                                // then hand the tx to the malachite mempool —
                                 // sequencer side will pick it up next time
                                 // it produces an MB.
+                                db.set_injected_transaction(transaction.tx.clone());
                                 if let Some(m) = malachite.as_mut() {
                                     m.receive_injected_transaction(transaction.tx.clone());
                                 }

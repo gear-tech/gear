@@ -30,16 +30,22 @@ pub(crate) mod utils;
 use std::collections::HashSet;
 
 use crate::tests::utils::{
-    EnvNetworkConfig, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig, init_logger,
+    EnvNetworkConfig, InfiniteStreamExt, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
+    TestingRpcEvent, ValidatorsConfig, init_logger,
 };
 use alloy::{
     primitives::U256,
     providers::{Provider, WalletProvider, ext::AnvilApi},
 };
-use ethexe_common::db::CodesStorageRO;
+use ethexe_common::{
+    db::{CodesStorageRO, GlobalsStorageRO, InjectedStorageRO},
+    injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
+};
 use ethexe_ethereum::TryGetReceipt;
+use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::Storage;
 use gear_core::message::{ReplyCode, SuccessReplyReason};
+use gprimitives::{ActorId, H160, H256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::Encode;
 
@@ -1449,6 +1455,103 @@ async fn reply_callback() {
     assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
 
     node.stop_service().await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn send_injected_tx() {
+    init_logger();
+
+    let test_env_config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(2),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+
+    // Setup env of 2 nodes, one of them knows about the other one.
+    let mut env = TestEnv::new(test_env_config).await.unwrap();
+
+    let validator0_pubkey = env.validators[0].public_key;
+    let validator1_pubkey = env.validators[1].public_key;
+
+    log::info!("📗 Starting node 0");
+    let mut node0 = env
+        .new_node(
+            NodeConfig::default()
+                .validator(env.validators[0])
+                .service_rpc(9505),
+        )
+        .await;
+    node0.start_service().await;
+
+    log::info!("📗 Starting node 1");
+    let mut node1 = env
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(9506)
+                .validator(env.validators[1]),
+        )
+        .await;
+    node1.start_service().await;
+
+    log::info!("Populate node-0 and node-1 with 2 valid blocks");
+
+    env.force_new_block().await;
+    env.force_new_block().await;
+
+    // Give some time for nodes to process the blocks
+    let reference_block = node0.db.globals().latest_prepared_block_hash;
+
+    // Prepare tx data
+    let tx = InjectedTransaction {
+        destination: ActorId::from(H160::random()),
+        payload: H256::random().0.to_vec().try_into().unwrap(),
+        value: 0,
+        reference_block,
+        salt: vec![1].try_into().unwrap(),
+    };
+
+    let tx_for_node1 = AddressedInjectedTransaction {
+        recipient: validator1_pubkey.to_address(),
+        tx: env
+            .signer
+            .signed_message(validator0_pubkey, tx.clone(), None)
+            .unwrap(),
+    };
+
+    // Send request
+    log::info!("Sending transaction to node-1");
+    let acceptance = node1
+        .rpc_http_client()
+        .unwrap()
+        .send_transaction(tx_for_node1.clone())
+        .await
+        .expect("rpc server is set");
+    assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
+
+    // Tx executable validation takes time, so wait for event.
+    node1
+        .events()
+        .find(|event| {
+            // RPC fan-out emits one InjectedTransaction event per
+            // validator, so match on the v1-targeted one — that's
+            // the one whose recipient equals `tx_for_node1.recipient`.
+            if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
+                && *transaction == tx_for_node1
+            {
+                true
+            } else {
+                false
+            }
+        })
+        .await;
+
+    // Check that node-1 save received tx.
+    let node1_db_tx = node1
+        .db
+        .injected_transaction(tx.to_hash())
+        .expect("tx not found");
+    assert_eq!(node1_db_tx, tx_for_node1.tx);
 }
 
 #[cfg(any())]
