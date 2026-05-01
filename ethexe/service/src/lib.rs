@@ -877,10 +877,24 @@ impl Service {
                                 transaction_hash,
                                 acceptance,
                             } => {
-                                let response_sender = network_injected_txs
-                                    .remove(&transaction_hash)
-                                    .expect("unknown transaction");
-                                let _res = response_sender.send(acceptance);
+                                // The RPC fan-out broadcasts the same
+                                // tx to every other validator with the
+                                // same `transaction_hash`. Each remote
+                                // dispatch reuses the slot in
+                                // `network_injected_txs`, so only the
+                                // last `oneshot::Sender` survives —
+                                // earlier inserts are clobbered and
+                                // their receivers resolve with `Err`,
+                                // which the RPC layer's
+                                // `FuturesUnordered` already handles.
+                                // Treat the late `OutboundAcceptance`
+                                // arrivals as a no-op rather than
+                                // panicking.
+                                if let Some(response_sender) =
+                                    network_injected_txs.remove(&transaction_hash)
+                                {
+                                    let _res = response_sender.send(acceptance);
+                                }
                             }
                         },
                         NetworkEvent::PromiseMessage(promise) => {
