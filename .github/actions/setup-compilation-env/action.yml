@@ -20,18 +20,14 @@ runs:
 
     - name: "Install: macOS aarch64 packages"
       if: runner.os == 'macOS'
-      uses: nick-fields/retry@v3
+      uses: ./.github/actions/retry-cmd
       with:
-        max_attempts: 5
-        retry_wait_seconds: 10
         command: brew install protobuf binaryen
 
     - name: "Install: apt-fast on Linux"
       if: ${{ runner.os == 'Linux' }}
-      uses: nick-fields/retry@v3
+      uses: ./.github/actions/retry-cmd
       with:
-        max_attempts: 5
-        retry_wait_seconds: 10
         command: |
           set -e
           if command -v apt-fast >/dev/null 2>&1; then
@@ -44,10 +40,8 @@ runs:
 
     - name: "Install: Linux packages"
       if: runner.os == 'Linux'
-      uses: nick-fields/retry@v3
+      uses: ./.github/actions/retry-cmd
       with:
-        max_attempts: 5
-        retry_wait_seconds: 10
         command: |
           set -e
           sudo apt-fast update
@@ -55,10 +49,8 @@ runs:
 
     - name: "Install: LLVM on Linux"
       if: ${{ runner.os == 'Linux' }}
-      uses: nick-fields/retry@v3
+      uses: ./.github/actions/retry-cmd
       with:
-        max_attempts: 5
-        retry_wait_seconds: 10
         command: |
           set -e
           wget -O llvm.sh https://apt.llvm.org/llvm.sh
@@ -81,10 +73,8 @@ runs:
 
     - name: "Install: Linux cross compilers and packages"
       if: runner.arch == 'ARM64' && runner.os == 'Linux' && inputs.target == 'x86_64-unknown-linux-gnu'
-      uses: nick-fields/retry@v3
+      uses: ./.github/actions/retry-cmd
       with:
-        max_attempts: 5
-        retry_wait_seconds: 10
         command: |
           set -e
           sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
@@ -117,10 +107,8 @@ runs:
 
     - name: "Install: Windows packages (apt + openssl fetch)"
       if: inputs.target == 'x86_64-pc-windows-msvc'
-      uses: nick-fields/retry@v3
+      uses: ./.github/actions/retry-cmd
       with:
-        max_attempts: 5
-        retry_wait_seconds: 10
         command: |
           set -e
           if ! [[ "${{ runner.os }}" == "Linux" ]]; then
