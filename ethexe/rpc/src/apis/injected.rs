@@ -107,7 +107,7 @@ impl InjectedServer for InjectedApi {
         tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
         self.metrics.send_and_watch_injected_tx_calls.increment(1);
 
-        // Check, that transaction wasn't already send.
+        // Check that the transaction wasn't already sent.
         if self.promise_waiters.get(&tx_hash).is_some() {
             tracing::warn!(tx_hash = ?tx_hash, "transaction was already sent");
             return Err(
@@ -115,15 +115,34 @@ impl InjectedServer for InjectedApi {
             );
         }
 
-        let _acceptance = self.forward_transaction(transaction).await?;
-
-        // Try accept subscription, if some errors occur, just log them and return error to client.
-        let subscription_sink = pending.accept().await.inspect_err(|err| {
-            tracing::warn!("failed to accept subscription for injected transaction promise: {err}");
-        })?;
-
+        // Register the promise waiter *before* the tx is broadcast.
+        // The producer's MB execution can deliver `provide_promise`
+        // back into this RPC server within microseconds (especially
+        // when the producer happens to be the local node), and if
+        // we register only after `forward_transaction` returns the
+        // race window leaks promises into the "unregistered" warn
+        // path. A `oneshot::Receiver` buffers the value, so even if
+        // the promise lands before `pending.accept().await`
+        // completes, `spawn_promise_waiter` still consumes it.
         let (promise_sender, promise_receiver) = oneshot::channel();
         self.promise_waiters.insert(tx_hash, promise_sender);
+
+        if let Err(err) = self.forward_transaction(transaction).await {
+            self.promise_waiters.remove(&tx_hash);
+            return Err(err.into());
+        }
+
+        let subscription_sink = match pending.accept().await {
+            Ok(sink) => sink,
+            Err(err) => {
+                tracing::warn!(
+                    "failed to accept subscription for injected transaction promise: {err}"
+                );
+                self.promise_waiters.remove(&tx_hash);
+                return Err(err.to_string().into());
+            }
+        };
+
         self.spawn_promise_waiter(subscription_sink, promise_receiver, tx_hash);
 
         Ok(())
