@@ -23,7 +23,7 @@ use gear_core::ids::{ActorId, CodeId};
 use gear_utils::NonEmpty;
 use gear_wasm_gen::{
     ActorKind, InvocableSyscall, PtrParamAllowedValues, RandomizedGearWasmConfigBundle,
-    RegularParamType, SyscallName, SyscallsParamsConfig,
+    RegularParamType, SyscallKind, SyscallName, SyscallsParamsConfig,
 };
 use std::ops::RangeInclusive;
 
@@ -35,6 +35,7 @@ pub struct PeerAwareGenerationContext {
     pub codes: Option<NonEmpty<CodeId>>,
     pub log_info: Option<String>,
     pub suppress_exit: bool,
+    pub syscall_kind: SyscallKind,
 }
 
 pub fn generate_upload_program_args_peer_aware<Rng: CallGenRng>(
@@ -74,8 +75,14 @@ fn peer_aware_config(
     ctx: PeerAwareGenerationContext,
 ) -> RandomizedGearWasmConfigBundle {
     let initial_pages = 2;
-    let actor_kind = ctx
-        .programs
+    let PeerAwareGenerationContext {
+        programs,
+        codes,
+        log_info,
+        suppress_exit,
+        syscall_kind,
+    } = ctx;
+    let actor_kind = programs
         .and_then(|non_empty| NonEmpty::collect(non_empty.into_iter().map(|pid| pid.into())))
         .map(ActorKind::ExistingAddresses)
         .unwrap_or(ActorKind::Source);
@@ -103,17 +110,21 @@ fn peer_aware_config(
         .with_ptr_rule(PtrParamAllowedValues::ReservationId)
         .with_ptr_rule(PtrParamAllowedValues::WaitedMessageId);
 
-    if let Some(code_ids) = ctx.codes {
+    if let Some(code_ids) = codes {
         params_config = params_config.with_ptr_rule(PtrParamAllowedValues::CodeIdsWithValue {
             code_ids,
             range: ZERO_VALUE_RANGE,
         });
     }
 
-    let mut config =
-        RandomizedGearWasmConfigBundle::new_arbitrary(unstructured, ctx.log_info, params_config);
+    let mut config = RandomizedGearWasmConfigBundle::new_arbitrary_for_syscall_kind(
+        unstructured,
+        syscall_kind,
+        log_info,
+        params_config,
+    );
 
-    if ctx.suppress_exit {
+    if suppress_exit {
         config.standard_gear_wasm_config_bundle.injection_types.set(
             InvocableSyscall::Loose(SyscallName::Exit),
             0,
@@ -133,8 +144,9 @@ mod tests {
     use crate::generate_gear_program;
     use gear_core::ids::{ActorId, CodeId};
     use gear_utils::NonEmpty;
-    use gear_wasm_gen::StandardGearWasmConfigsBundle;
+    use gear_wasm_gen::{StandardGearWasmConfigsBundle, SyscallKind, SyscallName};
     use rand::rngs::SmallRng;
+    use std::collections::BTreeSet;
 
     fn actor(seed: u8) -> ActorId {
         ActorId::from([seed; 32])
@@ -165,6 +177,7 @@ mod tests {
             codes: Some(NonEmpty::new(code(2))),
             log_info: Some("fixed-peers".into()),
             suppress_exit: false,
+            syscall_kind: SyscallKind::Vara,
         };
 
         let first = generate_upload_program_args_peer_aware::<SmallRng>(7, 9, 10, ctx.clone());
@@ -194,6 +207,7 @@ mod tests {
             codes: Some(NonEmpty::new(code(10))),
             log_info: Some("with-peers".into()),
             suppress_exit: false,
+            syscall_kind: SyscallKind::Vara,
         };
 
         let program = generate_upload_program_args_peer_aware::<SmallRng>(11, 12, 13, ctx.clone());
@@ -201,5 +215,45 @@ mod tests {
 
         assert!(!program.0.0.is_empty());
         assert!(!code.0.is_empty());
+    }
+
+    #[test]
+    fn ethexe_peer_aware_generation_omits_non_eth_syscall_imports() {
+        let ctx = PeerAwareGenerationContext {
+            programs: Some(NonEmpty::new(actor(9))),
+            codes: Some(NonEmpty::new(code(10))),
+            log_info: Some("ethexe".into()),
+            suppress_exit: false,
+            syscall_kind: SyscallKind::Eth,
+        };
+
+        let code = generate_upload_code_args_peer_aware::<SmallRng>(11, ctx);
+        let imports = gear_imports(&code.0);
+
+        for syscall in
+            SyscallName::instrumentable(SyscallKind::Vara).filter(|syscall| !syscall.is_eth())
+        {
+            assert!(
+                !imports.contains(syscall.to_str()),
+                "generated ethexe code imports forbidden syscall {}",
+                syscall.to_str()
+            );
+        }
+    }
+
+    fn gear_imports(code: &[u8]) -> BTreeSet<String> {
+        let mut imports = BTreeSet::new();
+        for payload in wasmparser::Parser::new(0).parse_all(code) {
+            if let wasmparser::Payload::ImportSection(section) = payload.expect("valid wasm") {
+                for import in section {
+                    let import = import.expect("valid import");
+                    if import.module == "env" {
+                        imports.insert(import.name.to_owned());
+                    }
+                }
+            }
+        }
+
+        imports
     }
 }
