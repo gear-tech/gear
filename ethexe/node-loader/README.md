@@ -45,6 +45,7 @@ Available flags:
 - `--max-top-up-value <u128>` in WVARA smallest units
 - `--total-msg-value-budget <u128>` in wei
 - `--total-top-up-budget <u128>` in WVARA smallest units
+- `--program-creation-ratio <0..100>` controls new program creation after bootstrapping
 
 The examples below only show value-control settings; they still use the loader's existing
 connection and address defaults unless you also pass network-specific endpoints or addresses.
@@ -71,6 +72,9 @@ Safe mainnet example with explicit overrides:
 Budget accounting is based on planned spend at scheduling time. The batch that crosses a
 budget is still submitted, then the loader stops scheduling new work and exits with
 `status: budget exhausted`.
+
+Use `--program-creation-ratio 0` for sustained message/reply/claim traffic against existing
+programs without scheduling new code or program uploads after the initial bootstrap program exists.
 
 ## What it does
 
