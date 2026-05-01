@@ -92,7 +92,10 @@ use frame_system::{
 };
 use gear_core::{
     buffer::*,
-    code::{Code, CodeAndId, CodeError, CodeMetadata, InstrumentationStatus, InstrumentedCode},
+    code::{
+        Code, CodeAndId, CodeError, CodeMetadata, InstrumentationStatus, InstrumentedCode,
+        SyscallKind,
+    },
     env::MessageWaitedType,
     ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     limited::LimitedVecError,
@@ -1094,6 +1097,7 @@ pub mod pallet {
                 schedule.limits.data_segments_amount.into(),
                 schedule.limits.type_section_len.into(),
                 schedule.limits.parameters.into(),
+                SyscallKind::Vara,
             ) {
                 Ok(code) => {
                     let instrumented_code_and_metadata = code.into_instrumented_code_and_metadata();
@@ -1135,6 +1139,7 @@ pub mod pallet {
                 schedule.limits.data_segments_amount.into(),
                 schedule.limits.type_section_len.into(),
                 schedule.limits.parameters.into(),
+                SyscallKind::Vara,
             )
             .map_err(|e| {
                 log::debug!("Code checking or instrumentation failed: {e}");

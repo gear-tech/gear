@@ -231,10 +231,12 @@ impl SyscallName {
         !matches!(
             self,
             Self::CreateProgramWGas
+                | Self::CreateProgram
                 | Self::ReplyDeposit
                 | Self::SignalCode
-                | Self::SignalFrom
+                | Self::Random
                 | Self::ReplyCommitWGas
+                | Self::SignalFrom
                 | Self::ReplyInputWGas
                 | Self::ReplyWGas
                 | Self::ReservationReplyCommit
@@ -247,6 +249,7 @@ impl SyscallName {
                 | Self::SendWGas
                 | Self::SystemReserveGas
                 | Self::UnreserveGas
+                | Self::Wait
         )
     }
 

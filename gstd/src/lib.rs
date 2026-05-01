@@ -156,6 +156,7 @@ pub mod exec;
 mod macros;
 pub mod msg;
 pub mod prelude;
+#[cfg(not(feature = "ethexe"))]
 pub mod prog;
 #[cfg(not(feature = "ethexe"))]
 mod reservations;

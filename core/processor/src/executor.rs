@@ -26,7 +26,7 @@ use crate::{
 };
 use alloc::{format, string::String, vec::Vec};
 use gear_core::{
-    code::{CodeMetadata, InstrumentedCode},
+    code::{CodeMetadata, InstrumentedCode, SyscallKind},
     env::{Externalities, WasmEntryPoint},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ActorId,
@@ -66,6 +66,7 @@ where
         gas_reserver,
         program,
         memory_size,
+        syscall_kind,
     } = context;
 
     // TODO: consider avoiding cloning here.
@@ -135,6 +136,7 @@ where
             kind,
             program.code_metadata.exports().clone(),
             memory_size,
+            syscall_kind,
         )?;
         env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
@@ -252,6 +254,7 @@ pub fn execute_for_reply<Ext, EP>(
     payload: Vec<u8>,
     gas_limit: u64,
     block_info: BlockInfo,
+    syscall_kind: SyscallKind,
 ) -> Result<Vec<u8>, String>
 where
     Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
@@ -334,6 +337,7 @@ where
             function,
             program.code_metadata.exports().clone(),
             memory_size,
+            syscall_kind,
         )?;
         env.execute(|ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(

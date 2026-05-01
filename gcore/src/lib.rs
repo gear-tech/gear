@@ -74,6 +74,7 @@ pub mod ctor;
 pub mod errors;
 pub mod exec;
 pub mod msg;
+#[cfg(not(feature = "ethexe"))]
 pub mod prog;
 pub use gear_stack_buffer as stack_buffer;
 #[cfg(not(feature = "ethexe"))]

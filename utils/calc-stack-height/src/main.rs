@@ -18,7 +18,7 @@
 
 use anyhow::{Context, ensure};
 use gear_core::{
-    code::{Code, TryNewCodeConfig},
+    code::{Code, SyscallKind, TryNewCodeConfig},
     gas_metering::Schedule,
 };
 use gear_wasm_instrument::{STACK_HEIGHT_EXPORT_NAME, SystemBreakCode};
@@ -128,6 +128,7 @@ fn main() -> anyhow::Result<()> {
             schedule.limits.data_segments_amount.into(),
             schedule.limits.type_section_len.into(),
             schedule.limits.parameters.into(),
+            SyscallKind::Vara,
         )
         .context("Code error")?;
 

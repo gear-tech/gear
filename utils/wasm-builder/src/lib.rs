@@ -25,6 +25,7 @@ pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
 
 use crate::wasm_project::WasmProject;
 use anyhow::Result;
+use gear_core::code::SyscallKind;
 use regex::Regex;
 use std::{env, path::PathBuf, process};
 
@@ -36,6 +37,14 @@ mod smart_fs;
 mod wasm_project;
 
 pub const TARGET: &str = env!("TARGET");
+
+/// Syscall kind for executing syscalls in Gear protocol (Vara).
+#[cfg(not(feature = "ethexe"))]
+pub(crate) const SYSCALL_KIND: SyscallKind = SyscallKind::Vara;
+
+/// Syscall kind for executing syscalls in Gear protocol (Vara.ETH).
+#[cfg(feature = "ethexe")]
+pub(crate) const SYSCALL_KIND: SyscallKind = SyscallKind::Eth;
 
 /// WASM building tool.
 pub struct WasmBuilder {

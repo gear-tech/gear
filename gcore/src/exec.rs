@@ -27,11 +27,10 @@ use crate::{
     utils::AsRawPtr,
 };
 use core::mem::MaybeUninit;
-use gsys::BlockNumberWithHash;
 #[cfg(not(feature = "ethexe"))]
 use {
     crate::ReservationId,
-    gsys::{ErrorWithGas, ErrorWithHash},
+    gsys::{BlockNumberWithHash, ErrorWithGas, ErrorWithHash},
 };
 
 /// Get current version of environment variables.
@@ -352,6 +351,7 @@ pub fn value_available() -> u128 {
 ///     exec::wait();
 /// }
 /// ```
+#[cfg(not(feature = "ethexe"))]
 pub fn wait() -> ! {
     unsafe { gsys::gr_wait() }
 }
@@ -453,6 +453,7 @@ pub fn program_id() -> ActorId {
 ///     let (seed, block_number) = exec::random(subject).expect("Error in random");
 /// }
 /// ```
+#[cfg(not(feature = "ethexe"))]
 pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {
     let mut res: BlockNumberWithHash = Default::default();
 

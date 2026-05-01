@@ -103,7 +103,7 @@ impl SyscallsInjectionTypes {
         let instrumentable_syscalls = SyscallName::instrumentable(syscall_kind).collect::<Vec<_>>();
         Self {
             syscall_kind,
-            inner: SyscallName::instrumentable(SyscallKind::Vara)
+            inner: SyscallName::instrumentable(syscall_kind)
                 .map(|name| {
                     let range = unstructured.int_in_range(1..=3).unwrap()
                         ..=unstructured.int_in_range(3..=20).unwrap();
@@ -115,7 +115,7 @@ impl SyscallsInjectionTypes {
                     (InvocableSyscall::Loose(name), injection_type)
                 })
                 .chain(
-                    SyscallName::instrumentable(SyscallKind::Vara)
+                    SyscallName::instrumentable(syscall_kind)
                         .filter(|&name| InvocableSyscall::has_precise_variant(name))
                         .map(|name| {
                             let injection_type = if instrumentable_syscalls.contains(&name) {
@@ -143,7 +143,7 @@ impl SyscallsInjectionTypes {
         let instrumentable_syscalls = SyscallName::instrumentable(syscall_kind).collect::<Vec<_>>();
         Self {
             syscall_kind,
-            inner: SyscallName::instrumentable(SyscallKind::Vara)
+            inner: SyscallName::instrumentable(syscall_kind)
                 .map(|name| {
                     (
                         InvocableSyscall::Loose(name),
@@ -155,7 +155,7 @@ impl SyscallsInjectionTypes {
                     )
                 })
                 .chain(
-                    SyscallName::instrumentable(SyscallKind::Vara).filter_map(|name| {
+                    SyscallName::instrumentable(syscall_kind).filter_map(|name| {
                         InvocableSyscall::has_precise_variant(name).then_some((
                             InvocableSyscall::Precise(name),
                             if instrumentable_syscalls.contains(&name) {

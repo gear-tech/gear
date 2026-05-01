@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::{
-    WasmProgram,
+    SYSCALL_KIND, WasmProgram,
     builtins::{self, BLS12_381_ID, BlsOpsGasCostsImpl, ETH_BRIDGE_ID},
     state::{
         blocks,
@@ -630,6 +630,7 @@ impl ExtManager {
                     metadata: code_metadata,
                 },
                 balance,
+                SYSCALL_KIND,
             ),
             (
                 blocks::current_epoch_random(),

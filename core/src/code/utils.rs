@@ -148,7 +148,7 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
         .map_err(CodeError::Export)
 }
 
-pub fn check_imports(module: &Module) -> Result<(), CodeError> {
+pub fn check_imports(module: &Module, kind: SyscallKind) -> Result<(), CodeError> {
     let types = module
         .type_section
         .as_ref()
@@ -159,7 +159,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
         .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Import))?;
 
-    let syscalls = SyscallName::instrumentable_map(SyscallKind::Vara);
+    let syscalls = SyscallName::instrumentable_map(kind);
 
     let mut visited_imports = BTreeSet::new();
 

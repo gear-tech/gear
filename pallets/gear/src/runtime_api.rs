@@ -21,7 +21,7 @@ use crate::queue::QueueStep;
 use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
-    code::{InstrumentedCodeAndMetadata, TryNewCodeConfig},
+    code::{InstrumentedCodeAndMetadata, SyscallKind, TryNewCodeConfig},
     pages::{WasmPage, numerated::tree::IntervalsTree},
     program::{ActiveProgram, MemoryInfix},
     rpc::ReplyInfo,
@@ -444,6 +444,7 @@ where
             payload,
             gas_allowance,
             block_info,
+            SyscallKind::Vara,
         )
     }
 
@@ -483,6 +484,7 @@ where
             payload,
             gas_allowance,
             block_info,
+            SyscallKind::Vara,
         )
     }
 
@@ -521,6 +523,7 @@ where
             Default::default(),
             gas_allowance,
             block_info,
+            SyscallKind::Vara,
         )
         .and_then(|bytes| {
             H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into())

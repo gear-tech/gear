@@ -16,14 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::SYSCALL_KIND;
 use anyhow::{anyhow, bail, ensure};
 use gear_core::{
     code::{Code, CodeError, ExportError, ImportError},
     gas_metering::Schedule,
 };
-use gear_wasm_instrument::{
-    Export, ExternalKind, FuncType, Module, SyscallKind, SyscallName, TypeRef, ValType,
-};
+use gear_wasm_instrument::{Export, ExternalKind, FuncType, Module, SyscallName, TypeRef, ValType};
 use std::fmt;
 use thiserror::Error;
 
@@ -239,7 +238,7 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
                 name: import_name,
             },
             InvalidImportFnSignature(_) => {
-                let syscalls = SyscallName::instrumentable_map(SyscallKind::Vara);
+                let syscalls = SyscallName::instrumentable_map(SYSCALL_KIND);
                 let Some(syscall) = syscalls.get(&import_name) else {
                     bail!("failed to get syscall by name");
                 };
@@ -332,6 +331,7 @@ pub fn validate_program(code: Vec<u8>, check_len: bool) -> anyhow::Result<()> {
         schedule.limits.data_segments_amount.into(),
         schedule.limits.type_section_len.into(),
         schedule.limits.parameters.into(),
+        SYSCALL_KIND,
     );
 
     match code {

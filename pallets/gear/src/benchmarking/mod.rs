@@ -76,7 +76,7 @@ use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
     buffer::Payload,
-    code::{Code, CodeAndId},
+    code::{Code, CodeAndId, SyscallKind},
     ids::{ActorId, CodeId, MessageId, prelude::*},
     memory::Memory,
     message::{DispatchKind, Salt},
@@ -92,9 +92,7 @@ use gear_core_backend::{
 };
 use gear_core_errors::*;
 use gear_sandbox::{SandboxMemory, SandboxStore, default_executor::Store};
-use gear_wasm_instrument::{
-    BlockType, BrTable, Instruction, MemArg, ValType, syscalls::SyscallName,
-};
+use gear_wasm_instrument::{BlockType, BrTable, Instruction, MemArg, SyscallName, ValType};
 use pallet_authorship::Pallet as AuthorshipPallet;
 use parity_scale_codec::Encode;
 use sp_consensus_babe::{
@@ -387,7 +385,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `d`: Size of the data section in kilobytes.
@@ -397,7 +395,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_data_section(d * 1024, MAX_NUMBER_OF_DATA_SEGMENTS);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `g`: Size of the global section in kilobytes.
@@ -407,7 +405,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_global_section(g * 1024);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `t`: Size of the memory allocated for the table after instantiation, in kilobytes.
@@ -417,7 +415,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024, None);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `e`: Size of the element section in kilobytes.
@@ -428,7 +426,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `t`: Size of the type section in kilobytes.
@@ -438,7 +436,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_type_section(t * 1024);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     claim_value {

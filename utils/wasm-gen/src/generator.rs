@@ -54,7 +54,7 @@ pub use entry_points::*;
 pub use memory::*;
 pub use syscalls::*;
 
-use crate::{GearWasmGeneratorConfig, WasmModule, utils};
+use crate::{GearWasmGeneratorConfig, SyscallKind, WasmModule, utils};
 use arbitrary::{Result, Unstructured};
 use gear_wasm_instrument::Module;
 use std::{collections::HashSet, ops::RangeInclusive};
@@ -114,6 +114,7 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
 
     /// Run all generators, while mediating between them.
     pub fn generate(self) -> Result<Module> {
+        let syscall_kind = self.config.syscalls_config.injection_types().syscall_kind();
         let (disabled_mem_gen, frozen_gear_wasm_gen, mem_imports_gen_proof) =
             self.generate_memory_export();
 
@@ -122,7 +123,8 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
                 .generate_entry_points(mem_imports_gen_proof)?;
 
         let (disabled_syscalls_invocator, frozen_gear_wasm_gen) =
-            Self::from((disabled_ep_gen, frozen_gear_wasm_gen)).generate_syscalls(ep_gen_proof)?;
+            Self::from((disabled_ep_gen, frozen_gear_wasm_gen))
+                .generate_syscalls(ep_gen_proof, syscall_kind)?;
 
         let config = frozen_gear_wasm_gen.melt();
         let module = ModuleWithCallIndexes::from(disabled_syscalls_invocator)
@@ -183,11 +185,12 @@ impl<'a, 'b> GearWasmGenerator<'a, 'b> {
     pub fn generate_syscalls(
         self,
         ep_gen_proof: GearEntryPointGenerationProof,
+        syscall_kind: SyscallKind,
     ) -> Result<(DisabledSyscallsInvocator, FrozenGearWasmGenerator<'a, 'b>)> {
         let syscalls_imports_gen_instantiator =
             SyscallsImportsGeneratorInstantiator::from((self, ep_gen_proof));
         let (syscalls_imports_gen, frozen_gear_wasm_gen) = syscalls_imports_gen_instantiator.into();
-        let syscalls_imports_gen_res = syscalls_imports_gen.generate()?;
+        let syscalls_imports_gen_res = syscalls_imports_gen.generate(syscall_kind)?;
 
         let ad_injector = AdditionalDataInjector::from(syscalls_imports_gen_res);
         let data_injection_res = ad_injector.inject();
