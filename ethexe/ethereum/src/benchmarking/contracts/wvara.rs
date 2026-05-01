@@ -20,13 +20,16 @@ use crate::{
     abi::{IERC1967Proxy, IWrappedVara},
     benchmarking::SimulationContext,
 };
-use alloy::sol_types::SolConstructor;
-use anyhow::{Result, anyhow, bail};
+use alloy::{
+    dyn_abi::Eip712Domain,
+    sol_types::{SolCall, SolConstructor, eip712_domain},
+};
+use anyhow::{Context, Result, anyhow, bail};
 use revm::{
-    ExecuteCommitEvm,
+    ExecuteCommitEvm, ExecuteEvm,
     context::TxEnv,
     context_interface::result::{ExecutionResult, Output},
-    primitives::{Address, Bytes},
+    primitives::{Address, Bytes, U256},
 };
 
 pub struct WrappedVara {
@@ -89,7 +92,12 @@ impl WrappedVara {
                         &IERC1967Proxy::BYTECODE[..],
                         &SolConstructor::abi_encode(&IERC1967Proxy::constructorCall {
                             implementation: wrapped_vara_impl,
-                            _data: Bytes::new(),
+                            _data: Bytes::copy_from_slice(
+                                &IWrappedVara::initializeCall {
+                                    initialOwner: deployer_address,
+                                }
+                                .abi_encode(),
+                            ),
                         })[..],
                     ]
                     .concat()
@@ -114,5 +122,71 @@ impl WrappedVara {
 
     pub fn proxy_address(&self) -> Address {
         self.proxy_address
+    }
+
+    pub(crate) fn nonces(&self, context: &mut SimulationContext, owner: Address) -> Result<U256> {
+        let deployer_address = context.deployer_address();
+        let deployer_nonce = context.deployer_nonce();
+
+        let proxy_address = self.proxy_address();
+
+        let ExecutionResult::Success {
+            output: Output::Call(nonces),
+            ..
+        } = context
+            .evm()
+            .transact(
+                TxEnv::builder()
+                    .caller(deployer_address)
+                    .call(proxy_address)
+                    .data(IWrappedVara::noncesCall { owner }.abi_encode().into())
+                    .nonce(deployer_nonce)
+                    .build()
+                    .map_err(|_| anyhow!("failed to build TxEnv"))?,
+            )?
+            .result
+        else {
+            bail!("failed to get nonces");
+        };
+
+        Ok(U256::from_be_slice(&nonces))
+    }
+
+    pub(crate) fn eip712_domain(&self, context: &mut SimulationContext) -> Result<Eip712Domain> {
+        let deployer_address = context.deployer_address();
+        let deployer_nonce = context.deployer_nonce();
+
+        let proxy_address = self.proxy_address();
+
+        let ExecutionResult::Success {
+            output: Output::Call(eip712_domain),
+            ..
+        } = context
+            .evm()
+            .transact(
+                TxEnv::builder()
+                    .caller(deployer_address)
+                    .call(proxy_address)
+                    .data(IWrappedVara::eip712DomainCall {}.abi_encode().into())
+                    .nonce(deployer_nonce)
+                    .build()
+                    .map_err(|_| anyhow!("failed to build TxEnv"))?,
+            )?
+            .result
+        else {
+            bail!("failed to get eip712 domain");
+        };
+
+        let Ok(eip712_domain) = IWrappedVara::eip712DomainCall::abi_decode_returns(&eip712_domain)
+        else {
+            bail!("failed to decode eip712 domain");
+        };
+
+        Ok(eip712_domain! {
+            name: eip712_domain.name,
+            version: eip712_domain.version,
+            chain_id: eip712_domain.chainId.try_into().with_context(|| "chainId should fit into u64")?,
+            verifying_contract: eip712_domain.verifyingContract,
+        })
     }
 }

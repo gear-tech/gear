@@ -132,11 +132,7 @@ impl<'a> Mirror<'a> {
         value: u128,
         at: Option<H256>,
     ) -> Result<ReplyInfo> {
-        let sender_address = self
-            .api
-            .ethereum_client
-            .sender_address()
-            .with_context(|| "no sender address available for sending injected transaction")?;
+        let sender_address = self.api.ethereum_client.sender_address();
         let source: ActorId = sender_address.into();
         let destination = self.actor_id();
         self.api
@@ -181,16 +177,8 @@ impl<'a> Mirror<'a> {
             "injected transactions with non zero value are not supported for now"
         );
 
-        let signer = self
-            .api
-            .ethereum_client
-            .signer()
-            .with_context(|| "no signer available for sending injected transaction")?;
-        let sender_address = self
-            .api
-            .ethereum_client
-            .sender_address()
-            .with_context(|| "no sender address available for sending injected transaction")?;
+        let signer = self.api.ethereum_client.signer();
+        let sender_address = self.api.ethereum_client.sender_address();
         let public_key = signer
             .get_key_by_address(sender_address)
             .with_context(|| "failed to get key for sender address")?
@@ -336,6 +324,21 @@ impl<'a> Mirror<'a> {
     ) -> Result<TransactionReceipt> {
         self.mirror_client
             .executable_balance_top_up_with_receipt(value)
+            .await
+    }
+
+    pub async fn executable_balance_top_up_with_permit(&self, value: u128) -> Result<H256> {
+        self.mirror_client
+            .executable_balance_top_up_with_permit(value)
+            .await
+    }
+
+    pub async fn executable_balance_top_up_with_permit_and_receipt(
+        &self,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
+        self.mirror_client
+            .executable_balance_top_up_with_permit_and_receipt(value)
             .await
     }
 

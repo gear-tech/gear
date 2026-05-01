@@ -16,6 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Prometheus integration for the ethexe node.
+//!
+//! This crate exposes the metrics endpoint used by the node and keeps a small
+//! set of liveness gauges in sync with the contents of the local database.
+//! It also acts as a bridge between the HTTP exporter and subsystems that own
+//! metrics registries outside of the global recorder, such as libp2p.
+//!
+//! [`PrometheusService`] runs an HTTP server and yields [`PrometheusEvent`]s to
+//! the parent service. When `/metrics` is requested, the service:
+//! - refreshes liveness gauges derived from the latest committed announce,
+//! - renders metrics from the global `metrics` recorder,
+//! - asks the parent service for extra registry dumps,
+//! - merges everything into a single Prometheus text response.
+
 use anyhow::{Context as _, Result};
 use ethexe_common::db::{
     AnnounceStorageRO, BlockMetaStorageRO, GlobalsStorageRO, OnChainStorageRO,
@@ -47,7 +61,10 @@ use tokio::{
     task::JoinHandle,
 };
 
-/// Global metric for the number of unbounded channels.
+/// Counts operations performed on tracked unbounded channels.
+///
+/// The `entity` label identifies the channel owner, while the `action` label
+/// distinguishes sent, received, and dropped messages.
 pub static UNBOUNDED_CHANNELS_COUNTER: LazyLock<GenericCounterVec<AtomicU64>> =
     LazyLock::new(|| {
         GenericCounterVec::new(
@@ -60,7 +77,9 @@ pub static UNBOUNDED_CHANNELS_COUNTER: LazyLock<GenericCounterVec<AtomicU64>> =
         .expect("Creating of statics doesn't fail. qed")
     });
 
-/// Global metric for the size of unbounded channels.
+/// Tracks the current backlog size of tracked unbounded channels.
+///
+/// The `entity` label identifies the channel whose queue length is reported.
 pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyLock::new(|| {
     GenericGaugeVec::new(
         Opts::new(
@@ -74,30 +93,40 @@ pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyL
 
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_liveness")]
+/// Liveness gauges derived from the latest committed announce in the database.
 pub struct LivenessMetrics {
-    /// Number of the block which is corresponding to the latest committed announce
+    /// Height of the block referenced by the latest committed announce.
     pub latest_committed_block_number: Gauge,
-    /// Timestamp of the block which is corresponding to the latest committed announce
+    /// Timestamp of the block referenced by the latest committed announce.
     pub latest_committed_block_timestamp: Gauge,
-    /// Time in seconds since the latest commitment was made
+    /// Seconds between the latest synced block and the latest committed announce.
     pub time_since_latest_committed_secs: Gauge,
 }
 
 /// Configuration for the Prometheus service.
 #[derive(Debug, Clone)]
 pub struct PrometheusConfig {
+    /// Value exported as the global `node` label on recorder-backed metrics.
     pub name: String,
+    /// Address the HTTP exporter listens on.
     pub addr: SocketAddr,
 }
 
 #[derive(Debug)]
+/// Events emitted by [`PrometheusService`] for integration with the parent node service.
 pub enum PrometheusEvent {
+    /// Requests additional metrics text from another subsystem before responding.
     CollectMetrics {
+        /// One-shot channel used to return metrics in Prometheus text format.
         libp2p_metrics: oneshot::Sender<String>,
     },
+    /// Signals that the background HTTP server task has terminated.
     ServerClosed(Result<(), task::JoinError>),
 }
 
+/// Stream wrapper around the background Prometheus HTTP server task.
+///
+/// The stream yields [`PrometheusEvent`] values until the server task exits.
 pub struct PrometheusService {
     server: JoinHandle<()>,
     server_receiver: mpsc::Receiver<PrometheusEvent>,
@@ -128,6 +157,10 @@ impl FusedStream for PrometheusService {
 }
 
 impl PrometheusService {
+    /// Starts the Prometheus exporter and returns a stream of service events.
+    ///
+    /// This installs the global `metrics` recorder, initializes liveness gauges,
+    /// and spawns the HTTP server bound to [`PrometheusConfig::addr`].
     pub fn new(config: PrometheusConfig, db: Database) -> Result<Self> {
         let handle = PrometheusBuilder::new()
             .add_global_label("node", config.name)
@@ -149,6 +182,9 @@ impl PrometheusService {
     }
 }
 
+/// Runs the HTTP server that serves the Prometheus endpoint.
+///
+/// The server is shut down gracefully when its task is cancelled or finishes.
 async fn start_prometheus_server(
     prometheus_addr: SocketAddr,
     sender: mpsc::Sender<PrometheusEvent>,
@@ -196,6 +232,10 @@ async fn start_prometheus_server(
     result
 }
 
+/// Handles an incoming HTTP request for the Prometheus exporter.
+///
+/// Requests to `/metrics` return the merged metrics payload. Any other path
+/// receives a `404 Not Found` response.
 async fn request_metrics(
     req: Request<Body>,
     sender: mpsc::Sender<PrometheusEvent>,
@@ -237,6 +277,9 @@ async fn request_metrics(
     .context("Failed to request metrics")
 }
 
+/// Refreshes liveness gauges from the latest committed announce stored in the database.
+///
+/// If the node has not committed any announce yet, the gauges are left unchanged.
 fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
     let Some(latest_committed_block_header) = db
         .block_meta(db.globals().latest_prepared_block_hash)

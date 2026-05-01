@@ -821,6 +821,11 @@ impl UserMailbox {
     fn store<S: Storage + ?Sized>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
     }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn from_inner(inner: BTreeMap<MessageId, Expiring<MailboxMessage>>) -> Self {
+        Self(inner)
+    }
 }
 
 impl AsRef<BTreeMap<MessageId, Expiring<MailboxMessage>>> for UserMailbox {
@@ -1065,6 +1070,7 @@ impl MemoryPages {
         }
 
         for (region_idx, region) in updated_regions {
+            // TODO #5373
             if let Some(region_hash) = region.store(storage).to_inner() {
                 self[region_idx] = region_hash.into();
             }
@@ -1095,6 +1101,11 @@ impl MemoryPagesRegion {
 
     pub fn as_inner(&self) -> &MemoryPagesRegionInner {
         &self.0
+    }
+
+    #[cfg(any(test, feature = "mock"))]
+    pub fn from_inner(inner: MemoryPagesRegionInner) -> Self {
+        Self(inner)
     }
 }
 

@@ -17,20 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyEthereum, AlloyProvider, IntoBlockId, TryGetReceipt,
+    AlloyEthereum, AlloyProvider, Eip712PermitData, Ethereum, IntoBlockId, Sender, TryGetReceipt,
     abi::{
-        IRouter,
+        GearLib, IRouter,
         utils::{uint48_to_u64, uint256_to_u256},
     },
     router::events::AllEventsBuilder,
     wvara::WVara,
 };
 use alloy::{
-    consensus::{SidecarBuilder, SimpleCoder},
+    consensus::{SidecarBuilder, SimpleCoder, constants::GWEI_TO_WEI},
     eips::BlockId,
-    primitives::{Address as AlloyAddress, Bytes},
-    providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::TransactionReceipt,
+    hex,
+    primitives::{Address as AlloyAddress, Bytes, fixed_bytes},
+    providers::{
+        PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider,
+        utils::{Eip1559Estimation, Eip1559Estimator},
+    },
+    rpc::types::{TransactionReceipt, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -52,6 +56,7 @@ use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use serde::Serialize;
+use std::collections::HashMap;
 
 pub mod events;
 
@@ -62,22 +67,31 @@ type QueryInstance = IRouter::IRouterInstance<RootProvider>;
 pub struct Router {
     instance: Instance,
     wvara_address: AlloyAddress,
+    eip1559_estimator: Eip1559Estimator,
+    eip1559_max_fee_per_gas_in_gwei: u128,
+    sender: Sender,
 }
 
 impl Router {
     /// `Gear.blockIsPredecessor(hash)` can consume up to 30_000 gas
     const GEAR_BLOCK_IS_PREDECESSOR_GAS: u64 = 30_000;
-    /// Huge gas limit is necessary so that the transaction is more likely to be picked up
-    const HUGE_GAS_LIMIT: u64 = 10_000_000;
+    /// Transaction gas limit cap
+    const TX_GAS_LIMIT_CAP: u64 = 10_000_000;
 
     pub(crate) fn new(
         address: AlloyAddress,
         wvara_address: AlloyAddress,
+        eip1559_estimator: Eip1559Estimator,
+        eip1559_max_fee_per_gas_in_gwei: u128,
+        sender: Sender,
         provider: AlloyProvider,
     ) -> Self {
         Self {
             instance: Instance::new(address, provider),
             wvara_address,
+            eip1559_estimator,
+            eip1559_max_fee_per_gas_in_gwei,
+            sender,
         }
     }
 
@@ -115,6 +129,16 @@ impl Router {
         Ok(receipt)
     }
 
+    pub async fn reinitialize(&self) -> Result<TransactionReceipt> {
+        let builder = self.instance.reinitialize();
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
+    }
+
     pub async fn lookup_genesis_hash(&self) -> Result<H256> {
         self.lookup_genesis_hash_with_receipt()
             .await
@@ -141,11 +165,20 @@ impl Router {
         &self,
         code: &[u8],
     ) -> Result<(TransactionReceipt, CodeId)> {
+        let Eip712PermitData { deadline, v, r, s } = Ethereum::prepare_permit_data(
+            self.instance.provider(),
+            self.wvara().query(),
+            &self.sender,
+            self.address().into(),
+            self.query().request_code_validation_base_fee().await?,
+        )
+        .await?;
+
         let code_id = CodeId::generate(code);
 
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into());
+        let builder =
+            self.instance
+                .requestCodeValidation(code_id.into_bytes().into(), deadline, v, r, s);
         let builder =
             builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?);
 
@@ -236,6 +269,75 @@ impl Router {
         Ok((receipt, actor_id))
     }
 
+    pub async fn create_program_with_executable_balance(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.create_program_with_executable_balance_and_receipt(
+            code_id,
+            salt,
+            override_initializer,
+            initial_executable_balance,
+        )
+        .await
+        .map(|(receipt, actor_id)| ((*receipt.transaction_hash).into(), actor_id))
+    }
+
+    pub async fn create_program_with_executable_balance_and_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        let Eip712PermitData { deadline, v, r, s } = Ethereum::prepare_permit_data(
+            self.instance.provider(),
+            self.wvara().query(),
+            &self.sender,
+            self.address().into(),
+            initial_executable_balance,
+        )
+        .await?;
+
+        let builder = self.instance.createProgramWithExecutableBalance(
+            code_id.into_bytes().into(),
+            salt.to_fixed_bytes().into(),
+            override_initializer
+                .map(|initializer| {
+                    let initializer = Address::try_from(initializer).expect("infallible");
+                    AlloyAddress::new(initializer.0)
+                })
+                .unwrap_or_default(),
+            initial_executable_balance,
+            deadline,
+            v,
+            r,
+            s,
+        );
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        let mut actor_id = None;
+
+        for log in receipt.inner.logs() {
+            if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
+                let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
+                actor_id = Some((*event.actorId.into_word()).into());
+                break;
+            }
+        }
+
+        let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
+
+        Ok((receipt, actor_id))
+    }
+
     pub async fn create_program_with_abi_interface(
         &self,
         code_id: CodeId,
@@ -294,6 +396,83 @@ impl Router {
         Ok((receipt, actor_id))
     }
 
+    pub async fn create_program_with_abi_interface_and_executable_balance(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> Result<(H256, ActorId)> {
+        self.create_program_with_abi_interface_and_executable_balance_with_receipt(
+            code_id,
+            salt,
+            override_initializer,
+            abi_interface,
+            initial_executable_balance,
+        )
+        .await
+        .map(|(receipt, actor_id)| ((*receipt.transaction_hash).into(), actor_id))
+    }
+
+    pub async fn create_program_with_abi_interface_and_executable_balance_with_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> Result<(TransactionReceipt, ActorId)> {
+        let Eip712PermitData { deadline, v, r, s } = Ethereum::prepare_permit_data(
+            self.instance.provider(),
+            self.wvara().query(),
+            &self.sender,
+            self.address().into(),
+            initial_executable_balance,
+        )
+        .await?;
+
+        let abi_interface = Address::try_from(abi_interface).expect("infallible");
+        let abi_interface = AlloyAddress::new(abi_interface.0);
+
+        let builder = self
+            .instance
+            .createProgramWithAbiInterfaceAndExecutableBalance(
+                code_id.into_bytes().into(),
+                salt.to_fixed_bytes().into(),
+                override_initializer
+                    .map(|initializer| {
+                        let initializer = Address::try_from(initializer).expect("infallible");
+                        AlloyAddress::new(initializer.0)
+                    })
+                    .unwrap_or_default(),
+                abi_interface,
+                initial_executable_balance,
+                deadline,
+                v,
+                r,
+                s,
+            );
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        let mut actor_id = None;
+
+        for log in receipt.inner.logs() {
+            if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
+                let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
+                actor_id = Some((*event.actorId.into_word()).into());
+                break;
+            }
+        }
+
+        let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
+
+        Ok((receipt, actor_id))
+    }
+
     pub async fn commit_batch(
         &self,
         commitment: BatchCommitment,
@@ -312,7 +491,7 @@ impl Router {
         signatures: Vec<ContractSignature>,
     ) -> Result<PendingTransactionBuilder<AlloyEthereum>> {
         let builder = self.instance.commitBatch(
-            commitment.into(),
+            commitment.clone().into(),
             SignatureType::ECDSA as u8,
             signatures
                 .into_iter()
@@ -320,7 +499,84 @@ impl Router {
                 .collect(),
         );
 
-        let gas_limit = Self::HUGE_GAS_LIMIT;
+        let mut state_diff = HashMap::default();
+        state_diff.insert(
+            // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
+            fixed_bytes!("e3d827fd4fed52666d49a0df00f9cc2ac79f0f2378fc627e62463164801b6500"),
+            // router.reserved = 1
+            fixed_bytes!("0000000000000000000000000000000000000000000000000000000000000001"),
+        );
+
+        let mut state = HashMap::default();
+        state.insert(
+            *self.instance.address(),
+            AccountOverride {
+                state_diff: Some(state_diff),
+                ..Default::default()
+            },
+        );
+
+        let estimate_gas_builder = builder.clone().state(state);
+        let calldata = estimate_gas_builder.calldata();
+        let estimated_gas_limit = match estimate_gas_builder.estimate_gas().await {
+            Ok(gas_limit) => gas_limit,
+            Err(err) => {
+                let latest_block =
+                    Ethereum::get_latest_block_inner(self.instance.provider()).await?;
+                let error = if let Some(router_error) =
+                    err.as_decoded_interface_error::<IRouter::IRouterErrors>()
+                {
+                    format!("{router_error:?}")
+                } else if let Some(gear_error) =
+                    err.as_decoded_interface_error::<GearLib::GearErrors>()
+                {
+                    format!("{gear_error:?}")
+                } else if let Some(bytes_error) = err.as_revert_data() {
+                    format!("0x{}", hex::encode(bytes_error))
+                } else {
+                    format!("{err}")
+                };
+                log::error!(
+                    "Failed to estimate gas for batch commitment: (error: {error}, block info: {latest_block}, calldata: 0x{}, batch commitment: {commitment:?})",
+                    hex::encode(calldata)
+                );
+                return Err(anyhow!(
+                    "Failed to estimate gas for batch commitment: {error}"
+                ));
+            }
+        };
+
+        let Eip1559Estimation {
+            max_fee_per_gas, ..
+        } = self
+            .instance
+            .provider()
+            .estimate_eip1559_fees_with(self.eip1559_estimator.clone())
+            .await?;
+
+        let eip1559_max_fee_per_gas_in_wei = self
+            .eip1559_max_fee_per_gas_in_gwei
+            .saturating_mul(GWEI_TO_WEI as _);
+
+        if eip1559_max_fee_per_gas_in_wei > 0 && max_fee_per_gas >= eip1559_max_fee_per_gas_in_wei {
+            log::error!(
+                "Estimated max fee per gas {max_fee_per_gas} wei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_wei} wei, refusing to commit batch (commitment: {commitment:?})"
+            );
+            return Err(anyhow!(
+                "Estimated max fee per gas {max_fee_per_gas} wei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_wei} wei, refusing to commit batch",
+            ));
+        }
+
+        let gas_limit = estimated_gas_limit + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS;
+
+        if gas_limit > Self::TX_GAS_LIMIT_CAP {
+            log::error!(
+                "Estimated gas limit {gas_limit} is too high for batch commitment: {commitment:?}",
+            );
+            return Err(anyhow!(
+                "Estimated gas limit {gas_limit} is too high for batch commitment",
+            ));
+        }
 
         builder.gas(gas_limit).send().await.map_err(Into::into)
     }
@@ -483,7 +739,7 @@ impl RouterQuery {
             .signingThresholdFraction()
             .call()
             .await
-            .map(|res| (res._0, res._1))
+            .map(|res| (res.thresholdNumerator, res.thresholdDenominator))
             .map_err(Into::into)
     }
 
@@ -655,6 +911,16 @@ impl RouterQuery {
         // it's impossible to ever reach 18 quintillion programs (maximum of u64)
         let count: u64 = count.try_into().expect("infallible");
         Ok(count)
+    }
+
+    pub async fn request_code_validation_base_fee(&self) -> Result<u128> {
+        let base_fee = self.instance.requestCodeValidationBaseFee().call().await?;
+        Ok(base_fee.try_into().expect("infallible"))
+    }
+
+    pub async fn request_code_validation_extra_fee(&self) -> Result<u128> {
+        let extra_fee = self.instance.requestCodeValidationExtraFee().call().await?;
+        Ok(extra_fee.try_into().expect("infallible"))
     }
 
     pub async fn timelines(&self) -> Result<Timelines> {

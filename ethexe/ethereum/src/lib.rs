@@ -18,15 +18,21 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
-use abi::{IMirror, IRouter, IWrappedVara};
+use crate::{
+    abi::{
+        IMirror, IRouter, IWrappedVara,
+        utils::{self as abi_utils, Permit},
+    },
+    wvara::WVaraQuery,
+};
 use alloy::{
     consensus::SignableTransaction,
     eips::BlockId,
     network::{self, Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address as AlloyAddress, B256, ChainId, Signature},
+    primitives::{Address as AlloyAddress, B256, ChainId, Signature, U256 as AlloyU256, address},
     providers::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
-        RootProvider,
+        RootProvider, WalletProvider,
         fillers::{
             BlobGasEstimator, BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill,
             NonceFiller, SimpleNonceManager, WalletFiller,
@@ -38,7 +44,7 @@ use alloy::{
         self as alloy_signer, Error as SignerError, Result as SignerResult, Signer as AlloySigner,
         SignerSync, sign_transaction_with_chain_id,
     },
-    sol_types::SolEvent,
+    sol_types::{SolEvent, SolStruct},
     transports::RpcError,
 };
 use anyhow::{Context, Result, anyhow};
@@ -77,6 +83,153 @@ pub type AlloyProvider = FillProvider<
     RootProvider,
 >;
 
+#[derive(Debug, Clone, Default)]
+pub struct EthereumBuilder {
+    rpc_url: Option<String>,
+    router_address: Option<Address>,
+    signer: Option<Signer>,
+    sender_address: Option<Address>,
+    eip1559_fee_increase_percentage: Option<u64>,
+    eip1559_max_fee_per_gas_in_gwei: Option<u128>,
+    blob_gas_multiplier: Option<u128>,
+    initialize_addresses: Option<bool>,
+}
+
+impl EthereumBuilder {
+    /// Sets the Ethereum RPC URL to connect to.
+    ///
+    /// The default is [`Ethereum::DEFAULT_ETHEREUM_RPC`].
+    pub fn rpc_url(mut self, rpc_url: impl Into<String>) -> Self {
+        self.rpc_url = Some(rpc_url.into());
+        self
+    }
+
+    /// Sets the Ethereum router contract address.
+    ///
+    /// The default is [`Ethereum::DEFAULT_ROUTER_ADDRESS`].
+    pub fn router_address(mut self, router_address: Address) -> Self {
+        self.router_address = Some(router_address);
+        self
+    }
+
+    /// Sets the signer to use for signing transactions.
+    pub fn signer(mut self, signer: Signer) -> Self {
+        self.signer = Some(signer);
+        self
+    }
+
+    /// Sets the sender address to use for signing transactions.
+    pub fn sender_address(mut self, sender_address: Address) -> Self {
+        self.sender_address = Some(sender_address);
+        self
+    }
+
+    /// Sets the EIP-1559 fee increase percentage (from "medium") to use for transaction fee estimation.
+    pub fn eip1559_fee_increase_percentage_opt(
+        mut self,
+        eip1559_fee_increase_percentage: Option<u64>,
+    ) -> Self {
+        self.eip1559_fee_increase_percentage = eip1559_fee_increase_percentage;
+        self
+    }
+
+    /// Sets the EIP-1559 fee increase percentage (from "medium") to use for transaction fee estimation.
+    ///
+    /// The default is [`Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE`].
+    pub fn eip1559_fee_increase_percentage(self, eip1559_fee_increase_percentage: u64) -> Self {
+        self.eip1559_fee_increase_percentage_opt(Some(eip1559_fee_increase_percentage))
+    }
+
+    /// Sets the EIP-1559 fee increase percentage to value that increases the estimated fee
+    /// by 15% compared to "medium" estimation.
+    pub fn with_eip1559_increased_fee(self) -> Self {
+        self.eip1559_fee_increase_percentage(Ethereum::INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE)
+    }
+
+    /// Sets the EIP-1559 max fee per gas in gwei to use for transaction fee estimation
+    /// (for batch commitments).
+    pub fn eip1559_max_fee_per_gas_in_gwei(
+        mut self,
+        eip1559_max_fee_per_gas_in_gwei: u128,
+    ) -> Self {
+        self.eip1559_max_fee_per_gas_in_gwei = Some(eip1559_max_fee_per_gas_in_gwei);
+        self
+    }
+
+    /// Sets the blob gas multiplier to use for transaction fee estimation.
+    pub fn blob_gas_multiplier_opt(mut self, blob_gas_multiplier: Option<u128>) -> Self {
+        self.blob_gas_multiplier = blob_gas_multiplier;
+        self
+    }
+
+    /// Sets the blob gas multiplier to use for transaction fee estimation.
+    ///
+    /// The default is [`Ethereum::NO_BLOB_GAS_MULTIPLIER`].
+    pub fn blob_gas_multiplier(self, blob_gas_multiplier: u128) -> Self {
+        self.blob_gas_multiplier_opt(Some(blob_gas_multiplier))
+    }
+
+    /// Sets the blob gas multiplier to value that increases the estimated blob gas by 3x.
+    pub fn with_increased_blob_gas_multiplier(self) -> Self {
+        self.blob_gas_multiplier(Ethereum::INCREASED_BLOB_GAS_MULTIPLIER)
+    }
+
+    /// Sets whether to initialize the router-related addresses (wvara and middleware)
+    /// during the construction of the [`Ethereum`] instance.
+    pub(crate) fn initialize_addresses(mut self, initialize_addresses: bool) -> Self {
+        self.initialize_addresses = Some(initialize_addresses);
+        self
+    }
+
+    /// Sets whether to initialize the router-related addresses (wvara and middleware)
+    /// during the construction of the [`Ethereum`] instance.
+    pub(crate) fn without_initializing_addresses(self) -> Self {
+        self.initialize_addresses(false)
+    }
+
+    /// Constructs [`Ethereum`] instance from the builder.
+    pub async fn build(self) -> Result<Ethereum> {
+        let rpc_url = self
+            .rpc_url
+            .unwrap_or_else(|| Ethereum::DEFAULT_ETHEREUM_RPC.into());
+        let router_address = self
+            .router_address
+            .unwrap_or(Ethereum::DEFAULT_ROUTER_ADDRESS.into());
+        let signer = self.signer.context("signer is required")?;
+        let sender_address = self.sender_address.context("sender address is required")?;
+        let eip1559_fee_increase_percentage = self
+            .eip1559_fee_increase_percentage
+            .unwrap_or(Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE);
+        let eip1559_max_fee_per_gas_in_gwei = self
+            .eip1559_max_fee_per_gas_in_gwei
+            .unwrap_or(Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI);
+        let blob_gas_multiplier = self
+            .blob_gas_multiplier
+            .unwrap_or(Ethereum::NO_BLOB_GAS_MULTIPLIER);
+        let initialize_addresses = self.initialize_addresses.unwrap_or(true);
+
+        Ethereum::new(
+            &rpc_url,
+            router_address,
+            signer,
+            sender_address,
+            eip1559_fee_increase_percentage,
+            eip1559_max_fee_per_gas_in_gwei,
+            blob_gas_multiplier,
+            initialize_addresses,
+        )
+        .await
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct Eip712PermitData {
+    pub deadline: AlloyU256,
+    pub v: u8,
+    pub r: B256,
+    pub s: B256,
+}
+
 #[derive(Clone)]
 pub struct Ethereum {
     router: AlloyAddress,
@@ -85,20 +238,51 @@ pub struct Ethereum {
     /// for [`deploy::EthereumDeployer`].
     middleware: AlloyAddress,
     provider: AlloyProvider,
-    signer: Option<Signer>,
-    sender_address: Option<Address>,
+    signer: Signer,
+    sender_address: Address,
+    eip1559_estimator: Eip1559Estimator,
+    eip1559_max_fee_per_gas_in_gwei: u128,
 }
 
 impl Ethereum {
-    pub async fn new(
+    /// Default Ethereum RPC.
+    pub const DEFAULT_ETHEREUM_RPC: &str = "ws://localhost:8545";
+    /// Default Ethereum router contract address.
+    pub const DEFAULT_ROUTER_ADDRESS: AlloyAddress =
+        address!("Cf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9");
+
+    /// Default EIP-1559 fee increase percentage for transaction fee estimation.
+    pub const NO_EIP1559_FEE_INCREASE_PERCENTAGE: u64 = 0;
+    /// Default EIP-1559 max fee per gas in gwei for transaction fee estimation (for batch commitments).
+    pub const NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI: u128 = 0;
+    /// EIP-1559 fee increase percentage for transaction fee estimation that increases the estimated fee
+    /// by 15% compared to "medium" estimation.
+    ///
+    /// This is useful for faster batch commitment.
+    pub const INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE: u64 = 15;
+
+    /// Default blob gas multiplier for transaction fee estimation.
+    pub const NO_BLOB_GAS_MULTIPLIER: u128 = 1;
+    /// Blob gas multiplier for transaction fee estimation that increases the estimated blob gas by 3x.
+    ///
+    /// This is useful mostly on testnets, where a lot of L2s can spam the network with blob transactions.
+    pub const INCREASED_BLOB_GAS_MULTIPLIER: u128 = 3;
+
+    /// Default offset for permit deadline from the current block timestamp.
+    pub const PERMIT_DEADLINE_OFFSET: u64 = 300; // 5 minutes
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn new(
         ethereum_rpc_url: &str,
         router_address: Address,
         signer: Signer,
         sender_address: Address,
         eip1559_fee_increase_percentage: u64,
+        eip1559_max_fee_per_gas_in_gwei: u128,
         blob_gas_multiplier: u128,
+        initialize_addresses: bool,
     ) -> Result<Ethereum> {
-        let provider = create_provider(
+        let (provider, eip1559_estimator) = create_provider(
             ethereum_rpc_url,
             signer.clone(),
             sender_address,
@@ -108,40 +292,48 @@ impl Ethereum {
         .await?;
         let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         let router = router_address.into();
-        let wvara = router_query.wvara_address().await?.into();
-        let middleware = router_query.middleware_address().await?.into();
+        let (wvara, middleware) = if initialize_addresses {
+            (
+                router_query.wvara_address().await?.into(),
+                router_query.middleware_address().await?.into(),
+            )
+        } else {
+            (AlloyAddress::ZERO, AlloyAddress::ZERO)
+        };
         Ok(Self {
             router,
             wvara,
             middleware,
             provider,
-            signer: Some(signer),
-            sender_address: Some(sender_address),
+            signer,
+            sender_address,
+            eip1559_estimator,
+            eip1559_max_fee_per_gas_in_gwei,
         })
     }
 
-    pub fn signer(&self) -> Option<&Signer> {
-        self.signer.as_ref()
+    pub(crate) async fn initialize_addresses(&mut self) -> Result<()> {
+        if self.wvara == AlloyAddress::ZERO && self.middleware == AlloyAddress::ZERO {
+            let router_query =
+                RouterQuery::from_provider(self.router, self.provider.root().clone());
+            self.wvara = router_query.wvara_address().await?.into();
+            self.middleware = router_query.middleware_address().await?.into();
+        }
+        Ok(())
     }
 
-    pub fn sender_address(&self) -> Option<Address> {
+    pub fn signer(&self) -> &Signer {
+        &self.signer
+    }
+
+    pub(crate) fn sender(&self) -> Sender {
+        Sender::new(self.signer.clone(), self.sender_address).expect("infallible")
+    }
+
+    pub fn sender_address(&self) -> Address {
         self.sender_address
     }
 
-    pub async fn from_provider(provider: AlloyProvider, router: AlloyAddress) -> Result<Self> {
-        let router_query = RouterQuery::from_provider(router, provider.root().clone());
-        Ok(Self {
-            router,
-            wvara: router_query.wvara_address().await?.into(),
-            middleware: router_query.middleware_address().await?.into(),
-            provider,
-            signer: None,
-            sender_address: None,
-        })
-    }
-}
-
-impl Ethereum {
     pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
     }
@@ -150,13 +342,17 @@ impl Ethereum {
         self.provider.get_chain_id().await.map_err(Into::into)
     }
 
-    pub async fn get_latest_block(&self) -> Result<SimpleBlockData> {
-        self.get_block(BlockId::latest()).await
+    pub(crate) async fn get_latest_block_inner(
+        provider: &AlloyProvider,
+    ) -> Result<SimpleBlockData> {
+        Self::get_block_inner(provider, BlockId::latest()).await
     }
 
-    pub async fn get_block(&self, block_id: impl IntoBlockId) -> Result<SimpleBlockData> {
-        let block_resp = self
-            .provider()
+    pub(crate) async fn get_block_inner(
+        provider: &AlloyProvider,
+        block_id: impl IntoBlockId,
+    ) -> Result<SimpleBlockData> {
+        let block_resp = provider
             .get_block(block_id.into_block_id())
             .await
             .with_context(|| "failed to get latest block")?
@@ -177,12 +373,67 @@ impl Ethereum {
         Ok(SimpleBlockData { hash, header })
     }
 
+    pub async fn get_latest_block(&self) -> Result<SimpleBlockData> {
+        Self::get_latest_block_inner(&self.provider()).await
+    }
+
+    pub async fn get_block(&self, block_id: impl IntoBlockId) -> Result<SimpleBlockData> {
+        Self::get_block_inner(&self.provider(), block_id).await
+    }
+
+    pub(crate) async fn prepare_permit_data(
+        provider: &AlloyProvider,
+        wvara_query: WVaraQuery,
+        sender: &Sender,
+        spender: ActorId,
+        value: u128,
+    ) -> Result<Eip712PermitData> {
+        let signer_address = provider.default_signer_address();
+        let signer_actor_id = Address::from(signer_address).into();
+
+        let nonce = abi_utils::u256_to_uint256(wvara_query.nonces(signer_actor_id).await?);
+        let eip712_domain = wvara_query.eip712_domain().await?;
+        let SimpleBlockData {
+            header: BlockHeader { timestamp, .. },
+            ..
+        } = Self::get_latest_block_inner(provider).await?;
+        let deadline = AlloyU256::from(
+            timestamp
+                .checked_add(Self::PERMIT_DEADLINE_OFFSET)
+                .expect("infallible"),
+        );
+
+        let permit = Permit {
+            owner: signer_address,
+            spender: spender.into(),
+            value: AlloyU256::from(value),
+            nonce,
+            deadline,
+        };
+
+        let hash = permit.eip712_signing_hash(&eip712_domain);
+        let signature = sender.sign_hash(&hash).await?;
+
+        let v = (signature.v() as u8) + 27;
+        let r = signature.r().into();
+        let s = signature.s().into();
+
+        Ok(Eip712PermitData { deadline, v, r, s })
+    }
+
     pub fn mirror(&self, actor_id: ActorId) -> Mirror {
-        Mirror::new(actor_id.into(), self.provider())
+        Mirror::new(actor_id.into(), self.wvara, self.sender(), self.provider())
     }
 
     pub fn router(&self) -> Router {
-        Router::new(self.router, self.wvara, self.provider())
+        Router::new(
+            self.router,
+            self.wvara,
+            self.eip1559_estimator.clone(),
+            self.eip1559_max_fee_per_gas_in_gwei,
+            self.sender(),
+            self.provider(),
+        )
     }
 
     pub fn wrapped_vara(&self) -> WVara {
@@ -199,34 +450,32 @@ impl Ethereum {
     }
 }
 
-pub const NO_EIP1559_FEE_INCREASE_PERCENTAGE: u64 = 0;
-pub const INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE: u64 = 15;
-
-pub const NO_BLOB_GAS_MULTIPLIER: u128 = 1;
-pub const INCREASED_BLOB_GAS_MULTIPLIER: u128 = 3;
-
 pub(crate) async fn create_provider(
     rpc_url: &str,
     signer: Signer,
     sender_address: Address,
     eip1559_fee_increase_percentage: u64,
     blob_gas_multiplier: u128,
-) -> Result<AlloyProvider> {
-    Ok(ProviderBuilder::default()
-        .with_eip1559_estimator(Eip1559Estimator::new(move |base_fee_per_gas, rewards| {
-            utils::eip1559_default_estimator(base_fee_per_gas, rewards)
-                .scaled_by_pct(eip1559_fee_increase_percentage)
-        }))
-        .with_blob_gas_estimator(BlobGasEstimator::scaled(blob_gas_multiplier))
-        .with_simple_nonce_management()
-        .fetch_chain_id()
-        .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
-        .connect(rpc_url)
-        .await?)
+) -> Result<(AlloyProvider, Eip1559Estimator)> {
+    let eip1559_estimator = Eip1559Estimator::new(move |base_fee_per_gas, rewards| {
+        utils::eip1559_default_estimator(base_fee_per_gas, rewards)
+            .scaled_by_pct(eip1559_fee_increase_percentage)
+    });
+    Ok((
+        ProviderBuilder::default()
+            .with_eip1559_estimator(eip1559_estimator.clone())
+            .with_blob_gas_estimator(BlobGasEstimator::scaled(blob_gas_multiplier))
+            .with_simple_nonce_management()
+            .fetch_chain_id()
+            .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
+            .connect(rpc_url)
+            .await?,
+        eip1559_estimator,
+    ))
 }
 
 #[derive(Debug, Clone)]
-struct Sender {
+pub struct Sender {
     signer: Signer,
     sender: PublicKey,
     chain_id: Option<ChainId>,

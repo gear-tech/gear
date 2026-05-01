@@ -19,7 +19,6 @@
 //! Wasmer's module caches
 
 use bytes::Bytes;
-use fs4::fs_std::FileExt;
 use std::{
     fs::File,
     io,
@@ -128,7 +127,7 @@ fn get_impl(
             .append(true)
             .create(true)
             .open(path)?;
-        file.lock_exclusive()?;
+        file.lock()?;
 
         let mut f = || -> Result<_, Error> {
             let metadata = file.metadata()?;
@@ -169,7 +168,7 @@ fn get_impl(
         // explicitly drop the lock even on error to
         // allow other threads & processes to read the file
         // because some OS only unlock on process exit
-        FileExt::unlock(&file)?;
+        file.unlock()?;
 
         let (serialized_module, module) = res?;
 

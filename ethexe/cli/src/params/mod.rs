@@ -16,6 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Shared configuration model for the `ethexe` CLI.
+//!
+//! The same structures are deserialized from TOML and parsed from clap, which keeps the
+//! config file shape aligned with the command-line interface. Command handlers merge their
+//! explicit CLI values over the file-loaded values through [`MergeParams`].
+
 use anyhow::{Context, Result};
 use clap::Parser;
 use ethexe_service::config::Config;
@@ -70,7 +76,11 @@ impl Params {
         Ok(params)
     }
 
-    /// Convert self into a proper services `Config` object.
+    /// Converts merged CLI/TOML parameters into a runtime [`Config`].
+    ///
+    /// `node` and `ethereum` are required because every service configuration depends on them.
+    /// The remaining sections are optional and are omitted when the corresponding service is
+    /// disabled or not configured.
     pub fn into_config(self) -> Result<Config> {
         let Params {
             node,
@@ -119,10 +129,10 @@ impl MergeParams for Params {
 
 /// Helper trait for merging parameters of two sources: from cli and file.
 pub trait MergeParams: Sized {
-    /// Merge two parameter, self must be prioritized.
+    /// Merges two parameter values, keeping `self` as the higher-priority source.
     fn merge(self, with: Self) -> Self;
 
-    /// Optionally merge two parameters.
+    /// Merges optional parameter sections while preserving the same priority order.
     fn optional_merge(me: Option<Self>, with: Option<Self>) -> Option<Self> {
         match (me, with) {
             (Some(me), Some(with)) => Some(me.merge(with)),

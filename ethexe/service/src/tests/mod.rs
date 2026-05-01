@@ -21,9 +21,9 @@
 pub(crate) mod utils;
 
 use crate::tests::utils::{
-    AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
-    TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets,
-    init_logger,
+    AnnounceId, EnvNetworkConfig, GenesisInitializerFromDump, InfiniteStreamExt, Node, NodeConfig,
+    TestEnv, TestEnvConfig, TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig,
+    WaitForReplyTo, Wallets, init_logger,
 };
 use alloy::{
     primitives::U256,
@@ -45,11 +45,13 @@ use ethexe_common::{
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent};
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
-use ethexe_db::verifier::IntegrityVerifier;
+use ethexe_db::{Database, dump::StateDump, verifier::IntegrityVerifier};
 use ethexe_ethereum::{
-    TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams, router::Router,
+    EthereumBuilder, TryGetReceipt, abi::IDemoCaller, deploy::ContractsDeploymentParams,
+    router::Router,
 };
 use ethexe_observer::ObserverEvent;
+use ethexe_processor::Processor;
 use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use futures::StreamExt;
@@ -71,6 +73,30 @@ use tokio::sync::{
 };
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
+
+#[derive(Clone)]
+struct RecordingCommitter {
+    router: Router,
+    committed_batches: Arc<Mutex<Vec<BatchCommitment>>>,
+}
+
+#[async_trait::async_trait]
+impl BatchCommitter for RecordingCommitter {
+    fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+        Box::new(self.clone())
+    }
+
+    async fn commit(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> anyhow::Result<H256> {
+        self.committed_batches.lock().await.push(batch.clone());
+        Box::new(self.router.clone())
+            .commit(batch, signatures)
+            .await
+    }
+}
 
 #[tokio::test]
 #[ntest::timeout(30_000)]
@@ -1017,6 +1043,132 @@ async fn value_send_program_to_user_and_replied() {
 
 #[tokio::test]
 #[ntest::timeout(60_000)]
+async fn batch_commitment_squashes_repeated_ping_transitions() {
+    init_logger();
+
+    let mut env = TestEnv::new(TestEnvConfig {
+        commitment_delay_limit: 5,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let committed_batches = Arc::new(Mutex::new(Vec::new()));
+    let recording_committer = RecordingCommitter {
+        router: EthereumBuilder::default()
+            .rpc_url(&env.eth_cfg.rpc)
+            .router_address(env.eth_cfg.router_address)
+            .signer(env.signer.clone())
+            .sender_address(env.validators[0].public_key.to_address())
+            .eip1559_fee_increase_percentage(env.eth_cfg.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier(env.eth_cfg.blob_gas_multiplier)
+            .build()
+            .await
+            .unwrap()
+            .router(),
+        committed_batches: committed_batches.clone(),
+    };
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.custom_committer = Some(Box::new(recording_committer.clone()));
+    node.start_service().await;
+
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = program.program_id;
+
+    committed_batches.lock().await.clear();
+
+    node.stop_service().await;
+
+    let first_ping = env.send_message(ping_id, b"PING").await.unwrap();
+    let second_ping = env.send_message(ping_id, b"PING").await.unwrap();
+
+    env.skip_blocks(env.commitment_delay_limit + 2).await;
+
+    node.custom_committer = Some(Box::new(recording_committer));
+    node.start_service().await;
+    env.force_new_block().await;
+
+    let first_reply = first_ping.wait_for().await.unwrap();
+    assert_eq!(first_reply.program_id, ping_id);
+    assert_eq!(
+        first_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(first_reply.payload, b"PONG");
+
+    let second_reply = second_ping.wait_for().await.unwrap();
+    assert_eq!(second_reply.program_id, ping_id);
+    assert_eq!(
+        second_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(second_reply.payload, b"PONG");
+
+    let committed_batches = committed_batches.lock().await.clone();
+    let matching_batch = committed_batches
+        .iter()
+        .find(|batch| {
+            batch.chain_commitment.as_ref().is_some_and(|chain| {
+                chain.transitions.iter().any(|transition| {
+                    transition.actor_id == ping_id && transition.messages.len() == 2
+                })
+            })
+        })
+        .expect("expected committed batch with a squashed ping program transition");
+    let chain_commitment = matching_batch
+        .chain_commitment
+        .as_ref()
+        .expect("expected chain commitment");
+
+    assert_eq!(
+        chain_commitment
+            .transitions
+            .iter()
+            .filter(|transition| transition.actor_id == ping_id)
+            .count(),
+        1,
+        "repeated transitions for the same actor must be squashed before commit"
+    );
+
+    let squashed_transition = chain_commitment
+        .transitions
+        .iter()
+        .find(|transition| transition.actor_id == ping_id)
+        .expect("expected squashed transition for ping actor");
+    assert_eq!(
+        squashed_transition.messages.len(),
+        2,
+        "squashed transition must carry both reply messages"
+    );
+    assert!(
+        squashed_transition
+            .messages
+            .iter()
+            .all(|message| message.payload == b"PONG"),
+        "expected both outgoing messages to be PONG replies"
+    );
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
 async fn incoming_transfers() {
     init_logger();
 
@@ -1126,16 +1278,23 @@ async fn ping_reorg() {
         .await;
     node.start_service().await;
 
-    let res = env
+    let code_id = env
         .upload_code(demo_ping::WASM_BINARY)
         .await
         .unwrap()
         .wait_for()
         .await
+        .map(|res| {
+            assert!(res.valid);
+            res.code_id
+        })
         .unwrap();
-    assert!(res.valid);
 
-    let code_id = res.code_id;
+    let latest_block = env.latest_block().await;
+    connect_node
+        .events()
+        .find_announce_computed(latest_block.hash)
+        .await;
 
     log::info!("📗 Abort service to simulate node blocks skipping");
     node.stop_service().await;
@@ -1197,6 +1356,13 @@ async fn ping_reorg() {
         .unwrap();
     assert_eq!(res.program_id, ping_id);
     assert_eq!(res.payload, b"PONG");
+
+    // wait till connect node is fully synced
+    let latest_block = env.latest_block().await;
+    connect_node
+        .events()
+        .find_announce_computed(latest_block.hash)
+        .await;
 
     // The last step is to test correctness after db cleanup
     node.stop_service().await;
@@ -1395,11 +1561,22 @@ async fn multiple_validators() {
     assert_eq!(res.value, 0);
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
 
-    log::info!("📗 Stop validator 0 and check, that ethexe is still working");
-    if env.next_block_producer_index().await == 0 {
-        log::info!("📗 Skip one block to be sure validator 0 is not a producer for next block");
-        env.force_new_block().await;
+    // Set next producer as 1, to be sure that after next producer will be 2.
+    while env.next_block_producer_index().await != 1 {
+        log::info!("📗 Skip one block to be sure validator 1 is a producer for next block");
+        env.skip_blocks(1).await;
     }
+
+    // Wait till validators finish processing
+    let latest_block = env.latest_block().await;
+    for validator in &mut validators {
+        validator
+            .events()
+            .find_announce_computed(latest_block.hash)
+            .await;
+    }
+
+    log::info!("📗 Stop validator 0 and check, that ethexe is still working");
     validators[0].stop_service().await;
 
     let res = env
@@ -1410,6 +1587,15 @@ async fn multiple_validators() {
         .await
         .unwrap();
     assert_eq!(res.payload, res.message_id.encode().as_slice());
+
+    // Wait till validators finish processing
+    let latest_block = env.latest_block().await;
+    for validator in validators.iter_mut().skip(1) {
+        validator
+            .events()
+            .find_announce_computed(latest_block.hash)
+            .await;
+    }
 
     log::info!("📗 Stop validator 1 and check, that ethexe is not working after");
     validators[1].stop_service().await;
@@ -1424,9 +1610,12 @@ async fn multiple_validators() {
         .await
         .unwrap();
 
-    tokio::time::timeout(env.block_time * 5, wait_for_reply_to.clone().wait_for())
-        .await
-        .expect_err("Timeout expected");
+    tokio::time::timeout(
+        env.eth_cfg.block_time * 5,
+        wait_for_reply_to.clone().wait_for(),
+    )
+    .await
+    .expect_err("Timeout expected");
 
     log::info!(
         "📗 Re-start validator 0 and check, that now ethexe is working, validator 1 is still stopped"
@@ -1450,6 +1639,98 @@ async fn multiple_validators() {
 
     let res = wait_for_reply_to.wait_for().await.unwrap();
     assert_eq!(res.payload, res.message_id.encode().as_slice());
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn many_validators_repeated_ping() {
+    init_logger();
+
+    const VALIDATORS_COUNT: usize = 16;
+    const PING_ROUNDS: usize = 4;
+
+    log::info!(
+        "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
+    );
+
+    let signer = Signer::memory();
+    let validators: Vec<_> = (0..VALIDATORS_COUNT)
+        .map(|_| signer.generate().expect("must generate validator key"))
+        .collect();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::ProvidedValidators(validators),
+        network: EnvNetworkConfig::Enabled,
+        signer: signer.clone(),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("📗 Top-up balances for all validator accounts");
+    let validator_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    for validator in &env.validators {
+        env.provider
+            .anvil_set_balance(validator.public_key.to_address().into(), validator_balance)
+            .await
+            .unwrap();
+    }
+
+    let mut running_validators = Vec::with_capacity(VALIDATORS_COUNT);
+    for (i, validator_cfg) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut node = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg))
+            .await;
+        node.start_service().await;
+        running_validators.push(node);
+    }
+
+    log::info!("📗 Upload demo_ping code");
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    log::info!("📗 Create demo_ping program");
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_id = program.program_id;
+    for i in 0..PING_ROUNDS {
+        log::info!("📗 PING round {}/{}", i + 1, PING_ROUNDS);
+        let reply = env
+            .send_message(ping_id, b"PING")
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            reply.program_id, ping_id,
+            "unexpected program for round {i}"
+        );
+        assert_eq!(
+            reply.code,
+            ReplyCode::Success(SuccessReplyReason::Manual),
+            "unexpected reply code for round {i}"
+        );
+        assert_eq!(reply.payload, b"PONG", "unexpected payload for round {i}");
+        assert_eq!(reply.value, 0, "unexpected value for round {i}");
+    }
+
+    log::info!("📗 Completed all ping rounds successfully");
+
+    assert_eq!(running_validators.len(), VALIDATORS_COUNT);
 }
 
 #[tokio::test]
@@ -1598,9 +1879,9 @@ async fn fast_sync() {
                 bob_meta.last_committed_batch
             );
 
-            let Some((alice_announces, bob_announces)) =
-                alice_meta.announces.zip(bob_meta.announces)
-            else {
+            let alice_announces = alice.db.block_announces(block);
+            let bob_announces = bob.db.block_announces(block);
+            let Some((alice_announces, bob_announces)) = alice_announces.zip(bob_announces) else {
                 panic!("alice or bob has no announces");
             };
 
@@ -2812,6 +3093,15 @@ async fn announces_conflicts() {
                 assert_eq!(res.value, 0);
                 assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
             });
+
+        // Wait till all validators stop processing
+        let latest_block = env.latest_block().await;
+        for validator in &mut validators {
+            validator
+                .events()
+                .find_announce_computed(latest_block.hash)
+                .await;
+        }
     }
 
     let (mut receivers, validator0, wait_for_pong) = {
@@ -2831,7 +3121,7 @@ async fn announces_conflicts() {
 
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
-        let era_index = timelines.era_from_ts(block.header.timestamp);
+        let era_index = timelines.era_from_ts(block.header.timestamp).unwrap();
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
         let announce_hash = announce.to_hash();
         validator0
@@ -2902,7 +3192,7 @@ async fn announces_conflicts() {
         // skip slots for validators 3, 4, 5 and go to the timestamp, where next block producer is validator 6
         env.provider
             .anvil_set_next_block_timestamp(
-                env.latest_block().await.header.timestamp + env.block_time.as_secs() * 4,
+                env.latest_block().await.header.timestamp + env.eth_cfg.block_time.as_secs() * 4,
             )
             .await
             .unwrap();
@@ -2929,7 +3219,7 @@ async fn announces_conflicts() {
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
-        let era_index = timelines.era_from_ts(block.header.timestamp);
+        let era_index = timelines.era_from_ts(block.header.timestamp).unwrap();
         let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
         let announce6_hash = announce6.to_hash();
         validator6
@@ -2953,10 +3243,9 @@ async fn announces_conflicts() {
         // so must be rejected by validators 1..=5
         let block = env.latest_block().await;
         let timelines = env.db.config().timelines;
-        let era_index = timelines.era_from_ts(block.header.timestamp);
+        let era_index = timelines.era_from_ts(block.header.timestamp).unwrap();
         let parent = validator1_db
-            .block_meta(block.header.parent_hash)
-            .announces
+            .block_announces(block.header.parent_hash)
             .into_iter()
             .flatten()
             .find(|&announce_hash| validator1_db.announce(announce_hash).unwrap().is_base())
@@ -3058,6 +3347,15 @@ async fn whole_network_restore() {
     assert_eq!(init_res.value, 0);
     assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert!(seen_messages.insert(init_res.message_id));
+
+    // Wait till all validators stop processing
+    let latest_block = env.latest_block().await;
+    for validator in &mut validators {
+        validator
+            .events()
+            .find_announce_computed(latest_block.hash)
+            .await;
+    }
 
     for (i, v) in validators.iter_mut().enumerate() {
         log::info!("📗 Stopping validator-{i}");
@@ -3461,4 +3759,333 @@ async fn reply_callback() {
         .await;
 
     assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn re_genesis_with_state_dump() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    log::info!("📗 Phase 1: start a node, deploy ping program, do ping-pong.");
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+    let ping_id = res.program_id;
+
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    log::info!(
+        "📗 Phase 2: re-genesis the router via reinitialize + lookupGenesisHash. \
+         New genesis is the block where the reinitialize tx is mined."
+    );
+    env.ethereum.router().reinitialize().await.unwrap();
+    env.ethereum.router().lookup_genesis_hash().await.unwrap();
+
+    let new_genesis_hash: H256 = env
+        .ethereum
+        .router()
+        .query()
+        .genesis_block_hash()
+        .await
+        .unwrap()
+        .0
+        .into();
+    log::info!("New genesis block hash: {new_genesis_hash:?}");
+
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    log::info!("📗 Phase 3: collect state dump at the new genesis block.");
+    let dump = StateDump::collect_from_storage(&node.db, new_genesis_hash).unwrap();
+    log::info!(
+        "Dump: {} codes, {} programs, {} blobs",
+        dump.codes.len(),
+        dump.programs.len(),
+        dump.blobs.len(),
+    );
+    assert_eq!(dump.block_hash, new_genesis_hash);
+    assert!(!dump.codes.is_empty());
+    assert!(!dump.programs.is_empty());
+
+    // Stop the node.
+    drop(node);
+
+    log::info!("📗 Phase 4: create a new node with a fresh DB initialized from the state dump.");
+
+    let memory_db = Database::memory();
+    let processor = Processor::new(memory_db).unwrap();
+    let initializer = GenesisInitializerFromDump {
+        dump: Some(dump),
+        processor,
+    };
+
+    let new_db = ethexe_db::create_initialized_empty_memory_db(ethexe_db::InitConfig {
+        ethereum_rpc: env.eth_cfg.rpc.clone(),
+        router_address: env.eth_cfg.router_address,
+        slot_duration_secs: env.eth_cfg.block_time.as_secs(),
+        genesis_initializer: Some(Box::new(initializer)),
+    })
+    .await
+    .unwrap();
+
+    // Start node again with the new db.
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .db(new_db)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node.start_service().await;
+
+    log::info!("📗 Phase 5: verify ping still works after re-genesis.");
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.program_id, ping_id);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+}
+
+/// Test re-genesis with a program that has pending delayed messages in the dispatch stash.
+///
+/// WAT program: on `handle`, sends a delayed message (delay=5 blocks) to the source,
+/// then replies with "OK". After re-genesis, the delayed task should be restored
+/// in the scheduler from the dispatch stash in the program state.
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn re_genesis_delayed_message() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    // WAT program: on handle, sends a delayed message to source and replies.
+    //
+    // Memory layout:
+    //   0..32   : source ActorId (filled by gr_source)
+    //   32..48  : value u128 = 0 (for dest_with_value)
+    //   48..55  : payload "DELAYED"
+    //   64..100 : error(4) + message_id(32) result buffer
+    let wat = r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_source" (func $gr_source (param i32)))
+            (import "env" "gr_send" (func $gr_send (param i32 i32 i32 i32 i32)))
+            (import "env" "gr_reply" (func $gr_reply (param i32 i32 i32 i32)))
+            (export "handle" (func $handle))
+            (data (i32.const 48) "DELAYED")
+            (func $handle
+                ;; Get source address into memory at offset 0.
+                (call $gr_source (i32.const 0))
+                ;; Send delayed message: dest_with_value=0, payload=48, len=7, delay=5, err_ptr=64
+                (call $gr_send (i32.const 0) (i32.const 48) (i32.const 7) (i32.const 5) (i32.const 64))
+                ;; Reply with "DE" via gr_reply: payload_ptr=48, len=2, value_ptr=32, err_ptr=64
+                (call $gr_reply (i32.const 48) (i32.const 2) (i32.const 32) (i32.const 64))
+            )
+        )
+    "#;
+
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse WAT module");
+
+    log::info!("📗 Phase 1: deploy program and trigger delayed send.");
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let program_id = res.program_id;
+
+    // First message initializes the program (calls `init`).
+    let res = env
+        .send_message(program_id, b"init")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    // Second message triggers handle with delayed send.
+    let res = env
+        .send_message(program_id, b"trigger")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(&res.payload, b"DE"); // first 2 bytes of "DELAYED"
+
+    // Wait for announce commit.
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    // Phase 2: re-genesis via reinitialize + lookupGenesisHash; the new genesis
+    // is the block where the reinitialize tx was mined.
+    log::info!("📗 Phase 2: re-genesis the router.");
+    env.ethereum.router().reinitialize().await.unwrap();
+    env.ethereum.router().lookup_genesis_hash().await.unwrap();
+
+    let new_genesis_hash: H256 = env
+        .ethereum
+        .router()
+        .query()
+        .genesis_block_hash()
+        .await
+        .unwrap()
+        .0
+        .into();
+    log::info!("New genesis block hash: {new_genesis_hash:?}");
+
+    // Wait until the node commits the new genesis block before dumping from its DB.
+    let latest_block = env.latest_block().await.hash;
+    node.events().find_announce_computed(latest_block).await;
+
+    // Phase 3: collect dump at the new genesis block; it should still carry the
+    // pending delayed send in the dispatch stash because the 5-block delay
+    // hasn't elapsed yet.
+    log::info!("📗 Phase 3: collect state dump at the new genesis block.");
+    let dump = StateDump::collect_from_storage(&node.db, new_genesis_hash).unwrap();
+    log::info!(
+        "Dump: {} codes, {} programs, {} blobs",
+        dump.codes.len(),
+        dump.programs.len(),
+        dump.blobs.len(),
+    );
+    assert_eq!(dump.block_hash, new_genesis_hash);
+
+    // Verify the dispatch stash is non-empty (delayed message pending).
+    {
+        let (_code_id, state_hash) = dump.programs.values().next().unwrap();
+        let state = node.db.program_state(*state_hash).unwrap();
+        assert!(
+            !state.stash_hash.is_empty(),
+            "dispatch stash should contain the delayed message"
+        );
+    }
+
+    // Stop the node.
+    drop(node);
+
+    // Phase 4: start new node with dump.
+    log::info!("📗 Phase 4: start new node with state dump.");
+    let memory_db = Database::memory();
+    let processor = Processor::new(memory_db).unwrap();
+    let initializer = GenesisInitializerFromDump {
+        dump: Some(dump),
+        processor,
+    };
+
+    let new_db = ethexe_db::create_initialized_empty_memory_db(ethexe_db::InitConfig {
+        ethereum_rpc: env.eth_cfg.rpc.clone(),
+        router_address: env.eth_cfg.router_address,
+        slot_duration_secs: env.eth_cfg.block_time.as_secs(),
+        genesis_initializer: Some(Box::new(initializer)),
+    })
+    .await
+    .unwrap();
+
+    // Verify schedule was restored with the delayed task.
+    {
+        let genesis_announce = new_db.config().genesis_announce_hash;
+        let schedule = new_db.announce_schedule(genesis_announce).unwrap();
+        let total_tasks: usize = schedule.values().map(|tasks| tasks.len()).sum();
+        log::info!(
+            "Restored schedule: {total_tasks} tasks across {} blocks",
+            schedule.len()
+        );
+        assert!(
+            total_tasks > 0,
+            "schedule must contain the delayed send task"
+        );
+    }
+
+    let mut node = env
+        .new_node(
+            NodeConfig::default()
+                .db(new_db)
+                .validator(env.validators[0]),
+        )
+        .await;
+    node.start_service().await;
+
+    // skip 3 blocks to reach the delayed message execution slot
+    // delay=5 blocks, so execute at block N+5, but we are currently at N+2 after genesis.
+    env.skip_blocks(3).await;
+    env.new_observer_events()
+        .filter_map_block_synced()
+        .find_map(|event| match event {
+            BlockEvent::Mirror {
+                event: MirrorEvent::Message(event),
+                ..
+            } => Some(event),
+            _ => None,
+        })
+        .await
+        .tap(
+            |MessageEvent {
+                 destination,
+                 payload,
+                 value,
+                 ..
+             }| {
+                assert_eq!(*destination, env.sender_id);
+                assert_eq!(payload, b"DELAYED");
+                assert_eq!(*value, 0);
+            },
+        );
 }

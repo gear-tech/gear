@@ -18,6 +18,7 @@
 
 use crate::{
     RouterDataProvider, Service,
+    config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
         events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
@@ -26,7 +27,7 @@ use crate::{
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
-    rpc::types::anvil::MineOptions,
+    rpc::types::anvil::{Metadata, MineOptions},
 };
 use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
@@ -34,6 +35,7 @@ use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
     consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
+    db::ConfigStorageRO,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{
         BlockEvent, MirrorEvent, RouterEvent,
@@ -46,15 +48,14 @@ use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
-    Ethereum, INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE, NO_BLOB_GAS_MULTIPLIER,
-    NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+    Ethereum, EthereumBuilder,
     deploy::{ContractsDeploymentParams, EthereumDeployer},
     middleware::MockElectionProvider,
     router::RouterQuery,
 };
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
-    EthereumConfig, ObserverConfig, ObserverService,
+    ObserverConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
@@ -76,6 +77,7 @@ use std::{
     fmt, mem,
     net::SocketAddr,
     num::NonZero,
+    ops::Not,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
@@ -97,7 +99,6 @@ pub struct TestEnv {
     pub validators: Vec<ValidatorConfig>,
     pub sender_id: ActorId,
     pub threshold: u64,
-    pub block_time: Duration,
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: u32,
     pub compute_config: ComputeConfig,
@@ -161,13 +162,19 @@ impl TestEnv {
 
                 let anvil = anvil.spawn();
 
+                let provider: RootProvider = ProviderBuilder::default()
+                    .connect(anvil.ws_endpoint().as_str())
+                    .await
+                    .expect("failed to connect to anvil");
+
+                let Metadata {
+                    client_commit_sha, ..
+                } = provider.anvil_metadata().await?;
+
+                Service::check_foundry_toolchain_version(client_commit_sha)?;
+
                 // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
                 if !continuous_block_generation {
-                    let provider: RootProvider = ProviderBuilder::default()
-                        .connect(anvil.ws_endpoint().as_str())
-                        .await
-                        .expect("failed to connect to anvil");
-
                     provider
                         .anvil_set_block_timestamp_interval(block_time.as_secs())
                         .await
@@ -207,20 +214,19 @@ impl TestEnv {
 
         let ethereum = if let Some(router_address) = router_address {
             log::info!("📗 Connecting to existing router at {router_address}");
-            Ethereum::new(
-                &ws_rpc_url,
-                router_address.parse().unwrap(),
-                signer.clone(),
-                sender_address,
-                INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE,
-                NO_BLOB_GAS_MULTIPLIER,
-            )
-            .await?
+            EthereumBuilder::default()
+                .rpc_url(&ws_rpc_url)
+                .router_address(router_address.parse().unwrap())
+                .signer(signer.clone())
+                .sender_address(sender_address)
+                .with_eip1559_increased_fee()
+                .build()
+                .await?
         } else {
             log::info!("📗 Deploying new router");
             let validators_addresses: Vec<Address> =
                 validators.iter().map(|k| k.to_address()).collect();
-            EthereumDeployer::new(&ws_rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
+            EthereumDeployer::new(&ws_rpc_url, signer.clone(), sender_address)
                 .await
                 .unwrap()
                 .with_validators(validators_addresses.try_into().unwrap())
@@ -238,6 +244,7 @@ impl TestEnv {
             ethereum_rpc: ws_rpc_url.clone(),
             router_address,
             slot_duration_secs: block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await?;
 
@@ -245,9 +252,10 @@ impl TestEnv {
             rpc: ws_rpc_url.clone(),
             beacon_rpc: http_rpc_url.clone(),
             router_address,
-            block_time: config.block_time,
-            eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-            blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
+            block_time,
+            eip1559_fee_increase_percentage: Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            eip1559_max_fee_per_gas_in_gwei: Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI,
+            blob_gas_multiplier: Ethereum::NO_BLOB_GAS_MULTIPLIER,
         };
         let mut observer = ObserverService::new(
             db.clone(),
@@ -359,7 +367,6 @@ impl TestEnv {
             validators: validator_configs,
             sender_id: ActorId::from(H160::from(sender_address.0)),
             threshold,
-            block_time,
             continuous_block_generation,
             commitment_delay_limit,
             compute_config,
@@ -398,6 +405,11 @@ impl TestEnv {
                 (format!("/memory/{nonce}"), bootstrap_address.clone())
             })
             .unzip();
+        let network_public_key = network_address.as_ref().map(|_| {
+            self.signer
+                .generate()
+                .expect("failed to generate network key")
+        });
 
         Node {
             name,
@@ -411,8 +423,8 @@ impl TestEnv {
             election_provider: self.election_provider.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
-            block_time: self.block_time,
             validator_config,
+            network_public_key,
             network_address,
             network_bootstrap_address,
             service_rpc_config,
@@ -428,11 +440,16 @@ impl TestEnv {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
             router_address: self.eth_cfg.router_address,
             slot_duration_secs: self.eth_cfg.block_time.as_secs(),
+            genesis_initializer: None,
         })
         .await
         .unwrap()
     }
 
+    /// Upload code bytes and request a validation on router. Returns waiter for code validation result.
+    ///
+    /// NOTE: [`WaitForUploadCode`] contains a hack for not continuous block generation mode,
+    /// it may cause new blocks mining, so use it carefully, for more info see [`WaitForUploadCode::wait_for`].
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
         log::info!("📗 Upload code, len {}", code.len());
 
@@ -444,7 +461,14 @@ impl TestEnv {
         let (_tx_hash, new_code_id) = self.ethereum.router().request_code_validation(code).await?;
         assert_eq!(new_code_id, code_id);
 
-        Ok(WaitForUploadCode { receiver, code_id })
+        Ok(WaitForUploadCode {
+            code_id,
+            receiver,
+            hack: self
+                .continuous_block_generation
+                .not()
+                .then(|| (self.provider.clone(), self.eth_cfg.block_time)),
+        })
     }
 
     pub async fn create_program(
@@ -468,22 +492,20 @@ impl TestEnv {
         let receiver = self.new_observer_events();
         let router = self.ethereum.router();
 
-        let (_, program_id) = router
-            .create_program(code_id, salt, override_initializer)
-            .await?;
-
-        if initial_executable_balance != 0 {
+        let (_, program_id) = if initial_executable_balance != 0 {
             router
-                .wvara()
-                .approve(program_id, initial_executable_balance)
-                .await?;
-
-            let mirror = self.ethereum.mirror(program_id);
-
-            mirror
-                .executable_balance_top_up(initial_executable_balance)
-                .await?;
-        }
+                .create_program_with_executable_balance(
+                    code_id,
+                    salt,
+                    override_initializer,
+                    initial_executable_balance,
+                )
+                .await
+        } else {
+            router
+                .create_program(code_id, salt, override_initializer)
+                .await
+        }?;
 
         Ok(WaitForProgramCreation {
             receiver,
@@ -505,22 +527,26 @@ impl TestEnv {
         let receiver = self.new_observer_events();
         let router = self.ethereum.router();
 
-        let (_, program_id) = router
-            .create_program_with_abi_interface(code_id, salt, override_initializer, abi_interface)
-            .await?;
-
-        if initial_executable_balance != 0 {
+        let (_, program_id) = if initial_executable_balance != 0 {
             router
-                .wvara()
-                .approve(program_id, initial_executable_balance)
-                .await?;
-
-            let mirror = self.ethereum.mirror(program_id);
-
-            mirror
-                .executable_balance_top_up(initial_executable_balance)
-                .await?;
-        }
+                .create_program_with_abi_interface_and_executable_balance(
+                    code_id,
+                    salt,
+                    override_initializer,
+                    abi_interface,
+                    initial_executable_balance,
+                )
+                .await?
+        } else {
+            router
+                .create_program_with_abi_interface(
+                    code_id,
+                    salt,
+                    override_initializer,
+                    abi_interface,
+                )
+                .await?
+        };
 
         Ok(WaitForProgramCreation {
             receiver,
@@ -618,11 +644,19 @@ impl TestEnv {
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
     pub async fn next_block_producer_index(&self) -> usize {
-        let timestamp = self.latest_block().await.header.timestamp;
-        ethexe_consensus::block_producer_index(
-            self.validators.len(),
-            (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
-        )
+        let timestamp =
+            self.latest_block().await.header.timestamp + self.eth_cfg.block_time.as_secs();
+        self.db
+            .config()
+            .timelines
+            .block_producer_index_at(
+                self.validators
+                    .len()
+                    .try_into()
+                    .expect("empty validators unexpected"),
+                timestamp,
+            )
+            .expect("failed to calculate block producer index")
     }
 
     /// Waits until the next block producer index becomes equal to `index`.
@@ -815,7 +849,6 @@ impl NodeConfig {
         }
     }
 
-    #[allow(unused)]
     pub fn db(mut self, db: Database) -> Self {
         self.db = Some(db);
         self
@@ -832,6 +865,7 @@ impl NodeConfig {
             cors: None,
             gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * DEFAULT_BLOCK_GAS_LIMIT,
             chunk_size: DEFAULT_CHUNK_SIZE.get(),
+            with_dev_api: false,
         };
         self.rpc = Some(service_rpc_config);
 
@@ -906,8 +940,8 @@ pub struct Node {
     election_provider: MockElectionProvider,
     signer: Signer,
     threshold: u64,
-    block_time: Duration,
     validator_config: Option<ValidatorConfig>,
+    network_public_key: Option<PublicKey>,
     network_address: Option<String>,
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
@@ -953,18 +987,20 @@ impl Node {
                 let committer = if let Some(custom_committer) = self.custom_committer.take() {
                     custom_committer
                 } else {
-                    Ethereum::new(
-                        &self.eth_cfg.rpc,
-                        self.eth_cfg.router_address,
-                        self.signer.clone(),
-                        config.public_key.to_address(),
-                        self.eth_cfg.eip1559_fee_increase_percentage,
-                        self.eth_cfg.blob_gas_multiplier,
-                    )
-                    .await
-                    .unwrap()
-                    .router()
-                    .into()
+                    EthereumBuilder::default()
+                        .rpc_url(&self.eth_cfg.rpc)
+                        .router_address(self.eth_cfg.router_address)
+                        .signer(self.signer.clone())
+                        .sender_address(config.public_key.to_address())
+                        .eip1559_fee_increase_percentage(
+                            self.eth_cfg.eip1559_fee_increase_percentage,
+                        )
+                        .blob_gas_multiplier(self.eth_cfg.blob_gas_multiplier)
+                        .build()
+                        .await
+                        .unwrap()
+                        .router()
+                        .into()
                 };
 
                 Box::pin(
@@ -976,10 +1012,9 @@ impl Node {
                         ethexe_consensus::ValidatorConfig {
                             pub_key: config.public_key,
                             signatures_threshold: self.threshold,
-                            slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                             commitment_delay_limit: self.commitment_delay_limit,
-                            producer_delay: self.block_time / 6,
+                            producer_delay: self.eth_cfg.block_time / 6,
                             router_address: self.eth_cfg.router_address,
                             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
@@ -990,7 +1025,6 @@ impl Node {
             } else {
                 Box::pin(ConnectService::new(
                     self.db.clone(),
-                    self.block_time,
                     self.commitment_delay_limit,
                 ))
             }
@@ -1126,7 +1160,9 @@ impl Node {
 
         let addr = self.network_address.as_ref()?;
 
-        let network_key = self.signer.generate().unwrap();
+        let network_key = self
+            .network_public_key
+            .expect("network public key must exist when network is configured");
         let multiaddr: Multiaddr = addr.parse().unwrap();
 
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
@@ -1217,10 +1253,14 @@ impl Drop for Node {
     }
 }
 
-#[derive(Clone)]
 pub struct WaitForUploadCode {
-    receiver: ObserverEventReceiver,
     pub code_id: CodeId,
+
+    receiver: ObserverEventReceiver,
+    /// Hack: contains provider and block time.
+    /// If Some then while waiting for code validation result
+    /// it would trigger new block mining each 3 block times.
+    hack: Option<(RootProvider, Duration)>,
 }
 
 #[derive(Debug)]
@@ -1233,17 +1273,40 @@ impl WaitForUploadCode {
     pub async fn wait_for(self) -> anyhow::Result<UploadCodeInfo> {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
-        let valid = self
-            .receiver
-            .filter_map_block_synced()
-            .find_map(|event| match event {
-                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
-                    code_id,
-                    valid,
-                })) if code_id == self.code_id => Some(valid),
-                _ => None,
-            })
-            .await;
+        let mut receiver = self.receiver.filter_map_block_synced();
+        let wait_for_validation_status = receiver.find_map(|event| match event {
+            BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                code_id,
+                valid,
+            })) if code_id == self.code_id => Some(valid),
+            _ => None,
+        });
+
+        let Some((provider, block_time)) = self.hack else {
+            return Ok(UploadCodeInfo {
+                code_id: self.code_id,
+                valid: wait_for_validation_status.await,
+            });
+        };
+
+        tokio::pin!(wait_for_validation_status);
+
+        let valid = loop {
+            tokio::select! {
+                _ = tokio::time::sleep(block_time * 3) => {
+                    // A hack to avoid waiting indefinitely in case
+                    // block producer skipped code validation commitment
+                    // by some reason in block with validation request.
+                    // We forcing a new block mining here,
+                    // so that producer have to start batch commitment aggregation for a new block.
+                    log::info!("⏱️ Reached code validation timeout, forcing new block to trigger commitment");
+                    provider.evm_mine(None).await.unwrap();
+                }
+                valid = &mut wait_for_validation_status => {
+                    break valid;
+                }
+            }
+        };
 
         Ok(UploadCodeInfo {
             code_id: self.code_id,

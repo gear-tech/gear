@@ -18,6 +18,12 @@
 
 #![allow(clippy::redundant_closure_call)]
 
+//! Ethereum- and Vara.eth-facing transaction workflows.
+//!
+//! This command family is intentionally broad: it covers Router interactions such as code
+//! upload and program creation, Mirror operations such as top-ups and replies, and injected
+//! transactions that are submitted through the Vara.eth RPC instead of through Ethereum.
+
 use crate::{
     params::Params,
     utils::{
@@ -33,10 +39,7 @@ use ethexe_common::{
     gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
     injected::{AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE},
 };
-use ethexe_ethereum::{
-    Ethereum, INCREASED_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE, mirror::ClaimInfo,
-    router::CodeValidationResult,
-};
+use ethexe_ethereum::{Ethereum, EthereumBuilder, mirror::ClaimInfo, router::CodeValidationResult};
 use ethexe_rpc::{InjectedClient, ProgramClient};
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
@@ -46,6 +49,7 @@ use serde_json::json;
 use sp_core::Bytes;
 use std::{env, fs, path::PathBuf};
 
+/// JSON-serializable result returned by `tx upload`.
 #[derive(Debug, Clone, Serialize)]
 struct UploadResultData {
     chain_id: u64,
@@ -65,6 +69,7 @@ struct UploadResultData {
     code_validation_result: Option<CodeValidationResult>,
 }
 
+/// JSON-serializable result returned by mirror creation commands.
 #[derive(Debug, Clone, Serialize)]
 struct CreateResultData {
     chain_id: u64,
@@ -82,6 +87,7 @@ struct CreateResultData {
     abi_interface: Option<Address>,
 }
 
+/// Snapshot returned by `tx query`.
 #[derive(Debug, Clone, Serialize)]
 struct MirrorState {
     router: Address,
@@ -96,6 +102,7 @@ struct MirrorState {
     formatted_executable_balance: String,
 }
 
+/// Common JSON result for the two balance top-up flows.
 #[derive(Debug, Clone, Serialize)]
 struct TopUpResult {
     chain_id: u64,
@@ -112,6 +119,7 @@ struct TopUpResult {
     formatted_value: String,
 }
 
+/// Shared payload metadata reported by both send-message modes.
 #[derive(Debug, Clone, Serialize)]
 struct SendMessagePayload {
     message_id: MessageId,
@@ -123,6 +131,10 @@ struct SendMessagePayload {
     reply_info: Option<ReplyInfo>,
 }
 
+/// Result returned by `tx send-message`.
+///
+/// The command can either send a normal Ethereum transaction or an injected transaction through
+/// the Vara.eth RPC, so the result mirrors those two execution paths.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 enum SendMessageResult {
@@ -149,6 +161,7 @@ enum SendMessageResult {
     },
 }
 
+/// JSON-serializable result returned by `tx send-reply`.
 #[derive(Debug, Clone, Serialize)]
 struct SendReplyResult {
     chain_id: u64,
@@ -169,6 +182,7 @@ struct SendReplyResult {
     claim_info: Option<ClaimInfo>,
 }
 
+/// JSON-serializable result returned by `tx claim-value`.
 #[derive(Debug, Clone, Serialize)]
 struct ClaimValueResult {
     chain_id: u64,
@@ -185,6 +199,7 @@ struct ClaimValueResult {
     claim_info: Option<ClaimInfo>,
 }
 
+/// JSON-serializable result returned by `tx transfer-locked-value-to-inheritor`.
 #[derive(Debug, Clone, Serialize)]
 struct TransferLockedValueToInheritorResult {
     chain_id: u64,
@@ -264,15 +279,17 @@ impl TxCommand {
                     .and_then(|p| p.eip1559_fee_increase_percentage)
             });
 
-        self.blob_gas_multiplier = self
-            .blob_gas_multiplier
-            .take()
-            .or_else(|| params.ethereum.as_ref().and_then(|p| p.blob_gas_multiplier));
+        self.blob_gas_multiplier = self.blob_gas_multiplier.take().or_else(|| {
+            params
+                .ethereum
+                .as_ref()
+                .and_then(|p| p.blob_gas_multiplier.map(|v| v as u128))
+        });
 
         self
     }
 
-    /// Execute the command.
+    /// Executes the selected transaction workflow inside a Tokio runtime.
     pub fn exec(self) -> Result<()> {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -280,6 +297,10 @@ impl TxCommand {
             .block_on(self.exec_inner())
     }
 
+    /// Shared async implementation for all `tx` subcommands.
+    ///
+    /// The method resolves the signer, Router, and sender up front so each subcommand can focus
+    /// only on its specific workflow.
     async fn exec_inner(self) -> Result<()> {
         let key_store = self
             .key_store
@@ -298,18 +319,19 @@ impl TxCommand {
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
-        let ethereum = Ethereum::new(
-            &rpc,
-            router_addr,
-            signer.clone(),
-            sender,
-            self.eip1559_fee_increase_percentage
-                .unwrap_or(NO_EIP1559_FEE_INCREASE_PERCENTAGE),
-            self.blob_gas_multiplier
-                .unwrap_or(INCREASED_BLOB_GAS_MULTIPLIER),
-        )
-        .await
-        .with_context(|| "failed to create Ethereum client")?;
+        let ethereum = EthereumBuilder::default()
+            .rpc_url(rpc.clone())
+            .router_address(router_addr)
+            .signer(signer.clone())
+            .sender_address(sender)
+            .eip1559_fee_increase_percentage_opt(self.eip1559_fee_increase_percentage)
+            .blob_gas_multiplier(
+                self.blob_gas_multiplier
+                    .unwrap_or(Ethereum::INCREASED_BLOB_GAS_MULTIPLIER),
+            )
+            .build()
+            .await
+            .with_context(|| "failed to create Ethereum client")?;
 
         eprintln!("RPC:      {rpc}");
         if let TxSubcommand::Query { rpc_url, .. }
@@ -470,6 +492,7 @@ impl TxCommand {
                 code_id,
                 salt,
                 initializer,
+                value,
                 json,
             } => {
                 let create_result = (async || -> Result<CreateResultData> {
@@ -481,16 +504,31 @@ impl TxCommand {
                     eprintln!("  Code id:     {code_id}");
                     eprintln!("  Salt:        {salt:?}");
                     eprintln!("  Initializer: {initializer}");
+                    if let Some(value) = value {
+                        let raw_value = value.into_inner();
+                        let formatted_value = FormattedValue::<WrappedVaraCurrency>::new(raw_value);
+                        eprintln!("  Value:       {formatted_value} ({raw_value})");
+                    }
                     eprintln!();
 
-                    let (receipt, actor_id) = router
-                        .create_program_with_receipt(code_id, salt, override_initializer)
-                        .await
-                        .with_context(|| {
-                            format!(
-                                "failed to create program from code id {code_id} and salt {salt:?}"
+                    let (receipt, actor_id) = if let Some(value) = value {
+                        let raw_value = value.into_inner();
+                        router
+                            .create_program_with_executable_balance_and_receipt(
+                                code_id,
+                                salt,
+                                override_initializer,
+                                raw_value,
                             )
-                        })?;
+                            .await
+                    } else {
+                        router
+                            .create_program_with_receipt(code_id, salt, override_initializer)
+                            .await
+                    }
+                    .with_context(|| {
+                        format!("failed to create program from code id {code_id} and salt {salt:?}")
+                    })?;
 
                     let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
@@ -556,6 +594,7 @@ impl TxCommand {
                 salt,
                 initializer,
                 abi_interface,
+                value,
                 json,
             } => {
                 let create_abi_result = (async || -> Result<CreateResultData> {
@@ -568,21 +607,39 @@ impl TxCommand {
                     eprintln!("  Salt:          {salt:?}");
                     eprintln!("  Initializer:   {initializer}");
                     eprintln!("  ABI interface: {abi_interface}");
+                    if let Some(value) = value {
+                        let raw_value = value.into_inner();
+                        let formatted_value = FormattedValue::<WrappedVaraCurrency>::new(raw_value);
+                        eprintln!("  Value:         {formatted_value} ({raw_value})");
+                    }
                     eprintln!();
 
-                    let (receipt, actor_id) = router
-                        .create_program_with_abi_interface_with_receipt(
-                            code_id,
-                            salt,
-                            override_initializer,
-                            abi_interface.into(),
-                        )
-                        .await
-                        .with_context(|| {
-                            format!(
-                                "failed to create program with ABI interface from code id {code_id} and salt {salt:?}"
+                    let (receipt, actor_id) = if let Some(value) = value {
+                        let raw_value = value.into_inner();
+                        router
+                            .create_program_with_abi_interface_and_executable_balance_with_receipt(
+                                code_id,
+                                salt,
+                                override_initializer,
+                                abi_interface.into(),
+                                raw_value
                             )
-                        })?;
+                            .await
+                    } else {
+                        router
+                            .create_program_with_abi_interface_with_receipt(
+                                code_id,
+                                salt,
+                                override_initializer,
+                                abi_interface.into(),
+                            )
+                            .await
+                    }
+                    .with_context(|| {
+                        format!(
+                            "failed to create program with ABI interface from code id {code_id} and salt {salt:?}"
+                        )
+                    })?;
 
                     let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
@@ -835,6 +892,7 @@ impl TxCommand {
                 mirror,
                 value,
                 approve,
+                permit,
                 watch,
                 json,
             } => {
@@ -869,9 +927,16 @@ impl TxCommand {
                             .await?;
                     }
 
-                    let receipt = mirror
-                        .executable_balance_top_up_with_receipt(raw_value)
-                        .await
+                    let receipt_result = if permit {
+                        mirror
+                            .executable_balance_top_up_with_permit_and_receipt(raw_value)
+                            .await
+                    } else {
+                        mirror
+                            .executable_balance_top_up_with_receipt(raw_value)
+                            .await
+                    };
+                    let receipt = receipt_result
                         .with_context(|| "failed to top up executable balance of mirror")?;
 
                     let tx_hash = (*receipt.transaction_hash).into();
@@ -1558,19 +1623,23 @@ impl TxCommand {
     }
 }
 
+/// Builds an explorer URL for a transaction hash when the chain is recognized.
 fn explorer_link(chain_id: u64, tx_hash: H256) -> Option<String> {
     explorer_base(chain_id).map(|base| format!("{base}/tx/{tx_hash:?}"))
 }
 
+/// Builds an explorer URL for an address when the chain is recognized.
 fn explorer_address_link(chain_id: u64, address: Address) -> Option<String> {
     explorer_base(chain_id).map(|base| format!("{base}/address/{address:?}"))
 }
 
+/// Resolves the explorer base URL for a known chain.
 fn explorer_base(chain_id: u64) -> Option<&'static str> {
     let named_chain: NamedChain = chain_id.try_into().ok()?;
     named_chain.etherscan_urls().map(|(_, base_url)| base_url)
 }
 
+/// Human-readable fee breakdown for a submitted Ethereum transaction.
 #[derive(Debug, Clone)]
 struct TxCostSummary {
     gas_used: u64,
@@ -1582,6 +1651,7 @@ struct TxCostSummary {
 }
 
 impl TxCostSummary {
+    /// Builds a fee summary from the receipt fields returned by the Ethereum client.
     fn new(
         gas_used: u64,
         effective_gas_price: u128,
@@ -1603,6 +1673,7 @@ impl TxCostSummary {
         }
     }
 
+    /// Prints a compact fee summary to stderr.
     fn print_human(&self) {
         let Self {
             gas_used,
@@ -1679,6 +1750,9 @@ pub enum TxSubcommand {
         /// Override initializer address. If not provided, sender is used.
         #[arg(short, long)]
         initializer: Option<Address>,
+        /// Initial executable balance in WVARA to send to mirror. If not provided, no executable balance is sent.
+        #[arg(short, long)]
+        value: Option<RawOrFormattedValue<WrappedVaraCurrency>>,
         /// Flag to output result in JSON format. If false, human-readable format is used.
         #[arg(short, long, default_value = "false")]
         json: bool,
@@ -1698,6 +1772,9 @@ pub enum TxSubcommand {
         /// to interact with the Sails contract via etherscan.
         #[arg()]
         abi_interface: Address,
+        /// Initial executable balance in WVARA to send to mirror. If not provided, no executable balance is sent.
+        #[arg(short, long)]
+        value: Option<RawOrFormattedValue<WrappedVaraCurrency>>,
         /// Flag to output result in JSON format. If false, human-readable format is used.
         #[arg(short, long, default_value = "false")]
         json: bool,
@@ -1738,8 +1815,11 @@ pub enum TxSubcommand {
         #[arg()]
         value: RawOrFormattedValue<WrappedVaraCurrency>,
         /// Flag to first approve given value on WVARA ERC20 contract.
-        #[arg(short, long, default_value = "false")]
+        #[arg(short, long, conflicts_with = "permit", default_value = "false")]
         approve: bool,
+        /// Flag to use permit version of top up executable balance.
+        #[arg(short, long, conflicts_with = "approve", default_value = "false")]
+        permit: bool,
         /// Flag to watch for mirror state change. If false, command will do not wait mirror state change.
         #[arg(short, long, default_value = "false")]
         watch: bool,

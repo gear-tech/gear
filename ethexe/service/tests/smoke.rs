@@ -17,11 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD};
-use ethexe_ethereum::{NO_BLOB_GAS_MULTIPLIER, NO_EIP1559_FEE_INCREASE_PERCENTAGE};
-use ethexe_observer::EthereumConfig;
+use ethexe_ethereum::Ethereum;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
-use ethexe_service::{Service, config, config::Config};
+use ethexe_service::{
+    Service,
+    config::{self, Config, EthereumConfig},
+};
 use gsigner::secp256k1::Signer;
 use std::{
     net::{Ipv4Addr, SocketAddr},
@@ -57,6 +59,7 @@ async fn constructor() {
         fast_sync: false,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
         batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
+        genesis_state_dump: None,
     };
 
     let eth_cfg = EthereumConfig {
@@ -66,8 +69,9 @@ async fn constructor() {
             .parse()
             .expect("infallible"),
         block_time: Duration::from_secs(12),
-        eip1559_fee_increase_percentage: NO_EIP1559_FEE_INCREASE_PERCENTAGE,
-        blob_gas_multiplier: NO_BLOB_GAS_MULTIPLIER,
+        eip1559_fee_increase_percentage: Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+        eip1559_max_fee_per_gas_in_gwei: Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI,
+        blob_gas_multiplier: Ethereum::NO_BLOB_GAS_MULTIPLIER,
     };
 
     let mut config = Config {
@@ -94,6 +98,7 @@ async fn constructor() {
             .checked_mul(config.node.block_gas_limit)
             .unwrap(),
         chunk_size: config.node.chunk_processing_threads,
+        with_dev_api: false,
     });
 
     config.prometheus = Some(PrometheusConfig {

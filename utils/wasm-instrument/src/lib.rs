@@ -22,7 +22,10 @@
 
 extern crate alloc;
 
-pub use crate::{gas_metering::Rules, syscalls::SyscallName};
+pub use crate::{
+    gas_metering::Rules,
+    syscalls::{SyscallKind, SyscallName},
+};
 pub use module::{
     BrTable, ConstExpr, Data, Element, ElementItems, Export, Function, GEAR_SUPPORTED_FEATURES,
     Global, Import, Instruction, MemArg, Module, ModuleBuilder, ModuleError, Name, Table,

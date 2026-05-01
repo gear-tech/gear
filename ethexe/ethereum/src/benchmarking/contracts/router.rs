@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    Permit,
     abi::{Gear, IERC1967Proxy, IRouter},
     benchmarking::{
         SimulationContext,
@@ -24,7 +25,10 @@ use crate::{
         extensions::CalldataGasExt,
     },
 };
-use alloy::sol_types::{SolCall, SolConstructor};
+use alloy::{
+    signers::SignerSync,
+    sol_types::{SolCall, SolConstructor, SolStruct},
+};
 use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
     Digest, ToDigest,
@@ -78,13 +82,14 @@ pub struct Router<'a> {
     router_impl: RouterImpl,
     proxy_address: Address,
     mirror_impl: MirrorImpl,
+    wrapped_vara: WrappedVara,
 }
 
 impl<'a> Router<'a> {
     pub fn deploy(
         context: &'a mut SimulationContext,
         precomputed_mirror_impl: Address,
-        wrapped_vara: &WrappedVara,
+        wrapped_vara: WrappedVara,
     ) -> Result<Self> {
         let router_impl = RouterImpl::deploy(context)?;
 
@@ -100,7 +105,7 @@ impl<'a> Router<'a> {
             context,
             router_impl.address(),
             precomputed_mirror_impl,
-            wrapped_vara,
+            &wrapped_vara,
             middleware_address,
             aggregated_public_key,
             context.validators(),
@@ -119,6 +124,7 @@ impl<'a> Router<'a> {
             router_impl,
             proxy_address: router_proxy,
             mirror_impl,
+            wrapped_vara,
         })
     }
 
@@ -306,6 +312,29 @@ impl<'a> Router<'a> {
         let proxy_address = self.proxy_address();
         let code_id = CodeId::generate(code);
 
+        let value = U256::from(1_000_u128 * 1_000_000_000_000_u128);
+        let nonce = self.wrapped_vara.nonces(self.context, deployer_address)?;
+        let deadline = U256::from(self.context.block_timestamp_u64())
+            .checked_add(U256::ONE)
+            .expect("infallible");
+
+        let permit = Permit {
+            owner: deployer_address,
+            spender: proxy_address,
+            value,
+            nonce,
+            deadline,
+        };
+
+        let eip712_domain = self.wrapped_vara.eip712_domain(self.context)?;
+
+        let hash = permit.eip712_signing_hash(&eip712_domain);
+        let signature = self.context.deployer_sender().sign_hash_sync(&hash)?;
+
+        let v = (signature.v() as u8) + 27;
+        let r = signature.r().into();
+        let s = signature.s().into();
+
         let ExecutionResult::Success { .. } = self.context.evm().transact_commit(
             TxEnv::builder()
                 .caller(deployer_address)
@@ -313,6 +342,10 @@ impl<'a> Router<'a> {
                 .data(
                     IRouter::requestCodeValidationCall {
                         _codeId: code_id.into_bytes().into(),
+                        _deadline: deadline,
+                        _v: v,
+                        _r: r,
+                        _s: s,
                     }
                     .abi_encode()
                     .into(),
@@ -433,7 +466,7 @@ impl<'a> Router<'a> {
         let ExecutionResult::Success { gas, .. } = execution_result else {
             bail!("failed to commit batch");
         };
-        let execution_gas = gas.used();
+        let execution_gas = gas.tx_gas_used();
 
         if let ExecutionMode::ExecuteAndCommit = execution_mode {
             self.context.increment_deployer_nonce();

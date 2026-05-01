@@ -104,8 +104,6 @@ pub struct ValidatorConfig {
     /// ECDSA multi-signature threshold
     // TODO #4637: threshold should be a ratio (and maybe also a block dependent value)
     pub signatures_threshold: u64,
-    /// Duration of ethexe slot (only to identify producer for the incoming blocks)
-    pub slot_duration: Duration,
     /// Block gas limit for producer to create announces
     pub block_gas_limit: u64,
     /// Delay limit for commitment
@@ -149,7 +147,6 @@ impl ValidatorService {
 
         let ctx = ValidatorContext {
             core: ValidatorCore {
-                slot_duration: config.slot_duration,
                 signatures_threshold: config.signatures_threshold,
                 router_address: config.router_address,
                 pub_key: config.pub_key,

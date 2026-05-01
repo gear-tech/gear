@@ -20,18 +20,19 @@ mod events;
 mod gear;
 
 use alloy::sol;
-pub use middleware_abi::*;
-pub use mirror_abi::*;
-pub use mirror_abi_with_instrumentation::*;
+pub use gear_abi::Gear as GearLib;
+pub use middleware_abi::IMiddleware;
+pub use mirror_abi::IMirror;
+pub use mirror_abi_with_instrumentation::IMirrorWithInstrumentation;
+pub use router_abi::{Gear, IRouter};
 pub use router_with_instrumentation_abi::IRouterWithInstrumentation;
 
-// TODO (breathx): remove this dummy hack to avoid reentrancy issues with
-// the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
-mod mirror_abi {
+pub mod gear_abi {
     alloy::sol!(
         #[sol(rpc)]
-        IMirror,
-        "abi/Mirror.json"
+        #[derive(Debug)]
+        Gear,
+        "abi/Gear.json"
     );
 }
 
@@ -51,12 +52,25 @@ pub mod middleware_abi {
     );
 }
 
-sol!(
-    #[allow(clippy::too_many_arguments)]
-    #[sol(rpc)]
-    IRouter,
-    "abi/Router.json"
-);
+// TODO (breathx): remove this dummy hack to avoid reentrancy issues with
+// the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
+mod mirror_abi {
+    alloy::sol!(
+        #[sol(rpc)]
+        IMirror,
+        "abi/Mirror.json"
+    );
+}
+
+mod router_abi {
+    alloy::sol!(
+        #[allow(clippy::too_many_arguments)]
+        #[sol(rpc)]
+        #[derive(Debug)]
+        IRouter,
+        "abi/Router.json"
+    );
+}
 
 mod router_with_instrumentation_abi {
     alloy::sol!(
@@ -165,14 +179,30 @@ pub mod symbiotic_abi {
 }
 
 pub mod utils {
-    use alloy::primitives::{FixedBytes, Uint};
+    use alloy::{
+        primitives::{FixedBytes, Uint},
+        sol,
+    };
     use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
+    use serde::Serialize;
 
     pub use alloy::primitives::Bytes;
 
     pub type Bytes32 = FixedBytes<32>;
     pub type Uint256 = Uint<256, 4>;
     pub type Uint48 = Uint<48, 1>;
+
+    sol! {
+        #[allow(missing_docs)]
+        #[derive(Debug, Serialize)]
+        struct Permit {
+            address owner;
+            address spender;
+            uint256 value;
+            uint256 nonce;
+            uint256 deadline;
+        }
+    }
 
     pub fn actor_id_to_address_lossy(actor_id: ActorId) -> alloy::primitives::Address {
         actor_id.to_address_lossy().to_fixed_bytes().into()

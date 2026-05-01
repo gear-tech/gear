@@ -16,17 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod custom_connection_limits;
+//! Networking stack for `ethexe`.
+//!
+//! This crate wires together the libp2p swarm used by the execution layer and
+//! exposes it as a single [`NetworkService`] stream. The service combines:
+//!
+//! - peer management and connection caps;
+//! - Kademlia-backed validator discovery;
+//! - gossipsub topics for validator messages and public promises;
+//! - request/response database synchronization;
+//! - private injected-transaction delivery to validators;
+//! - peer scoring and temporary peer blocking.
+//!
+//! [`NetworkService`] is the main integration point used by higher-level
+//! services. It owns the swarm, emits validated [`NetworkEvent`] items, and
+//! hands out protocol-specific handles such as [`db_sync::Handle`] for
+//! database synchronization and a peer-scoring handle for internal use.
+
 pub mod db_sync;
 mod gossipsub;
 mod injected;
 mod kad;
-mod metrics;
-pub mod peer_score;
+mod peer_score;
 mod slots;
 mod utils;
 mod validator;
 
+/// Small set of libp2p types re-exported for callers of this crate.
 pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
@@ -35,7 +51,6 @@ pub use injected::Event as NetworkInjectedEvent;
 
 use crate::{
     db_sync::DbSyncDatabase,
-    metrics::Libp2pMetrics,
     utils::MultiaddrExt,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
@@ -70,61 +85,82 @@ use std::{
 };
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
+/// Default listen port.
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
+/// Protocol version string advertised through libp2p identify.
 pub const PROTOCOL_VERSION: &str = "ethexe/0.1.0";
+/// Agent version string advertised through libp2p identify.
 pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
-const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
+// limit could be 1, but we want to prevent connection churn when both peers dial each other
+const MAX_ESTABLISHED_PER_PEER_CONNECTIONS: u32 = 2;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 500;
 const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
 const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 
+/// Hard cap for the amount of announces that can be returned in one db-sync
+/// response.
 pub const DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
 
+/// High-level events produced by [`NetworkService`].
 #[derive(derive_more::Debug)]
 pub enum NetworkEvent {
-    // gossipsub
+    /// A validator-signed message from the validator gossipsub topic.
     ValidatorMessage(VerifiedValidatorMessage),
+    /// A public promise observed on the promise gossipsub topic.
     PromiseMessage(SignedPromise),
-    // validator-identity
+    /// Validator discovery learned or refreshed the network identity of the
+    /// given validator address.
     ValidatorIdentityUpdated(Address),
-    // injected-tx
+    /// Private injected-transaction protocol produced an event.
     InjectedTransaction(NetworkInjectedEvent),
-    // peer-score
+    /// Peer scoring blocked a peer.
     PeerBlocked(PeerId),
+    /// Swarm established a connection with a peer.
     PeerConnected(PeerId),
 }
 
+/// Selects which transport backend the swarm should use.
 #[derive(Default, Debug, Clone, Copy)]
 pub enum TransportType {
+    /// Production transport: QUIC and TCP, with optional mDNS on local
+    /// networks.
     #[default]
     Default,
+    /// In-memory transport used by tests.
     Test,
 }
 
-impl TransportType {
-    fn mdns_enabled(&self) -> bool {
-        matches!(self, Self::Default)
-    }
-}
-
-/// Config from CLI
+/// Static network configuration usually assembled from CLI flags.
 #[derive(Debug, Clone)]
 pub struct NetworkConfig {
+    /// Public key corresponding to the libp2p networking identity.
+    ///
+    /// This is not the validator key. Validator identity is handled
+    /// separately and may be absent on non-validator nodes.
     pub public_key: PublicKey,
+    /// Router address that namespaces network protocols and topics.
     pub router_address: Address,
+    /// Addresses advertised to other peers.
     pub external_addresses: HashSet<Multiaddr>,
+    /// Peers we try to connect to proactively at startup.
     pub bootstrap_addresses: HashSet<Multiaddr>,
+    /// Addresses the local swarm listens on.
     pub listen_addresses: HashSet<Multiaddr>,
+    /// Transport backend to use.
     pub transport_type: TransportType,
+    /// Whether private and local addresses are allowed in discovery and
+    /// identify flows.
     pub allow_non_global_addresses: bool,
+    /// Upper bound for `Announces` db-sync responses served by this node.
     pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl NetworkConfig {
+    /// Build a local-development config that listens on localhost with the
+    /// default transport stack.
     pub fn new_local(public_key: PublicKey, router_address: Address) -> Self {
         Self {
             public_key,
@@ -138,6 +174,7 @@ impl NetworkConfig {
         }
     }
 
+    /// Build a test config backed by the in-memory transport.
     pub fn new_test(public_key: PublicKey, router_address: Address) -> Self {
         Self {
             public_key,
@@ -152,17 +189,30 @@ impl NetworkConfig {
     }
 }
 
-/// Config from other services
+/// Runtime dependencies injected by other `ethexe` services.
 pub struct NetworkRuntimeConfig {
+    /// Latest known block header used to seed validator-era state.
     pub latest_block_header: BlockHeader,
+    /// Validator set at [`Self::latest_block_header`].
     pub latest_validators: ValidatorsVec,
+    /// Validator key when this node participates as a validator.
     pub validator_key: Option<PublicKey>,
+    /// General-purpose signer used for validator-facing messages.
     pub general_signer: Signer,
+    /// Signer used only to construct the libp2p networking keypair.
     pub network_signer: Signer,
+    /// External lookups needed by db-sync request validation.
     pub external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
+    /// Database backing validator discovery and db-sync responses.
     pub db: Database,
 }
 
+type Libp2pMetrics = (libp2p::metrics::Registry, Arc<libp2p::metrics::Metrics>);
+
+/// Unified libp2p service used by `ethexe`.
+///
+/// The service owns the full swarm and implements [`Stream`], yielding
+/// validated high-level [`NetworkEvent`] values to its caller.
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
@@ -170,7 +220,7 @@ pub struct NetworkService {
     bootstrap_peers: HashSet<PeerId>,
     validator_list: ValidatorList,
     validator_topic: ValidatorTopic,
-    metrics: Arc<Libp2pMetrics>,
+    metrics: Libp2pMetrics,
     allow_non_global_addresses: bool,
 }
 
@@ -204,6 +254,7 @@ impl FusedStream for NetworkService {
 }
 
 impl NetworkService {
+    /// Construct a network service with all protocols enabled.
     pub fn new(
         config: NetworkConfig,
         runtime_config: NetworkRuntimeConfig,
@@ -230,7 +281,8 @@ impl NetworkService {
         } = runtime_config;
 
         let timelines = db.config().timelines;
-        let mut metrics = Libp2pMetrics::new();
+        let mut registry = libp2p::metrics::Registry::default();
+        let metrics = Arc::new(libp2p::metrics::Metrics::new(&mut registry));
 
         let (validator_list, validator_list_snapshot) = ValidatorList::new(
             ValidatorDatabase::clone_boxed(&db),
@@ -242,21 +294,20 @@ impl NetworkService {
 
         let keypair = Self::create_keypair(&network_signer, public_key)?;
 
-        let transport = Self::create_transport(&keypair, transport_type, &mut metrics)?;
-        let metrics = Arc::new(metrics);
+        let transport = Self::create_transport(&keypair, transport_type, &mut registry)?;
 
         let behaviour_config = BehaviourConfig {
             router_address,
             keypair: keypair.clone(),
             external_data_provider,
             db: DbSyncDatabase::clone_boxed(&db),
-            enable_mdns: transport_type.mdns_enabled(),
+            transport_type,
             validator_key,
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
             allow_non_global_addresses,
             max_chain_len_for_announces_response,
-            metrics: metrics.clone(),
+            metrics: (&mut registry, metrics.clone()),
         };
         let behaviour = Behaviour::new(behaviour_config)?;
 
@@ -306,7 +357,7 @@ impl NetworkService {
             bootstrap_peers,
             validator_list,
             validator_topic,
-            metrics,
+            metrics: (registry, metrics),
             allow_non_global_addresses,
         })
     }
@@ -322,7 +373,7 @@ impl NetworkService {
     fn create_transport(
         keypair: &identity::Keypair,
         transport_type: TransportType,
-        metrics: &mut Libp2pMetrics,
+        registry: &mut libp2p::metrics::Registry,
     ) -> anyhow::Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
         match transport_type {
             TransportType::Default => {
@@ -343,8 +394,7 @@ impl NetworkService {
                         });
                 let dns = libp2p::dns::tokio::Transport::system(quic_or_tcp)?;
 
-                let bandwidth = metrics
-                    .create_bandwidth_transport(dns)
+                let bandwidth = libp2p::metrics::BandwidthTransport::new(dns, registry)
                     .map(|(peer_id, conn), _| (peer_id, StreamMuxerBox::new(conn)));
 
                 Ok(bandwidth.boxed())
@@ -378,7 +428,7 @@ impl NetworkService {
     fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) -> Option<NetworkEvent> {
         log::trace!("new swarm event: {event:?}");
 
-        self.metrics.record(&event);
+        self.metrics.1.record(&event);
 
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
@@ -391,7 +441,6 @@ impl NetworkService {
 
     fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
-            BehaviourEvent::CustomConnectionLimits(event) => match event {},
             BehaviourEvent::ConnectionLimits(event) => match event {},
             BehaviourEvent::Slots(event) => match event {},
             BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
@@ -423,7 +472,7 @@ impl NetworkService {
     }
 
     fn handle_ping_event(&mut self, event: ping::Event) {
-        self.metrics.record(&event);
+        self.metrics.1.record(&event);
 
         let ping::Event {
             peer,
@@ -439,7 +488,7 @@ impl NetworkService {
     }
 
     fn handle_identify_event(&mut self, event: identify::Event) {
-        self.metrics.record(&event);
+        self.metrics.1.record(&event);
 
         match event {
             identify::Event::Received { peer_id, info, .. } => {
@@ -563,22 +612,33 @@ impl NetworkService {
         None
     }
 
+    /// Returns the local libp2p peer ID.
     pub fn local_peer_id(&self) -> PeerId {
         *self.swarm.local_peer_id()
     }
 
+    /// Encode the libp2p metrics registry in Prometheus text format.
     pub fn render_libp2p_metrics(&self, writer: &mut impl Write) {
-        self.metrics.render(writer);
+        let (registry, _metrics) = &self.metrics;
+        prometheus_client::encoding::text::encode_registry(writer, registry)
+            .expect("failed to encode metrics");
     }
 
-    pub fn score_handle(&self) -> peer_score::Handle {
+    /// Handle used by internal tests to report peer misbehaviour.
+    #[cfg(test)]
+    fn score_handle(&self) -> peer_score::Handle {
         self.swarm.behaviour().peer_score.handle()
     }
 
+    /// Handle used by external services to start db-sync requests.
     pub fn db_sync_handle(&self) -> db_sync::Handle {
         self.swarm.behaviour().db_sync.handle()
     }
 
+    /// Refresh validator-era state after the chain head changes.
+    ///
+    /// This updates both validator-message verification and validator
+    /// discovery so they use the latest validator snapshot.
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
         let snapshot = self.validator_list.set_chain_head(chain_head)?;
 
@@ -591,10 +651,12 @@ impl NetworkService {
         Ok(())
     }
 
+    /// Publish a validator-signed message to the validator gossipsub topic.
     pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
+    /// Send an injected transaction privately to the destination validator.
     pub fn send_injected_transaction(
         &mut self,
         data: AddressedInjectedTransaction,
@@ -605,6 +667,7 @@ impl NetworkService {
             .send_transaction(behaviour.validator_discovery.identities(), data)
     }
 
+    /// Publish a signed promise to the public promise gossipsub topic.
     pub fn publish_promise(&mut self, promise: SignedPromise) {
         self.swarm.behaviour_mut().gossipsub.publish(promise)
     }
@@ -633,24 +696,25 @@ impl NetworkService {
     }
 }
 
-struct BehaviourConfig {
+struct BehaviourConfig<'a> {
     router_address: Address,
     keypair: identity::Keypair,
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     db: Box<dyn DbSyncDatabase>,
-    enable_mdns: bool,
+    transport_type: TransportType,
     validator_key: Option<PublicKey>,
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
     allow_non_global_addresses: bool,
     max_chain_len_for_announces_response: NonZeroU32,
-    metrics: Arc<Libp2pMetrics>,
+    metrics: (
+        &'a mut libp2p::metrics::Registry,
+        Arc<libp2p::metrics::Metrics>,
+    ),
 }
 
 #[derive(NetworkBehaviour)]
 pub(crate) struct Behaviour {
-    // custom options to limit connections
-    pub custom_connection_limits: custom_connection_limits::Behaviour,
     // hard caps
     pub connection_limits: connection_limits::Behaviour,
     // peer amount manager
@@ -682,40 +746,30 @@ impl Behaviour {
             keypair,
             external_data_provider,
             db,
-            enable_mdns,
+            transport_type,
             validator_key,
             general_signer,
             validator_list_snapshot,
             allow_non_global_addresses,
             max_chain_len_for_announces_response,
-            metrics,
+            metrics: (registry, metrics),
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
 
-        // we use custom behaviour because
-        // `libp2p::connection_limits::Behaviour` limits inbound & outbound
-        // connections per peer in total, so protocols may fail to establish
-        // at least 1 inbound & 1 outbound connection in specific circumstances
-        // (for example, active VPN connection + communication with mDNS discovered peers)
-        let custom_connection_limits = custom_connection_limits::Limits::default()
-            .with_max_established_incoming_per_peer(Some(
-                MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS,
-            ))
-            .with_max_established_outbound_per_peer(Some(
-                MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS,
-            ));
-        let custom_connection_limits =
-            custom_connection_limits::Behaviour::new(custom_connection_limits);
-
         let connection_limits = connection_limits::ConnectionLimits::default()
+            .with_max_established_per_peer(Some(MAX_ESTABLISHED_PER_PEER_CONNECTIONS))
             .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS))
             .with_max_established_outgoing(Some(MAX_ESTABLISHED_OUTGOING_CONNECTIONS))
             .with_max_pending_incoming(Some(MAX_PENDING_INCOMING_CONNECTIONS))
             .with_max_pending_outgoing(Some(MAX_PENDING_OUTGOING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
 
-        let slots = slots::Behaviour::new(slots::Config::default());
+        let slots_config = match transport_type {
+            TransportType::Default => slots::Config::default(),
+            TransportType::Test => slots::Config::default().with_backoff_period(Duration::ZERO),
+        };
+        let slots = slots::Behaviour::new(slots_config);
 
         let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
         let peer_score_handle = peer_score.handle();
@@ -727,9 +781,13 @@ impl Behaviour {
         let identify = identify::Behaviour::new(identify_config);
 
         let mdns4 = Toggle::from(
-            enable_mdns
-                .then(|| mdns::Behaviour::new(mdns::Config::default(), peer_id))
-                .transpose()?,
+            match transport_type {
+                TransportType::Default => {
+                    Some(mdns::Behaviour::new(mdns::Config::default(), peer_id))
+                }
+                TransportType::Test => None,
+            }
+            .transpose()?,
         );
 
         let kad = kad::Behaviour::new(peer_id, peer_score_handle.clone(), metrics.clone());
@@ -739,6 +797,7 @@ impl Behaviour {
             keypair.clone(),
             peer_score_handle.clone(),
             router_address,
+            registry,
             metrics.clone(),
         )
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
@@ -766,7 +825,6 @@ impl Behaviour {
         let validator_discovery = validator::discovery::Behaviour::new(validator_discovery);
 
         Ok(Self {
-            custom_connection_limits,
             connection_limits,
             slots,
             peer_score,
@@ -787,11 +845,11 @@ mod tests {
     use super::*;
     use crate::{
         db_sync::{ExternalDataProvider, tests::fill_data_provider},
-        utils::tests::init_logger,
+        utils::tests::{arb_value, init_logger},
     };
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState, mock::*};
+    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState};
     use ethexe_db::Database;
     use gprimitives::{ActorId, CodeId, H256};
     use gsigner::secp256k1::Signer;
@@ -799,6 +857,7 @@ mod tests {
     use std::{
         collections::{BTreeSet, HashMap},
         future,
+        num::NonZeroU64,
         sync::Arc,
     };
     use tokio::{
@@ -897,9 +956,9 @@ mod tests {
             };
             const TIMELINES: ProtocolTimelines = ProtocolTimelines {
                 genesis_ts: GENESIS_BLOCK_HEADER.timestamp,
-                era: 1,
+                era: NonZeroU64::new(1).unwrap(),
                 election: 1,
-                slot: 1,
+                slot: NonZeroU64::new(1).unwrap(),
             };
 
             let Self {
@@ -912,7 +971,7 @@ mod tests {
 
             db.set_config(DBConfig {
                 timelines: TIMELINES,
-                ..DBConfig::mock(())
+                ..arb_value::<DBConfig>(())
             });
 
             let key = signer.generate().unwrap();

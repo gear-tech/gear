@@ -23,7 +23,6 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     announces::{self, AnnounceStatus, DBAnnouncesExt},
-    utils,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -43,7 +42,6 @@ use std::{
     num::NonZeroUsize,
     pin::Pin,
     task::{Context, Poll},
-    time::Duration,
 };
 
 /// Maximum number of pending announces to store
@@ -101,7 +99,6 @@ enum State {
 #[derive(derive_more::Debug)]
 pub struct ConnectService {
     db: Database,
-    slot_duration: Duration,
     commitment_delay_limit: u32,
     timelines: ProtocolTimelines,
 
@@ -115,14 +112,12 @@ impl ConnectService {
     ///
     /// # Parameters
     /// - `db`: Database instance.
-    /// - `slot_duration`: Duration of each slot in the consensus protocol.
     /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
-    pub fn new(db: Database, slot_duration: Duration, commitment_delay_limit: u32) -> Self {
+    pub fn new(db: Database, commitment_delay_limit: u32) -> Self {
         let timelines = db.config().timelines;
 
         Self {
             db,
-            slot_duration,
             commitment_delay_limit,
             timelines,
             state: State::WaitingForBlock,
@@ -190,15 +185,20 @@ impl ConsensusService for ConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let block_era = self.timelines.era_from_ts(block.header.timestamp);
-            let validators = self.db.validators(block_era).ok_or(anyhow!(
-                "validators not found for synced block({block_hash})"
-            ))?;
-            let producer = utils::block_producer_for(
-                &validators,
-                block.header.timestamp,
-                self.slot_duration.as_secs(),
-            );
+            let block_era = self
+                .timelines
+                .era_from_ts(block.header.timestamp)
+                .ok_or_else(|| anyhow!("failed to calculate era for synced block({block_hash})"))?;
+            let validators = self
+                .db
+                .validators(block_era)
+                .ok_or_else(|| anyhow!("validators not found for synced block({block_hash})"))?;
+            let producer = self
+                .timelines
+                .block_producer_at(&validators, block.header.timestamp)
+                .ok_or_else(|| {
+                    anyhow!("failed to calculate block producer for synced block({block_hash})")
+                })?;
 
             self.state = State::WaitingForPreparedBlock {
                 block: *block,
@@ -371,7 +371,8 @@ impl FusedStream for ConnectService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{HashOf, ValidatorsVec, mock::*};
+    use crate::mock::*;
+    use ethexe_common::{HashOf, ValidatorsVec};
     use ethexe_db::Database;
     use gsigner::{PrivateKey, PublicKey, SignedData};
 
@@ -382,9 +383,9 @@ mod tests {
         let validators = ValidatorsVec::try_from(vec![validator_address]).unwrap();
 
         let db = Database::memory();
-        let chain = BlockChain::mock((10, validators)).setup(&db);
+        let chain = test_block_chain_with_validators(10, validators).setup(&db);
 
-        let mut service = ConnectService::new(db, Duration::from_secs(12), 10);
+        let mut service = ConnectService::new(db, 10);
         service
             .receive_new_chain_head(chain.blocks[10].to_simple())
             .unwrap();

@@ -2,6 +2,7 @@ use crate::args::SeedVariant;
 use gear_call_gen::{CallGenRng, CallGenRngCore};
 use rand::RngCore;
 
+/// Creates the code-seed generator configured by the CLI.
 pub fn some_generator<Rng: CallGenRng>(code_seed_type: SeedVariant) -> Box<dyn CallGenRngCore> {
     match code_seed_type {
         SeedVariant::Dynamic(v) => Box::new(Rng::seed_from_u64(v)) as _,
@@ -9,6 +10,7 @@ pub fn some_generator<Rng: CallGenRng>(code_seed_type: SeedVariant) -> Box<dyn C
     }
 }
 
+/// Deterministic generator that always yields the same seed value.
 #[derive(Debug, Clone, Copy)]
 struct ConstantGenerator(u64);
 

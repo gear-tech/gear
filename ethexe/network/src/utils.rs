@@ -157,35 +157,6 @@ pub(crate) trait ConnectionMapLimit {
     ) -> Result<(), Self::Error>;
 }
 
-#[derive(Debug)]
-pub(crate) struct ConnectionLimitError {
-    pub limit: u32,
-}
-
-pub(crate) struct ConnectionLimit {
-    limit: u32,
-}
-
-impl ConnectionMapLimit for ConnectionLimit {
-    type Error = ConnectionLimitError;
-
-    fn check_limit(
-        &self,
-        connections: &HashMap<PeerId, HashSet<ConnectionId>>,
-        peer_id: PeerId,
-    ) -> Result<(), Self::Error> {
-        let current = connections
-            .get(&peer_id)
-            .map(|connections| connections.len())
-            .unwrap_or(0) as u32;
-        if current < self.limit {
-            Ok(())
-        } else {
-            Err(ConnectionLimitError { limit: self.limit })
-        }
-    }
-}
-
 pub(crate) struct NoLimits;
 
 impl ConnectionMapLimit for NoLimits {
@@ -233,15 +204,6 @@ impl<T: ConnectionMapLimit> ConnectionMap<T> {
             if connections.is_empty() {
                 entry.remove();
             }
-        }
-    }
-}
-
-impl ConnectionMap<ConnectionLimit> {
-    pub(crate) fn with_connection_limit(limit: u32) -> Self {
-        Self {
-            inner: Default::default(),
-            limit: ConnectionLimit { limit },
         }
     }
 }
@@ -447,6 +409,11 @@ pub(crate) mod tests {
         utils::{ConnectionMap, ExponentialBackoffInterval},
     };
     use libp2p::swarm::ConnectionId;
+    use proptest::{
+        arbitrary::Arbitrary,
+        strategy::{Strategy, ValueTree},
+        test_runner::TestRunner,
+    };
     use std::{collections::HashSet, future, time::Duration};
     use tokio::time;
     use tracing_subscriber::EnvFilter;
@@ -461,31 +428,14 @@ pub(crate) mod tests {
             .try_init();
     }
 
-    #[test]
-    fn connection_map_limit_works() {
-        const LIMIT: u32 = 5;
-
-        let mut map = ConnectionMap::with_connection_limit(LIMIT);
-
-        let main_peer = PeerId::random();
-
-        for i in 0..LIMIT {
-            map.add_connection(main_peer, ConnectionId::new_unchecked(i as usize))
-                .unwrap();
-        }
-
-        let limit = map
-            .add_connection(main_peer, ConnectionId::new_unchecked(usize::MAX))
-            .unwrap_err()
-            .limit;
-        assert_eq!(limit, LIMIT);
-
-        // new peer so no limit exceeded yet
-        map.add_connection(
-            PeerId::random(),
-            ConnectionId::new_unchecked(usize::MAX / 2),
-        )
-        .unwrap();
+    pub fn arb_value<T>(args: impl Into<T::Parameters>) -> T
+    where
+        T: Arbitrary + 'static,
+    {
+        T::arbitrary_with(args.into())
+            .new_tree(&mut TestRunner::default())
+            .expect("strategy must produce a value")
+            .current()
     }
 
     #[test]

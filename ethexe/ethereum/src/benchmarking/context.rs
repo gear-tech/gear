@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
+    Sender,
     abi::{Gear, utils},
     benchmarking::{
         contracts::{ContractImplKind, ExecutionMode, Router, WrappedVara},
@@ -46,6 +47,7 @@ pub struct SimulationContext {
     block_number: U256,
     block_timestamp: U256,
     deployer_address: Address,
+    deployer_sender: Sender,
     deployer_nonce: u64,
     validators_with_keys: Vec<(Signer, PublicKey, Address)>,
 }
@@ -70,7 +72,8 @@ impl SimulationContext {
             })
             .build_mainnet_with_inspector(SimulationInspector::default());
 
-        let (_, _, deployer_address) = mnemonic::derive_signer(0)?;
+        let (deployer_signer, _, deployer_address) = mnemonic::derive_signer(0)?;
+        let deployer_sender = Sender::new(deployer_signer, deployer_address.into())?;
         let deployer_nonce = 0;
 
         let journal = evm.journal_mut();
@@ -87,6 +90,7 @@ impl SimulationContext {
             block_number,
             block_timestamp,
             deployer_address,
+            deployer_sender,
             deployer_nonce,
             validators_with_keys,
         })
@@ -101,7 +105,7 @@ impl SimulationContext {
                 .expect("infallible"),
         );
 
-        let mut router = Router::deploy(self, precomputed_mirror_impl, &wrapped_vara)?;
+        let mut router = Router::deploy(self, precomputed_mirror_impl, wrapped_vara)?;
 
         router.lookup_genesis_hash()?;
 
@@ -237,6 +241,10 @@ impl SimulationContext {
 
     pub fn deployer_address(&self) -> Address {
         self.deployer_address
+    }
+
+    pub fn deployer_sender(&self) -> &Sender {
+        &self.deployer_sender
     }
 
     pub fn deployer_nonce(&self) -> u64 {
