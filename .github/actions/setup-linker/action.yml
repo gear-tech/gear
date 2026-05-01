@@ -3,8 +3,11 @@ runs:
   steps:
     - name: "Install: apt-fast on Linux"
       if: ${{ runner.os == 'Linux' }}
-      uses: ./.github/actions/retry-cmd
+      uses: nick-fields/retry@v3
       with:
+        timeout_minutes: 15
+        max_attempts: 5
+        retry_wait_seconds: 10
         command: |
           set -e
           if command -v apt-fast >/dev/null 2>&1; then
@@ -17,8 +20,11 @@ runs:
 
     - name: "Install: mold"
       if: runner.os == 'Linux'
-      uses: ./.github/actions/retry-cmd
+      uses: nick-fields/retry@v3
       with:
+        timeout_minutes: 15
+        max_attempts: 5
+        retry_wait_seconds: 10
         command: |
           set -e
           ARCH=$(uname -m)
