@@ -190,7 +190,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         ); 5] = [
             (ReservationSend, Self::generate_send_from_reservation),
             (ReservationReply, Self::generate_reply_from_reservation),
-            // Avaliable for both `SyscallKind::Vara` and `SyscallKind::Eth`
+            // Available for both `SyscallKind::Vara` and `SyscallKind::Eth`
             (SendCommit, Self::generate_send_commit),
             (SendCommitWGas, Self::generate_send_commit_with_gas),
             (ReplyDeposit, Self::generate_reply_deposit),

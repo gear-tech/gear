@@ -162,11 +162,14 @@ where
     EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
-    fn bind_funcs(builder: &mut EnvBuilder<Ext>, _syscall_kind: SyscallKind) {
-        // FIXME: do not bind all syscalls here
+    fn bind_funcs(builder: &mut EnvBuilder<Ext>, syscall_kind: SyscallKind) {
         macro_rules! add_function {
             ($syscall:ident, $func:ident) => {
-                builder.add_func($syscall, wrap_syscall!($func, $syscall));
+                match syscall_kind {
+                    SyscallKind::Vara if !$syscall.is_vara() => {},
+                    SyscallKind::Eth if !$syscall.is_eth() => {},
+                    _ => builder.add_func($syscall, wrap_syscall!($func, $syscall)),
+                }
             };
         }
 
