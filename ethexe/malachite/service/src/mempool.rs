@@ -322,7 +322,16 @@ impl Mempool for InjectedTxMempool {
         // Drop the lock before signaling so a waiter resumed
         // immediately doesn't have to bounce on the mutex.
         drop(inner);
-        self.new_tx_notify.notify_waiters();
+        // `notify_one` (vs `notify_waiters`) keeps a permit if no
+        // waiter is currently parked on `.notified()`. The producer's
+        // `wait_for_proposable_content` runs `fetch()` *before* it
+        // calls `.notified()` inside `select!`, so a tx that lands in
+        // the pool between those two steps must not lose its
+        // wakeup — otherwise the producer falls back to the
+        // 2-second `chain_head_notify` and the loader's
+        // round-trip latency picks up an extra ETH-block of
+        // jitter for every tx that races the loop boundary.
+        self.new_tx_notify.notify_one();
     }
 
     fn set_chain_head(&self, head: SimpleBlockData) {
@@ -363,10 +372,14 @@ impl Mempool for InjectedTxMempool {
     }
 
     async fn wait_for_new_tx(&self) {
-        // `Notify::notified()` returns a future that's permitted to
-        // miss notifications fired *before* it's registered, so the
-        // caller must always re-check `fetch()` after we return —
-        // matches the trait's "best-effort" contract.
+        // The insert path uses `notify_one`, which preserves one
+        // pending permit when no waiter is parked. So a tx that
+        // lands between the producer's `fetch()` and its `.notified()`
+        // call still wakes the next `.notified()` immediately.
+        // The caller must still re-check `fetch()` after returning —
+        // a permit consumed here may correspond to a tx the next
+        // `fetch()` already covered, in which case we just loop and
+        // wait again.
         self.new_tx_notify.notified().await
     }
 }
