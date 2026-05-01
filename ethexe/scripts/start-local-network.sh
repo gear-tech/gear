@@ -744,6 +744,15 @@ start_nodes() {
 		cmd+=" --prometheus-port $CONTAINER_PROMETHEUS_PORT"
 		cmd+=" --canonical-quarantine 0"
 		cmd+=" --net-listen-addr /ip4/0.0.0.0/udp/$CONTAINER_NETWORK_PORT/quic-v1"
+		# Without an external address libp2p-identify can't tell us our
+		# own multiaddr, so `validator_discovery` skips publishing this
+		# node's identity into the DHT. The injected-tx broadcast then
+		# falls back to local-only delivery (`ValidatorNotFound` on
+		# every other recipient), which artificially gates promise
+		# round-trips on the receiving validator's proposer turn.
+		# In a docker compose with deterministic container names we
+		# can advertise the container DNS multiaddr directly.
+		cmd+=" --network-public-addr /dns4/${NODE_CONTAINER_PREFIX}-${i}/udp/$CONTAINER_NETWORK_PORT/quic-v1"
 		cmd+=" --malachite-listen-addr 0.0.0.0:$CONTAINER_MALACHITE_PORT"
 		cmd+=" --validators-malachite-pub-keys /data/malachite-validators.json"
 
