@@ -263,7 +263,7 @@ clap_builder = { version = "4", default-features = false, features = ["color", "
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
 constant_time_eq = { version = "0.4", default-features = false, features = ["std"] }
-cranelift-bitset = { version = "0.130", default-features = false, features = ["enable-serde"] }
+cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
 crossbeam-utils = { version = "0.8" }
@@ -311,6 +311,7 @@ hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
+hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["default-hasher"] }
 hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features = ["serde"] }
 hex = { version = "0.4" }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
@@ -370,7 +371,7 @@ primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.1
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 prost = { version = "0.12", features = ["prost-derive"] }
-pulley-interpreter = { version = "43", default-features = false, features = ["disas", "interp", "std"] }
+pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
 quote = { version = "1" }
 rand-274715c4dabd11b0 = { package = "rand", version = "0.9" }
@@ -385,6 +386,7 @@ regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
 ring = { version = "0.17", features = ["std"] }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
+rustc-demangle = { version = "0.1", default-features = false, features = ["std"] }
 rustc-hash-dff4ba8e3ae991db = { package = "rustc-hash", version = "1" }
 rustc-hash-f595c2ba2a3f28df = { package = "rustc-hash", version = "2" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
@@ -483,14 +485,15 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
 wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
 wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["virtual_memory"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
-wasmparser-a893a8ede649c5e9 = { package = "wasmparser", version = "0.245", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
+wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
 wasmtime = { version = "8", default-features = false, features = ["cache", "cranelift", "jitdump", "parallel-compilation", "pooling-allocator"] }
-wasmtime-internal-core = { version = "43", default-features = false, features = ["anyhow", "backtrace", "serde"] }
+wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
 wasmtime-jit = { version = "8", default-features = false, features = ["jitdump"] }
 wasmtime-jit-debug = { version = "8", default-features = false, features = ["gdb_jit_int", "perf_jitdump"] }
 wasmtime-runtime = { version = "8", default-features = false, features = ["pooling-allocator"] }
@@ -550,7 +553,7 @@ clap_builder = { version = "4", default-features = false, features = ["color", "
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", features = ["core-error", "serde"] }
 constant_time_eq = { version = "0.4", default-features = false, features = ["std"] }
-cranelift-bitset = { version = "0.130", default-features = false, features = ["enable-serde"] }
+cranelift-bitset = { version = "0.131", default-features = false, features = ["enable-serde"] }
 crc32fast = { version = "1" }
 crossbeam-channel = { version = "0.5" }
 crossbeam-utils = { version = "0.8" }
@@ -604,6 +607,7 @@ hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
+hashbrown-9067fe90e8c1f593 = { package = "hashbrown", version = "0.17", default-features = false, features = ["default-hasher"] }
 hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features = ["serde"] }
 hex = { version = "0.4" }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
@@ -664,7 +668,7 @@ primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.1
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 prost = { version = "0.12", features = ["prost-derive"] }
-pulley-interpreter = { version = "43", default-features = false, features = ["disas", "interp", "std"] }
+pulley-interpreter = { version = "44", default-features = false, features = ["disas", "interp", "std"] }
 quanta = { version = "0.12" }
 quote = { version = "1" }
 rand-274715c4dabd11b0 = { package = "rand", version = "0.9" }
@@ -679,6 +683,7 @@ regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
 ring = { version = "0.17", features = ["std"] }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
+rustc-demangle = { version = "0.1", default-features = false, features = ["std"] }
 rustc-hash-dff4ba8e3ae991db = { package = "rustc-hash", version = "1" }
 rustc-hash-f595c2ba2a3f28df = { package = "rustc-hash", version = "2" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
@@ -781,14 +786,15 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
+wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
 wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
 wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["virtual_memory"] }
 wasmparser-1a16dca237765f34 = { package = "wasmparser", version = "0.230", default-features = false, features = ["component-model", "features", "simd", "std", "validate"] }
-wasmparser-a893a8ede649c5e9 = { package = "wasmparser", version = "0.245", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
+wasmparser-3c4f6f7c21879200 = { package = "wasmparser", version = "0.246", default-features = false, features = ["component-model", "features", "serde", "simd", "std", "validate"] }
 wasmtime = { version = "8", default-features = false, features = ["cache", "cranelift", "jitdump", "parallel-compilation", "pooling-allocator"] }
-wasmtime-internal-core = { version = "43", default-features = false, features = ["anyhow", "backtrace", "serde"] }
+wasmtime-internal-core = { version = "44", default-features = false, features = ["anyhow", "backtrace", "serde"] }
 wasmtime-jit = { version = "8", default-features = false, features = ["jitdump"] }
 wasmtime-jit-debug = { version = "8", default-features = false, features = ["gdb_jit_int", "perf_jitdump"] }
 wasmtime-runtime = { version = "8", default-features = false, features = ["pooling-allocator"] }
