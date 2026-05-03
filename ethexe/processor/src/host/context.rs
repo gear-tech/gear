@@ -25,7 +25,7 @@ use sp_allocator::FreeingBumpHeapAllocator;
 use tokio::sync::mpsc;
 use wasmtime::{AsContextMut, Memory, StoreContextMut, Table};
 
-fn checked_range(offset: usize, len: usize, max: usize) -> Option<Range<usize>> {
+pub(crate) fn checked_range(offset: usize, len: usize, max: usize) -> Option<Range<usize>> {
     let end = offset.checked_add(len)?;
     (end <= max).then(|| offset..end)
 }

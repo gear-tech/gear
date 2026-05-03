@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_sandbox_host::host::{self, HostPointer, Instantiate, Pointer, Value, WordSize};
+use gear_sandbox_host::context::{self, HostPointer, Instantiate, Pointer, Value, WordSize};
 use sp_wasm_interface::{
     Caller, FunctionContext, StoreData, util,
     wasmtime::{AsContext, AsContextMut, Val},
@@ -26,12 +26,12 @@ pub fn init(
     sandbox_backend: gear_sandbox_host::sandbox::SandboxBackend,
     store_clear_counter_limit: Option<u32>,
 ) {
-    host::init(sandbox_backend, store_clear_counter_limit);
+    context::init(sandbox_backend, store_clear_counter_limit);
 }
 
 struct RuntimeInterfaceOps;
 
-impl host::ContextOps for RuntimeInterfaceOps {
+impl context::ContextOps for RuntimeInterfaceOps {
     type Caller<'a> = Caller<'a, StoreData>;
 
     fn trace(func: &str, caller: &Self::Caller<'_>) {
@@ -128,7 +128,7 @@ pub fn get_buff(context: &mut dyn FunctionContext, memory_idx: u32) -> HostPoint
     let mut method_result: HostPointer = u32::MAX.into();
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result = host::get_buff::<RuntimeInterfaceOps>(caller, memory_idx);
+        method_result = context::get_buff::<RuntimeInterfaceOps>(caller, memory_idx);
     });
 
     method_result
@@ -142,7 +142,7 @@ pub fn get_global_val(
     let mut method_result = None::<Value>;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result = host::get_global_val::<RuntimeInterfaceOps>(caller, instance_idx, name);
+        method_result = context::get_global_val::<RuntimeInterfaceOps>(caller, instance_idx, name);
     });
 
     method_result
@@ -152,7 +152,7 @@ pub fn get_instance_ptr(context: &mut dyn FunctionContext, instance_id: u32) -> 
     let mut method_result: HostPointer = u32::MAX.into();
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result = host::get_instance_ptr::<RuntimeInterfaceOps>(caller, instance_id);
+        method_result = context::get_instance_ptr::<RuntimeInterfaceOps>(caller, instance_id);
     });
 
     method_result
@@ -160,7 +160,7 @@ pub fn get_instance_ptr(context: &mut dyn FunctionContext, instance_id: u32) -> 
 
 pub fn instance_teardown(context: &mut dyn FunctionContext, instance_idx: u32) {
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        host::instance_teardown::<RuntimeInterfaceOps>(caller, instance_idx);
+        context::instance_teardown::<RuntimeInterfaceOps>(caller, instance_idx);
     });
 }
 
@@ -175,7 +175,7 @@ pub fn instantiate(
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result = host::instantiate::<RuntimeInterfaceOps>(
+        method_result = context::instantiate::<RuntimeInterfaceOps>(
             caller,
             dispatch_thunk_id,
             wasm_code,
@@ -200,7 +200,7 @@ pub fn invoke(
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result = host::invoke::<RuntimeInterfaceOps>(
+        method_result = context::invoke::<RuntimeInterfaceOps>(
             caller,
             instance_idx,
             function,
@@ -224,8 +224,9 @@ pub fn memory_get(
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result =
-            host::memory_get::<RuntimeInterfaceOps>(caller, memory_idx, offset, buf_ptr, buf_len);
+        method_result = context::memory_get::<RuntimeInterfaceOps>(
+            caller, memory_idx, offset, buf_ptr, buf_len,
+        );
     });
 
     method_result
@@ -235,7 +236,7 @@ pub fn memory_grow(context: &mut dyn FunctionContext, memory_idx: u32, size: u32
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result = host::memory_grow::<RuntimeInterfaceOps>(caller, memory_idx, size);
+        method_result = context::memory_grow::<RuntimeInterfaceOps>(caller, memory_idx, size);
     });
 
     method_result
@@ -245,7 +246,7 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result = host::memory_new::<RuntimeInterfaceOps>(caller, initial, maximum);
+        method_result = context::memory_new::<RuntimeInterfaceOps>(caller, initial, maximum);
     });
 
     method_result
@@ -261,8 +262,9 @@ pub fn memory_set(
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result =
-            host::memory_set::<RuntimeInterfaceOps>(caller, memory_idx, offset, val_ptr, val_len);
+        method_result = context::memory_set::<RuntimeInterfaceOps>(
+            caller, memory_idx, offset, val_ptr, val_len,
+        );
     });
 
     method_result
@@ -272,7 +274,7 @@ pub fn memory_size(context: &mut dyn FunctionContext, memory_idx: u32) -> u32 {
     let mut method_result = 0;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        method_result = host::memory_size::<RuntimeInterfaceOps>(caller, memory_idx);
+        method_result = context::memory_size::<RuntimeInterfaceOps>(caller, memory_idx);
     });
 
     method_result
@@ -280,7 +282,7 @@ pub fn memory_size(context: &mut dyn FunctionContext, memory_idx: u32) -> u32 {
 
 pub fn memory_teardown(context: &mut dyn FunctionContext, memory_idx: u32) {
     sp_wasm_interface::with_caller_mut(context, |caller| {
-        host::memory_teardown::<RuntimeInterfaceOps>(caller, memory_idx);
+        context::memory_teardown::<RuntimeInterfaceOps>(caller, memory_idx);
     });
 }
 
@@ -294,7 +296,7 @@ pub fn set_global_val(
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
         method_result =
-            host::set_global_val::<RuntimeInterfaceOps>(caller, instance_idx, name, value);
+            context::set_global_val::<RuntimeInterfaceOps>(caller, instance_idx, name, value);
     });
 
     method_result

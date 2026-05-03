@@ -20,11 +20,10 @@
 
 use crate::host::{StoreData, context};
 use ethexe_runtime_common::pack_u32_to_i64;
-use gear_sandbox_host::host::{
-    self as sandbox_detail, HostResult, Instantiate, Pointer, SupervisorFuncIndex, Value, WordSize,
+use gear_sandbox_host::context::{
+    self as sandbox_context, HostResult, Instantiate, Pointer, SupervisorFuncIndex, Value, WordSize,
 };
 use parity_scale_codec::Encode;
-use std::ops::Range;
 use wasmtime::{AsContext, AsContextMut, Caller, Linker, Val};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -67,7 +66,7 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
 
 struct ProcessorOps;
 
-impl sandbox_detail::ContextOps for ProcessorOps {
+impl sandbox_context::ContextOps for ProcessorOps {
     type Caller<'a> = Caller<'a, StoreData>;
 
     fn trace(func: &str, caller: &Self::Caller<'_>) {
@@ -132,7 +131,7 @@ impl sandbox_detail::ContextOps for ProcessorOps {
         dest: &mut [u8],
     ) -> Result<(), String> {
         let memory = caller.as_context().data().memory().data(caller);
-        let range = checked_range(u32::from(address) as usize, dest.len(), memory.len())
+        let range = context::checked_range(u32::from(address) as usize, dest.len(), memory.len())
             .ok_or_else(|| String::from("memory read is out of bounds"))?;
         dest.copy_from_slice(&memory[range]);
         Ok(())
@@ -163,14 +162,9 @@ impl sandbox_detail::ContextOps for ProcessorOps {
     }
 }
 
-fn checked_range(offset: usize, len: usize, max: usize) -> Option<Range<usize>> {
-    let end = offset.checked_add(len)?;
-    (end <= max).then(|| offset..end)
-}
-
 fn get_buff(mut caller: Caller<'_, StoreData>, memory_idx: i32) -> i64 {
     log::trace!(target: "host_call", "get_buff(memory_idx={memory_idx:?})");
-    let res = sandbox_detail::get_buff::<ProcessorOps>(&mut caller, memory_idx as u32) as i64;
+    let res = sandbox_context::get_buff::<ProcessorOps>(&mut caller, memory_idx as u32) as i64;
     log::trace!(target: "host_call", "get_buff(..) -> {res:?}");
     res
 }
@@ -185,7 +179,7 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
     let name = core::str::from_utf8(&name).unwrap_or_default();
 
     let res =
-        sandbox_detail::get_global_val::<ProcessorOps>(&mut caller, instance_idx as u32, name);
+        sandbox_context::get_global_val::<ProcessorOps>(&mut caller, instance_idx as u32, name);
     let res = res.encode();
     let res_len = res.len() as u32;
 
@@ -204,14 +198,14 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
 fn get_instance_ptr(mut caller: Caller<'_, StoreData>, instance_idx: i32) -> i64 {
     log::trace!(target: "host_call", "get_instance_ptr(instance_idx={instance_idx:?})");
     let res =
-        sandbox_detail::get_instance_ptr::<ProcessorOps>(&mut caller, instance_idx as u32) as i64;
+        sandbox_context::get_instance_ptr::<ProcessorOps>(&mut caller, instance_idx as u32) as i64;
     log::trace!(target: "host_call", "get_instance_ptr(..) -> {res:?}");
     res
 }
 
 fn instance_teardown(mut caller: Caller<'_, StoreData>, instance_idx: i32) {
     log::trace!(target: "host_call", "instance_teardown(instance_idx={instance_idx:?})");
-    sandbox_detail::instance_teardown::<ProcessorOps>(&mut caller, instance_idx as u32);
+    sandbox_context::instance_teardown::<ProcessorOps>(&mut caller, instance_idx as u32);
 }
 
 fn instantiate(
@@ -230,7 +224,7 @@ fn instantiate(
     let wasm_code = memory.slice_by_val(wasm_code).to_vec();
     let raw_env_def = memory.slice_by_val(raw_env_def).to_vec();
 
-    let res = sandbox_detail::instantiate::<ProcessorOps>(
+    let res = sandbox_context::instantiate::<ProcessorOps>(
         &mut caller,
         dispatch_thunk_id as u32,
         &wasm_code,
@@ -262,7 +256,7 @@ fn invoke(
     let function = core::str::from_utf8(&function).unwrap_or_default();
     let args = memory.slice_by_val(args).to_vec();
 
-    let res = sandbox_detail::invoke::<ProcessorOps>(
+    let res = sandbox_context::invoke::<ProcessorOps>(
         &mut caller,
         instance_idx as u32,
         function,
@@ -288,7 +282,7 @@ fn memory_get(
         "memory_get(memory_idx={memory_idx:?}, offset={offset:?}, buff_ptr={buff_ptr:?}, buff_len={buff_len:?})"
     );
 
-    let res = sandbox_detail::memory_get::<ProcessorOps>(
+    let res = sandbox_context::memory_get::<ProcessorOps>(
         &mut caller,
         memory_idx as u32,
         offset as u32,
@@ -303,7 +297,7 @@ fn memory_get(
 fn memory_grow(mut caller: Caller<'_, StoreData>, memory_idx: i32, size: i32) -> i32 {
     log::trace!(target: "host_call", "memory_grow(memory_idx={memory_idx:?}, size={size:?})");
     let res =
-        sandbox_detail::memory_grow::<ProcessorOps>(&mut caller, memory_idx as u32, size as u32)
+        sandbox_context::memory_grow::<ProcessorOps>(&mut caller, memory_idx as u32, size as u32)
             as i32;
     log::trace!(target: "host_call", "memory_grow(..) -> {res:?}");
     res
@@ -312,7 +306,7 @@ fn memory_grow(mut caller: Caller<'_, StoreData>, memory_idx: i32, size: i32) ->
 fn memory_new(mut caller: Caller<'_, StoreData>, initial: i32, maximum: i32) -> i32 {
     log::trace!(target: "host_call", "memory_new(initial={initial:?}, maximum={maximum:?})");
     let res =
-        sandbox_detail::memory_new::<ProcessorOps>(&mut caller, initial as u32, maximum as u32)
+        sandbox_context::memory_new::<ProcessorOps>(&mut caller, initial as u32, maximum as u32)
             as i32;
     log::trace!(target: "host_call", "memory_new(..) -> {res:?}");
     res
@@ -330,7 +324,7 @@ fn memory_set(
         "memory_set(memory_idx={memory_idx:?}, offset={offset:?}, val_ptr={val_ptr:?}, val_len={val_len:?})"
     );
 
-    let res = sandbox_detail::memory_set::<ProcessorOps>(
+    let res = sandbox_context::memory_set::<ProcessorOps>(
         &mut caller,
         memory_idx as u32,
         offset as u32,
@@ -344,14 +338,14 @@ fn memory_set(
 
 fn memory_size(mut caller: Caller<'_, StoreData>, memory_idx: i32) -> i32 {
     log::trace!(target: "host_call", "memory_size(memory_idx={memory_idx:?})");
-    let res = sandbox_detail::memory_size::<ProcessorOps>(&mut caller, memory_idx as u32) as i32;
+    let res = sandbox_context::memory_size::<ProcessorOps>(&mut caller, memory_idx as u32) as i32;
     log::trace!(target: "host_call", "memory_size(..) -> {res:?}");
     res
 }
 
 fn memory_teardown(mut caller: Caller<'_, StoreData>, memory_idx: i32) {
     log::trace!(target: "host_call", "memory_teardown(memory_idx={memory_idx:?})");
-    sandbox_detail::memory_teardown::<ProcessorOps>(&mut caller, memory_idx as u32);
+    sandbox_context::memory_teardown::<ProcessorOps>(&mut caller, memory_idx as u32);
 }
 
 fn set_global_val(
@@ -370,7 +364,7 @@ fn set_global_val(
     let name = core::str::from_utf8(&name).unwrap_or_default();
     let value: Value = memory.decode_by_val(value);
 
-    let res = sandbox_detail::set_global_val::<ProcessorOps>(
+    let res = sandbox_context::set_global_val::<ProcessorOps>(
         &mut caller,
         instance_idx as u32,
         name,

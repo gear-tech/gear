@@ -20,8 +20,8 @@
 
 #![warn(missing_docs)]
 
+pub mod context;
 pub mod error;
-pub mod host;
 pub mod sandbox;
 pub mod util;
 
