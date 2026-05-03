@@ -33,10 +33,10 @@ use wasmi::{
 use sp_wasm_interface_common::{Pointer, ReturnValue, Value, WordSize};
 
 use crate::{
+    context::SupervisorContext,
     error::{self, Error},
     sandbox::{
         BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
-        SupervisorContext,
     },
     store_refcell,
     util::MemoryTransfer,
@@ -274,6 +274,7 @@ pub fn instantiate(
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
+    dispatch_thunk_id: u32,
     supervisor_context: &mut dyn SupervisorContext,
 ) -> Result<SandboxInstance, InstantiationError> {
     let mut store = context.store().borrow_mut();
@@ -319,12 +320,18 @@ pub fn instantiate(
                     .ok_or(InstantiationError::ModuleDecoding)?;
 
                 let function = match version {
-                    Instantiate::Version1 => {
-                        dispatch_function(supervisor_func_index, &mut store, func_ty)
-                    }
-                    Instantiate::Version2 => {
-                        dispatch_function_v2(supervisor_func_index, &mut store, func_ty)
-                    }
+                    Instantiate::Version1 => dispatch_function(
+                        dispatch_thunk_id,
+                        supervisor_func_index,
+                        &mut store,
+                        func_ty,
+                    ),
+                    Instantiate::Version2 => dispatch_function_v2(
+                        dispatch_thunk_id,
+                        supervisor_func_index,
+                        &mut store,
+                        func_ty,
+                    ),
                 };
 
                 // Filter out duplicate imports
@@ -358,6 +365,7 @@ pub fn instantiate(
 }
 
 fn dispatch_function(
+    dispatch_thunk_id: u32,
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
     func_ty: &wasmi::FuncType,
@@ -377,8 +385,12 @@ fn dispatch_function(
                     .collect::<Result<Vec<_>, _>>()?
                     .encode();
 
-                let serialized_result_val =
-                    dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
+                let serialized_result_val = dispatch_common(
+                    dispatch_thunk_id,
+                    supervisor_func_index,
+                    supervisor_context,
+                    invoke_args_data,
+                )?;
 
                 let deserialized_result =
                     Result::<ReturnValue, HostError>::decode(&mut serialized_result_val.as_slice())
@@ -402,6 +414,7 @@ fn dispatch_function(
 }
 
 fn dispatch_function_v2(
+    dispatch_thunk_id: u32,
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
     func_ty: &wasmi::FuncType,
@@ -432,6 +445,7 @@ fn dispatch_function_v2(
                             .encode();
 
                         let serialized_result_val = dispatch_common(
+                            dispatch_thunk_id,
                             supervisor_func_index,
                             supervisor_context,
                             invoke_args_data,
@@ -464,6 +478,7 @@ fn dispatch_function_v2(
 }
 
 fn dispatch_common(
+    dispatch_thunk_id: u32,
     supervisor_func_index: SupervisorFuncIndex,
     supervisor_context: &mut dyn SupervisorContext,
     invoke_args_data: Vec<u8>,
@@ -494,7 +509,12 @@ fn dispatch_common(
 
     // Perform the actual call
     let serialized_result = supervisor_context
-        .invoke(invoke_args_ptr, invoke_args_len, supervisor_func_index)
+        .invoke(
+            dispatch_thunk_id,
+            invoke_args_ptr,
+            invoke_args_len,
+            supervisor_func_index,
+        )
         .map_err(|e| host_trap(e.to_string()));
 
     deallocate(

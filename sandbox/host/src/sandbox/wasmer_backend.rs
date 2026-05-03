@@ -26,10 +26,11 @@ use wasmer::{AsStoreMut, RuntimeError, Store};
 use wasmer_types::TrapCode;
 
 use crate::{
+    context::SupervisorContext,
     error::{Error, Result},
     sandbox::{
         BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
-        SupervisorContext, SupervisorFuncIndex,
+        SupervisorFuncIndex,
     },
     store_refcell,
     util::MemoryTransfer,
@@ -171,6 +172,7 @@ pub fn instantiate(
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
+    dispatch_thunk_id: u32,
     supervisor_context: &mut dyn SupervisorContext,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
     #[cfg(feature = "gear-wasmer-cache")]
@@ -243,12 +245,14 @@ pub fn instantiate(
 
                 let function = match version {
                     Instantiate::Version1 => dispatch_function(
+                        dispatch_thunk_id,
                         supervisor_func_index,
                         &mut context.store().borrow_mut(),
                         &func_env,
                         func_ty,
                     ),
                     Instantiate::Version2 => dispatch_function_v2(
+                        dispatch_thunk_id,
                         supervisor_func_index,
                         &mut context.store().borrow_mut(),
                         &func_env,
@@ -299,6 +303,7 @@ pub fn instantiate(
 }
 
 fn dispatch_common(
+    dispatch_thunk_id: u32,
     supervisor_func_index: SupervisorFuncIndex,
     supervisor_context: &mut dyn SupervisorContext,
     invoke_args_data: Vec<u8>,
@@ -330,7 +335,12 @@ fn dispatch_common(
 
     // Perform the actual call
     let serialized_result = supervisor_context
-        .invoke(invoke_args_ptr, invoke_args_len, supervisor_func_index)
+        .invoke(
+            dispatch_thunk_id,
+            invoke_args_ptr,
+            invoke_args_len,
+            supervisor_func_index,
+        )
         .map_err(|e| RuntimeError::new(e.to_string()));
 
     deallocate(
@@ -392,6 +402,7 @@ fn into_value(value: &wasmer::Value) -> Option<Value> {
 }
 
 fn dispatch_function(
+    dispatch_thunk_id: u32,
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
     func_env: &wasmer::FunctionEnv<Env>,
@@ -416,8 +427,12 @@ fn dispatch_function(
                     .collect::<std::result::Result<Vec<_>, _>>()?
                     .encode();
 
-                let serialized_result_val =
-                    dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
+                let serialized_result_val = dispatch_common(
+                    dispatch_thunk_id,
+                    supervisor_func_index,
+                    supervisor_context,
+                    invoke_args_data,
+                )?;
 
                 std::result::Result::<ReturnValue, HostError>::decode(
                     &mut serialized_result_val.as_slice(),
@@ -435,6 +450,7 @@ fn dispatch_function(
 }
 
 fn dispatch_function_v2(
+    dispatch_thunk_id: u32,
     supervisor_func_index: SupervisorFuncIndex,
     store: &mut Store,
     func_env: &wasmer::FunctionEnv<Env>,
@@ -465,8 +481,12 @@ fn dispatch_function_v2(
                     .collect::<std::result::Result<Vec<_>, _>>()?
                     .encode();
 
-                let serialized_result_val =
-                    dispatch_common(supervisor_func_index, supervisor_context, invoke_args_data)?;
+                let serialized_result_val = dispatch_common(
+                    dispatch_thunk_id,
+                    supervisor_func_index,
+                    supervisor_context,
+                    invoke_args_data,
+                )?;
 
                 std::result::Result::<WasmReturnValue, HostError>::decode(
                     &mut serialized_result_val.as_slice(),

@@ -28,9 +28,10 @@ use std::{collections::HashMap, pin::Pin, rc::Rc};
 use env::Instantiate;
 use gear_sandbox_env as sandbox_env;
 use parity_scale_codec::Decode;
-use sp_wasm_interface_common::{Pointer, Value, WordSize};
+use sp_wasm_interface_common::{Pointer, Value};
 
 use crate::{
+    context::SupervisorContext,
     error::{self, Result},
     util,
 };
@@ -51,8 +52,6 @@ use self::{
 };
 
 pub use gear_sandbox_env as env;
-
-type SandboxResult<T> = core::result::Result<T, String>;
 
 /// Index of a function inside the supervisor.
 ///
@@ -122,48 +121,6 @@ impl Imports {
             .get(&(module_name.to_string(), memory_name.to_string()))
             .cloned()
     }
-}
-
-/// The supervisor context used to execute sandboxed functions.
-pub trait SupervisorContext {
-    /// Invoke a function in the supervisor environment.
-    ///
-    /// This first invokes the dispatch thunk function, passing in the function index of the
-    /// desired function to call and serialized arguments. The thunk calls the desired function
-    /// with the deserialized arguments, then serializes the result into memory and returns
-    /// reference. The pointer to and length of the result in linear memory is encoded into an
-    /// `i64`, with the upper 32 bits representing the pointer and the lower 32 bits representing
-    /// the length.
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err` if the dispatch_thunk function has an incorrect signature or traps during
-    /// execution.
-    fn invoke(
-        &mut self,
-        invoke_args_ptr: Pointer<u8>,
-        invoke_args_len: WordSize,
-        func_idx: SupervisorFuncIndex,
-    ) -> Result<i64>;
-
-    /// Read memory from `address` into a vector.
-    fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> SandboxResult<()>;
-
-    /// Read memory into the given `dest` buffer from `address`.
-    fn read_memory(&self, address: Pointer<u8>, size: WordSize) -> Result<Vec<u8>> {
-        let mut vec = vec![0; size as usize];
-        self.read_memory_into(address, &mut vec)?;
-        Ok(vec)
-    }
-
-    /// Write the given data at `address` into the memory.
-    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> SandboxResult<()>;
-
-    /// Allocate a memory instance of `size` bytes.
-    fn allocate_memory(&mut self, size: WordSize) -> SandboxResult<Pointer<u8>>;
-
-    /// Deallocate a given memory instance.
-    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> SandboxResult<()>;
 }
 
 /// Module instance in terms of selected backend
@@ -677,16 +634,27 @@ impl SandboxComponents {
         version: Instantiate,
         wasm: &[u8],
         guest_env: GuestEnvironment,
+        dispatch_thunk_id: u32,
         supervisor_context: &mut dyn SupervisorContext,
     ) -> std::result::Result<UnregisteredInstance, InstantiationError> {
         let sandbox_instance = match self.backend_context {
-            BackendContext::Wasmi(ref context) => {
-                wasmi_instantiate(version, context, wasm, guest_env, supervisor_context)?
-            }
+            BackendContext::Wasmi(ref context) => wasmi_instantiate(
+                version,
+                context,
+                wasm,
+                guest_env,
+                dispatch_thunk_id,
+                supervisor_context,
+            )?,
 
-            BackendContext::Wasmer(ref context) => {
-                wasmer_instantiate(version, context, wasm, guest_env, supervisor_context)?
-            }
+            BackendContext::Wasmer(ref context) => wasmer_instantiate(
+                version,
+                context,
+                wasm,
+                guest_env,
+                dispatch_thunk_id,
+                supervisor_context,
+            )?,
         };
 
         Ok(UnregisteredInstance { sandbox_instance })

@@ -20,14 +20,13 @@
 
 use core::{
     cell::RefCell,
-    marker::PhantomData,
     sync::atomic::{AtomicU32, Ordering},
 };
 use std::panic::{self, AssertUnwindSafe};
 
 use parity_scale_codec::{Decode, Encode};
 
-use crate::sandbox::{self as sandbox_env, SupervisorContext as _};
+use crate::sandbox as sandbox_env;
 
 pub use crate::{
     error::Result as HostResult,
@@ -100,39 +99,31 @@ thread_local! {
     static THREAD_STATE: RefCell<ThreadState> = RefCell::new(ThreadState::default());
 }
 
-pub trait ContextOps {
-    type Caller<'a>;
+pub trait SupervisorContext {
+    fn trace(&self, func: &str);
+    fn store_data_key(&self) -> usize;
 
-    fn trace(func: &str, caller: &Self::Caller<'_>);
-    fn store_data_key(caller: &Self::Caller<'_>) -> usize;
-
-    fn invoke_dispatch_thunk(
-        caller: &mut Self::Caller<'_>,
+    fn invoke(
+        &mut self,
         dispatch_thunk_id: u32,
         invoke_args_ptr: Pointer<u8>,
         invoke_args_len: WordSize,
-        state: u32,
         func_idx: SupervisorFuncIndex,
     ) -> HostResult<i64>;
 
-    fn read_memory_into(
-        caller: &Self::Caller<'_>,
-        address: Pointer<u8>,
-        dest: &mut [u8],
-    ) -> Result<(), String>;
+    fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String>;
 
-    fn write_memory(
-        caller: &mut Self::Caller<'_>,
-        address: Pointer<u8>,
-        data: &[u8],
-    ) -> Result<(), String>;
+    fn read_memory(&self, address: Pointer<u8>, size: WordSize) -> HostResult<Vec<u8>> {
+        let mut vec = vec![0; size as usize];
+        self.read_memory_into(address, &mut vec)?;
+        Ok(vec)
+    }
 
-    fn allocate_memory(
-        caller: &mut Self::Caller<'_>,
-        size: WordSize,
-    ) -> Result<Pointer<u8>, String>;
+    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> Result<(), String>;
 
-    fn deallocate_memory(caller: &mut Self::Caller<'_>, ptr: Pointer<u8>) -> Result<(), String>;
+    fn allocate_memory(&mut self, size: WordSize) -> Result<Pointer<u8>, String>;
+
+    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> Result<(), String>;
 }
 
 fn with_thread_state<R>(f: impl FnOnce(&mut ThreadState) -> R) -> R {
@@ -142,97 +133,42 @@ fn with_thread_state<R>(f: impl FnOnce(&mut ThreadState) -> R) -> R {
     })
 }
 
-pub struct SupervisorContext<'a, 'b, O: ContextOps> {
-    pub caller: &'a mut O::Caller<'b>,
-    pub dispatch_thunk_id: u32,
-    pub state: u32,
-    _marker: PhantomData<O>,
-}
-
-impl<'a, 'b, O: ContextOps> SupervisorContext<'a, 'b, O> {
-    pub fn new(caller: &'a mut O::Caller<'b>, dispatch_thunk_id: u32, state: u32) -> Self {
-        Self {
-            caller,
-            dispatch_thunk_id,
-            state,
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<O: ContextOps> sandbox_env::SupervisorContext for SupervisorContext<'_, '_, O> {
-    fn invoke(
-        &mut self,
-        invoke_args_ptr: Pointer<u8>,
-        invoke_args_len: WordSize,
-        func_idx: SupervisorFuncIndex,
-    ) -> HostResult<i64> {
-        O::invoke_dispatch_thunk(
-            self.caller,
-            self.dispatch_thunk_id,
-            invoke_args_ptr,
-            invoke_args_len,
-            self.state,
-            func_idx,
-        )
-    }
-
-    fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String> {
-        O::read_memory_into(self.caller, address, dest)
-    }
-
-    fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> Result<(), String> {
-        O::write_memory(self.caller, address, data)
-    }
-
-    fn allocate_memory(&mut self, size: WordSize) -> Result<Pointer<u8>, String> {
-        O::allocate_memory(self.caller, size)
-    }
-
-    fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> Result<(), String> {
-        O::deallocate_memory(self.caller, ptr)
-    }
-}
-
-fn read_memory<O: ContextOps>(
-    caller: &O::Caller<'_>,
+fn read_memory(
+    supervisor_context: &dyn SupervisorContext,
     address: Pointer<u8>,
     size: WordSize,
 ) -> Result<Vec<u8>, String> {
     let mut vec = vec![0; size as usize];
-    O::read_memory_into(caller, address, &mut vec)?;
+    supervisor_context.read_memory_into(address, &mut vec)?;
     Ok(vec)
 }
 
-pub fn get_buff<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
-    memory_idx: u32,
-) -> HostPointer {
+pub fn get_buff(supervisor_context: &mut dyn SupervisorContext, memory_idx: u32) -> HostPointer {
     use crate::util::MemoryTransfer;
 
-    O::trace("get_buff", caller);
+    supervisor_context.trace("get_buff");
 
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .memory(memory_idx)
             .expect("Failed to get memory buffer pointer: cannot get backend memory")
             .get_buff() as HostPointer
     })
 }
 
-pub fn get_global_val<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
+pub fn get_global_val(
+    supervisor_context: &mut dyn SupervisorContext,
     instance_idx: u32,
     name: &str,
 ) -> Option<Value> {
-    O::trace("get_global_val", caller);
+    supervisor_context.trace("get_global_val");
 
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .instance(instance_idx)
             .map(|instance| instance.get_global_val(name))
             .map_err(|err| err.to_string())
@@ -240,16 +176,16 @@ pub fn get_global_val<O: ContextOps + 'static>(
     })
 }
 
-pub fn get_instance_ptr<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
+pub fn get_instance_ptr(
+    supervisor_context: &mut dyn SupervisorContext,
     instance_idx: u32,
 ) -> HostPointer {
-    O::trace("get_instance_ptr", caller);
+    supervisor_context.trace("get_instance_ptr");
 
     let instance = with_thread_state(|state| {
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .instance(instance_idx)
             .expect("Failed to get sandboxed instance")
     });
@@ -257,29 +193,28 @@ pub fn get_instance_ptr<O: ContextOps + 'static>(
     instance.as_ref().get_ref() as *const sandbox_env::SandboxInstance as HostPointer
 }
 
-pub fn instance_teardown<O: ContextOps + 'static>(caller: &mut O::Caller<'_>, instance_idx: u32) {
-    O::trace("instance_teardown", caller);
+pub fn instance_teardown(supervisor_context: &mut dyn SupervisorContext, instance_idx: u32) {
+    supervisor_context.trace("instance_teardown");
 
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .instance_teardown(instance_idx)
             .expect("Failed to teardown sandbox instance");
     });
 }
 
-pub fn instantiate<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
+pub fn instantiate(
+    supervisor_context: &mut dyn SupervisorContext,
     dispatch_thunk_id: u32,
     wasm_code: &[u8],
     raw_env_def: &[u8],
-    state_ptr: Pointer<u8>,
     version: Instantiate,
 ) -> u32 {
-    O::trace("instantiate", caller);
+    supervisor_context.trace("instantiate");
 
-    let store_data_key = O::store_data_key(caller);
+    let store_data_key = supervisor_context.store_data_key();
 
     let guest_env = with_thread_state(|state| {
         let store = state.sandboxes.get(store_data_key);
@@ -291,12 +226,13 @@ pub fn instantiate<O: ContextOps + 'static>(
     };
 
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        with_thread_state(|state| {
-            state.sandboxes.get(store_data_key).instantiate(
+        with_thread_state(|thread_state| {
+            thread_state.sandboxes.get(store_data_key).instantiate(
                 version,
                 wasm_code,
                 guest_env,
-                &mut SupervisorContext::<O>::new(caller, dispatch_thunk_id, state_ptr.into()),
+                dispatch_thunk_id,
+                supervisor_context,
             )
         })
     }));
@@ -317,16 +253,15 @@ pub fn instantiate<O: ContextOps + 'static>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn invoke<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
+pub fn invoke(
+    supervisor_context: &mut dyn SupervisorContext,
     instance_idx: u32,
     function: &str,
     mut args: &[u8],
     return_val_ptr: Pointer<u8>,
     return_val_len: u32,
-    state_ptr: Pointer<u8>,
 ) -> u32 {
-    O::trace("invoke", caller);
+    supervisor_context.trace("invoke");
     log::trace!("invoke, instance_idx={instance_idx}");
 
     let args = Vec::<Value>::decode(&mut args)
@@ -334,24 +269,15 @@ pub fn invoke<O: ContextOps + 'static>(
         .into_iter()
         .collect::<Vec<_>>();
 
-    let (instance, dispatch_thunk_id) = with_thread_state(|state| {
-        let store = state.sandboxes.get(O::store_data_key(caller));
+    let instance = with_thread_state(|state| {
+        let store = state.sandboxes.get(supervisor_context.store_data_key());
 
-        let instance = store
+        store
             .instance(instance_idx)
-            .expect("backend instance not found");
-
-        let dispatch_thunk_id = store
-            .dispatch_thunk_id(instance_idx)
-            .expect("dispatch_thunk not found");
-
-        (instance, dispatch_thunk_id)
+            .expect("backend instance not found")
     });
 
-    let mut sandbox_context =
-        SupervisorContext::<O>::new(caller, dispatch_thunk_id, state_ptr.into());
-
-    match instance.invoke(function, &args, &mut sandbox_context) {
+    match instance.invoke(function, &args, supervisor_context) {
         Ok(None) => sandbox_env::env::ERR_OK,
         Ok(Some(val)) => {
             let encoded = ReturnValue::Value(val).encode();
@@ -359,7 +285,7 @@ pub fn invoke<O: ContextOps + 'static>(
                 panic!("Return value buffer is too small");
             }
 
-            sandbox_context
+            supervisor_context
                 .write_memory(return_val_ptr, &encoded)
                 .expect("can't write return value");
 
@@ -372,8 +298,8 @@ pub fn invoke<O: ContextOps + 'static>(
     }
 }
 
-pub fn memory_get<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
+pub fn memory_get(
+    supervisor_context: &mut dyn SupervisorContext,
     memory_idx: u32,
     offset: u32,
     buf_ptr: Pointer<u8>,
@@ -381,12 +307,12 @@ pub fn memory_get<O: ContextOps + 'static>(
 ) -> u32 {
     use crate::util::MemoryTransfer;
 
-    O::trace("memory_get", caller);
+    supervisor_context.trace("memory_get");
 
     let sandboxed_memory = with_thread_state(|state| {
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .memory(memory_idx)
             .expect("sandboxed memory not found")
     });
@@ -396,25 +322,25 @@ pub fn memory_get<O: ContextOps + 'static>(
         Ok(buffer) => buffer,
     };
 
-    match O::write_memory(caller, buf_ptr, &buffer) {
+    match supervisor_context.write_memory(buf_ptr, &buffer) {
         Ok(()) => sandbox_env::env::ERR_OK,
         Err(_) => sandbox_env::env::ERR_OUT_OF_BOUNDS,
     }
 }
 
-pub fn memory_grow<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
+pub fn memory_grow(
+    supervisor_context: &mut dyn SupervisorContext,
     memory_idx: u32,
     size: u32,
 ) -> u32 {
     use crate::util::MemoryTransfer;
 
-    O::trace("memory_grow", caller);
+    supervisor_context.trace("memory_grow");
 
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .memory(memory_idx)
             .expect("Failed to grow memory: cannot get backend memory")
             .memory_grow(size)
@@ -422,26 +348,26 @@ pub fn memory_grow<O: ContextOps + 'static>(
     })
 }
 
-pub fn memory_new<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
+pub fn memory_new(
+    supervisor_context: &mut dyn SupervisorContext,
     initial: u32,
     maximum: u32,
 ) -> u32 {
-    O::trace("memory_new", caller);
+    supervisor_context.trace("memory_new");
 
     with_thread_state(|state| {
         state.sandboxes.clear(&mut state.clear_counter);
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .new_memory(initial, maximum)
             .map_err(|err| err.to_string())
             .expect("Failed to create new memory with sandbox")
     })
 }
 
-pub fn memory_set<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
+pub fn memory_set(
+    supervisor_context: &mut dyn SupervisorContext,
     memory_idx: u32,
     offset: u32,
     val_ptr: Pointer<u8>,
@@ -449,16 +375,16 @@ pub fn memory_set<O: ContextOps + 'static>(
 ) -> u32 {
     use crate::util::MemoryTransfer;
 
-    O::trace("memory_set", caller);
+    supervisor_context.trace("memory_set");
 
-    let Ok(buffer) = read_memory::<O>(caller, val_ptr, val_len) else {
+    let Ok(buffer) = read_memory(supervisor_context, val_ptr, val_len) else {
         return sandbox_env::env::ERR_OUT_OF_BOUNDS;
     };
 
     let sandboxed_memory = with_thread_state(|state| {
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .memory(memory_idx)
             .expect("memory_set: not found")
     });
@@ -469,46 +395,46 @@ pub fn memory_set<O: ContextOps + 'static>(
     }
 }
 
-pub fn memory_size<O: ContextOps + 'static>(caller: &mut O::Caller<'_>, memory_idx: u32) -> u32 {
+pub fn memory_size(supervisor_context: &mut dyn SupervisorContext, memory_idx: u32) -> u32 {
     use crate::util::MemoryTransfer;
 
-    O::trace("memory_size", caller);
+    supervisor_context.trace("memory_size");
 
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .memory(memory_idx)
             .expect("Failed to get memory size: cannot get backend memory")
             .memory_size()
     })
 }
 
-pub fn memory_teardown<O: ContextOps + 'static>(caller: &mut O::Caller<'_>, memory_idx: u32) {
-    O::trace("memory_teardown", caller);
+pub fn memory_teardown(supervisor_context: &mut dyn SupervisorContext, memory_idx: u32) {
+    supervisor_context.trace("memory_teardown");
 
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .memory_teardown(memory_idx)
             .expect("Failed to teardown sandbox memory");
     });
 }
 
-pub fn set_global_val<O: ContextOps + 'static>(
-    caller: &mut O::Caller<'_>,
+pub fn set_global_val(
+    supervisor_context: &mut dyn SupervisorContext,
     instance_idx: u32,
     name: &str,
     value: Value,
 ) -> u32 {
-    O::trace("set_global_val", caller);
+    supervisor_context.trace("set_global_val");
     log::trace!("set_global_val, instance_idx={instance_idx}");
 
     let result = with_thread_state(|state| {
         let instance = state
             .sandboxes
-            .get(O::store_data_key(caller))
+            .get(supervisor_context.store_data_key())
             .instance(instance_idx)
             .map_err(|err| err.to_string())
             .expect("Failed to set global in sandbox");
