@@ -44,7 +44,7 @@ struct SolidityBuildArtifact {
 }
 
 const CLONES_CONTRACT_START: &[u8] = br#"
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
@@ -119,6 +119,10 @@ fn generate_to_file(mut file: File, bytecode: Vec<u8>) -> Result<()> {
     file.write_all(CLONES_CONTRACT_START)
         .expect("Failed to write code");
 
+    let _ = file.write(b"        /**\n");
+    let _ = file.write(b"         * @dev Size is taken from second column: `forge build --sizes | grep \"| MirrorProxy \"`.\n")?;
+    let _ = file.write(b"         */\n");
+
     file.write_fmt(format_args!(
         "{}uint256 size = 0x{};\n",
         INDENTATION, &bytecode_length_bytes
@@ -130,7 +134,7 @@ fn generate_to_file(mut file: File, bytecode: Vec<u8>) -> Result<()> {
     ))?;
 
     let _ = file.write(b"        /**\n");
-    let _ = file.write(b"         * @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r \".bytecode.object\"`\n")?;
+    let _ = file.write(b"         * @dev This bytecode is taken from: `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r \".bytecode.object\"`\n")?;
     let _ = file.write(b"         */\n");
 
     for (i, chunk) in bytecode.chunks(CHUNK_SIZE).enumerate() {
@@ -160,6 +164,10 @@ fn generate_to_file(mut file: File, bytecode: Vec<u8>) -> Result<()> {
                 placeholder_start_in_chunk,
                 placeholder_start_in_chunk + ROUTER_PLACEHOLDER_LEN,
             );
+
+            let _ = file.write(b"        /**\n");
+            let _ = file.write(b"         * @dev Write `Router` address into the deployed bytecode.\n")?;
+            let _ = file.write(b"         */\n");
 
             // Calculate shift for router address
             let shift_bits = (CHUNK_SIZE - ROUTER_PLACEHOLDER_LEN - placeholder_start_in_chunk) * 8;

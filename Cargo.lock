@@ -5160,7 +5160,6 @@ dependencies = [
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-network",
- "ethexe-observer",
  "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
@@ -5360,6 +5359,7 @@ dependencies = [
  "nonempty 0.12.0",
  "parity-scale-codec",
  "prometheus-client 0.23.1",
+ "proptest",
  "rand 0.8.5",
  "thiserror 2.0.17",
  "tokio",
@@ -5552,6 +5552,7 @@ dependencies = [
  "gsys",
  "log",
  "parity-scale-codec",
+ "proptest",
  "serde",
 ]
 
@@ -6739,6 +6740,7 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "thiserror 2.0.17",
+ "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
 import {SlotDerivation} from "@openzeppelin/contracts/utils/SlotDerivation.sol";
@@ -384,6 +384,20 @@ library Gear {
          * @dev The total number of validated codes. Used for fast-sync.
          */
         uint256 validatedCodesCount;
+        /**
+         * @dev The maximum number of validators for era.
+         */
+        uint16 maxValidators;
+        /**
+         * @dev The base fee of `Router.requestCodeValidation(...)` method.
+         *      This base fee is paid in WVARA ERC20 token.
+         */
+        uint256 requestCodeValidationBaseFee;
+        /**
+         * @dev The extra fee of `Router.requestCodeValidationOnBehalf(...)` method.
+         *      This extra fee is paid in WVARA ERC20 token.
+         */
+        uint256 requestCodeValidationExtraFee;
     }
 
     /**
@@ -726,6 +740,7 @@ library Gear {
         bytes[] calldata _signatures,
         uint256 ts
     ) internal returns (bool) {
+        // forge-lint: disable-start(block-timestamp)
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
         if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
             require(ts >= router.genesisBlock.timestamp, ValidationBeforeGenesis());
@@ -742,6 +757,7 @@ library Gear {
 
             // Validation must be done using current era validators.
         }
+        // forge-lint: disable-end(block-timestamp)
 
         Validators storage validators = validatorsAt(router, ts);
         bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);

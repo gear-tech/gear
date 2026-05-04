@@ -21,19 +21,14 @@ use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
     HashOf,
     db::{InjectedStorageRO, InjectedStorageRW},
-    injected::{
-        InjectedTransaction, Promise, SignedCompactPromise, SignedPromise, restore_signed_promise,
-    },
+    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedPromise},
 };
 use ethexe_db::Database;
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tracing::trace;
+use tracing::{trace, warn};
 
-// TODO (kuzmindev): Currently, PromiseSubscriptionManager do not check, that transaction was
-// sent by validator, so there must be pre-validation for data received from network (SignedCompactPromise).
-
-// TODO (kuzmindev): think about using `moka::sync::Cache` instead of DashMap
+// TODO: Issues #5384 and #5385.
 type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactPromise>>;
 
@@ -90,6 +85,7 @@ impl PromiseSubscriptionManager {
         }
     }
 
+    // TODO: Issue #5402
     pub fn try_register_subscriber(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
@@ -111,21 +107,23 @@ impl PromiseSubscriptionManager {
         self.subscribers.remove(&tx_hash).map(|(_, v)| v)
     }
 
+    // TODO: Issue #5403
     pub fn on_compact_promise(&self, compact: SignedCompactPromise) {
         trace!(?compact, "received new compact promise");
         let tx_hash = compact.data().tx_hash;
 
         match self.db.promise(tx_hash) {
-            Some(promise) => match restore_signed_promise(promise, &compact) {
+            Some(promise) => match compact.restore(promise) {
                 Ok(signed_promise) => {
                     self.db.set_compact_promise(&compact);
                     self.dispatch_promise(signed_promise);
                 }
 
-                Err(_err) => {
-                    trace!(
-                        ?compact, %tx_hash, "failed to create signed promise from parts, producer send invalid signature: compact_promise={compact:?}"
+                Err(err) => {
+                    warn!(
+                        ?compact, %tx_hash, error=?err, "failed to create signed promise from parts, producer send invalid signature: compact_promise={compact:?}"
                     );
+                    self.waiting_for_compute.insert(tx_hash, compact);
                 }
             },
             None => {
@@ -140,7 +138,7 @@ impl PromiseSubscriptionManager {
         self.db.set_promise(&promise);
 
         if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) {
-            match restore_signed_promise(promise, &compact_promise) {
+            match compact_promise.restore(promise) {
                 Ok(signed_promise) => {
                     self.db.set_compact_promise(&compact_promise);
                     self.dispatch_promise(signed_promise);
@@ -169,9 +167,12 @@ impl PromiseSubscriptionManager {
 mod utils {
     use ethexe_common::db::ConfigStorageRO;
 
+    /// The maximum number of slots RPC will wait for transaction promise.
+    const MAX_PROMISE_WAITING_SLOTS: u64 = 20;
+
     /// Returns the maximum time that spawned [super::PendingSubscriber] will wait for promise.
     pub fn promise_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> std::time::Duration {
-        let slot_duration_secs = db.config().timelines.slot;
-        std::time::Duration::from_secs(slot_duration_secs * 20)
+        let slot_duration_secs = db.config().timelines.slot.get();
+        std::time::Duration::from_secs(slot_duration_secs * MAX_PROMISE_WAITING_SLOTS)
     }
 }

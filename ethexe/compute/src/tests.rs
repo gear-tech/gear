@@ -27,14 +27,14 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_db::Database;
-use ethexe_processor::ValidCodeInfo;
+use ethexe_processor::{BoundPromiseSink, ValidCodeInfo};
 use futures::StreamExt;
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
 use std::time::Duration;
-use tokio::{sync::mpsc, time::timeout};
+use tokio::time::timeout;
 
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
 #[derive(Clone, Default)]
@@ -81,7 +81,7 @@ impl ProcessorExt for MockProcessor {
     async fn process_programs(
         &mut self,
         _executable: ExecutableData,
-        _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        _promise_sink: Option<BoundPromiseSink>,
     ) -> Result<FinalizedBlockTransitions> {
         Ok(self.process_programs_result.take().unwrap_or_default())
     }
@@ -237,9 +237,10 @@ impl TestEnv {
         let computed_announce = event.unwrap_announce_computed();
         assert_eq!(computed_announce, announce_hash);
 
-        self.db.mutate_block_meta(announce.block_hash, |meta| {
-            meta.announces.get_or_insert_default().insert(announce_hash);
-        });
+        self.db
+            .mutate_block_announces(announce.block_hash, |announces| {
+                announces.insert(announce_hash);
+            });
     }
 }
 
@@ -284,11 +285,10 @@ async fn multiple_preparation_and_one_processing() -> Result<()> {
     // append announces to prepared blocks, except the last one, so that it can be computed
     for i in 1..3 {
         let announce = new_announce(&env.db, env.chain.blocks[i].hash, Some(100));
-        env.db.mutate_block_meta(announce.block_hash, |meta| {
-            meta.announces
-                .get_or_insert_default()
-                .insert(announce.to_hash());
-        });
+        env.db
+            .mutate_block_announces(announce.block_hash, |announces| {
+                announces.insert(announce.to_hash());
+            });
         env.db.set_announce(announce);
     }
 

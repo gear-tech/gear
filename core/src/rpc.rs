@@ -26,8 +26,6 @@ use scale_decode::DecodeAsType;
 use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
-use crate::utils;
-
 /// Pre-calculated gas consumption estimate for a message.
 ///
 /// Intended to be used as a result in `calculateGasFor*` RPC calls.
@@ -83,7 +81,7 @@ impl ReplyInfo {
             code.to_bytes().as_ref(),
         ]
         .concat();
-        utils::hash(&bytes).into()
+        super::utils::hash(&bytes).into()
     }
 }
 

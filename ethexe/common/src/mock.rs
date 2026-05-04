@@ -18,12 +18,15 @@
 
 use crate::{
     Address, Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    PromisePolicy, ProtocolTimelines, Rfm, Schedule, ScheduledTask, Sd, SimpleBlockData,
+    StateHashWithQueueSize, Sum, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
+    gear::{
+        BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
+    },
     injected::{AddressedInjectedTransaction, InjectedTransaction, Promise},
 };
 use alloc::{collections::BTreeMap, vec};
@@ -32,13 +35,15 @@ use gear_core::{
     limited::LimitedVec,
     message::{ReplyCode, SuccessReplyReason},
     rpc::ReplyInfo,
+    tasks::ScheduledTask as CoreScheduledTask,
 };
-use gprimitives::{ActorId, CodeId, H256, MessageId};
+use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 use itertools::Itertools;
 use proptest::{
     arbitrary::Arbitrary,
     collection,
     prelude::{BoxedStrategy, Strategy, any},
+    prop_oneof,
     strategy::{Just, ValueTree},
     test_runner::TestRunner,
 };
@@ -201,6 +206,10 @@ fn message_id_strategy() -> BoxedStrategy<MessageId> {
     h256_strategy().prop_map(Into::into).boxed()
 }
 
+fn reservation_id_strategy() -> BoxedStrategy<ReservationId> {
+    any::<[u8; 32]>().prop_map(Into::into).boxed()
+}
+
 fn hash_of_strategy<T: 'static>() -> BoxedStrategy<HashOf<T>> {
     h256_strategy()
         .prop_map(|hash| unsafe { HashOf::new(hash) })
@@ -223,6 +232,52 @@ fn limited_bytes_strategy<const N: usize>(
             LimitedVec::try_from(bytes).expect("strategy range must fit within LimitedVec bound")
         })
         .boxed()
+}
+
+pub fn scheduled_task_strategy() -> BoxedStrategy<ScheduledTask> {
+    prop_oneof![
+        (
+            actor_id_strategy(),
+            actor_id_strategy(),
+            message_id_strategy()
+        )
+            .prop_map(|(program_id, user_id, message_id)| {
+                CoreScheduledTask::<Rfm, Sd, Sum>::RemoveFromMailbox(
+                    (program_id, user_id),
+                    message_id,
+                )
+            }),
+        (actor_id_strategy(), message_id_strategy()).prop_map(|(program_id, message_id)| {
+            CoreScheduledTask::<Rfm, Sd, Sum>::RemoveFromWaitlist(program_id, message_id)
+        }),
+        (actor_id_strategy(), message_id_strategy()).prop_map(|(program_id, message_id)| {
+            CoreScheduledTask::<Rfm, Sd, Sum>::WakeMessage(program_id, message_id)
+        }),
+        (actor_id_strategy(), message_id_strategy()).prop_map(|(program_id, message_id)| {
+            CoreScheduledTask::<Rfm, Sd, Sum>::SendDispatch((program_id, message_id))
+        }),
+        (message_id_strategy(), actor_id_strategy()).prop_map(|(message_id, to_mailbox)| {
+            CoreScheduledTask::<Rfm, Sd, Sum>::SendUserMessage {
+                message_id,
+                to_mailbox,
+            }
+        }),
+        (actor_id_strategy(), reservation_id_strategy()).prop_map(
+            |(program_id, reservation_id)| {
+                CoreScheduledTask::<Rfm, Sd, Sum>::RemoveGasReservation(program_id, reservation_id)
+            }
+        ),
+    ]
+    .boxed()
+}
+
+pub fn schedule_strategy() -> BoxedStrategy<Schedule> {
+    collection::btree_map(
+        any::<u32>(),
+        collection::btree_set(scheduled_task_strategy(), 0..=4),
+        0..=4,
+    )
+    .boxed()
 }
 
 impl Arbitrary for SimpleBlockData {
@@ -263,11 +318,44 @@ impl Arbitrary for ProtocolTimelines {
     fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
         Just(Self {
             genesis_ts: 0,
-            era: 1000,
+            era: 1000.try_into().unwrap(),
             election: 200,
-            slot: 10,
+            slot: 10.try_into().unwrap(),
         })
         .boxed()
+    }
+}
+
+impl Arbitrary for MessageType {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        prop_oneof![Just(Self::Canonical), Just(Self::Injected)].boxed()
+    }
+}
+
+impl Arbitrary for PromisePolicy {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        prop_oneof![Just(Self::Disabled), Just(Self::Enabled)].boxed()
+    }
+}
+
+impl Arbitrary for StateHashWithQueueSize {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (h256_strategy(), any::<u8>(), any::<u8>())
+            .prop_map(|(hash, canonical_queue_size, injected_queue_size)| Self {
+                hash,
+                canonical_queue_size,
+                injected_queue_size,
+            })
+            .boxed()
     }
 }
 
@@ -509,18 +597,18 @@ impl BlockFullData {
     }
 
     #[track_caller]
-    pub fn as_prepared(&self) -> &PreparedBlockData {
-        self.prepared.as_ref().expect("block not prepared")
-    }
-
-    #[track_caller]
     pub fn as_synced_mut(&mut self) -> &mut SyncedBlockData {
         self.synced.as_mut().expect("block not synced")
     }
 
     #[track_caller]
+    pub fn as_prepared(&self) -> &PreparedBlockData {
+        self.prepared.as_ref().expect("block is not prepared")
+    }
+
+    #[track_caller]
     pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
-        self.prepared.as_mut().expect("block not prepared")
+        self.prepared.as_mut().expect("block is not prepared")
     }
 
     #[track_caller]
@@ -700,9 +788,11 @@ impl BlockChain {
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
 
-                let block_era = config.timelines.era_from_ts(header.timestamp);
+                let block_era = config.timelines.era_from_ts(header.timestamp).unwrap();
                 db.set_validators(block_era, validators.clone());
-                db.set_block_validators_committed_for_era(hash, block_era);
+                db.mutate_block_meta(hash, |meta| {
+                    meta.latest_era_validators_committed = Some(block_era)
+                });
             }
 
             if let Some(PreparedBlockData {
@@ -712,14 +802,18 @@ impl BlockChain {
                 last_committed_announce,
             }) = prepared
             {
+                if let Some(announces) = announces {
+                    db.set_block_announces(hash, announces);
+                }
+
                 db.mutate_block_meta(hash, |meta| {
                     *meta = BlockMeta {
                         prepared: true,
-                        announces,
                         codes_queue: Some(codes_queue),
                         last_committed_batch: Some(last_committed_batch),
                         last_committed_announce: Some(last_committed_announce),
-                    }
+                        ..*meta
+                    };
                 });
             }
         }
@@ -833,12 +927,13 @@ impl BlockChain {
             router_address,
             timelines: ProtocolTimelines {
                 genesis_ts: genesis_ts as u64,
-                era: slot * 100,
+                era: (slot * 100).try_into().unwrap(),
                 election: slot * 20,
-                slot,
+                slot: slot.try_into().unwrap(),
             },
             genesis_block_hash: blocks[0].hash,
             genesis_announce_hash: genesis_announce_hash.unwrap(),
+            max_validators: 10,
         };
 
         let globals = DBGlobals {
@@ -876,7 +971,7 @@ pub trait DBMockExt {
     fn top_announce_hash(&self, block: H256) -> HashOf<Announce>;
 }
 
-impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
+impl<DB: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO> DBMockExt for DB {
     #[track_caller]
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
@@ -888,8 +983,7 @@ impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
 
     #[track_caller]
     fn top_announce_hash(&self, block: H256) -> HashOf<Announce> {
-        self.block_meta(block)
-            .announces
+        self.block_announces(block)
             .expect("block announces not found")
             .into_iter()
             .next()
@@ -950,6 +1044,7 @@ impl Arbitrary for DBConfig {
                     timelines,
                     genesis_block_hash,
                     genesis_announce_hash,
+                    max_validators: 0,
                 },
             )
             .boxed()

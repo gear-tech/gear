@@ -57,16 +57,9 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
 pub fn test_protocol_timelines() -> ProtocolTimelines {
     ProtocolTimelines {
         genesis_ts: TEST_GENESIS_TIMESTAMP,
-        era: TEST_SLOT * 100,
+        era: (TEST_SLOT * 100).try_into().unwrap(),
         election: TEST_SLOT * 20,
-        slot: TEST_SLOT,
-    }
-}
-
-pub fn test_protocol_timelines_with_slot(slot: u64) -> ProtocolTimelines {
-    ProtocolTimelines {
-        slot,
-        ..test_protocol_timelines()
+        slot: TEST_SLOT.try_into().unwrap(),
     }
 }
 
@@ -226,6 +219,7 @@ pub fn test_block_chain_with_validators(len: u32, validators: ValidatorsVec) -> 
         timelines: test_protocol_timelines(),
         genesis_block_hash: blocks[0].hash,
         genesis_announce_hash: genesis_announce_hash.expect("genesis announce exists"),
+        max_validators: 10,
     };
 
     let globals = DBGlobals {

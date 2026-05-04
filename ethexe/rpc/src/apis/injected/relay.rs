@@ -44,7 +44,6 @@ impl TransactionsRelayer {
         let tx_hash = transaction.tx.data().to_hash();
         trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 
-        // TODO: maybe should implement the transaction validator.
         if transaction.tx.data().value != 0 {
             warn!(
                 tx_hash = %tx_hash,
@@ -105,7 +104,7 @@ mod utils {
         })?;
 
         let next_producer = calculate_next_producer(db, now).map_err(|err| {
-            warn!(transaction=?tx, "calculate next producer error: {err}");
+            error!("calculate next producer error: {err}");
             crate::errors::internal()
         })?;
         tx.recipient = next_producer;
@@ -123,16 +122,20 @@ mod utils {
             .checked_add(Duration::from_millis(NEXT_PRODUCER_THRESHOLD_MS))
             .context("current time is too close to u64::MAX, cannot calculate next producer")?
             .as_secs()
-            .checked_add(timelines.slot)
+            .checked_add(timelines.slot.get())
             .context("current time is too close to u64::MAX, cannot calculate next producer")?;
 
-        let era = timelines.era_from_ts(target_timestamp);
+        let era = timelines
+            .era_from_ts(target_timestamp)
+            .context("failed to calculate era from target timestamp")?;
 
         let validators = db
             .validators(era)
             .with_context(|| format!("validators not found for era={era}"))?;
 
-        Ok(timelines.block_producer_at(&validators, target_timestamp))
+        timelines
+            .block_producer_at(&validators, target_timestamp)
+            .context("failed to calculate block producer")
     }
 
     /// Returns the current time since [SystemTime::UNIX_EPOCH].
@@ -159,9 +162,10 @@ mod tests {
         let validators = ValidatorsVec::from_iter((0..10u64).map(Address::from));
 
         let timelines = ProtocolTimelines {
-            slot: SLOT,
-            era: ERA,
-            ..Default::default()
+            genesis_ts: 0,
+            era: ERA.try_into().unwrap(),
+            election: 0,
+            slot: SLOT.try_into().unwrap(),
         };
         db.set_validators(0, validators.clone());
         let mut config = db.config().clone();

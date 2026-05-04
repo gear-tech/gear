@@ -43,6 +43,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+use tracing::trace;
 
 /// Maximum number of pending announces to store
 const MAX_PENDING_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
@@ -185,13 +186,20 @@ impl ConsensusService for ConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let block_era = self.timelines.era_from_ts(block.header.timestamp);
-            let validators = self.db.validators(block_era).ok_or(anyhow!(
-                "validators not found for synced block({block_hash})"
-            ))?;
+            let block_era = self
+                .timelines
+                .era_from_ts(block.header.timestamp)
+                .ok_or_else(|| anyhow!("failed to calculate era for synced block({block_hash})"))?;
+            let validators = self
+                .db
+                .validators(block_era)
+                .ok_or_else(|| anyhow!("validators not found for synced block({block_hash})"))?;
             let producer = self
                 .timelines
-                .block_producer_at(&validators, block.header.timestamp);
+                .block_producer_at(&validators, block.header.timestamp)
+                .ok_or_else(|| {
+                    anyhow!("failed to calculate block producer for synced block({block_hash})")
+                })?;
 
             self.state = State::WaitingForPreparedBlock {
                 block: *block,
@@ -282,12 +290,13 @@ impl ConsensusService for ConnectService {
 
     fn receive_promise_for_signing(
         &mut self,
-        _promise: Promise,
-        _announce_hash: HashOf<Announce>,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
     ) -> Result<()> {
         // Nothing to do.
         // This case is not error because connect node can be also RPC node that produce promises,
         // to send them for external users.
+        trace!(?promise, %announce_hash, "connect node received the promise for signing, skipping...");
         Ok(())
     }
 

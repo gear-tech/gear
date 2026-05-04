@@ -27,7 +27,7 @@ use ethexe_common::{
     db::InjectedStorageRO,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedPromise, restore_signed_promise,
+        SignedInjectedTransaction, SignedPromise,
     },
 };
 use ethexe_db::Database;
@@ -49,6 +49,7 @@ pub struct InjectedApi {
     metrics: InjectedApiMetrics,
 }
 
+// TODO: Issue #5387
 #[async_trait]
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
@@ -109,6 +110,7 @@ impl InjectedApi {
         self.relayer.relay(transaction).await
     }
 
+    // TODO: Issue #5386.
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
@@ -164,7 +166,7 @@ impl InjectedApi {
             return Ok(None);
         };
 
-        match restore_signed_promise(promise, &compact) {
+        match compact.restore(promise) {
             Ok(message) => Ok(Some(message)),
             Err(err) => {
                 trace!(

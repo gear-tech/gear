@@ -160,15 +160,21 @@ impl Service {
     /// Number of reserved dev accounts (deployer, validator).
     const RESERVED_DEV_ACCOUNTS: u32 = 2;
     /// Expected Foundry toolchain commit sha.
-    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f1abb2ca347187bb6dea8c3881ca44ce50aab1e7";
+    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f83bad912a9dba7bf0371def1e70bb1896048356";
+    /// Expected Foundry toolchain version.
+    const FOUNDRY_TOOLCHAIN_VERSION: &str = "1.7.0";
 
     fn check_foundry_toolchain_version(client_commit_sha: Option<String>) -> Result<()> {
         if let Some(client_commit_sha) = client_commit_sha
             && client_commit_sha != Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA
         {
+            // bail!(
+            //     "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install nightly-{commit_sha} --force`.",
+            //     commit_sha = Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA,
+            // );
             bail!(
-                "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install nightly-{commit_sha} --force`.",
-                commit_sha = Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA,
+                "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install {version} --force`.",
+                version = Self::FOUNDRY_TOOLCHAIN_VERSION,
             );
         }
 
@@ -300,7 +306,7 @@ impl Service {
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: config.ethereum.rpc.clone(),
             ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
-            beacon_block_time: alloy::eips::merge::SLOT_DURATION,
+            beacon_block_time: config.ethereum.block_time,
             attempts: const { NonZero::<u8>::new(3).unwrap() },
         };
         let blob_loader = BlobLoader::new(db.clone(), consensus_config)
@@ -391,6 +397,9 @@ impl Service {
                     .sender_address(pub_key.to_address())
                     .eip1559_fee_increase_percentage(
                         config.ethereum.eip1559_fee_increase_percentage,
+                    )
+                    .eip1559_max_fee_per_gas_in_gwei(
+                        config.ethereum.eip1559_max_fee_per_gas_in_gwei,
                     )
                     .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
                     .build()

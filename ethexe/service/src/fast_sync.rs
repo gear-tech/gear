@@ -715,18 +715,22 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     // Since we get storage view at `block_hash`
     // then latest committed era is for the largest `useFromTimestamp`
-    let latest_era_with_committed_validators = db.config().timelines.era_from_ts(max(
-        storage_view
-            .validationSettings
-            .validators0
-            .useFromTimestamp
-            .to::<u64>(),
-        storage_view
-            .validationSettings
-            .validators1
-            .useFromTimestamp
-            .to::<u64>(),
-    ));
+    let latest_era_with_committed_validators = db
+        .config()
+        .timelines
+        .era_from_ts(max(
+            storage_view
+                .validationSettings
+                .validators0
+                .useFromTimestamp
+                .to::<u64>(),
+            storage_view
+                .validationSettings
+                .validators1
+                .useFromTimestamp
+                .to::<u64>(),
+        ))
+        .context("failed to calculate era from validators timestamp")?;
 
     ethexe_common::setup_block_in_db(
         db,
