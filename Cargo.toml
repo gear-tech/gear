@@ -10,14 +10,14 @@ rust-version = "1.91"
 [workspace]
 resolver = "3"
 
-default-members = ["node/cli"]
+default-members = ["vara/node/cli"]
 
 exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
 
 members = [
-    "common",
-    "common/codegen",
-    "common/numerated",
+    "vara/common",
+    "vara/common/codegen",
+    "numerated",
     "core/core",
     "core/backend",
     "core/gsigner",
@@ -88,26 +88,27 @@ members = [
     "examples/waiting-proxy",
     "examples/wat",
     "galloc",
-    "gbuiltins/*",
-    "gcli",
+    "vara/builtins/*",
+    "vara/sdk/gcli",
     "gcore",
     "core/gprimitives",
-    "gsdk",
-    "gsdk/codegen",
+    "vara/sdk/gsdk",
+    "vara/sdk/gsdk/codegen",
     "gstd",
     "gstd/codegen",
     "gsys",
     "gtest",
-    "node/cli",
-    "node/service",
-    "node/authorship",
-    "node/testing",
-    "pallets/*",
-    "runtime/*",
-    "runtime-interface/sandbox",
+    "vara/node/cli",
+    "vara/node/service",
+    "vara/node/authorship",
+    "vara/node/testing",
+    "vara/pallets/*",
+    "vara/runtime/*",
+    "vara/runtime/interface/sandbox",
+    "vara/tools/*",
     "utils/*",
-    "utils/runtime-fuzzer/fuzz",
-    "utils/lazy-pages-fuzzer/runner",
+    "vara/tools/runtime-fuzzer/fuzz",
+    "core/lazy-pages-fuzzer/runner",
     "ethexe/*",
     "ethexe/runtime/common",
     "ethexe/service/utils",
@@ -241,32 +242,32 @@ metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
 dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
 
 # Internal deps
-numerated = { path = "common/numerated" }
-authorship = { package = "gear-authorship", path = "node/authorship" }
-builtins-common = { path = "utils/builtins-common", default-features = false }
-common = { package = "gear-common", path = "common", default-features = false }
+numerated = { path = "numerated" }
+authorship = { package = "gear-authorship", path = "vara/node/authorship" }
+builtins-common = { path = "vara/builtins/common", default-features = false }
+common = { package = "gear-common", path = "vara/common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core/processor", default-features = false }
 galloc = { path = "galloc" }
-gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
-gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
-gbuiltin-staking = { path = "gbuiltins/staking" }
-gbuiltin-proxy = { path = "gbuiltins/proxy" }
+gbuiltin-bls381 = { path = "vara/builtins/bls381", default-features = false }
+gbuiltin-eth-bridge = { path = "vara/builtins/eth-bridge", default-features = false }
+gbuiltin-staking = { path = "vara/builtins/staking" }
+gbuiltin-proxy = { path = "vara/builtins/proxy" }
 gcore = { path = "gcore" }
-gcli = { path = "gcli" }
-gear-node-wrapper = { path = "utils/node-wrapper" }
-gsdk = { path = "gsdk" }
-gsdk-codegen = { path = "gsdk/codegen" }
+gcli = { path = "vara/sdk/gcli" }
+gear-node-wrapper = { path = "vara/sdk/node-wrapper" }
+gsdk = { path = "vara/sdk/gsdk" }
+gsdk-codegen = { path = "vara/sdk/gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
 gstd-codegen = { path = "gstd/codegen" }
 gsigner = { path = "core/gsigner", default-features = false }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gprimitives = { path = "core/gprimitives", default-features = false }
-gear-authorship = { path = "node/authorship" }
+gear-authorship = { path = "vara/node/authorship" }
 gear-core-backend = { path = "core/backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
-gear-common = { path = "common", default-features = false }
-gear-common-codegen = { path = "common/codegen" }
+gear-common = { path = "vara/common", default-features = false }
+gear-common-codegen = { path = "vara/common/codegen" }
 gear-core = { path = "core/core", default-features = false }
 gear-core-errors = { path = "core/errors" }
 gear-core-processor = { path = "core/processor", default-features = false }
@@ -274,15 +275,15 @@ gear-lazy-pages = { path = "core/lazy-pages" }
 gear-lazy-pages-common = { path = "core/lazy-pages-common", default-features = false }
 gear-lazy-pages-interface = { path = "core/lazy-pages-interface", default-features = false }
 gear-lazy-pages-native-interface = { path = "core/lazy-pages-native-interface" }
-gear-node-testing = { path = "node/testing" }
-gear-runtime-common = { path = "runtime/common", default-features = false }
-gear-runtime-interface = { path = "runtime-interface", default-features = false }
-gear-sandbox-interface = { path = "runtime-interface/sandbox", default-features = false }
-gear-runtime-primitives = { path = "runtime/primitives", default-features = false }
+gear-node-testing = { path = "vara/node/testing" }
+gear-runtime-common = { path = "vara/runtime/common", default-features = false }
+gear-runtime-interface = { path = "vara/runtime/interface", default-features = false }
+gear-sandbox-interface = { path = "vara/runtime/interface/sandbox", default-features = false }
+gear-runtime-primitives = { path = "vara/runtime/primitives", default-features = false }
 gear-sandbox = { path = "core/sandbox", default-features = false }
 gear-sandbox-env = { path = "core/sandbox-env", default-features = false }
 gear-sandbox-host = { path = "core/sandbox-host" }
-gear-service = { path = "node/service", default-features = false }
+gear-service = { path = "vara/node/service", default-features = false }
 gear-stack-buffer = { path = "stack-buffer" }
 gear-ss58 = { path = "core/ss58", default-features = false }
 gear-utils = { path = "utils/utils" }
@@ -290,33 +291,33 @@ gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
 gear-wasm-optimizer = { path = "utils/wasm-optimizer", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
-junit-common = { path = "utils/junit-common" }
+junit-common = { path = "vara/tools/regression-analysis/junit-common" }
 actor-system-error = { path = "core/actor-system-error" }
-pallet-gear = { path = "pallets/gear", default-features = false }
-pallet-gear-eth-bridge = { path = "pallets/gear-eth-bridge", default-features = false }
-pallet-gear-eth-bridge-primitives = { path = "pallets/gear-eth-bridge/primitives", default-features = false }
-pallet-gear-eth-bridge-rpc = { path = "pallets/gear-eth-bridge/rpc", default-features = false }
-pallet-gear-eth-bridge-rpc-runtime-api = { path = "pallets/gear-eth-bridge/rpc/runtime-api", default-features = false }
-pallet-gear-gas = { path = "pallets/gas", default-features = false }
-pallet-gear-messenger = { path = "pallets/gear-messenger", default-features = false }
-pallet-gear-payment = { path = "pallets/payment", default-features = false }
-pallet-gear-program = { path = "pallets/gear-program", default-features = false }
-pallet-gear-rpc = { path = "pallets/gear/rpc" }
-pallet-gear-rpc-runtime-api = { path = "pallets/gear/rpc/runtime-api", default-features = false }
-pallet-gear-scheduler = { path = "pallets/gear-scheduler", default-features = false }
-pallet-gear-staking-rewards = { path = "pallets/staking-rewards", default-features = false }
-pallet-gear-staking-rewards-rpc = { path = "pallets/staking-rewards/rpc" }
-pallet-gear-staking-rewards-rpc-runtime-api = { path = "pallets/staking-rewards/rpc/runtime-api", default-features = false }
-pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
-pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
-pallet-gear-builtin = { path = "pallets/gear-builtin", default-features = false }
-pallet-gear-builtin-rpc = { path = "pallets/gear-builtin/rpc" }
-pallet-gear-builtin-rpc-runtime-api = { path = "pallets/gear-builtin/rpc/runtime-api", default-features = false }
-pallet-grandpa-signer = { path = "pallets/grandpa-signer", default-features = false }
-runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
-service = { package = "gear-service", path = "node/service", default-features = false }
-testing = { package = "gear-node-testing", path = "node/testing" }
-vara-runtime = { path = "runtime/vara", default-features = false }
+pallet-gear = { path = "vara/pallets/gear", default-features = false }
+pallet-gear-eth-bridge = { path = "vara/pallets/gear-eth-bridge", default-features = false }
+pallet-gear-eth-bridge-primitives = { path = "vara/pallets/gear-eth-bridge/primitives", default-features = false }
+pallet-gear-eth-bridge-rpc = { path = "vara/pallets/gear-eth-bridge/rpc", default-features = false }
+pallet-gear-eth-bridge-rpc-runtime-api = { path = "vara/pallets/gear-eth-bridge/rpc/runtime-api", default-features = false }
+pallet-gear-gas = { path = "vara/pallets/gas", default-features = false }
+pallet-gear-messenger = { path = "vara/pallets/gear-messenger", default-features = false }
+pallet-gear-payment = { path = "vara/pallets/payment", default-features = false }
+pallet-gear-program = { path = "vara/pallets/gear-program", default-features = false }
+pallet-gear-rpc = { path = "vara/pallets/gear/rpc" }
+pallet-gear-rpc-runtime-api = { path = "vara/pallets/gear/rpc/runtime-api", default-features = false }
+pallet-gear-scheduler = { path = "vara/pallets/gear-scheduler", default-features = false }
+pallet-gear-staking-rewards = { path = "vara/pallets/staking-rewards", default-features = false }
+pallet-gear-staking-rewards-rpc = { path = "vara/pallets/staking-rewards/rpc" }
+pallet-gear-staking-rewards-rpc-runtime-api = { path = "vara/pallets/staking-rewards/rpc/runtime-api", default-features = false }
+pallet-gear-voucher = { path = "vara/pallets/gear-voucher", default-features = false }
+pallet-gear-bank = { path = "vara/pallets/gear-bank", default-features = false }
+pallet-gear-builtin = { path = "vara/pallets/gear-builtin", default-features = false }
+pallet-gear-builtin-rpc = { path = "vara/pallets/gear-builtin/rpc" }
+pallet-gear-builtin-rpc-runtime-api = { path = "vara/pallets/gear-builtin/rpc/runtime-api", default-features = false }
+pallet-grandpa-signer = { path = "vara/pallets/grandpa-signer", default-features = false }
+runtime-primitives = { package = "gear-runtime-primitives", path = "vara/runtime/primitives", default-features = false }
+service = { package = "gear-service", path = "vara/node/service", default-features = false }
+testing = { package = "gear-node-testing", path = "vara/node/testing" }
+vara-runtime = { path = "vara/runtime/vara", default-features = false }
 
 # ethexe deps
 ethexe-observer = { path = "ethexe/observer", default-features = false }

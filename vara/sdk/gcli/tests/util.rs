@@ -48,7 +48,7 @@ fn node_bin() -> PathBuf {
     env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("../target")
+            PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("../../../../../target")
         })
         .join("release/gear")
 }

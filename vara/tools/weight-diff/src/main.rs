@@ -505,7 +505,9 @@ fn main() -> Result<()> {
                 Runtime::Vara => serde_json::to_value(dump.vara_schedule)?,
             };
 
-            let file = syn::parse_file(&fs::read_to_string("pallets/gear/src/schedule.rs")?)?;
+            let file = syn::parse_file(&fs::read_to_string(
+                "../../../vara/pallets/gear/src/schedule.rs",
+            )?)?;
 
             let mut visitor = StructuresVisitor::default();
             visitor.visit_file(&file);
