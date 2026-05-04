@@ -141,24 +141,9 @@ pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
     let mut collected = Vec::with_capacity(chain.len());
     for (hash, computed) in chain.iter().copied() {
         if !computed {
-            tracing::info!(
-                %hash,
-                walk_depth = chain.len(),
-                committed_so_far = collected.len(),
-                "collect_computed_uncommitted_predecessors: stopped at not-yet-computed MB",
-            );
             break;
         }
         collected.push(hash);
-    }
-    if !chain.is_empty() {
-        tracing::info!(
-            %last_committed_mb,
-            %mb_head,
-            walk_depth = chain.len(),
-            collected = collected.len(),
-            "collect_computed_uncommitted_predecessors: walk OK",
-        );
     }
     collected
 }
@@ -355,8 +340,6 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     // leaving the same backlog (only larger) for the next round.
     let mut transitions: Vec<StateTransition> = Vec::new();
     let mut last_included = last_committed_mb;
-    let mut nonempty_outcomes = 0usize;
-    let mut size_exceeded = false;
     for mb_hash in &pending {
         let Some(mb_transitions) = db.mb_outcome(*mb_hash) else {
             anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
@@ -373,25 +356,12 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         if !batch_filler.would_fit_chain_commitment(&trial_commitment) {
             // Don't include the over-sized MB. Keep the previous prefix as the
             // commitable chunk and let the rest land in a future batch.
-            size_exceeded = true;
             break;
         }
 
-        if !mb_transitions.is_empty() {
-            nonempty_outcomes += 1;
-        }
         transitions = trial_commitment.transitions;
         last_included = *mb_hash;
     }
-
-    tracing::info!(
-        pending_count = pending.len(),
-        total_transitions = transitions.len(),
-        nonempty_outcomes,
-        %last_included,
-        size_exceeded,
-        "try_include_chain_commitment: aggregation done",
-    );
 
     let commitment = ChainCommitment {
         head: last_included,
@@ -744,9 +714,30 @@ mod tests {
         let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
         let mb2 = write_mb(&db, mb1, 2, vec![]);
         let mb3 = write_mb(&db, mb2, 3, vec![]);
+        // candidate is older than latest_finalized_mb — direction A finds it.
         assert!(is_ancestor_or_equal(&db, mb1, mb3).unwrap());
-        // Going the other way around is not an ancestor relationship.
-        assert!(!is_ancestor_or_equal(&db, mb3, mb1).unwrap());
+        // candidate is newer than latest_finalized_mb — direction B finds it
+        // (participant has computed mb3 via a speculative proposal but its
+        // mark_block_as_finalized cascade hasn't reached it yet).
+        assert!(is_ancestor_or_equal(&db, mb3, mb1).unwrap());
+    }
+
+    #[test]
+    fn is_ancestor_returns_false_on_disjoint_chains() {
+        let db = Database::memory();
+        // Two MB chains with no shared ancestry.
+        let chain_a = write_mb(&db, H256::zero(), 1, vec![]);
+        let chain_b_root = H256::from_low_u64_be(0xB001);
+        db.set_mb_compact_block(
+            chain_b_root,
+            CompactBlock {
+                parent: H256::from_low_u64_be(0xB000), // unknown parent
+                height: 1,
+                transactions_hash: db.set_transactions(empty_txs(99)),
+            },
+        );
+        assert!(!is_ancestor_or_equal(&db, chain_b_root, chain_a).unwrap());
+        assert!(!is_ancestor_or_equal(&db, chain_a, chain_b_root).unwrap());
     }
 
     #[test]

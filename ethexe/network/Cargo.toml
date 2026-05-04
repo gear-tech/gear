@@ -29,7 +29,6 @@ libp2p-gossipsub = { version = "0.49.4", features = ["metrics"] }
 tokio = { workspace = true, features = ["macros", "sync"] }
 anyhow.workspace = true
 log.workspace = true
-tracing.workspace = true
 parity-scale-codec.workspace = true
 async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }

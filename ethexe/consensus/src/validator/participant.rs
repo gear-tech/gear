@@ -88,7 +88,7 @@ impl StateHandler for Participant {
         {
             match res {
                 Ok(ValidationStatus::Accepted(digest)) => {
-                    tracing::info!(
+                    tracing::debug!(
                         block = %self.block.hash,
                         block_height = self.block.header.height,
                         %digest,

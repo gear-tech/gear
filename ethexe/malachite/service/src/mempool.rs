@@ -467,14 +467,17 @@ mod tests {
     }
 
     #[test]
-    fn insert_unknown_ref_block_is_rejected() {
+    fn insert_unknown_ref_block_is_accepted() {
         let db = Database::memory();
         let pool = InjectedTxMempool::new(db);
         let pk = PrivateKey::random();
-        // ref_block points at a hash that's not in the DB
+        // ref_block points at a hash that's not in the DB. Mempool accepts
+        // unconditionally at insert time and filters at fetch time once
+        // the ref_block resolves locally — keeps the RPC fan-out arm alive
+        // on validators a few ms behind the producer.
         let tx = signed_tx(&pk, ActorId::zero(), H256::random(), 1);
         pool.insert(tx);
-        assert_eq!(pool.len(), 0);
+        assert_eq!(pool.len(), 1);
     }
 
     #[test]
@@ -639,10 +642,18 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn wait_for_new_tx_does_not_wake_on_rejected_insert() {
-        // A duplicate / capped / unknown-ref insert should not wake
-        // a waiter — Notify is signalled only on a successful insert.
+        // A duplicate / capped insert should not wake a waiter — Notify
+        // is signalled only on a successful insert.
         let db = Database::memory();
+        let chain = linear_chain(&db, 2);
         let pool = std::sync::Arc::new(InjectedTxMempool::new(db));
+        let pk = PrivateKey::random();
+        let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
+
+        // Seed one accepted insert and consume the resulting permit so
+        // the next `.notified()` re-blocks until the next signal.
+        pool.insert(tx.clone());
+        pool.wait_for_new_tx().await;
 
         let waiter = {
             let pool = pool.clone();
@@ -653,9 +664,8 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(10)).await;
 
-        // ref_block isn't in the DB → rejected.
-        let pk = PrivateKey::random();
-        pool.insert(signed_tx(&pk, ActorId::zero(), H256::random(), 0));
+        // Same tx hash — rejected as duplicate, no signal.
+        pool.insert(tx);
 
         // Waiter must still be pending.
         tokio::time::sleep(Duration::from_millis(50)).await;
