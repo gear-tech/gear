@@ -59,7 +59,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use gprimitives::H256;
 use tokio::sync::Notify;
-use tracing::{debug, info, trace};
+use tracing::{info, trace};
 
 /// Source of injected transactions to pack into the next sequencer
 /// block.

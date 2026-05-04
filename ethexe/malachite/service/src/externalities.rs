@@ -309,45 +309,80 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             return Ok(true);
         };
 
-        // (2) Quarantine: the targeted EB must be a canonical
-        // ancestor of our local head, deep enough to clear the
-        // quarantine window.
-        let head = *self.chain_head.read().expect("chain_head poisoned");
-        let Some(head) = head else {
-            warn!("validate: no chain-head event yet — abstaining from vote");
-            return Ok(false);
-        };
-        let start = self.db.globals().start_block_hash;
-        if let Err(e) =
-            quarantine::verify_passed(&self.db, head, advance, self.canonical_quarantine, start)
-        {
-            warn!(error = %e, advance = %advance, "validate: quarantine reject");
-            return Ok(false);
-        }
-
-        // (3) Local-sync gate: every Eth block compute will visit
-        // (`advance` walked back to the parent MB's
-        // `last_advanced_block`) must already be fully synced into
-        // the local DB. This upholds the contract that
-        // `compute_mb` is called only when all headers + events
-        // the executor needs are present — without it a node that
-        // just restarted (or just deployed) and hasn't caught up to
-        // the proposer's chain-tip would force compute to walk
-        // missing headers and bail.
+        // (2) Quarantine + local-sync — wait briefly for the local
+        // observer to catch up if the proposer raced ahead.
+        //
+        // The proposer was likely 1 Hoodi block ahead of us when it
+        // built this proposal: its anchor (`head - canonical_quarantine`)
+        // sits one block too shallow from our local head's POV, so a
+        // strict synchronous check would prevote nil and force the
+        // round to time out (≥ propose_timeout). Instead we poll —
+        // every chain_head update or up to a hard deadline — and
+        // succeed as soon as our DB covers the proposer's advance.
+        //
+        // The deadline is intentionally well below the engine's
+        // protocol-level propose timeout: if we still can't validate
+        // by then, the proposer's chain genuinely diverges from ours
+        // and prevoting nil is the correct outcome.
         let parent_advanced = if parent_hash.is_zero() {
             H256::zero()
         } else {
             self.db.mb_meta(parent_hash).last_advanced_block
         };
-        if !self.advance_chain_locally_synced(advance, parent_advanced) {
-            warn!(
-                %advance,
-                %parent_advanced,
-                "validate: advance-chain not yet locally synced — abstaining"
-            );
-            return Ok(false);
+
+        const VALIDATE_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_millis(2000);
+        const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+        let deadline = tokio::time::Instant::now() + VALIDATE_WAIT_BUDGET;
+        let start_block_hash = self.db.globals().start_block_hash;
+
+        loop {
+            let head_opt = *self.chain_head.read().expect("chain_head poisoned");
+            if let Some(head) = head_opt {
+                let quarantine_ok = quarantine::verify_passed(
+                    &self.db,
+                    head,
+                    advance,
+                    self.canonical_quarantine,
+                    start_block_hash,
+                );
+                let sync_ok = self.advance_chain_locally_synced(advance, parent_advanced);
+                if quarantine_ok.is_ok() && sync_ok {
+                    return Ok(true);
+                }
+                // Past deadline: log the still-failing reason and give up.
+                if tokio::time::Instant::now() >= deadline {
+                    if let Err(e) = quarantine_ok {
+                        warn!(
+                            error = %e,
+                            %advance,
+                            head = %head.hash,
+                            head_height = head.header.height,
+                            "validate: quarantine still not satisfied within budget — abstaining",
+                        );
+                    } else {
+                        warn!(
+                            %advance,
+                            %parent_advanced,
+                            head = %head.hash,
+                            "validate: advance-chain not yet locally synced — abstaining",
+                        );
+                    }
+                    return Ok(false);
+                }
+            } else if tokio::time::Instant::now() >= deadline {
+                warn!("validate: no chain-head event yet — abstaining from vote");
+                return Ok(false);
+            }
+
+            // Poll the local view periodically. The observer pumps
+            // a fresh chain_head into us asynchronously, so within a
+            // few hundred milliseconds the local DB is up-to-date
+            // and the next iteration of this loop succeeds. This
+            // avoids the older synchronous-prevote-nil path that
+            // forced rounds to time out at 13 s whenever the
+            // proposer was 1 Hoodi block ahead of us.
+            tokio::time::sleep(POLL_INTERVAL).await;
         }
-        Ok(true)
     }
 }
 
