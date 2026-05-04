@@ -17,6 +17,7 @@ gprimitives = { workspace = true, features = ["std"] }
 anyhow.workspace = true
 alloy = { workspace = true, features = [
     "consensus",
+    "contract",
     "eips",
     "node-bindings",
     "provider-http",
