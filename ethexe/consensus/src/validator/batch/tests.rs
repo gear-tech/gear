@@ -98,7 +98,6 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
     db.set_mb_program_states(mb_hash, ProgramStates::default());
     db.mutate_mb_meta(mb_hash, |meta| {
         meta.computed = true;
-        meta.finalized = true;
         meta.last_advanced_block = H256::zero();
     });
     mb_hash

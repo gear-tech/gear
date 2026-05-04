@@ -215,12 +215,6 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         // BFT-finalized MB.
         self.db
             .globals_mutate(|g| g.latest_finalized_mb_hash = block_hash);
-        // BFT-safety: ancestors are already finalized by induction.
-        // Batch validation reads `meta.finalized` directly to confirm
-        // a coordinator's `head_mb` is on this validator's canonical
-        // chain — see `BatchCommitmentManager::validate_batch_commitment`.
-        self.db
-            .mutate_mb_meta(block_hash, |meta| meta.finalized = true);
 
         let app_cert = CommitCertificate {
             height: cert.height,
@@ -652,9 +646,6 @@ mod tests {
         assert_eq!(txs, p);
         let meta = db.mb_meta(mb_hash);
         assert!(meta.synced);
-        // `save_block` only marks the MB synced — finalization is the
-        // separate cascade that flips `meta.finalized`.
-        assert!(!meta.finalized);
 
         match rx.try_recv().expect("event").expect("ok") {
             MalachiteEvent::BlockProposal {
@@ -691,9 +682,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(db.globals().latest_finalized_mb_hash, mb_hash);
-        // The cascade flips `meta.finalized` so batch validation can
-        // confirm chain membership in O(1).
-        assert!(db.mb_meta(mb_hash).finalized);
         match rx.try_recv().expect("event").expect("ok") {
             MalachiteEvent::BlockFinalized { cert, block } => {
                 assert_eq!(cert.height, 1);

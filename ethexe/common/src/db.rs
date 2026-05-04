@@ -167,21 +167,12 @@ pub struct CompactBlock {
 /// can be marked `synced`, mirroring the contract that observer's
 /// `synced` and compute's `computed` flags provide for their layers.
 ///
-/// `finalized` is set when Malachite's `mark_block_as_finalized`
-/// cascade runs for this MB. Because BFT-safety guarantees that any
-/// two finalized MBs are linearly ordered, an O(1) per-MB
-/// `meta.finalized` check is sufficient to prove "this MB is on the
-/// participant's canonical chain" — no parent walk needed. Lags by
-/// at most the gap between the BFT decision and the participant's
-/// `mark_block_as_finalized` callback.
-///
 /// Block identity (height, parent) lives in [`CompactBlock`] —
 /// `MbMeta` is dynamic state only.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
     pub synced: bool,
-    pub finalized: bool,
     pub last_advanced_block: H256,
 }
 
@@ -294,7 +285,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "f971b1da26c95ca446650648fb37517d6cdbe43e970c92e92d663749bf4d5017";
+            "1c43229d89e8f193862ba70186b733d4d42c3a5cef1784aac1cb2dba68dd9ec1";
 
         let types = [
             meta_type::<BlockMeta>(),

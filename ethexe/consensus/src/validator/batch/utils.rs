@@ -148,6 +148,51 @@ pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
     collected
 }
 
+/// Returns `true` when `candidate` has been BFT-finalized in this
+/// validator's local view — i.e. walking back from
+/// `latest_finalized_mb` via `parent_mb_hash` reaches `candidate`.
+///
+/// Sound by BFT-safety: any two BFT-decided MBs are linearly ordered,
+/// so a `candidate` that is finalized locally must lie on the chain
+/// from genesis up to `latest_finalized_mb`. Reachability through
+/// `mb_compact_block.parent` is therefore an iff for "finalized
+/// locally".
+///
+/// Edge cases:
+/// - `candidate == H256::zero()` → genesis sentinel, trivially
+///   finalized (it is the implicit ancestor of every MB).
+/// - `candidate == latest_finalized_mb` → trivially finalized.
+/// - `latest_finalized_mb == H256::zero()` (no MB ever finalized
+///   here) → only zero-candidate is finalized.
+///
+/// The walk depth is bounded by the height gap between
+/// `latest_finalized_mb` and `candidate`, which is single-digit in
+/// steady state (gap = `coordinator_aggregation_delay /
+/// mb_block_time`).
+pub fn is_finalized_locally<DB: MbStorageRO>(
+    db: &DB,
+    candidate: H256,
+    latest_finalized_mb: H256,
+) -> bool {
+    if candidate == H256::zero() || candidate == latest_finalized_mb {
+        return true;
+    }
+    if latest_finalized_mb == H256::zero() {
+        return false;
+    }
+    let mut current = latest_finalized_mb;
+    while current != H256::zero() {
+        if current == candidate {
+            return true;
+        }
+        current = db
+            .mb_compact_block(current)
+            .map(|c| c.parent)
+            .unwrap_or(H256::zero());
+    }
+    false
+}
+
 pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
@@ -624,6 +669,70 @@ mod tests {
 
         let walked = collect_computed_uncommitted_predecessors(&db, mb1, mb1);
         assert!(walked.is_empty());
+    }
+
+    #[test]
+    fn is_finalized_zero_candidate_is_universally_finalized() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        assert!(is_finalized_locally(&db, H256::zero(), mb1));
+        // Even with no local finalization yet, zero is the genesis sentinel.
+        assert!(is_finalized_locally(&db, H256::zero(), H256::zero()));
+    }
+
+    #[test]
+    fn is_finalized_self_is_finalized() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        assert!(is_finalized_locally(&db, mb1, mb1));
+    }
+
+    #[test]
+    fn is_finalized_resolves_proper_ancestor_of_finalized_head() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        let mb2 = write_mb(&db, mb1, 2, vec![]);
+        let mb3 = write_mb(&db, mb2, 3, vec![]);
+        // Latest finalized is mb3 → mb1 and mb2 are also finalized.
+        assert!(is_finalized_locally(&db, mb1, mb3));
+        assert!(is_finalized_locally(&db, mb2, mb3));
+    }
+
+    #[test]
+    fn is_finalized_returns_false_for_descendant_of_finalized_head() {
+        // The candidate is newer than `latest_finalized_mb` — the participant
+        // has computed it via a speculative BlockProposal, but the
+        // `mark_block_as_finalized` cascade hasn't reached it yet. Strict
+        // semantics: drop the signature for this round.
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        let mb2 = write_mb(&db, mb1, 2, vec![]);
+        let mb3 = write_mb(&db, mb2, 3, vec![]);
+        assert!(!is_finalized_locally(&db, mb3, mb1));
+        assert!(!is_finalized_locally(&db, mb2, mb1));
+    }
+
+    #[test]
+    fn is_finalized_returns_false_when_no_local_finalization() {
+        let db = Database::memory();
+        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
+        assert!(!is_finalized_locally(&db, mb1, H256::zero()));
+    }
+
+    #[test]
+    fn is_finalized_returns_false_on_disjoint_chain() {
+        let db = Database::memory();
+        let chain_a = write_mb(&db, H256::zero(), 1, vec![]);
+        let chain_b_root = H256::from_low_u64_be(0xB001);
+        db.set_mb_compact_block(
+            chain_b_root,
+            CompactBlock {
+                parent: H256::from_low_u64_be(0xB000), // unknown parent
+                height: 1,
+                transactions_hash: db.set_transactions(empty_txs(99)),
+            },
+        );
+        assert!(!is_finalized_locally(&db, chain_b_root, chain_a));
     }
 
     #[test]

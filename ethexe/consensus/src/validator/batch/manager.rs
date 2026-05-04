@@ -18,7 +18,7 @@
 
 use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, ValidationStatus};
 use crate::validator::{
-    batch::{filler::BatchFiller, types::BatchParts},
+    batch::{filler::BatchFiller, types::BatchParts, utils},
     core::{ElectionRequest, MiddlewareWrapper},
 };
 
@@ -209,19 +209,26 @@ impl BatchCommitmentManager {
 
         if let Some(head_mb) = head {
             // BFT-safety: any two finalized MBs are linearly ordered. So
-            // `head_meta.finalized` alone proves that `head_mb` is on the
-            // same canonical chain as everything else this validator has
-            // finalized — including `last_committed_mb`. We then enforce
-            // `head_mb.height > last_committed_mb.height` to make sure the
-            // coordinator is asking us to advance, not re-commit a prefix.
-            // If the participant's `mark_block_as_finalized` cascade hasn't
-            // reached `head_mb` yet (e.g. cross-AS gossip lag from the BFT
-            // decision), we drop our signature for this round and the
-            // coordinator's next attempt will pick us up once we catch up.
-            let head_meta = self.db.mb_meta(head_mb);
-            if !head_meta.finalized {
+            // walking back from `globals.latest_finalized_mb_hash` and
+            // hitting `head_mb` proves it is on the same canonical chain
+            // as everything else this validator has finalized — including
+            // `last_committed_mb`. The walk is bounded by the height gap
+            // between `latest_finalized_mb` and `head_mb` (single-digit
+            // in steady state). We then enforce `head_mb.height >
+            // last_committed_mb.height` so the coordinator is asking us
+            // to advance, not re-commit a prefix.
+            //
+            // If our `mark_block_as_finalized` cascade hasn't reached
+            // `head_mb` yet (e.g. cross-AS gossip lag from the BFT
+            // decision), the walk doesn't find it and we drop our
+            // signature for this round — the coordinator's next attempt
+            // picks us up once we catch up.
+            let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
+            if !utils::is_finalized_locally(&self.db, head_mb, latest_finalized_mb) {
+                let head_meta = self.db.mb_meta(head_mb);
                 tracing::warn!(
                     %head_mb,
+                    %latest_finalized_mb,
                     head_computed = head_meta.computed,
                     head_synced = head_meta.synced,
                     "manager: rejecting batch — head_mb not yet finalized locally",
@@ -232,6 +239,7 @@ impl BatchCommitmentManager {
                 });
             }
 
+            let head_meta = self.db.mb_meta(head_mb);
             if !head_meta.computed {
                 tracing::warn!(
                     %head_mb,
