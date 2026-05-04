@@ -94,7 +94,7 @@ enum VerifyMessageError {
     Reject(VerifyMessageRejectReason),
 }
 
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
 enum VerifyPromiseError {
     #[display("unknown validator: address={address}, tx_hash={tx_hash}")]
     UnknownValidator {
