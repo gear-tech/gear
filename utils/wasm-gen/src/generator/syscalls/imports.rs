@@ -199,12 +199,8 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         for (precise_syscall, generate_method) in precise_syscalls {
             // Check if precise syscall is applicable for the current syscall kind. If not, skip it.
             match syscall_kind {
-                SyscallKind::Vara if !precise_syscall.is_vara() => {
-                    continue;
-                }
-                SyscallKind::Eth if !precise_syscall.is_eth() => {
-                    continue;
-                }
+                SyscallKind::Vara if !precise_syscall.is_vara() => continue,
+                SyscallKind::Eth if !precise_syscall.is_eth() => continue,
                 _ => {}
             }
 
