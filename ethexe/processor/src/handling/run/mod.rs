@@ -110,7 +110,10 @@ pub(super) mod chunks_splitting;
 
 pub(crate) use chunks_splitting::ActorStateHashWithQueueSize;
 
-use crate::{ProcessorError, Result, host::InstanceCreator};
+use crate::{
+    ProcessorError, Result,
+    host::{InstanceCreator, InstanceWrapper},
+};
 use chunk_execution_processing::ChunkJournalsProcessingOutput;
 use chunks_splitting::ExecutionChunks;
 use core_processor::common::JournalNote;
@@ -211,7 +214,11 @@ pub(super) enum LimitsStatus {
 /// between common and overlaid execution contexts. It's not meant
 /// to emphasize any particular trait/feature/abstraction.
 pub(super) trait RunContext {
-    fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)>;
+    fn program_code(
+        &self,
+        program_id: ActorId,
+        instrumentation_instance: &mut Option<InstanceWrapper>,
+    ) -> Result<(InstrumentedCode, CodeMetadata)>;
 
     /// Get reference to inner.
     fn inner(&self) -> &CommonRunContext;
@@ -397,7 +404,11 @@ impl CommonRunContext {
 }
 
 impl RunContext for CommonRunContext {
-    fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
+    fn program_code(
+        &self,
+        program_id: ActorId,
+        instrumentation_instance: &mut Option<InstanceWrapper>,
+    ) -> Result<(InstrumentedCode, CodeMetadata)> {
         let code_id = self
             .transitions
             .registered_programs()
@@ -409,7 +420,12 @@ impl RunContext for CommonRunContext {
                     .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))
             })?;
 
-        instrumented_code_and_metadata(&self.db, &self.instance_creator, code_id)
+        instrumented_code_and_metadata(
+            &self.db,
+            &self.instance_creator,
+            instrumentation_instance,
+            code_id,
+        )
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
@@ -428,6 +444,7 @@ impl RunContext for CommonRunContext {
 pub(super) fn instrumented_code_and_metadata(
     db: &Database,
     instance_creator: &InstanceCreator,
+    instrumentation_instance: &mut Option<InstanceWrapper>,
     code_id: CodeId,
 ) -> Result<(InstrumentedCode, CodeMetadata)> {
     if let Some(instrumented_code) = db.instrumented_code(ethexe_runtime_common::VERSION, code_id)
@@ -438,9 +455,14 @@ pub(super) fn instrumented_code_and_metadata(
 
     let original_code = db
         .original_code(code_id)
-        .ok_or(ProcessorError::MissingOriginalCodeForProgram(code_id))?;
+        .ok_or(ProcessorError::InstrumentationFailed(code_id))?;
 
-    let mut instance = instance_creator.instantiate()?;
+    if instrumentation_instance.is_none() {
+        *instrumentation_instance = Some(instance_creator.instantiate()?);
+    }
+    let instance = instrumentation_instance
+        .as_mut()
+        .expect("instrumentation instance was just initialized");
     let (instrumented_code, code_metadata) = instance
         .instrument(&original_code)?
         .ok_or(ProcessorError::MissingInstrumentedCodeForProgram(code_id))?;

@@ -53,10 +53,13 @@ pub async fn spawn_chunk_execution(
         timestamp: block_header.timestamp,
     };
 
+    let mut instrumentation_instance = None;
+
     chunk
         .into_iter()
         .map(|(program_id, state_hash)| {
-            let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
+            let (instrumented_code, code_metadata) =
+                ctx.program_code(program_id, &mut instrumentation_instance)?;
             let mut executor = ctx.inner().instance_creator.instantiate()?;
             let db = ctx.inner().db.cas().clone_boxed();
             let promise_out_tx = ctx.inner().promise_out_tx.clone();
