@@ -28,7 +28,8 @@ use crate::{
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
-    Function, Import, Instruction, MemArg, ModuleBuilder, syscalls::SyscallName,
+    Function, Import, Instruction, MemArg, ModuleBuilder,
+    syscalls::{SyscallKind, SyscallName},
 };
 use gsys::{Handle, Hash, Length};
 use std::{collections::BTreeMap, num::NonZero};
@@ -163,7 +164,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
             self.unstructured.len()
         );
 
-        for syscall in SyscallName::instrumentable() {
+        for syscall in SyscallName::instrumentable(SyscallKind::Vara) {
             let syscall_generation_data = self.generate_syscall_import(syscall)?;
             if let Some(syscall_generation_data) = syscall_generation_data {
                 self.syscalls_imports
