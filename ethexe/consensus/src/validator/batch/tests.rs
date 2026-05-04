@@ -98,6 +98,7 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
     db.set_mb_program_states(mb_hash, ProgramStates::default());
     db.mutate_mb_meta(mb_hash, |meta| {
         meta.computed = true;
+        meta.finalized = true;
         meta.last_advanced_block = H256::zero();
     });
     mb_hash
@@ -298,15 +299,15 @@ async fn rejects_digest_mismatch() {
 }
 
 #[tokio::test]
-async fn rejects_head_mb_not_in_chain() {
+async fn rejects_head_mb_not_finalized_locally() {
     let db = Database::memory();
     let (block, batch) = prepare_canonical_batch(&db).await;
 
     let manager = mock_batch_manager(db);
 
     let mut request = BatchCommitmentValidationRequest::new(&batch);
-    // Substitute the head MB with one that's not on the chain at all —
-    // the manager must reject without signing.
+    // Substitute the head MB with one that has no `meta.finalized = true`
+    // record locally — the manager must reject without signing.
     let foreign_head = H256::from([0xFE; 32]);
     request.head = Some(foreign_head);
 
@@ -316,7 +317,47 @@ async fn rejects_head_mb_not_in_chain() {
         .unwrap();
     assert_eq!(
         unwrap_rejected(status),
-        ValidationRejectReason::HeadMbNotInChain(foreign_head)
+        ValidationRejectReason::HeadMbNotFinalized(foreign_head)
+    );
+}
+
+#[tokio::test]
+async fn rejects_head_mb_at_or_below_last_committed_mb() {
+    // The coordinator must always advance past `last_committed_mb`. If
+    // its `head_mb` lands at or below that height, the participant rejects
+    // — re-committing a prefix would either no-op or fork on Router.
+    let db = Database::memory();
+    let chain = test_block_chain(3).setup(&db);
+    let block = chain.blocks[3].to_simple();
+
+    let mb_hashes = setup_mb_chain(
+        &db,
+        vec![vec![nonempty_transition(1)], vec![nonempty_transition(2)]],
+    );
+    let head = mb_hashes.last().copied().unwrap();
+
+    let manager = mock_batch_manager(db.clone());
+    let batch = manager
+        .clone()
+        .create_batch_commitment(block)
+        .await
+        .unwrap()
+        .expect("expected non-empty batch");
+    let request = BatchCommitmentValidationRequest::new(&batch);
+
+    // Pretend we already committed up to `head` — height now matches
+    // `last_committed_mb.height`, so the request can't advance.
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_mb = Some(head);
+    });
+
+    let status = manager
+        .validate_batch_commitment(block, request)
+        .await
+        .unwrap();
+    assert_eq!(
+        unwrap_rejected(status),
+        ValidationRejectReason::HeadMbAlreadyCommitted(head)
     );
 }
 

@@ -143,12 +143,17 @@ pub enum ValidationRejectReason {
     CodeNotWaitingForCommitment(CodeId),
     #[display("code id {_0} is not processed yet")]
     CodeIsNotProcessedYet(CodeId),
-    /// The MB the coordinator wants to commit is neither the participant's
-    /// `latest_finalized_mb` nor an ancestor of it. Either we are running
-    /// behind on MB finalization or the coordinator is on a different chain
-    /// — in both cases we drop the signature.
-    #[display("requested head MB {_0} is not an ancestor of latest finalized MB")]
-    HeadMbNotInChain(H256),
+    /// The coordinator's `head_mb` has not yet been marked finalized in
+    /// this participant's local view (Malachite's `mark_block_as_finalized`
+    /// cascade hasn't reached it). Either we are running behind on MB
+    /// finalization or the coordinator is on a different chain — in both
+    /// cases we drop the signature.
+    #[display("requested head MB {_0} is not finalized locally")]
+    HeadMbNotFinalized(H256),
+    /// The coordinator's `head_mb` is at or below the height of the chain's
+    /// `last_committed_mb` — there is nothing new to commit on top of it.
+    #[display("requested head MB {_0} is at or below last committed MB")]
+    HeadMbAlreadyCommitted(H256),
     #[display("requested head MB {_0} is not computed by this node")]
     HeadMbNotComputed(H256),
     #[display(

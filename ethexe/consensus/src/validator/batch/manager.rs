@@ -18,7 +18,7 @@
 
 use super::types::{BatchLimits, CodeNotValidatedError, ValidationRejectReason, ValidationStatus};
 use crate::validator::{
-    batch::{filler::BatchFiller, types::BatchParts, utils},
+    batch::{filler::BatchFiller, types::BatchParts},
     core::{ElectionRequest, MiddlewareWrapper},
 };
 
@@ -208,33 +208,33 @@ impl BatchCommitmentManager {
         };
 
         if let Some(head_mb) = head {
-            // Coordinator's `head_mb` and our local `latest_finalized_mb`
-            // must be on the same canonical chain — either side may sit
-            // ahead of the other. The relaxed `is_ancestor_or_equal`
-            // walks both directions so a participant whose
-            // `mark_block_as_finalized` cascade hasn't reached `head_mb`
-            // yet (but has computed it via a speculative BlockProposal)
-            // can still validate.
-            let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
+            // BFT-safety: any two finalized MBs are linearly ordered. So
+            // `head_meta.finalized` alone proves that `head_mb` is on the
+            // same canonical chain as everything else this validator has
+            // finalized — including `last_committed_mb`. We then enforce
+            // `head_mb.height > last_committed_mb.height` to make sure the
+            // coordinator is asking us to advance, not re-commit a prefix.
+            // If the participant's `mark_block_as_finalized` cascade hasn't
+            // reached `head_mb` yet (e.g. cross-AS gossip lag from the BFT
+            // decision), we drop our signature for this round and the
+            // coordinator's next attempt will pick us up once we catch up.
             let head_meta = self.db.mb_meta(head_mb);
-            if !utils::is_ancestor_or_equal(&self.db, head_mb, latest_finalized_mb)? {
+            if !head_meta.finalized {
                 tracing::warn!(
                     %head_mb,
-                    %latest_finalized_mb,
                     head_computed = head_meta.computed,
                     head_synced = head_meta.synced,
-                    "manager: rejecting batch — head_mb not on same chain as latest_finalized_mb",
+                    "manager: rejecting batch — head_mb not yet finalized locally",
                 );
                 return Ok(ValidationStatus::Rejected {
                     request,
-                    reason: ValidationRejectReason::HeadMbNotInChain(head_mb),
+                    reason: ValidationRejectReason::HeadMbNotFinalized(head_mb),
                 });
             }
 
             if !head_meta.computed {
                 tracing::warn!(
                     %head_mb,
-                    %latest_finalized_mb,
                     "manager: rejecting batch — head_mb not yet computed locally",
                 );
                 return Ok(ValidationStatus::Rejected {
@@ -249,25 +249,51 @@ impl BatchCommitmentManager {
                 .last_committed_mb
                 .unwrap_or(H256::zero());
 
-            let pending = match super::utils::collect_not_committed_mb_predecessors(
+            // `head_mb` must advance past `last_committed_mb`. Genesis case
+            // (no commit yet) is encoded as `H256::zero()` → height 0, so
+            // any positive-height head trivially passes.
+            let head_height = self
+                .db
+                .mb_compact_block(head_mb)
+                .map(|c| c.height)
+                .ok_or_else(|| anyhow!("MB {head_mb} marked finalized but has no compact block"))?;
+            let last_committed_height = if last_committed_mb.is_zero() {
+                0
+            } else {
+                self.db
+                    .mb_compact_block(last_committed_mb)
+                    .map(|c| c.height)
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "last_committed_mb {last_committed_mb} not in DB for block {}",
+                            block.hash,
+                        )
+                    })?
+            };
+            if head_height <= last_committed_height {
+                tracing::warn!(
+                    %head_mb,
+                    head_height,
+                    %last_committed_mb,
+                    last_committed_height,
+                    "manager: rejecting batch — head_mb at or below last_committed_mb height",
+                );
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadMbAlreadyCommitted(head_mb),
+                });
+            }
+
+            // `collect_not_committed_mb_predecessors` walks from `head_mb`
+            // back to `last_committed_mb`. Both endpoints are finalized
+            // (head by the check above, last_committed by being on-chain),
+            // so the walk is on the canonical chain and never errors here
+            // unless storage is corrupt.
+            let pending = super::utils::collect_not_committed_mb_predecessors(
                 &self.db,
                 last_committed_mb,
                 head_mb,
-            ) {
-                Ok(p) => p,
-                Err(err) => {
-                    tracing::debug!(
-                        block = %block.hash,
-                        head_mb = %head_mb,
-                        error = %err,
-                        "failed to collect not-committed MB predecessors during batch validation"
-                    );
-                    return Ok(ValidationStatus::Rejected {
-                        request,
-                        reason: ValidationRejectReason::HeadMbNotInChain(head_mb),
-                    });
-                }
-            };
+            )?;
 
             // Aggregate transitions across the pending range. Empty outcome
             // is fine — we only suppress the chain commitment if the squashed

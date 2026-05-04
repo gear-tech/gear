@@ -148,74 +148,6 @@ pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
     collected
 }
 
-/// True when `candidate` and `latest_finalized_mb` are on the same canonical
-/// chain — i.e. one is a (non-strict) ancestor of the other. This is the
-/// chain-equivalence check the batch-validation participant runs against the
-/// coordinator's `head_mb`:
-///
-/// - If `candidate == latest_finalized_mb` → trivially on chain.
-/// - If `candidate` is older (an ancestor of `latest_finalized_mb`) → walking
-///   back from `latest_finalized_mb` finds `candidate`.
-/// - If `candidate` is newer than `latest_finalized_mb` (the participant has
-///   computed it but not yet finalized it locally) → walking back from
-///   `candidate` finds `latest_finalized_mb`. BFT guarantees both endpoints
-///   are on a single linear MB chain whenever both are decided, so finding
-///   the older endpoint while walking back from the newer is sufficient.
-///
-/// Returns `Ok(false)` only when neither direction reaches the other — that
-/// can only happen if either side is on a chain we never processed (forked
-/// before our local view) or one of the parents is missing in storage.
-///
-/// `H256::zero()` is treated as the pre-genesis sentinel and is an ancestor
-/// of every MB.
-pub fn is_ancestor_or_equal<DB: MbStorageRO>(
-    db: &DB,
-    candidate: H256,
-    latest_finalized_mb: H256,
-) -> Result<bool> {
-    if candidate == H256::zero() || candidate == latest_finalized_mb {
-        return Ok(true);
-    }
-    if latest_finalized_mb == H256::zero() {
-        // Pre-genesis local pointer with a non-zero candidate — we have
-        // nothing to compare against locally.
-        return Ok(false);
-    }
-
-    // Direction A: candidate is older. Walk back from `latest_finalized_mb`
-    // looking for it.
-    let mut current = latest_finalized_mb;
-    while current != H256::zero() {
-        if current == candidate {
-            return Ok(true);
-        }
-        current = db
-            .mb_compact_block(current)
-            .map(|c| c.parent)
-            .unwrap_or(H256::zero());
-    }
-
-    // Direction B: candidate is newer than our local head — the participant
-    // has computed `candidate` (e.g. via a speculative BlockProposal that
-    // BFT later decided) but its `mark_block_as_finalized` cascade hasn't
-    // reached `candidate` yet. Walk back from `candidate` looking for our
-    // local `latest_finalized_mb`. BFT guarantees a unique parent chain
-    // for every decided MB, so reaching `latest_finalized_mb` here means
-    // both endpoints are on the canonical chain.
-    let mut current = candidate;
-    while current != H256::zero() {
-        if current == latest_finalized_mb {
-            return Ok(true);
-        }
-        current = db
-            .mb_compact_block(current)
-            .map(|c| c.parent)
-            .unwrap_or(H256::zero());
-    }
-
-    Ok(false)
-}
-
 pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
@@ -692,52 +624,6 @@ mod tests {
 
         let walked = collect_computed_uncommitted_predecessors(&db, mb1, mb1);
         assert!(walked.is_empty());
-    }
-
-    #[test]
-    fn is_ancestor_zero_is_universal_ancestor() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        assert!(is_ancestor_or_equal(&db, H256::zero(), mb1).unwrap());
-    }
-
-    #[test]
-    fn is_ancestor_self_is_ancestor() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        assert!(is_ancestor_or_equal(&db, mb1, mb1).unwrap());
-    }
-
-    #[test]
-    fn is_ancestor_resolves_proper_ancestor() {
-        let db = Database::memory();
-        let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
-        let mb2 = write_mb(&db, mb1, 2, vec![]);
-        let mb3 = write_mb(&db, mb2, 3, vec![]);
-        // candidate is older than latest_finalized_mb — direction A finds it.
-        assert!(is_ancestor_or_equal(&db, mb1, mb3).unwrap());
-        // candidate is newer than latest_finalized_mb — direction B finds it
-        // (participant has computed mb3 via a speculative proposal but its
-        // mark_block_as_finalized cascade hasn't reached it yet).
-        assert!(is_ancestor_or_equal(&db, mb3, mb1).unwrap());
-    }
-
-    #[test]
-    fn is_ancestor_returns_false_on_disjoint_chains() {
-        let db = Database::memory();
-        // Two MB chains with no shared ancestry.
-        let chain_a = write_mb(&db, H256::zero(), 1, vec![]);
-        let chain_b_root = H256::from_low_u64_be(0xB001);
-        db.set_mb_compact_block(
-            chain_b_root,
-            CompactBlock {
-                parent: H256::from_low_u64_be(0xB000), // unknown parent
-                height: 1,
-                transactions_hash: db.set_transactions(empty_txs(99)),
-            },
-        );
-        assert!(!is_ancestor_or_equal(&db, chain_b_root, chain_a).unwrap());
-        assert!(!is_ancestor_or_equal(&db, chain_a, chain_b_root).unwrap());
     }
 
     #[test]
