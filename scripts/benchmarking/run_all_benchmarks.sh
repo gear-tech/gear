@@ -241,7 +241,7 @@ for PALLET in "${PALLETS[@]}"; do
     --extrinsic="$(IFS=, ; echo "${EXTRINSICS[*]}")" \
     --heap-pages=16384 \
     --output="$WEIGHT_FILE" \
-    --template=.maintain/frame-weight-template.hbs 2>&1
+    --template=scripts/benchmarking/frame-weight-template.hbs 2>&1
   )
 
   if [ $? -ne 0 ]; then
@@ -266,7 +266,7 @@ for PALLET in "${PALLETS[@]}"; do
         --extrinsic="$(IFS=', '; echo "${ONE_TIME_EXTRINSICS[*]}")" \
         --heap-pages=16384 \
         --output="./${WEIGHTS_OUTPUT}/${PALLET}_onetime.rs" \
-        --template=.maintain/frame-weight-template.hbs 2>&1
+        --template=scripts/benchmarking/frame-weight-template.hbs 2>&1
     )
 
     if [ $? -ne 0 ]; then
