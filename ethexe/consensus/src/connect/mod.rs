@@ -43,6 +43,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+use tracing::trace;
 
 /// Maximum number of pending announces to store
 const MAX_PENDING_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
@@ -289,12 +290,13 @@ impl ConsensusService for ConnectService {
 
     fn receive_promise_for_signing(
         &mut self,
-        _promise: Promise,
-        _announce_hash: HashOf<Announce>,
+        promise: Promise,
+        announce_hash: HashOf<Announce>,
     ) -> Result<()> {
         // Nothing to do.
         // This case is not error because connect node can be also RPC node that produce promises,
         // to send them for external users.
+        trace!(?promise, %announce_hash, "connect node received the promise for signing, skipping...");
         Ok(())
     }
 

@@ -103,9 +103,8 @@
 //! Computation is sequential: at most one announce is executed at a time.
 //! If the announce's parent (or any further ancestor) has not been
 //! computed yet, missing ancestors are computed first, in order.
-//! Ancestors are always computed without promise collection regardless of
-//! the requested policy — promises describe the user-visible result of
-//! the target announce only.
+//! Promises for ancestors are computed according to [PromiseEmissionMode](ethexe_common::PromiseEmissionMode)
+//! in [ComputeConfig].
 //!
 //! The target block must already be prepared; otherwise the computation
 //! fails with [`ComputeError::BlockNotPrepared`].
@@ -173,6 +172,7 @@ pub struct BlockProcessed {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
+#[cfg_attr(test, derive(derive_more::IsVariant))]
 pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),

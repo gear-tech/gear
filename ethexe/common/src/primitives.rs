@@ -262,17 +262,6 @@ pub struct ProtocolTimelines {
     pub slot: NonZeroU64,
 }
 
-impl Default for ProtocolTimelines {
-    fn default() -> Self {
-        Self {
-            genesis_ts: 0,
-            era: NonZeroU64::new(10_000).unwrap(),
-            election: 200,
-            slot: NonZeroU64::new(2).unwrap(),
-        }
-    }
-}
-
 impl ProtocolTimelines {
     /// Returns the era index for the given timestamp. Eras starts from 0.
     ///

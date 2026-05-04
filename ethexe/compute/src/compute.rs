@@ -574,7 +574,7 @@ mod tests {
 
     #[tokio::test]
     #[ntest::timeout(60000)]
-    async fn test_compute_with_promises() {
+    async fn compute_promises_consensus_driven() {
         gear_utils::init_default_logger();
         const BLOCKCHAIN_LEN: usize = 10;
 
@@ -604,7 +604,121 @@ mod tests {
 
         // Setup announces and events.
         let mut parent_announce = start_announce_hash;
-        let announces_chain = (1..BLOCKCHAIN_LEN)
+        let chain = (1..BLOCKCHAIN_LEN)
+            .map(|i| {
+                let announce = {
+                    let mut announce = blockchain.block_top_announce(i).announce.clone();
+                    announce.gas_allowance = Some(DEFAULT_BLOCK_GAS_LIMIT);
+                    announce.parent = parent_announce;
+
+                    let mut txs = Vec::new();
+                    if i != 1 {
+                        txs.push(test_utils::injected_tx(
+                            ping_id,
+                            b"PING".into(),
+                            announce.block_hash,
+                        ));
+                    }
+
+                    announce.injected_transactions = txs;
+                    announce
+                };
+
+                let announce_hash = db.set_announce(announce.clone());
+                db.mutate_announce_meta(announce_hash, |meta| meta.computed = false);
+
+                let mut block_events = if i == 1 {
+                    test_utils::create_program_events(ping_id, ping_code_id)
+                } else {
+                    Default::default()
+                };
+                block_events.extend(test_utils::block_events(5, ping_id, b"PING".into()));
+                db.set_block_events(announce.block_hash, &block_events);
+
+                parent_announce = announce_hash;
+                announce
+            })
+            .collect::<Vec<_>>();
+
+        let mut compute_service =
+            ComputeService::new(ComputeConfig::default(), db.clone(), processor);
+
+        let expected_announces = [
+            chain.get(2).unwrap().clone(),
+            chain.get(5).unwrap().clone(),
+            chain.get(8).unwrap().clone(),
+        ];
+
+        // Send announces for computation.
+        expected_announces.iter().for_each(|announce| {
+            compute_service.compute_announce(announce.clone(), PromisePolicy::Enabled);
+        });
+
+        let expected_events = expected_announces.iter().map(|announce| {
+            let tx = announce.injected_transactions[0].clone().into_data();
+            let promise = Promise {
+                tx_hash: tx.to_hash(),
+                reply: ReplyInfo {
+                    payload: b"PONG".into(),
+                    value: 0,
+                    code: ReplyCode::Success(SuccessReplyReason::Manual),
+                },
+            };
+            ComputeEvent::Promise(promise, announce.to_hash())
+        });
+
+        let events = compute_service
+            .take_while(|event| {
+                let last_announce = chain.last().unwrap().to_hash();
+                let stop = matches!(
+                    event,
+                    Ok(ComputeEvent::AnnounceComputed(announce)) if *announce == last_announce
+                );
+                std::future::ready(event.is_ok() && !stop)
+            })
+            .filter_map(|e| {
+                let event = e.expect("infallible");
+                std::future::ready(event.is_promise().then_some(event))
+            });
+
+        assert_eq!(
+            expected_events.collect::<Vec<_>>(),
+            events.collect::<Vec<_>>().await
+        );
+    }
+
+    #[tokio::test]
+    async fn compute_promises_always_emit() {
+        gear_utils::init_default_logger();
+        const BLOCKCHAIN_LEN: usize = 5;
+
+        let db = Database::memory();
+        let mut processor = Processor::new(db.clone()).unwrap();
+        let ping_code_id =
+            test_utils::upload_code(&mut processor, demo_ping::WASM_BINARY, &db).await;
+        let ping_id = ActorId::from(0x10000);
+
+        let blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32).setup(&db);
+
+        // Setup first announce.
+        let start_announce_hash = {
+            let mut announce = blockchain.block_top_announce(0).announce.clone();
+            announce.gas_allowance = Some(DEFAULT_BLOCK_GAS_LIMIT);
+
+            let announce_hash = db.set_announce(announce);
+            db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
+            db.globals_mutate(|globals| {
+                globals.start_announce_hash = announce_hash;
+            });
+            db.set_announce_program_states(announce_hash, Default::default());
+            db.set_announce_schedule(announce_hash, Default::default());
+
+            announce_hash
+        };
+
+        // Setup announces and events.
+        let mut parent_announce = start_announce_hash;
+        let chain = (1..BLOCKCHAIN_LEN)
             .map(|i| {
                 let announce = {
                     let mut announce = blockchain.block_top_announce(i).announce.clone();
@@ -641,64 +755,45 @@ mod tests {
             .collect::<Vec<_>>();
 
         let config = ComputeConfig::builder()
-            .promises_mode(PromiseEmissionMode::ConsensusDriven)
+            .promises_mode(PromiseEmissionMode::AlwaysEmit)
             .build();
         let mut compute_service = ComputeService::new(config, db.clone(), processor);
 
         // Send announces for computation.
-        compute_service.compute_announce(
-            announces_chain.get(2).unwrap().clone(),
-            PromisePolicy::Enabled,
-        );
-        compute_service.compute_announce(
-            announces_chain.get(5).unwrap().clone(),
-            PromisePolicy::Enabled,
-        );
-        compute_service.compute_announce(
-            announces_chain.get(8).unwrap().clone(),
-            PromisePolicy::Enabled,
-        );
+        compute_service.compute_announce(chain.first().unwrap().clone(), PromisePolicy::Disabled);
+        compute_service.compute_announce(chain.get(3).unwrap().clone(), PromisePolicy::Enabled);
 
-        let mut expected_announces = vec![
-            announces_chain.get(2).unwrap().to_hash(),
-            announces_chain.get(5).unwrap().to_hash(),
-            announces_chain.get(8).unwrap().to_hash(),
-        ];
+        let expected_events = chain[1..].iter().map(|announce| {
+            let tx = announce.injected_transactions.first().unwrap();
+            let promise = Promise {
+                tx_hash: tx.data().to_hash(),
+                reply: ReplyInfo {
+                    payload: b"PONG".into(),
+                    value: 0,
+                    code: ReplyCode::Success(SuccessReplyReason::Manual),
+                },
+            };
+            ComputeEvent::Promise(promise, announce.to_hash())
+        });
 
-        let mut expected_events = expected_announces
-            .iter()
-            .map(|hash| {
-                let announce = db.announce(*hash).unwrap();
-                let tx = announce.injected_transactions[0].clone().into_data();
-                let promise = Promise {
-                    tx_hash: tx.to_hash(),
-                    reply: ReplyInfo {
-                        payload: b"PONG".into(),
-                        value: 0,
-                        code: ReplyCode::Success(SuccessReplyReason::Manual),
-                    },
-                };
-                (*hash, promise)
+        let events = compute_service
+            .take_while(|event| {
+                let last_announce = chain.last().unwrap().to_hash();
+                let stop = matches!(
+                    event,
+                    Ok(ComputeEvent::AnnounceComputed(announce)) if *announce == last_announce
+                );
+                std::future::ready(event.is_ok() && !stop)
             })
-            .collect::<Vec<_>>();
+            .filter_map(|e| {
+                let event = e.expect("infallible");
+                std::future::ready(event.is_promise().then_some(event))
+            });
 
-        while !expected_announces.is_empty() || !expected_events.is_empty() {
-            match compute_service.next().await.unwrap().unwrap() {
-                ComputeEvent::AnnounceComputed(hash) => {
-                    if *expected_announces.first().unwrap() == hash {
-                        expected_announces.remove(0);
-                    }
-                }
-                ComputeEvent::Promise(promise, announce) => {
-                    if *expected_announces.first().unwrap() == announce
-                        && expected_events.first().unwrap().clone() == (announce, promise)
-                    {
-                        expected_events.remove(0);
-                    }
-                }
-                _ => unreachable!("unexpected event for current test"),
-            }
-        }
+        assert_eq!(
+            expected_events.collect::<Vec<_>>(),
+            events.collect::<Vec<_>>().await
+        );
     }
 
     #[tokio::test]
