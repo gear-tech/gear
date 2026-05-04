@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 gstd = { path = "../../../gstd" }
 
 [dev-dependencies]
-gtest = { path = "../../../gtest" }
+gtest = { path = "../../gtest" }
 
 [features]
 debug = ["gstd/debug"]

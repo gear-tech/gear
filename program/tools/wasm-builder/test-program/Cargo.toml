@@ -7,8 +7,8 @@ edition = "2024"
 gstd = { path = "../../../gstd", features = ["debug"] }
 
 [dev-dependencies]
-gtest = { path = "../../../gtest" }
-gsdk = { path = "../../../vara/sdk/gsdk" }
+gtest = { path = "../../gtest" }
+gsdk = { path = "../../../../vara/sdk/gsdk" }
 
 [build-dependencies]
 gear-wasm-builder = { path = ".." }

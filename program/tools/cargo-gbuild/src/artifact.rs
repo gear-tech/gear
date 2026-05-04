@@ -166,7 +166,7 @@ fn collect_crates(cwd: &Path, patterns: &[String]) -> Result<Vec<Artifact>> {
                 .filter_map(|p| {
                     p.ok().and_then(|p| {
                         tracing::trace!("checking {p:?}");
-                        let manifest = cwd.join(p.join("Cargo.toml"));
+                        let manifest = cwd.join(p.join("../../../../Cargo.toml"));
                         if manifest.exists() {
                             Some(manifest)
                         } else {
