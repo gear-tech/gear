@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce, HashOf, PromisePolicy, SimpleBlockData,
+    Announce, HashOf, PromiseEmissionMode, PromisePolicy, SimpleBlockData,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW, ConfigStorageRO,
         GlobalsStorageRW, OnChainStorageRO,
@@ -27,7 +27,7 @@ use ethexe_common::{
     injected::Promise,
 };
 use ethexe_db::Database;
-use ethexe_processor::ExecutableData;
+use ethexe_processor::{BoundPromiseSink, ExecutableData};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::{FutureExt, StreamExt, future::BoxFuture};
 use gprimitives::H256;
@@ -37,12 +37,6 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-#[derive(Debug, Clone, Copy)]
-pub struct ComputeConfig {
-    /// The delay in **blocks** in which events from Ethereum will be apply.
-    canonical_quarantine: u8,
-}
-
 /// Metrics for the [`ComputeSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_compute_compute")]
@@ -51,24 +45,24 @@ struct Metrics {
     announce_processing_latency: metrics::Histogram,
 }
 
+/// Configuration for [ComputeSubService].
+#[derive(Debug, Clone, Copy, bon::Builder)]
+#[cfg_attr(test, derive(Default))]
+pub struct ComputeConfig {
+    /// The delay in **blocks** in which events from Ethereum will be apply.
+    #[cfg_attr(test, builder(default))]
+    canonical_quarantine: u8,
+    /// The promises emission rule.
+    promises_mode: PromiseEmissionMode,
+}
+
 impl ComputeConfig {
-    /// Constructs [`ComputeConfig`] with provided `canonical_quarantine`.
-    /// In production builds `canonical_quarantine` should be equal [`ethexe_common::gear::CANONICAL_QUARANTINE`].
-    pub fn new(canonical_quarantine: u8) -> Self {
-        Self {
-            canonical_quarantine,
-        }
-    }
-
-    /// Must use only in testing purposes.
-    pub fn without_quarantine() -> Self {
-        Self {
-            canonical_quarantine: 0,
-        }
-    }
-
     pub fn canonical_quarantine(&self) -> u8 {
         self.canonical_quarantine
+    }
+
+    pub fn promises_mode(&self) -> PromiseEmissionMode {
+        self.promises_mode
     }
 }
 
@@ -116,7 +110,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         config: ComputeConfig,
         mut processor: P,
         announce: Announce,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sender: Option<mpsc::UnboundedSender<(HashOf<Announce>, Promise)>>,
     ) -> Result<HashOf<Announce>> {
         let announce_hash = announce.to_hash();
         let block_hash = announce.block_hash;
@@ -132,13 +126,30 @@ impl<P: ProcessorExt> ComputeSubService<P> {
                 not_computed_announces.len(),
             );
 
+            let promise_sender = match config.promises_mode() {
+                // If AlwaysEmit promises mode - we pass promises tx also for not computed chain.
+                PromiseEmissionMode::AlwaysEmit => promise_sender.clone(),
+                // Set the promise_sink = None, because in this case we want to receive promises only from target announce.
+                PromiseEmissionMode::ConsensusDriven => None,
+            };
+
             for (announce_hash, announce) in not_computed_announces {
-                // Set the promise_out_tx = None, because we want to receive the promises only from target announce.
-                Self::compute_one(&db, &mut processor, config, announce_hash, announce, None)
-                    .await?;
+                let promise_sink = promise_sender
+                    .clone()
+                    .map(|sender| BoundPromiseSink::new(sender, announce_hash));
+                Self::compute_one(
+                    &db,
+                    &mut processor,
+                    config,
+                    announce_hash,
+                    announce,
+                    promise_sink,
+                )
+                .await?;
             }
         }
 
+        let promise_sink = promise_sender.map(|s| BoundPromiseSink::new(s, announce_hash));
         // Compute the target announce
         Self::compute_one(
             &db,
@@ -146,7 +157,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             config,
             announce_hash,
             announce,
-            promise_out_tx,
+            promise_sink,
         )
         .await
     }
@@ -157,13 +168,11 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         config: ComputeConfig,
         announce_hash: HashOf<Announce>,
         announce: Announce,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<HashOf<Announce>> {
         let executable =
             utils::prepare_executable_for_announce(db, announce, config.canonical_quarantine())?;
-        let processing_result = processor
-            .process_programs(executable, promise_out_tx)
-            .await?;
+        let processing_result = processor.process_programs(executable, promise_sink).await?;
 
         let FinalizedBlockTransitions {
             transitions,
@@ -199,20 +208,18 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if self.computation.is_none()
             && self.promises_stream.is_none()
-            && let Some((announce, promise_policy)) = self.input.pop_front()
+            && let Some((announce, consensus_policy)) = self.input.pop_front()
         {
-            let maybe_promise_out_tx = match promise_policy {
-                PromisePolicy::Enabled => {
-                    let (sender, receiver) = mpsc::unbounded_channel();
-                    self.promises_stream = Some(utils::AnnouncePromisesStream::new(
-                        receiver,
-                        announce.to_hash(),
-                    ));
-
-                    Some(sender)
-                }
-                PromisePolicy::Disabled => None,
+            let promise_policy = match self.config.promises_mode() {
+                PromiseEmissionMode::AlwaysEmit => PromisePolicy::Enabled,
+                PromiseEmissionMode::ConsensusDriven => consensus_policy,
             };
+
+            let maybe_promise_sender = promise_policy.is_enabled().then(|| {
+                let (sender, receiver) = mpsc::unbounded_channel();
+                self.promises_stream = Some(utils::AnnouncePromisesStream::new(receiver));
+                sender
+            });
 
             self.computation = Some(future_timing::timed(
                 Self::compute(
@@ -220,7 +227,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                     self.config,
                     self.processor.clone(),
                     announce,
-                    maybe_promise_out_tx,
+                    maybe_promise_sender,
                 )
                 .boxed(),
             ));
@@ -276,19 +283,12 @@ pub(crate) mod utils {
 
     /// The stream of promises from announce execution.
     pub(super) struct AnnouncePromisesStream {
-        receiver: mpsc::UnboundedReceiver<Promise>,
-        announce_hash: HashOf<Announce>,
+        receiver: mpsc::UnboundedReceiver<(HashOf<Announce>, Promise)>,
     }
 
     impl AnnouncePromisesStream {
-        pub fn new(
-            receiver: mpsc::UnboundedReceiver<Promise>,
-            announce_hash: HashOf<Announce>,
-        ) -> Self {
-            Self {
-                receiver,
-                announce_hash,
-            }
+        pub fn new(receiver: mpsc::UnboundedReceiver<(HashOf<Announce>, Promise)>) -> Self {
+            Self { receiver }
         }
     }
 
@@ -298,7 +298,7 @@ pub(crate) mod utils {
         fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
             Poll::Ready(
                 futures::ready!(self.receiver.poll_recv(cx))
-                    .map(|promise| ComputeEvent::Promise(promise, self.announce_hash)),
+                    .map(|event| ComputeEvent::Promise(event.1, event.0)),
             )
         }
     }
@@ -534,7 +534,7 @@ mod tests {
 
         let db = Database::memory();
         let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
-        let config = ComputeConfig::without_quarantine();
+        let config = ComputeConfig::default();
         let mut service = ComputeSubService::new(
             config,
             db.clone(),
@@ -574,7 +574,7 @@ mod tests {
 
     #[tokio::test]
     #[ntest::timeout(60000)]
-    async fn test_compute_with_promises() {
+    async fn compute_promises_consensus_driven() {
         gear_utils::init_default_logger();
         const BLOCKCHAIN_LEN: usize = 10;
 
@@ -604,19 +604,21 @@ mod tests {
 
         // Setup announces and events.
         let mut parent_announce = start_announce_hash;
-        let announces_chain = (1..BLOCKCHAIN_LEN)
+        let chain = (1..BLOCKCHAIN_LEN)
             .map(|i| {
                 let announce = {
                     let mut announce = blockchain.block_top_announce(i).announce.clone();
                     announce.gas_allowance = Some(DEFAULT_BLOCK_GAS_LIMIT);
                     announce.parent = parent_announce;
 
-                    let block = announce.block_hash;
-                    let txs = if i != 1 {
-                        vec![test_utils::injected_tx(ping_id, b"PING".into(), block)]
-                    } else {
-                        Default::default()
-                    };
+                    let mut txs = Vec::new();
+                    if i != 1 {
+                        txs.push(test_utils::injected_tx(
+                            ping_id,
+                            b"PING".into(),
+                            announce.block_hash,
+                        ));
+                    }
 
                     announce.injected_transactions = txs;
                     announce
@@ -639,61 +641,159 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut compute_service =
-            ComputeService::new(ComputeConfig::without_quarantine(), db.clone(), processor);
+            ComputeService::new(ComputeConfig::default(), db.clone(), processor);
 
-        // Send announces for computation.
-        compute_service.compute_announce(
-            announces_chain.get(2).unwrap().clone(),
-            PromisePolicy::Enabled,
-        );
-        compute_service.compute_announce(
-            announces_chain.get(5).unwrap().clone(),
-            PromisePolicy::Enabled,
-        );
-        compute_service.compute_announce(
-            announces_chain.get(8).unwrap().clone(),
-            PromisePolicy::Enabled,
-        );
-
-        let mut expected_announces = vec![
-            announces_chain.get(2).unwrap().to_hash(),
-            announces_chain.get(5).unwrap().to_hash(),
-            announces_chain.get(8).unwrap().to_hash(),
+        let expected_announces = [
+            chain.get(2).unwrap().clone(),
+            chain.get(5).unwrap().clone(),
+            chain.get(8).unwrap().clone(),
         ];
 
-        let mut expected_promises = expected_announces
-            .iter()
-            .map(|hash| {
-                let announce = db.announce(*hash).unwrap();
-                let tx = announce.injected_transactions[0].clone().into_data();
-                Promise {
-                    tx_hash: tx.to_hash(),
-                    reply: ReplyInfo {
-                        payload: b"PONG".into(),
-                        value: 0,
-                        code: ReplyCode::Success(SuccessReplyReason::Manual),
-                    },
-                }
+        // Send announces for computation.
+        expected_announces.iter().for_each(|announce| {
+            compute_service.compute_announce(announce.clone(), PromisePolicy::Enabled);
+        });
+
+        let expected_events = expected_announces.iter().map(|announce| {
+            let tx = announce.injected_transactions[0].clone().into_data();
+            let promise = Promise {
+                tx_hash: tx.to_hash(),
+                reply: ReplyInfo {
+                    payload: b"PONG".into(),
+                    value: 0,
+                    code: ReplyCode::Success(SuccessReplyReason::Manual),
+                },
+            };
+            ComputeEvent::Promise(promise, announce.to_hash())
+        });
+
+        let events = compute_service
+            .take_while(|event| {
+                let last_announce = chain.last().unwrap().to_hash();
+                let stop = matches!(
+                    event,
+                    Ok(ComputeEvent::AnnounceComputed(announce)) if *announce == last_announce
+                );
+                std::future::ready(event.is_ok() && !stop)
+            })
+            .filter_map(|e| {
+                let event = e.expect("infallible");
+                std::future::ready(event.is_promise().then_some(event))
+            });
+
+        assert_eq!(
+            expected_events.collect::<Vec<_>>(),
+            events.collect::<Vec<_>>().await
+        );
+    }
+
+    #[tokio::test]
+    async fn compute_promises_always_emit() {
+        gear_utils::init_default_logger();
+        const BLOCKCHAIN_LEN: usize = 5;
+
+        let db = Database::memory();
+        let mut processor = Processor::new(db.clone()).unwrap();
+        let ping_code_id =
+            test_utils::upload_code(&mut processor, demo_ping::WASM_BINARY, &db).await;
+        let ping_id = ActorId::from(0x10000);
+
+        let blockchain = BlockChain::mock(BLOCKCHAIN_LEN as u32).setup(&db);
+
+        // Setup first announce.
+        let start_announce_hash = {
+            let mut announce = blockchain.block_top_announce(0).announce.clone();
+            announce.gas_allowance = Some(DEFAULT_BLOCK_GAS_LIMIT);
+
+            let announce_hash = db.set_announce(announce);
+            db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
+            db.globals_mutate(|globals| {
+                globals.start_announce_hash = announce_hash;
+            });
+            db.set_announce_program_states(announce_hash, Default::default());
+            db.set_announce_schedule(announce_hash, Default::default());
+
+            announce_hash
+        };
+
+        // Setup announces and events.
+        let mut parent_announce = start_announce_hash;
+        let chain = (1..BLOCKCHAIN_LEN)
+            .map(|i| {
+                let announce = {
+                    let mut announce = blockchain.block_top_announce(i).announce.clone();
+                    announce.gas_allowance = Some(DEFAULT_BLOCK_GAS_LIMIT);
+                    announce.parent = parent_announce;
+
+                    let mut txs = Vec::new();
+                    if i != 1 {
+                        txs.push(test_utils::injected_tx(
+                            ping_id,
+                            b"PING".into(),
+                            announce.block_hash,
+                        ));
+                    }
+
+                    announce.injected_transactions = txs;
+                    announce
+                };
+
+                let announce_hash = db.set_announce(announce.clone());
+                db.mutate_announce_meta(announce_hash, |meta| meta.computed = false);
+
+                let mut block_events = if i == 1 {
+                    test_utils::create_program_events(ping_id, ping_code_id)
+                } else {
+                    Default::default()
+                };
+                block_events.extend(test_utils::block_events(5, ping_id, b"PING".into()));
+                db.set_block_events(announce.block_hash, &block_events);
+
+                parent_announce = announce_hash;
+                announce
             })
             .collect::<Vec<_>>();
 
-        while !expected_announces.is_empty() || !expected_promises.is_empty() {
-            match compute_service.next().await.unwrap().unwrap() {
-                ComputeEvent::AnnounceComputed(hash) => {
-                    if *expected_announces.first().unwrap() == hash {
-                        expected_announces.remove(0);
-                    }
-                }
-                ComputeEvent::Promise(promise, announce) => {
-                    if *expected_announces.first().unwrap() == announce
-                        && expected_promises.first().unwrap().clone() == promise
-                    {
-                        expected_promises.remove(0);
-                    }
-                }
-                _ => unreachable!("unexpected event for current test"),
-            }
-        }
+        let config = ComputeConfig::builder()
+            .promises_mode(PromiseEmissionMode::AlwaysEmit)
+            .build();
+        let mut compute_service = ComputeService::new(config, db.clone(), processor);
+
+        // Send announces for computation.
+        compute_service.compute_announce(chain.first().unwrap().clone(), PromisePolicy::Disabled);
+        compute_service.compute_announce(chain.get(3).unwrap().clone(), PromisePolicy::Enabled);
+
+        let expected_events = chain[1..].iter().map(|announce| {
+            let tx = announce.injected_transactions.first().unwrap();
+            let promise = Promise {
+                tx_hash: tx.data().to_hash(),
+                reply: ReplyInfo {
+                    payload: b"PONG".into(),
+                    value: 0,
+                    code: ReplyCode::Success(SuccessReplyReason::Manual),
+                },
+            };
+            ComputeEvent::Promise(promise, announce.to_hash())
+        });
+
+        let events = compute_service
+            .take_while(|event| {
+                let last_announce = chain.last().unwrap().to_hash();
+                let stop = matches!(
+                    event,
+                    Ok(ComputeEvent::AnnounceComputed(announce)) if *announce == last_announce
+                );
+                std::future::ready(event.is_ok() && !stop)
+            })
+            .filter_map(|e| {
+                let event = e.expect("infallible");
+                std::future::ready(event.is_promise().then_some(event))
+            });
+
+        assert_eq!(
+            expected_events.collect::<Vec<_>>(),
+            events.collect::<Vec<_>>().await
+        );
     }
 
     #[tokio::test]
@@ -736,7 +836,7 @@ mod tests {
         };
 
         let mut compute_service =
-            ComputeService::new(ComputeConfig::without_quarantine(), db.clone(), processor);
+            ComputeService::new(ComputeConfig::default(), db.clone(), processor);
         compute_service.compute_announce(announce, PromisePolicy::Enabled);
 
         loop {
