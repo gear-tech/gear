@@ -163,6 +163,7 @@ impl StateHandler for Coordinator {
         mut self,
         reply: BatchCommitmentValidationReply,
     ) -> Result<ValidatorState> {
+        let reply_digest = reply.digest;
         if let Err(err) = self
             .multisigned_batch
             .accept_batch_commitment_validation_reply(reply, |addr| {
@@ -172,10 +173,27 @@ impl StateHandler for Coordinator {
                     .ok_or_else(|| anyhow!("Received validation reply is not known validator"))
             })
         {
+            tracing::warn!(
+                error = %err,
+                %reply_digest,
+                "coordinator: validation reply rejected",
+            );
             self.warning(format!("validation reply rejected: {err}"));
+        } else {
+            tracing::info!(
+                %reply_digest,
+                signatures = self.multisigned_batch.signatures().len(),
+                threshold = self.ctx.core.signatures_threshold,
+                "coordinator: validation reply accepted",
+            );
         }
 
         if self.multisigned_batch.signatures().len() as u64 >= self.ctx.core.signatures_threshold {
+            tracing::info!(
+                signatures = self.multisigned_batch.signatures().len(),
+                threshold = self.ctx.core.signatures_threshold,
+                "coordinator: threshold reached — moving to submission",
+            );
             Self::submission(self.ctx, self.multisigned_batch)
         } else {
             Ok(self.into())
@@ -213,6 +231,25 @@ impl Coordinator {
             .last_signed_commitment_block_number
             .set(block.header.height);
 
+        let batch_digest = multisigned_batch.batch().to_digest();
+        let chain_transitions = multisigned_batch
+            .batch()
+            .chain_commitment
+            .as_ref()
+            .map(|c| c.transitions.len())
+            .unwrap_or(0);
+        tracing::info!(
+            block = %block.hash,
+            block_height = block.header.height,
+            %batch_digest,
+            chain_transitions,
+            code_commitments = multisigned_batch.batch().code_commitments.len(),
+            validators = validators.len(),
+            threshold = ctx.core.signatures_threshold,
+            initial_signatures = multisigned_batch.signatures().len(),
+            "coordinator: batch built, broadcasting validation request",
+        );
+
         if multisigned_batch.signatures().len() as u64 >= ctx.core.signatures_threshold {
             return Self::submission(ctx, multisigned_batch);
         }
@@ -246,19 +283,44 @@ impl Coordinator {
     ) -> Result<ValidatorState> {
         let (batch, signatures) = multisigned_batch.into_parts();
         let cloned_committer = ctx.core.committer.clone_boxed();
+        let signatures_count = signatures.len();
+        let block_hash_for_log = batch.block_hash;
+        let batch_digest_for_log = batch.to_digest();
+        tracing::info!(
+            block = %block_hash_for_log,
+            %batch_digest_for_log,
+            signatures = signatures_count,
+            "coordinator: submitting batch commitment to Router",
+        );
         ctx.tasks.push(
             async move {
                 let block_hash = batch.block_hash;
                 let batch_digest = batch.to_digest();
                 let event = match cloned_committer.commit(batch, signatures).await {
-                    Ok(tx) => CommitmentSubmitted {
-                        block_hash,
-                        batch_digest,
-                        tx,
-                    }.into(),
-                    Err(err) => ConsensusEvent::Warning(format!(
-                        "Failed to submit commitment for block {block_hash}, digest {batch_digest}: {err}"
-                    ))
+                    Ok(tx) => {
+                        tracing::info!(
+                            %block_hash,
+                            %batch_digest,
+                            ?tx,
+                            "coordinator: batch commitment landed on-chain",
+                        );
+                        CommitmentSubmitted {
+                            block_hash,
+                            batch_digest,
+                            tx,
+                        }.into()
+                    }
+                    Err(err) => {
+                        tracing::warn!(
+                            %block_hash,
+                            %batch_digest,
+                            error = %err,
+                            "coordinator: failed to submit commitment to Router",
+                        );
+                        ConsensusEvent::Warning(format!(
+                            "Failed to submit commitment for block {block_hash}, digest {batch_digest}: {err}"
+                        ))
+                    }
                 };
                 Ok(event)
             }

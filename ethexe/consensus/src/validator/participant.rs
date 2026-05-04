@@ -88,6 +88,12 @@ impl StateHandler for Participant {
         {
             match res {
                 Ok(ValidationStatus::Accepted(digest)) => {
+                    tracing::info!(
+                        block = %self.block.hash,
+                        block_height = self.block.header.height,
+                        %digest,
+                        "participant: accepting batch — signing reply",
+                    );
                     let signature = self.ctx.core.signer.sign_for_contract_digest(
                         self.ctx.core.router_address,
                         self.ctx.core.pub_key,
@@ -123,6 +129,12 @@ impl StateHandler for Participant {
                         .output(ConsensusEvent::PublishMessage(reply.into()));
                 }
                 Ok(ValidationStatus::Rejected { request, reason }) => {
+                    tracing::warn!(
+                        block = %self.block.hash,
+                        digest = %request.digest,
+                        reason = %reason,
+                        "participant: rejecting batch validation request",
+                    );
                     self.warning(format!("reject validation request {request:?} : {reason}"));
                 }
                 Err(err) => return Err(err),
