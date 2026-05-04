@@ -455,7 +455,7 @@ pub(super) fn instrumented_code_and_metadata(
 
     let original_code = db
         .original_code(code_id)
-        .ok_or(ProcessorError::InstrumentationFailed(code_id))?;
+        .ok_or(ProcessorError::MissingOriginalCodeForProgram(code_id))?;
 
     if instrumentation_instance.is_none() {
         *instrumentation_instance = Some(instance_creator.instantiate()?);
