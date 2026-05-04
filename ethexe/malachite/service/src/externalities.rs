@@ -69,7 +69,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use gprimitives::H256;
 use tokio::sync::{Notify, mpsc};
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use crate::{CommitCertificate, MalachiteEvent, Mempool, quarantine};
 
@@ -246,6 +246,14 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         };
 
         let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await;
+
+        info!(
+            %parent_hash,
+            %parent_advanced,
+            advance = ?advance,
+            injected_count = injected.len(),
+            "build_block_above: proposable content resolved",
+        );
 
         // Producer pacing:
         //   1. AdvanceTillEthereumBlock first (if a fresh

@@ -59,7 +59,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use gprimitives::H256;
 use tokio::sync::Notify;
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 
 /// Source of injected transactions to pack into the next sequencer
 /// block.
@@ -248,13 +248,22 @@ impl InjectedTxMempool {
 
     /// Evict pool entries and seen-hashes whose `reference_block` has
     /// aged out relative to `head_height`.
+    ///
+    /// Txs whose `reference_block` is *not yet in the local DB* are
+    /// kept (they may belong to a Hoodi block we're about to receive
+    /// via the observer). They become eligible for eviction only once
+    /// the ref_block resolves and is past the validity window.
     fn purge_expired(inner: &mut Inner, head_height: u32, db: &Database) {
         inner.pool.retain(|tx_hash, tx| {
             let ref_block = tx.data().reference_block;
             match db.block_header(ref_block).map(|h| h.height) {
+                None => true, // ref_block not synced yet — keep waiting
                 Some(h) if !Self::is_expired(head_height, h) => true,
-                _ => {
-                    trace!(%tx_hash, %ref_block, "dropping expired tx from pool");
+                Some(h) => {
+                    trace!(
+                        %tx_hash, %ref_block, ref_height = h, head_height,
+                        "dropping expired tx from pool",
+                    );
                     false
                 }
             }
@@ -282,43 +291,51 @@ impl Mempool for InjectedTxMempool {
         let mut inner = self.inner.lock().expect("poisoned mempool");
 
         if inner.seen.contains_key(&tx_hash) {
-            debug!(%tx_hash, "rejecting tx: hash already committed within validity window");
+            info!(%tx_hash, "mempool: rejecting tx — hash already committed within validity window");
             return;
         }
 
         if inner.pool.contains_key(&tx_hash) {
+            info!(%tx_hash, pool_len = inner.pool.len(), "mempool: skip — duplicate insert");
             return;
         }
 
-        // ref_block must resolve to a known header. If it doesn't:
-        // - the tx references a block we haven't synced yet (let the
-        //   sender re-gossip after our DB catches up),
-        // - or it's older than our start_block (we can't verify
-        //   ancestry locally, reject).
-        // Either way: don't hold onto something we can't reason about.
-        let Some(ref_height) = self.ref_block_height(ref_block) else {
-            debug!(
-                %tx_hash, %ref_block,
-                "rejecting tx: reference_block not in DB"
-            );
-            return;
-        };
-        if let Some(head_height) = inner.latest_head_height
+        // ref_block resolution is best-effort at insert time. The
+        // RPC fan-out delivers a tx to every validator in parallel,
+        // and a recipient that hasn't yet observed the producer's
+        // reference Eth block (e.g. dell-side validator a few
+        // milliseconds behind AWS for the latest Hoodi tip) used to
+        // reject — but the RPC has no retry path, so the tx was
+        // simply lost on that validator. We now accept the tx
+        // unconditionally at insert time and filter at `fetch` time:
+        // once the ref_block lands in our local DB, the tx becomes
+        // eligible automatically, and we never lose a fan-out arm.
+        let ref_height_opt = self.ref_block_height(ref_block);
+        if let Some(ref_height) = ref_height_opt
+            && let Some(head_height) = inner.latest_head_height
             && Self::is_expired(head_height, ref_height)
         {
-            debug!(
+            info!(
                 %tx_hash, %ref_block, ref_height, head_height,
-                "rejecting tx: reference_block past VALIDITY_WINDOW"
+                "mempool: rejecting tx — reference_block past VALIDITY_WINDOW"
             );
             return;
         }
 
         if inner.pool.len() >= self.capacity {
-            debug!(%tx_hash, capacity = self.capacity, "rejecting tx: pool at capacity");
+            info!(%tx_hash, capacity = self.capacity, "mempool: rejecting tx — pool at capacity");
             return;
         }
 
+        let pool_len_after = inner.pool.len() + 1;
         inner.pool.insert(tx_hash, tx);
+        info!(
+            %tx_hash,
+            %ref_block,
+            ref_height = ?ref_height_opt,
+            pool_len = pool_len_after,
+            "mempool: insert accepted",
+        );
         // Drop the lock before signaling so a waiter resumed
         // immediately doesn't have to bounce on the mutex.
         drop(inner);
@@ -354,12 +371,22 @@ impl Mempool for InjectedTxMempool {
         let ancestors = self.recent_ancestors(&head);
 
         let inner = self.inner.lock().expect("poisoned mempool");
-        inner
+        let pool_len = inner.pool.len();
+        let result: Vec<_> = inner
             .pool
             .values()
             .filter(|tx| ancestors.contains(&tx.data().reference_block))
             .cloned()
-            .collect()
+            .collect();
+        info!(
+            head_hash = %head.hash,
+            head_height = head.header.height,
+            ancestors = ancestors.len(),
+            pool_len,
+            returned = result.len(),
+            "mempool: fetch",
+        );
+        result
     }
 
     async fn forget(&self, committed: &[SignedInjectedTransaction]) {
