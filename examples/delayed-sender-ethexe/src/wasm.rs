@@ -110,6 +110,6 @@ extern "C" fn handle() {
             MID = Some(msg::id());
         }
 
-        exec::wait();
+        // exec::wait();
     }
 }
