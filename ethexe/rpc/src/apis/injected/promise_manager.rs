@@ -85,6 +85,7 @@ impl PromiseSubscriptionManager {
         }
     }
 
+    // TODO: Issue #5402
     pub fn try_register_subscriber(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
@@ -106,6 +107,7 @@ impl PromiseSubscriptionManager {
         self.subscribers.remove(&tx_hash).map(|(_, v)| v)
     }
 
+    // TODO: Issue #5403
     pub fn on_compact_promise(&self, compact: SignedCompactPromise) {
         trace!(?compact, "received new compact promise");
         let tx_hash = compact.data().tx_hash;
