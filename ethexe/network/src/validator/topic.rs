@@ -247,8 +247,21 @@ impl ValidatorTopic {
         source: PeerId,
         message: VerifiedValidatorMessage,
     ) -> (MessageAcceptance, Option<VerifiedValidatorMessage>) {
+        let signer = message.address();
+        let kind = match &message {
+            VerifiedValidatorMessage::RequestBatchValidation(_) => "RequestBatchValidation",
+            VerifiedValidatorMessage::ApproveBatch(_) => "ApproveBatch",
+        };
         match self.inner_verify_validator_message(&message) {
-            Ok(()) => (MessageAcceptance::Accept, Some(message)),
+            Ok(()) => {
+                tracing::info!(
+                    %source,
+                    %signer,
+                    kind,
+                    "validator-topic: accepting message",
+                );
+                (MessageAcceptance::Accept, Some(message))
+            }
             Err(VerifyMessageError::Ignore(reason)) => {
                 log::trace!("ignore message from {source} peer: {reason:?}, message: {message:?}");
                 self.metrics.ignored_messages.increment(1);

@@ -187,6 +187,21 @@ impl Behaviour {
                 let source =
                     source.expect("ValidationMode::Strict implies `source` is always present");
 
+                let topic_label = if topic == self.commitments_topic.hash() {
+                    "commitments"
+                } else if topic == self.promises_topic.hash() {
+                    "promises"
+                } else {
+                    "<unknown>"
+                };
+                tracing::info!(
+                    %source,
+                    %propagation_source,
+                    topic = topic_label,
+                    data_len = data.len(),
+                    "gossipsub: received raw message",
+                );
+
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.promises_topic.hash() {
