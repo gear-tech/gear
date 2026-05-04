@@ -85,8 +85,8 @@ pub fn default_storage_root() -> PathBuf {
     dirs::data_local_dir()
         .or_else(dirs::data_dir)
         .or_else(dirs::home_dir)
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("gsigner")
+        .unwrap_or_else(|| PathBuf::from("../../../.."))
+        .join("../..")
 }
 
 pub fn storage_root(path: &Option<PathBuf>) -> PathBuf {

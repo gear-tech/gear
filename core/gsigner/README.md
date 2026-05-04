@@ -100,7 +100,7 @@ let imported = memory_with_password.import_key_with_password(private_key, Some("
 - Responses can be rendered as human-readable text, pretty JSON, or compact JSON using `--format human|plain|json` (default: `human`).
 - `peer-id` is available when built with `--features peer-id` and currently supports secp256k1 and ed25519 keys.
 
-See [CLI.md](./CLI.md) for a full command reference with examples.
+See [CLI.md](CLI.md) for a full command reference with examples.
 
 ## Advanced Features
 

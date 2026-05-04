@@ -152,7 +152,7 @@ impl App {
 fn store_path() -> Result<PathBuf> {
     let data_dir = dirs::data_dir().ok_or_else(|| anyhow!("Failed to locate app directory."))?;
     let store = gsigner::keyring::resolve_namespaced_path(
-        data_dir.join("gsigner"),
+        data_dir.join("../../core/gsigner"),
         gsigner::keyring::NAMESPACE_SR,
     );
     fs::create_dir_all(&store)?;

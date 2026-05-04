@@ -18,15 +18,15 @@ members = [
     "common",
     "common/codegen",
     "common/numerated",
-    "core",
+    "core/core",
     "core/backend",
-    "gsigner",
+    "core/gsigner",
     "core/processor",
     "core/errors",
-    "lazy-pages",
-    "lazy-pages/common",
-    "lazy-pages/interface",
-    "lazy-pages/native-interface",
+    "core/lazy-pages",
+    "core/lazy-pages-common",
+    "core/lazy-pages-interface",
+    "core/lazy-pages-native-interface",
     "examples/async",
     "examples/async-critical",
     "examples/async-custom-entry",
@@ -91,7 +91,7 @@ members = [
     "gbuiltins/*",
     "gcli",
     "gcore",
-    "gprimitives",
+    "core/gprimitives",
     "gsdk",
     "gsdk/codegen",
     "gstd",
@@ -199,7 +199,7 @@ wasmer-cache = "6.1.0"
 wasmer-types = "6.1.0"
 wasmer-vm = "6.1.0"
 wasmer-compiler = "6.1.0"
-gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
+gear-wasmer-cache = { path = "core/wasmer-cache" }
 wasmtime = "8.0.1"
 wasmparser = { version = "0.230", default-features = false, features = [
     "validate",
@@ -258,40 +258,40 @@ gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
 gstd-codegen = { path = "gstd/codegen" }
-gsigner = { path = "gsigner", default-features = false }
+gsigner = { path = "core/gsigner", default-features = false }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
-gprimitives = { path = "gprimitives", default-features = false }
+gprimitives = { path = "core/gprimitives", default-features = false }
 gear-authorship = { path = "node/authorship" }
 gear-core-backend = { path = "core/backend", default-features = false }
 gear-call-gen = { path = "utils/call-gen" }
 gear-common = { path = "common", default-features = false }
 gear-common-codegen = { path = "common/codegen" }
-gear-core = { path = "core", default-features = false }
+gear-core = { path = "core/core", default-features = false }
 gear-core-errors = { path = "core/errors" }
 gear-core-processor = { path = "core/processor", default-features = false }
-gear-lazy-pages = { path = "lazy-pages" }
-gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
-gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
-gear-lazy-pages-native-interface = { path = "lazy-pages/native-interface" }
+gear-lazy-pages = { path = "core/lazy-pages" }
+gear-lazy-pages-common = { path = "core/lazy-pages-common", default-features = false }
+gear-lazy-pages-interface = { path = "core/lazy-pages-interface", default-features = false }
+gear-lazy-pages-native-interface = { path = "core/lazy-pages-native-interface" }
 gear-node-testing = { path = "node/testing" }
 gear-runtime-common = { path = "runtime/common", default-features = false }
 gear-runtime-interface = { path = "runtime-interface", default-features = false }
 gear-sandbox-interface = { path = "runtime-interface/sandbox", default-features = false }
 gear-runtime-primitives = { path = "runtime/primitives", default-features = false }
-gear-sandbox = { path = "sandbox/sandbox", default-features = false }
-gear-sandbox-env = { path = "sandbox/env", default-features = false }
-gear-sandbox-host = { path = "sandbox/host" }
+gear-sandbox = { path = "core/sandbox", default-features = false }
+gear-sandbox-env = { path = "core/sandbox-env", default-features = false }
+gear-sandbox-host = { path = "core/sandbox-host" }
 gear-service = { path = "node/service", default-features = false }
 gear-stack-buffer = { path = "stack-buffer" }
-gear-ss58 = { path = "utils/ss58", default-features = false }
+gear-ss58 = { path = "core/ss58", default-features = false }
 gear-utils = { path = "utils/utils" }
 gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
 gear-wasm-optimizer = { path = "utils/wasm-optimizer", default-features = false }
 gear-wasm-gen = { path = "utils/wasm-gen" }
 gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
 junit-common = { path = "utils/junit-common" }
-actor-system-error = { path = "utils/actor-system-error" }
+actor-system-error = { path = "core/actor-system-error" }
 pallet-gear = { path = "pallets/gear", default-features = false }
 pallet-gear-eth-bridge = { path = "pallets/gear-eth-bridge", default-features = false }
 pallet-gear-eth-bridge-primitives = { path = "pallets/gear-eth-bridge/primitives", default-features = false }
