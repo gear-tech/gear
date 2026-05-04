@@ -97,6 +97,16 @@ impl BatchFiller {
         Ok(())
     }
 
+    /// Probe whether a hypothetical chain commitment with `transitions` would
+    /// still fit the remaining batch budget. Used by the producer to grow the
+    /// chain commitment one MB at a time and stop *before* the size limit is
+    /// breached, so the call to [`Self::include_chain_commitment`] is
+    /// guaranteed to succeed.
+    pub fn would_fit_chain_commitment(&self, candidate: &ChainCommitment) -> bool {
+        let mut probe = self.size_counter.clone();
+        probe.charge_for_chain_commitment(&Some(candidate.clone()))
+    }
+
     pub fn include_code_commitment(&mut self, commitment: CodeCommitment) -> FillerResult {
         if !self.size_counter.charge_for_code_commitment(&commitment) {
             return Err(BatchIncludeError::SizeLimitExceeded);

@@ -283,12 +283,19 @@ impl<P: ProcessorExt> MbComputeSubService<P> {
             program_creations,
         } = processing_result;
 
+        let program_creations_count = program_creations.len();
         program_creations
             .into_iter()
             .for_each(|(program_id, code_id)| {
                 db.set_program_code_id(program_id, code_id);
             });
 
+        tracing::info!(
+            %mb_hash,
+            transitions = transitions.len(),
+            program_creations = program_creations_count,
+            "mb_compute: outcome stored",
+        );
         db.set_mb_outcome(mb_hash, transitions);
         db.set_mb_program_states(mb_hash, states);
         db.set_mb_schedule(mb_hash, schedule);

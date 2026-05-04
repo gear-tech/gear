@@ -75,7 +75,7 @@ impl ProcessingHandler {
                     return Err(ProcessorError::MissingCode { actor_id, code_id });
                 }
 
-                log::trace!("Registering new program: {actor_id} with code {code_id}");
+                tracing::info!(%actor_id, %code_id, "registering new program");
                 self.transitions.register_new(actor_id, code_id);
             }
             RouterRequestEvent::ValidatorsCommittedForEra { .. }

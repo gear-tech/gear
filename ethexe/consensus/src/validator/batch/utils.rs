@@ -123,6 +123,12 @@ pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
         // Couldn't trace back to the on-chain commit anchor — most
         // likely a fast-restart or sync-lag situation. Caller skips
         // this batch attempt; the next chain head will retry.
+        tracing::warn!(
+            %last_committed_mb,
+            %mb_head,
+            walk_depth = chain.len(),
+            "collect_computed_uncommitted_predecessors: parent walk did not reach last_committed_mb — returning empty (chain commitment will be skipped)",
+        );
         return Vec::new();
     }
 
@@ -133,11 +139,26 @@ pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
     // `last_committed_mb` (contiguity required by the on-chain
     // applier).
     let mut collected = Vec::with_capacity(chain.len());
-    for (hash, computed) in chain {
+    for (hash, computed) in chain.iter().copied() {
         if !computed {
+            tracing::info!(
+                %hash,
+                walk_depth = chain.len(),
+                committed_so_far = collected.len(),
+                "collect_computed_uncommitted_predecessors: stopped at not-yet-computed MB",
+            );
             break;
         }
         collected.push(hash);
+    }
+    if !chain.is_empty() {
+        tracing::info!(
+            %last_committed_mb,
+            %mb_head,
+            walk_depth = chain.len(),
+            collected = collected.len(),
+            "collect_computed_uncommitted_predecessors: walk OK",
+        );
     }
     collected
 }
@@ -285,17 +306,52 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         return Ok(last_committed_mb);
     }
 
-    // Aggregate transitions across the computed prefix; head advances to
-    // the last MB we actually included.
-    let mut transitions = Vec::new();
+    // Aggregate transitions across the computed prefix incrementally, stopping
+    // when the next MB would push the chain commitment past the size budget.
+    // This prevents self-perpetuating batch failures: previously, when a long
+    // backlog accumulated (e.g. after a coordinator stall), the full chain
+    // commitment exceeded `batch_size_limit`, the filler returned
+    // `SizeLimitExceeded` silently, and the chain commitment was dropped —
+    // leaving the same backlog (only larger) for the next round.
+    let mut transitions: Vec<StateTransition> = Vec::new();
     let mut last_included = last_committed_mb;
+    let mut nonempty_outcomes = 0usize;
+    let mut size_exceeded = false;
     for mb_hash in &pending {
         let Some(mb_transitions) = db.mb_outcome(*mb_hash) else {
             anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
         };
-        transitions.extend(mb_transitions);
+
+        // Trial-include this MB's transitions and check if the resulting chain
+        // commitment still fits the per-batch size budget.
+        let mut trial = transitions.clone();
+        trial.extend(mb_transitions.iter().cloned());
+        let trial_commitment = ChainCommitment {
+            head: *mb_hash,
+            transitions: trial,
+        };
+        if !batch_filler.would_fit_chain_commitment(&trial_commitment) {
+            // Don't include the over-sized MB. Keep the previous prefix as the
+            // commitable chunk and let the rest land in a future batch.
+            size_exceeded = true;
+            break;
+        }
+
+        if !mb_transitions.is_empty() {
+            nonempty_outcomes += 1;
+        }
+        transitions = trial_commitment.transitions;
         last_included = *mb_hash;
     }
+
+    tracing::info!(
+        pending_count = pending.len(),
+        total_transitions = transitions.len(),
+        nonempty_outcomes,
+        %last_included,
+        size_exceeded,
+        "try_include_chain_commitment: aggregation done",
+    );
 
     let commitment = ChainCommitment {
         head: last_included,
