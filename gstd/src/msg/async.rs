@@ -272,6 +272,7 @@ impl_futures!(
 /// }
 /// # fn main() {}
 /// ```
+#[cfg(not(feature = "ethexe"))]
 pub struct CreateProgramFuture {
     /// A message identifier for an expected reply.
     pub waiting_reply_to: MessageId,
@@ -283,6 +284,7 @@ pub struct CreateProgramFuture {
     pub(crate) reply_deposit: u64,
 }
 
+#[cfg(not(feature = "ethexe"))]
 impl_futures!(
     CreateProgramFuture,
     (ActorId, Vec<u8>),

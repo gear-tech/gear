@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{code_validator::validate_program, crate_info::CrateInfo, smart_fs};
+use crate::{SYSCALL_KIND, code_validator::validate_program, crate_info::CrateInfo, smart_fs};
 use anyhow::{Context, Result, anyhow};
 use chrono::offset::Local as ChronoLocal;
+use gear_wasm_instrument::SyscallKind;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
 use std::{
     env,
@@ -161,18 +162,18 @@ impl WasmProject {
 
     /// Generate a temporary cargo project that includes the original package as
     /// a dependency.
-    pub fn generate(&mut self) -> Result<()> {
+    pub fn generate(&mut self) -> Result<CrateInfo> {
         let original_manifest = self.original_dir.join("Cargo.toml");
         let crate_info = CrateInfo::from_manifest(&original_manifest)?;
         self.file_base_name = Some(crate_info.snake_case_name.clone());
 
         let mut package = Table::new();
         package.insert("name".into(), format!("{}-wasm", &crate_info.name).into());
-        package.insert("version".into(), crate_info.version.into());
+        package.insert("version".into(), crate_info.version.clone().into());
         package.insert("edition".into(), "2024".into());
 
         let mut lib = Table::new();
-        lib.insert("name".into(), crate_info.snake_case_name.into());
+        lib.insert("name".into(), crate_info.snake_case_name.clone().into());
         lib.insert("crate-type".into(), vec!["cdylib".to_string()].into());
 
         let mut dev_profile = Table::new();
@@ -186,13 +187,13 @@ impl WasmProject {
         let mut production_profile = Table::new();
         production_profile.insert("inherits".into(), "release".into());
 
-        let mut profile = crate_info.profiles;
+        let mut profile = crate_info.profiles.clone();
         profile.insert("dev".into(), dev_profile.clone().into());
         profile.insert("release".into(), release_profile.into());
         profile.insert("production".into(), production_profile.into());
 
         let mut crate_package = Table::new();
-        crate_package.insert("package".into(), crate_info.name.into());
+        crate_package.insert("package".into(), crate_info.name.clone().into());
         crate_package.insert(
             "path".into(),
             self.original_dir.display().to_string().into(),
@@ -213,7 +214,7 @@ impl WasmProject {
         }
         self.features = Some(features.keys().cloned().collect());
 
-        let mut patch = crate_info.patch;
+        let mut patch = crate_info.patch.clone();
         if let Some(crates_io) = patch.get_mut("crates-io").and_then(|v| v.as_table_mut()) {
             crates_io.remove("gear-workspace-hack");
         }
@@ -249,7 +250,7 @@ impl WasmProject {
         fs::create_dir_all(&src_dir).context("Failed to create `src` directory")?;
         smart_fs::write(src_dir.join("lib.rs"), source_code)?;
 
-        Ok(())
+        Ok(crate_info)
     }
 
     fn generate_bin_path(&self, file_base_name: &String) -> Result<()> {
@@ -333,7 +334,7 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
     ///   `target/wasm32-gear/<profile>`
     /// - Generate optimized binary from the built program
     /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
-    pub fn postprocess(&self) -> Result<Option<(PathBuf, PathBuf)>> {
+    pub fn postprocess(&self, crate_info: CrateInfo) -> Result<Option<(PathBuf, PathBuf)>> {
         let file_base_name = self
             .file_base_name
             .as_ref()
@@ -408,11 +409,21 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
             wasm_paths = Some((wasm_path.clone(), wasm_opt));
         }
 
+        let is_workspace_hack = crate_info
+            .dependencies
+            .iter()
+            .any(|dep| dep.name == "gear-workspace-hack");
+        let syscall_kind = if is_workspace_hack {
+            SyscallKind::Vara
+        } else {
+            SYSCALL_KIND
+        };
+
         for (wasm_path, _) in &wasm_files {
             let code = fs::read(wasm_path)?;
 
             let is_release = self.profile != "debug";
-            validate_program(code, is_release)?;
+            validate_program(code, is_release, syscall_kind)?;
         }
 
         if env::var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING").as_deref() != Ok("1") {

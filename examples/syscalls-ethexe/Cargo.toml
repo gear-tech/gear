@@ -19,4 +19,4 @@ gear-wasm-builder.workspace = true
 debug = ["gstd/debug"]
 std = ["parity-scale-codec/std"]
 default = ["std"]
-ethexe = ["gstd/ethexe", "gear-wasm-builder/ethexe"]
+ethexe = ["gstd/ethexe"]

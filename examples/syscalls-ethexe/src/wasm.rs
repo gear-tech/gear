@@ -185,14 +185,6 @@ extern "C" fn handle() {
                     assert_eq!(state[index], expected, "state read mismatch");
                 }
             }
-
-            FuzzCommand::WaitCmd => {
-                // Send ok before waiting so the loader gets a reply
-                if !replied {
-                    msg::reply_bytes(b"ok-wait", 0).expect("reply before wait failed");
-                }
-                exec::wait();
-            }
             FuzzCommand::WaitForCmd(duration) => {
                 let dur = duration.clamp(1, 100);
                 if !replied {

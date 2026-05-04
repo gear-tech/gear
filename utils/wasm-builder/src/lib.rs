@@ -121,7 +121,7 @@ impl WasmBuilder {
     }
 
     fn build_project(mut self) -> Result<Option<(PathBuf, PathBuf)>> {
-        self.wasm_project.generate()?;
+        let crate_info = self.wasm_project.generate()?;
 
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());
@@ -132,7 +132,7 @@ impl WasmBuilder {
         self.cargo.set_features(&self.enabled_features()?);
 
         self.cargo.run()?;
-        self.wasm_project.postprocess()
+        self.wasm_project.postprocess(crate_info)
     }
 
     fn manifest_path(&self) -> Result<String> {

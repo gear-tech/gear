@@ -18,7 +18,7 @@
 
 use crate::{builder_error::BuilderError, multiple_crate_versions};
 use anyhow::{Context, Result, ensure};
-use cargo_metadata::{CrateType, Metadata, MetadataCommand, Package};
+use cargo_metadata::{CrateType, Dependency, Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
 
 /// Helper to get a crate info extracted from the `Cargo.toml`.
@@ -30,6 +30,8 @@ pub struct CrateInfo {
     pub snake_case_name: String,
     /// Crate version.
     pub version: String,
+    /// Crate dependencies.
+    pub dependencies: Vec<Dependency>,
     /// Crate features.
     pub features: BTreeMap<String, Vec<String>>,
     /// Crate custom profiles
@@ -80,12 +82,14 @@ impl CrateInfo {
         let name = root_package.name.clone().into_inner();
         let snake_case_name = name.replace('-', "_");
         let version = root_package.version.to_string();
+        let dependencies = root_package.dependencies.clone();
         let features = root_package.features.clone();
 
         Ok(Self {
             name,
             snake_case_name,
             version,
+            dependencies,
             features,
             profiles,
             patch,
