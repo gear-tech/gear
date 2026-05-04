@@ -163,10 +163,23 @@ pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
     collected
 }
 
-/// `request.head` must be either `latest_finalized_mb` itself or one of its
-/// ancestors (via `parent_mb_hash`). Returns `Ok(true)` when the candidate is
-/// a non-strict ancestor of (or equal to) `latest_finalized_mb`. Returns
-/// `Ok(false)` when the chain walk exhausts without hitting the candidate.
+/// True when `candidate` and `latest_finalized_mb` are on the same canonical
+/// chain — i.e. one is a (non-strict) ancestor of the other. This is the
+/// chain-equivalence check the batch-validation participant runs against the
+/// coordinator's `head_mb`:
+///
+/// - If `candidate == latest_finalized_mb` → trivially on chain.
+/// - If `candidate` is older (an ancestor of `latest_finalized_mb`) → walking
+///   back from `latest_finalized_mb` finds `candidate`.
+/// - If `candidate` is newer than `latest_finalized_mb` (the participant has
+///   computed it but not yet finalized it locally) → walking back from
+///   `candidate` finds `latest_finalized_mb`. BFT guarantees both endpoints
+///   are on a single linear MB chain whenever both are decided, so finding
+///   the older endpoint while walking back from the newer is sufficient.
+///
+/// Returns `Ok(false)` only when neither direction reaches the other — that
+/// can only happen if either side is on a chain we never processed (forked
+/// before our local view) or one of the parents is missing in storage.
 ///
 /// `H256::zero()` is treated as the pre-genesis sentinel and is an ancestor
 /// of every MB.
@@ -175,9 +188,17 @@ pub fn is_ancestor_or_equal<DB: MbStorageRO>(
     candidate: H256,
     latest_finalized_mb: H256,
 ) -> Result<bool> {
-    if candidate == H256::zero() {
+    if candidate == H256::zero() || candidate == latest_finalized_mb {
         return Ok(true);
     }
+    if latest_finalized_mb == H256::zero() {
+        // Pre-genesis local pointer with a non-zero candidate — we have
+        // nothing to compare against locally.
+        return Ok(false);
+    }
+
+    // Direction A: candidate is older. Walk back from `latest_finalized_mb`
+    // looking for it.
     let mut current = latest_finalized_mb;
     while current != H256::zero() {
         if current == candidate {
@@ -188,6 +209,25 @@ pub fn is_ancestor_or_equal<DB: MbStorageRO>(
             .map(|c| c.parent)
             .unwrap_or(H256::zero());
     }
+
+    // Direction B: candidate is newer than our local head — the participant
+    // has computed `candidate` (e.g. via a speculative BlockProposal that
+    // BFT later decided) but its `mark_block_as_finalized` cascade hasn't
+    // reached `candidate` yet. Walk back from `candidate` looking for our
+    // local `latest_finalized_mb`. BFT guarantees a unique parent chain
+    // for every decided MB, so reaching `latest_finalized_mb` here means
+    // both endpoints are on the canonical chain.
+    let mut current = candidate;
+    while current != H256::zero() {
+        if current == latest_finalized_mb {
+            return Ok(true);
+        }
+        current = db
+            .mb_compact_block(current)
+            .map(|c| c.parent)
+            .unwrap_or(H256::zero());
+    }
+
     Ok(false)
 }
 

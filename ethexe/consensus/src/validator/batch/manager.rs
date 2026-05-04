@@ -208,19 +208,35 @@ impl BatchCommitmentManager {
         };
 
         if let Some(head_mb) = head {
-            // Either the coordinator's head matches ours exactly, or it's an
-            // older MB on the same chain — both are fine. Anything else and
-            // we walk away silently (caller logs a warning so operators see
-            // it).
+            // Coordinator's `head_mb` and our local `latest_finalized_mb`
+            // must be on the same canonical chain — either side may sit
+            // ahead of the other. The relaxed `is_ancestor_or_equal`
+            // walks both directions so a participant whose
+            // `mark_block_as_finalized` cascade hasn't reached `head_mb`
+            // yet (but has computed it via a speculative BlockProposal)
+            // can still validate.
             let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
+            let head_meta = self.db.mb_meta(head_mb);
             if !utils::is_ancestor_or_equal(&self.db, head_mb, latest_finalized_mb)? {
+                tracing::warn!(
+                    %head_mb,
+                    %latest_finalized_mb,
+                    head_computed = head_meta.computed,
+                    head_synced = head_meta.synced,
+                    "manager: rejecting batch — head_mb not on same chain as latest_finalized_mb",
+                );
                 return Ok(ValidationStatus::Rejected {
                     request,
                     reason: ValidationRejectReason::HeadMbNotInChain(head_mb),
                 });
             }
 
-            if !self.db.mb_meta(head_mb).computed {
+            if !head_meta.computed {
+                tracing::warn!(
+                    %head_mb,
+                    %latest_finalized_mb,
+                    "manager: rejecting batch — head_mb not yet computed locally",
+                );
                 return Ok(ValidationStatus::Rejected {
                     request,
                     reason: ValidationRejectReason::HeadMbNotComputed(head_mb),
