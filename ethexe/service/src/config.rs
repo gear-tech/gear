@@ -113,5 +113,6 @@ pub struct EthereumConfig {
     pub router_address: Address,
     pub block_time: Duration,
     pub eip1559_fee_increase_percentage: u64,
+    pub eip1559_max_fee_per_gas_in_gwei: u128,
     pub blob_gas_multiplier: u128,
 }

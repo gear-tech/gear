@@ -398,6 +398,9 @@ impl Service {
                     .eip1559_fee_increase_percentage(
                         config.ethereum.eip1559_fee_increase_percentage,
                     )
+                    .eip1559_max_fee_per_gas_in_gwei(
+                        config.ethereum.eip1559_max_fee_per_gas_in_gwei,
+                    )
                     .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
                     .build()
                     .await?;
