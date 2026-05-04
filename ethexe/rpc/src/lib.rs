@@ -131,7 +131,7 @@ impl RpcServer {
         let cors_layer = self.cors_layer()?;
         let http_middleware = tower::ServiceBuilder::new().layer(cors_layer);
         // Setup the default RPC metrics layer.
-        let rpc_middleware = RpcServiceBuilder::new().layer(RpcMetricsLayer::default());
+        let rpc_middleware = RpcServiceBuilder::new().layer(RpcMetricsLayer);
 
         let processor = Processor::with_config(
             ProcessorConfig {

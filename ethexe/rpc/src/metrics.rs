@@ -28,7 +28,7 @@ mod middleware {
         server::{MethodResponse, middleware::rpc::RpcServiceT},
         types::Request,
     };
-    use std::{collections::HashMap, sync::Arc, time::Instant};
+    use std::{collections::HashMap, sync::LazyLock, time::Instant};
     use tower::Layer;
 
     /// Default methods names tracked by [super::RpcMetricsLayer].
@@ -38,63 +38,35 @@ mod middleware {
         "program_calculateReplyForHandle",
     ];
 
-    /// A methods metrics registry for [RpcMetricsLayer].
-    /// Internally it uses the mapping `method_name` => [MethodMetrics], so the
-    /// access to metrics is fast and do not add extra request latency.
-    #[derive(Clone)]
-    pub struct RpcMetricsRegistry {
-        methods_map: Arc<HashMap<&'static str, MethodMetrics>>,
-    }
-
-    impl RpcMetricsRegistry {
-        pub fn new(methods: &'static [&'static str]) -> Self {
-            let mut methods_map = HashMap::with_capacity(methods.len());
-
-            methods.iter().copied().for_each(|method_name| {
-                let method_metrics = MethodMetrics::new_with_labels(&[("method", method_name)]);
-                methods_map.insert(method_name, method_metrics);
-            });
-
-            Self {
-                methods_map: Arc::new(methods_map),
-            }
-        }
-
-        pub fn get(&self, method: &str) -> Option<&MethodMetrics> {
-            self.methods_map.get(method)
-        }
-    }
-
-    impl Default for RpcMetricsRegistry {
-        fn default() -> Self {
-            Self::new(TRACKED_METHODS)
-        }
-    }
+    static METHODS_MAP: LazyLock<HashMap<&'static str, MethodMetrics>> = LazyLock::new(|| {
+        TRACKED_METHODS
+            .iter()
+            .copied()
+            .map(|method_name| {
+                (
+                    method_name,
+                    MethodMetrics::new_with_labels(&[("method", method_name)]),
+                )
+            })
+            .collect()
+    });
 
     /// Metrics layer for [jsonrpsee::server::RpcServiceBuilder].
     /// Uses [RpcMetricsService] to wrap each request to metrics collection logic.
-    ///
-    /// Note: [Self::default] creates itself from registry with [TRACKED_METHODS].
     #[derive(Clone, Default)]
-    pub struct RpcMetricsLayer {
-        registry: RpcMetricsRegistry,
-    }
+    pub struct RpcMetricsLayer;
 
     impl<S> Layer<S> for RpcMetricsLayer {
         type Service = RpcMetricsService<S>;
 
         fn layer(&self, service: S) -> Self::Service {
-            RpcMetricsService {
-                service,
-                registry: self.registry.clone(),
-            }
+            RpcMetricsService { service }
         }
     }
 
     #[derive(Clone)]
     pub struct RpcMetricsService<S> {
         service: S,
-        registry: RpcMetricsRegistry,
     }
 
     impl<'a, S> RpcServiceT<'a> for RpcMetricsService<S>
@@ -105,7 +77,7 @@ mod middleware {
         type Future = BoxFuture<'a, MethodResponse>;
 
         fn call(&self, request: Request<'a>) -> Self::Future {
-            let Some(metrics) = self.registry.get(request.method_name()).cloned() else {
+            let Some(metrics) = METHODS_MAP.get(request.method_name()) else {
                 return Box::pin(self.service.call(request));
             };
 
