@@ -83,11 +83,23 @@ mod middleware {
 
             let future = self.service.call(request);
             Box::pin(async move {
-                metrics.on_incoming_request();
+                metrics.calls_started.increment(1);
+                metrics.calls_in_flight.increment(1);
+                let _metrics_guard =
+                    scopeguard::guard((), |_| metrics.calls_in_flight.decrement(1));
+
                 let started_at = Instant::now();
 
                 let response = future.await;
-                metrics.on_outgoing_response(started_at, &response);
+
+                metrics
+                    .calls_latency_seconds
+                    .record(started_at.elapsed().as_secs_f64());
+                match response.is_success() {
+                    true => metrics.calls_finished_ok.increment(1),
+                    false => metrics.calls_finished_err.increment(1),
+                }
+
                 response
             })
         }
@@ -97,9 +109,7 @@ mod middleware {
 /// Metrics type definitions.
 #[allow(clippy::module_inception)]
 mod metrics {
-    use jsonrpsee::server::MethodResponse;
     use metrics::{Counter, Gauge, Histogram};
-    use std::time::Instant;
 
     /// Unified bundle of metrics for RPC method.
     /// [metrics_derive::Metrics] macro will register all metrics under the `ethexe_rpc_*` scope.
@@ -114,48 +124,29 @@ mod metrics {
             rename = "calls_started_total",
             describe = "Number of started RPC calls for the method"
         )]
-        calls_started: Counter,
+        pub calls_started: Counter,
         #[metric(
             rename = "calls_finished_total",
             labels = [("status", "ok")],
             describe = "Number of successfully finished RPC calls for the method"
         )]
-        calls_finished_ok: Counter,
+        pub calls_finished_ok: Counter,
         #[metric(
             rename = "calls_finished_total",
             labels = [("status", "error")],
             describe = "Number of failed RPC calls for the method"
         )]
-        calls_finished_err: Counter,
+        pub calls_finished_err: Counter,
         #[metric(
             rename = "call_duration_seconds",
             describe = "Latency of RPC calls for the method in seconds"
         )]
-        calls_latency_seconds: Histogram,
+        pub calls_latency_seconds: Histogram,
         #[metric(
             rename = "calls_in_flight",
             describe = "Number of in-flight RPC calls for the method"
         )]
-        calls_in_flight: Gauge,
-    }
-
-    impl MethodMetrics {
-        pub fn on_incoming_request(&self) {
-            self.calls_started.increment(1);
-            self.calls_in_flight.increment(1);
-        }
-
-        pub fn on_outgoing_response(&self, started_at: Instant, response: &MethodResponse) {
-            self.calls_latency_seconds
-                .record(started_at.elapsed().as_secs_f64());
-
-            match response.is_success() {
-                true => self.calls_finished_ok.increment(1),
-                false => self.calls_finished_err.increment(1),
-            }
-
-            self.calls_in_flight.decrement(1);
-        }
+        pub calls_in_flight: Gauge,
     }
 
     /// The metrics for internal state of [crate::apis::InjectedApi].
