@@ -356,8 +356,14 @@ pub fn wait() -> ! {
     unsafe { gsys::gr_wait() }
 }
 
-#[cfg_attr(not(feature = "ethexe"), doc = "Same as [`wait`], but delays handling for a specific number of blocks.")]
-#[cfg_attr(feature = "ethexe", doc = "Same as `wait`, but delays handling for a specific number of blocks.")]
+#[cfg_attr(
+    not(feature = "ethexe"),
+    doc = "Same as [`wait`], but delays handling for a specific number of blocks."
+)]
+#[cfg_attr(
+    feature = "ethexe",
+    doc = "Same as `wait`, but delays handling for a specific number of blocks."
+)]
 ///
 /// # Panics
 ///
