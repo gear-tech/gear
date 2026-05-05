@@ -70,6 +70,7 @@ async fn constructor() {
             .expect("infallible"),
         block_time: Duration::from_secs(12),
         eip1559_fee_increase_percentage: Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+        eip1559_max_fee_per_gas_in_gwei: Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI,
         blob_gas_multiplier: Ethereum::NO_BLOB_GAS_MULTIPLIER,
     };
 

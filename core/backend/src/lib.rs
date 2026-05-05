@@ -62,7 +62,7 @@ mod tests {
     };
     use gear_core::{gas_metering::CustomConstantCostRules, message::DispatchKind};
     use gear_wasm_instrument::{
-        FuncType, Function, Import, InstrumentationBuilder, ModuleBuilder, SyscallName,
+        FuncType, Function, Import, InstrumentationBuilder, ModuleBuilder, SyscallKind, SyscallName,
     };
     use tracing_subscriber::EnvFilter;
 
@@ -79,7 +79,7 @@ mod tests {
         module.add_func(FuncType::new([], []), Function::default());
 
         // Insert syscalls imports.
-        for name in SyscallName::instrumentable() {
+        for name in SyscallName::instrumentable(SyscallKind::Vara) {
             let sign = name.signature();
             let type_no = module.push_type(sign.func_type());
 

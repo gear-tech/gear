@@ -103,9 +103,8 @@
 //! Computation is sequential: at most one announce is executed at a time.
 //! If the announce's parent (or any further ancestor) has not been
 //! computed yet, missing ancestors are computed first, in order.
-//! Ancestors are always computed without promise collection regardless of
-//! the requested policy — promises describe the user-visible result of
-//! the target announce only.
+//! Promises for ancestors are computed according to [PromiseEmissionMode](ethexe_common::PromiseEmissionMode)
+//! in [ComputeConfig].
 //!
 //! The target block must already be prepared; otherwise the computation
 //! fails with [`ComputeError::BlockNotPrepared`].
@@ -151,12 +150,13 @@ pub use compute::{
     utils::{find_canonical_events_post_quarantine, prepare_executable_for_announce},
 };
 use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, injected::Promise};
-use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
+use ethexe_processor::{
+    BoundPromiseSink, ExecutableData, ProcessedCodeInfo, Processor, ProcessorError,
+};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
-use tokio::sync::mpsc;
 
 mod codes;
 mod compute;
@@ -172,6 +172,7 @@ pub struct BlockProcessed {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
+#[cfg_attr(test, derive(derive_more::IsVariant))]
 pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
@@ -227,7 +228,7 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
     fn process_code(
         &mut self,
@@ -239,9 +240,9 @@ impl ProcessorExt for Processor {
     async fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<FinalizedBlockTransitions> {
-        self.process_programs(executable, promise_out_tx)
+        self.process_programs(executable, promise_sink)
             .await
             .map_err(Into::into)
     }

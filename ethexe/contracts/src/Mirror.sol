@@ -1,15 +1,15 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
-import {ICallbacks} from "./ICallbacks.sol";
-import {IMirror} from "./IMirror.sol";
-import {IRouter} from "./IRouter.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
-import {Gear} from "./libraries/Gear.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
+import {ICallbacks} from "src/ICallbacks.sol";
+import {IMirror} from "src/IMirror.sol";
+import {IRouter} from "src/IRouter.sol";
+import {IWrappedVara} from "src/IWrappedVara.sol";
+import {Gear} from "src/libraries/Gear.sol";
 
 /**
  * @dev Mirror smart contract is responsible for storing the minimal state of programs on our platform
@@ -310,9 +310,31 @@ contract Mirror is IMirror {
     /**
      * @dev Tops up the executable balance of the program.
      *      As result of execution, the `ExecutableBalanceTopUpRequested` event will be emitted.
-     * @param _value The amount of WVARA to be transferred from user to `Router` as executable balance top up.
+     * @param _value The amount of WVARA ERC20 token to be transferred from user to `Router` as executable balance top up.
      */
     function executableBalanceTopUp(uint128 _value) external whenNotPaused onlyIfActive retrievingVara(_value) {
+        emit ExecutableBalanceTopUpRequested(_value);
+    }
+
+    /**
+     * @dev Tops up the executable balance of the program.
+     *      Unlike `Mirror.executableBalanceTopUp(...)`, this method allows to transfer WVARA ERC20 token from user to `Router`
+     *      using permit signature, which can save one transaction for user.
+     *      As result of execution, the `ExecutableBalanceTopUpRequested` event will be emitted.
+     * @param _value The amount of WVARA ERC20 token to be transferred from user to `Router` as executable balance top up.
+     * @param _deadline Deadline for the transaction to be executed.
+     * @param _v ECDSA signature parameter.
+     * @param _r ECDSA signature parameter.
+     * @param _s ECDSA signature parameter.
+     */
+    function executableBalanceTopUpWithPermit(uint128 _value, uint256 _deadline, uint8 _v, bytes32 _r, bytes32 _s)
+        external
+        whenNotPaused
+        onlyIfActive
+    {
+        try _wvara(router).permit(msg.sender, address(this), _value, _deadline, _v, _r, _s) {} catch {}
+        _retrievingVara(_value);
+
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
@@ -337,8 +359,12 @@ contract Mirror is IMirror {
      *        and is necessary to show the available methods of `Mirror` smart contract on Etherscan.
      *        In case it is a Sails framework smart contract, the user can set his own ABI.
      * @param _isSmall The flag indicating if the program is small. See the description of `Mirror.isSmall` field for details.
+     * @param _initialExecutableBalance The initial executable balance to be transferred to the program.
      */
-    function initialize(address _initializer, address _abiInterface, bool _isSmall) external onlyRouter {
+    function initialize(address _initializer, address _abiInterface, bool _isSmall, uint128 _initialExecutableBalance)
+        external
+        onlyRouter
+    {
         require(initializer == address(0), InitializerAlreadySet());
 
         require(!isSmall, IsSmallAlreadySet());
@@ -351,6 +377,10 @@ contract Mirror is IMirror {
         initializer = _initializer;
         isSmall = _isSmall;
         implementationSlot.value = _abiInterface;
+
+        if (_initialExecutableBalance != 0) {
+            emit ExecutableBalanceTopUpRequested(_initialExecutableBalance);
+        }
     }
 
     /**
