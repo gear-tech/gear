@@ -356,7 +356,8 @@ pub fn wait() -> ! {
     unsafe { gsys::gr_wait() }
 }
 
-/// Same as [`wait`], but delays handling for a specific number of blocks.
+#[cfg_attr(not(feature = "ethexe"), doc = "Same as [`wait`], but delays handling for a specific number of blocks.")]
+#[cfg_attr(feature = "ethexe", doc = "Same as `wait`, but delays handling for a specific number of blocks.")]
 ///
 /// # Panics
 ///
@@ -365,15 +366,21 @@ pub fn wait_for(duration: u32) -> ! {
     unsafe { gsys::gr_wait_for(duration) }
 }
 
-/// Same as [`wait`], but delays handling for the maximum number of blocks that
-/// can be paid for and doesn't exceed the given `duration`.
+#[cfg_attr(
+    not(feature = "ethexe"),
+    doc = "Same as [`wait`], but delays handling for the maximum number of blocks that can be paid for and doesn't exceed the given `duration`."
+)]
+#[cfg_attr(
+    feature = "ethexe",
+    doc = "Same as `wait`, but delays handling for the maximum number of blocks that can be paid for and doesn't exceed the given `duration`."
+)]
 pub fn wait_up_to(duration: u32) -> ! {
     unsafe { gsys::gr_wait_up_to(duration) }
 }
 
 /// Resume previously paused message handling.
 ///
-/// Suppose a message has been paused using the [`wait`] function. In that case,
+/// Suppose a message has been paused using the `wait` function. In that case,
 /// it is possible to continue its execution by calling this function.
 ///
 /// `message_id` specifies a particular message to be taken out of the *waiting
