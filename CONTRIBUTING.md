@@ -45,6 +45,12 @@ The following labels SHOULD be added when applicable:
 - `priority:*`
 - `size:*`
 
+### 3.4 Issue Ownership
+
+An issue is considered **in progress** when it is assigned.
+
+Unassigned issues are considered open for anyone to take.
+
 ---
 
 ## 4. Branch Naming
@@ -77,6 +83,13 @@ A Pull Request MUST be marked as **Ready for review** when:
 
 - implementation is complete
 - the PR is ready for full review
+
+### 5.3 PR States
+
+- Draft — work in progress or PoC (not ready for review)
+- Ready for review — ready for review
+- Changes requested — issues identified, updates required
+- Approved — ready to merge (subject to CI)
 
 ---
 
