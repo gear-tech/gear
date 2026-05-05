@@ -454,6 +454,7 @@ impl Service {
                     router_address: config.ethereum.router_address,
                     batch_size_limit: config.node.batch_size_limit,
                     coordinator_aggregation_delay: config.node.coordinator_aggregation_delay,
+                    uncommitted_chain_len_threshold: config.node.uncommitted_chain_len_threshold,
                 },
             )?))
         } else {

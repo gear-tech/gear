@@ -340,6 +340,7 @@ impl Arbitrary for ChainCommitment {
             .prop_map(|(first, second, head)| Self {
                 transitions: vec![first, second],
                 head,
+                last_advanced_eth_block: H256::zero(),
             })
             .boxed()
     }

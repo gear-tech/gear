@@ -901,8 +901,11 @@ contract Router is
         bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
 
         emit AnnouncesCommitted(_commitment.head);
+        if (_commitment.lastAdvancedEthBlock != bytes32(0)) {
+            emit LastAdvancedEthBlockCommitted(_commitment.lastAdvancedEthBlock);
+        }
 
-        return Gear.chainCommitmentHash(_transitionsHash, _commitment.head);
+        return Gear.chainCommitmentHash(_transitionsHash, _commitment.head, _commitment.lastAdvancedEthBlock);
     }
 
     function _commitCodes(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {

@@ -71,6 +71,10 @@ impl BatchFiller {
         self.parts
     }
 
+    pub fn has_chain_commitment(&self) -> bool {
+        self.parts.chain_commitment.is_some()
+    }
+
     pub fn include_validators_commitment(
         &mut self,
         commitment: ValidatorsCommitment,

@@ -18,7 +18,7 @@
 
 use crate::{errors, utils};
 use ethexe_common::{
-    HashOf, SimpleBlockData,
+    HashOf,
     db::{CodesStorageRO, MbStorageRO},
 };
 use ethexe_db::Database;
@@ -144,10 +144,8 @@ impl ProgramServer for ProgramApi {
         let block = utils::block_at_or_latest_synced(&self.db, None)?;
 
         let executable = ExecutableDataForReply {
-            block: SimpleBlockData {
-                hash: block.hash,
-                header: block.header,
-            },
+            height: block.header.height,
+            timestamp: block.header.timestamp,
             program_states: self
                 .db
                 .mb_program_states(mb_hash)

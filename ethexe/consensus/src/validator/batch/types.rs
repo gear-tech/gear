@@ -28,12 +28,12 @@ use gprimitives::{CodeId, H256};
 /// Batch building limits.
 #[derive(Debug, Clone)]
 pub struct BatchLimits {
-    /// Time limit in Ethereum blocks for a batch to be committed on-chain
-    /// after its `block_hash` is sealed. Maps directly to
-    /// [`BatchCommitment::expiry`](ethexe_common::gear::BatchCommitment).
     pub commitment_delay_limit: u32,
-    /// The maximum size of abi encoded [`ethexe_common::gear::BatchCommitment`].
     pub batch_size_limit: u64,
+    /// Force a checkpoint chain commitment when the producer's view of
+    /// `last_advanced_eth_block` is more than this many blocks ahead of the
+    /// last committed advanced block. Zero disables the gate.
+    pub uncommitted_chain_len_threshold: u32,
 }
 
 impl Default for BatchLimits {
@@ -41,6 +41,7 @@ impl Default for BatchLimits {
         BatchLimits {
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
+            uncommitted_chain_len_threshold: 500,
         }
     }
 }

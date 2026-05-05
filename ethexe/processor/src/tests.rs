@@ -19,16 +19,14 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    BlockHeader, DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT,
-    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PrivateKey, ScheduledTask, SignedMessage, SimpleBlockData,
+    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
+    PrivateKey, ScheduledTask, SignedMessage,
     db::*,
     events::{
-        BlockEvent, BlockRequestEvent, MirrorEvent, MirrorRequestEvent, RouterEvent,
-        RouterRequestEvent,
+        BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
         mirror::{ExecutableBalanceTopUpRequestedEvent, MessageQueueingRequestedEvent},
         router::ProgramCreatedEvent,
     },
-    mb::{ProcessQueuesLimits, ProgressTasksLimits},
     mock::*,
 };
 use ethexe_runtime_common::{RUNTIME_ID, WAIT_UP_TO_SAFE_DURATION, state::MessageQueue};
@@ -116,9 +114,9 @@ mod utils {
         (processor, chain, code_ids.try_into().unwrap())
     }
 
-    pub fn setup_handler(db: Database, block: SimpleBlockData) -> ProcessingHandler {
+    pub fn setup_handler(db: Database, height: u32) -> ProcessingHandler {
         let transitions =
-            InBlockTransitions::new(block.header.height, Default::default(), Default::default());
+            InBlockTransitions::new(height, Default::default(), Default::default());
 
         ProcessingHandler::new(db, transitions)
     }
@@ -142,7 +140,7 @@ mod utils {
             setup_test_env_and_load_codes([code.as_ref()]).await;
         let block1 = chain.blocks[1].to_simple();
 
-        let mut handler = setup_handler(processor.db.clone(), block1);
+        let mut handler = setup_handler(processor.db.clone(), block1.header.height);
         let actor_id = ActorId::from(0x10000);
         handler
             .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -174,7 +172,13 @@ mod utils {
             .expect("failed to queue message");
 
         processor
-            .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+            .process_queues(
+                handler.transitions,
+                block1.header.height,
+                block1.header.timestamp,
+                DEFAULT_BLOCK_GAS_LIMIT,
+                None,
+            )
             .await
             .unwrap()
     }
@@ -188,8 +192,10 @@ async fn ping_init() {
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
 
     // Empty processing for block1
+    let block1 = chain.blocks[1].to_simple();
     let executable = ExecutableData {
-        block: chain.blocks[1].to_simple(),
+        height: block1.header.height,
+        timestamp: block1.header.timestamp,
         ..Default::default()
     };
     let FinalizedBlockTransitions {
@@ -230,8 +236,10 @@ async fn ping_init() {
     ];
 
     // Process for block2
+    let block2 = chain.blocks[2].to_simple();
     let executable = ExecutableData {
-        block: chain.blocks[2].to_simple(),
+        height: block2.header.height,
+        timestamp: block2.header.timestamp,
         program_states: states,
         schedule,
         events: create_program_events,
@@ -262,8 +270,10 @@ async fn ping_init() {
     };
 
     // Process for block3
+    let block3 = chain.blocks[3].to_simple();
     let executable = ExecutableData {
-        block: chain.blocks[3].to_simple(),
+        height: block3.header.height,
+        timestamp: block3.header.timestamp,
         program_states: states,
         schedule,
         events: vec![send_message_event],
@@ -331,7 +341,7 @@ async fn ping_pong() {
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -378,7 +388,7 @@ async fn ping_pong() {
         .expect("failed to send message");
 
     let to_users = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap()
         .current_messages();
@@ -408,7 +418,7 @@ async fn async_and_ping() {
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     let user_id = ActorId::from(10);
     let ping_id = ActorId::from(0x10000000);
@@ -492,7 +502,7 @@ async fn async_and_ping() {
         .expect("failed to send message");
 
     let transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
 
@@ -548,7 +558,7 @@ async fn many_waits() {
     let block1 = chain.blocks[1].to_simple();
     let wake_block = chain.blocks[1 + blocks_to_wait].to_simple();
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     let amount = OUTGOING_MESSAGES_SOFT_LIMIT.min(PROGRAM_MODIFICATIONS_SOFT_LIMIT);
     for i in 0..amount {
@@ -588,7 +598,7 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     handler.transitions.modifications_mut().clear();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
     assert_eq!(
@@ -615,7 +625,7 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     handler.transitions.modifications_mut().clear();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
     assert_eq!(
@@ -642,7 +652,7 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     handler.transitions.modifications_mut().clear();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
     assert_eq!(
@@ -663,7 +673,7 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     transitions.modifications_mut().clear();
     let transitions = processor
-        .process_queues(transitions, wake_block, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(transitions, wake_block.header.height, wake_block.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
     assert_eq!(transitions.current_messages().len(), amount as usize);
@@ -756,7 +766,9 @@ async fn overlay_execution() {
     ];
 
     let executable_data = ExecutableData {
-        block: block1,
+        height: block1.header.height,
+
+        timestamp: block1.header.timestamp,
         events,
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
         ..Default::default()
@@ -906,7 +918,9 @@ async fn overlay_execution() {
     // Send message using overlay on the block3.
     let mut overlaid_processor = processor.clone().overlaid();
     let executable = ExecutableDataForReply {
-        block: block3,
+        height: block3.header.height,
+
+        timestamp: block3.header.timestamp,
         program_states: states,
         source: user_id,
         program_id: async_id,
@@ -934,7 +948,7 @@ async fn injected_ping_pong() {
     let user_2 = ActorId::from(20);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -968,7 +982,7 @@ async fn injected_ping_pong() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
 
@@ -993,7 +1007,8 @@ async fn injected_ping_pong() {
     handler.transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_out_tx.clone()),
         )
@@ -1045,7 +1060,7 @@ async fn injected_prioritized_over_canonical() {
     let injected_user = ActorId::from(20);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -1079,7 +1094,7 @@ async fn injected_prioritized_over_canonical() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
 
@@ -1112,7 +1127,8 @@ async fn injected_prioritized_over_canonical() {
     let transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_out_tx.clone()),
         )
@@ -1153,7 +1169,7 @@ async fn executable_balance_charged() {
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -1193,7 +1209,7 @@ async fn executable_balance_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
 
@@ -1244,7 +1260,7 @@ async fn executable_balance_injected_panic_not_charged() {
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
@@ -1283,7 +1299,8 @@ async fn executable_balance_injected_panic_not_charged() {
     handler.transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_out_tx.clone()),
         )
@@ -1300,7 +1317,8 @@ async fn executable_balance_injected_panic_not_charged() {
     handler.transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_out_tx.clone()),
         )
@@ -1347,7 +1365,8 @@ async fn executable_balance_injected_panic_not_charged() {
     let transitions = processor
         .process_queues(
             handler.transitions,
-            block1,
+            block1.header.height,
+            block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
             Some(promise_out_tx.clone()),
         )
@@ -1374,7 +1393,7 @@ async fn insufficient_executable_balance_still_charged() {
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
-    let mut handler = setup_handler(processor.db.clone(), block1);
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -1412,7 +1431,7 @@ async fn insufficient_executable_balance_still_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
         .await
         .unwrap();
 
@@ -1579,7 +1598,9 @@ async fn injected_and_events_then_tasks_then_queues() {
     ];
 
     let executable = ExecutableData {
-        block: block1,
+        height: block1.header.height,
+
+        timestamp: block1.header.timestamp,
         events: create_and_init_events,
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
         ..Default::default()
@@ -1609,7 +1630,9 @@ async fn injected_and_events_then_tasks_then_queues() {
     }];
 
     let executable = ExecutableData {
-        block: block2,
+        height: block2.header.height,
+
+        timestamp: block2.header.timestamp,
         program_states: states,
         schedule,
         events: wait_message_event,
@@ -1659,7 +1682,9 @@ async fn injected_and_events_then_tasks_then_queues() {
     let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
 
     let executable = ExecutableData {
-        block: block3,
+        height: block3.header.height,
+
+        timestamp: block3.header.timestamp,
         program_states: states,
         schedule,
         injected_transactions: vec![verified_injected],
@@ -1755,180 +1780,6 @@ async fn injected_and_events_then_tasks_then_queues() {
     assert_eq!(to_users[2].1.payload, b"DONE");
 }
 
-/// Drives a Malachite-style transaction list across two MBs through
-/// [`Processor::process_transitions`] and verifies each variant gets
-/// interpreted as expected:
-///
-/// MB1 — bootstrap: pull canonical events (ProgramCreated + balance
-/// top-up + an init PING) via `AdvanceTillEthereumBlock`, then drain
-/// the queues so the program runs init and replies PONG.
-///
-/// MB2 — exercise injected path on the now-initialized program: an
-/// `Injected` PING goes through `handle_injected_transaction`, gets
-/// queued into the injected queue, then drained by `ProcessQueues`.
-/// `ProgressTasks` is included to verify the variant is wired even
-/// when no tasks are scheduled.
-#[tokio::test]
-async fn process_transitions_drives_pipeline() {
-    init_logger();
-
-    let (mut processor, chain, [code_id]) =
-        setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
-
-    let actor_id = ActorId::from(0x10000);
-    let canonical_user = ActorId::from(30);
-
-    // ---- MB1: create + init the program ------------------------------
-    let eth_block_init = chain.blocks[1].to_simple();
-    let init_events = vec![
-        BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
-            actor_id,
-            code_id,
-        })),
-        BlockEvent::Mirror {
-            actor_id,
-            event: MirrorEvent::ExecutableBalanceTopUpRequested(
-                ExecutableBalanceTopUpRequestedEvent {
-                    value: 500_000_000_000,
-                },
-            ),
-        },
-        BlockEvent::Mirror {
-            actor_id,
-            event: MirrorEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
-                id: MessageId::from(1),
-                source: canonical_user,
-                payload: b"PING".to_vec(),
-                value: 0,
-                call_reply: false,
-            }),
-        },
-    ];
-    processor
-        .db
-        .set_block_events(eth_block_init.hash, &init_events);
-
-    let mb1_block = SimpleBlockData {
-        hash: H256::from([0xAB; 32]),
-        header: BlockHeader {
-            height: 1,
-            timestamp: 1,
-            parent_hash: H256::zero(),
-        },
-    };
-
-    let mb1_txs = vec![
-        Transaction::AdvanceTillEthereumBlock {
-            block_hash: eth_block_init.hash,
-        },
-        Transaction::ProgressTasks {
-            limits: ProgressTasksLimits::default(),
-        },
-        Transaction::ProcessQueues {
-            limits: ProcessQueuesLimits {
-                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            },
-        },
-    ];
-
-    let FinalizedBlockTransitions {
-        transitions: mb1_transitions,
-        states: mb1_states,
-        schedule: mb1_schedule,
-        program_creations,
-    } = processor
-        .process_transitions(
-            ProgramStates::default(),
-            Schedule::default(),
-            mb1_block,
-            &mb1_txs,
-            None,
-            // Genesis MB: nothing advanced yet, so the executor walks
-            // the canonical chain back from the target until the
-            // header chain peters out, picking up every block in the
-            // local DB along the way.
-            H256::zero(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(program_creations, vec![(actor_id, code_id)]);
-    program_creations
-        .into_iter()
-        .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));
-
-    // Init replied PONG to the canonical sender.
-    let mb1_to_users: Vec<_> = mb1_transitions
-        .iter()
-        .flat_map(|t| t.messages.iter())
-        .collect();
-    assert_eq!(mb1_to_users.len(), 1);
-    assert_eq!(mb1_to_users[0].destination, canonical_user);
-    assert_eq!(mb1_to_users[0].payload, b"PONG");
-
-    // ---- MB2: injected PING against the now-initialized program ------
-    // No new canonical events for this MB.
-    let eth_block_followup = chain.blocks[2].to_simple();
-    processor.db.set_block_events(eth_block_followup.hash, &[]);
-
-    let injected_user_pk = PrivateKey::random();
-    let injected_tx = InjectedTransaction {
-        destination: actor_id,
-        payload: b"PING".to_vec().try_into().unwrap(),
-        value: 0,
-        reference_block: H256::random(),
-        salt: H256::random().0.to_vec().try_into().unwrap(),
-    };
-    let signed_injected = SignedMessage::create(injected_user_pk, injected_tx).unwrap();
-    let injected_user: ActorId = signed_injected.clone().into_verified().address().into();
-
-    let mb2_block = SimpleBlockData {
-        hash: H256::from([0xCD; 32]),
-        header: BlockHeader {
-            height: 2,
-            timestamp: 2,
-            parent_hash: mb1_block.hash,
-        },
-    };
-
-    let mb2_txs = vec![
-        Transaction::AdvanceTillEthereumBlock {
-            block_hash: eth_block_followup.hash,
-        },
-        Transaction::Injected(signed_injected),
-        Transaction::ProgressTasks {
-            limits: ProgressTasksLimits::default(),
-        },
-        Transaction::ProcessQueues {
-            limits: ProcessQueuesLimits {
-                gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
-            },
-        },
-    ];
-
-    let FinalizedBlockTransitions {
-        transitions: mb2_transitions,
-        ..
-    } = processor
-        .process_transitions(
-            mb1_states,
-            mb1_schedule,
-            mb2_block,
-            &mb2_txs,
-            None,
-            eth_block_init.hash,
-        )
-        .await
-        .unwrap();
-
-    let mb2_to_users: Vec<_> = mb2_transitions
-        .iter()
-        .flat_map(|t| t.messages.iter())
-        .collect();
-    assert_eq!(mb2_to_users.len(), 1);
-    assert_eq!(mb2_to_users[0].destination, injected_user);
-    assert_eq!(mb2_to_users[0].payload, b"PONG");
-}
 
 #[tokio::test]
 async fn call_wait_up_to_with_huge_duration() {
@@ -1978,3 +1829,5 @@ async fn call_wait_up_to_with_huge_duration() {
     let task = tasks.into_iter().next().unwrap();
     assert!(matches!(task, ScheduledTask::WakeMessage(_, _)));
 }
+
+

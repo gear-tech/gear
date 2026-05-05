@@ -58,6 +58,7 @@ async fn constructor() {
         pre_funded_accounts: 10,
         fast_sync: false,
         coordinator_aggregation_delay: Duration::from_millis(1500),
+        uncommitted_chain_len_threshold: 500,
         batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
         genesis_state_dump: None,
     };

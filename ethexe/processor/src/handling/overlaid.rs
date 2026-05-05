@@ -25,7 +25,7 @@ use crate::{
     host::InstanceCreator,
 };
 use core_processor::common::JournalNote;
-use ethexe_common::{BlockHeader, db::CodesStorageRO, gear::MessageType};
+use ethexe_common::{db::CodesStorageRO, gear::MessageType};
 use ethexe_db::Database;
 use ethexe_runtime_common::{InBlockTransitions, TransitionController};
 use gear_core::{
@@ -55,7 +55,8 @@ impl OverlaidRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         instance_creator: InstanceCreator,
-        block_header: BlockHeader,
+        height: u32,
+        timestamp: u64,
     ) -> Self {
         let mut transition_controller = TransitionController {
             transitions: &mut transitions,
@@ -83,7 +84,8 @@ impl OverlaidRunContext {
                 transitions,
                 gas_allowance,
                 chunk_size,
-                block_header,
+                height,
+                timestamp,
                 None,
             ),
             base_program,

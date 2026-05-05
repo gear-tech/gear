@@ -39,6 +39,7 @@ impl From<ChainCommitment> for Gear::ChainCommitment {
         Self {
             transitions: value.transitions.into_iter().map(Into::into).collect(),
             head: value.head.0.into(),
+            lastAdvancedEthBlock: value.last_advanced_eth_block.0.into(),
         }
     }
 }

@@ -33,6 +33,12 @@ impl From<IRouter::AnnouncesCommitted> for AnnouncesCommittedEvent {
     }
 }
 
+impl From<IRouter::LastAdvancedEthBlockCommitted> for LastAdvancedEthBlockCommittedEvent {
+    fn from(value: IRouter::LastAdvancedEthBlockCommitted) -> Self {
+        Self(bytes32_to_h256(value.ethBlockHash))
+    }
+}
+
 impl From<IRouter::CodeGotValidated> for CodeGotValidatedEvent {
     fn from(value: IRouter::CodeGotValidated) -> Self {
         Self {

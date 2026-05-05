@@ -158,12 +158,10 @@ pub use host::InstanceError;
 
 use core::num::NonZero;
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
-    db::OnChainStorageRO,
+    CodeAndIdUnchecked, ProgramStates, Schedule,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
     injected::{InjectedTransaction, Promise},
-    mb::Transaction,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -205,14 +203,6 @@ pub enum ProcessorError {
 
     #[error("calling or instantiating runtime error: {0}")]
     Runtime(#[from] host::InstanceError),
-
-    #[error("AdvanceTillEthereumBlock walk hit a missing parent header at {hash}")]
-    AdvanceMissingHeader { hash: H256 },
-
-    #[error(
-        "AdvanceTillEthereumBlock walk from {target} to {last_advanced} exceeded the safety cap"
-    )]
-    AdvanceWalkTooDeep { target: H256, last_advanced: H256 },
 
     #[error("anyhow error: {0}")]
     Anyhow(#[from] anyhow::Error),
@@ -321,6 +311,8 @@ impl Processor {
         Ok(ProcessedCodeInfo { code_id, valid })
     }
 
+    /// Execute one MB given prepared inputs. Three-phase pipeline:
+    /// inject + apply events → run scheduled tasks → drain queues with `gas_allowance`.
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
@@ -329,7 +321,8 @@ impl Processor {
         log::debug!("{executable}");
 
         let ExecutableData {
-            block,
+            height,
+            timestamp,
             program_states,
             schedule,
             injected_transactions,
@@ -337,141 +330,19 @@ impl Processor {
             events,
         } = executable;
 
-        let mut transitions =
-            InBlockTransitions::new(block.header.height, program_states, schedule);
+        let mut transitions = InBlockTransitions::new(height, program_states, schedule);
 
-        // First step: push injected to queues and handle block events.
         transitions =
             self.handle_injected_and_events(transitions, injected_transactions, events)?;
-
-        // Second step: process scheduled tasks.
         transitions = self.process_tasks(transitions);
 
-        // Third step: process queues until limits are exhausted or all queues are empty.
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance, promise_out_tx)
+                .process_queues(transitions, height, timestamp, gas_allowance, promise_out_tx)
                 .await?;
         }
 
         Ok(transitions.finalize())
-    }
-
-    /// Execute an MB by walking its `Transactions` list against an in-block
-    /// handler. `AdvanceTillEthereumBlock` folds in router/mirror events,
-    /// `Injected` enqueues a user tx, `ProgressTasks` drains the scheduler,
-    /// `ProcessQueues` drains program queues under `gas_allowance`.
-    pub async fn process_transitions(
-        &mut self,
-        initial_program_states: ProgramStates,
-        initial_schedule: Schedule,
-        block: SimpleBlockData,
-        transactions: &[Transaction],
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-        initial_advanced_block: H256,
-    ) -> Result<FinalizedBlockTransitions> {
-        log::debug!(
-            "Processing {} MB transactions at synthetic block {block}",
-            transactions.len()
-        );
-
-        let transitions = InBlockTransitions::new(
-            block.header.height,
-            initial_program_states,
-            initial_schedule,
-        );
-        let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
-
-        // Youngest folded-in EB; advances on each `AdvanceTillEthereumBlock`.
-        let mut current_anchor = initial_advanced_block;
-
-        for tx in transactions {
-            match tx {
-                Transaction::AdvanceTillEthereumBlock { block_hash: eth_block_hash } => {
-                    let target = *eth_block_hash;
-                    let chain = self.collect_advance_chain(target, current_anchor)?;
-                    for hash in chain {
-                        let events = self.db.block_events(hash).unwrap_or_else(|| {
-                            log::debug!("AdvanceTillEthereumBlock: no events for {hash} in DB");
-                            Default::default()
-                        });
-                        for event in events.into_iter().filter_map(|e| e.to_request()) {
-                            match event {
-                                BlockRequestEvent::Router(event) => {
-                                    handler.handle_router_event(event)?;
-                                }
-                                BlockRequestEvent::Mirror { actor_id, event } => {
-                                    handler.handle_mirror_event(actor_id, event)?;
-                                }
-                            }
-                        }
-                    }
-                    current_anchor = target;
-                }
-                Transaction::Injected(signed) => {
-                    let verified = signed.clone().into_verified();
-                    let source = verified.address().into();
-                    let (data, _) = verified.into_parts();
-                    handler.handle_injected_transaction(source, data)?;
-                }
-                Transaction::ProgressTasks { limits: _ } => {
-                    let transitions = handler.into_transitions();
-                    let transitions = self.process_tasks(transitions);
-                    handler = ProcessingHandler::new(self.db.clone(), transitions);
-                }
-                Transaction::ProcessQueues { limits } => {
-                    let transitions = handler.into_transitions();
-                    let transitions = self
-                        .process_queues(
-                            transitions,
-                            block,
-                            limits.gas_allowance,
-                            promise_out_tx.clone(),
-                        )
-                        .await?;
-                    handler = ProcessingHandler::new(self.db.clone(), transitions);
-                }
-            }
-        }
-
-        Ok(handler.into_transitions().finalize())
-    }
-
-    /// EBs in `(last_advanced, target]`, oldest-first; capped at 1024.
-    /// `last_advanced == zero` walks until the chain runs out (genesis case).
-    fn collect_advance_chain(
-        &self,
-        target: H256,
-        last_advanced: H256,
-    ) -> Result<Vec<H256>, ProcessorError> {
-        const MAX_ADVANCE_STEPS: usize = 1024;
-
-        if target == last_advanced {
-            return Ok(Vec::new());
-        }
-
-        let mut chain = Vec::new();
-        let mut current = target;
-        while current != last_advanced && current != H256::zero() {
-            if chain.len() >= MAX_ADVANCE_STEPS {
-                return Err(ProcessorError::AdvanceWalkTooDeep {
-                    target,
-                    last_advanced,
-                });
-            }
-            let Some(header) = self.db.block_header(current) else {
-                // Hard error if `target` itself is missing; otherwise treat as chain fence.
-                if chain.is_empty() {
-                    return Err(ProcessorError::AdvanceMissingHeader { hash: current });
-                }
-                break;
-            };
-            chain.push(current);
-            current = header.parent_hash;
-        }
-
-        chain.reverse();
-        Ok(chain)
     }
 
     fn handle_injected_and_events(
@@ -505,7 +376,8 @@ impl Processor {
     async fn process_queues(
         &mut self,
         transitions: InBlockTransitions,
-        block: SimpleBlockData,
+        height: u32,
+        timestamp: u64,
         gas_allowance: u64,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<InBlockTransitions> {
@@ -515,7 +387,8 @@ impl Processor {
             transitions,
             gas_allowance,
             self.config.chunk_size,
-            block.header,
+            height,
+            timestamp,
             promise_out_tx,
         )
         .run()
@@ -558,13 +431,13 @@ pub struct ValidCodeInfo {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "{block}, programs amount: {}, schedule len: {}, gas_allowance: {gas_allowance:?},
-    injected: {injected_transactions:?},
-    events: {events:?}",
-    program_states.len(), schedule.len(),
+    "ExecutableData(height: {height}, timestamp: {timestamp}, programs: {}, \
+    schedule len: {}, gas_allowance: {gas_allowance:?}, injected: {}, events: {})",
+    program_states.len(), schedule.len(), injected_transactions.len(), events.len(),
 )]
 pub struct ExecutableData {
-    pub block: SimpleBlockData,
+    pub height: u32,
+    pub timestamp: u64,
     pub program_states: ProgramStates,
     pub schedule: Schedule,
     pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
@@ -576,7 +449,8 @@ pub struct ExecutableData {
 impl Default for ExecutableData {
     fn default() -> Self {
         Self {
-            block: SimpleBlockData::default(),
+            height: 0,
+            timestamp: 0,
             program_states: ProgramStates::default(),
             schedule: Schedule::default(),
             injected_transactions: vec![],
@@ -588,12 +462,13 @@ impl Default for ExecutableData {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "Execution for reply at {block:?}: block: {block:?}, \
+    "Execution for reply at height {height} timestamp {timestamp}: \
     program_id: {program_id}, source: {source}, payload len: {}, \
     value: {value}, gas_allowance: {gas_allowance}", payload.len()
 )]
 pub struct ExecutableDataForReply {
-    pub block: SimpleBlockData,
+    pub height: u32,
+    pub timestamp: u64,
     pub program_states: ProgramStates,
     pub source: ActorId,
     pub program_id: ActorId,
@@ -613,7 +488,8 @@ impl OverlaidProcessor {
         log::debug!("{executable}");
 
         let ExecutableDataForReply {
-            block,
+            height,
+            timestamp,
             program_states,
             source,
             program_id,
@@ -637,8 +513,7 @@ impl OverlaidProcessor {
             return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
-        let transitions =
-            InBlockTransitions::new(block.header.height, program_states, Schedule::default());
+        let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
 
         let transitions = self.0.handle_injected_and_events(
             transitions,
@@ -664,7 +539,8 @@ impl OverlaidProcessor {
             gas_allowance,
             self.0.config.chunk_size,
             self.0.creator.clone(),
-            block.header,
+            height,
+            timestamp,
         )
         .run()
         .await?;

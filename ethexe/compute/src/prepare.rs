@@ -27,7 +27,8 @@ use ethexe_common::{
         BlockEvent, RouterEvent,
         router::{
             AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
-            CodeValidationRequestedEvent, ValidatorsCommittedForEraEvent,
+            CodeValidationRequestedEvent, LastAdvancedEthBlockCommittedEvent,
+            ValidatorsCommittedForEraEvent,
         },
     },
 };
@@ -299,6 +300,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
         .ok_or(ComputeError::CommittedEraNotFound(parent))?;
 
     let mut last_committed_mb_hash = None;
+    let mut last_committed_advanced_eth_block: Option<H256> = None;
 
     for event in block.events {
         match event {
@@ -318,6 +320,11 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
                 last_committed_mb_hash = Some(head);
+            }
+            BlockEvent::Router(RouterEvent::LastAdvancedEthBlockCommitted(
+                LastAdvancedEthBlockCommittedEvent(eth_block_hash),
+            )) => {
+                last_committed_advanced_eth_block = Some(eth_block_hash);
             }
 
             BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(
@@ -347,10 +354,14 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
         parent_meta.last_committed_mb
     };
 
+    let last_committed_advanced_eth_block = last_committed_advanced_eth_block
+        .or(parent_meta.last_committed_advanced_eth_block);
+
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
         meta.codes_queue = Some(codes_queue);
         meta.last_committed_mb = last_committed_mb_hash;
+        meta.last_committed_advanced_eth_block = last_committed_advanced_eth_block;
         meta.prepared = true;
         meta.latest_era_validators_committed = Some(latest_validators_committed_era);
     });

@@ -88,6 +88,21 @@ impl BatchCommitmentManager {
                 latest_finalized_mb,
                 &mut batch_filler,
             )?;
+
+            // Checkpoint: if no chain commitment fits but the producer's
+            // `last_advanced_eth_block` is far ahead of `last_committed_advanced_eth_block`,
+            // emit an empty chain commitment that just bumps the on-chain anchor.
+            if !batch_filler.has_chain_commitment()
+                && self.limits.uncommitted_chain_len_threshold > 0
+            {
+                super::utils::try_include_checkpoint_chain_commitment(
+                    &self.db,
+                    block.hash,
+                    latest_finalized_mb,
+                    self.limits.uncommitted_chain_len_threshold,
+                    &mut batch_filler,
+                )?;
+            }
         }
 
         let queue = self.db.block_meta(block.hash).codes_queue.ok_or_else(|| {
@@ -268,6 +283,7 @@ impl BatchCommitmentManager {
             let mut chain_commitment = ChainCommitment {
                 transitions: Vec::new(),
                 head: head_mb,
+                last_advanced_eth_block: self.db.mb_meta(head_mb).last_advanced_block,
             };
             for mb_hash in pending.into_iter() {
                 let Some(mb_transitions) = self.db.mb_outcome(mb_hash) else {

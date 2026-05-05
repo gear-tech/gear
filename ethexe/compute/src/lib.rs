@@ -106,11 +106,8 @@
 //!   service layer enforces this by gating event emission on
 //!   [`MalachiteService::notify_block_synced`](ethexe_malachite::MalachiteService::notify_block_synced).
 
-use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData, injected::Promise,
-    mb::Transaction,
-};
-use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorError};
+use ethexe_common::{CodeAndIdUnchecked, injected::Promise};
+use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 use std::collections::HashSet;
@@ -188,6 +185,14 @@ pub enum ComputeError {
     #[error("MB block {0} not found in db while walking parent chain")]
     MbBlockNotFound(H256),
 
+    #[error("AdvanceTillEthereumBlock walk hit a missing parent header at {hash}")]
+    AdvanceMissingHeader { hash: H256 },
+
+    #[error(
+        "AdvanceTillEthereumBlock walk from {target} to {last_advanced} exceeded the safety cap"
+    )]
+    AdvanceWalkTooDeep { target: H256, last_advanced: H256 },
+
     #[error(transparent)]
     Processor(#[from] ProcessorError),
 }
@@ -195,20 +200,11 @@ pub enum ComputeError {
 type Result<T> = std::result::Result<T, ComputeError>;
 
 pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
-    /// Process a Malachite sequencer block — drives the executor by
-    /// stepping through the supplied transaction list against the
-    /// initial program states / schedule / synthetic block. Returns
-    /// the post-execution transitions. The gas budget for any
-    /// `ProcessQueues` step is carried inside the transaction itself
-    /// (see [`ethexe_common::mb::ProcessQueuesLimits`]).
-    fn process_transitions(
+    /// Run the processor's three-phase pipeline against `executable`.
+    fn process_programs(
         &mut self,
-        initial_program_states: ProgramStates,
-        initial_schedule: Schedule,
-        block: SimpleBlockData,
-        transactions: Vec<Transaction>,
+        executable: ExecutableData,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-        initial_advanced_block: H256,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
     fn process_code(
         &mut self,
@@ -217,25 +213,14 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
 }
 
 impl ProcessorExt for Processor {
-    async fn process_transitions(
+    async fn process_programs(
         &mut self,
-        initial_program_states: ProgramStates,
-        initial_schedule: Schedule,
-        block: SimpleBlockData,
-        transactions: Vec<Transaction>,
+        executable: ExecutableData,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-        initial_advanced_block: H256,
     ) -> Result<FinalizedBlockTransitions> {
-        self.process_transitions(
-            initial_program_states,
-            initial_schedule,
-            block,
-            &transactions,
-            promise_out_tx,
-            initial_advanced_block,
-        )
-        .await
-        .map_err(Into::into)
+        self.process_programs(executable, promise_out_tx)
+            .await
+            .map_err(Into::into)
     }
 
     async fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {

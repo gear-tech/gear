@@ -42,6 +42,7 @@ use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 // head before it ever submits — operators tune this up only when
 // participants need extra time to converge on the same head.
 const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 0;
+const DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD: u32 = 500;
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;
@@ -129,6 +130,14 @@ pub struct NodeParams {
     #[serde(default, rename = "coordinator-aggregation-delay-ms")]
     pub coordinator_aggregation_delay_ms: Option<u64>,
 
+    /// Force a checkpoint chain commitment when the producer's
+    /// `last_advanced_eth_block` runs ahead of the on-chain
+    /// `last_committed_advanced_eth_block` by more than this many Eth blocks.
+    /// Zero disables.
+    #[arg(long)]
+    #[serde(default, rename = "uncommitted-chain-len-threshold")]
+    pub uncommitted_chain_len_threshold: Option<u32>,
+
     /// Path to genesis state dump file (.blob or .json) for initial chain state.
     #[arg(long)]
     #[serde(default, rename = "genesis-state-dump")]
@@ -187,6 +196,9 @@ impl NodeParams {
                 self.coordinator_aggregation_delay_ms
                     .unwrap_or(DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS),
             ),
+            uncommitted_chain_len_threshold: self
+                .uncommitted_chain_len_threshold
+                .unwrap_or(DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD),
             genesis_state_dump: self.genesis_state_dump,
         })
     }
@@ -270,6 +282,10 @@ impl MergeParams for NodeParams {
             coordinator_aggregation_delay_ms: self
                 .coordinator_aggregation_delay_ms
                 .or(with.coordinator_aggregation_delay_ms),
+
+            uncommitted_chain_len_threshold: self
+                .uncommitted_chain_len_threshold
+                .or(with.uncommitted_chain_len_threshold),
 
             genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
         }

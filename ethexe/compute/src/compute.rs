@@ -26,12 +26,13 @@
 
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    BlockHeader, SimpleBlockData,
-    db::{CodesStorageRW, MbStorageRO, MbStorageRW},
+    db::{CodesStorageRW, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
+    events::BlockRequestEvent,
     injected::Promise,
-    mb::Transactions,
+    mb::{Transaction, Transactions},
 };
 use ethexe_db::Database;
+use ethexe_processor::ExecutableData;
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture};
 use gprimitives::H256;
@@ -176,64 +177,39 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         block: Transactions,
         promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<()> {
-        // Parent linkage lives in `mb_compact_block`, populated by the
-        // malachite service before BlockProposal fires for `mb_hash`.
         let parent_mb_hash = db
             .mb_compact_block(mb_hash)
             .and_then(|c| (!c.parent.is_zero()).then_some(c.parent));
 
-        let initial_program_states = parent_mb_hash
+        let program_states = parent_mb_hash
             .and_then(|h| db.mb_program_states(h))
             .unwrap_or_default();
-        let initial_schedule = parent_mb_hash
+        let schedule = parent_mb_hash
             .and_then(|h| db.mb_schedule(h))
             .unwrap_or_default();
-        // The processor walks the canonical Eth chain starting at
-        // `last_advanced_block + 1` for each `AdvanceTillEthereumBlock`
-        // tx, so it needs the parent MB's anchor as the seed value.
-        // For genesis MB this is `H256::zero()`.
         let initial_advanced_block = parent_mb_hash
             .map(|h| db.mb_meta(h).last_advanced_block)
             .unwrap_or_default();
 
-        // Synthetic block header per MVP convention agreed with the
-        // user: height/timestamp both come from the MB number. The
-        // `parent_hash` is the parent MB hash (or zero for the very
-        // first MB) — this is purely traceability, no part of the
-        // executor depends on its value.
-        let synthetic_block = SimpleBlockData {
-            hash: mb_hash,
-            header: BlockHeader {
-                height: mb_height as u32,
-                timestamp: mb_height,
-                parent_hash: parent_mb_hash.unwrap_or_default(),
-            },
-        };
+        let _ = mb_height;
+        let prepared = build_executable_data(
+            db,
+            block,
+            program_states,
+            schedule,
+            initial_advanced_block,
+        )?;
 
         log::debug!(
-            "mb-compute: executing MB height {} hash {} (parent {:?}, {} txs)",
-            mb_height,
-            mb_hash,
-            parent_mb_hash,
-            block.len(),
+            "mb-compute: executing MB height {mb_height} hash {mb_hash} \
+             (parent {parent_mb_hash:?}, eth height {}, eth ts {}, events: {}, injected: {})",
+            prepared.height,
+            prepared.timestamp,
+            prepared.events.len(),
+            prepared.injected_transactions.len(),
         );
 
-        // The runtime forwards each [`Promise`] through `promise_out_tx`
-        // as soon as `ext_publish_promise` fires inside the executor.
-        // The sub-service-level stream keeps the receiver and
-        // surfaces the events to the service one by one, so we don't
-        // need to drain anything here — handing the sender clone off
-        // to the processor is enough.
-        let processing_result = processor
-            .process_transitions(
-                initial_program_states,
-                initial_schedule,
-                synthetic_block,
-                block.0,
-                promise_out_tx,
-                initial_advanced_block,
-            )
-            .await?;
+        let processing_result = processor.process_programs(prepared, promise_out_tx).await?;
 
         let FinalizedBlockTransitions {
             transitions,
@@ -257,6 +233,99 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 
         Ok(())
     }
+}
+
+/// Walk the MB's `Transactions` list and prepare processor input.
+///
+/// Synthetic block height/timestamp come from `last_advanced_block` (the latest
+/// EB pinned by this MB or any ancestor); if none, fall back to the router's
+/// genesis block from [`ConfigStorageRO::config`].
+fn build_executable_data(
+    db: &Database,
+    block: Transactions,
+    program_states: ethexe_common::ProgramStates,
+    schedule: ethexe_common::Schedule,
+    initial_advanced_block: H256,
+) -> Result<ExecutableData> {
+    let mut events: Vec<BlockRequestEvent> = Vec::new();
+    let mut injected_transactions = Vec::new();
+    let mut gas_allowance: Option<u64> = None;
+    let mut current_anchor = initial_advanced_block;
+
+    for tx in block.0 {
+        match tx {
+            Transaction::AdvanceTillEthereumBlock { block_hash } => {
+                let chain = collect_advance_chain(db, block_hash, current_anchor)?;
+                for hash in chain {
+                    let block_events = db.block_events(hash).unwrap_or_default();
+                    for event in block_events.into_iter().filter_map(|e| e.to_request()) {
+                        events.push(event);
+                    }
+                }
+                current_anchor = block_hash;
+            }
+            Transaction::Injected(signed) => {
+                let verified = signed.into_verified();
+                injected_transactions.push(verified);
+            }
+            Transaction::ProgressTasks { limits: _ } => {}
+            Transaction::ProcessQueues { limits } => {
+                gas_allowance = Some(limits.gas_allowance);
+            }
+        }
+    }
+
+    let anchor_eth_block = if current_anchor.is_zero() {
+        db.config().genesis_block_hash
+    } else {
+        current_anchor
+    };
+
+    let (height, timestamp) = db
+        .block_header(anchor_eth_block)
+        .map(|h| (h.height, h.timestamp))
+        .unwrap_or((0, 0));
+
+    Ok(ExecutableData {
+        height,
+        timestamp,
+        program_states,
+        schedule,
+        injected_transactions,
+        gas_allowance,
+        events,
+    })
+}
+
+/// EBs in `(last_advanced, target]`, oldest-first; capped at 1024.
+fn collect_advance_chain(db: &Database, target: H256, last_advanced: H256) -> Result<Vec<H256>> {
+    const MAX_ADVANCE_STEPS: usize = 1024;
+
+    if target == last_advanced {
+        return Ok(Vec::new());
+    }
+
+    let mut chain = Vec::new();
+    let mut current = target;
+    while current != last_advanced && current != H256::zero() {
+        if chain.len() >= MAX_ADVANCE_STEPS {
+            return Err(ComputeError::AdvanceWalkTooDeep {
+                target,
+                last_advanced,
+            });
+        }
+        let Some(header) = db.block_header(current) else {
+            if chain.is_empty() {
+                return Err(ComputeError::AdvanceMissingHeader { hash: current });
+            }
+            break;
+        };
+        chain.push(current);
+        current = header.parent_hash;
+    }
+
+    chain.reverse();
+    Ok(chain)
 }
 
 /// Uncomputed ancestors of `target_hash`, oldest-first; stops at genesis or
@@ -359,17 +428,29 @@ mod tests {
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
-        db::CompactBlock,
+        BlockHeader,
+        db::{CompactBlock, OnChainStorageRW},
         mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction},
     };
 
-    fn dummy_txs(tag: u8) -> Transactions {
+    fn dummy_txs(db: &Database, tag: u8) -> Transactions {
         // Tag-derived AdvanceTillEthereumBlock makes each block's
-        // transaction list (and thus its CAS hash) unique across
-        // heights.
+        // transaction list (and thus its CAS hash) unique across heights.
+        // The referenced EB also needs a header in the DB so the
+        // compute-side advance walk picks it up.
+        let eth_block_hash = H256::from_low_u64_be(0xEB00 + tag as u64);
+        db.set_block_header(
+            eth_block_hash,
+            BlockHeader {
+                height: tag as u32,
+                timestamp: tag as u64,
+                parent_hash: H256::zero(),
+            },
+        );
+        db.set_block_events(eth_block_hash, &[]);
         Transactions::new(vec![
             Transaction::AdvanceTillEthereumBlock {
-                block_hash: H256::from_low_u64_be(0xEB00 + tag as u64),
+                block_hash: eth_block_hash,
             },
             Transaction::ProgressTasks {
                 limits: ProgressTasksLimits::default(),
@@ -407,7 +488,7 @@ mod tests {
         let mut parent = H256::zero();
         for i in 1..=N {
             let mb_hash = H256::from_low_u64_be(0x1000 + i);
-            seed_mb(&db, mb_hash, parent, i, dummy_txs(i as u8));
+            seed_mb(&db, mb_hash, parent, i, dummy_txs(&db, i as u8));
             hashes.push((i, mb_hash));
             parent = mb_hash;
         }
@@ -448,7 +529,7 @@ mod tests {
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
         let mb_hash = H256::from_low_u64_be(0xCAFE);
-        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_txs(0));
+        seed_mb(&db, mb_hash, H256::zero(), 1, dummy_txs(&db, 0));
         db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true; // pretend a previous run finished it
         });
@@ -467,4 +548,5 @@ mod tests {
             other => panic!("expected MbComputed, got {other:?}"),
         }
     }
+
 }

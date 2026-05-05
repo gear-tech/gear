@@ -47,10 +47,9 @@ pub async fn spawn_chunk_execution(
 
     let promise_policy = ctx.promise_policy();
 
-    let block_header = ctx.inner().block_header;
     let block_info = BlockInfo {
-        height: block_header.height,
-        timestamp: block_header.timestamp,
+        height: ctx.inner().height,
+        timestamp: ctx.inner().timestamp,
     };
 
     chunk

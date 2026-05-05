@@ -41,20 +41,13 @@ use scale_info::TypeInfo;
 /// Ethexe metadata associated with an on-chain block.
 #[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
-    /// Block has been prepared, meaning:
-    /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
-    /// Queue of code ids waiting for validation status commitment on-chain.
     pub codes_queue: Option<VecDeque<CodeId>>,
-    /// Last committed on-chain batch hash.
     pub last_committed_batch: Option<Digest>,
-    /// Last committed on-chain MB hash visible from this Ethereum block.
-    /// Updated when the coordinator successfully submits a [`BatchCommitment`]
-    /// whose [`ChainCommitment`] head was an MB. Per-Eth-block (rather than
-    /// global) so reorgs don't lose track of what was committed on the
-    /// canonical chain.
+    /// Last committed MB hash visible from this Eth block.
     pub last_committed_mb: Option<H256>,
-    /// Latest era with committed validators.
+    /// Eth block hash from the last committed `ChainCommitment::last_advanced_eth_block`.
+    pub last_committed_advanced_eth_block: Option<H256>,
     pub latest_era_validators_committed: Option<u64>,
 }
 
@@ -257,7 +250,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "00bc2449d273187c173dc49d055b1bc10113d0d1723e0b561e82902375faef38";
+            "db6bc4839e6492298211d675ad7e98295343bbb3e617dca097d4bbd928fc4a9a";
 
         let types = [
             meta_type::<BlockMeta>(),

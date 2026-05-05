@@ -63,24 +63,27 @@ pub struct AddressBook {
     pub wrapped_vara: ActorId,
 }
 
-/// Squashed chain commitment that contains all state transitions and gear blocks.
-///
-/// `head` is the hash of the most recent finalized
-/// `ethexe_malachite_core::Block` envelope covered by this commitment.
-/// It anchors the chain on the on-chain side so that commitments can't
-/// silently jump over MBs between batches.
+/// Squashed chain commitment with state transitions, MB head, and the latest
+/// folded-in Ethereum block hash. The Eth block field drives checkpoint batches
+/// when the producer's local chain pulls far ahead of `last_committed_advanced_eth_block`.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
     pub head: H256,
+    pub last_advanced_eth_block: H256,
 }
 
 impl ToDigest for ChainCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let ChainCommitment { transitions, head } = self;
+        let ChainCommitment {
+            transitions,
+            head,
+            last_advanced_eth_block,
+        } = self;
 
         hasher.update(transitions.to_digest());
         hasher.update(head.0);
+        hasher.update(last_advanced_eth_block.0);
     }
 }
 

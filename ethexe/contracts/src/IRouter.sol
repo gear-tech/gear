@@ -135,6 +135,15 @@ interface IRouter {
     event AnnouncesCommitted(bytes32 head);
 
     /**
+     * @notice Emitted when a chain commitment carrying a `lastAdvancedEthBlock` lands on-chain.
+     * @dev Lets observers update `last_committed_advanced_eth_block` so the producer
+     *      can decide when to issue a checkpoint batch even with no transitions.
+     * @param ethBlockHash Latest Ethereum block hash whose events were folded into the
+     *                     chain commitment's MB head.
+     */
+    event LastAdvancedEthBlockCommitted(bytes32 ethBlockHash);
+
+    /**
      * @notice Emitted when a code, previously requested for validation, receives validation results, so its `Gear.CodeState` changed.
      * @dev This is an *informational* event, signaling the results of code validation.
      * @param codeId The ID of the code that was validated. It's calculated as `gprimitives::CodeId::generate(wasm_code)` (blake2b hash).

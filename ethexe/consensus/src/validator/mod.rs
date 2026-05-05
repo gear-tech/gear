@@ -97,6 +97,10 @@ pub struct ValidatorConfig {
     /// batch aggregation. Buys participants time to receive the same head
     /// and lets compute catch up on the latest finalized MB.
     pub coordinator_aggregation_delay: Duration,
+    /// Force a checkpoint chain commitment when the producer's view of
+    /// `last_advanced_eth_block` runs ahead of `last_committed_advanced_eth_block`
+    /// by more than this many Eth blocks (zero disables the gate).
+    pub uncommitted_chain_len_threshold: u32,
 }
 
 impl ValidatorService {
@@ -111,6 +115,7 @@ impl ValidatorService {
         let limits = BatchLimits {
             commitment_delay_limit: config.commitment_delay_limit,
             batch_size_limit: config.batch_size_limit,
+            uncommitted_chain_len_threshold: config.uncommitted_chain_len_threshold,
         };
 
         let middleware = MiddlewareWrapper::from_inner(election_provider);

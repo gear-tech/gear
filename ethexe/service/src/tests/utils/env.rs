@@ -1131,6 +1131,7 @@ impl Node {
                             router_address: self.eth_cfg.router_address,
                             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
                             coordinator_aggregation_delay: std::time::Duration::ZERO,
+                            uncommitted_chain_len_threshold: 0,
                         },
                     )
                     .unwrap(),

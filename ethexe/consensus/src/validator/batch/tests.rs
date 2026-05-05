@@ -459,6 +459,7 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
         BatchLimits {
             commitment_delay_limit: 100,
             batch_size_limit: BLOCK_GAS_LIMIT, // large
+            uncommitted_chain_len_threshold: 0,
         },
     );
     let batch = big_manager
@@ -473,6 +474,7 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
         BatchLimits {
             commitment_delay_limit: 100,
             batch_size_limit: 256, // intentionally tiny
+            uncommitted_chain_len_threshold: 0,
         },
     );
     let status = strict_manager

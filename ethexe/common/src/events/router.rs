@@ -33,6 +33,10 @@ pub struct BatchCommittedEvent {
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AnnouncesCommittedEvent(pub H256);
 
+/// Carries the latest folded-in Ethereum block hash from a chain commitment.
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LastAdvancedEthBlockCommittedEvent(pub H256);
+
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeGotValidatedEvent {
     pub code_id: CodeId,
@@ -77,6 +81,7 @@ pub struct ValidatorsCommittedForEraEvent {
 pub enum Event {
     BatchCommitted(BatchCommittedEvent),
     AnnouncesCommitted(AnnouncesCommittedEvent),
+    LastAdvancedEthBlockCommitted(LastAdvancedEthBlockCommittedEvent),
     CodeGotValidated(CodeGotValidatedEvent),
     CodeValidationRequested(CodeValidationRequestedEvent),
     ComputationSettingsChanged(ComputationSettingsChangedEvent),
@@ -100,6 +105,7 @@ impl Event {
             }
             Self::CodeGotValidated { .. }
             | Self::AnnouncesCommitted(_)
+            | Self::LastAdvancedEthBlockCommitted(_)
             | Self::BatchCommitted { .. } => return None,
         })
     }

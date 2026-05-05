@@ -106,6 +106,10 @@ pub struct NodeConfig {
     /// participants to receive the same chain head and lets the previous
     /// MB finish executing.
     pub coordinator_aggregation_delay: Duration,
+    /// Force a checkpoint chain commitment when the producer's
+    /// `last_advanced_eth_block` runs ahead of `last_committed_advanced_eth_block`
+    /// by more than this many Eth blocks. Zero disables.
+    pub uncommitted_chain_len_threshold: u32,
     pub genesis_state_dump: Option<PathBuf>,
 }
 

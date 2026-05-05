@@ -39,7 +39,7 @@ use tokio::{sync::mpsc, time::timeout};
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
 #[derive(Clone, Default)]
 pub(crate) struct MockProcessor {
-    pub process_transitions_result: Option<FinalizedBlockTransitions>,
+    pub process_programs_result: Option<FinalizedBlockTransitions>,
     pub process_codes_result: Option<ProcessedCodeInfo>,
     pub process_code_calls: std::sync::Arc<std::sync::Mutex<Vec<CodeAndIdUnchecked>>>,
 }
@@ -47,7 +47,7 @@ pub(crate) struct MockProcessor {
 impl MockProcessor {
     pub fn with_default_valid_code() -> Self {
         Self {
-            process_transitions_result: None,
+            process_programs_result: None,
             process_codes_result: Some(ProcessedCodeInfo {
                 code_id: CodeId::zero(),
                 valid: Some(ValidCodeInfo {
@@ -78,16 +78,12 @@ impl MockProcessor {
 }
 
 impl ProcessorExt for MockProcessor {
-    async fn process_transitions(
+    async fn process_programs(
         &mut self,
-        _initial_program_states: ProgramStates,
-        _initial_schedule: Schedule,
-        _block: SimpleBlockData,
-        _transactions: Vec<Transaction>,
+        _executable: ethexe_processor::ExecutableData,
         _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-        _initial_advanced_block: H256,
     ) -> Result<FinalizedBlockTransitions> {
-        Ok(self.process_transitions_result.take().unwrap_or_default())
+        Ok(self.process_programs_result.take().unwrap_or_default())
     }
 
     async fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {

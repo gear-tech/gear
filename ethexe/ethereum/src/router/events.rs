@@ -49,6 +49,7 @@ pub mod signatures {
         IRouter;
         BATCH_COMMITTED: BatchCommitted,
         ANNOUNCES_COMMITTED: AnnouncesCommitted,
+        LAST_ADVANCED_ETH_BLOCK_COMMITTED: LastAdvancedEthBlockCommitted,
         CODE_GOT_VALIDATED: CodeGotValidated,
         CODE_VALIDATION_REQUESTED: CodeValidationRequested,
         COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
@@ -78,6 +79,9 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
         ANNOUNCES_COMMITTED => {
             RouterEvent::AnnouncesCommitted(decode_log::<IRouter::AnnouncesCommitted>(log)?.into())
         }
+        LAST_ADVANCED_ETH_BLOCK_COMMITTED => RouterEvent::LastAdvancedEthBlockCommitted(
+            decode_log::<IRouter::LastAdvancedEthBlockCommitted>(log)?.into(),
+        ),
         CODE_GOT_VALIDATED => {
             RouterEvent::CodeGotValidated(decode_log::<IRouter::CodeGotValidated>(log)?.into())
         }
@@ -143,6 +147,7 @@ impl<'a> AllEventsBuilder<'a> {
             .event_signature(Topic::from_iter([
                 signatures::BATCH_COMMITTED,
                 signatures::ANNOUNCES_COMMITTED,
+                signatures::LAST_ADVANCED_ETH_BLOCK_COMMITTED,
                 signatures::CODE_GOT_VALIDATED,
                 signatures::CODE_VALIDATION_REQUESTED,
                 signatures::COMPUTATION_SETTINGS_CHANGED,

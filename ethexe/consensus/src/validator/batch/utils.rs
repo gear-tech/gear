@@ -23,7 +23,7 @@ use super::types::CodeNotValidatedError;
 use anyhow::{Result, anyhow, bail};
 use ethexe_common::{
     SimpleBlockData,
-    db::{BlockMetaStorageRO, CodesStorageRO, MbStorageRO},
+    db::{BlockMetaStorageRO, CodesStorageRO, MbStorageRO, OnChainStorageRO},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
     },
@@ -243,6 +243,7 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         let trial_commitment = ChainCommitment {
             head: *mb_hash,
             transitions: trial,
+            last_advanced_eth_block: db.mb_meta(*mb_hash).last_advanced_block,
         };
         if !batch_filler.would_fit_chain_commitment(&trial_commitment) {
             break;
@@ -255,6 +256,11 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     let commitment = ChainCommitment {
         head: last_included,
         transitions,
+        last_advanced_eth_block: if last_included == last_committed_mb {
+            H256::zero()
+        } else {
+            db.mb_meta(last_included).last_advanced_block
+        },
     };
 
     if let Err(err) = batch_filler.include_chain_commitment(commitment) {
@@ -265,6 +271,64 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     }
 
     Ok(last_included)
+}
+
+/// If `last_advanced_eth_block` of `mb_head` is more than `threshold` Eth blocks
+/// past `block.last_committed_advanced_eth_block`, force an empty chain commitment
+/// that pins the head MB and the new advanced anchor on-chain.
+pub fn try_include_checkpoint_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO + OnChainStorageRO>(
+    db: &DB,
+    at_block: H256,
+    mb_head: H256,
+    threshold: u32,
+    batch_filler: &mut BatchFiller,
+) -> Result<()> {
+    let advanced = db.mb_meta(mb_head).last_advanced_block;
+    if advanced.is_zero() {
+        return Ok(());
+    }
+    let Some(advanced_header) = db.block_header(advanced) else {
+        return Ok(());
+    };
+
+    let last_committed_advanced = db
+        .block_meta(at_block)
+        .last_committed_advanced_eth_block
+        .unwrap_or(H256::zero());
+    let last_committed_height = if last_committed_advanced.is_zero() {
+        0
+    } else {
+        db.block_header(last_committed_advanced)
+            .map(|h| h.height)
+            .unwrap_or(0)
+    };
+
+    let gap = advanced_header.height.saturating_sub(last_committed_height);
+    if gap <= threshold {
+        return Ok(());
+    }
+
+    let commitment = ChainCommitment {
+        head: mb_head,
+        transitions: Vec::new(),
+        last_advanced_eth_block: advanced,
+    };
+
+    if let Err(err) = batch_filler.include_chain_commitment(commitment) {
+        tracing::trace!(
+            "checkpoint chain commitment didn't fit (head {mb_head}, advanced {advanced}): {err}"
+        );
+    } else {
+        tracing::info!(
+            %mb_head,
+            %advanced,
+            gap,
+            threshold,
+            "emitting checkpoint chain commitment"
+        );
+    }
+
+    Ok(())
 }
 
 /// Collapse repeated actor transitions: newest `new_state_hash`, accumulated
@@ -929,4 +993,5 @@ mod tests {
         assert_eq!(squashed[0].value_to_receive, 0);
         assert!(!squashed[0].value_to_receive_negative_sign);
     }
+
 }
