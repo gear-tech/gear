@@ -1,27 +1,36 @@
 version: 2
+
 updates:
   - package-ecosystem: "cargo"
     directory: "/"
-    labels: ["A4-insubstantial", "E2-forcemacos"]
+    labels:
+      - "type: chore"
+      - "ci: macos"
     schedule:
       interval: "weekly"
       day: "sunday"
     commit-message:
-      prefix: "[depbot] "
+      prefix: "chore"
     groups:
-      deps:
+      cargo-deps:
         patterns:
           - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    labels: ["A4-insubstantial"]
+    labels:
+      - "type: chore"
     schedule:
       interval: "weekly"
       day: "sunday"
     commit-message:
-      prefix: "[depbot] "
+      prefix: "chore"
     groups:
-      deps:
+      github-actions:
         patterns:
           - "*"
+
+# TODO:
+# After splitting the repository into multiple workspaces,
+# assign proper `scope:*` labels per workspace (gear / vara / vara.eth / programs)
+# instead of using a global configuration.
