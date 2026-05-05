@@ -58,7 +58,7 @@
 //! - `ethexe-network` delivers producer announces, validation requests
 //!   and replies, fetched announces and network-forwarded injected
 //!   transactions. Outgoing network messages leave as
-//!   [`ConsensusEvent::PublishMessage`], [`ConsensusEvent::PublishPromise`]
+//!   [`ConsensusEvent::PublishMessage`], [`ConsensusEvent::PublishTxReceipt`]
 //!   and [`ConsensusEvent::RequestAnnounces`].
 //! - `ethexe-ethereum` is reached only from [`ValidatorService`], through
 //!   the [`BatchCommitter`] trait, to submit aggregated batch
@@ -92,8 +92,8 @@
 //! |--------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
 //! | [`AnnounceAccepted`](ConsensusEvent::AnnounceAccepted) / [`AnnounceRejected`](ConsensusEvent::AnnounceRejected) | Informational result of validating a received producer announce.                                 |
 //! | [`ComputeAnnounce`](ConsensusEvent::ComputeAnnounce)                                 | The outer service must hand this announce to `ethexe-compute`, with the given `PromisePolicy`.  |
-//! | [`PublishMessage`](ConsensusEvent::PublishMessage)                                   | Signed validator-to-validator message to gossip over the network.                                |
-//! | [`PublishPromise`](ConsensusEvent::PublishPromise)                                   | Signed promise to gossip over the network and deliver to RPC subscribers.                        |
+//! | [`PublishMessage`](ConsensusEvent::PublishMessage)                                   | Signed validator-to-validator message to gossip over the network.                               |
+//! | [`PublishTxReceipt`](ConsensusEvent::PublishTxReceipt)                               | Signed transaction receipt to gossip over the network and deliver to RPC subscribers.                       |
 //! | [`RequestAnnounces`](ConsensusEvent::RequestAnnounces)                               | Ask the network to fetch announces we are missing.                                              |
 //! | [`CommitmentSubmitted`](ConsensusEvent::CommitmentSubmitted)                         | Informational: a batch was successfully submitted to the Router contract.                       |
 //! | [`Warning`](ConsensusEvent::Warning)                                                 | Informational: a non-fatal anomaly (unexpected input, bad reply, etc.) was detected.            |
@@ -203,7 +203,7 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, Digest, HashOf, PromisePolicy, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    injected::{Promise, SignedCompactPromise, SignedInjectedTransaction},
+    injected::{CompactPromise, Promise, SignedInjectedTransaction, SignedTxReceipt},
     network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
@@ -287,7 +287,7 @@ pub enum ConsensusEvent {
     #[from]
     PublishMessage(SignedValidatorMessage),
     #[from]
-    PublishPromise(SignedCompactPromise),
+    PublishTxReceipt(SignedTxReceipt<CompactPromise>),
     // #[from]
     // PublishTransactionResult(SignedTransactionResult),
     /// Outer service have to request announces

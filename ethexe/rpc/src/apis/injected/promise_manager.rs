@@ -21,7 +21,7 @@ use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
     HashOf,
     db::{InjectedStorageRO, InjectedStorageRW},
-    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedPromise},
+    injected::{CompactPromise, InjectedTransaction, Promise, SignedTxReceipt},
 };
 use ethexe_db::Database;
 use std::sync::Arc;
@@ -29,8 +29,10 @@ use tokio::sync::oneshot;
 use tracing::{trace, warn};
 
 // TODO: Issues #5384 and #5385.
-type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
-type PromisesComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactPromise>>;
+type PromiseSubscribers =
+    Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedTxReceipt>>>;
+type ReceiptsComputationWaiting =
+    Arc<DashMap<HashOf<InjectedTransaction>, SignedTxReceipt<CompactPromise>>>;
 
 /// The manager for promise subscribers.
 #[derive(Debug, Clone)]
@@ -38,7 +40,7 @@ pub struct PromiseSubscriptionManager {
     db: Database,
     subscribers: PromiseSubscribers,
 
-    waiting_for_compute: PromisesComputationWaiting,
+    waiting_for_compute: ReceiptsComputationWaiting,
 }
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -47,16 +49,16 @@ pub enum RegisterSubscriberError {
     AlreadyRegistered(HashOf<InjectedTransaction>),
 }
 
-type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedPromise>>;
+type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedTxReceipt>>;
 
-/// The pending [SignedPromise] subscriber.
+/// The pending [SignedTxReceipt] subscriber.
 /// Subscriber will be spawned in separate tokio runtime task and will wait for promise.
 ///
 /// Important: to avoid infinite waiting we wrap [oneshot::Receiver] into [tokio::time::timeout].
 pub struct PendingSubscriber {
     /// Tx hash waiting promise for.
     tx_hash: HashOf<InjectedTransaction>,
-    /// Wrapped promise [oneshot::Receiver].
+    /// Wrapped tx receipt [oneshot::Receiver].
     receiver: TimeoutReceiver,
 }
 
@@ -64,7 +66,7 @@ impl PendingSubscriber {
     pub fn new(
         db: &Database,
         tx_hash: HashOf<InjectedTransaction>,
-        receiver: oneshot::Receiver<SignedPromise>,
+        receiver: oneshot::Receiver<SignedTxReceipt>,
     ) -> Self {
         let timeout_duration = utils::promise_waiting_timeout(db);
         let receiver = tokio::time::timeout(timeout_duration, receiver);
@@ -81,7 +83,7 @@ impl PromiseSubscriptionManager {
         Self {
             db,
             subscribers: PromiseSubscribers::default(),
-            waiting_for_compute: PromisesComputationWaiting::default(),
+            waiting_for_compute: ReceiptsComputationWaiting::default(),
         }
     }
 
@@ -103,32 +105,36 @@ impl PromiseSubscriptionManager {
     pub fn cancel_registration(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> Option<oneshot::Sender<SignedPromise>> {
+    ) -> Option<oneshot::Sender<SignedTxReceipt>> {
         self.subscribers.remove(&tx_hash).map(|(_, v)| v)
     }
 
     // TODO: Issue #5403
-    pub fn on_compact_promise(&self, compact: SignedCompactPromise) {
-        trace!(?compact, "received new compact promise");
-        let tx_hash = compact.data().tx_hash;
+    pub fn on_tx_receipt(&self, receipt: SignedTxReceipt<CompactPromise>) {
+        trace!(?receipt, "received new compact promise");
+        if receipt.data().is_error() {
+            self.dispatch_receipt(receipt.try_map_error().expect("infallible"));
+            return;
+        }
 
+        let tx_hash = receipt.data().tx_hash();
         match self.db.promise(tx_hash) {
-            Some(promise) => match compact.restore(promise) {
-                Ok(signed_promise) => {
-                    self.db.set_compact_promise(&compact);
-                    self.dispatch_promise(signed_promise);
+            Some(promise) => match receipt.try_map_promise(promise) {
+                Ok(signed_receipt) => {
+                    // self.db.set_compact_promise(&compact);
+                    self.dispatch_receipt(signed_receipt);
                 }
 
                 Err(err) => {
                     warn!(
-                        ?compact, %tx_hash, error=?err, "failed to create signed promise from parts, producer send invalid signature: compact_promise={compact:?}"
+                        ?receipt, %tx_hash, error=?err, "failed to create signed receipt from parts, producer send invalid signature"
                     );
-                    self.waiting_for_compute.insert(tx_hash, compact);
+                    self.waiting_for_compute.insert(tx_hash, receipt);
                 }
             },
             None => {
                 trace!("not found promise in database, waiting for computation...");
-                self.waiting_for_compute.insert(tx_hash, compact);
+                self.waiting_for_compute.insert(tx_hash, receipt);
             }
         }
     }
@@ -137,24 +143,24 @@ impl PromiseSubscriptionManager {
         trace!(?promise, "received new computed promise");
         self.db.set_promise(&promise);
 
-        if let Some((_, compact_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) {
-            match compact_promise.restore(promise) {
-                Ok(signed_promise) => {
-                    self.db.set_compact_promise(&compact_promise);
-                    self.dispatch_promise(signed_promise);
+        if let Some((_, receipt)) = self.waiting_for_compute.remove(&promise.tx_hash) {
+            match receipt.try_map_promise(promise) {
+                Ok(signed_receipt) => {
+                    // self.db.set_compact_promise(&compact_promise);
+                    self.dispatch_receipt(signed_receipt);
                 }
                 Err(_err) => {
-                    trace!(?compact_promise, tx_hash=?compact_promise.data().tx_hash, "failed to create signed promise from parts");
+                    trace!(?receipt, tx_hash=?receipt.data().tx_hash(), "failed to create signed promise from parts");
                 }
             }
         }
     }
 
-    fn dispatch_promise(&self, promise: SignedPromise) {
-        if let Some((_, sender)) = self.subscribers.remove(&promise.data().tx_hash)
-            && let Err(unsent_promise) = sender.send(promise)
+    fn dispatch_receipt(&self, receipt: SignedTxReceipt) {
+        if let Some((_, sender)) = self.subscribers.remove(&receipt.data().tx_hash())
+            && let Err(unsent_receipt) = sender.send(receipt)
         {
-            trace!("failed to send promise to subscriber, promise={unsent_promise:?}");
+            trace!("failed to send receipt to subscriber, receipt={unsent_receipt:?}");
         }
     }
 

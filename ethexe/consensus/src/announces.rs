@@ -714,9 +714,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
     let tx_checker = TxValidityChecker::new_for_announce(db, block, announce.parent)?;
 
     for tx in announce.injected_transactions.iter() {
-        let validity_status = tx_checker.check_tx_validity(tx)?;
-
-        match validity_status {
+        match tx_checker.check_tx_validity(tx)? {
             TxValidity::Valid => {
                 db.set_injected_transaction(tx.clone());
             }
@@ -724,7 +722,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
             validity => {
                 tracing::trace!(
                     announce = ?announce.to_hash(),
-                    "announce contains invalid transition with status {validity_status:?}, rejecting announce."
+                    "announce contains invalid transition with status {validity:?}, rejecting announce."
                 );
 
                 return Ok(AnnounceStatus::Rejected {

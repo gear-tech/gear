@@ -699,9 +699,9 @@ impl Service {
                                 let _res = response_sender.send(acceptance);
                             }
                         },
-                        NetworkEvent::PromiseMessage(compact_promise) => {
-                            if let Some(rpc) = &rpc {
-                                rpc.receive_compact_promise(compact_promise);
+                        NetworkEvent::PromiseMessage(_compact_promise) => {
+                            if let Some(_rpc) = &rpc {
+                                // rpc.receive_compact_promise(compact_promise);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
@@ -749,18 +749,18 @@ impl Service {
                     ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
                         compute.compute_announce(announce, promise_policy)
                     }
-                    ConsensusEvent::PublishPromise(compact_promise) => {
+                    ConsensusEvent::PublishTxReceipt(receipt) => {
                         if rpc.is_none() && network.is_none() {
                             panic!("Promise without network or rpc");
                         }
 
                         if let Some(rpc) = &rpc {
-                            rpc.receive_compact_promise(compact_promise.clone());
+                            rpc.receive_tx_receipt(receipt);
                         }
 
-                        if let Some(network) = &mut network {
-                            network.publish_promise(compact_promise);
-                        }
+                        // if let Some(network) = &mut network {
+                        //     network.publish_promise(compact_promise);
+                        // }
                     }
                     ConsensusEvent::PublishMessage(message) => {
                         let Some(network) = network.as_mut() else {

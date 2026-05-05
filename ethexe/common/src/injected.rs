@@ -18,6 +18,7 @@
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
+use anyhow::bail;
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
@@ -223,48 +224,121 @@ impl SignedCompactPromise {
     }
 }
 
-/// Represents the result of [InjectedTransaction].
+/// Receipt for [InjectedTransaction].
+///
+/// This type is a generic over Promise type is purpose to allow transfer
+/// [CompactPromise] between validators and send full [Promise] only to end-user.
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::IsVariant, derive_more::Unwrap)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TransactionResult {
-    Promise(Promise),
+pub enum TxReceipt<P = Promise> {
+    Promise(P),
     Error(TransactionError),
 }
 
-// TODO !!!: check the correctness of ToDigest
-impl ToDigest for TransactionResult {
+impl TxReceipt<Promise> {
+    /// Returns the transaction hash the receipt belongs to
+    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+        match self {
+            Self::Promise(promise) => promise.tx_hash,
+            Self::Error(err) => err.tx_hash,
+        }
+    }
+}
+
+impl TxReceipt<CompactPromise> {
+    /// Returns the transaction hash the receipt belongs to
+    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+        match self {
+            Self::Promise(promise) => promise.tx_hash,
+            Self::Error(err) => err.tx_hash,
+        }
+    }
+}
+
+/// Signed wrapper on top of [TxReceipt].
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::Deref)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "std", serde(transparent))]
+pub struct SignedTxReceipt<P: ToDigest = Promise>(SignedMessage<TxReceipt<P>>);
+
+// TODO: these implementations are not clear anough, redesign
+impl SignedTxReceipt<CompactPromise> {
+    pub fn try_map_promise(&self, promise: Promise) -> Result<SignedTxReceipt, &'static str> {
+        let mapped_receipt = match self.0.data() {
+            TxReceipt::Promise(_) => TxReceipt::Promise(promise),
+            TxReceipt::Error(_) => return Err("Expected for this variant a promise, not error"),
+        };
+
+        let (address, signature) = (self.0.address(), *self.0.signature());
+        SignedMessage::try_from_parts(mapped_receipt, signature, address).map(Into::into)
+    }
+
+    pub fn try_map_error(self) -> anyhow::Result<SignedTxReceipt> {
+        let address = self.0.address();
+        let (receipt, signature) = self.0.into_parts();
+
+        match receipt {
+            TxReceipt::Promise(_) => bail!(
+                "SignedTxReceipt<CompactPromise>::map_error expecting to be call on error variant"
+            ),
+            // TODO: optimize me
+            TxReceipt::Error(err) => {
+                Ok(
+                    SignedMessage::try_from_parts(TxReceipt::Error(err), signature, address)
+                        .map(Into::into)
+                        .expect("Infallible"),
+                )
+            }
+        }
+    }
+}
+
+impl<P: ToDigest> ToDigest for TxReceipt<P> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         match self {
             Self::Promise(promise) => {
                 hasher.update([0]);
                 hasher.update(promise.to_digest().0);
             }
-            Self::Error(_err) => {
+            Self::Error(err) => {
                 hasher.update([1]);
+                hasher.update(err.to_digest().0);
             }
         }
     }
 }
 
-pub type SignedTransactionResult = SignedMessage<TransactionResult>;
-
 /// Represents the reason why [InjectedTransaction] was not included.
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub struct TransactionError {
     pub tx_hash: HashOf<InjectedTransaction>,
     pub reason: TransactionErrorReason,
 }
 
+impl ToDigest for TransactionError {
+    fn update_hasher(&self, _hasher: &mut sha3::Keccak256) {
+        todo!()
+    }
+}
+
 // TODO: think about creating the general error for `TxValidity` and `ErrorReason`
+
+/// Reason why transaction was not executed in chain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransactionErrorReason {
+    /// Transaction is outdated and can not be included.
+    #[display("Transaction is oudated")]
     Outdated,
+
+    // Important: Keep it in the end of enum.
+    //      In future we will support non zero value injected txs.
+    #[display("Transaction's value must be zero")]
     NonZeroValue,
 }
 
-/// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
+/// Encoding and decoding of [LimitedVec<u8, N>] as hex string.
 #[cfg(feature = "std")]
 mod serde_hex {
     pub fn serialize<S, const N: usize>(

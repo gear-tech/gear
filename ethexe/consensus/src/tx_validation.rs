@@ -21,7 +21,9 @@ use ethexe_common::{
     Announce, HashOf, ProgramStates, SimpleBlockData,
     db::{AnnounceStorageRO, GlobalsStorageRO, OnChainStorageRO},
     gear::INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{
+        InjectedTransaction, SignedInjectedTransaction, TransactionErrorReason, VALIDITY_WINDOW,
+    },
 };
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
@@ -38,8 +40,6 @@ pub enum TxValidity {
     Valid,
     /// Transaction was already include into one of previous [`VALIDITY_WINDOW`] announces.
     Duplicate,
-    /// Transaction is outdated and should be remove from pool.
-    Outdated,
     /// Transaction's reference block not on current branch.
     /// Keep tx in pool in case of reorg.
     NotOnCurrentBranch,
@@ -47,11 +47,10 @@ pub enum TxValidity {
     UnknownDestination,
     /// Transaction's destination [`gprimitives::ActorId`] not initialized.
     UninitializedDestination,
-    // TODO: #5083 support non zero value transactions.
-    /// Transaction with non zero value is not supported for now.
-    NonZeroValue,
     /// Transaction's destination contract has insufficient balance for injected messages.
     InsufficientBalanceForInjectedMessages,
+    /// Transaction must be remove from pool because of [TransactionErrorReason].
+    MustRemove(TransactionErrorReason),
 }
 
 pub struct TxValidityChecker<DB> {
@@ -102,11 +101,11 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + GlobalsStorageRO + Storage> TxVa
         let reference_block = tx.data().reference_block;
 
         if tx.data().value != 0 {
-            return Ok(TxValidity::NonZeroValue);
+            return Ok(TxValidity::MustRemove(TransactionErrorReason::NonZeroValue));
         }
 
         if !self.is_reference_block_within_validity_window(reference_block)? {
-            return Ok(TxValidity::Outdated);
+            return Ok(TxValidity::MustRemove(TransactionErrorReason::Outdated));
         }
 
         if !self.is_reference_block_on_current_branch(reference_block)? {
@@ -337,7 +336,7 @@ mod tests {
         for block in chain.blocks.iter().take(VALIDITY_WINDOW as usize) {
             let tx = mock_tx(block.hash);
             assert_eq!(
-                TxValidity::Outdated,
+                TxValidity::MustRemove(TransactionErrorReason::Outdated),
                 tx_checker.check_tx_validity(&tx).unwrap()
             );
         }
@@ -414,7 +413,7 @@ mod tests {
             TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         assert_eq!(
-            TxValidity::NonZeroValue,
+            TxValidity::MustRemove(TransactionErrorReason::NonZeroValue),
             tx_checker.check_tx_validity(&signed_tx(tx)).unwrap()
         );
     }
@@ -432,7 +431,7 @@ mod tests {
             TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         assert_eq!(
-            TxValidity::Outdated,
+            TxValidity::MustRemove(TransactionErrorReason::Outdated),
             tx_checker.check_tx_validity(&signed_tx(tx)).unwrap()
         );
     }

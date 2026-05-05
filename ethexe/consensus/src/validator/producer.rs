@@ -30,7 +30,7 @@ use ethexe_common::{
     Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec,
     db::BlockMetaStorageRO,
     gear::BatchCommitment,
-    injected::{Promise, SignedCompactPromise},
+    injected::{Promise, TxReceipt},
     network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
@@ -117,16 +117,14 @@ impl StateHandler for Producer {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
                 let tx_hash = promise.tx_hash;
 
-                let signed_promise =
-                    self.ctx
-                        .core
-                        .signer
-                        .signed_message(self.ctx.core.pub_key, promise, None)?;
-                let compact_signed_promise =
-                    SignedCompactPromise::from_signed_promise(&signed_promise);
+                let signed_receipt = self.ctx.core.signer.signed_message(
+                    self.ctx.core.pub_key,
+                    TxReceipt::Promise(promise.to_compact()),
+                    None,
+                )?;
 
                 self.ctx
-                    .output(ConsensusEvent::PublishPromise(compact_signed_promise));
+                    .output(ConsensusEvent::PublishTxReceipt(signed_receipt.into()));
 
                 tracing::trace!("consensus sign promise for transaction-hash={tx_hash}");
                 Ok(self.into())
@@ -213,7 +211,15 @@ impl Producer {
             .injected_pool
             .select_for_announce(self.block, parent)?;
 
-        removed.into_iter().for_each(|_err| {});
+        for err in removed.into_iter() {
+            let signed_receipt = self.ctx.core.signer.signed_message(
+                self.ctx.core.pub_key,
+                TxReceipt::Error(err),
+                None,
+            )?;
+            self.ctx
+                .output(ConsensusEvent::PublishTxReceipt(signed_receipt.into()));
+        }
 
         let announce = Announce {
             block_hash: self.block.hash,

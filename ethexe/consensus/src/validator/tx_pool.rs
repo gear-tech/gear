@@ -23,9 +23,7 @@ use ethexe_common::{
     db::{
         AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
     },
-    injected::{
-        InjectedTransaction, SignedInjectedTransaction, TransactionError, TransactionErrorReason,
-    },
+    injected::{InjectedTransaction, SignedInjectedTransaction, TransactionError},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -157,14 +155,6 @@ where
                     // Keep in pool, in case of reorg it can be valid again.
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is on different branch, keeping in pool");
                 }
-                TxValidity::Outdated => {
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is outdated, removing from pool");
-                    remove_data.push((*reference_block, *tx_hash));
-                    delta.removed.push(TransactionError {
-                        tx_hash: *tx_hash,
-                        reason: TransactionErrorReason::Outdated,
-                    });
-                }
                 TxValidity::UninitializedDestination => {
                     // Keep in pool, in case destination actor gets initialized later.
                     tracing::trace!(
@@ -181,16 +171,12 @@ where
                         "tx destination actor has insufficient balance for injected messages, keeping in pool"
                     );
                 }
-                TxValidity::NonZeroValue => {
-                    tracing::trace!(
-                        tx_hash = ?tx_hash,
-                        tx = ?tx.data(),
-                        "tx has non-zero value, removing from pool"
-                    );
+                TxValidity::MustRemove(reason) => {
+                    tracing::trace!(?tx_hash, tx = ?tx.data(), %reason, "transaction removed from pool");
                     remove_data.push((*reference_block, *tx_hash));
                     delta.removed.push(TransactionError {
                         tx_hash: *tx_hash,
-                        reason: TransactionErrorReason::NonZeroValue,
+                        reason,
                     });
                 }
             }
