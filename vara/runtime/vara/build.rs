@@ -59,10 +59,15 @@ fn regenerate_gsdk_scale() {
     use sc_executor_common::runtime_blob::RuntimeBlob;
     use std::{env, fs, path::PathBuf};
 
-    let out_path = "../../gsdk/vara_runtime.scale";
+    const METADATA_FILENAME: &str = if cfg!(feature = "dev") {
+        "vara_runtime.scale"
+    } else {
+        "vara_runtime_prod.scale"
+    };
 
-    #[cfg(not(feature = "dev"))]
-    let out_path = "../../gsdk/vara_runtime_prod.scale";
+    let out_path = PathBuf::from(env::var_os("GEAR_WORKSPACE_DIR").unwrap())
+        .join("gsdk")
+        .join(METADATA_FILENAME);
 
     let runtime_wasm_path = PathBuf::from(env::var("OUT_DIR").unwrap())
         .ancestors()

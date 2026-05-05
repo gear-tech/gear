@@ -79,7 +79,7 @@ use sp_runtime::{
     traits::{Dispatchable, One, UniqueSaturatedInto},
 };
 use sp_std::convert::TryFrom;
-use std::{collections::BTreeSet, num::NonZero};
+use std::{collections::BTreeSet, env, num::NonZero, path::PathBuf};
 pub use utils::init_logger;
 use utils::*;
 
@@ -10576,7 +10576,8 @@ fn test_init_reinstrumentation_failure() {
 fn test_mad_big_prog_instrumentation() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let path = "../../examples/big-wasm/big.wasm";
+        let path = PathBuf::from(env::var_os("GEAR_WORKSPACE_DIR").unwrap())
+            .join("program/examples/big-wasm/big.wasm");
         let code_bytes = std::fs::read(path).expect("can't read big wasm");
         let schedule = <Test as Config>::Schedule::get();
         let code_inst_res = gear_core::code::Code::try_new(

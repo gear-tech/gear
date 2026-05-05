@@ -22,8 +22,8 @@ use std::{env, env::consts::EXE_EXTENSION, path::PathBuf};
 
 pub async fn dev_node() -> (NodeInstance, SignedApi) {
     // Use release build because of performance reasons.
-    let bin_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let mut bin_path = bin_path.join("../target/release/gear");
+    let mut bin_path =
+        PathBuf::from(env::var_os("GEAR_WORKSPACE_DIR").unwrap()).join("target/release/gear");
     bin_path.set_extension(EXE_EXTENSION);
 
     let node = Node::from_path(bin_path)
