@@ -23,8 +23,8 @@ use utils::dev_node;
 mod utils;
 
 fn runtime_wasm() -> PathBuf {
-    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm")
+    PathBuf::from(env::var_os("GEAR_WORKSPACE_DIR").unwrap())
+        .join("target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm")
 }
 
 #[tokio::test]

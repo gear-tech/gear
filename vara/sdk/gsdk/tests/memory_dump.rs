@@ -70,13 +70,8 @@ impl Drop for CleanupFolderOnDrop {
 
 #[tokio::test]
 async fn memory_dump() -> Result<()> {
-    let node = Node::from_path("../target/release/gear")
-        .unwrap()
-        .spawn()
-        .unwrap();
+    let (_node, api) = dev_node().await;
 
-    // Create API instance
-    let api = Api::new(&node.ws()).await?.signed_as_alice();
     // Subscribe to events
     let events = api.subscribe_all_events().await?;
     // Check that blocks are still running
