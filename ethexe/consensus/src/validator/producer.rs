@@ -30,7 +30,7 @@ use ethexe_common::{
     Announce, HashOf, PromisePolicy, SimpleBlockData, ValidatorsVec,
     db::BlockMetaStorageRO,
     gear::BatchCommitment,
-    injected::{Promise, TxReceipt},
+    injected::{CompactTxReceipt, Promise},
     network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
@@ -119,7 +119,7 @@ impl StateHandler for Producer {
 
                 let signed_receipt = self.ctx.core.signer.signed_message(
                     self.ctx.core.pub_key,
-                    TxReceipt::Promise(promise.to_compact()),
+                    CompactTxReceipt::Promise(promise.to_compact()),
                     None,
                 )?;
 
@@ -214,7 +214,7 @@ impl Producer {
         for err in removed.into_iter() {
             let signed_receipt = self.ctx.core.signer.signed_message(
                 self.ctx.core.pub_key,
-                TxReceipt::Error(err),
+                CompactTxReceipt::Error(err),
                 None,
             )?;
             self.ctx

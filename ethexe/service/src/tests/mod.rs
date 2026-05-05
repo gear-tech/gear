@@ -2768,19 +2768,25 @@ async fn injected_tx_fungible_token() {
         .await;
     tracing::info!("✅ Tokens mint successfully");
 
-    let subscription_promise = subscription
+    let subscription_receipt = subscription
         .next()
         .await
         .expect("subscription produce value")
         .expect("no errors for correct injected transaction");
-    assert_eq!(subscription_promise.data().tx_hash(), mint_tx.to_hash());
-    assert_eq!(subscription_promise.data().reply.value, 0);
+    assert_eq!(subscription_receipt.data().tx_hash(), mint_tx.to_hash());
+    let subscription_promise = subscription_receipt.data().clone().unwrap_promise();
+    assert_eq!(subscription_promise.reply.value, 0);
     assert_eq!(
-        subscription_promise.data().reply.code,
+        subscription_promise.reply.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
     assert_eq!(
-        subscription_promise.into_data().reply.payload,
+        subscription_receipt
+            .data()
+            .clone()
+            .unwrap_promise()
+            .reply
+            .payload,
         expected_event.encode()
     );
 
@@ -2851,7 +2857,9 @@ async fn injected_tx_fungible_token() {
         .await
         .expect("promise from subscription")
         .expect("transaction promise")
-        .into_data();
+        .data()
+        .clone()
+        .unwrap_promise();
 
     assert_eq!(promise.tx_hash, transfer_tx.to_hash());
 
@@ -3009,7 +3017,9 @@ async fn injected_tx_fungible_token_over_network() {
         .await
         .expect("promise from subscription")
         .expect("transaction promise")
-        .into_data();
+        .data()
+        .clone()
+        .unwrap_promise();
 
     let expected_event = demo_fungible_token::FTEvent::Transfer {
         from: ActorId::new([0u8; 32]),

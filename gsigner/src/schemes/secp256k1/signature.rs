@@ -545,6 +545,21 @@ where
             address,
         })
     }
+
+    /// The unsafe constructor for [SignedMessage].
+    ///
+    /// It is usefull to optimize the constructing signed wrappers for types
+    /// with the same [`ToDigest`](super::ToDigest) implmentation.
+    ///
+    /// # Safety
+    /// Safety only in cases when you are sure when hashes are equal.
+    pub unsafe fn from_parts_unchecked(data: T, signature: Signature, address: Address) -> Self {
+        Self {
+            data,
+            signature,
+            address,
+        }
+    }
 }
 
 /// A recoverable ECDSA signature for a contract-specific digest format (ERC-191).

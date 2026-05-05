@@ -24,6 +24,7 @@ use ethexe_common::{
     gear_core::rpc::ReplyInfo,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
+        TxReceipt,
     },
 };
 use ethexe_ethereum::{
@@ -261,12 +262,19 @@ impl<'a> Mirror<'a> {
             .await
             .with_context(|| "failed to send injected transaction and subscribe to it's promise")?;
 
-        let promise = subscription
+        let receipt = subscription
             .next()
             .await
             .ok_or_else(|| anyhow!("no promise received from subscription"))?
             .with_context(|| "failed to receive transaction promise")?
-            .into_data();
+            .data()
+            .clone();
+        let promise = match receipt {
+            TxReceipt::Promise(promise) => promise,
+            TxReceipt::Error(err) => {
+                return Err(anyhow!("injected transaction failed: {err:?}"));
+            }
+        };
 
         Ok((message_id, promise))
     }

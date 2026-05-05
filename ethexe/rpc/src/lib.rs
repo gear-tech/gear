@@ -58,8 +58,7 @@ use apis::{
     ProgramApi, ProgramServer,
 };
 use ethexe_common::injected::{
-    AddressedInjectedTransaction, CompactPromise, InjectedTransactionAcceptance, Promise,
-    SignedTxReceipt,
+    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactTxReceipt,
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -197,7 +196,7 @@ impl RpcService {
         self.injected_api.on_computed_promise(promise);
     }
 
-    pub fn receive_tx_receipt(&self, receipt: SignedTxReceipt<CompactPromise>) {
+    pub fn receive_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
         self.injected_api.on_tx_receipt(receipt);
     }
 }

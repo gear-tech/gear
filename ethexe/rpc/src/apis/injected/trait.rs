@@ -20,7 +20,7 @@ use ethexe_common::{
     HashOf,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
-        SignedInjectedTransaction, SignedPromise, SignedTxReceipt,
+        SignedFullTxReceipt, SignedInjectedTransaction, SignedPromise,
     },
 };
 use jsonrpsee::{
@@ -42,7 +42,7 @@ pub trait Injected {
     #[subscription(
         name = "sendTransactionAndWatch",
         unsubscribe = "sendTransactionAndWatchUnsubscribe",
-        item = SignedTxReceipt
+        item = SignedFullTxReceipt
     )]
     async fn send_transaction_and_watch(
         &self,

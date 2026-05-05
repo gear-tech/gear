@@ -18,11 +18,10 @@
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
-use anyhow::bail;
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
-use gsigner::{PrivateKey, secp256k1::signature::SignResult};
+use gsigner::{PrivateKey, Signature, secp256k1::signature::SignResult};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
@@ -225,75 +224,66 @@ impl SignedCompactPromise {
 }
 
 /// Receipt for [InjectedTransaction].
-///
-/// This type is a generic over Promise type is purpose to allow transfer
-/// [CompactPromise] between validators and send full [Promise] only to end-user.
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::IsVariant, derive_more::Unwrap)]
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-pub enum TxReceipt<P = Promise> {
-    Promise(P),
+#[derive(
+    Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::IsVariant, derive_more::Unwrap,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub enum TxReceipt {
+    Promise(Promise),
     Error(TransactionError),
 }
 
-impl TxReceipt<Promise> {
-    /// Returns the transaction hash the receipt belongs to
-    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
-        match self {
-            Self::Promise(promise) => promise.tx_hash,
-            Self::Error(err) => err.tx_hash,
-        }
-    }
-}
-
-impl TxReceipt<CompactPromise> {
-    /// Returns the transaction hash the receipt belongs to
-    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
-        match self {
-            Self::Promise(promise) => promise.tx_hash,
-            Self::Error(err) => err.tx_hash,
-        }
-    }
-}
-
-/// Signed wrapper on top of [TxReceipt].
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::Deref)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Deref)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "std", serde(transparent))]
-pub struct SignedTxReceipt<P: ToDigest = Promise>(SignedMessage<TxReceipt<P>>);
+pub struct SignedFullTxReceipt(SignedMessage<TxReceipt>);
 
-// TODO: these implementations are not clear anough, redesign
-impl SignedTxReceipt<CompactPromise> {
-    pub fn try_map_promise(&self, promise: Promise) -> Result<SignedTxReceipt, &'static str> {
-        let mapped_receipt = match self.0.data() {
-            TxReceipt::Promise(_) => TxReceipt::Promise(promise),
-            TxReceipt::Error(_) => return Err("Expected for this variant a promise, not error"),
-        };
-
-        let (address, signature) = (self.0.address(), *self.0.signature());
-        SignedMessage::try_from_parts(mapped_receipt, signature, address).map(Into::into)
+impl TxReceipt {
+    /// Returns the transaction hash the receipt belongs to
+    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+        match self {
+            Self::Promise(promise) => promise.tx_hash,
+            Self::Error(err) => err.tx_hash,
+        }
     }
 
-    pub fn try_map_error(self) -> anyhow::Result<SignedTxReceipt> {
-        let address = self.0.address();
-        let (receipt, signature) = self.0.into_parts();
-
-        match receipt {
-            TxReceipt::Promise(_) => bail!(
-                "SignedTxReceipt<CompactPromise>::map_error expecting to be call on error variant"
-            ),
-            // TODO: optimize me
-            TxReceipt::Error(err) => {
-                Ok(
-                    SignedMessage::try_from_parts(TxReceipt::Error(err), signature, address)
-                        .map(Into::into)
-                        .expect("Infallible"),
-                )
-            }
+    pub fn as_compact(&self) -> CompactTxReceipt {
+        match self {
+            Self::Promise(promise) => CompactTxReceipt::Promise(promise.to_compact()),
+            // Clone is cheap here, because the error is just hash + byte.
+            Self::Error(err) => CompactTxReceipt::Error(err.clone()),
         }
     }
 }
 
-impl<P: ToDigest> ToDigest for TxReceipt<P> {
+impl ToDigest for TxReceipt {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        self.as_compact().update_hasher(hasher);
+    }
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::IsVariant, derive_more::Unwrap,
+)]
+pub enum CompactTxReceipt {
+    Promise(CompactPromise),
+    Error(TransactionError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
+pub struct SignedCompactTxReceipt(SignedMessage<CompactTxReceipt>);
+
+impl CompactTxReceipt {
+    /// Returns the transaction hash the receipt belongs to
+    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+        match self {
+            Self::Promise(promise) => promise.tx_hash,
+            Self::Error(err) => err.tx_hash,
+        }
+    }
+}
+
+impl ToDigest for CompactTxReceipt {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         match self {
             Self::Promise(promise) => {
@@ -308,8 +298,29 @@ impl<P: ToDigest> ToDigest for TxReceipt<P> {
     }
 }
 
+impl SignedCompactTxReceipt {
+    pub fn as_promise_with_signature(&self) -> Option<(&CompactPromise, &Signature, Address)> {
+        let CompactTxReceipt::Promise(compact) = self.0.data() else {
+            return None;
+        };
+        Some((compact, self.0.signature(), self.0.address()))
+    }
+
+    pub fn as_full_receipt_error(&self) -> Option<SignedFullTxReceipt> {
+        let CompactTxReceipt::Error(error) = self.0.data() else {
+            return None;
+        };
+
+        let (signature, address) = (*self.0.signature(), self.0.address());
+        let message = unsafe {
+            SignedMessage::from_parts_unchecked(TxReceipt::Error(error.clone()), signature, address)
+        };
+        Some(message.into())
+    }
+}
+
 /// Represents the reason why [InjectedTransaction] was not included.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub struct TransactionError {
     pub tx_hash: HashOf<InjectedTransaction>,
@@ -317,25 +328,32 @@ pub struct TransactionError {
 }
 
 impl ToDigest for TransactionError {
-    fn update_hasher(&self, _hasher: &mut sha3::Keccak256) {
-        todo!()
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self { tx_hash, reason } = self;
+        hasher.update(tx_hash.inner().0);
+        hasher.update([reason.variant_index()]);
     }
 }
 
-// TODO: think about creating the general error for `TxValidity` and `ErrorReason`
-
 /// Reason why transaction was not executed in chain.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub enum TransactionErrorReason {
     /// Transaction is outdated and can not be included.
     #[display("Transaction is oudated")]
-    Outdated,
+    Outdated = 1,
 
     // Important: Keep it in the end of enum.
     //      In future we will support non zero value injected txs.
     #[display("Transaction's value must be zero")]
-    NonZeroValue,
+    NonZeroValue = 2,
+}
+
+impl TransactionErrorReason {
+    pub fn variant_index(&self) -> u8 {
+        unsafe { (self as *const TransactionErrorReason).cast::<u8>().read() }
+    }
 }
 
 /// Encoding and decoding of [LimitedVec<u8, N>] as hex string.
@@ -445,5 +463,40 @@ mod tests {
             signed_promise.signature().clone(),
             compact_signed_promise.signature().clone()
         );
+    }
+
+    #[test]
+    fn tx_receipt_has_the_same_hash_for_promise() {
+        let pk = PrivateKey::random();
+        let promise = Promise::mock(());
+        let compact_promise = promise.to_compact();
+
+        let receipt_promise = TxReceipt::Promise(promise);
+        let receipt_compact_promise = CompactTxReceipt::Promise(compact_promise);
+        assert_eq!(
+            receipt_promise.to_digest(),
+            receipt_compact_promise.to_digest()
+        );
+
+        let signed_receipt = SignedMessage::create(pk.clone(), receipt_promise).unwrap();
+        let signed_compact_receipt = SignedMessage::create(pk, receipt_compact_promise).unwrap();
+
+        assert_eq!(
+            *signed_receipt.signature(),
+            *signed_compact_receipt.signature()
+        );
+        assert_eq!(signed_receipt.address(), signed_compact_receipt.address());
+    }
+
+    #[test]
+    fn tx_receipt_has_the_same_hash_for_error() {
+        let error = TransactionError {
+            tx_hash: unsafe { HashOf::new(H256::random()) },
+            reason: TransactionErrorReason::Outdated,
+        };
+        let receipt1 = TxReceipt::Error(error.clone());
+        let receipt2 = CompactTxReceipt::Error(error);
+
+        assert_eq!(receipt1.to_digest(), receipt2.to_digest());
     }
 }

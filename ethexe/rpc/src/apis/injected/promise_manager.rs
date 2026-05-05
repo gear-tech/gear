@@ -19,9 +19,11 @@
 use anyhow::Result;
 use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
-    HashOf,
+    HashOf, SignedMessage, ToDigest,
     db::{InjectedStorageRO, InjectedStorageRW},
-    injected::{CompactPromise, InjectedTransaction, Promise, SignedTxReceipt},
+    injected::{
+        InjectedTransaction, Promise, SignedCompactTxReceipt, SignedFullTxReceipt, TxReceipt,
+    },
 };
 use ethexe_db::Database;
 use std::sync::Arc;
@@ -30,9 +32,8 @@ use tracing::{trace, warn};
 
 // TODO: Issues #5384 and #5385.
 type PromiseSubscribers =
-    Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedTxReceipt>>>;
-type ReceiptsComputationWaiting =
-    Arc<DashMap<HashOf<InjectedTransaction>, SignedTxReceipt<CompactPromise>>>;
+    Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedFullTxReceipt>>>;
+type ReceiptsComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactTxReceipt>>;
 
 /// The manager for promise subscribers.
 #[derive(Debug, Clone)]
@@ -49,7 +50,7 @@ pub enum RegisterSubscriberError {
     AlreadyRegistered(HashOf<InjectedTransaction>),
 }
 
-type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedTxReceipt>>;
+type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedFullTxReceipt>>;
 
 /// The pending [SignedTxReceipt] subscriber.
 /// Subscriber will be spawned in separate tokio runtime task and will wait for promise.
@@ -66,7 +67,7 @@ impl PendingSubscriber {
     pub fn new(
         db: &Database,
         tx_hash: HashOf<InjectedTransaction>,
-        receiver: oneshot::Receiver<SignedTxReceipt>,
+        receiver: oneshot::Receiver<SignedFullTxReceipt>,
     ) -> Self {
         let timeout_duration = utils::promise_waiting_timeout(db);
         let receiver = tokio::time::timeout(timeout_duration, receiver);
@@ -105,29 +106,37 @@ impl PromiseSubscriptionManager {
     pub fn cancel_registration(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> Option<oneshot::Sender<SignedTxReceipt>> {
+    ) -> Option<oneshot::Sender<SignedFullTxReceipt>> {
         self.subscribers.remove(&tx_hash).map(|(_, v)| v)
     }
 
     // TODO: Issue #5403
-    pub fn on_tx_receipt(&self, receipt: SignedTxReceipt<CompactPromise>) {
+    pub fn on_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
         trace!(?receipt, "received new compact promise");
         if receipt.data().is_error() {
-            self.dispatch_receipt(receipt.try_map_error().expect("infallible"));
+            self.dispatch_receipt(receipt.as_full_receipt_error().expect("infallible"));
             return;
         }
 
         let tx_hash = receipt.data().tx_hash();
         match self.db.promise(tx_hash) {
-            Some(promise) => match receipt.try_map_promise(promise) {
-                Ok(signed_receipt) => {
+            Some(promise) => match receipt.as_promise_with_signature() {
+                Some((compact, signature, address)) => {
                     // self.db.set_compact_promise(&compact);
-                    self.dispatch_receipt(signed_receipt);
+                    if compact.to_digest() == promise.to_digest() {
+                        let message = unsafe {
+                            SignedMessage::from_parts_unchecked(
+                                TxReceipt::Promise(promise),
+                                *signature,
+                                address,
+                            )
+                        };
+                        self.dispatch_receipt(message.into());
+                    }
                 }
-
-                Err(err) => {
+                None => {
                     warn!(
-                        ?receipt, %tx_hash, error=?err, "failed to create signed receipt from parts, producer send invalid signature"
+                        ?receipt, %tx_hash, "failed to create signed receipt from parts, producer send invalid signature"
                     );
                     self.waiting_for_compute.insert(tx_hash, receipt);
                 }
@@ -144,19 +153,25 @@ impl PromiseSubscriptionManager {
         self.db.set_promise(&promise);
 
         if let Some((_, receipt)) = self.waiting_for_compute.remove(&promise.tx_hash) {
-            match receipt.try_map_promise(promise) {
-                Ok(signed_receipt) => {
-                    // self.db.set_compact_promise(&compact_promise);
-                    self.dispatch_receipt(signed_receipt);
+            match receipt.as_promise_with_signature() {
+                Some((compact, signature, address)) => {
+                    // self.db.set_compact_promise(&compact_promise)
+                    if promise.to_digest() == compact.to_digest() {
+                        let receipt = TxReceipt::Promise(promise);
+                        let signed_receipt = unsafe {
+                            SignedMessage::from_parts_unchecked(receipt, *signature, address)
+                        };
+                        self.dispatch_receipt(signed_receipt.into());
+                    }
                 }
-                Err(_err) => {
+                None => {
                     trace!(?receipt, tx_hash=?receipt.data().tx_hash(), "failed to create signed promise from parts");
                 }
             }
         }
     }
 
-    fn dispatch_receipt(&self, receipt: SignedTxReceipt) {
+    fn dispatch_receipt(&self, receipt: SignedFullTxReceipt) {
         if let Some((_, sender)) = self.subscribers.remove(&receipt.data().tx_hash())
             && let Err(unsent_receipt) = sender.send(receipt)
         {
