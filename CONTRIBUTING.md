@@ -227,6 +227,16 @@ If the author disagrees:
 - agreement MUST be reached with the reviewer
 - the reviewer MUST resolve the conversation if they withdraw the comment
 
+### 10.2 Changes After Approval
+
+If changes are pushed after approval:
+
+- the author MUST notify the reviewer if the changes are non-trivial
+- the author MUST request re-review if behavior or logic has changed
+- silent changes after approval MUST be avoided
+
+For breaking or risky changes, re-review is REQUIRED.
+
 ---
 
 ## 11. Special Labels
