@@ -348,7 +348,6 @@ Errors are encoded as little-endian u32. Code `0xffff` is reserved for SyscallUs
 ## Code Conventions
 
 - `rustfmt.toml`: `imports_granularity = "Crate"`, `format_code_in_doc_comments = true`
-- CI uses `[skip-ci]` (not `[skip ci]`) in commit messages to get green status checks while skipping workflows
 - `cargo nextest` is the test runner (not `cargo test`), except for doc tests
 - `cargo hakari` manages workspace dependency deduplication — run `make workspace-hack` after dependency changes
 
