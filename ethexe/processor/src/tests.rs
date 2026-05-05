@@ -1819,7 +1819,7 @@ async fn process_transitions_drives_pipeline() {
 
     let mb1_txs = vec![
         Transaction::AdvanceTillEthereumBlock {
-            eth_block_hash: eth_block_init.hash,
+            block_hash: eth_block_init.hash,
         },
         Transaction::ProgressTasks {
             limits: ProgressTasksLimits::default(),
@@ -1893,7 +1893,7 @@ async fn process_transitions_drives_pipeline() {
 
     let mb2_txs = vec![
         Transaction::AdvanceTillEthereumBlock {
-            eth_block_hash: eth_block_followup.hash,
+            block_hash: eth_block_followup.hash,
         },
         Transaction::Injected(signed_injected),
         Transaction::ProgressTasks {

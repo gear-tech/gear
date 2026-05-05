@@ -357,26 +357,10 @@ impl Processor {
         Ok(transitions.finalize())
     }
 
-    /// Execute a Malachite sequencer block: drive [`InBlockTransitions`]
-    /// through the supplied `transactions` list in order, applying each
-    /// step against the current handler. Mirrors the three stages of
-    /// [`Processor::process_programs`] but the order is dictated by the
-    /// transaction list rather than hard-coded.
-    ///
-    /// Per-variant semantics:
-    /// - [`Transaction::AdvanceTillEthereumBlock`]: read the canonical
-    ///   events for the referenced Ethereum block out of the local DB
-    ///   and feed them through the router/mirror request handlers. If
-    ///   the events aren't present, log and treat as no events.
-    /// - [`Transaction::Injected`]: append the signed user tx to the
-    ///   target program's injected queue.
-    /// - [`Transaction::ProgressTasks`]: drain scheduled tasks due at
-    ///   the current synthetic block height.
-    /// - [`Transaction::ProcessQueues`]: drain program message queues
-    ///   subject to `limits.gas_allowance` and the configured soft
-    ///   limits. `block` is used here as the execution-time block
-    ///   header — the caller is responsible for synthesising sane
-    ///   height/timestamp values from the MB number.
+    /// Execute an MB by walking its `Transactions` list against an in-block
+    /// handler. `AdvanceTillEthereumBlock` folds in router/mirror events,
+    /// `Injected` enqueues a user tx, `ProgressTasks` drains the scheduler,
+    /// `ProcessQueues` drains program queues under `gas_allowance`.
     pub async fn process_transitions(
         &mut self,
         initial_program_states: ProgramStates,
@@ -398,15 +382,12 @@ impl Processor {
         );
         let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
 
-        // Tracks the youngest Ethereum block whose events have already
-        // been folded into this MB. Each `AdvanceTillEthereumBlock`
-        // covers the range from `current_anchor` (exclusive) up to and
-        // including its `eth_block_hash`, then the anchor advances.
+        // Youngest folded-in EB; advances on each `AdvanceTillEthereumBlock`.
         let mut current_anchor = initial_advanced_block;
 
         for tx in transactions {
             match tx {
-                Transaction::AdvanceTillEthereumBlock { eth_block_hash } => {
+                Transaction::AdvanceTillEthereumBlock { block_hash: eth_block_hash } => {
                     let target = *eth_block_hash;
                     let chain = self.collect_advance_chain(target, current_anchor)?;
                     for hash in chain {
@@ -456,20 +437,8 @@ impl Processor {
         Ok(handler.into_transitions().finalize())
     }
 
-    /// Walk the canonical chain backwards from `target` through
-    /// `parent_hash` and return the list of Ethereum block hashes from
-    /// `last_advanced` (exclusive) up to and including `target`, in
-    /// chronological (oldest-first) order.
-    ///
-    /// `last_advanced == H256::zero()` is the "no MB has advanced yet"
-    /// sentinel — the walk in that case proceeds until it falls off
-    /// the start of the locally-known chain, which is the desired
-    /// behaviour for the very first `AdvanceTillEthereumBlock` after
-    /// genesis.
-    ///
-    /// Capped at 1024 steps: catastrophic catch-up should be split
-    /// across MBs anyway, and the cap protects the executor from a
-    /// malformed proposal pinning it on a long DB walk.
+    /// EBs in `(last_advanced, target]`, oldest-first; capped at 1024.
+    /// `last_advanced == zero` walks until the chain runs out (genesis case).
     fn collect_advance_chain(
         &self,
         target: H256,
@@ -491,11 +460,7 @@ impl Processor {
                 });
             }
             let Some(header) = self.db.block_header(current) else {
-                // The walk dropped off the locally-known chain. If
-                // this happens before we've collected anything, the
-                // target itself isn't in the DB — that's a real error.
-                // Otherwise we treat the missing header as a natural
-                // fence (e.g. genesis-of-our-view) and stop the walk.
+                // Hard error if `target` itself is missing; otherwise treat as chain fence.
                 if chain.is_empty() {
                     return Err(ProcessorError::AdvanceMissingHeader { hash: current });
                 }

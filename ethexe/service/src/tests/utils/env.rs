@@ -96,11 +96,7 @@ use tracing::Instrument;
 /// Max network services which can be created by one test environment.
 const MAX_NETWORK_SERVICES_PER_TEST: usize = 1000;
 
-/// Pre-allocated malachite libp2p endpoint for one validator: the
-/// 127.0.0.1 TCP port the engine will bind to + the deterministic
-/// peer-id derived from the validator secret. Built at `TestEnv::new`
-/// time so each `Node::start_service` can dial peers it hasn't even
-/// constructed yet.
+/// Pre-allocated malachite endpoint: TCP port + deterministic peer-id.
 #[derive(Clone, Debug)]
 pub struct MalachiteEndpoint {
     pub pub_key: PublicKey,
@@ -137,16 +133,9 @@ pub struct TestEnv {
     pub canonical_quarantine: u8,
     #[allow(unused)]
     pub db: Database,
-    /// Malachite endpoints aligned with `validators` (same indexing).
-    /// Each node looks up its own endpoint by `pub_key` when booting
-    /// and dials the rest as `persistent_peers`.
+    /// Endpoints aligned 1:1 with `validators`.
     pub malachite_endpoints: Vec<MalachiteEndpoint>,
-    /// TCP listeners holding each validator's pre-allocated malachite
-    /// port reservation. Removed by `new_node` when constructing the
-    /// matching validator's `Node` and dropped just before the node's
-    /// `MalachiteService::new` rebinds the port — eliminates the
-    /// cross-process race window that otherwise lets a concurrent
-    /// test grab the released port between drop and rebind.
+    /// Pre-bound TCP listeners holding each validator's port until handed off in `new_node`.
     malachite_listeners: HashMap<PublicKey, TcpListener>,
 
     router_query: RouterQuery,
@@ -163,12 +152,7 @@ fn build_malachite_endpoints(
     signer: &Signer,
     validators: &[ValidatorConfig],
 ) -> (Vec<MalachiteEndpoint>, HashMap<PublicKey, TcpListener>) {
-    // Bind every listener concurrently before reading any port — that
-    // way the OS hands out distinct ports to all of them. The
-    // listeners are kept alive (returned to the caller) and dropped
-    // only just before `MalachiteService::new` rebinds the same port,
-    // so concurrent test processes can't race into our ports during
-    // the gap.
+    // Bind concurrently so the OS picks distinct ports; listeners stay alive until handoff.
     let listeners: Vec<TcpListener> = (0..validators.len())
         .map(|_| {
             TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
@@ -188,10 +172,7 @@ fn build_malachite_endpoints(
                 .expect("validator key in keyring")
                 .to_bytes();
             let peer_id = malachite_libp2p_peer_id(&secret);
-            // `derive_libp2p_secret` is the identical derivation the
-            // engine runs internally; we don't use it here directly,
-            // but pulling it into scope makes the dependency on its
-            // semantic invariant explicit.
+            // Pull `derive_libp2p_secret` into scope to pin the engine's derivation invariant.
             let _ = derive_libp2p_secret;
             MalachiteEndpoint {
                 pub_key: v.public_key,
@@ -447,14 +428,7 @@ impl TestEnv {
             (handle, bootstrap_address, nonce)
         });
 
-        // Pre-allocate malachite TCP endpoints for the whole
-        // validator set. We bind one TcpListener per validator
-        // simultaneously so the OS picks distinct free ports and
-        // **keep them alive** — `MalachiteService::new` rebinds the
-        // same port, and we drop the corresponding listener only just
-        // before that rebind happens. This prevents concurrent test
-        // processes (nextest = process-per-test) from racing into our
-        // released ports.
+        // Hold listeners alive until `start_service` to keep concurrent test processes off our ports.
         let (malachite_endpoints, malachite_listeners) =
             build_malachite_endpoints(&signer, &validator_configs);
 
@@ -514,18 +488,12 @@ impl TestEnv {
                 .expect("failed to generate network key")
         });
 
-        // Allocate the malachite home once, at node-construction time —
-        // its lifetime mirrors the node's, mirroring production where the
-        // RocksDB store + WAL persist across service restarts.
-        // `start_service` reuses the same dir, so a stop+start cycle
-        // resumes consensus from where it left off.
+        // Allocate once: stop+start reuses the same WAL/store.
         let malachite_home = validator_config
             .as_ref()
             .map(|_| tempfile::tempdir().expect("malachite home tempdir"));
 
-        // Take this validator's pre-bound TCP listener out of the env;
-        // the listener stays alive on the Node until the first
-        // `start_service` is about to call `MalachiteService::new`.
+        // Take this validator's listener; it lives on the Node until first `start_service`.
         let malachite_listener = validator_config
             .as_ref()
             .and_then(|c| self.malachite_listeners.remove(&c.public_key));
@@ -1086,29 +1054,16 @@ pub struct Node {
     commitment_delay_limit: u32,
     canonical_quarantine: u8,
 
-    /// Tempdir hosting the Malachite home (WAL + store.db). Held here
-    /// so it lives as long as the service does and is cleaned up when
-    /// the node is dropped.
+    /// Malachite WAL + store.db tempdir; lives with the node.
     malachite_home: Option<tempfile::TempDir>,
 
-    /// Pre-allocated malachite endpoints for *every* validator in the
-    /// test env. The node boots its own at `self.validator_config`'s
-    /// `pub_key` and dials the rest as `persistent_peers`.
+    /// Endpoints of every validator (this node + peers).
     malachite_endpoints: Vec<MalachiteEndpoint>,
-    /// This validator's pre-bound TCP port-reservation listener.
-    /// Held for the lifetime of the node (transferred from
-    /// `TestEnv::malachite_listeners` in `new_node`) and dropped just
-    /// before the first `MalachiteService::new` so the rebind sees the
-    /// port free without giving another process a chance to claim it.
-    /// `None` for non-validator nodes and after the first start.
+    /// Port reservation; dropped just before the first `MalachiteService::new`.
     malachite_listener: Option<TcpListener>,
 
     running_service_handle: Option<JoinHandle<()>>,
-    /// Sender end of the graceful-shutdown channel installed on the
-    /// running service. `stop_service` fires it instead of
-    /// `JoinHandle::abort` so the malachite engine flushes its WAL
-    /// and releases the RocksDB advisory lock + libp2p listener
-    /// before the next `start_service` re-opens the same home dir.
+    /// Graceful shutdown — flushes WAL and releases the libp2p listener.
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
@@ -1188,15 +1143,7 @@ impl Node {
         let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
         let validator_address = validator_pub_key.map(|key| key.to_address());
 
-        // Boot a real Malachite engine for every validator in the
-        // test env. Genesis lists every validator's pub_key (so each
-        // node sees the full set), and `persistent_peers` covers
-        // every *other* validator's pre-allocated multiaddr. The
-        // engine binds to the matching pre-allocated TCP port. Quorum
-        // is whatever the test env's threshold says.
-        //
-        // Connect-only nodes (no validator key) keep `malachite =
-        // None` and rely on whichever validators are producing MBs.
+        // Validators boot a Malachite engine; connect-only nodes leave it None.
         let malachite = if let Some(config) = self.validator_config.as_ref() {
             let me = self
                 .malachite_endpoints
@@ -1219,9 +1166,7 @@ impl Node {
                 })
                 .collect();
 
-            // Reuse the home dir allocated in `new_node`, so a
-            // stop+start cycle picks up the WAL/store left by the
-            // previous run instead of bootstrapping from genesis.
+            // Reuse the home dir from `new_node` so stop+start resumes from WAL.
             let home_path = self
                 .malachite_home
                 .as_ref()
@@ -1236,10 +1181,7 @@ impl Node {
             // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
             mc.canonical_quarantine = self.canonical_quarantine;
             let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
-            // Release the pre-bound TCP listener immediately before
-            // libp2p rebinds the same port. Holding it until this
-            // line keeps concurrent test processes off our port until
-            // the very last moment.
+            // Release the port-reservation listener moments before libp2p rebinds.
             drop(self.malachite_listener.take());
             let svc = MalachiteService::new(
                 mc,
@@ -1347,11 +1289,7 @@ impl Node {
             .take()
             .expect("Service is not running");
 
-        // Prefer graceful shutdown so the malachite engine flushes
-        // its WAL and releases the RocksDB advisory lock + libp2p
-        // listener before `start_service` re-opens the same dir. If
-        // the receiver was already dropped (e.g. the run loop
-        // exited on its own) fall back to abort.
+        // Graceful shutdown so the WAL flushes and libp2p releases; abort if the receiver is gone.
         if let Some(tx) = self.shutdown_tx.take()
             && tx.send(()).is_ok()
         {

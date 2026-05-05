@@ -40,52 +40,32 @@ use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
-/// A single transaction in the sequencer block.
-///
-/// The enum is deliberately small for MVP — it will grow as the
-/// execution side of ethexe gets wired in. Only [`Transaction::Injected`]
-/// carries user-supplied data; the rest are service transactions
-/// produced by the block producer.
+/// A single transaction in the malachite block.
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum Transaction {
-    /// Advance the executor's view of the canonical Ethereum chain up
-    /// to (and including) the block at `eth_block_hash`. Producer picks
-    /// the block that has just passed the ethexe quarantine window.
-    AdvanceTillEthereumBlock { eth_block_hash: H256 },
+    /// Pin executor's view to a quarantine-passed Ethereum block.
+    AdvanceTillEthereumBlock { block_hash: H256 },
 
-    /// Progress any pending scheduled tasks (mailbox expiry, waitlist
-    /// wake-ups, reservation cleanups, etc.) subject to `limits`.
-    ///
-    /// `limits` is intentionally left empty for now — concrete
-    /// parameters (time / gas budget) will be filled in later.
+    /// Progress scheduled tasks (mailbox/waitlist/reservation cleanup).
     ProgressTasks { limits: ProgressTasksLimits },
 
-    /// Run one drain of the message queues subject to `limits`
-    /// (`gas_allowance` budget). Producer emits this at the very
-    /// end of each sequencer block.
+    /// Drain message queues within `gas_allowance`; producer emits last.
     ProcessQueues { limits: ProcessQueuesLimits },
 
-    /// A user-submitted transaction picked from the mempool.
+    /// User-submitted transaction from the mempool.
     Injected(SignedInjectedTransaction),
 }
 
-/// Placeholder limits for [`Transaction::ProgressTasks`] — shape will
-/// be nailed down once executor-side plumbing lands.
+/// Placeholder; shape firms up once executor plumbing lands.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ProgressTasksLimits {}
 
-/// Limits for [`Transaction::ProcessQueues`]. The gas budget is
-/// embedded in the transaction so each MB carries its execution
-/// allowance on the wire — the executor doesn't need a side channel
-/// to know how long it may run.
+/// Per-MB execution budget, carried on the wire.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ProcessQueuesLimits {
-    /// Block gas budget for this `ProcessQueues` step. Producer
-    /// reads it from the consensus config and the executor charges
-    /// queue work against it via `GasAllowanceCounter`.
     pub gas_allowance: u64,
 }
 
@@ -101,14 +81,7 @@ impl Transaction {
     }
 }
 
-/// Application's `BlockPayload`: an ordered list of [`Transaction`]s.
-///
-/// Stored in the content-addressed half of [`ethexe_db`]; the
-/// reference key is [`Self::hash`] (Blake2b-256 over the
-/// SCALE-encoded list). `CompactBlock::transactions_hash` is exactly
-/// this hash, so any place that holds a [`crate::db::CompactBlock`]
-/// can fetch the matching `Transactions` from the CAS without further
-/// coordination.
+/// `BlockPayload`: ordered transactions; CAS key = Blake2b-256 of the SCALE-encoded list.
 #[derive(
     Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo, Deref, DerefMut, IntoIterator,
 )]
@@ -120,8 +93,7 @@ impl Transactions {
         Self(transactions)
     }
 
-    /// Blake2b-256 over the SCALE-encoded list — the CAS key under
-    /// which this `Transactions` blob lives in [`ethexe_db`].
+    /// CAS key: Blake2b-256 over the SCALE-encoded list.
     pub fn hash(&self) -> H256 {
         gear_core::utils::hash(&self.encode()).into()
     }
@@ -154,7 +126,7 @@ mod tests {
         let mut a = empty_txs();
         let b = empty_txs();
         a.push(Transaction::AdvanceTillEthereumBlock {
-            eth_block_hash: H256::from_low_u64_be(0xEB),
+            block_hash: H256::from_low_u64_be(0xEB),
         });
         assert_ne!(a.hash(), b.hash());
     }
@@ -162,7 +134,7 @@ mod tests {
     #[test]
     fn transaction_tag_distinguishes_variants() {
         let advance = Transaction::AdvanceTillEthereumBlock {
-            eth_block_hash: H256::zero(),
+            block_hash: H256::zero(),
         };
         let progress = Transaction::ProgressTasks {
             limits: ProgressTasksLimits::default(),
@@ -184,7 +156,7 @@ mod tests {
         use parity_scale_codec::Decode;
 
         let original = Transactions::new(alloc::vec![Transaction::AdvanceTillEthereumBlock {
-            eth_block_hash: H256::from_low_u64_be(0xEB)
+            block_hash: H256::from_low_u64_be(0xEB)
         }]);
         let encoded = original.encode();
         let decoded = Transactions::decode(&mut encoded.as_slice()).expect("decode");

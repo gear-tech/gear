@@ -31,26 +31,9 @@ use ethexe_common::{
 use gprimitives::{ActorId, CodeId, H256};
 use std::collections::{HashMap, hash_map::Entry};
 
-/// Walk the MB chain from `mb_hash` up via `parent_mb_hash` and return the
-/// hashes of all MBs strictly between `last_committed_mb` (exclusive) and
-/// `mb_hash` (inclusive), in **chronological** order (oldest first).
-///
-/// `last_committed_mb == H256::zero()` means nothing has been committed
-/// on-chain yet — the walk continues through the genesis MB and stops when
-/// `parent_mb_hash` is `None`.
-///
-/// Errors out if the chain walk is exhausted without reaching
-/// `last_committed_mb` (i.e. the supplied head is not a descendant of the
-/// last committed MB), or if any MB along the way is not yet computed.
-///
-/// **Strict** semantics — used by the **participant** path of batch
-/// validation, where the coordinator's request must reference an MB
-/// chain that we have fully computed locally. The caller catches the
-/// error and converts it into a [`ValidationStatus::Rejected`] (i.e.
-/// the validator declines to sign), so the error stays scoped to one
-/// request and never crashes the consensus service. For the
-/// **producer** (coordinator) path that should commit whatever it
-/// can compute right now, see
+/// MBs in `(last_committed_mb, mb_hash]`, chronological order. Strict: errors
+/// if the walk doesn't reach the anchor or any MB along the way is not computed.
+/// Used on the participant path; lenient producer counterpart is
 /// [`collect_computed_uncommitted_predecessors`].
 pub fn collect_not_committed_mb_predecessors<DB: MbStorageRO>(
     db: &DB,
@@ -82,26 +65,9 @@ pub fn collect_not_committed_mb_predecessors<DB: MbStorageRO>(
     Ok(mbs.into_iter().rev().collect())
 }
 
-/// Lenient variant of [`collect_not_committed_mb_predecessors`] for the
-/// **producer** path of batch commitment.
-///
-/// Walks the canonical MB chain from `mb_head` back via
-/// `parent_mb_hash`, then returns the longest **chronologically
-/// contiguous prefix that is fully computed** anchored at
-/// `last_committed_mb`. The chain commitment that goes on-chain has
-/// to start exactly where the previous one ended (state on the Router
-/// is at `last_committed_mb`), which is why we never skip a
-/// not-computed MB and resume — once compute is behind, only the
-/// prefix up to the gap is committable. The remainder accumulates and
-/// gets included in a later batch attempt.
-///
-/// Returns an empty `Vec` (rather than an error) when:
-/// - the very first successor of `last_committed_mb` is not yet
-///   computed — there's no progress to commit this round, or
-/// - the parent walk from `mb_head` exhausts before reaching
-///   `last_committed_mb` (e.g. immediately after a restart with a
-///   fresh malachite store, the local chain doesn't yet stretch back
-///   to the on-chain anchor).
+/// Producer-path lenient counterpart: longest computed prefix anchored at
+/// `last_committed_mb`. Returns empty when the first successor isn't yet
+/// computed or the parent walk doesn't reach the anchor (e.g. fresh restart).
 pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
     db: &DB,
     last_committed_mb: H256,
@@ -120,24 +86,19 @@ pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
             .unwrap_or(H256::zero());
     }
     if current != last_committed_mb {
-        // Couldn't trace back to the on-chain commit anchor — most
-        // likely a fast-restart or sync-lag situation. Caller skips
-        // this batch attempt; the next chain head will retry.
+        // Walk didn't reach the anchor (fast-restart / sync-lag); caller retries.
         tracing::warn!(
             %last_committed_mb,
             %mb_head,
             walk_depth = chain.len(),
-            "collect_computed_uncommitted_predecessors: parent walk did not reach last_committed_mb — returning empty (chain commitment will be skipped)",
+            "parent walk did not reach last_committed_mb — chain commitment skipped",
         );
         return Vec::new();
     }
 
-    chain.reverse(); // chronological order
+    chain.reverse();
 
-    // Take the longest computed prefix. Stop at the first
-    // not-computed MB so the resulting range is anchored at
-    // `last_committed_mb` (contiguity required by the on-chain
-    // applier).
+    // Longest contiguous computed prefix anchored at `last_committed_mb`.
     let mut collected = Vec::with_capacity(chain.len());
     for (hash, computed) in chain.iter().copied() {
         if !computed {
@@ -148,27 +109,9 @@ pub fn collect_computed_uncommitted_predecessors<DB: MbStorageRO>(
     collected
 }
 
-/// Returns `true` when `candidate` has been BFT-finalized in this
-/// validator's local view — i.e. walking back from
-/// `latest_finalized_mb` via `parent_mb_hash` reaches `candidate`.
-///
-/// Sound by BFT-safety: any two BFT-decided MBs are linearly ordered,
-/// so a `candidate` that is finalized locally must lie on the chain
-/// from genesis up to `latest_finalized_mb`. Reachability through
-/// `mb_compact_block.parent` is therefore an iff for "finalized
-/// locally".
-///
-/// Edge cases:
-/// - `candidate == H256::zero()` → genesis sentinel, trivially
-///   finalized (it is the implicit ancestor of every MB).
-/// - `candidate == latest_finalized_mb` → trivially finalized.
-/// - `latest_finalized_mb == H256::zero()` (no MB ever finalized
-///   here) → only zero-candidate is finalized.
-///
-/// The walk depth is bounded by the height gap between
-/// `latest_finalized_mb` and `candidate`, which is single-digit in
-/// steady state (gap = `coordinator_aggregation_delay /
-/// mb_block_time`).
+/// `true` iff `candidate` is reachable from `latest_finalized_mb` by walking
+/// `parent_mb_hash`. Sound by BFT linear-order; bounded by the height gap.
+/// `H256::zero()` is the genesis sentinel.
 pub fn is_finalized_locally<DB: MbStorageRO>(
     db: &DB,
     candidate: H256,
@@ -208,10 +151,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
 
     let block_hash = block.hash;
 
-    // An MB that finalized with no state transitions doesn't justify a chain
-    // commitment on its own — head can advance the next time the coordinator
-    // catches a non-empty MB. We still allow a batch *without* a chain
-    // commitment if there are codes / validators / rewards to commit.
+    // Empty-transition MB on its own doesn't justify a chain commitment.
     let chain_has_transitions = chain_commitment
         .as_ref()
         .is_some_and(|c| !c.transitions.is_empty());
@@ -225,7 +165,6 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
         return Ok(None);
     }
 
-    // Drop the chain commitment if its transitions list is empty — see comment above.
     let chain_commitment = chain_commitment.filter(|c| !c.transitions.is_empty());
 
     let previous_batch = db
@@ -235,9 +174,6 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
             || anyhow!("Cannot get from db last committed block for block {block_hash}",),
         )?;
 
-    // For now we use a static expiry derived from `commitment_delay_limit` —
-    // batches need to land within that many Ethereum blocks of `block.hash`
-    // or they're rejected on-chain.
     let expiry: u8 = commitment_delay_limit.try_into().unwrap_or(u8::MAX);
 
     tracing::trace!("Batch commitment expiry for block {block_hash} is {expiry:?}",);
@@ -272,21 +208,9 @@ pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     Ok(commitments)
 }
 
-/// Build a chain commitment that covers all not-yet-committed MBs between
-/// `block.last_committed_mb` (exclusive) and `mb_head` (inclusive) **as
-/// far forward as compute has actually reached**, feed it into the
-/// supplied `batch_filler`, and return the hash of the head MB that
-/// was actually included.
-///
-/// Lenient by design (used by the producer):
-/// - if compute is still catching up to `mb_head`, the included head
-///   slides back to the most recent computed predecessor anchored at
-///   `last_committed_mb`;
-/// - if no computed predecessors exist yet (or the parent chain
-///   doesn't reach `last_committed_mb`), no chain commitment is
-///   added and the function returns `last_committed_mb` unchanged —
-///   the caller's batch is still allowed to ship code/validators/
-///   rewards commitments without a chain piece.
+/// Producer chain-commitment builder: covers `(last_committed_mb..mb_head]` up
+/// to where compute has reached, fits within the size budget, returns the
+/// head MB actually included. Returns `last_committed_mb` if nothing fits.
 pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     db: &DB,
     at_block: H256,
@@ -301,20 +225,11 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
     let pending = collect_computed_uncommitted_predecessors(db, last_committed_mb, mb_head);
 
     if pending.is_empty() {
-        // Nothing computed in the [last_committed_mb..mb_head] range yet
-        // (or the chain doesn't reach `last_committed_mb` locally).
-        // Producer skips chain commitment for this attempt; the
-        // accumulated transitions land in a later batch.
+        // Nothing computed in range; producer skips chain commitment this round.
         return Ok(last_committed_mb);
     }
 
-    // Aggregate transitions across the computed prefix incrementally, stopping
-    // when the next MB would push the chain commitment past the size budget.
-    // This prevents self-perpetuating batch failures: previously, when a long
-    // backlog accumulated (e.g. after a coordinator stall), the full chain
-    // commitment exceeded `batch_size_limit`, the filler returned
-    // `SizeLimitExceeded` silently, and the chain commitment was dropped —
-    // leaving the same backlog (only larger) for the next round.
+    // Aggregate transitions incrementally; stop when the next MB blows the size budget.
     let mut transitions: Vec<StateTransition> = Vec::new();
     let mut last_included = last_committed_mb;
     for mb_hash in &pending {
@@ -322,8 +237,7 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
             anyhow::bail!("Computed MB {mb_hash} outcome not found in db");
         };
 
-        // Trial-include this MB's transitions and check if the resulting chain
-        // commitment still fits the per-batch size budget.
+        // Trial-fit this MB; bail if it pushes us past the batch size budget.
         let mut trial = transitions.clone();
         trial.extend(mb_transitions.iter().cloned());
         let trial_commitment = ChainCommitment {
@@ -331,8 +245,6 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
             transitions: trial,
         };
         if !batch_filler.would_fit_chain_commitment(&trial_commitment) {
-            // Don't include the over-sized MB. Keep the previous prefix as the
-            // commitable chunk and let the rest land in a future batch.
             break;
         }
 
@@ -349,22 +261,15 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         tracing::trace!(
             "failed to include chain commitment for head MB {mb_head} because of error={err}"
         );
-        // include_chain_commitment only fails on size budget; report the head
-        // we tried to commit so the caller can record what didn't fit.
         return Ok(last_committed_mb);
     }
 
     Ok(last_included)
 }
 
-/// Squashes transitions for the same actor into a single transition per actor.
-///
-/// For each actor, the newest transition (last in chronological order) provides the
-/// `new_state_hash`. Messages, value claims, and `value_to_receive` are accumulated
-/// from all transitions. If any transition marks the actor as exited, the resulting
-/// inheritor is taken from the newest exit transition. The returned transitions
-/// preserve the order in which each actor first appeared; callers apply any
-/// later ordering required for commitment encoding or execution.
+/// Collapse repeated actor transitions: newest `new_state_hash`, accumulated
+/// messages / value claims / `value_to_receive`, exit-inheritor from the newest
+/// exit. First-seen order is preserved.
 pub fn squash_transitions_by_actor(transitions: Vec<StateTransition>) -> Vec<StateTransition> {
     let mut positions = HashMap::new();
     let mut aggregations = Vec::new();
@@ -450,16 +355,7 @@ impl ActorAggregation {
     }
 }
 
-/// Internal signed-magnitude helper for `StateTransition::value_to_receive`.
-///
-/// Consensus stores the transfer amount as `(u128, negative_sign)` instead of a
-/// signed integer to keep the on-chain representation cheaper. Squashing needs
-/// signed arithmetic, so this helper performs addition directly on that wire
-/// format:
-/// - zero is always normalized to `negative = false`
-/// - equal signs use checked addition
-/// - opposite signs subtract the smaller magnitude from the larger one and keep
-///   the sign of the larger magnitude
+/// `(u128, negative)` signed magnitude — addition for squashing transitions.
 #[derive(Clone, Copy)]
 struct SignedMagnitude {
     value: u128,
@@ -499,8 +395,7 @@ impl SignedMagnitude {
 }
 
 pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition]) {
-    // `false < true`, so invert the key to keep transitions that return value to
-    // the router ahead of transitions that receive value from it.
+    // Invert key so router-returning transitions come before receiving ones.
     transitions.sort_by_key(|transition| !transition.value_to_receive_negative_sign);
 }
 
@@ -514,13 +409,11 @@ mod tests {
     };
     use ethexe_db::Database;
 
-    /// Build a [`Transactions`] with a height-derived
-    /// `AdvanceTillEthereumBlock` salt so each height's CAS hash is
-    /// unique even though the rest of the txs are identical.
+    /// Per-height unique CAS via `AdvanceTillEthereumBlock` salt.
     fn empty_txs(height: u64) -> Transactions {
         Transactions::new(vec![
             Transaction::AdvanceTillEthereumBlock {
-                eth_block_hash: H256::from_low_u64_be(0xEB00 + height),
+                block_hash: H256::from_low_u64_be(0xEB00 + height),
             },
             Transaction::ProcessQueues {
                 limits: ProcessQueuesLimits::default(),
@@ -528,9 +421,7 @@ mod tests {
         ])
     }
 
-    /// Service-side seeding helper. Mirrors what the malachite
-    /// `save_block` externalities do at finalize time, plus the
-    /// `meta.computed` flip that the executor would do later.
+    /// Mimics malachite `save_block` + executor's `meta.computed` flip.
     fn write_mb(
         db: &Database,
         parent_mb: H256,
@@ -539,8 +430,7 @@ mod tests {
     ) -> H256 {
         let txs = empty_txs(height);
         let transactions_hash = db.set_transactions(txs);
-        // Synthetic mb_hash — uniqueness is what matters, not the
-        // exact hashing scheme.
+        // Synthetic mb_hash; only uniqueness matters here.
         let mb_hash = H256::from_low_u64_be(0x1000 + height);
         db.set_mb_compact_block(
             mb_hash,
@@ -631,10 +521,7 @@ mod tests {
         // Compute is lagging: mb2 hasn't finished yet.
         db.mutate_mb_meta(mb2, |meta| meta.computed = false);
 
-        // Producer asks for the [zero..mb3] range. Only `mb1` is
-        // computed and contiguous from `last_committed_mb`; the
-        // suffix `[mb2, mb3]` is not committable because `mb2` would
-        // create a gap in the on-chain transitions.
+        // Only mb1 is contiguous-computed from anchor; mb2 gap blocks the rest.
         let walked = collect_computed_uncommitted_predecessors(&db, H256::zero(), mb3);
         assert_eq!(walked, vec![mb1]);
     }
@@ -655,9 +542,7 @@ mod tests {
         let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
 
         let bogus = H256::from_low_u64_be(0xDEAD);
-        // Chain walks back from mb1 to genesis (zero) without ever
-        // hitting `bogus` — producer skips chain commitment for this
-        // attempt instead of erroring.
+        // Walk doesn't hit `bogus`; producer skips silently instead of erroring.
         let walked = collect_computed_uncommitted_predecessors(&db, bogus, mb1);
         assert!(walked.is_empty());
     }
@@ -700,10 +585,7 @@ mod tests {
 
     #[test]
     fn is_finalized_returns_false_for_descendant_of_finalized_head() {
-        // The candidate is newer than `latest_finalized_mb` — the participant
-        // has computed it via a speculative BlockProposal, but the
-        // `mark_block_as_finalized` cascade hasn't reached it yet. Strict
-        // semantics: drop the signature for this round.
+        // Speculative-but-not-yet-finalized candidate must fail strict check.
         let db = Database::memory();
         let mb1 = write_mb(&db, H256::zero(), 1, vec![]);
         let mb2 = write_mb(&db, mb1, 2, vec![]);

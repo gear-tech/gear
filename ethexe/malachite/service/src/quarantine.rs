@@ -50,21 +50,11 @@ use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};
 use ethexe_db::Database;
 use gprimitives::H256;
 
-/// Hard cap on how far back of our own chain head we're willing to walk
-/// when verifying a peer's `AdvanceTillEthereumBlock`. 1024 ≫ any
-/// realistic `canonical_quarantine` (currently 16); prevents a
-/// malformed proposal from pinning us on a long DB walk.
+/// Cap on parent walks when verifying a peer's `AdvanceTillEthereumBlock`.
 const VERIFY_LOOKBACK_SLACK: u32 = 1024;
 
-/// Return the youngest EB that has passed quarantine relative to `head`.
-///
-/// Walks back `canonical_quarantine` steps along `parent_hash`. Two
-/// early-stop conditions:
-/// - if the walk reaches `start_block_hash` before finishing — the
-///   local chain is too short to clear the quarantine window, return
-///   `Ok(None)` so the producer skips `AdvanceTillEthereumBlock`;
-/// - if a parent header is unexpectedly missing before we reach the
-///   fence — treat as a chain-integrity issue and return `Err`.
+/// Youngest EB that has cleared quarantine. `Ok(None)` if the local chain is
+/// too short, `Err` on missing parent header.
 pub fn anchor(
     db: &Database,
     head: SimpleBlockData,
@@ -76,8 +66,6 @@ pub fn anchor(
 
     for _ in 0..canonical_quarantine {
         if current == start_block_hash {
-            // We're already on the oldest block the DB knows about —
-            // can't take another parent step.
             return Ok(None);
         }
         let parent = header.parent_hash;
@@ -90,23 +78,8 @@ pub fn anchor(
     Ok(Some(current))
 }
 
-/// Verify that `candidate` has passed quarantine relative to `head`.
-///
-/// Concretely: `candidate` must be a canonical ancestor of `head`
-/// reached in ≥ `canonical_quarantine` parent steps. Walks are also
-/// capped by `VERIFY_LOOKBACK_SLACK` and stop at `start_block_hash`.
-///
-/// Returns `Err` when:
-/// - candidate is not an ancestor within the lookback window or
-///   before we hit the start fence — we can't verify locally;
-/// - candidate is an ancestor but at depth `< canonical_quarantine`
-///   (still within quarantine);
-/// - a parent header is missing from the DB before the fence —
-///   chain-integrity issue.
-///
-/// Dropping a vote because our local view doesn't cover the proposed
-/// anchor is an acceptable outcome — the proposal may still reach
-/// quorum from validators whose DBs do cover it.
+/// `candidate` must be a canonical ancestor of `head` at depth ≥ `canonical_quarantine`.
+/// `Err` on still-quarantined / not-found / missing-parent.
 pub fn verify_passed(
     db: &Database,
     head: SimpleBlockData,
@@ -151,29 +124,8 @@ pub fn verify_passed(
     ))
 }
 
-/// Whether `candidate` is a *strict* descendant of `ancestor` along
-/// the canonical `parent_hash` chain — i.e., `ancestor` appears in
-/// `candidate`'s ancestry at depth ≥ 1.
-///
-/// Cases:
-/// - `ancestor == H256::zero()` — pre-genesis sentinel: every block
-///   is treated as a descendant. Returns `Ok(true)` immediately.
-/// - `ancestor == candidate` — same block, not strict. Returns `Ok(false)`.
-/// - walk from `candidate` reaches `ancestor` at depth ≥ 1 →
-///   `Ok(true)`.
-/// - walk hits genesis (`parent_hash == 0`) before finding `ancestor` →
-///   `Err` (orphan: `ancestor` is not in `candidate`'s ancestry —
-///   typically means a deep reorg dropped `ancestor` off the
-///   canonical chain).
-/// - walk hits `start_block_hash` fence before finding `ancestor` →
-///   `Err` (local DB doesn't go far enough back to verify).
-/// - missing parent header in DB before either of those terminations →
-///   `Err` (chain-integrity issue).
-///
-/// Used by the producer to confirm that a freshly quarantine-passed
-/// EB is a proper successor of the parent MB's `last_advanced_block`,
-/// not the same block (no progress) and not a sibling on a discarded
-/// branch.
+/// `candidate` strictly descends from `ancestor` (depth ≥ 1). `H256::zero()` =
+/// pre-genesis sentinel; equal hashes return `Ok(false)`.
 pub fn is_strict_descendant_of(
     db: &Database,
     candidate: H256,
@@ -230,9 +182,7 @@ mod tests {
         db::{BlockMetaStorageRW, OnChainStorageRW},
     };
 
-    /// Persist a synthetic linear chain into the DB and return the
-    /// hashes oldest-first. genesis -> blocks[0] (parent = zero) ->
-    /// blocks[1] (parent = blocks[0]) -> ...
+    /// Synthetic linear chain, oldest-first; parent[0] == zero.
     fn linear_chain(db: &Database, len: usize) -> Vec<H256> {
         let mut hashes = Vec::with_capacity(len);
         let mut parent = H256::zero();

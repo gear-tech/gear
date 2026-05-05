@@ -61,49 +61,24 @@ use gprimitives::H256;
 use tokio::sync::Notify;
 use tracing::{info, trace};
 
-/// Source of injected transactions to pack into the next sequencer
-/// block.
-///
-/// The pool is fed new chain heads via [`Self::set_chain_head`] so it
-/// can garbage-collect entries whose `reference_block` has aged past
-/// [`ethexe_common::injected::VALIDITY_WINDOW`]. [`Self::fetch`] is
-/// non-destructive: a tx is only removed once the MB it ends up in
-/// is finalized and passed to [`Self::forget`], at which point the
-/// pool must remember the tx hash until it's safe to forget (also
-/// bounded by `VALIDITY_WINDOW`).
+/// Producer-side source of injected transactions. Fetch is non-destructive;
+/// `forget` runs after MB finalization and dedups within `VALIDITY_WINDOW`.
 #[async_trait]
 pub trait Mempool: Send + Sync + 'static {
-    /// Accept a transaction into the pool. Implementations may reject
-    /// txs whose `reference_block` has already aged out or whose hash
-    /// has recently been committed; the current interface is
-    /// fire-and-forget so rejections are swallowed silently (logged).
+    /// Fire-and-forget; aged-out / duplicate txs are dropped silently.
     fn insert(&self, tx: SignedInjectedTransaction);
 
-    /// Notify the pool of a newly observed Ethereum chain head.
-    /// Drives expiration GC for both the pool and the seen-hash dedup
-    /// table.
+    /// Drives validity-window GC.
     fn set_chain_head(&self, head: SimpleBlockData);
 
-    /// Return a batch of TXs whose `reference_block` is an ancestor
-    /// of `head` and that fit within the given gas budget. Non-ancestor
-    /// txs stay in the pool — they become eligible again if the chain
-    /// reorgs back to their branch.
+    /// Txs whose `reference_block` is an ancestor of `head` and fit `gas_budget`.
     async fn fetch(&self, head: SimpleBlockData, gas_budget: u64)
     -> Vec<SignedInjectedTransaction>;
 
-    /// Drop the given TXs after they have been included in a committed
-    /// (finalized) sequencer block. Implementations should also record
-    /// the hashes so subsequent [`Self::insert`] calls for the same
-    /// tx are rejected as duplicates, until the ref_block ages out.
+    /// Drop committed txs and remember their hashes for dedup.
     async fn forget(&self, committed: &[SignedInjectedTransaction]);
 
-    /// Block until at least one new transaction is accepted into the
-    /// pool. Used by the producer to wake up out of an idle wait the
-    /// moment fresh content arrives — without polling.
-    ///
-    /// The notification is best-effort: spurious wake-ups are allowed
-    /// (the producer must always re-check `fetch` after returning).
-    /// Empty implementations may pend forever.
+    /// Best-effort wake-up on new tx; spurious wake-ups allowed.
     async fn wait_for_new_tx(&self);
 }
 
@@ -128,35 +103,20 @@ impl Mempool for EmptyMempool {
     async fn forget(&self, _committed: &[SignedInjectedTransaction]) {}
 
     async fn wait_for_new_tx(&self) {
-        // Empty pool never accepts a tx — pend forever so the
-        // producer's select races only against chain_head signals.
         std::future::pending().await
     }
 }
 
 /// Default cap on the number of pending TXs the in-memory pool holds.
-/// We start rejecting new inserts once this is reached — better than
-/// silently dropping old entries that might still be the only copy
-/// the network has.
 pub const DEFAULT_POOL_CAPACITY: usize = 10_000;
 
-/// Internal pool state — protected by a single [`Mutex`] because all
-/// operations are quick and the pool sees low contention
-/// (producer-only writes from the RPC/network ingress tasks).
+/// Pool state behind a single mutex — operations are short, contention low.
 #[derive(Debug, Default)]
 struct Inner {
-    /// Pending txs keyed by their canonical hash.
     pool: HashMap<HashOf<InjectedTransaction>, SignedInjectedTransaction>,
-    /// Hashes of txs that have already been included in a finalized
-    /// MB, together with the `reference_block` they carried. We keep
-    /// them around so a re-gossipped duplicate can't slip back into
-    /// the pool; entries are evicted when their `reference_block`
-    /// ages out (same rule as pool txs).
+    /// Recently committed txs (tx_hash → ref_block) for dedup. Aged out with the validity window.
     seen: HashMap<HashOf<InjectedTransaction>, H256>,
-    /// Height of the latest chain head observed via
-    /// [`Mempool::set_chain_head`]. Any tx whose `reference_block`
-    /// height falls ≤ `latest_head_height - VALIDITY_WINDOW` is
-    /// considered expired.
+    /// Latest chain head height — drives age-out of pool/seen entries.
     latest_head_height: Option<u32>,
 }
 
@@ -165,9 +125,7 @@ pub struct InjectedTxMempool {
     inner: Mutex<Inner>,
     db: Database,
     capacity: usize,
-    /// Signal raised on every successful tx insert. The producer
-    /// awaits on this from `Mempool::wait_for_new_tx` so it can wake
-    /// out of an idle wait the moment a fresh tx lands.
+    /// Raised on insert; awaited by the producer in `wait_for_new_tx`.
     new_tx_notify: Arc<Notify>,
 }
 
@@ -199,28 +157,17 @@ impl InjectedTxMempool {
         self.db.block_header(reference_block).map(|h| h.height)
     }
 
-    /// True when `ref_block` has aged past the validity window
-    /// relative to the given `head_height`.
+    /// True when `ref_block` is past the validity window for `head_height`.
     fn is_expired(head_height: u32, ref_block_height: u32) -> bool {
-        // Matches tx_validation.rs: tx is valid while
-        //   ref_block_height <= head && ref_block_height + WINDOW > head.
-        // So it's expired when the second part fails. `saturating_add`
-        // guards against u32 overflow if ref_block is close to
-        // u32::MAX (academic but cheap).
         ref_block_height.saturating_add(VALIDITY_WINDOW as u32) <= head_height
     }
 
-    /// The oldest block the local DB is guaranteed to have a header
-    /// for. Walks stop here; going past it would read a parent that
-    /// isn't in our DB.
+    /// Oldest block the local DB has a header for; walks stop here.
     fn start_block_hash(&self) -> H256 {
         self.db.globals().start_block_hash
     }
 
-    /// Build the set of ancestor hashes of `head` reachable within
-    /// `VALIDITY_WINDOW` parent steps. Walk stops at `start_block`
-    /// (or earlier if a header happens to be missing). Used to
-    /// answer "is this tx's ref_block on the current branch?".
+    /// Set of ancestors of `head` within `VALIDITY_WINDOW` steps.
     fn recent_ancestors(&self, head: &SimpleBlockData) -> HashSet<H256> {
         let start_fence = self.start_block_hash();
 

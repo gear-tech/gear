@@ -18,30 +18,11 @@
 
 //! Per-MB execution sub-service.
 //!
-//! Once a Malachite sequencer block has been finalized, the outer
-//! service feeds it into this sub-service via
-//! [`ComputeService::compute_mb`](crate::ComputeService::compute_mb).
-//! For every requested MB the sub-service first walks the parent
-//! chain (via [`CompactBlock::parent`](ethexe_common::db::CompactBlock)),
-//! collecting any ancestors that the DB says are not yet computed —
-//! this catches uncomputed MBs left behind by a crash between
-//! malachite-side persistence and our finishing the execution. The
-//! collected predecessors then run oldest-first, followed by the
-//! original target.
-//!
-//! # DB layout used here
-//! - `mb_compact_block(hash) -> CompactBlock` — persisted by the
-//!   service at `BlockFinalized` time so the walk can pull ancestor
-//!   identity (parent + height + transactions_hash).
-//! - `transactions(hash) -> Transactions` — CAS-stored payload,
-//!   referenced by `CompactBlock::transactions_hash`.
-//! - `mb_meta(hash) -> { computed, synced, last_advanced_block }` —
-//!   we flip `computed = true` here once execution finishes.
-//! - `mb_program_states / mb_outcome / mb_schedule(hash)` — written
-//!   on successful execution.
-//!
-//! Hooking the MB results into Ethereum batch commitments is a
-//! follow-up step.
+//! `compute_mb` walks the parent chain via [`CompactBlock::parent`], runs any
+//! uncomputed ancestors oldest-first, then the target. DB layout:
+//! `mb_compact_block` (persisted by the service at finalize), `transactions`
+//! (CAS payload), `mb_meta` (`computed` flips here), and the per-MB program
+//! states / outcome / schedule rows on success.
 
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
@@ -61,21 +42,12 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-/// Single MB-execution request queued up for the sub-service.
-///
-/// `mb_hash` is the consensus envelope hash (Blake2b over
-/// `ethexe_malachite_core::Block`) under which the malachite service
-/// has stored the matching [`crate::CompactBlock`] + transactions
-/// blob. The compute layer reads both back from the DB on demand —
-/// the request only carries the hash; the per-step gas budget lives
-/// inside each `Transaction::ProcessQueues` payload.
+/// MB-execution request; payload is read from the DB by hash.
 #[derive(Debug)]
 pub(crate) struct MbComputeRequest {
     pub mb_hash: H256,
 }
 
-/// Successful completion payload — the values a [`ComputeEvent::MbComputed`]
-/// needs to carry upward.
 #[derive(Debug, Clone, Copy)]
 struct MbComputeOk {
     mb_hash: H256,
@@ -84,13 +56,8 @@ struct MbComputeOk {
 
 type ComputationFuture = BoxFuture<'static, Result<MbComputeOk>>;
 
-/// Wraps the receiver end of a per-MB promise channel into a
-/// [`Stream`] that yields ready-to-emit
-/// [`ComputeEvent::Promise`]s. Closes (yields `None`) once every
-/// sender clone — including the one held by the executor's
-/// thread-locals — has been dropped, which happens by the time
-/// `compute_one` returns. We then unhook the stream and let
-/// `MbComputed` go out next.
+/// Streams `ComputeEvent::Promise`s from the executor's per-MB channel; closes
+/// when every sender (incl. thread-local ones) is dropped at compute end.
 struct MbPromisesStream {
     receiver: mpsc::UnboundedReceiver<Promise>,
     mb_hash: H256,
@@ -114,17 +81,9 @@ pub struct ComputeSubService<P: ProcessorExt> {
 
     input: VecDeque<MbComputeRequest>,
     computation: Option<ComputationFuture>,
-    /// Live per-MB promise stream. Holds the receiver end of the
-    /// channel that the executor writes into via `ext_publish_promise`.
-    /// Polled before `computation` so promises surface as soon as
-    /// the runtime emits them — the loader's subscription gets each
-    /// reply within ~one-block latency instead of waiting for the
-    /// MB's whole gas budget to drain.
+    /// Per-MB promise channel; polled before `computation` so promises stream out live.
     promises_stream: Option<MbPromisesStream>,
-    /// Holds back an `MbComputed` event until the corresponding
-    /// `promises_stream` has been fully drained — otherwise the
-    /// service-level handler could see `MbComputed` before the last
-    /// promise from the same MB and gossip them out of order.
+    /// Held until `promises_stream` drains so `MbComputed` lands after the last promise.
     pending_event: Option<Result<ComputeEvent>>,
 }
 
@@ -300,19 +259,8 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     }
 }
 
-/// Walk the parent chain from `target_hash` collecting the
-/// (height, hash, transactions) of every uncomputed ancestor —
-/// oldest first.
-///
-/// Parent linkage is read from [`CompactBlock::parent`]. Stops at:
-/// - genesis (parent is `H256::zero()`) — no further ancestors;
-/// - the first ancestor with `mb_meta(hash).computed == true` —
-///   everything older has already been processed in some earlier run.
-///
-/// Returns `Err(ComputeError::MbBlockNotFound)` if a parent referenced
-/// from a child but missing from the local DB is encountered. That
-/// only happens if the service didn't persist the block at
-/// `BlockFinalized` time — i.e. an internal invariant violation.
+/// Uncomputed ancestors of `target_hash`, oldest-first; stops at genesis or
+/// the first computed parent. Errors on missing parent (DB invariant).
 fn collect_uncomputed_predecessors(
     db: &Database,
     target_hash: H256,
@@ -421,7 +369,7 @@ mod tests {
         // heights.
         Transactions::new(vec![
             Transaction::AdvanceTillEthereumBlock {
-                eth_block_hash: H256::from_low_u64_be(0xEB00 + tag as u64),
+                block_hash: H256::from_low_u64_be(0xEB00 + tag as u64),
             },
             Transaction::ProgressTasks {
                 limits: ProgressTasksLimits::default(),
@@ -432,9 +380,7 @@ mod tests {
         ])
     }
 
-    /// Service-side seeding helper. Stores `txs` in the CAS, writes a
-    /// `CompactBlock` keyed by `mb_hash`, mirroring what the malachite
-    /// `save_block` externalities do at finalize time.
+    /// Mimics malachite `save_block`: CAS write + `CompactBlock`.
     fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, txs: Transactions) {
         let transactions_hash = db.set_transactions(txs);
         db.set_mb_compact_block(
@@ -447,9 +393,7 @@ mod tests {
         );
     }
 
-    /// Crash-recovery walk: only the tail MB is queued, but every
-    /// uncomputed predecessor in the parent chain ends up computed in
-    /// height order.
+    /// Tail-only queue still computes all uncomputed predecessors.
     #[tokio::test]
     #[ntest::timeout(5000)]
     async fn walks_uncomputed_predecessors() {
@@ -457,9 +401,7 @@ mod tests {
         let processor = MockProcessor::default();
         let mut sub = ComputeSubService::new(db.clone(), processor);
 
-        // Build a 5-block chain. Genesis's parent is `H256::zero()`.
-        // Each subsequent block's parent is the previous block's
-        // synthetic mb_hash (keyed `0x1000 + i`).
+        // 5-block chain; mb_hash = 0x1000 + i.
         const N: u64 = 5;
         let mut hashes = Vec::with_capacity(N as usize);
         let mut parent = H256::zero();
@@ -475,8 +417,7 @@ mod tests {
             assert!(!db.mb_meta(*hash).computed);
         }
 
-        // Queue ONLY the tail — the sub-service must walk back and
-        // catch the previous four uncomputed MBs.
+        // Tail-only queue forces walking back through 4 ancestors.
         let (tail_height, tail_hash) = *hashes.last().unwrap();
         sub.receive_mb(tail_hash);
 
@@ -489,8 +430,7 @@ mod tests {
             other => panic!("expected MbComputed, got {other:?}"),
         }
 
-        // Every MB in the chain must now be marked computed. This
-        // proves the walk visited every ancestor.
+        // All ancestors must end up computed.
         for (i, hash) in &hashes {
             assert!(
                 db.mb_meta(*hash).computed,

@@ -352,6 +352,22 @@ Errors are encoded as little-endian u32. Code `0xffff` is reserved for SyscallUs
 - `cargo nextest` is the test runner (not `cargo test`), except for doc tests
 - `cargo hakari` manages workspace dependency deduplication — run `make workspace-hack` after dependency changes
 
+### Comment & Doc Sizing
+
+Default rule (overridable per-session by the user). Comment length scales with the importance of the item:
+
+| Tier | Max length | Applies to |
+|------|------------|------------|
+| Large (≤200 lines) | full prose | crate-level docs (`//!` at the top of `lib.rs` / `main.rs`): purpose, usage, structure, surface-level implementation notes |
+| Medium (≤20 lines) | substantive | public structs / functions / modules: purpose, usage, structure, surface-level implementation notes |
+| Small (≤5 lines) | brief | private structs / functions / modules |
+| Tiny (1 line) | one-liner | inline comments inside function bodies |
+
+Rules of thumb:
+- A comment that exceeds its tier is a smell.
+- Don't restate what well-named identifiers already say.
+- Inline comments justify *why*, not *what*. If the why is obvious, drop the comment.
+
 ## GitHub PR Review
 
 When asked to review a PR (e.g. `@claude review` in a PR comment):

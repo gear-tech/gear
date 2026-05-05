@@ -76,7 +76,7 @@ fn mock_batch_manager(db: Database) -> BatchCommitmentManager {
 fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransition>) -> H256 {
     let txs = Transactions::new(vec![
         Transaction::AdvanceTillEthereumBlock {
-            eth_block_hash: H256::from_low_u64_be(0xEB00 + height),
+            block_hash: H256::from_low_u64_be(0xEB00 + height),
         },
         Transaction::ProcessQueues {
             limits: ProcessQueuesLimits::default(),

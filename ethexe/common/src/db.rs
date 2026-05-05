@@ -129,17 +129,8 @@ pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
 }
 
-/// Per-Malachite-block static identity record.
-///
-/// Keyed by the `ethexe_malachite_core::Block` envelope hash (Blake2b
-/// of `(parent_hash, height, payload_hash, reserved)`). Once a
-/// [`CompactBlock`] exists in storage for a given key, the matching
-/// [`Transactions`] blob is guaranteed to be in the content-addressed
-/// half of the DB at [`Self::transactions_hash`] — callers can fetch
-/// it via [`MbStorageRO::transactions`] without further coordination.
-///
-/// `parent` is the hash of the parent block envelope (`H256::zero()`
-/// for the genesis MB).
+/// MB static identity. Keyed by the Blake2b envelope hash; existence implies
+/// the matching `Transactions` blob is in CAS at `transactions_hash`.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct CompactBlock {
     pub parent: H256,
@@ -147,28 +138,9 @@ pub struct CompactBlock {
     pub transactions_hash: H256,
 }
 
-/// Per-Malachite-block dynamic flags.
-///
-/// `last_advanced_block` tracks the most recent Ethereum block this
-/// MB's accumulated `AdvanceTillEthereumBlock` line has pinned. It's
-/// propagated forward by the malachite service at save time: an MB
-/// that itself contains an `AdvanceTillEthereumBlock(x)` resets it
-/// to `x`; otherwise it inherits the parent's value. The very first
-/// MB inherits from `H256::zero()` (the pre-genesis sentinel — every
-/// Ethereum block is treated as a descendant of zero). The producer
-/// reads this field off the parent MB to decide whether the next
-/// quarantine-passed block is a genuine *new* advance or a re-pin
-/// of the same block.
-///
-/// `synced` is the chain-completeness flag. It is `true` only when
-/// both this MB **and every one of its ancestors back to the genesis
-/// MB** have been recorded in the database. The malachite service
-/// holds back `BlockProposal` / `BlockFinalized` events until an MB
-/// can be marked `synced`, mirroring the contract that observer's
-/// `synced` and compute's `computed` flags provide for their layers.
-///
-/// Block identity (height, parent) lives in [`CompactBlock`] —
-/// `MbMeta` is dynamic state only.
+/// MB dynamic state. `last_advanced_block` is propagated forward at save time
+/// (resets on `AdvanceTillEthereumBlock`); `synced` requires this MB and every
+/// ancestor to be persisted.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
@@ -285,7 +257,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "1c43229d89e8f193862ba70186b733d4d42c3a5cef1784aac1cb2dba68dd9ec1";
+            "00bc2449d273187c173dc49d055b1bc10113d0d1723e0b561e82902375faef38";
 
         let types = [
             meta_type::<BlockMeta>(),

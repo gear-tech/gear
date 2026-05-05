@@ -57,15 +57,9 @@ impl BatchCommitmentManager {
         }
     }
 
-    /// Build a fresh [`BatchCommitment`] for the coordinator.
-    ///
-    /// Walks the MB chain from `latest_finalized_mb` (taken from
-    /// [`DBGlobals`](ethexe_common::db::DBGlobals)) backward to the block's
-    /// last committed MB, aggregates state transitions, and pairs them with
-    /// any pending validators / rewards / code commitments.
-    ///
-    /// Returns `Ok(None)` when there's nothing to commit (no transitions and
-    /// no auxiliary commitments) — see [`utils::create_batch_commitment`].
+    /// Coordinator-side batch builder. Walks `[last_committed_mb..latest_finalized_mb]`
+    /// and pairs the chain piece with validators / rewards / code commitments.
+    /// Returns `Ok(None)` when there's nothing to commit.
     pub async fn create_batch_commitment(
         self,
         block: SimpleBlockData,
@@ -84,17 +78,10 @@ impl BatchCommitmentManager {
             bail!("failed to include rewards commitment into batch, err={err}")
         }
 
-        // NOTE: we prioritize state transitions over code commitments. So include them firstly.
+        // State transitions before code commitments.
         let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
         if !latest_finalized_mb.is_zero() {
-            // `try_include_chain_commitment` is lenient on the
-            // producer side: it commits whatever is computed and
-            // contiguous from `last_committed_mb`, and just skips the
-            // chain piece (returning `last_committed_mb` unchanged)
-            // when compute hasn't caught up. So the only `?` paths
-            // here are genuine DB invariant violations (e.g. a
-            // computed MB with no `mb_outcome`), which should bubble
-            // up.
+            // `try_include_chain_commitment` is lenient; only DB-invariant errors propagate.
             super::utils::try_include_chain_commitment(
                 &self.db,
                 block.hash,
@@ -129,14 +116,8 @@ impl BatchCommitmentManager {
         )
     }
 
-    /// Re-derive the batch the coordinator described in `request` and return
-    /// whether we agree with its digest.
-    ///
-    /// MB chain validation is intentionally simple: `request.head` must be
-    /// either equal to our `latest_finalized_mb` or an ancestor of it (per
-    /// `mb_compact_block.parent`). Anything else means we're behind or the
-    /// coordinator is on a different chain — we just drop our signature
-    /// rather than reject loudly.
+    /// Participant: re-derive the coordinator's batch and return whether digests agree.
+    /// Drops the signature (Rejected) on chain mismatch instead of erroring.
     pub async fn validate_batch_commitment(
         self,
         block: SimpleBlockData,
@@ -208,21 +189,8 @@ impl BatchCommitmentManager {
         };
 
         if let Some(head_mb) = head {
-            // BFT-safety: any two finalized MBs are linearly ordered. So
-            // walking back from `globals.latest_finalized_mb_hash` and
-            // hitting `head_mb` proves it is on the same canonical chain
-            // as everything else this validator has finalized — including
-            // `last_committed_mb`. The walk is bounded by the height gap
-            // between `latest_finalized_mb` and `head_mb` (single-digit
-            // in steady state). We then enforce `head_mb.height >
-            // last_committed_mb.height` so the coordinator is asking us
-            // to advance, not re-commit a prefix.
-            //
-            // If our `mark_block_as_finalized` cascade hasn't reached
-            // `head_mb` yet (e.g. cross-AS gossip lag from the BFT
-            // decision), the walk doesn't find it and we drop our
-            // signature for this round — the coordinator's next attempt
-            // picks us up once we catch up.
+            // BFT-safety: any two finalized MBs are linearly ordered, so reachability
+            // from `latest_finalized_mb` via parents is iff "finalized locally".
             let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
             if !utils::is_finalized_locally(&self.db, head_mb, latest_finalized_mb) {
                 let head_meta = self.db.mb_meta(head_mb);
@@ -257,9 +225,7 @@ impl BatchCommitmentManager {
                 .last_committed_mb
                 .unwrap_or(H256::zero());
 
-            // `head_mb` must advance past `last_committed_mb`. Genesis case
-            // (no commit yet) is encoded as `H256::zero()` → height 0, so
-            // any positive-height head trivially passes.
+            // Head must strictly advance past last-committed; genesis = height 0.
             let head_height = self
                 .db
                 .mb_compact_block(head_mb)
@@ -292,20 +258,13 @@ impl BatchCommitmentManager {
                 });
             }
 
-            // `collect_not_committed_mb_predecessors` walks from `head_mb`
-            // back to `last_committed_mb`. Both endpoints are finalized
-            // (head by the check above, last_committed by being on-chain),
-            // so the walk is on the canonical chain and never errors here
-            // unless storage is corrupt.
+            // Both endpoints finalized → walk is on canonical chain; only DB-corrupt errors here.
             let pending = super::utils::collect_not_committed_mb_predecessors(
                 &self.db,
                 last_committed_mb,
                 head_mb,
             )?;
 
-            // Aggregate transitions across the pending range. Empty outcome
-            // is fine — we only suppress the chain commitment if the squashed
-            // result is empty.
             let mut chain_commitment = ChainCommitment {
                 transitions: Vec::new(),
                 head: head_mb,

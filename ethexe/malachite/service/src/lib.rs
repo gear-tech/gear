@@ -18,39 +18,17 @@
 
 //! # Ethexe Malachite
 //!
-//! Ethexe-side wrapper around the application-agnostic
-//! [`ethexe_malachite_core::MalachiteService`]. Stitches together:
+//! Ethexe-side wrapper around [`ethexe_malachite_core::MalachiteService`].
+//! Stitches the [`InjectedTxMempool`], [`ethexe_malachite_core::Externalities`],
+//! and the public [`MalachiteService`] facade.
 //!
-//! - the ethexe [`InjectedTxMempool`] (pulls user transactions into
-//!   each producer's [`Transactions`] payload),
-//! - [`EthexeExternalities`] — the [`ethexe_malachite_core::Externalities`]
-//!   implementation that builds new sequencer blocks, validates
-//!   incoming proposals against ethexe's quarantine rules, and
-//!   persists every saved/finalized MB into [`ethexe_db::Database`],
-//! - [`MalachiteService`] — the public façade exposing the same API
-//!   shape the rest of ethexe consumed before the migration to
-//!   `ethexe-malachite-core`.
+//! Inputs: [`Database`](ethexe_db::Database) (block storage), the latest Ethereum
+//! chain head fed via `receive_new_chain_head`, and the [`Mempool`] sampled by
+//! the producer.
 //!
-//! ## Inputs
-//! - [`Database`](ethexe_db::Database) — block storage and the
-//!   parent-link source for the canonical-quarantine walks.
-//! - [`MalachiteService::receive_new_chain_head`] — the latest
-//!   Ethereum block from the observer event stream. Only the newest
-//!   value is retained; it serves as the reference point for the
-//!   producer's quarantine anchor.
-//! - [`Mempool`] — sampled by the producer when assembling the next
-//!   sequencer block; finalized injected transactions are flushed
-//!   from it via [`Mempool::forget`] from the externalities.
-//!
-//! ## Outputs (`Stream<Item = Result<MalachiteEvent>>`)
-//! - [`MalachiteEvent::BlockProposal`] — fires only after
-//!   [`ethexe_malachite_core::Externalities::save_block`] has persisted the MB
-//!   into the ethexe DB. ethexe-malachite-core's strict ordering guarantees that
-//!   `save_block` runs ancestor-first, so the heights surfaced here
-//!   are non-decreasing.
-//! - [`MalachiteEvent::BlockFinalized`] — fires only after
-//!   [`ethexe_malachite_core::Externalities::mark_block_as_finalized`] has run for
-//!   `cert.block_hash`; same ancestor-first ordering.
+//! Outputs ([`Stream<Item = Result<MalachiteEvent>>`]): `BlockProposal` fires
+//! after `save_block` persists, `BlockFinalized` after `mark_block_as_finalized`.
+//! Both are emitted ancestor-first.
 
 mod config;
 mod externalities;
@@ -64,21 +42,14 @@ pub use crate::{
     service::MalachiteService,
 };
 
-/// libp2p peer id of the Malachite swarm associated with a validator
-/// secret — re-exported under the historic `malachite_libp2p_peer_id`
-/// name so existing callers (cli `malachite peer-id`, integration
-/// tests) keep compiling.
+/// libp2p peer-id derived from a validator secret.
 pub use ethexe_malachite_core::libp2p_peer_id as malachite_libp2p_peer_id;
 pub use ethexe_malachite_core::{Multiaddr, PeerId, derive_libp2p_secret};
 
 pub use ethexe_common::mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions};
 pub use gprimitives::H256;
 
-/// Commit certificate — ethexe-shaped, mirrors the
-/// [`ethexe_malachite_core::CommitCertificate`] payload. `block_hash`
-/// is the `ethexe_malachite_core::Block` envelope hash (Blake2b),
-/// which is the same key downstream ethexe consumers index MB state
-/// by in the DB.
+/// Ethexe-shaped commit certificate; `block_hash` is the Blake2b envelope hash.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct CommitCertificate {
     pub height: u64,
@@ -87,32 +58,16 @@ pub struct CommitCertificate {
 }
 
 /// Output event stream of the Malachite service.
-///
-/// `height` is the Malachite sequencer height at which the block was
-/// produced or finalized — reported here (rather than embedded
-/// inside the payload) because [`Transactions`] is just an ordered
-/// list with no self-referential height field.
 #[derive(Debug, Clone)]
 pub enum MalachiteEvent {
-    /// A new sequencer block has been persisted. Fires once
-    /// [`ethexe_malachite_core::Externalities::save_block`] returns
-    /// Ok, after the ethexe DB (`mb_compact_block`, `mb_meta`, CAS
-    /// transactions blob) has been updated.
-    ///
-    /// `block_hash` is the consensus envelope hash (Blake2b over
-    /// `ethexe_malachite_core::Block`) — the DB key for the matching
-    /// [`ethexe_common::db::CompactBlock`] and the `mb_meta` row.
+    /// New sequencer block persisted; `block_hash` is the Blake2b envelope hash.
     BlockProposal {
         height: u64,
         block_hash: H256,
         block: Transactions,
     },
 
-    /// A sequencer block has been committed by the BFT quorum and
-    /// `globals.latest_finalized_mb_hash` has been advanced to point
-    /// at it. Fires after
-    /// [`ethexe_malachite_core::Externalities::mark_block_as_finalized`]
-    /// returns Ok.
+    /// BFT-committed block; `globals.latest_finalized_mb_hash` now points at it.
     BlockFinalized {
         cert: CommitCertificate,
         block: Transactions,

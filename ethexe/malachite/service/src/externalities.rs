@@ -145,7 +145,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             .iter()
             .rev()
             .find_map(|tx| match tx {
-                Transaction::AdvanceTillEthereumBlock { eth_block_hash } => Some(*eth_block_hash),
+                Transaction::AdvanceTillEthereumBlock { block_hash } => Some(*block_hash),
                 _ => None,
             })
             .unwrap_or(parent_advanced);
@@ -265,8 +265,8 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         //   3. finally the service-level ProgressTasks +
         //      ProcessQueues bookend.
         let mut transactions = Vec::with_capacity(injected.len() + 3);
-        if let Some(eth_block_hash) = advance {
-            transactions.push(Transaction::AdvanceTillEthereumBlock { eth_block_hash });
+        if let Some(block_hash) = advance {
+            transactions.push(Transaction::AdvanceTillEthereumBlock { block_hash });
         }
         for tx in injected {
             transactions.push(Transaction::Injected(tx));
@@ -293,7 +293,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         let advances: Vec<H256> = payload
             .iter()
             .filter_map(|tx| match tx {
-                Transaction::AdvanceTillEthereumBlock { eth_block_hash } => Some(*eth_block_hash),
+                Transaction::AdvanceTillEthereumBlock { block_hash } => Some(*block_hash),
                 _ => None,
             })
             .collect();
@@ -589,9 +589,7 @@ mod tests {
     fn payload(advance: Option<H256>, salt: u8) -> Transactions {
         let mut txs = Vec::with_capacity(salt as usize + 3);
         if let Some(eth) = advance {
-            txs.push(Transaction::AdvanceTillEthereumBlock {
-                eth_block_hash: eth,
-            });
+            txs.push(Transaction::AdvanceTillEthereumBlock { block_hash: eth });
         }
         // Salt = number of repeated ProgressTasks. Salt 0 is illegal
         // (collides with another zero-salt block); the helpers below
@@ -799,10 +797,10 @@ mod tests {
         let (ext, _rx) = make_externalities(db.clone());
         let payload = Transactions::new(vec![
             Transaction::AdvanceTillEthereumBlock {
-                eth_block_hash: H256::repeat_byte(0xAA),
+                block_hash: H256::repeat_byte(0xAA),
             },
             Transaction::AdvanceTillEthereumBlock {
-                eth_block_hash: H256::repeat_byte(0xBB),
+                block_hash: H256::repeat_byte(0xBB),
             },
         ]);
         assert!(
@@ -820,7 +818,7 @@ mod tests {
         let db = Database::memory();
         let (ext, _rx) = make_externalities(db.clone());
         let payload = Transactions::new(vec![Transaction::AdvanceTillEthereumBlock {
-            eth_block_hash: H256::repeat_byte(0xCC),
+            block_hash: H256::repeat_byte(0xCC),
         }]);
         assert!(
             !ext.validate_block_above(H256::zero(), payload)
@@ -865,7 +863,7 @@ mod tests {
         *ext.chain_head.write().unwrap() = Some(head);
 
         let payload = Transactions::new(vec![Transaction::AdvanceTillEthereumBlock {
-            eth_block_hash: chain_hashes[1].0,
+            block_hash: chain_hashes[1].0,
         }]);
         assert!(
             ext.validate_block_above(H256::zero(), payload)
