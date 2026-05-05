@@ -132,7 +132,6 @@ Native runtime (std):   core-backend → core-processor → pallets → runtime/
 ### Code Conventions
 
 - `rustfmt.toml`: `imports_granularity = "Crate"`, `format_code_in_doc_comments = true`
-- CI uses `[skip-ci]` (not `[skip ci]`) in commit messages for green status checks
 - `cargo nextest` is the test runner (not `cargo test`), except for doc tests
 - `cargo hakari` manages workspace dependency deduplication
 
