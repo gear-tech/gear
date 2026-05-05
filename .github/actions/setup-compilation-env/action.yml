@@ -27,23 +27,6 @@ runs:
         retry_wait_seconds: 10
         command: brew install protobuf binaryen
 
-    - name: "Install: apt-fast on Linux"
-      if: ${{ runner.os == 'Linux' }}
-      uses: nick-fields/retry@v3
-      with:
-        timeout_minutes: 15
-        max_attempts: 5
-        retry_wait_seconds: 10
-        command: |
-          set -e
-          if command -v apt-fast >/dev/null 2>&1; then
-            echo "apt-fast already installed; skipping"
-            exit 0
-          fi
-          sudo add-apt-repository -y ppa:apt-fast/stable
-          sudo apt-get update
-          sudo apt-get -y install apt-fast
-
     - name: "Install: Linux packages"
       if: runner.os == 'Linux'
       uses: nick-fields/retry@v3
@@ -53,8 +36,8 @@ runs:
         retry_wait_seconds: 10
         command: |
           set -e
-          sudo apt-fast update
-          sudo apt-fast install -y protobuf-compiler binaryen
+          sudo apt update
+          sudo apt install -y protobuf-compiler binaryen
 
     - name: "Install: LLVM on Linux"
       if: ${{ runner.os == 'Linux' }}
@@ -69,8 +52,8 @@ runs:
           chmod +x llvm.sh
           sudo ./llvm.sh 20
 
-          sudo apt-fast update
-          sudo apt-fast install -y libclang-20-dev clang-tools-20
+          sudo apt update
+          sudo apt install -y libclang-20-dev clang-tools-20
 
           sudo update-alternatives --install /usr/bin/clang-cl clang-cl /usr/bin/clang-cl-20 100
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
@@ -101,8 +84,8 @@ runs:
           deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
           EOF
 
-          sudo apt-fast update
-          sudo apt-fast install -y \
+          sudo apt update
+          sudo apt install -y \
             gcc-x86-64-linux-gnu \
             g++-x86-64-linux-gnu \
             binutils-x86-64-linux-gnu \
@@ -134,8 +117,8 @@ runs:
             exit 1
           fi
 
-          sudo apt-fast update
-          sudo apt-fast install -y protobuf-compiler binaryen innoextract
+          sudo apt update
+          sudo apt install -y protobuf-compiler binaryen innoextract
 
           wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl-lts.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
           innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
