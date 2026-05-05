@@ -37,13 +37,10 @@ use std::{
     marker::PhantomData,
     sync::Arc,
 };
-use tokio::{
-    sync::{
-        RwLock,
-        broadcast::{Receiver, error::RecvError},
-        watch,
-    },
-    time::error::Elapsed,
+use tokio::sync::{
+    RwLock,
+    broadcast::{Receiver, error::RecvError},
+    watch,
 };
 use tracing::instrument;
 

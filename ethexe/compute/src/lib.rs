@@ -106,7 +106,6 @@
 //!   service layer enforces this by gating event emission on
 //!   [`MalachiteService::notify_block_synced`](ethexe_malachite::MalachiteService::notify_block_synced).
 
-pub use compute::{ComputeConfig, utils::find_canonical_events_post_quarantine};
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData, injected::Promise,
     mb::Transaction,
@@ -114,20 +113,19 @@ use ethexe_common::{
 use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
-pub use service::ComputeService;
 use std::collections::HashSet;
 use tokio::sync::mpsc;
 
+pub use compute::ComputeSubService;
+pub use service::ComputeService;
+
 mod codes;
 mod compute;
-mod mb_compute;
 mod prepare;
 mod service;
 
 #[cfg(test)]
 mod tests;
-
-pub use mb_compute::MbComputeSubService;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BlockProcessed {

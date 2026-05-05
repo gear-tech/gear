@@ -132,6 +132,7 @@ impl TestingRpcEvent {
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::TryUnwrap)]
 pub enum TestingEvent {
     // Fast sync done. Sent just once.
+    #[allow(dead_code)]
     FastSyncDone(H256),
     // Basic event to notify that service has started. Sent just once.
     ServiceStarted,
@@ -238,6 +239,7 @@ impl<T: Clone> EventReceiver<T> {
 }
 
 impl TestingEventReceiver {
+    #[allow(dead_code)]
     pub async fn find_block_synced(&mut self) -> H256 {
         self.find_map(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {

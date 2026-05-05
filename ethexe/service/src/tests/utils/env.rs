@@ -44,7 +44,7 @@ use ethexe_common::{
     },
     network::{SignedValidatorMessage, ValidatorMessage},
 };
-use ethexe_compute::{ComputeConfig, ComputeService};
+use ethexe_compute::ComputeService;
 use ethexe_consensus::{BatchCommitter, ConsensusService, ValidatorService};
 use ethexe_db::{Database, InitConfig};
 use ethexe_ethereum::{
@@ -133,7 +133,8 @@ pub struct TestEnv {
     pub threshold: u64,
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: u32,
-    pub compute_config: ComputeConfig,
+    pub canonical_quarantine: u8,
+    #[allow(unused)]
     pub db: Database,
     /// Malachite endpoints aligned with `validators` (same indexing).
     /// Each node looks up its own endpoint by `pub_key` when booting
@@ -206,7 +207,7 @@ impl TestEnv {
             network,
             deploy_params,
             commitment_delay_limit,
-            compute_config,
+            canonical_quarantine,
         } = config;
 
         log::info!(
@@ -457,11 +458,11 @@ impl TestEnv {
             threshold,
             continuous_block_generation,
             commitment_delay_limit,
-            compute_config,
+            canonical_quarantine,
+            db,
             malachite_endpoints,
             router_query,
             observer_events,
-            db,
             bootstrap_network,
             _anvil: anvil,
         })
@@ -527,12 +528,12 @@ impl TestEnv {
             network_bootstrap_address,
             service_rpc_config,
             fast_sync,
-            compute_config: self.compute_config,
             commitment_delay_limit: self.commitment_delay_limit,
             malachite_endpoints: self.malachite_endpoints.clone(),
             malachite_home,
             running_service_handle: None,
             shutdown_tx: None,
+            canonical_quarantine: self.canonical_quarantine,
         }
     }
 
@@ -754,6 +755,7 @@ impl TestEnv {
     /// If you have some other threads or processes,
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
+    #[allow(dead_code)]
     pub async fn next_block_producer_index(&self) -> usize {
         let timestamp =
             self.latest_block().await.header.timestamp + self.eth_cfg.block_time.as_secs();
@@ -777,6 +779,7 @@ impl TestEnv {
     /// If you have some other threads or processes,
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
+    #[allow(dead_code)]
     pub async fn wait_for_next_producer_index(&self, index: usize) {
         loop {
             let next_index = self.next_block_producer_index().await;
@@ -909,8 +912,8 @@ pub struct TestEnvConfig {
     pub deploy_params: ContractsDeploymentParams,
     /// Commitment delay limit in blocks.
     pub commitment_delay_limit: u32,
-    /// Compute service configuration
-    pub compute_config: ComputeConfig,
+    /// Canonical quarantine period in blocks.
+    pub canonical_quarantine: u8,
 }
 
 impl Default for TestEnvConfig {
@@ -932,7 +935,7 @@ impl Default for TestEnvConfig {
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
-            compute_config: ComputeConfig::without_quarantine(),
+            canonical_quarantine: 0,
         }
     }
 }
@@ -960,6 +963,7 @@ impl NodeConfig {
         }
     }
 
+    #[allow(dead_code)]
     pub fn db(mut self, db: Database) -> Self {
         self.db = Some(db);
         self
@@ -983,6 +987,7 @@ impl NodeConfig {
         self
     }
 
+    #[allow(dead_code)]
     pub fn fast_sync(mut self) -> Self {
         self.fast_sync = true;
         self
@@ -1057,8 +1062,8 @@ pub struct Node {
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
-    compute_config: ComputeConfig,
     commitment_delay_limit: u32,
+    canonical_quarantine: u8,
 
     /// Tempdir hosting the Malachite home (WAL + store.db). Held here
     /// so it lives as long as the service does and is cleaned up when
@@ -1087,7 +1092,7 @@ impl Node {
         );
 
         let processor = Processor::new(self.db.clone()).unwrap();
-        let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
+        let compute = ComputeService::new(self.db.clone(), processor);
 
         let observer = ObserverService::new(
             self.db.clone(),
@@ -1201,7 +1206,7 @@ impl Node {
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
             // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
-            mc.canonical_quarantine = self.compute_config.canonical_quarantine();
+            mc.canonical_quarantine = self.canonical_quarantine;
             let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
             let svc = MalachiteService::new(
                 mc,
@@ -1334,6 +1339,7 @@ impl Node {
         Some(HttpClient::builder().build(&url).unwrap())
     }
 
+    #[allow(dead_code)]
     pub async fn rpc_ws_client(&self) -> Option<WsClient> {
         let listen_addr = self.service_rpc_config.clone()?.listen_addr;
         let url = format!("ws://{listen_addr}");
@@ -1344,6 +1350,7 @@ impl Node {
         self.receiver.clone().expect("node is not started")
     }
 
+    #[allow(dead_code)]
     pub fn new_events(&mut self) -> TestingEventReceiver {
         self.receiver
             .as_ref()
@@ -1391,6 +1398,7 @@ impl Node {
         Some(network)
     }
 
+    #[allow(dead_code)]
     pub async fn publish_validator_message<T: fmt::Debug + ToDigest>(
         &self,
         message: impl Into<ValidatorMessage<T>>,
@@ -1592,6 +1600,7 @@ pub struct ReplyInfo {
 }
 
 impl WaitForReplyTo {
+    #[allow(dead_code)]
     pub fn from_raw_parts(receiver: ObserverEventReceiver, message_id: MessageId) -> Self {
         Self {
             receiver,

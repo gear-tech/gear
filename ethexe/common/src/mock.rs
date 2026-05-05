@@ -190,7 +190,9 @@ fn limited_bytes_strategy<const N: usize>(
 }
 
 fn reservation_id_strategy() -> BoxedStrategy<ReservationId> {
-    h256_strategy().prop_map(|h| ReservationId::from(h.0)).boxed()
+    h256_strategy()
+        .prop_map(|h| ReservationId::from(h.0))
+        .boxed()
 }
 
 pub fn scheduled_task_strategy() -> BoxedStrategy<ScheduledTask> {

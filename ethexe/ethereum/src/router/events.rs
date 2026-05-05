@@ -33,7 +33,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::events::{
     RouterEvent, RouterRequestEvent,
     router::{
-        BatchCommittedEvent, AnnouncesCommittedEvent, CodeGotValidatedEvent,
+        AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
         CodeValidationRequestedEvent, ComputationSettingsChangedEvent, ProgramCreatedEvent,
         StorageSlotChangedEvent, ValidatorsCommittedForEraEvent,
     },
@@ -197,7 +197,8 @@ impl<'a> AnnouncesCommittedEventBuilder<'a> {
 
     pub async fn subscribe(
         self,
-    ) -> Result<impl Stream<Item = Result<(AnnouncesCommittedEvent, Log), Error>> + Unpin + use<>> {
+    ) -> Result<impl Stream<Item = Result<(AnnouncesCommittedEvent, Log), Error>> + Unpin + use<>>
+    {
         Ok(self
             .event
             .subscribe()

@@ -34,6 +34,7 @@ pub fn init_logger() {
         .try_init();
 }
 
+#[allow(dead_code)]
 pub struct GenesisInitializerFromDump {
     pub dump: Option<StateDump>,
     pub processor: Processor,

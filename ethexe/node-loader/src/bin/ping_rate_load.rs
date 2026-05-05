@@ -27,10 +27,7 @@ use std::{
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tokio::{
-    io::AsyncWriteExt,
-    sync::Mutex,
-};
+use tokio::{io::AsyncWriteExt, sync::Mutex};
 
 #[derive(Parser, Debug)]
 #[command(about = "Rate-stepped injected `PING` load against demo-ping")]

@@ -1405,9 +1405,10 @@ async fn reply_callback() {
     let program_id = res.program_id;
 
     let provider = env.ethereum.provider();
-    let demo_caller = ethexe_ethereum::abi::IDemoCaller::deploy(provider.clone(), program_id.into())
-        .await
-        .expect("deploying DemoCaller failed");
+    let demo_caller =
+        ethexe_ethereum::abi::IDemoCaller::deploy(provider.clone(), program_id.into())
+            .await
+            .expect("deploying DemoCaller failed");
 
     assert!(!demo_caller.replyOnMethodNameCalled().call().await.unwrap());
 
@@ -2036,9 +2037,6 @@ mod disabled_until_mb_test_harness_lands {
             .expect("must exist");
         assert!(schedule.is_empty(), "{schedule:?}");
     }
-
-
-
 
     #[tokio::test]
     #[ntest::timeout(60_000)]
@@ -3066,7 +3064,6 @@ mod disabled_until_mb_test_harness_lands {
             "PONG not received after quarantine"
         );
     }
-
 
     #[tokio::test]
     #[ntest::timeout(60_000)]
@@ -4154,7 +4151,6 @@ mod disabled_until_mb_test_harness_lands {
             unreachable!();
         }
     }
-
 
     #[tokio::test]
     #[ntest::timeout(60_000)]

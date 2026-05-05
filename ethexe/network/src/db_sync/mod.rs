@@ -27,17 +27,15 @@
 mod requests;
 mod responses;
 
+use crate::{db_sync::requests::OngoingRequests, peer_score, utils::AlternateCollectionFmt};
 pub(crate) use crate::{
     db_sync::{requests::RetriableRequest, responses::OngoingResponses},
     export::{Multiaddr, PeerId},
     utils::ParityScaleCodec,
 };
-use crate::{db_sync::requests::OngoingRequests, peer_score, utils::AlternateCollectionFmt};
 use async_trait::async_trait;
 use ethexe_common::{
-    db::{
-        BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, HashStorageRO,
-    },
+    db::{BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, HashStorageRO},
     gear::CodeState,
 };
 use ethexe_db::Database;

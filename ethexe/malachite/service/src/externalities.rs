@@ -189,12 +189,15 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         let compact = self.db.mb_compact_block(block_hash).ok_or_else(|| {
             anyhow!("mark_finalized: no CompactBlock for {block_hash} (save_block must run first)")
         })?;
-        let payload = self.db.transactions(compact.transactions_hash).ok_or_else(|| {
-            anyhow!(
-                "mark_finalized: transactions blob {} missing for block {block_hash}",
-                compact.transactions_hash
-            )
-        })?;
+        let payload = self
+            .db
+            .transactions(compact.transactions_hash)
+            .ok_or_else(|| {
+                anyhow!(
+                    "mark_finalized: transactions blob {} missing for block {block_hash}",
+                    compact.transactions_hash
+                )
+            })?;
 
         // Flush the committed injected txs from the mempool and add
         // their hashes to the seen-set so a re-gossip can't slip them
@@ -279,11 +282,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         Ok(Transactions::new(transactions))
     }
 
-    async fn validate_block_above(
-        &self,
-        parent_hash: H256,
-        payload: Transactions,
-    ) -> Result<bool> {
+    async fn validate_block_above(&self, parent_hash: H256, payload: Transactions) -> Result<bool> {
         // Parent linkage and height progression are validated by
         // ethexe-malachite-core itself; here we only check the
         // payload-level invariants.

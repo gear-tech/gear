@@ -26,7 +26,7 @@ use ethexe_common::{
     events::{
         BlockEvent, RouterEvent,
         router::{
-            BatchCommittedEvent, AnnouncesCommittedEvent, CodeGotValidatedEvent,
+            AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
             CodeValidationRequestedEvent, ValidatorsCommittedForEraEvent,
         },
     },
@@ -340,7 +340,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
     codes_queue.retain(|code_id| !validated_codes.contains(code_id));
     codes_queue.extend(requested_codes);
 
-    let last_committed_mb_hash = if let Some(AnnouncesCommittedEvent(hash)) = last_committed_mb_hash {
+    let last_committed_mb_hash = if let Some(AnnouncesCommittedEvent(hash)) = last_committed_mb_hash
+    {
         Some(hash)
     } else {
         parent_meta.last_committed_mb

@@ -47,7 +47,7 @@ use ethexe_common::{
     },
 };
 use events::{
-    BatchCommittedEventBuilder, AnnouncesCommittedEventBuilder, CodeGotValidatedEventBuilder,
+    AnnouncesCommittedEventBuilder, BatchCommittedEventBuilder, CodeGotValidatedEventBuilder,
     CodeValidationRequestedEventBuilder, ComputationSettingsChangedEventBuilder,
     ProgramCreatedEventBuilder, StorageSlotChangedEventBuilder,
     ValidatorsCommittedForEraEventBuilder, signatures,

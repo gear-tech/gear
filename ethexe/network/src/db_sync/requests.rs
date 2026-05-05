@@ -873,5 +873,4 @@ mod tests {
             .await
             .unwrap_new_round();
     }
-
 }

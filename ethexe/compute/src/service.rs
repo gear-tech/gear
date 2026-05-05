@@ -19,10 +19,7 @@
 #[cfg(test)]
 use crate::tests::MockProcessor;
 use crate::{
-    ComputeEvent, ProcessorExt, Result,
-    codes::CodesSubService,
-    compute::ComputeConfig,
-    mb_compute::MbComputeSubService,
+    ComputeEvent, ProcessorExt, Result, codes::CodesSubService, compute::ComputeSubService,
     prepare::PrepareSubService,
 };
 use ethexe_common::CodeAndIdUnchecked;
@@ -38,15 +35,15 @@ use std::{
 pub struct ComputeService<P: ProcessorExt = Processor> {
     codes_sub_service: CodesSubService<P>,
     prepare_sub_service: PrepareSubService,
-    mb_compute_sub_service: MbComputeSubService<P>,
+    mb_compute_sub_service: ComputeSubService<P>,
 }
 
 impl<P: ProcessorExt> ComputeService<P> {
     /// Creates new compute service.
-    pub fn new(_config: ComputeConfig, db: Database, processor: P) -> Self {
+    pub fn new(db: Database, processor: P) -> Self {
         Self {
             prepare_sub_service: PrepareSubService::new(db.clone()),
-            mb_compute_sub_service: MbComputeSubService::new(db.clone(), processor.clone()),
+            mb_compute_sub_service: ComputeSubService::new(db.clone(), processor.clone()),
             codes_sub_service: CodesSubService::new(db, processor),
         }
     }
@@ -56,20 +53,15 @@ impl<P: ProcessorExt> ComputeService<P> {
 impl ComputeService {
     /// Creates the processor with default [`ComputeConfig::without_quarantine`] and [`Processor`] with default config.
     pub fn new_with_defaults(db: Database) -> Self {
-        let config = ComputeConfig::without_quarantine();
         let processor = Processor::new(db.clone()).unwrap();
-        Self::new(config, db, processor)
+        Self::new(db, processor)
     }
 }
 
 #[cfg(test)]
 impl ComputeService<MockProcessor> {
     pub fn new_mock_processor(db: Database) -> Self {
-        Self::new(
-            ComputeConfig::without_quarantine(),
-            db,
-            MockProcessor::default(),
-        )
+        Self::new(db, MockProcessor::default())
     }
 }
 
@@ -185,11 +177,7 @@ mod tests {
         let db = DB::memory();
         let processor = MockProcessor::with_default_valid_code()
             .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_id);
-        let mut service = ComputeService::new(
-            ComputeConfig::without_quarantine(),
-            db.clone(),
-            processor.clone(),
-        );
+        let mut service = ComputeService::new(db.clone(), processor.clone());
 
         // Create test code
 

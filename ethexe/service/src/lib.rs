@@ -62,7 +62,7 @@ use ethexe_common::{
     injected::SignedPromise,
     network::VerifiedValidatorMessage,
 };
-use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
+use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService};
 use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
@@ -501,12 +501,11 @@ impl Service {
             .as_ref()
             .map(|config| RpcServer::new(config.clone(), db.clone()));
 
-        let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let processor_config = ProcessorConfig {
             chunk_size: config.node.chunk_processing_threads,
         };
         let processor = Processor::with_config(processor_config, db.clone())?;
-        let compute = ComputeService::new(compute_config, db.clone(), processor);
+        let compute = ComputeService::new(db.clone(), processor);
 
         // Malachite consensus service.
         let malachite_home = config
@@ -535,10 +534,7 @@ impl Service {
                 validators.iter().copied(),
                 &config.malachite.validator_pub_keys,
             )?;
-            log::info!(
-                "🪨 Malachite validators: {}",
-                malachite_validator_set.len()
-            );
+            log::info!("🪨 Malachite validators: {}", malachite_validator_set.len());
             let malachite_config = malachite_base_config.with_validators(malachite_validator_set);
             Some(
                 MalachiteService::new(

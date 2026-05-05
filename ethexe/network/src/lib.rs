@@ -79,10 +79,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{
-    collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll,
-    time::Duration,
-};
+use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 /// Default listen port.

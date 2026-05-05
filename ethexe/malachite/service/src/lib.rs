@@ -71,9 +71,7 @@ pub use crate::{
 pub use ethexe_malachite_core::libp2p_peer_id as malachite_libp2p_peer_id;
 pub use ethexe_malachite_core::{Multiaddr, PeerId, derive_libp2p_secret};
 
-pub use ethexe_common::mb::{
-    ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions,
-};
+pub use ethexe_common::mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions};
 pub use gprimitives::H256;
 
 /// Commit certificate — ethexe-shaped, mirrors the

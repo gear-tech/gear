@@ -183,10 +183,9 @@ mod tests {
         // CAS key.
         use parity_scale_codec::Decode;
 
-        let original =
-            Transactions::new(alloc::vec![Transaction::AdvanceTillEthereumBlock {
-                eth_block_hash: H256::from_low_u64_be(0xEB)
-            }]);
+        let original = Transactions::new(alloc::vec![Transaction::AdvanceTillEthereumBlock {
+            eth_block_hash: H256::from_low_u64_be(0xEB)
+        }]);
         let encoded = original.encode();
         let decoded = Transactions::decode(&mut encoded.as_slice()).expect("decode");
         assert_eq!(original, decoded);

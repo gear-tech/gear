@@ -97,9 +97,7 @@ impl Key {
         bytes.extend(self.prefix());
 
         match self {
-            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => {
-                bytes.extend(hash.as_ref())
-            }
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => bytes.extend(hash.as_ref()),
 
             Self::ValidatorSet(era_index) => {
                 bytes.extend(era_index.to_le_bytes());
@@ -426,7 +424,6 @@ impl MbStorageRO for RawDatabase {
             })
             .unwrap_or_default()
     }
-
 }
 
 impl MbStorageRW for RawDatabase {
