@@ -18,8 +18,7 @@
 
 use demo_custom::{InitMessage, WASM_BINARY};
 use gear_core::{ids::ActorId, pages::GearPage};
-use gear_node_wrapper::Node;
-use gsdk::{Api, Result, SignedApi, events};
+use gsdk::{Result, SignedApi, events};
 use parity_scale_codec::Encode;
 use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
 use tokio::fs;
