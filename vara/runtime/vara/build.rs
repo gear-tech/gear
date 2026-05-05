@@ -66,7 +66,7 @@ fn regenerate_gsdk_scale() {
     };
 
     let out_path = PathBuf::from(env::var_os("GEAR_WORKSPACE_DIR").unwrap())
-        .join("gsdk")
+        .join("vara/sdk/gsdk")
         .join(METADATA_FILENAME);
 
     let runtime_wasm_path = PathBuf::from(env::var("OUT_DIR").unwrap())
