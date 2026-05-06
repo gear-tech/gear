@@ -111,7 +111,7 @@ pub(super) mod chunks_splitting;
 pub(crate) use chunks_splitting::ActorStateHashWithQueueSize;
 
 use crate::{
-    ProcessorError, Result,
+    BoundPromiseSink, ProcessorError, Result,
     host::{InstanceCreator, InstanceWrapper},
 };
 use chunk_execution_processing::ChunkJournalsProcessingOutput;
@@ -123,7 +123,6 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{CodesStorageRO, CodesStorageRW},
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
-    injected::Promise,
 };
 use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{
@@ -136,7 +135,6 @@ use gear_core::{
 };
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::Itertools;
-use tokio::sync::mpsc;
 
 // Process chosen queue type in chunks
 pub(super) async fn run_for_queue_type(
@@ -276,9 +274,9 @@ pub(super) trait RunContext {
     }
 
     /// [`PromisePolicy`] tells processor should it emit promises or not.
-    /// By default if [`RunContext::promise_out_tx`] returns [`Some`] this function will return [`PromisePolicy::Enabled`].
+    /// By default if [`RunContext::promise_sink`] returns [`Some`] this function will return [`PromisePolicy::Enabled`].
     fn promise_policy(&self) -> PromisePolicy {
-        match self.inner().promise_out_tx.is_some() {
+        match self.inner().promise_sink.is_some() {
             true => PromisePolicy::Enabled,
             false => PromisePolicy::Disabled,
         }
@@ -356,7 +354,7 @@ pub(crate) struct CommonRunContext {
     out_of_gas: bool,
     chunk_size: usize,
     block_header: BlockHeader,
-    promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+    promise_sink: Option<BoundPromiseSink>,
 }
 
 impl CommonRunContext {
@@ -367,7 +365,7 @@ impl CommonRunContext {
         gas_allowance: u64,
         chunk_size: usize,
         block_header: BlockHeader,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Self {
         CommonRunContext {
             db,
@@ -380,12 +378,12 @@ impl CommonRunContext {
             out_of_gas: false,
             chunk_size,
             block_header,
-            promise_out_tx,
+            promise_sink,
         }
     }
 
     fn disable_promises(&mut self) {
-        if self.promise_out_tx.take().is_some() {
+        if self.promise_sink.take().is_some() {
             log::trace!("dropping the promise sender");
         }
     }

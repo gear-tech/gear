@@ -62,7 +62,7 @@ pub async fn spawn_chunk_execution(
                 ctx.program_code(program_id, &mut instrumentation_instance)?;
             let mut executor = ctx.inner().instance_creator.instantiate()?;
             let db = ctx.inner().db.cas().clone_boxed();
-            let promise_out_tx = ctx.inner().promise_out_tx.clone();
+            let promise_sink = ctx.inner().promise_sink.clone();
             Ok(thread_pool::spawn(move || {
                 let (jn, new_state_hash, gas_spent) = executor.run(
                     db,
@@ -76,7 +76,7 @@ pub async fn spawn_chunk_execution(
                         block_info,
                         promise_policy,
                     },
-                    promise_out_tx,
+                    promise_sink,
                 )?;
                 Ok((program_id, new_state_hash, jn, gas_spent))
             }))
