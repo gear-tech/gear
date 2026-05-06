@@ -575,10 +575,12 @@ fn check_syscall_err_ptr_position() {
 fn ethexe_syscall_availability_matches_gsys_cfg_gates() {
     let unavailable = [
         SyscallName::CreateProgramWGas,
+        SyscallName::CreateProgram,
         SyscallName::ReplyDeposit,
         SyscallName::SignalCode,
-        SyscallName::SignalFrom,
+        SyscallName::Random,
         SyscallName::ReplyCommitWGas,
+        SyscallName::SignalFrom,
         SyscallName::ReplyInputWGas,
         SyscallName::ReplyWGas,
         SyscallName::ReservationReplyCommit,
@@ -591,6 +593,7 @@ fn ethexe_syscall_availability_matches_gsys_cfg_gates() {
         SyscallName::SendWGas,
         SyscallName::SystemReserveGas,
         SyscallName::UnreserveGas,
+        SyscallName::Wait,
     ];
 
     for syscall in SyscallName::instrumentable(SyscallKind::Vara) {
