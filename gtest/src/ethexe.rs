@@ -72,6 +72,7 @@ pub(crate) struct EthexeManager {
 impl EthexeManager {
     pub(crate) fn new() -> Self {
         // gtest owns this in-memory database for the lifetime of one System.
+        #[allow(unused_unsafe)]
         let db = unsafe { Database::memory() };
         let processor = Processor::new(db.clone()).expect("failed to create ethexe processor");
 
