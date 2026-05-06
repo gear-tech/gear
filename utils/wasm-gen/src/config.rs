@@ -95,7 +95,7 @@
 
 use crate::InvocableSyscall;
 use arbitrary::Unstructured;
-use gear_wasm_instrument::SyscallName;
+use gear_wasm_instrument::{SyscallKind, SyscallName};
 use std::num::NonZero;
 
 mod generator;
@@ -236,6 +236,20 @@ impl RandomizedGearWasmConfigBundle {
         log_info: Option<String>,
         params_config: SyscallsParamsConfig,
     ) -> Self {
+        Self::new_arbitrary_for_syscall_kind(
+            unstructured,
+            SyscallKind::Vara,
+            log_info,
+            params_config,
+        )
+    }
+
+    pub fn new_arbitrary_for_syscall_kind(
+        unstructured: &mut Unstructured,
+        syscall_kind: SyscallKind,
+        log_info: Option<String>,
+        params_config: SyscallsParamsConfig,
+    ) -> Self {
         // Observation: with balance increased and no control instructions we get *a lot* of programs executed even if we're
         // running fuzzer for just 5 minutes. Without balance increase disabling control results in gas limit exceeding quite often.
         let no_control = unstructured.ratio(1, 4).unwrap();
@@ -257,8 +271,10 @@ impl RandomizedGearWasmConfigBundle {
         let initial_pages = 2;
         // pump up injection rates of syscalls when there's control instructions and lower it when there's no control
         // instructions (no control => all syscalls should be executed, control => some won't be executed due to if's or loops)
-        let mut injection_types =
-            SyscallsInjectionTypes::all_with_range(if no_control { 1..=2 } else { 1..=10 });
+        let mut injection_types = SyscallsInjectionTypes::all_with_range_for(
+            syscall_kind,
+            if no_control { 1..=2 } else { 1..=10 },
+        );
 
         injection_types.set_multiple(
             [

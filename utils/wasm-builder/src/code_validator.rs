@@ -21,7 +21,9 @@ use gear_core::{
     code::{Code, CodeError, ExportError, ImportError},
     gas_metering::Schedule,
 };
-use gear_wasm_instrument::{Export, ExternalKind, FuncType, Module, SyscallName, TypeRef, ValType};
+use gear_wasm_instrument::{
+    Export, ExternalKind, FuncType, Module, SyscallKind, SyscallName, TypeRef, ValType,
+};
 use std::fmt;
 use thiserror::Error;
 
@@ -237,7 +239,7 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
                 name: import_name,
             },
             InvalidImportFnSignature(_) => {
-                let syscalls = SyscallName::instrumentable_map();
+                let syscalls = SyscallName::instrumentable_map(SyscallKind::Vara);
                 let Some(syscall) = syscalls.get(&import_name) else {
                     bail!("failed to get syscall by name");
                 };

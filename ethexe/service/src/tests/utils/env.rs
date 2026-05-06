@@ -254,6 +254,7 @@ impl TestEnv {
             router_address,
             block_time,
             eip1559_fee_increase_percentage: Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE,
+            eip1559_max_fee_per_gas_in_gwei: Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI,
             blob_gas_multiplier: Ethereum::NO_BLOB_GAS_MULTIPLIER,
         };
         let mut observer = ObserverService::new(
@@ -820,7 +821,10 @@ impl Default for TestEnvConfig {
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
-            compute_config: ComputeConfig::without_quarantine(),
+            compute_config: ComputeConfig::builder()
+                .canonical_quarantine(Default::default())
+                .promises_mode(Default::default())
+                .build(),
         }
     }
 }
@@ -1057,8 +1061,8 @@ impl Node {
 
         let rpc = self
             .service_rpc_config
-            .as_ref()
-            .map(|service_rpc_config| RpcServer::new(service_rpc_config.clone(), self.db.clone()));
+            .clone()
+            .map(|config| RpcServer::new(config, self.db.clone()));
 
         self.receiver = Some(receiver);
 

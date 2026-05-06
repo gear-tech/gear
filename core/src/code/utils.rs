@@ -27,7 +27,7 @@ use crate::{
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
     ConstExpr, ElementItems, Export, Global, Instruction, Module, STACK_END_EXPORT_NAME,
-    SyscallName,
+    SyscallKind, SyscallName,
 };
 use wasmparser::{ExternalKind, Payload, TypeRef, ValType};
 
@@ -159,7 +159,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
         .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Import))?;
 
-    let syscalls = SyscallName::instrumentable_map();
+    let syscalls = SyscallName::instrumentable_map(SyscallKind::Vara);
 
     let mut visited_imports = BTreeSet::new();
 

@@ -121,6 +121,10 @@ block-time = 1
 # (optional, default: 15).
 # eip1559-fee-increase-percentage = 15
 
+# EIP-1559 max fee per gas in gwei for transaction fee estimation (for batch commitments).
+# (optional, default: 0).
+# eip1559-max-fee-per-gas-in-gwei = 0
+
 # Blob gas multiplier.
 # (optional, default: 3).
 # blob-gas-multiplier = 3

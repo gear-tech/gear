@@ -18,6 +18,9 @@ on:
       production:
         type: boolean
         default: false
+      docker:
+        type: boolean
+        default: false
 
 run-name: ${{ inputs.title }} ( ${{ format('#{0}', inputs.number) }} )
 
@@ -595,7 +598,7 @@ jobs:
     name: Build Docker images for gear-cli, ethexe-cli (linux-x86_64)
     runs-on: ubuntu-latest
     needs: [dynamic-matrix, gear-cli, ethexe-cli]
-    if: ${{ contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
+    if: ${{ contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') || inputs.docker }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v6
