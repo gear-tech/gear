@@ -18,7 +18,7 @@
 
 use super::*;
 use crate::{
-    SYSCALL_KIND, WasmProgram,
+    WasmProgram,
     builtins::{self, BLS12_381_ID, BlsOpsGasCostsImpl, ETH_BRIDGE_ID},
     state::{
         blocks,
@@ -33,7 +33,7 @@ use core_processor::{
     ContextCharged, ForProgram, ProcessExecutionContext, SystemReservationContext,
 };
 use gear_core::{
-    code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
+    code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT, SyscallKind},
     gas::GasCounter,
     limited::LimitedStr,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
@@ -630,7 +630,7 @@ impl ExtManager {
                     metadata: code_metadata,
                 },
                 balance,
-                SYSCALL_KIND,
+                SyscallKind::Vara,
             ),
             (
                 blocks::current_epoch_random(),

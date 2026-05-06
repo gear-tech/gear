@@ -521,8 +521,6 @@ pub(crate) use constants::*;
 
 /// Module containing constants of Gear protocol.
 pub mod constants {
-    use gear_core::code::SyscallKind;
-
     /* Constant types */
 
     use gear_common::GasMultiplier;
@@ -535,16 +533,6 @@ pub mod constants {
 
     /// Numeric type representing blocks in Gear protocol.
     pub type BlockNumber = u32;
-
-    /* Syscall-related constants */
-
-    /// Syscall kind for executing syscalls in Gear protocol (Vara).
-    #[cfg(not(feature = "ethexe"))]
-    pub(crate) const SYSCALL_KIND: SyscallKind = SyscallKind::Vara;
-
-    /// Syscall kind for executing syscalls in Gear protocol (Vara.ETH).
-    #[cfg(feature = "ethexe")]
-    pub(crate) const SYSCALL_KIND: SyscallKind = SyscallKind::Eth;
 
     /* Gas logic related constants */
 

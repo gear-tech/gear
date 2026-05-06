@@ -48,7 +48,3 @@ demo-futures-unordered.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-delayed-sender.workspace = true
 gear-core = { workspace = true, features = ["mock"] }
-
-[features]
-## Disables unsupported syscalls and their calls for executing on ethexe.
-ethexe = ["gprimitives/ethexe", "gsys/ethexe"]

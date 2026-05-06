@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    MAX_USER_GAS_LIMIT, Result, SYSCALL_KIND, Value, default_users_list,
+    MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
     error::usage_panic,
     manager::{CUSTOM_WASM_PROGRAM_CODE_ID, ExtManager},
     state::programs::{GTestProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
@@ -25,7 +25,7 @@ use crate::{
 };
 use gear_common::Origin;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
+    code::{Code, CodeAndId, InstrumentedCodeAndMetadata, SyscallKind},
     gas_metering::Schedule,
     ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{Dispatch, DispatchKind, Message},
@@ -276,7 +276,7 @@ impl ProgramBuilder {
             schedule.limits.data_segments_amount.into(),
             schedule.limits.type_section_len.into(),
             schedule.limits.parameters.into(),
-            SYSCALL_KIND,
+            SyscallKind::Vara,
         )
         .expect("Failed to create Program from provided code");
 

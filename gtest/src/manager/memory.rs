@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{SYSCALL_KIND, state::programs::GTestProgram};
+use crate::state::programs::GTestProgram;
+use gear_core::code::SyscallKind;
 
 impl ExtManager {
     /// Call non-void meta function from actor stored in manager.
@@ -70,7 +71,7 @@ impl ExtManager {
                 payload,
                 MAX_USER_GAS_LIMIT,
                 self.blocks_manager.get(),
-                SYSCALL_KIND,
+                SyscallKind::Vara,
             )
             .map_err(TestError::ReadStateError)
         }
