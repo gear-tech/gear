@@ -164,6 +164,36 @@
 //! cargo test
 //! ```
 //!
+//! ## Ethexe execution model
+//!
+//! [`System`] uses the Vara-compatible execution model by default. Tests that
+//! need the ethexe processor can opt in with [`System::builder`] and
+//! [`ExecutionModel::Ethexe`]:
+//!
+//! ```no_run
+//! # use gtest::{ExecutionModel, Program, System};
+//! # const WASM_BINARY: &[u8] = &[];
+//! let sys = System::builder()
+//!     .execution_model(ExecutionModel::Ethexe)
+//!     .build();
+//! let program = Program::from_binary_with_id(&sys, 0x10000, WASM_BINARY);
+//!
+//! sys.top_up_executable_balance(program.id(), 200_000_000_000);
+//! let message_id = program.send_bytes(10, b"PING");
+//! let result = sys.run_next_block();
+//! # let _ = (message_id, result);
+//! ```
+//!
+//! In ethexe mode, `gtest` keeps the usual [`System`] and [`Program`] shape but
+//! routes code processing and block execution through the real ethexe processor
+//! with an in-memory database. Ethexe executable balance is funded with
+//! [`System::top_up_executable_balance`], and the value burned in a block is
+//! exposed as [`BlockRunResult::ethexe_executable_balance_burned`].
+//!
+//! Tests that need raw ethexe inputs can queue block request events with
+//! [`System::push_ethexe_event`] or injected transactions with
+//! [`System::push_injected_transaction`].
+//!
 //! # `gtest` capabilities
 //!
 //! Let's take a closer look at the `gtest` capabilities.
@@ -496,6 +526,7 @@
 
 mod builtins;
 mod error;
+mod ethexe;
 mod log;
 mod manager;
 mod program;
@@ -514,7 +545,7 @@ pub use program::{
     gbuild::ensure_gbuild,
 };
 pub use state::mailbox::ActorMailbox;
-pub use system::System;
+pub use system::{ExecutionModel, System, SystemBuilder};
 
 pub use constants::Value;
 pub(crate) use constants::*;

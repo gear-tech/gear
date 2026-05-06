@@ -23,6 +23,12 @@ gear-lazy-pages-common.workspace = true
 gear-lazy-pages-native-interface.workspace = true
 gear-utils.workspace = true
 gsys.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
+ethexe-db.workspace = true
+ethexe-processor.workspace = true
+ethexe-runtime-common = { workspace = true, features = ["std"] }
+gsigner.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 # General dependencies
 parity-scale-codec = { workspace = true, features = ["derive"] }
@@ -43,7 +49,7 @@ sp-core.workspace = true
 sha2.workspace = true
 demo-custom.workspace = true
 demo-piggy-bank.workspace = true
-demo-ping.workspace = true
+demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-futures-unordered.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-delayed-sender.workspace = true

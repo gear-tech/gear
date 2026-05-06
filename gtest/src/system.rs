@@ -19,6 +19,7 @@
 use crate::{
     GAS_ALLOWANCE, Gas, Value,
     error::usage_panic,
+    ethexe::EthexeManager,
     log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
@@ -52,6 +53,42 @@ thread_local! {
     /// `OnceCell` is used to control one-time instantiation, while `RefCell`
     /// is needed for interior mutability to uninitialize the global.
     static SYSTEM_INITIALIZED: RefCell<bool> = const { RefCell::new(false) };
+}
+
+/// Execution model used by [`System`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExecutionModel {
+    /// Default Vara/Substrate-compatible gtest execution.
+    Vara,
+    /// Ethexe execution through the real ethexe processor.
+    Ethexe,
+}
+
+/// Builder for [`System`].
+#[derive(Clone, Copy, Debug)]
+pub struct SystemBuilder {
+    execution_model: ExecutionModel,
+}
+
+impl Default for SystemBuilder {
+    fn default() -> Self {
+        Self {
+            execution_model: ExecutionModel::Vara,
+        }
+    }
+}
+
+impl SystemBuilder {
+    /// Select the execution model for the new [`System`].
+    pub fn execution_model(mut self, execution_model: ExecutionModel) -> Self {
+        self.execution_model = execution_model;
+        self
+    }
+
+    /// Build the [`System`].
+    pub fn build(self) -> System {
+        System::with_execution_model(self.execution_model)
+    }
 }
 
 #[derive(Decode)]
@@ -99,7 +136,10 @@ impl LazyPagesStorage for PagesStorage {
 /// // Init logger with "gwasm" target set to `debug` level.
 /// system.init_logger();
 /// ```
-pub struct System(pub(crate) RefCell<ExtManager>);
+pub struct System(
+    pub(crate) RefCell<ExtManager>,
+    pub(crate) Option<RefCell<EthexeManager>>,
+);
 
 impl System {
     /// Prefix for lazy pages.
@@ -112,6 +152,15 @@ impl System {
     /// create. Instantiation of the other one leads to runtime panic.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
+        Self::with_execution_model(ExecutionModel::Vara)
+    }
+
+    /// Create a [`SystemBuilder`].
+    pub fn builder() -> SystemBuilder {
+        SystemBuilder::default()
+    }
+
+    fn with_execution_model(execution_model: ExecutionModel) -> Self {
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| {
             if *initialized {
                 panic!("Impossible to have multiple instances of the `System`.");
@@ -127,8 +176,24 @@ impl System {
 
             *initialized = true;
 
-            Self(RefCell::new(ext_manager))
+            let ethexe = matches!(execution_model, ExecutionModel::Ethexe)
+                .then(|| RefCell::new(EthexeManager::new()));
+
+            Self(RefCell::new(ext_manager), ethexe)
         })
+    }
+
+    /// Return the execution model used by this system.
+    pub fn execution_model(&self) -> ExecutionModel {
+        if self.1.is_some() {
+            ExecutionModel::Ethexe
+        } else {
+            ExecutionModel::Vara
+        }
+    }
+
+    pub(crate) fn ethexe(&self) -> Option<&RefCell<EthexeManager>> {
+        self.1.as_ref()
     }
 
     /// Init logger with "gwasm" target set to `debug` level.
@@ -157,6 +222,10 @@ impl System {
 
     /// Returns amount of dispatches in the queue.
     pub fn queue_len(&self) -> usize {
+        if let Some(ethexe) = self.ethexe() {
+            return ethexe.borrow().queue_len();
+        }
+
         self.0.borrow().dispatches.len()
     }
 
@@ -197,6 +266,10 @@ impl System {
                 "Provided allowance more than allowed limit of {GAS_ALLOWANCE}. \
                 Please, provide an allowance less than or equal to the limit."
             );
+        }
+
+        if let Some(ethexe) = self.ethexe() {
+            return ethexe.borrow_mut().run_new_block(allowance);
         }
 
         self.0.borrow_mut().run_new_block(allowance)
@@ -251,21 +324,40 @@ impl System {
 
     /// Return the current block height of the testing environment.
     pub fn block_height(&self) -> u32 {
+        if let Some(ethexe) = self.ethexe() {
+            return ethexe.borrow().block_height();
+        }
+
         self.0.borrow().block_height()
     }
 
     /// Return the current block timestamp of the testing environment.
     pub fn block_timestamp(&self) -> u64 {
+        if let Some(ethexe) = self.ethexe() {
+            return ethexe.borrow().block_timestamp();
+        }
+
         self.0.borrow().blocks_manager.get().timestamp
     }
 
     /// Returns a [`Program`] by `id`.
     pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<Program<'_>> {
         let id = id.into().0;
+        if let Some(ethexe) = self.ethexe()
+            && ethexe.borrow().is_program(id)
+        {
+            return Some(Program {
+                id,
+                manager: &self.0,
+                ethexe_manager: self.ethexe(),
+            });
+        }
+
         if ProgramsStorageManager::is_program(id) {
             Some(Program {
                 id,
                 manager: &self.0,
+                ethexe_manager: None,
             })
         } else {
             None
@@ -279,11 +371,25 @@ impl System {
 
     /// Returns a list of programs.
     pub fn programs(&self) -> Vec<Program<'_>> {
+        if let Some(ethexe) = self.ethexe() {
+            return ethexe
+                .borrow()
+                .program_ids()
+                .into_iter()
+                .map(|id| Program {
+                    id,
+                    manager: &self.0,
+                    ethexe_manager: self.ethexe(),
+                })
+                .collect();
+        }
+
         ProgramsStorageManager::program_ids()
             .into_iter()
             .map(|id| Program {
                 id,
                 manager: &self.0,
+                ethexe_manager: None,
             })
             .collect()
     }
@@ -295,6 +401,10 @@ impl System {
     /// exited or terminated that it can't be called anymore.
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
+        if let Some(ethexe) = self.ethexe() {
+            return ethexe.borrow().is_program(program_id);
+        }
+
         ProgramsStorageManager::is_active_program(program_id)
     }
 
@@ -355,6 +465,11 @@ impl System {
         let code = binary.into();
         let code_id = CodeId::generate(code.as_ref());
 
+        if let Some(ethexe) = self.ethexe() {
+            ethexe.borrow_mut().store_code(code_id, code);
+            return code_id;
+        }
+
         // Save original code
         self.0.borrow_mut().store_code(code_id, code);
 
@@ -363,6 +478,10 @@ impl System {
 
     /// Returns previously submitted original code by its code hash.
     pub fn submitted_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
+        if let Some(ethexe) = self.ethexe() {
+            return ethexe.borrow().original_code(code_id);
+        }
+
         self.0
             .borrow()
             .original_code(code_id)
@@ -374,6 +493,10 @@ impl System {
     /// The mailbox contains messages from the program that are waiting
     /// for user action.
     pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> ActorMailbox<'_> {
+        if self.ethexe().is_some() {
+            usage_panic!("Mailbox helper is not available in ethexe execution mode yet");
+        }
+
         let program_id = id.into().0;
         if !ProgramsStorageManager::is_user(program_id) {
             usage_panic!("Mailbox available only for users. Please, provide a user id.");
@@ -418,7 +541,63 @@ impl System {
     /// Returns balance of user with given `id`.
     pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let actor_id = id.into().0;
+        if let Some(ethexe) = self.ethexe() {
+            return if ethexe.borrow().is_program(actor_id) {
+                ethexe.borrow().balance_of(actor_id)
+            } else {
+                0
+            };
+        }
+
         self.0.borrow().balance_of(actor_id)
+    }
+
+    /// Return ethexe executable balance for `id`.
+    pub fn executable_balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
+        let id = id.into().0;
+        if let Some(ethexe) = self.ethexe() {
+            ethexe.borrow().executable_balance_of(id)
+        } else {
+            0
+        }
+    }
+
+    /// Increase ethexe executable balance for `id`.
+    pub fn top_up_executable_balance<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
+        let id = id.into().0;
+        if let Some(ethexe) = self.ethexe() {
+            ethexe.borrow_mut().top_up_executable_balance(id, value);
+        } else {
+            usage_panic!("Executable balance is only available in ethexe execution mode");
+        }
+    }
+
+    /// Increase ethexe owned balance for `id`.
+    pub fn top_up_owned_balance<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
+        let id = id.into().0;
+        if let Some(ethexe) = self.ethexe() {
+            ethexe.borrow_mut().top_up_owned_balance(id, value);
+        } else {
+            usage_panic!("Owned balance top-up is only available in ethexe execution mode");
+        }
+    }
+
+    /// Queue a raw ethexe block request event.
+    pub fn push_ethexe_event(&self, event: ethexe_common::events::BlockRequestEvent) {
+        if let Some(ethexe) = self.ethexe() {
+            ethexe.borrow_mut().push_event(event);
+        } else {
+            usage_panic!("Raw ethexe events are only available in ethexe execution mode");
+        }
+    }
+
+    /// Queue an injected transaction for ethexe execution.
+    pub fn push_injected_transaction(&self, tx: ethexe_common::injected::InjectedTransaction) {
+        if let Some(ethexe) = self.ethexe() {
+            ethexe.borrow_mut().push_injected_transaction(tx);
+        } else {
+            usage_panic!("Injected transactions are only available in ethexe execution mode");
+        }
     }
 
     /// Calculate reply that would be received when sending
@@ -431,6 +610,20 @@ impl System {
         gas_limit: u64,
         value: Value,
     ) -> Result<ReplyInfo, String> {
+        let origin = origin.into().0;
+        let destination = destination.into().0;
+        let payload: Vec<u8> = payload.into();
+
+        if let Some(ethexe) = self.ethexe() {
+            return ethexe.borrow().calculate_reply_for_handle(
+                origin,
+                destination,
+                payload,
+                value,
+                gas_limit,
+            );
+        }
+
         let mut manager_mut = self.0.borrow_mut();
 
         // Enter the overlay mode
@@ -439,10 +632,7 @@ impl System {
         // Clear the queue
         manager_mut.dispatches.clear();
 
-        let origin = origin.into().0;
-        let destination = destination.into().0;
         let payload = payload
-            .into()
             .try_into()
             .expect("failed to convert payload to limited payload");
 
@@ -522,6 +712,8 @@ impl System {
 
 impl Drop for System {
     fn drop(&mut self) {
+        drop(self.1.take());
+
         // Uninitialize
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| *initialized = false);
         let manager = self.0.borrow();
@@ -547,8 +739,140 @@ impl Drop for System {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, Log, MAX_USER_GAS_LIMIT};
+    use crate::{DEFAULT_USER_ALICE, EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, Log, MAX_USER_GAS_LIMIT};
+    use ethexe_common::events::{
+        BlockRequestEvent, MirrorRequestEvent, mirror::ExecutableBalanceTopUpRequestedEvent,
+    };
     use gear_core_errors::{ReplyCode, SuccessReplyReason};
+
+    fn init_ethexe_test_logger(sys: &System, test_name: &str) {
+        sys.init_logger_with_default_filter("gtest=debug,ethexe=debug,gwasm=debug");
+        log::debug!(target: "gtest::ethexe", "Running ethexe gtest: {test_name}");
+    }
+
+    #[test]
+    fn system_new_uses_vara_model() {
+        let sys = System::new();
+
+        assert_eq!(sys.execution_model(), ExecutionModel::Vara);
+    }
+
+    #[test]
+    fn system_builder_can_create_ethexe_model() {
+        let sys = System::builder()
+            .execution_model(ExecutionModel::Ethexe)
+            .build();
+        init_ethexe_test_logger(&sys, "system_builder_can_create_ethexe_model");
+
+        assert_eq!(sys.execution_model(), ExecutionModel::Ethexe);
+    }
+
+    #[test]
+    fn ethexe_program_creation_registers_state_and_code() {
+        let sys = System::builder()
+            .execution_model(ExecutionModel::Ethexe)
+            .build();
+        init_ethexe_test_logger(&sys, "ethexe_program_creation_registers_state_and_code");
+        let program = Program::from_binary_with_id(&sys, 0x10000, demo_ping::WASM_BINARY);
+
+        assert!(sys.is_active_program(program.id()));
+        assert_eq!(sys.executable_balance_of(program.id()), 0);
+
+        sys.top_up_executable_balance(program.id(), 80_000_000_000);
+        assert_eq!(sys.executable_balance_of(program.id()), 80_000_000_000);
+    }
+
+    #[test]
+    fn ethexe_raw_events_are_processed() {
+        let sys = System::builder()
+            .execution_model(ExecutionModel::Ethexe)
+            .build();
+        init_ethexe_test_logger(&sys, "ethexe_raw_events_are_processed");
+        let program = Program::from_binary_with_id(&sys, 0x10000, demo_ping::WASM_BINARY);
+
+        sys.push_ethexe_event(BlockRequestEvent::Mirror {
+            actor_id: program.id(),
+            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                ExecutableBalanceTopUpRequestedEvent { value: 42 },
+            ),
+        });
+        sys.run_next_block();
+
+        assert_eq!(sys.executable_balance_of(program.id()), 42);
+    }
+
+    #[test]
+    fn ethexe_canonical_message_replies_and_charges_executable_balance() {
+        let sys = System::builder()
+            .execution_model(ExecutionModel::Ethexe)
+            .build();
+        init_ethexe_test_logger(
+            &sys,
+            "ethexe_canonical_message_replies_and_charges_executable_balance",
+        );
+        let program = Program::from_binary_with_id(&sys, 0x10000, demo_ping::WASM_BINARY);
+        let user = 10;
+
+        sys.top_up_executable_balance(program.id(), 200_000_000_000);
+        let before = sys.executable_balance_of(program.id());
+
+        assert_eq!(sys.queue_len(), 0);
+        let message_id = program.send_bytes(user, b"PING");
+        assert_eq!(sys.queue_len(), 1);
+        let result = sys.run_next_block();
+
+        assert!(result.succeed.contains(&message_id));
+        assert!(
+            result.contains(
+                &Log::builder()
+                    .source(program.id())
+                    .dest(user)
+                    .payload_bytes(b"PONG")
+            )
+        );
+        assert!(sys.executable_balance_of(program.id()) < before);
+        assert!(result.ethexe_executable_balance_burned > 0);
+        assert_eq!(result.total_processed, 1);
+        assert_eq!(sys.queue_len(), 0);
+
+        let message_id = program.send_bytes(user, b"PING");
+        assert_eq!(sys.queue_len(), 1);
+        let result = sys.run_next_block();
+
+        assert!(result.succeed.contains(&message_id));
+        assert!(
+            result.contains(
+                &Log::builder()
+                    .source(program.id())
+                    .dest(user)
+                    .payload_bytes(b"PONG")
+            )
+        );
+        assert_eq!(result.total_processed, 1);
+        assert_eq!(sys.queue_len(), 0);
+    }
+
+    #[test]
+    fn ethexe_calculate_reply_does_not_commit_state() {
+        let sys = System::builder()
+            .execution_model(ExecutionModel::Ethexe)
+            .build();
+        init_ethexe_test_logger(&sys, "ethexe_calculate_reply_does_not_commit_state");
+        let program = Program::from_binary_with_id(&sys, 0x10000, demo_ping::WASM_BINARY);
+        let user = 10;
+
+        sys.top_up_executable_balance(program.id(), 200_000_000_000);
+        let init = program.send_bytes(user, b"PING");
+        assert!(sys.run_next_block().succeed.contains(&init));
+
+        let before = sys.executable_balance_of(program.id());
+        let reply = sys
+            .calculate_reply_for_handle(user, program.id(), b"PING", GAS_ALLOWANCE, 0)
+            .expect("reply");
+
+        assert_eq!(reply.payload, b"PONG");
+        assert_eq!(sys.executable_balance_of(program.id()), before);
+    }
 
     #[test]
     #[should_panic(expected = "Impossible to have multiple instances of the `System`.")]

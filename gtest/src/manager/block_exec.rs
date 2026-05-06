@@ -172,6 +172,7 @@ impl ExtManager {
                 .map(CoreLog::from)
                 .collect(),
             gas_burned: mem::take(&mut self.gas_burned),
+            ethexe_executable_balance_burned: 0,
         }
     }
 

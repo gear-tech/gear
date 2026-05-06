@@ -234,6 +234,26 @@ impl ProgramBuilder {
             .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
         let code_id = CodeId::generate(&self.code);
+
+        if let Some(ethexe) = system.ethexe() {
+            let program_id = id.0;
+            if default_users_list().contains(&(program_id.into_bytes()[0] as u64)) {
+                usage_panic!(
+                    "Can't create program with id {id:?}, because it's reserved for default users.\
+                    Please, use another id."
+                )
+            }
+
+            ethexe.borrow_mut().store_code(code_id, self.code);
+            ethexe.borrow_mut().register_program(program_id, code_id);
+
+            return Program {
+                manager: &system.0,
+                ethexe_manager: system.ethexe(),
+                id: program_id,
+            };
+        }
+
         system.0.borrow_mut().store_code(code_id, self.code);
         if let Some(metadata) = self.meta {
             system
@@ -301,6 +321,7 @@ impl ProgramBuilder {
 /// ```
 pub struct Program<'a> {
     pub(crate) manager: &'a RefCell<ExtManager>,
+    pub(crate) ethexe_manager: Option<&'a RefCell<crate::ethexe::EthexeManager>>,
     pub(crate) id: ActorId,
 }
 
@@ -329,6 +350,7 @@ impl<'a> Program<'a> {
 
         Self {
             manager: &system.0,
+            ethexe_manager: system.ethexe(),
             id: program_id,
         }
     }
@@ -396,6 +418,10 @@ impl<'a> Program<'a> {
         T: WasmProgram + 'static,
         ID: Into<ProgramIdWrapper> + Clone + Debug,
     {
+        if system.ethexe().is_some() {
+            usage_panic!("Mock programs are not available in ethexe execution mode");
+        }
+
         // Create a default active program for the mock
         let primary_program = PrimaryProgram::Active(ActiveProgram {
             allocations_tree_len: 0,
@@ -495,9 +521,16 @@ impl<'a> Program<'a> {
         ID: Into<ProgramIdWrapper>,
         T: Into<Vec<u8>>,
     {
-        let mut system = self.manager.borrow_mut();
-
         let source = from.into().0;
+
+        if let Some(ethexe) = self.ethexe_manager {
+            let _ = gas_limit;
+            return ethexe
+                .borrow_mut()
+                .send(source, self.id, payload.into(), value);
+        }
+
+        let mut system = self.manager.borrow_mut();
 
         // The current block number is always a block number of the "executed" block.
         // So before sending any messages and triggering a block run the block number
@@ -552,6 +585,10 @@ impl Program<'_> {
 
     /// Reads the program’s state as a byte vector.
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
+        if self.ethexe_manager.is_some() {
+            usage_panic!("State reads are not available in ethexe execution mode yet");
+        }
+
         self.manager.borrow_mut().read_state_bytes(payload, self.id)
     }
 
@@ -563,11 +600,19 @@ impl Program<'_> {
 
     /// Returns the balance of the account.
     pub fn balance(&self) -> Value {
+        if let Some(ethexe) = self.ethexe_manager {
+            return ethexe.borrow().balance_of(self.id());
+        }
+
         self.manager.borrow().balance_of(self.id())
     }
 
     /// Save the program's memory to path.
     pub fn save_memory_dump(&self, path: impl AsRef<Path>) {
+        if self.ethexe_manager.is_some() {
+            usage_panic!("Memory dumps are not available in ethexe execution mode yet");
+        }
+
         let manager = self.manager.borrow();
         let mem = manager.read_memory_pages(self.id);
         let balance = manager.balance_of(self.id);
@@ -587,6 +632,10 @@ impl Program<'_> {
 
     /// Load the program's memory from path.
     pub fn load_memory_dump(&mut self, path: impl AsRef<Path>) {
+        if self.ethexe_manager.is_some() {
+            usage_panic!("Memory dumps are not available in ethexe execution mode yet");
+        }
+
         let memory_dump = ProgramMemoryDump::load_from_file(path);
         let mem = memory_dump
             .pages

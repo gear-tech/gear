@@ -73,6 +73,26 @@ impl CoreLog {
     pub fn reply_to(&self) -> Option<MessageId> {
         self.reply_to
     }
+
+    pub(crate) fn new(
+        id: MessageId,
+        source: ActorId,
+        destination: ActorId,
+        payload: Vec<u8>,
+        reply_code: Option<ReplyCode>,
+        reply_to: Option<MessageId>,
+    ) -> Self {
+        Self {
+            id,
+            source,
+            destination,
+            payload: payload.try_into().unwrap_or_else(|_| {
+                usage_panic!("Log payload exceeds maximum supported gtest payload size")
+            }),
+            reply_code,
+            reply_to,
+        }
+    }
 }
 
 impl From<StoredMessage> for CoreLog {
@@ -414,6 +434,8 @@ pub struct BlockRunResult {
     /// Mapping gas burned for each message during
     /// the current block execution.
     pub gas_burned: BTreeMap<MessageId, Gas>,
+    /// Value burned from ethexe executable balances during the current block.
+    pub ethexe_executable_balance_burned: Value,
 }
 
 impl BlockRunResult {
