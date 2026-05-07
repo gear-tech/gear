@@ -28,6 +28,7 @@ use gsigner::secp256k1::Secp256k1SignerExt as _;
 use std::{
     collections::{BTreeMap, BTreeSet},
     future::Future,
+    sync::OnceLock,
 };
 
 fn block_on<F, T>(future: F) -> T
@@ -35,25 +36,23 @@ where
     F: Future<Output = T> + Send,
     T: Send,
 {
+    static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    let runtime = RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("failed to build ethexe gtest runtime")
+    });
+
     if tokio::runtime::Handle::try_current().is_ok() {
         std::thread::scope(|scope| {
             scope
-                .spawn(|| {
-                    tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                        .expect("failed to build ethexe gtest runtime")
-                        .block_on(future)
-                })
+                .spawn(|| runtime.block_on(future))
                 .join()
                 .expect("ethexe gtest runtime thread panicked")
         })
     } else {
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("failed to build ethexe gtest runtime")
-            .block_on(future)
+        runtime.block_on(future)
     }
 }
 
