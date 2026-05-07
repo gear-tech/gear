@@ -35,6 +35,7 @@ use ethexe_common::{
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
+use ethexe_malachite::MalachiteEvent;
 use ethexe_network::{NetworkEvent, NetworkInjectedEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_rpc::RpcEvent;
@@ -145,7 +146,7 @@ pub enum TestingEvent {
     // Services events.
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
-    Malachite,
+    Malachite(MalachiteEvent),
     Network(TestingNetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
@@ -159,7 +160,7 @@ impl TestingEvent {
         match event {
             Event::Compute(event) => Self::Compute(event.clone()),
             Event::Consensus(event) => Self::Consensus(event.clone()),
-            Event::Malachite(_event) => Self::Malachite,
+            Event::Malachite(event) => Self::Malachite(event.clone()),
             Event::Network(event) => Self::Network(TestingNetworkEvent::new(event)),
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
@@ -353,10 +354,8 @@ impl TestingEventReceiver {
         .await
     }
 
-    /// Wait until *any* `BlockPrepared` event arrives on the compute stream,
-    /// then drive forward until the prepared hash matches `target`. Replaces
-    /// the old `find_announce_computed(block_hash)` wait — there is no
-    /// per-Eth-block MB anymore; preparation is the closest analogue.
+    /// Drive the compute stream forward until a `BlockPrepared(target)` event
+    /// arrives.
     #[allow(dead_code)]
     pub async fn find_block_prepared(&mut self, target: H256) -> H256 {
         self.find_map(|event| match event {
@@ -374,6 +373,55 @@ impl TestingEventReceiver {
             _ => None,
         })
         .await
+    }
+
+    /// Wait until a finalized MB advances the eth chain to or past
+    /// `target_eth_block`. The target need not appear directly in an
+    /// `AdvanceTillEthereumBlock` transaction — it suffices that it is an
+    /// ancestor of this MB's `last_advanced_block` (i.e., it sits inside
+    /// the eth-chain segment this MB advanced over).
+    #[allow(dead_code)]
+    pub async fn wait_till_eth_block_finalized_in_mb(&mut self, target_eth_block: H256) {
+        self.find_map_with_db(|db, event| {
+            let TestingEvent::Malachite(MalachiteEvent::BlockFinalized { block_hash, .. }) = event
+            else {
+                return None;
+            };
+            let last_advanced = db.mb_meta(block_hash).last_advanced_block;
+            if last_advanced.is_zero() {
+                return None;
+            }
+            // Anchor: previous MB's `last_advanced_block` (genesis if none).
+            let prev_advanced = match db.mb_compact_block(block_hash) {
+                Some(c) if !c.parent.is_zero() => db.mb_meta(c.parent).last_advanced_block,
+                _ => H256::zero(),
+            };
+            // Walk the eth chain from this MB's `last_advanced_block` back to
+            // the previous anchor; if the target is in that segment, the MB
+            // covers it.
+            let mut cursor = last_advanced;
+            while cursor != prev_advanced {
+                if cursor == target_eth_block {
+                    return Some(());
+                }
+                let header = db.block_header(cursor)?;
+                if header.parent_hash.is_zero() {
+                    break;
+                }
+                cursor = header.parent_hash;
+            }
+            None
+        })
+        .await
+    }
+
+    pub async fn find_map_with_db<U>(
+        &mut self,
+        mut f: impl FnMut(Database, TestingEvent) -> Option<U>,
+    ) -> U {
+        let db = self.db.clone();
+        let func = |event| f(db.clone(), event);
+        self.find_map(func).await
     }
 }
 
@@ -394,7 +442,9 @@ impl ObserverEventReceiver {
 
     // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
     // If your test depends on events in skipped blocks, you need to improve this method.
-    pub fn filter_map_block_synced_with_header(mut self) -> KickingStream<impl Stream<Item = (BlockEvent, SimpleBlockData)>> {
+    pub fn filter_map_block_synced_with_header(
+        mut self,
+    ) -> KickingStream<impl Stream<Item = (BlockEvent, SimpleBlockData)>> {
         let db = self.db.clone();
         let kicks = self.kicks.take();
         let stream = self.flat_map(move |event| {
@@ -420,7 +470,8 @@ impl ObserverEventReceiver {
 
     pub fn filter_map_block_synced(mut self) -> KickingStream<impl Stream<Item = BlockEvent>> {
         let kicks = self.kicks.take();
-        let stream = self.filter_map_block_synced_with_header()
+        let stream = self
+            .filter_map_block_synced_with_header()
             .map(|(event, _)| event);
         KickingStream::new(stream, kicks)
     }

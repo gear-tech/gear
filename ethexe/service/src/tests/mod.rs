@@ -18,20 +18,15 @@
 
 //! Integration tests.
 //!
-//! NOTE: most of these are temporarily disabled while ethexe is being
-//! refactored from announce-driven to MB-driven consensus. The test
-//! harness here was wired against the announce flow that no longer
-//! exists; rebuilding the cases will land separately. The `utils`
-//! sub-module stays available because `ethexe-service` lib code
-//! still references `tests::utils::TestingEvent` for its testing
-//! event channel.
+//! `utils` is `pub(crate)` because lib code references
+//! `tests::utils::TestingEvent` for its testing event channel.
 pub(crate) mod utils;
 
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 use crate::tests::utils::{
     EnvNetworkConfig, InfiniteStreamExt, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
-    TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, init_logger, test_info,
+    TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, init_logger, stop_nodes, test_info,
 };
 use alloy::{
     primitives::U256,
@@ -1571,11 +1566,6 @@ async fn send_injected_tx() {
 /// Init-failure paths: panic-in-init then synchronous handle to the
 /// uninitialized program (UnavailableActor::InitializationFailure), and
 /// async-init handshake with three approval messages then a final reply.
-///
-/// MB-driven port: switched to `continuous_block_generation: true` so Anvil
-/// keeps producing blocks while the test waits on the observer-event stream;
-/// otherwise the chain freezes between explicit `.wait_for()` calls and the
-/// program-side messages never surface as Mirror events.
 #[tokio::test]
 #[ntest::timeout(300_000)]
 async fn uninitialized_program() {
@@ -1737,10 +1727,6 @@ async fn uninitialized_program() {
 
 /// Mailbox round-trip with demo_async: Mutex command writes the original mid
 /// and a PING into the mailbox, sender replies, value gets claimed.
-///
-/// MB-driven port: `announce_schedule(announce_hash)` → `mb_schedule(mb_hash)`,
-/// `AnnouncesCommittedEvent` now carries the MB hash. Continuous block
-/// generation keeps Anvil ticking while the observer-event loop progresses.
 #[tokio::test]
 #[ntest::timeout(300_000)]
 async fn mailbox() {
@@ -2268,24 +2254,11 @@ async fn ping_reorg() {
         .events()
         .find_block_prepared(latest_block.hash)
         .await;
-
-    // NOTE: the original test also wiped `node.db` and restarted, but in the
-    // MB-driven flow the malachite WAL retains parent links that now point at
-    // MBs absent from the fresh DB → `MbBlockNotFound` on parent walk. This
-    // is a separate scenario that needs a coordinated wipe of both the
-    // service DB and the malachite store; tracked as a TODO.
-    let _ = ping_id;
 }
 
 /// 5+5 validator election handover: stage next validator set during the
 /// election window of era N, fire one `ValidatorsCommittedForEra`, swap
 /// validators when era N+1 starts, and verify the new set can serve PING.
-///
-/// Compiles cleanly and produces the on-chain `ValidatorsCommittedForEra`
-/// event, but the era-handover step fails: the malachite swarm sees the
-/// old validators (with their dropped TCP ports) in `persistent_peers` and
-/// the new validators in `validators`, can't reconcile, and stalls. Marked
-/// `#[ignore]` until malachite gets atomic validator-set rotation.
 #[tokio::test]
 #[ntest::timeout(420_000)]
 #[ignore = "malachite swarm peer-list rotation is not atomic across validator handover"]
@@ -2437,31 +2410,15 @@ async fn validators_election() {
 
 /// Validators must NOT fold an Ethereum event into MB execution before the
 /// event has aged past `canonical_quarantine`. Send PING, watch the next
-/// `canonical_quarantine` blocks, assert no PONG appears, then expect PONG
-/// in the immediately following block.
-///
-/// `#[ignore]`d: with the malachite resilience fix and the cross-height
-/// `take_actual_tasks` drain in place, MBs now reach height that covers
-/// the program-creation Eth block (block 23), and the runtime DOES record
-/// the resulting state transition into `mb_outcome`. The test still hangs
-/// because the validator's coordinator runs **once per chain head** and
-/// the burst-tail head (block 30) fires its coordinator round at
-/// ~8.14s — *before* MB#3 finalizes at ~8.15s. So coordinator sees
-/// `latest_finalized_mb_hash = MB#2` (advances only to block 18), the
-/// chain commitment range `(last_committed_mb..MB#2]` is empty, and the
-/// batch is skipped. No subsequent chain head arrives until the test's
-/// `force_new_block` loop, which the test never reaches because it's
-/// blocked waiting for the `StateChanged` event the skipped batch never
-/// produced. Needs a consensus-side change: re-run coordinator when
-/// `latest_finalized_mb_hash` advances past the last batch's `head`.
+/// `canonical_quarantine` blocks, assert no PONG appears, then poll the
+/// following blocks for PONG.
 #[tokio::test]
 #[ntest::timeout(120_000)]
 async fn execution_with_canonical_events_quarantine() {
     init_logger();
 
-    // CANONICAL_QUARANTINE = 16 in production; in this test we use 4 to stay
-    // under the nextest 300s slow-test window while still verifying the
-    // gating semantics meaningfully (>1 block of quarantine).
+    // Production uses 16; 4 keeps the test fast while still exercising > 1
+    // block of quarantine.
     let config = TestEnvConfig {
         canonical_quarantine: 4,
         ..Default::default()
@@ -2574,17 +2531,6 @@ async fn execution_with_canonical_events_quarantine() {
 /// Delayed value send: program A queues a `send_value(receiver, V)` with a
 /// non-zero delay, value sits at the Router contract until the delay
 /// elapses, then lands on the receiver's program balance + Eth-side mirror.
-///
-/// `#[ignore]`d: blocked by the same coordinator/MB-finalization race as
-/// `execution_with_canonical_events_quarantine`. With the malachite
-/// resilience fix and cross-height `take_actual_tasks` drain in place,
-/// MBs cover blocks 34..134 and the runtime DOES drain the delayed-send
-/// task scheduled at height ~133 (cross-height drain at MB-height 134).
-/// The test still hangs because the coordinator only runs for the
-/// burst-tail Eth block, *before* the relevant MB finalizes — so the
-/// batch is skipped on stale `latest_finalized_mb_hash`. Needs a
-/// consensus-side change: re-run coordinator when finalized MB advances
-/// past the last batch.
 #[tokio::test]
 #[ntest::timeout(120_000)]
 async fn value_send_delayed() {
@@ -3088,14 +3034,11 @@ async fn injected_tx_fungible_token_over_network() {
 /// behaviour; needs a refined scenario or contract-level invariant before
 /// it makes sense as a passing test.
 #[tokio::test]
-#[ntest::timeout(180_000)]
-#[ignore = "architecture is more resilient than the original spec — see body"]
-async fn ping_reorg_deeper_than_quarantine_breaks_validator() {
+#[ntest::timeout(80_000)]
+async fn ping_reorg_deeper_than_quarantine_breaks_mb_chain() {
     init_logger();
 
     let mut env = TestEnv::new(TestEnvConfig {
-        network: EnvNetworkConfig::Disabled,
-        continuous_block_generation: true,
         // Tiny quarantine so an Anvil snapshot/revert easily surpasses it.
         canonical_quarantine: 2,
         ..Default::default()
@@ -3108,6 +3051,7 @@ async fn ping_reorg_deeper_than_quarantine_breaks_validator() {
         .await;
     node.start_service().await;
 
+    test_info!("Upload, create and initialize the demo-ping program");
     let code = env
         .upload_code(demo_ping::WASM_BINARY)
         .await
@@ -3131,43 +3075,43 @@ async fn ping_reorg_deeper_than_quarantine_breaks_validator() {
         .unwrap();
     assert_eq!(r.payload, b"PONG");
 
-    // Snapshot well after the program is in use.
+    // Snapshot the program is initialized and finalized in mb.
     let snap = env.provider.anvil_snapshot().await.unwrap();
-    log::info!(
-        "📗 Snapshot taken at block {}",
+    test_info!(
+        "Snapshot taken at block {}",
         env.provider.get_block_number().await.unwrap()
     );
 
-    // Drive forward many blocks so finalization definitely sweeps past
-    // the snapshot height by far more than `canonical_quarantine`. Wait
-    // for actual time to elapse so MBs are finalized + committed.
-    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-    let _ = env
-        .send_message(prog.program_id, b"PING")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
+    env.skip_blocks(10).await;
 
-    log::info!("📗 Reverting Anvil to deep snapshot — past quarantine");
+    let latest_block = env.latest_block().await;
+    test_info!("Waiting for {latest_block} to be finalized in MB");
+    node.events()
+        .wait_till_eth_block_finalized_in_mb(latest_block.hash)
+        .await;
+
+    test_info!("📗 Reverting Anvil to deep snapshot — past quarantine");
     env.provider
         .anvil_revert(snap)
         .await
         .map(|res| assert!(res))
         .unwrap();
 
-    // The validator's running service task should now error or stop making
-    // progress. We give it a generous window to either panic or stall, then
-    // assert that a fresh PING does NOT complete (proving the network is
-    // not silently churning past the orphaned finalization).
-    let send = env.send_message(prog.program_id, b"PING").await.unwrap();
+    env.skip_blocks(20).await;
 
-    let stalled = tokio::time::timeout(std::time::Duration::from_secs(30), send.wait_for()).await;
-    assert!(
-        stalled.is_err(),
-        "validator must not silently produce a PONG after a reorg that drops finalized MBs; got: {stalled:?}"
+    let latest_block = env.latest_block().await;
+    test_info!(
+        "waiting 20 seconds: {latest_block} must not be finalized, because deep reorg breaks mb chain continuity"
     );
+    let mut receiver = node.new_events();
+    // Here we take in account kicking stream - latest_block is not passed quarantine yet,
+    // but kicks will generate new anvil blocks, but still this block cannot be finalized in mb, because branch is broken.
+    let waiting_future = receiver.wait_till_eth_block_finalized_in_mb(latest_block.hash);
+    tokio::time::timeout(Duration::from_secs(20), waiting_future)
+        .await
+        .expect_err("block should not be finalized within 20 seconds after deep reorg");
+
+    stop_nodes([node]).await;
 }
 
 // TODO: port these tests to the MB-driven test harness. Bodies below reference
