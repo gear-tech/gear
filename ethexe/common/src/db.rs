@@ -182,6 +182,9 @@ pub struct PreparedBlockData {
     pub last_committed_batch: Digest,
     /// `H256::zero()` for genesis (no MB committed on-chain yet).
     pub last_committed_mb: H256,
+    /// `H256::zero()` for genesis (no chain commitment has advanced an
+    /// Eth block yet).
+    pub last_committed_advanced_eth_block: H256,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]

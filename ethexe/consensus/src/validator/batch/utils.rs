@@ -291,16 +291,26 @@ pub fn try_include_checkpoint_chain_commitment<DB: BlockMetaStorageRO + MbStorag
         return Ok(());
     };
 
+    // `at_block` is `prepared` by the time the coordinator runs (see
+    // `WaitForEthBlock`), so the field must be populated.
     let last_committed_advanced = db
         .block_meta(at_block)
         .last_committed_advanced_eth_block
-        .unwrap_or(H256::zero());
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "block_meta({at_block}).last_committed_advanced_eth_block missing despite prepared==true"
+            )
+        })?;
     let last_committed_height = if last_committed_advanced.is_zero() {
         0
     } else {
         db.block_header(last_committed_advanced)
-            .map(|h| h.height)
-            .unwrap_or(0)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "block_header({last_committed_advanced}) missing for at_block {at_block}"
+                )
+            })?
+            .height
     };
 
     let gap = advanced_header.height.saturating_sub(last_committed_height);

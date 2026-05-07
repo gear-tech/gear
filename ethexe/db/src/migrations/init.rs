@@ -121,6 +121,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
             codes_queue: Default::default(),
             last_committed_batch: Default::default(),
             last_committed_mb: H256::zero(),
+            last_committed_advanced_eth_block: H256::zero(),
             latest_era_with_committed_validators: 0,
         },
     );
