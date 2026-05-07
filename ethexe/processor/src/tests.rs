@@ -682,6 +682,169 @@ async fn many_waits() {
     }
 }
 
+/// Cross-height task drain (MB-driven invariant): a `wait_for` task scheduled
+/// for height H must still fire when the next `process_tasks` runs at any
+/// height ≥ H. Mirrors `many_waits` step-for-step but the final wake block is
+/// **5 blocks past** the scheduled wake height — the legacy single-height
+/// `take_actual_tasks(&height)` drain would have missed the wake tasks
+/// (since `schedule.remove(&height)` would be `None` for the future block)
+/// and produced zero replies. The MB-driven `take_actual_tasks` drains every
+/// scheduled height ≤ current, so the woken dispatches still land.
+#[tokio::test]
+async fn cross_height_wake_drain() {
+    init_logger();
+
+    let blocks_to_wait = 10;
+    let extra_skip = 5;
+    let wat = format!(
+        r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
+            (import "env" "gr_wait_for" (func $wait_for (param i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (if
+                    (i32.eqz (i32.load (i32.const 0x200)))
+                    (then
+                        (i32.store (i32.const 0x200) (i32.const 1))
+                        (call $wait_for (i32.const {blocks_to_wait}))
+                    )
+                    (else
+                        (call $reply (i32.const 0) (i32.const 13) (i32.const 0x400) (i32.const 0x600))
+                    )
+                )
+            )
+            (data (i32.const 0) "Hello, world!")
+        )
+        "#
+    );
+
+    let (_, code) = wat_to_wasm(wat.as_str());
+
+    let (mut processor, chain, [code_id]) =
+        setup_test_env_and_load_codes([code.as_slice()]).await;
+    let block1 = chain.blocks[1].to_simple();
+    let wake_block = chain.blocks[1 + blocks_to_wait + extra_skip].to_simple();
+    let scheduled_wake_height = block1.header.height + blocks_to_wait as u32;
+    assert!(
+        wake_block.header.height > scheduled_wake_height,
+        "test setup: wake_block must be past scheduled wake height"
+    );
+
+    let mut handler = setup_handler(processor.db.clone(), block1.header.height);
+
+    let amount = OUTGOING_MESSAGES_SOFT_LIMIT.min(PROGRAM_MODIFICATIONS_SOFT_LIMIT);
+    for i in 0..amount {
+        let program_id = ActorId::from(i as u64);
+
+        handler
+            .handle_router_event(RouterRequestEvent::ProgramCreated(ProgramCreatedEvent {
+                actor_id: program_id,
+                code_id,
+            }))
+            .expect("failed to create new program");
+
+        handler
+            .handle_mirror_event(
+                program_id,
+                MirrorRequestEvent::ExecutableBalanceTopUpRequested(
+                    ExecutableBalanceTopUpRequestedEvent {
+                        value: 300_000_000_000,
+                    },
+                ),
+            )
+            .expect("failed to top up balance");
+
+        handler
+            .handle_mirror_event(
+                program_id,
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: H256::random().0.into(),
+                    source: H256::random().0.into(),
+                    payload: Default::default(),
+                    value: 0,
+                    call_reply: false,
+                }),
+            )
+            .expect("failed to send message");
+    }
+    handler.transitions.modifications_mut().clear();
+    handler.transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(handler.transitions.current_messages().len(), amount as usize);
+
+    // Second handle batch — all 64 dispatches enter `wait_for`, no replies.
+    let known_programs = handler.transitions.known_programs();
+    for &pid in &known_programs {
+        handler
+            .handle_mirror_event(
+                pid,
+                MirrorRequestEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: H256::random().0.into(),
+                    source: H256::random().0.into(),
+                    payload: Default::default(),
+                    value: 0,
+                    call_reply: false,
+                }),
+            )
+            .expect("failed to send message");
+    }
+    handler.transitions.modifications_mut().clear();
+    handler.transitions = processor
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        handler.transitions.current_messages().len(),
+        0,
+        "wait_for path must not produce replies"
+    );
+
+    // Jump past the scheduled wake height (block1 + blocks_to_wait + 5).
+    // Legacy `schedule.remove(&wake_block_height)` would yield `None` and
+    // the wakes would be silently dropped; with the MB-driven drain every
+    // scheduled height ≤ current is collected.
+    let transitions = handler
+        .transitions
+        .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);
+    let mut transitions = processor.process_tasks(transitions);
+    transitions.modifications_mut().clear();
+    let transitions = processor
+        .process_queues(
+            transitions,
+            wake_block.header.height,
+            wake_block.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        transitions.current_messages().len(),
+        amount as usize,
+        "every waited dispatch must be woken even though wake_block is past the scheduled height"
+    );
+    for (_pid, message) in transitions.current_messages() {
+        assert_eq!(message.payload, b"Hello, world!");
+    }
+}
+
 // Tests that when overlay execution is performed, it doesn't change the original state.
 #[tokio::test]
 async fn overlay_execution() {

@@ -52,10 +52,10 @@ pub struct ValidatorCore {
     #[debug(skip)]
     pub metrics: ValidatorMetrics,
 
-    /// Time limit in Ethereum blocks for a batch to be committed on-chain
-    /// after its target block was finalized — passed straight into
+    /// Coordinator-local lifetime (Eth blocks) of a fresh `BatchCommitment`
+    /// past its target block — copied into
     /// [`BatchCommitment::expiry`](ethexe_common::gear::BatchCommitment).
-    pub commitment_delay_limit: u32,
+    pub commitment_delay_limit: std::num::NonZero<u8>,
     /// Delay between receiving a new chain head and the coordinator
     /// starting batch aggregation. Buys time for participants to receive
     /// the same chain head and for the previous block to finish executing.

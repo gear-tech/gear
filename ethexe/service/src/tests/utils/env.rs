@@ -32,8 +32,7 @@ use alloy::{
 use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
-    ValidatorsVec,
+    Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::DEFAULT_BATCH_SIZE_LIMIT,
     db::ConfigStorageRO,
     ecdsa::{PrivateKey, PublicKey, SignedData},
@@ -129,8 +128,9 @@ pub struct TestEnv {
     pub sender_id: ActorId,
     pub threshold: u64,
     pub continuous_block_generation: bool,
-    pub commitment_delay_limit: u32,
+    pub commitment_delay_limit: std::num::NonZero<u8>,
     pub canonical_quarantine: u8,
+    pub kicking_per_blocks: Option<u32>,
     #[allow(unused)]
     pub db: Database,
     /// Endpoints aligned 1:1 with `validators`.
@@ -199,6 +199,7 @@ impl TestEnv {
             deploy_params,
             commitment_delay_limit,
             canonical_quarantine,
+            kicking_per_blocks,
         } = config;
 
         log::info!(
@@ -350,7 +351,14 @@ impl TestEnv {
         let provider = observer.provider().clone();
 
         let observer_events = {
-            let (sender, receiver) = events::channel(db.clone());
+            let (sender, receiver) = events::channel(
+                db.clone(),
+                kicking_per_blocks.map(|blocks| {
+                    let provider = provider.clone();
+                    let duration = block_time * blocks;
+                    (duration, provider)
+                }),
+            );
 
             let cloned_sender = sender.clone();
             tokio::spawn(
@@ -445,6 +453,7 @@ impl TestEnv {
             continuous_block_generation,
             commitment_delay_limit,
             canonical_quarantine,
+            kicking_per_blocks,
             db,
             malachite_endpoints,
             malachite_listeners,
@@ -523,7 +532,30 @@ impl TestEnv {
             running_service_handle: None,
             shutdown_tx: None,
             canonical_quarantine: self.canonical_quarantine,
+            kicking_per_blocks: self
+                .kicking_per_blocks
+                .map(|blocks| (blocks * self.eth_cfg.block_time, self.provider.clone())),
         }
+    }
+
+    /// Pre-allocate malachite endpoints for an *additional* validator set
+    /// (e.g. the "next" set in an era handover test) and merge them into
+    /// `self.malachite_endpoints` / `self.malachite_listeners`. Without this,
+    /// `start_service` panics when asked to boot a validator whose pubkey
+    /// wasn't part of `TestEnv::new` time.
+    pub fn extend_malachite_endpoints(&mut self, validators: &[ValidatorConfig]) {
+        let (extra_endpoints, extra_listeners) =
+            build_malachite_endpoints(&self.signer, validators);
+        for ep in extra_endpoints {
+            if !self
+                .malachite_endpoints
+                .iter()
+                .any(|e| e.pub_key == ep.pub_key)
+            {
+                self.malachite_endpoints.push(ep);
+            }
+        }
+        self.malachite_listeners.extend(extra_listeners);
     }
 
     pub async fn new_initialized_db(&self) -> Database {
@@ -899,10 +931,13 @@ pub struct TestEnvConfig {
     pub network: EnvNetworkConfig,
     /// Smart contracts deploy configuration.
     pub deploy_params: ContractsDeploymentParams,
-    /// Commitment delay limit in blocks.
-    pub commitment_delay_limit: u32,
+    /// Commitment delay limit in Eth blocks (coordinator-local).
+    pub commitment_delay_limit: std::num::NonZero<u8>,
     /// Canonical quarantine period in blocks.
     pub canonical_quarantine: u8,
+    /// How often the waiting for events streams should force new blocks mining in order to avoid tests hanging.
+    /// Some contains amount of block intervals between forced blocks mining, None - means that blocks mining will not be forced at all.
+    pub kicking_per_blocks: Option<u32>,
 }
 
 impl Default for TestEnvConfig {
@@ -923,8 +958,9 @@ impl Default for TestEnvConfig {
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
-            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+            commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
             canonical_quarantine: 0,
+            kicking_per_blocks: Some(3),
         }
     }
 }
@@ -1051,8 +1087,9 @@ pub struct Node {
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
-    commitment_delay_limit: u32,
+    commitment_delay_limit: std::num::NonZero<u8>,
     canonical_quarantine: u8,
+    kicking_per_blocks: Option<(Duration, RootProvider)>,
 
     /// Malachite WAL + store.db tempdir; lives with the node.
     malachite_home: Option<tempfile::TempDir>,
@@ -1198,7 +1235,7 @@ impl Node {
             None
         };
 
-        let (sender, receiver) = events::channel(self.db.clone());
+        let (sender, receiver) = events::channel(self.db.clone(), self.kicking_per_blocks.clone());
 
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
@@ -1425,6 +1462,10 @@ impl Node {
 impl Drop for Node {
     fn drop(&mut self) {
         if let Some(handle) = &self.running_service_handle {
+            log::error!(
+                "Node {} service was not stopped in test before drop - stopping it now roughly",
+                self.name.as_deref().unwrap_or("<unnamed>")
+            );
             handle.abort();
         }
 

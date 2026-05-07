@@ -59,8 +59,11 @@ pub use utils::*;
 /// Default block gas limit for the node.
 pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
 
-/// Commitment delay limit in blocks.
-pub const COMMITMENT_DELAY_LIMIT: u32 = 3;
+/// Default `commitment_delay_limit` (in Ethereum blocks). Coordinator-local
+/// knob: how many EBs a `BatchCommitment` stays valid past its target block.
+/// Not a protocol constant — every coordinator picks its own value.
+pub const DEFAULT_COMMITMENT_DELAY_LIMIT: core::num::NonZero<u8> =
+    core::num::NonZero::new(16).expect("16 != 0");
 
 /// Maximum number of touched programs per MB.
 pub const MAX_TOUCHED_PROGRAMS_PER_MB: u32 = 128;

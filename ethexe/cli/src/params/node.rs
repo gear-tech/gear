@@ -138,6 +138,13 @@ pub struct NodeParams {
     #[serde(default, rename = "uncommitted-chain-len-threshold")]
     pub uncommitted_chain_len_threshold: Option<u32>,
 
+    /// Coordinator-local: how many Ethereum blocks the resulting
+    /// `BatchCommitment` stays valid past its target block. Encoded into
+    /// `BatchCommitment::expiry`. Default 16.
+    #[arg(long)]
+    #[serde(default, rename = "commitment-delay-limit")]
+    pub commitment_delay_limit: Option<NonZero<u8>>,
+
     /// Path to genesis state dump file (.blob or .json) for initial chain state.
     #[arg(long)]
     #[serde(default, rename = "genesis-state-dump")]
@@ -199,6 +206,9 @@ impl NodeParams {
             uncommitted_chain_len_threshold: self
                 .uncommitted_chain_len_threshold
                 .unwrap_or(DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD),
+            commitment_delay_limit: self
+                .commitment_delay_limit
+                .unwrap_or(ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT),
             genesis_state_dump: self.genesis_state_dump,
         })
     }
@@ -286,6 +296,10 @@ impl MergeParams for NodeParams {
             uncommitted_chain_len_threshold: self
                 .uncommitted_chain_len_threshold
                 .or(with.uncommitted_chain_len_threshold),
+
+            commitment_delay_limit: self
+                .commitment_delay_limit
+                .or(with.commitment_delay_limit),
 
             genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
         }

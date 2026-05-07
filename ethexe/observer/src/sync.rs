@@ -211,11 +211,6 @@ impl ChainSync {
 
             self.db.set_block_synced(hash);
 
-            log::trace!(
-                "✅ block {hash} synced, events: {:?}",
-                self.db.block_events(hash)
-            );
-
             self.db
                 .globals_mutate(|g| g.latest_synced_block = SimpleBlockData { hash, header });
         }

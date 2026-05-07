@@ -56,7 +56,7 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, SimpleBlockData,
+    CodeAndIdUnchecked, SimpleBlockData,
     db::{InjectedStorageRW, OnChainStorageRO},
     gear::CodeState,
     injected::SignedPromise,
@@ -448,9 +448,8 @@ impl Service {
                 ValidatorConfig {
                     pub_key,
                     signatures_threshold: threshold,
-                    // TODO: #4942 commitment_delay_limit is a protocol specific constant
-                    // which better to be configurable by router contract
-                    commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+                    // Coordinator-local: not a protocol constant; configured per node.
+                    commitment_delay_limit: config.node.commitment_delay_limit,
                     router_address: config.ethereum.router_address,
                     batch_size_limit: config.node.batch_size_limit,
                     coordinator_aggregation_delay: config.node.coordinator_aggregation_delay,
@@ -727,16 +726,17 @@ impl Service {
                             timestamp = %block_data.header.timestamp,
                             hash = %block_data.hash,
                             parent_hash = %block_data.header.parent_hash,
-                            "📦 receive a chain head",
+                            "📦 receive new chain head",
                         );
                         if let Some(c) = consensus.as_mut() {
                             c.receive_new_chain_head(block_data)?;
                         }
                     }
                     ObserverEvent::BlockSynced(block) => {
-                        // NOTE: Observer guarantees that, if `BlockSynced` event is emitted,
-                        // then from latest synced block and up to `data.block_hash`:
-                        // all blocks on-chain data (see OnChainStorage) is loaded and available in database.
+                        log::info!(
+                            "Block synced: {}",
+                            db.block_simple_data(block).expect("must be in database")
+                        );
 
                         compute.prepare_block(block);
                         if let Some(c) = consensus.as_mut() {

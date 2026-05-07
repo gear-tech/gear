@@ -86,9 +86,10 @@ pub struct ValidatorConfig {
     /// ECDSA multi-signature threshold.
     // TODO #4637: threshold should be a ratio (and maybe also a block dependent value)
     pub signatures_threshold: u64,
-    /// Time limit in Ethereum blocks for a batch to be committed on-chain
-    /// after its target block was finalized.
-    pub commitment_delay_limit: u32,
+    /// Coordinator-local: how many Ethereum blocks the resulting
+    /// `BatchCommitment` stays valid past its target block. Encoded into
+    /// `BatchCommitment::expiry` (u8). Set freely per-coordinator.
+    pub commitment_delay_limit: std::num::NonZero<u8>,
     /// Address of the router contract.
     pub router_address: Address,
     /// The maximum size of abi-encoded batch commitment.

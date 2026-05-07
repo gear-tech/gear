@@ -140,7 +140,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
     batch_parts: BatchParts,
-    commitment_delay_limit: u32,
+    commitment_delay_limit: std::num::NonZero<u8>,
 ) -> Result<Option<BatchCommitment>> {
     let BatchParts {
         chain_commitment,
@@ -174,7 +174,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
             || anyhow!("Cannot get from db last committed block for block {block_hash}",),
         )?;
 
-    let expiry: u8 = commitment_delay_limit.try_into().unwrap_or(u8::MAX);
+    let expiry: u8 = commitment_delay_limit.get();
 
     tracing::trace!("Batch commitment expiry for block {block_hash} is {expiry:?}",);
 

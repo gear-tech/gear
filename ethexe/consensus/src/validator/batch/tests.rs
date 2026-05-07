@@ -457,7 +457,7 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
     let big_manager = mock_batch_manager_with_limits(
         db.clone(),
         BatchLimits {
-            commitment_delay_limit: 100,
+            commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
             batch_size_limit: BLOCK_GAS_LIMIT, // large
             uncommitted_chain_len_threshold: 0,
         },
@@ -472,7 +472,7 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
     let strict_manager = mock_batch_manager_with_limits(
         db,
         BatchLimits {
-            commitment_delay_limit: 100,
+            commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
             batch_size_limit: 256, // intentionally tiny
             uncommitted_chain_len_threshold: 0,
         },

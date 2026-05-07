@@ -182,17 +182,44 @@ impl MalachiteService {
         self.mempool.insert(tx);
     }
 
-    /// Feed the latest observer-delivered Ethereum chain head into
-    /// the service. Updates both the producer's view (used by
+    /// Feed an observer-delivered Ethereum `BlockSynced` block into the
+    /// service. Updates the producer's view (used by
     /// [`ethexe_malachite_core::Externalities::build_block_above`]) and the
     /// mempool's GC head.
+    ///
+    /// `BlockSynced` events are not ordered: the observer just retransmits
+    /// what the Ethereum RPC delivered, so we may see e.g.
+    /// `BlockSynced(34)` followed by `BlockSynced(15)` while concurrent
+    /// sync tasks finish in arbitrary order. Two invariants the producer
+    /// relies on:
+    ///
+    /// 1. The chain-head register is monotone in **height** — never
+    ///    anchor backwards. A stale older head would push
+    ///    `anchor = head - quarantine` below `parent_advanced` and
+    ///    stall the producer for `propose_timeout`.
+    /// 2. Every `BlockSynced` still fires `chain_head_notify`, even when
+    ///    the head didn't move forward. Out-of-order delivery means a
+    ///    later-but-lower-height sync may have finally landed the
+    ///    intermediate parent headers the producer's
+    ///    `is_strict_descendant_of` walk needs; without this kick, a
+    ///    walk that failed on the first burst-tail wake never retries
+    ///    and the producer hangs at the 12s timeout boundary.
     pub fn receive_new_chain_head(&mut self, head: SimpleBlockData) {
-        *self.chain_head.write().expect("chain_head poisoned") = Some(head);
-        // Wake the producer if it was idling on `wait_for_new_tx` /
-        // `wait_for_chain_head` — see
-        // [`crate::EthexeExternalities::wait_for_proposable_content`].
-        self.chain_head_notify.notify_waiters();
-        self.mempool.set_chain_head(head);
+        let mut current = self.chain_head.write().expect("chain_head poisoned");
+        let advanced = match current.as_ref() {
+            Some(existing) => head.header.height > existing.header.height,
+            None => true,
+        };
+        if advanced {
+            *current = Some(head);
+        }
+        drop(current);
+        // Wake the producer regardless of whether height moved — see
+        // invariant #2 in the doc above.
+        self.chain_head_notify.notify_one();
+        if advanced {
+            self.mempool.set_chain_head(head);
+        }
     }
 
     /// Tell the service the observer has finished syncing `synced`

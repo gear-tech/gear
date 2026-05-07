@@ -86,19 +86,25 @@ impl StateHandler for WaitForEthBlock {
                 self.maybe_advance_to_role()
             }
             _ => {
-                self.warning(format!("unexpected synced block: {block}"));
+                tracing::trace!(
+                    received = %block,
+                    "synced block skipped - not waiting for this block",
+                );
                 Ok(self.into())
             }
         }
     }
 
-    fn process_prepared_block(mut self, block: H256) -> Result<ValidatorState> {
+    fn process_prepared_block(self, block: H256) -> Result<ValidatorState> {
         match &self.state {
             SubState::WaitingForPrepared { block: pending } if pending.hash == block => {
                 self.maybe_advance_to_role()
             }
             _ => {
-                self.warning(format!("unexpected prepared block: {block}"));
+                tracing::trace!(
+                    received = %block,
+                    "prepared block skipped - not waiting for this block",
+                );
                 Ok(self.into())
             }
         }

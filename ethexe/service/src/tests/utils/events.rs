@@ -19,6 +19,7 @@
 #![allow(clippy::double_parens)] // produced by `derive_more::TryUnwrap`
 
 use crate::Event;
+use alloy::providers::{RootProvider, ext::AnvilApi};
 use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
@@ -37,12 +38,17 @@ use ethexe_db::Database;
 use ethexe_network::{NetworkEvent, NetworkInjectedEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
 use ethexe_rpc::RpcEvent;
-use futures::{Stream, StreamExt, future::Either, stream, stream::FusedStream};
+use futures::{
+    FutureExt, Stream, StreamExt,
+    future::{self, BoxFuture, Either},
+    stream::{self, BoxStream, FusedStream},
+};
 use gprimitives::H256;
 use std::{
     iter,
     pin::Pin,
     task::{Context, Poll, ready},
+    time::Duration,
 };
 
 pub type TestingEventSender = EventSender<TestingEvent>;
@@ -164,13 +170,96 @@ impl TestingEvent {
     }
 }
 
-pub trait InfiniteStreamExt: StreamExt + Sized + Unpin {
+pub trait KickExt {
+    fn kick(&self) -> BoxFuture<'static, ()>;
+    #[allow(unused)]
+    fn set_kicks(&mut self, kicks: (Duration, RootProvider));
+    #[allow(unused)]
+    fn clear_kicks(&mut self);
+}
+
+impl<T> KickExt for EventReceiver<T> {
+    fn kick(&self) -> BoxFuture<'static, ()> {
+        if let Some((duration, provider)) = &self.kicks {
+            let provider = provider.clone();
+            let duration = *duration;
+            async move {
+                tokio::time::sleep(duration).await;
+                log::info!("⏱️ Reached kicking timeout, forcing new block");
+                provider.evm_mine(None).await.unwrap();
+            }
+            .boxed()
+        } else {
+            future::pending().boxed()
+        }
+    }
+
+    fn set_kicks(&mut self, kicks: (Duration, RootProvider)) {
+        self.kicks = Some(kicks);
+    }
+
+    fn clear_kicks(&mut self) {
+        self.kicks = None;
+    }
+}
+
+pub struct KickingStream<S> {
+    inner: S,
+    kicks: Option<(Duration, RootProvider)>,
+}
+
+impl<S> KickingStream<S> {
+    pub fn new(inner: S, kicks: Option<(Duration, RootProvider)>) -> Self {
+        Self { inner, kicks }
+    }
+}
+
+impl<S: Stream + Unpin> Stream for KickingStream<S> {
+    type Item = S::Item;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next_unpin(cx)
+    }
+}
+
+impl<S> KickExt for KickingStream<S> {
+    fn kick(&self) -> BoxFuture<'static, ()> {
+        if let Some((duration, provider)) = &self.kicks {
+            let provider = provider.clone();
+            let duration = *duration;
+            async move {
+                tokio::time::sleep(duration).await;
+                log::info!("⏱️ Reached kicking timeout, forcing new block");
+                provider.evm_mine(None).await.unwrap();
+            }
+            .boxed()
+        } else {
+            future::pending().boxed()
+        }
+    }
+
+    fn set_kicks(&mut self, kicks: (Duration, RootProvider)) {
+        self.kicks = Some(kicks);
+    }
+
+    fn clear_kicks(&mut self) {
+        self.kicks = None;
+    }
+}
+
+pub trait InfiniteStreamExt: StreamExt + KickExt + Sized + Unpin {
     #[must_use]
     async fn find_map<U>(&mut self, mut f: impl FnMut(Self::Item) -> Option<U>) -> U {
         loop {
-            let item = self.next().await.expect("always Some");
-            if let Some(res) = f(item) {
-                return res;
+            let kick = self.kick();
+            tokio::select! {
+                _ = kick => {},
+                item = self.next() => {
+                    let item = item.expect("stream must be infinite");
+                    if let Some(res) = f(item) {
+                        return res;
+                    }
+                }
             }
         }
     }
@@ -181,12 +270,22 @@ pub trait InfiniteStreamExt: StreamExt + Sized + Unpin {
     }
 }
 
-impl<T: StreamExt + Sized + Unpin> InfiniteStreamExt for T {}
+impl<T: StreamExt + KickExt + Sized + Unpin> InfiniteStreamExt for T {}
 
-pub fn channel<T>(db: Database) -> (EventSender<T>, EventReceiver<T>) {
+pub fn channel<T>(
+    db: Database,
+    kicks: Option<(Duration, RootProvider)>,
+) -> (EventSender<T>, EventReceiver<T>) {
     let (mut tx, rx) = async_broadcast::broadcast(1024);
     tx.set_overflow(true);
-    (EventSender { inner: tx }, EventReceiver { inner: rx, db })
+    (
+        EventSender { inner: tx },
+        EventReceiver {
+            inner: rx,
+            db,
+            kicks,
+        },
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -204,6 +303,8 @@ impl<T: Clone> EventSender<T> {
 pub struct EventReceiver<T> {
     inner: Receiver<T>,
     db: Database,
+
+    kicks: Option<(Duration, RootProvider)>,
 }
 
 impl<T: Clone> Stream for EventReceiver<T> {
@@ -234,7 +335,8 @@ impl<T: Clone> EventReceiver<T> {
     pub fn new_receiver(&self) -> Self {
         let inner = self.inner.new_receiver();
         let db = self.db.clone();
-        Self { inner, db }
+        let kicks = self.kicks.clone();
+        Self { inner, db, kicks }
     }
 }
 
@@ -250,26 +352,52 @@ impl TestingEventReceiver {
         })
         .await
     }
+
+    /// Wait until *any* `BlockPrepared` event arrives on the compute stream,
+    /// then drive forward until the prepared hash matches `target`. Replaces
+    /// the old `find_announce_computed(block_hash)` wait — there is no
+    /// per-Eth-block MB anymore; preparation is the closest analogue.
+    #[allow(dead_code)]
+    pub async fn find_block_prepared(&mut self, target: H256) -> H256 {
+        self.find_map(|event| match event {
+            TestingEvent::Compute(ComputeEvent::BlockPrepared(h)) if h == target => Some(h),
+            _ => None,
+        })
+        .await
+    }
+
+    /// Wait until any MB becomes computed, returning its hash.
+    #[allow(dead_code)]
+    pub async fn find_any_mb_computed(&mut self) -> H256 {
+        self.find_map(|event| match event {
+            TestingEvent::Compute(ComputeEvent::MbComputed { mb_hash, .. }) => Some(mb_hash),
+            _ => None,
+        })
+        .await
+    }
 }
 
 impl ObserverEventReceiver {
-    pub fn filter_map_block(self) -> impl Stream<Item = SimpleBlockData> {
-        self.filter_map(|event| async move {
-            if let ObserverEvent::Block(block_data) = event {
-                Some(block_data)
-            } else {
-                None
-            }
-        })
+    pub fn filter_map_block(mut self) -> KickingStream<BoxStream<'static, SimpleBlockData>> {
+        let kicks = self.kicks.take();
+        let stream = self
+            .filter_map(|event| async move {
+                if let ObserverEvent::Block(block_data) = event {
+                    Some(block_data)
+                } else {
+                    None
+                }
+            })
+            .boxed();
+        KickingStream::new(stream, kicks)
     }
 
     // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
     // If your test depends on events in skipped blocks, you need to improve this method.
-    pub fn filter_map_block_synced_with_header(
-        self,
-    ) -> impl Stream<Item = (BlockEvent, SimpleBlockData)> {
+    pub fn filter_map_block_synced_with_header(mut self) -> KickingStream<impl Stream<Item = (BlockEvent, SimpleBlockData)>> {
         let db = self.db.clone();
-        self.flat_map(move |event| {
+        let kicks = self.kicks.take();
+        let stream = self.flat_map(move |event| {
             let ObserverEvent::BlockSynced(block_hash) = event else {
                 return Either::Left(stream::empty());
             };
@@ -285,11 +413,15 @@ impl ObserverEventReceiver {
             Either::Right(stream::iter(
                 events.into_iter().zip(iter::repeat(block_data)),
             ))
-        })
+        });
+
+        KickingStream::new(stream, kicks)
     }
 
-    pub fn filter_map_block_synced(self) -> impl Stream<Item = BlockEvent> {
-        self.filter_map_block_synced_with_header()
-            .map(|(event, _)| event)
+    pub fn filter_map_block_synced(mut self) -> KickingStream<impl Stream<Item = BlockEvent>> {
+        let kicks = self.kicks.take();
+        let stream = self.filter_map_block_synced_with_header()
+            .map(|(event, _)| event);
+        KickingStream::new(stream, kicks)
     }
 }

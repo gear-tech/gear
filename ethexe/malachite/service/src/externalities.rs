@@ -443,6 +443,16 @@ impl EthexeExternalities {
         parent_advanced: H256,
     ) -> (Option<H256>, Vec<SignedInjectedTransaction>) {
         loop {
+            // Arm the chain-head notification BEFORE checking conditions.
+            // `Notify::notify_waiters()` only wakes futures that are already
+            // registered as waiters; without pre-arming, a wake fired
+            // between `compute_advance_candidate` and `select!` is lost
+            // and the producer hangs until `propose_timeout` (12s) — a
+            // showstopper for tests that mine one block at a time.
+            let chain_head_notified = self.chain_head_notify.notified();
+            tokio::pin!(chain_head_notified);
+            chain_head_notified.as_mut().enable();
+
             let advance = self.compute_advance_candidate(parent_advanced);
             // Snapshot the chain head and drop the guard before the
             // mempool's async fetch — the guard is `!Send`, so any
@@ -458,7 +468,7 @@ impl EthexeExternalities {
 
             tokio::select! {
                 biased;
-                _ = self.chain_head_notify.notified() => {}
+                _ = chain_head_notified => {}
                 _ = self.mempool.wait_for_new_tx() => {}
             }
         }

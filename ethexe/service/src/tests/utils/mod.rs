@@ -34,6 +34,31 @@ pub fn init_logger() {
         .try_init();
 }
 
+/// Emit an atomic banner-styled `log::info!` to mark phase boundaries
+/// inside long integration tests. Single record so the bar/message/bar
+/// trio stays glued together when log lines from concurrent tasks
+/// interleave.
+///
+/// ```text
+///    12.345s  INFO
+///    -----------------------------------
+///           centralized info message
+///    -----------------------------------
+/// ```
+#[allow(unused_macros)]
+macro_rules! test_info {
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        let bar_width = (msg.len() + 8).max(40);
+        let bar = "-".repeat(bar_width);
+        let lpad = " ".repeat(bar_width.saturating_sub(msg.len()) / 2);
+        log::info!("\n{bar}\n{lpad}{msg}\n{bar}");
+    }};
+}
+
+#[allow(unused_imports)]
+pub(crate) use test_info;
+
 #[allow(dead_code)]
 pub struct GenesisInitializerFromDump {
     pub dump: Option<StateDump>,

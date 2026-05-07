@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloy::sol_types::SolValue;
+use core::num::NonZero;
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, Digest,
+    DEFAULT_COMMITMENT_DELAY_LIMIT, Digest,
     consensus::{BatchCommitmentValidationRequest, DEFAULT_BATCH_SIZE_LIMIT},
     gear::{ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment},
 };
@@ -28,7 +29,10 @@ use gprimitives::{CodeId, H256};
 /// Batch building limits.
 #[derive(Debug, Clone)]
 pub struct BatchLimits {
-    pub commitment_delay_limit: u32,
+    /// Coordinator-local: how many Ethereum blocks the resulting
+    /// `BatchCommitment` stays valid past its target block. Encoded into
+    /// `BatchCommitment::expiry` (also `u8`). Set freely per-coordinator.
+    pub commitment_delay_limit: NonZero<u8>,
     pub batch_size_limit: u64,
     /// Force a checkpoint chain commitment when the producer's view of
     /// `last_advanced_eth_block` is more than this many blocks ahead of the
@@ -39,7 +43,7 @@ pub struct BatchLimits {
 impl Default for BatchLimits {
     fn default() -> Self {
         BatchLimits {
-            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+            commitment_delay_limit: DEFAULT_COMMITMENT_DELAY_LIMIT,
             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
             uncommitted_chain_len_threshold: 500,
         }

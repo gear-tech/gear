@@ -97,6 +97,13 @@ pub trait OnChainStorageRO {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
+
+    fn block_simple_data(&self, block_hash: H256) -> Option<SimpleBlockData> {
+        self.block_header(block_hash).map(|header| SimpleBlockData {
+            hash: block_hash,
+            header,
+        })
+    }
 }
 
 #[auto_impl::auto_impl(&)]
