@@ -22,9 +22,14 @@ use crate::{
         InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
+    utils::ParityScaleCodec,
 };
 use libp2p::request_response;
-use std::task::{Context, Poll};
+use parity_scale_codec::{Compact, Encode};
+use std::{
+    collections::BTreeMap,
+    task::{Context, Poll},
+};
 use tokio::task::JoinSet;
 
 struct OngoingResponse {
@@ -58,15 +63,35 @@ impl OngoingResponses {
     }
 
     fn response_from_db(request: InnerRequest, db: Box<dyn DbSyncDatabase>) -> InnerResponse {
+        const MAX_RESPONSE_SIZE: u64 = ParityScaleCodec::<(), ()>::MAX_RESPONSE_SIZE;
+
         match request {
-            InnerRequest::Hashes(request) => InnerHashesResponse(
-                request
-                    .0
-                    .into_iter()
-                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                    .collect(),
-            )
-            .into(),
+            InnerRequest::Hashes(request) => {
+                let mut response = BTreeMap::new();
+                let mut entries_size = 0;
+
+                for hash in request.0 {
+                    let Some(data) = db.read_by_hash(hash) else {
+                        continue;
+                    };
+
+                    let entry_size = hash.encoded_size() + data.encoded_size();
+                    let next_response_size = 1 // InnerResponse discriminant size
+                        + Compact((response.len() + 1) as u64).encoded_size()
+                        + entries_size
+                        + entry_size;
+
+                    if next_response_size > MAX_RESPONSE_SIZE as usize {
+                        // don't try to put other hashes data to prevent abusive database reads
+                        break;
+                    }
+
+                    entries_size += entry_size;
+                    response.insert(hash, data);
+                }
+
+                InnerHashesResponse(response).into()
+            }
             InnerRequest::ProgramIds(request) => {
                 // TODO: re-implement on MB — fetch program-to-code mapping from MB program states.
                 let _ = request;
@@ -120,5 +145,52 @@ impl OngoingResponses {
         } else {
             Poll::Pending
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db_sync::HashesRequest;
+    use ethexe_db::Database;
+    use gprimitives::H256;
+
+    #[test]
+    fn response_from_db_truncates_hashes_response_at_encoded_limit() {
+        const ENTRIES_BEFORE_COMPACT_BOUNDARY: u64 = 0b0011_1111;
+        const MAX_RESPONSE_SIZE: usize = ParityScaleCodec::<(), ()>::MAX_RESPONSE_SIZE as usize;
+
+        let db = Database::memory();
+
+        let entries = (0..ENTRIES_BEFORE_COMPACT_BOUNDARY as u8)
+            .map(|i| vec![i])
+            .collect::<Vec<_>>();
+        let entries_size = entries
+            .iter()
+            .map(|data| H256::zero().encoded_size() + data.encoded_size())
+            .sum::<usize>();
+        for data in &entries {
+            db.cas().write(data);
+        }
+
+        let last_entry_size = MAX_RESPONSE_SIZE
+            - 1 // `InnerResponse` discriminant
+            - Compact(ENTRIES_BEFORE_COMPACT_BOUNDARY + 1).encoded_size()
+            - entries_size
+            - H256::zero().encoded_size();
+        let last_entry = vec![42; last_entry_size];
+        let last_entry_hash = db.cas().write(&last_entry);
+
+        let request = entries
+            .iter()
+            .map(|data| ethexe_db::hash(data))
+            .chain(Some(last_entry_hash))
+            .collect();
+        let response =
+            OngoingResponses::response_from_db(HashesRequest(request).into(), Box::new(db));
+
+        let response = response.unwrap_hashes();
+        assert_eq!(response.0.len(), ENTRIES_BEFORE_COMPACT_BOUNDARY as usize);
+        assert!(InnerResponse::Hashes(response).encoded_size() <= MAX_RESPONSE_SIZE);
     }
 }

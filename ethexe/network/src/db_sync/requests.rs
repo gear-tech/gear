@@ -20,8 +20,8 @@ use crate::{
     db_sync::{
         Config, Event, ExternalDataProvider, HandleResult, HashesRequest, InnerBehaviour,
         InnerHashesResponse, InnerProgramIdsRequest, InnerProgramIdsResponse, InnerRequest,
-        InnerResponse, Metrics, NewRequestRoundReason, PeerId, ProgramIdsRequest, Request,
-        RequestFailure, RequestId, Response, ValidCodesRequest,
+        InnerResponse, Metrics, PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId,
+        Response, ValidCodesRequest,
     },
     peer_score::Handle,
     utils::{ConnectionMap, NoLimits},
@@ -60,7 +60,6 @@ pub(crate) struct OngoingRequests {
     external_data_provider: Box<dyn ExternalDataProvider>,
     // config
     request_timeout: Duration,
-    max_rounds_per_request: u32,
 }
 
 impl OngoingRequests {
@@ -79,7 +78,6 @@ impl OngoingRequests {
             peer_score_handle,
             external_data_provider,
             request_timeout: config.request_timeout,
-            max_rounds_per_request: config.max_rounds_per_request,
         }
     }
 
@@ -110,7 +108,6 @@ impl OngoingRequests {
                         self.peer_score_handle.clone(),
                         self.external_data_provider.clone_boxed(),
                         self.request_timeout,
-                        self.max_rounds_per_request,
                     )
                     .boxed(),
                 Some(channel),
@@ -210,20 +207,16 @@ impl OngoingRequests {
                 }
 
                 if let Some(state) = state {
-                    let event = match state {
-                        OngoingRequestState::PendingState => Event::PendingStateRequest { request_id },
-                        OngoingRequestState::SendRequest(peer, request, reason) => {
+                    match state {
+                        OngoingRequestState::NoPeers => {
+
+                            self.pending_events.push_back(Event::NoPeers { request_id });
+                        },
+                        OngoingRequestState::SendRequest(peer, request, ) => {
                             let outbound_request_id = behaviour.send_request(&peer, request);
                             self.active_requests.insert(outbound_request_id, request_id);
-
-                            Event::NewRequestRound {
-                                request_id,
-                                peer_id: peer,
-                                reason,
-                            }
                         }
                     };
-                    self.pending_events.push_back(event);
                 } else if let Poll::Ready(res) = poll {
                     let (event, res) = match res {
                         Ok(response) => {
@@ -587,41 +580,40 @@ impl OngoingRequest {
         }
     }
 
-    async fn choose_next_peer(&mut self) -> (PeerId, Option<NewRequestRoundReason>) {
+    async fn choose_next_peer(&mut self) -> PeerId {
         let mut event_sent = None;
-
-        let peer = CONTEXT
+        CONTEXT
             .poll_fn(|_task_cx, ctx| {
-                let peer = ctx
-                    .peers
-                    .difference(&self.tried_peers)
-                    .choose_stable(&mut rand::thread_rng())
-                    .copied();
-                self.tried_peers.extend(peer);
-
-                if let Some(peer) = peer {
-                    Poll::Ready(peer)
-                } else {
+                if ctx.peers.is_empty() {
                     event_sent.get_or_insert_with(|| {
                         ctx.state
-                            .set(OngoingRequestState::PendingState)
+                            .set(OngoingRequestState::NoPeers)
                             .expect("set only once");
                     });
+                    return Poll::Pending;
+                }
 
-                    Poll::Pending
+                loop {
+                    let peer = ctx
+                        .peers
+                        .difference(&self.tried_peers)
+                        .choose_stable(&mut rand::thread_rng())
+                        .copied();
+
+                    if let Some(peer) = peer {
+                        self.tried_peers.insert(peer);
+                        break Poll::Ready(peer);
+                    } else {
+                        // just retry all peers again
+                        self.tried_peers.clear();
+                        continue;
+                    }
                 }
             })
-            .await;
-
-        let reason = event_sent.map(|()| NewRequestRoundReason::FromQueue);
-        (peer, reason)
+            .await
     }
 
-    async fn send_request(
-        &mut self,
-        peer: PeerId,
-        reason: NewRequestRoundReason,
-    ) -> Result<InnerResponse, ()> {
+    async fn send_request(&mut self, peer: PeerId) -> Result<InnerResponse, ()> {
         CONTEXT.with_mut(|ctx| {
             ctx.state
                 .set(OngoingRequestState::SendRequest(
@@ -630,7 +622,6 @@ impl OngoingRequest {
                         .as_ref()
                         .expect("always Some")
                         .inner_request(),
-                    reason,
                 ))
                 .expect("set only once");
         });
@@ -648,17 +639,12 @@ impl OngoingRequest {
 
     async fn next_round(
         &mut self,
-        mut reason: NewRequestRoundReason,
         peer_score_handle: &Handle,
         external_data_provider: Box<dyn ExternalDataProvider>,
-    ) -> Result<Response, NewRequestRoundReason> {
-        let (peer, new_reason) = self.choose_next_peer().await;
-        reason = new_reason.unwrap_or(reason);
+    ) -> Result<Response, ()> {
+        let peer = self.choose_next_peer().await;
 
-        let response = self
-            .send_request(peer, reason)
-            .await
-            .map_err(|()| NewRequestRoundReason::PeerFailed)?;
+        let response = self.send_request(peer).await?;
 
         match self
             .response_handler
@@ -673,13 +659,13 @@ impl OngoingRequest {
                     "response is incomplete from peer {peer}: we are going for a new round"
                 );
                 self.response_handler = Some(handler);
-                Err(NewRequestRoundReason::PartialData)
+                Err(())
             }
             ResponseHandlerResult::Err(handler, err) => {
                 log::warn!("response processing failed for request from {peer}: {err:?}");
                 peer_score_handle.invalid_data(peer);
                 self.response_handler = Some(handler);
-                Err(NewRequestRoundReason::PartialData)
+                Err(())
             }
         }
     }
@@ -689,30 +675,15 @@ impl OngoingRequest {
         peer_score_handle: Handle,
         external_data_provider: Box<dyn ExternalDataProvider>,
         request_timeout: Duration,
-        max_rounds_per_request: u32,
     ) -> Result<Response, (RequestFailure, Self)> {
         let request_loop = async {
-            let mut rounds = 0;
-            let mut reason = NewRequestRoundReason::FromQueue;
-
             loop {
-                if rounds >= max_rounds_per_request {
-                    return Err(RequestFailure::OutOfRounds);
-                }
-                rounds += 1;
-
                 match self
-                    .next_round(
-                        reason,
-                        &peer_score_handle,
-                        external_data_provider.clone_boxed(),
-                    )
+                    .next_round(&peer_score_handle, external_data_provider.clone_boxed())
                     .await
                 {
-                    Ok(response) => return Ok(response),
-                    Err(new_reason) => {
-                        reason = new_reason;
-                    }
+                    Ok(response) => break Ok(response),
+                    Err(()) => continue,
                 };
             }
         };
@@ -727,8 +698,8 @@ impl OngoingRequest {
 
 #[derive(Debug)]
 enum OngoingRequestState {
-    PendingState,
-    SendRequest(PeerId, InnerRequest, NewRequestRoundReason),
+    NoPeers,
+    SendRequest(PeerId, InnerRequest),
 }
 
 struct OngoingRequestContext {
