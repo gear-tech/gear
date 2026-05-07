@@ -269,7 +269,11 @@ impl System {
         }
 
         if let Some(ethexe) = self.ethexe() {
-            return ethexe.borrow_mut().run_new_block(allowance);
+            let block_info = {
+                let ext_manager = self.0.borrow_mut();
+                ext_manager.blocks_manager.next_block()
+            };
+            return ethexe.borrow_mut().run_new_block(allowance, block_info);
         }
 
         self.0.borrow_mut().run_new_block(allowance)
@@ -278,6 +282,21 @@ impl System {
     /// Runs blocks same as [`Self::run_next_block`], but executes blocks to
     /// block number `bn` including it.
     pub fn run_to_block(&self, bn: u32) -> Vec<BlockRunResult> {
+        if self.ethexe().is_some() {
+            let mut current_block = self.block_height();
+            if current_block > bn {
+                usage_panic!("Can't run blocks until bn {bn}, as current bn is {current_block}");
+            }
+
+            let mut ret = Vec::with_capacity((bn - current_block) as usize);
+            while current_block != bn {
+                ret.push(self.run_next_block_with_allowance(GAS_ALLOWANCE));
+                current_block = self.block_height();
+            }
+
+            return ret;
+        }
+
         let mut manager = self.0.borrow_mut();
 
         let mut current_block = manager.block_height();
@@ -299,6 +318,12 @@ impl System {
     /// Runs `amount` of blocks only with processing task pool, without
     /// processing the message queue.
     pub fn run_scheduled_tasks(&self, amount: u32) -> Vec<BlockRunResult> {
+        if self.ethexe().is_some() {
+            usage_panic!(
+                "`run_scheduled_tasks` is not supported in ethexe execution mode; use `run_next_block` instead."
+            );
+        }
+
         let mut manager = self.0.borrow_mut();
         let block_height = manager.block_height();
 

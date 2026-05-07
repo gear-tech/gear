@@ -3,7 +3,7 @@
 // Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use crate::{Gas, Value, error::usage_panic, log::BlockRunResult};
+use crate::{BLOCK_DURATION_IN_MSECS, Gas, Value, error::usage_panic, log::BlockRunResult};
 use core_processor::configs::BlockInfo;
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData, StateHashWithQueueSize,
@@ -326,13 +326,17 @@ impl EthexeManager {
         self.pending_injected.push(tx);
     }
 
-    pub(crate) fn run_new_block(&mut self, allowance: Gas) -> BlockRunResult {
+    pub(crate) fn run_new_block(
+        &mut self,
+        allowance: Gas,
+        block_info: BlockInfo,
+    ) -> BlockRunResult {
         let balances_before = self.executable_balances();
         let pending_events = self.pending_events.len();
         let pending_injected = self.pending_injected.len();
 
-        self.block.header.height = self.block.header.height.saturating_add(1);
-        self.block.header.timestamp = self.block.header.timestamp.saturating_add(12_000);
+        self.block.header.height = block_info.height;
+        self.block.header.timestamp = block_info.timestamp;
         self.block.hash = gear_core::utils::hash(&self.block.header.height.to_le_bytes()).into();
 
         log::debug!(
@@ -432,7 +436,10 @@ impl EthexeManager {
         let program_states = self.program_states_without_queues(&db);
         let mut block = self.block;
         block.header.height = block.header.height.saturating_add(1);
-        block.header.timestamp = block.header.timestamp.saturating_add(12_000);
+        block.header.timestamp = block
+            .header
+            .timestamp
+            .saturating_add(BLOCK_DURATION_IN_MSECS);
         block.hash = gear_core::utils::hash(&block.header.height.to_le_bytes()).into();
         let message_id = MessageId::generate_from_user(block.header.height, source, u128::MAX);
 
