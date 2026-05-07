@@ -464,6 +464,12 @@ impl TestEnv {
         })
     }
 
+    pub async fn default() -> Self {
+        Self::new(TestEnvConfig::default())
+            .await
+            .expect("failed to create test environment")
+    }
+
     pub async fn new_node(&mut self, config: NodeConfig) -> Node {
         let NodeConfig {
             name,

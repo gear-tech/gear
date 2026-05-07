@@ -34,11 +34,7 @@ pub fn init_logger() {
         .try_init();
 }
 
-/// Emit an atomic banner-styled `log::info!` to mark phase boundaries
-/// inside long integration tests. Single record so the bar/message/bar
-/// trio stays glued together when log lines from concurrent tasks
-/// interleave.
-///
+/// Helper for visually separating important info messages in test logs. Example:
 /// ```text
 ///    12.345s  INFO
 ///    -----------------------------------
