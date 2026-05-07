@@ -36,6 +36,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
     sync::Arc,
+    time::Duration,
 };
 use tokio::sync::{
     RwLock,
@@ -116,6 +117,13 @@ type WorkerBatchFuture =
     futures::future::BoxFuture<'static, (usize, EthexeRpcPool, Result<BatchRunReport>)>;
 
 const MAX_MULTICALL_CALLDATA_BYTES: usize = 120 * 1024;
+
+/// Per-batch watchdog: drop and reschedule a batch if a hung RPC call parks
+/// the worker. Generous: code validation alone takes ~14 s for 5 codes.
+const BATCH_TIMEOUT: Duration = Duration::from_secs(180);
+
+/// Cadence of pool-progress heartbeats so a stalled pool is visible in `docker logs`.
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 
 /// Converts an arbitrary salt buffer into the fixed 32-byte form expected by
 /// Ethereum ABI bindings.
@@ -350,6 +358,11 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             });
         }
 
+        let mut heartbeat = tokio::time::interval(HEARTBEAT_INTERVAL);
+        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        // Skip the immediate first tick: don't log a heartbeat before any batch starts.
+        heartbeat.tick().await;
+
         while !batches.is_empty() {
             let (worker_idx, rpc_pool, report) = tokio::select! {
                 Some(result) = batches.next() => result,
@@ -364,6 +377,16 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                             shutting_down = true;
                         }
                     }
+                    continue;
+                }
+                _ = heartbeat.tick() => {
+                    tracing::info!(
+                        completed = self.batch_stats.completed_batches,
+                        failed = self.batch_stats.failed_batches,
+                        in_flight = batches.len(),
+                        shutting_down,
+                        "Pool heartbeat"
+                    );
                     continue;
                 }
             };
@@ -501,22 +524,36 @@ async fn run_batch(
 ) -> (EthexeRpcPool, Result<BatchRunReport>) {
     let PreparedBatchWithSeed { seed, batch, .. } = batch;
 
-    let result = match run_batch_impl(
-        api,
-        &mut rpc_pool,
-        endpoint_idx,
-        batch,
-        send_message_multicall,
-        use_send_message_multicall,
-        rx,
-        mid_map,
+    let result = match tokio::time::timeout(
+        BATCH_TIMEOUT,
+        run_batch_impl(
+            api,
+            &mut rpc_pool,
+            endpoint_idx,
+            batch,
+            send_message_multicall,
+            use_send_message_multicall,
+            rx,
+            mid_map,
+        ),
     )
     .await
     {
-        Ok(report) => Ok(BatchRunReport::new(seed, report)),
-        Err(err) => {
+        Ok(Ok(report)) => Ok(BatchRunReport::new(seed, report)),
+        Ok(Err(err)) => {
             tracing::warn!("Batch failed: {err:?}");
             Err(err)
+        }
+        Err(_) => {
+            tracing::warn!(
+                seed,
+                timeout_secs = BATCH_TIMEOUT.as_secs(),
+                "Batch timed out, dropping it and rescheduling worker"
+            );
+            Err(anyhow::anyhow!(
+                "batch {seed} exceeded {:?} watchdog timeout",
+                BATCH_TIMEOUT
+            ))
         }
     };
     (rpc_pool, result)
