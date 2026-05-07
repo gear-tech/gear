@@ -18,18 +18,13 @@
 
 //! Fast synchronization stub.
 //!
-//! The Announce-driven fast-sync that used to live here was deleted along
-//! with the Announce subsystem. A replacement that anchors recovery on
-//! `last_committed_mb` and the new MB storage will be wired in later; for
-//! now `sync` is a no-op so the rest of the service can run.
+//! TODO: implement MB-driven recovery anchored on `last_committed_mb`.
+//! `sync` is currently a no-op so the rest of the service can run.
 
 use crate::Service;
 use anyhow::Result;
 
 pub(crate) async fn sync(_service: &mut Service) -> Result<()> {
-    // TODO: re-implement on MB.
-    log::warn!(
-        "Fast synchronization is disabled while the MB-driven recovery path is being wired in"
-    );
+    log::warn!("Fast synchronization is disabled (MB-driven recovery not implemented)");
     Ok(())
 }

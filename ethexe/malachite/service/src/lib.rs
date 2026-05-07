@@ -58,45 +58,35 @@ pub struct CommitCertificate {
 }
 
 /// Output event stream of the Malachite service.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MalachiteEvent {
     /// New sequencer block persisted; `block_hash` is the Blake2b envelope hash.
-    BlockProposal {
-        height: u64,
-        block_hash: H256,
-        block: Transactions,
-    },
+    BlockProposal { height: u64, block_hash: H256 },
 
     /// BFT-committed block; `globals.latest_finalized_mb_hash` now points at it.
     BlockFinalized {
         cert: CommitCertificate,
-        block: Transactions,
+        height: u64,
+        block_hash: H256,
     },
 }
 
 impl std::fmt::Display for MalachiteEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BlockProposal {
+            Self::BlockProposal { height, block_hash } => {
+                write!(f, "BlockProposal(height: {height}, block_hash: {block_hash})")
+            }
+            Self::BlockFinalized {
+                cert,
                 height,
                 block_hash,
-                block,
-            } => {
-                write!(
-                    f,
-                    "BlockProposal(height: {}, block_hash: {}, txs: {})",
-                    height,
-                    block_hash,
-                    block.len()
-                )
-            }
-            Self::BlockFinalized { cert, block } => write!(
+            } => write!(
                 f,
-                "BlockFinalized(height: {}, block_hash: {}, sigs: {}, txs: {})",
-                cert.height,
-                cert.block_hash,
-                cert.signatures.len(),
-                block.len()
+                "BlockFinalized(height: {}, block_hash: {}, sigs: {})",
+                height,
+                block_hash,
+                cert.signatures.len()
             ),
         }
     }

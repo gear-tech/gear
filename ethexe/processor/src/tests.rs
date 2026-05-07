@@ -682,14 +682,8 @@ async fn many_waits() {
     }
 }
 
-/// Cross-height task drain (MB-driven invariant): a `wait_for` task scheduled
-/// for height H must still fire when the next `process_tasks` runs at any
-/// height ≥ H. Mirrors `many_waits` step-for-step but the final wake block is
-/// **5 blocks past** the scheduled wake height — the legacy single-height
-/// `take_actual_tasks(&height)` drain would have missed the wake tasks
-/// (since `schedule.remove(&height)` would be `None` for the future block)
-/// and produced zero replies. The MB-driven `take_actual_tasks` drains every
-/// scheduled height ≤ current, so the woken dispatches still land.
+/// `process_tasks` at height H must drain every scheduled height ≤ H, so a
+/// `wait_for` task scheduled at H still fires when the wake block sits past H.
 #[tokio::test]
 async fn cross_height_wake_drain() {
     init_logger();
@@ -815,10 +809,8 @@ async fn cross_height_wake_drain() {
         "wait_for path must not produce replies"
     );
 
-    // Jump past the scheduled wake height (block1 + blocks_to_wait + 5).
-    // Legacy `schedule.remove(&wake_block_height)` would yield `None` and
-    // the wakes would be silently dropped; with the MB-driven drain every
-    // scheduled height ≤ current is collected.
+    // Jump past the scheduled wake height (block1 + blocks_to_wait + 5):
+    // `process_tasks` must still drain the wakes despite the height gap.
     let transitions = handler
         .transitions
         .tap_mut(|ts| *ts.block_height_mut() = wake_block.header.height);

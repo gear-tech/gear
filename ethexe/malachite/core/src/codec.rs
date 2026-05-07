@@ -813,7 +813,6 @@ mod tests {
 
     #[test]
     fn liveness_polka_cert_round_trip_preserves_signatures() {
-        // Regression: encode previously dropped polka_signatures.
         let mut bytes = [0u8; 32];
         bytes[31] = 7;
         let signer = MalachiteSigner::new(private_key_from_bytes(&bytes).unwrap());

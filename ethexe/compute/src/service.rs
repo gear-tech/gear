@@ -51,7 +51,7 @@ impl<P: ProcessorExt> ComputeService<P> {
 
 #[cfg(test)]
 impl ComputeService {
-    /// Creates the processor with default [`ComputeConfig::without_quarantine`] and [`Processor`] with default config.
+    /// Builds a [`ComputeService`] with a default [`Processor`].
     pub fn new_with_defaults(db: Database) -> Self {
         let processor = Processor::new(db.clone()).unwrap();
         Self::new(db, processor)

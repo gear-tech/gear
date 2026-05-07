@@ -35,15 +35,8 @@
 //! Convention:
 //! - `EB` = Ethereum block;
 //! - `MB` = Malachite sequencer block;
-//! - *"quarantine-passed"* means the block has ≥
-//!   [`ComputeConfig::canonical_quarantine`] canonical descendants on top.
-//!
-//! The walk semantics mirror
-//! [`ethexe_compute::utils::find_canonical_events_post_quarantine`] so
-//! that the EB the producer anchors to here is exactly the EB whose
-//! events the execution layer applies.
-//!
-//! [`ComputeConfig::canonical_quarantine`]: ethexe_compute::ComputeConfig
+//! - *"quarantine-passed"* means the block has ≥ `canonical_quarantine`
+//!   canonical descendants on top.
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};

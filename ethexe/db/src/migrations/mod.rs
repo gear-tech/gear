@@ -28,8 +28,7 @@ pub use init::initialize_db;
 
 mod init;
 
-/// Single supported on-disk schema version. Legacy migration chains
-/// have been retired; existing on-disk databases below this version
+/// Single supported on-disk schema version; databases below this version
 /// must be wiped and re-initialised.
 pub const LATEST_VERSION: u32 = 5;
 

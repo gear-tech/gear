@@ -34,8 +34,7 @@ pub struct MalachiteConfig {
 
     /// Number of canonical descendants an Ethereum block must have
     /// before it is considered out of quarantine and safe to anchor a
-    /// sequencer block to. Matches
-    /// [`ethexe_compute::ComputeConfig::canonical_quarantine`].
+    /// sequencer block to.
     pub canonical_quarantine: u8,
 
     /// Local libp2p listen address for the Malachite swarm.

@@ -49,8 +49,7 @@ pub struct CheckCommand {
     pub db: Option<PathBuf>,
 
     /// Re-execute every persisted MB and assert the cached outcome /
-    /// states / schedule match. Currently disabled — MB equivalent of
-    /// the legacy announce computation walk is not wired in yet.
+    /// states / schedule match. Currently disabled — not yet wired in.
     #[arg(long, alias = "compute")]
     pub computation_check: bool,
 

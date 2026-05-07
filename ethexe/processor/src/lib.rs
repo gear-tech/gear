@@ -57,11 +57,11 @@
 //! |-------------------------------------------|-------------------------------------------------------------------------------|
 //! | [`Processor::process_code`]               | Validate + instrument a WASM blob. Synchronous, does not touch the DB.        |
 //! | [`Processor::process_transitions`]        | Execute an MB by walking its `Transactions` list (compute's primary entry).    |
-//! | [`Processor::process_programs`]           | Legacy "block in one shot" path used only by the processor's own unit tests.  |
+//! | [`Processor::process_programs`]           | "Block in one shot" path used only by the processor's own unit tests.         |
 //! | [`Processor::overlaid`]                   | Wrap `self` into an [`OverlaidProcessor`] backed by an overlaid DB.           |
 //! | [`OverlaidProcessor::execute_for_reply`]  | Simulate a single incoming message and return the reply.                      |
 //!
-//! ## `process_programs` contract (legacy, tests-only)
+//! ## `process_programs` contract (tests-only)
 //!
 //! Given an [`ExecutableData`] (block header, program states, schedule,
 //! injected transactions, block request events, and optional gas

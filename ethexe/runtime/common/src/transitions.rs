@@ -337,7 +337,6 @@ mod tests {
         InBlockTransitions::new(block_height, ProgramStates::default(), schedule)
     }
 
-    /// Single-height drain matches the legacy `schedule.remove(&height)` semantics.
     #[test]
     fn take_actual_tasks_single_height() {
         let mut schedule = Schedule::new();

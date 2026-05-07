@@ -1216,7 +1216,6 @@ impl Node {
                 .with_listen_addr(me.listen_addr)
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
-            // Tests don't quarantine eth events — see ComputeConfig::without_quarantine.
             mc.canonical_quarantine = self.canonical_quarantine;
             let mempool = std::sync::Arc::new(InjectedTxMempool::new(self.db.clone()));
             // Release the port-reservation listener moments before libp2p rebinds.
@@ -1663,5 +1662,16 @@ impl WaitForReplyTo {
         };
 
         Ok(info)
+    }
+}
+
+/// Stop services and drop provided nodes.
+pub async fn stop_nodes(nodes: impl IntoIterator<Item = Node>) {
+    for mut node in nodes.into_iter() {
+        if node.running_service_handle.is_some() {
+            node.stop_service().await;
+        }
+
+        drop(node);
     }
 }
