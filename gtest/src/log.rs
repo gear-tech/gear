@@ -433,6 +433,10 @@ pub struct BlockRunResult {
     pub log: Vec<CoreLog>,
     /// Mapping gas burned for each message during
     /// the current block execution.
+    ///
+    /// In ethexe mode this is an approximation derived from
+    /// [`BlockRunResult::ethexe_executable_balance_burned`] (see source in `gtest::ethexe`), not
+    /// per-message gas metering from the processor.
     pub gas_burned: BTreeMap<MessageId, Gas>,
     /// Value burned from ethexe executable balances during the current block.
     pub ethexe_executable_balance_burned: Value,

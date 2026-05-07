@@ -524,7 +524,13 @@ impl<'a> Program<'a> {
         let source = from.into().0;
 
         if let Some(ethexe) = self.ethexe_manager {
-            let _ = gas_limit;
+            if gas_limit != MAX_USER_GAS_LIMIT {
+                usage_panic!(
+                    "Per-message gas_limit is not enforced in ethexe execution mode; only \
+                    block-level gas allowance applies. Use send_bytes / send_bytes_with_value \
+                    (which use MAX_USER_GAS_LIMIT) or pass MAX_USER_GAS_LIMIT explicitly."
+                );
+            }
             return ethexe
                 .borrow_mut()
                 .send(source, self.id, payload.into(), value);

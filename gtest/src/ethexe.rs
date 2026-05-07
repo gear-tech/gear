@@ -375,6 +375,11 @@ impl EthexeManager {
         let failed = infer_failures(&finalized.transitions);
         let total_processed = u32::try_from(succeed.len() + failed.len())
             .expect("processed ethexe message count exceeds u32");
+        let gas_burned = approximate_gas_burned_from_ethexe(
+            self.last_executable_balance_burned,
+            &succeed,
+            &failed,
+        );
 
         log::debug!(
             target: "gtest::ethexe",
@@ -404,7 +409,7 @@ impl EthexeManager {
             not_executed: Default::default(),
             total_processed,
             log,
-            gas_burned: Default::default(),
+            gas_burned,
             ethexe_executable_balance_burned: self.last_executable_balance_burned,
         }
     }
@@ -584,4 +589,42 @@ fn executable_balance_burned(
             before.saturating_sub(after.get(&actor_id).copied().unwrap_or_default())
         })
         .sum()
+}
+
+/// Ethexe reports execution cost via executable balance burn, not per-message gas. We map that
+/// value to an equivalent gas total (using gtest's [`crate::VALUE_PER_GAS`]) and split it across
+/// processed message ids so [`BlockRunResult::spent_value`] stays meaningful in ethexe mode.
+fn approximate_gas_burned_from_ethexe(
+    burned: Value,
+    succeed: &BTreeSet<MessageId>,
+    failed: &BTreeSet<MessageId>,
+) -> BTreeMap<MessageId, Gas> {
+    let total_u128 = burned / crate::VALUE_PER_GAS;
+    let Ok(total_gas) = Gas::try_from(total_u128.min(u128::from(u64::MAX))) else {
+        return BTreeMap::new();
+    };
+    if total_gas == 0 {
+        return BTreeMap::new();
+    }
+
+    let targets: Vec<MessageId> = succeed.iter().chain(failed.iter()).copied().collect();
+    let Ok(n) = u64::try_from(targets.len()) else {
+        return BTreeMap::new();
+    };
+    if n == 0 {
+        return BTreeMap::new();
+    }
+
+    let per = total_gas / n;
+    let mut remainder = total_gas % n;
+    let mut map = BTreeMap::new();
+    for id in targets {
+        let mut g = per;
+        if remainder > 0 {
+            g = g.saturating_add(1);
+            remainder -= 1;
+        }
+        map.insert(id, g);
+    }
+    map
 }
