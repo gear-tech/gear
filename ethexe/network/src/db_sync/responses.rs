@@ -22,6 +22,7 @@ use crate::{
         InnerProgramIdsResponse, InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
+    utils::ParityScaleCodec,
 };
 use ethexe_common::{
     Announce, HashOf,
@@ -29,8 +30,9 @@ use ethexe_common::{
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use libp2p::request_response;
+use parity_scale_codec::{Compact, Encode};
 use std::{
-    collections::VecDeque,
+    collections::{BTreeMap, VecDeque},
     num::NonZeroU32,
     task::{Context, Poll},
 };
@@ -74,15 +76,35 @@ impl OngoingResponses {
         db: Box<dyn DbSyncDatabase>,
         max_chain_len_for_announces_response: NonZeroU32,
     ) -> InnerResponse {
+        const MAX_RESPONSE_SIZE: u64 = ParityScaleCodec::<(), ()>::MAX_RESPONSE_SIZE;
+
         match request {
-            InnerRequest::Hashes(request) => InnerHashesResponse(
-                request
-                    .0
-                    .into_iter()
-                    .filter_map(|hash| Some((hash, db.read_by_hash(hash)?)))
-                    .collect(),
-            )
-            .into(),
+            InnerRequest::Hashes(request) => {
+                let mut response = BTreeMap::new();
+                let mut entries_size = 0;
+
+                for hash in request.0 {
+                    let Some(data) = db.read_by_hash(hash) else {
+                        continue;
+                    };
+
+                    let entry_size = hash.encoded_size() + data.encoded_size();
+                    let next_response_size = 1 // InnerResponse discriminant size
+                        + Compact((response.len() + 1) as u64).encoded_size()
+                        + entries_size
+                        + entry_size;
+
+                    if next_response_size > MAX_RESPONSE_SIZE as usize {
+                        // don't try to put other hashes data to prevent abusive database reads
+                        break;
+                    }
+
+                    entries_size += entry_size;
+                    response.insert(hash, data);
+                }
+
+                InnerHashesResponse(response).into()
+            }
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
                 db.block_announces(request.at)
                     .into_iter()
@@ -244,7 +266,10 @@ enum ProcessAnnounceError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, db_sync::requests::ResponseHandler};
+    use crate::{
+        DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        db_sync::{HashesRequest, requests::ResponseHandler},
+    };
     use ethexe_common::{
         Announce, HashOf, ProtocolTimelines,
         db::{AnnounceStorageRW, DBConfig, GlobalsStorageRW, SetConfig},
@@ -274,6 +299,48 @@ mod tests {
         });
 
         db.globals_mutate(|globals| globals.start_announce_hash = start);
+    }
+
+    #[test]
+    fn response_from_db_truncates_hashes_response_at_encoded_limit() {
+        const ENTRIES_BEFORE_COMPACT_BOUNDARY: u64 = 0b0011_1111;
+        const MAX_RESPONSE_SIZE: usize = ParityScaleCodec::<(), ()>::MAX_RESPONSE_SIZE as usize;
+
+        let db = Database::memory();
+
+        let entries = (0..ENTRIES_BEFORE_COMPACT_BOUNDARY as u8)
+            .map(|i| vec![i])
+            .collect::<Vec<_>>();
+        let entries_size = entries
+            .iter()
+            .map(|data| H256::zero().encoded_size() + data.encoded_size())
+            .sum::<usize>();
+        for data in &entries {
+            db.cas().write(data);
+        }
+
+        let last_entry_size = MAX_RESPONSE_SIZE
+            - 1 // `InnerResponse` discriminant
+            - Compact(ENTRIES_BEFORE_COMPACT_BOUNDARY + 1).encoded_size()
+            - entries_size
+            - H256::zero().encoded_size();
+        let last_entry = vec![42; last_entry_size];
+        let last_entry_hash = db.cas().write(&last_entry);
+
+        let request = entries
+            .iter()
+            .map(|data| ethexe_db::hash(data))
+            .chain(Some(last_entry_hash))
+            .collect();
+        let response = OngoingResponses::response_from_db(
+            HashesRequest(request).into(),
+            Box::new(db),
+            DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+        );
+
+        let response = response.unwrap_hashes();
+        assert_eq!(response.0.len(), ENTRIES_BEFORE_COMPACT_BOUNDARY as usize);
+        assert!(InnerResponse::Hashes(response).encoded_size() <= MAX_RESPONSE_SIZE);
     }
 
     #[test]
