@@ -3,27 +3,41 @@ runs:
   steps:
     - name: "Install: apt-fast on Linux"
       if: ${{ runner.os == 'Linux' }}
-      run: |
-        sudo add-apt-repository ppa:apt-fast/stable
-        sudo apt-get update
-        sudo apt-get -y install apt-fast
-      shell: bash
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 5
+        retry_wait_seconds: 10
+        command: |
+          set -e
+          if command -v apt-fast >/dev/null 2>&1; then
+            echo "apt-fast already installed; skipping"
+            exit 0
+          fi
+          sudo add-apt-repository -y ppa:apt-fast/stable
+          sudo apt-get update
+          sudo apt-get -y install apt-fast
 
     - name: "Install: mold"
       if: runner.os == 'Linux'
-      run: |
-        ARCH=$(uname -m)
-        if [ "$ARCH" = "x86_64" ]; then
-          echo "Installing mold from GitHub release for x86_64..."
-          wget https://github.com/rui314/mold/releases/download/v2.40.4/mold-2.40.4-x86_64-linux.tar.gz
-          sudo tar -xvf mold-2.40.4-x86_64-linux.tar.gz -C /usr/local --strip-components=1
-          rm mold-2.40.4-x86_64-linux.tar.gz
-        else
-          echo "Installing mold from apt for $ARCH..."
-          sudo apt-fast update
-          sudo apt-fast install -y mold
-        fi
-      shell: bash
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 5
+        retry_wait_seconds: 10
+        command: |
+          set -e
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "x86_64" ]; then
+            echo "Installing mold from GitHub release for x86_64..."
+            wget https://github.com/rui314/mold/releases/download/v2.40.4/mold-2.40.4-x86_64-linux.tar.gz
+            sudo tar -xvf mold-2.40.4-x86_64-linux.tar.gz -C /usr/local --strip-components=1
+            rm mold-2.40.4-x86_64-linux.tar.gz
+          else
+            echo "Installing mold from apt for $ARCH..."
+            sudo apt-fast update
+            sudo apt-fast install -y mold
+          fi
 
     - name: "Setup linker on Linux"
       if: ${{ runner.os == 'Linux' }}
