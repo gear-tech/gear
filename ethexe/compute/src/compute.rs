@@ -192,13 +192,8 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             .unwrap_or_default();
 
         let _ = mb_height;
-        let prepared = build_executable_data(
-            db,
-            block,
-            program_states,
-            schedule,
-            initial_advanced_block,
-        )?;
+        let prepared =
+            build_executable_data(db, block, program_states, schedule, initial_advanced_block)?;
 
         log::debug!(
             "mb-compute: executing MB height {mb_height} hash {mb_hash} \
@@ -548,5 +543,4 @@ mod tests {
             other => panic!("expected MbComputed, got {other:?}"),
         }
     }
-
 }

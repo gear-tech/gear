@@ -115,8 +115,7 @@ mod utils {
     }
 
     pub fn setup_handler(db: Database, height: u32) -> ProcessingHandler {
-        let transitions =
-            InBlockTransitions::new(height, Default::default(), Default::default());
+        let transitions = InBlockTransitions::new(height, Default::default(), Default::default());
 
         ProcessingHandler::new(db, transitions)
     }
@@ -388,7 +387,13 @@ async fn ping_pong() {
         .expect("failed to send message");
 
     let to_users = processor
-        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap()
         .current_messages();
@@ -502,7 +507,13 @@ async fn async_and_ping() {
         .expect("failed to send message");
 
     let transitions = processor
-        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -598,7 +609,13 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     handler.transitions.modifications_mut().clear();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -625,7 +642,13 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     handler.transitions.modifications_mut().clear();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -652,7 +675,13 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     handler.transitions.modifications_mut().clear();
     handler.transitions = processor
-        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -673,7 +702,13 @@ async fn many_waits() {
     // Hack: nullify modifications to avoid modifications limit.
     transitions.modifications_mut().clear();
     let transitions = processor
-        .process_queues(transitions, wake_block.header.height, wake_block.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            transitions,
+            wake_block.header.height,
+            wake_block.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(transitions.current_messages().len(), amount as usize);
@@ -716,8 +751,7 @@ async fn cross_height_wake_drain() {
 
     let (_, code) = wat_to_wasm(wat.as_str());
 
-    let (mut processor, chain, [code_id]) =
-        setup_test_env_and_load_codes([code.as_slice()]).await;
+    let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]).await;
     let block1 = chain.blocks[1].to_simple();
     let wake_block = chain.blocks[1 + blocks_to_wait + extra_skip].to_simple();
     let scheduled_wake_height = block1.header.height + blocks_to_wait as u32;
@@ -774,7 +808,10 @@ async fn cross_height_wake_drain() {
         )
         .await
         .unwrap();
-    assert_eq!(handler.transitions.current_messages().len(), amount as usize);
+    assert_eq!(
+        handler.transitions.current_messages().len(),
+        amount as usize
+    );
 
     // Second handle batch — all 64 dispatches enter `wait_for`, no replies.
     let known_programs = handler.transitions.known_programs();
@@ -1137,7 +1174,13 @@ async fn injected_ping_pong() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -1249,7 +1292,13 @@ async fn injected_prioritized_over_canonical() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -1364,7 +1413,13 @@ async fn executable_balance_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -1586,7 +1641,13 @@ async fn insufficient_executable_balance_still_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(handler.transitions, block1.header.height, block1.header.timestamp, DEFAULT_BLOCK_GAS_LIMIT, None)
+        .process_queues(
+            handler.transitions,
+            block1.header.height,
+            block1.header.timestamp,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            None,
+        )
         .await
         .unwrap();
 
@@ -1935,7 +1996,6 @@ async fn injected_and_events_then_tasks_then_queues() {
     assert_eq!(to_users[2].1.payload, b"DONE");
 }
 
-
 #[tokio::test]
 async fn call_wait_up_to_with_huge_duration() {
     init_logger();
@@ -1984,5 +2044,3 @@ async fn call_wait_up_to_with_huge_duration() {
     let task = tasks.into_iter().next().unwrap();
     assert!(matches!(task, ScheduledTask::WakeMessage(_, _)));
 }
-
-

@@ -276,7 +276,9 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
 /// If `last_advanced_eth_block` of `mb_head` is more than `threshold` Eth blocks
 /// past `block.last_committed_advanced_eth_block`, force an empty chain commitment
 /// that pins the head MB and the new advanced anchor on-chain.
-pub fn try_include_checkpoint_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO + OnChainStorageRO>(
+pub fn try_include_checkpoint_chain_commitment<
+    DB: BlockMetaStorageRO + MbStorageRO + OnChainStorageRO,
+>(
     db: &DB,
     at_block: H256,
     mb_head: H256,
@@ -1003,5 +1005,4 @@ mod tests {
         assert_eq!(squashed[0].value_to_receive, 0);
         assert!(!squashed[0].value_to_receive_negative_sign);
     }
-
 }

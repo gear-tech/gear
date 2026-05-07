@@ -229,13 +229,9 @@ impl BatchCommitmentManager {
             // also be canonical here for the batch to ever land.
             let local_latest_finalized = self.db.globals().latest_finalized_mb_hash;
             if !local_latest_finalized.is_zero() {
-                let latest_advanced =
-                    self.db.mb_meta(local_latest_finalized).last_advanced_block;
-                if !crate::utils::is_eth_block_canonical_to(
-                    &self.db,
-                    latest_advanced,
-                    block.hash,
-                )? {
+                let latest_advanced = self.db.mb_meta(local_latest_finalized).last_advanced_block;
+                if !crate::utils::is_eth_block_canonical_to(&self.db, latest_advanced, block.hash)?
+                {
                     return Ok(ValidationStatus::Rejected {
                         request,
                         reason: ValidationRejectReason::LatestFinalizedAdvanceNotCanonical(

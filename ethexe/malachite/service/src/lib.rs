@@ -75,7 +75,10 @@ impl std::fmt::Display for MalachiteEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::BlockProposal { height, block_hash } => {
-                write!(f, "BlockProposal(height: {height}, block_hash: {block_hash})")
+                write!(
+                    f,
+                    "BlockProposal(height: {height}, block_hash: {block_hash})"
+                )
             }
             Self::BlockFinalized {
                 cert,

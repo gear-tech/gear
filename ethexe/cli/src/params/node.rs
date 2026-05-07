@@ -297,9 +297,7 @@ impl MergeParams for NodeParams {
                 .uncommitted_chain_len_threshold
                 .or(with.uncommitted_chain_len_threshold),
 
-            commitment_delay_limit: self
-                .commitment_delay_limit
-                .or(with.commitment_delay_limit),
+            commitment_delay_limit: self.commitment_delay_limit.or(with.commitment_delay_limit),
 
             genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
         }

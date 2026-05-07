@@ -354,8 +354,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
         parent_meta.last_committed_mb
     };
 
-    let last_committed_advanced_eth_block = last_committed_advanced_eth_block
-        .or(parent_meta.last_committed_advanced_eth_block);
+    let last_committed_advanced_eth_block =
+        last_committed_advanced_eth_block.or(parent_meta.last_committed_advanced_eth_block);
 
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);

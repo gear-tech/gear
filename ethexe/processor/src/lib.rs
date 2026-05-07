@@ -338,7 +338,13 @@ impl Processor {
 
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, height, timestamp, gas_allowance, promise_out_tx)
+                .process_queues(
+                    transitions,
+                    height,
+                    timestamp,
+                    gas_allowance,
+                    promise_out_tx,
+                )
                 .await?;
         }
 

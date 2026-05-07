@@ -327,10 +327,7 @@ mod tests {
     use gprimitives::MessageId;
 
     fn wake(actor: u8, msg: u8) -> ScheduledTask {
-        ScheduledTask::WakeMessage(
-            ActorId::from([actor; 32]),
-            MessageId::from([msg; 32]),
-        )
+        ScheduledTask::WakeMessage(ActorId::from([actor; 32]), MessageId::from([msg; 32]))
     }
 
     fn transitions_with_schedule(block_height: u32, schedule: Schedule) -> InBlockTransitions {
