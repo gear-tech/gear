@@ -1552,6 +1552,8 @@ async fn send_injected_tx() {
         .injected_transaction(tx.to_hash())
         .expect("tx not found");
     assert_eq!(node1_db_tx, tx_for_node1.tx);
+
+    stop_nodes([node0, node1]).await;
 }
 
 /// Init-failure paths: panic-in-init then synchronous handle to the
@@ -1708,6 +1710,8 @@ async fn uninitialized_program() {
         let expected_err = ReplyCode::Error(SimpleExecutionError::UserspacePanic.into());
         assert_eq!(res.code, expected_err);
     }
+
+    stop_nodes([node]).await;
 }
 
 /// Mailbox round-trip with demo_async: Mutex command writes the original mid
@@ -1965,6 +1969,8 @@ async fn mailbox() {
         .mb_schedule(mb_hash)
         .expect("MB schedule must exist");
     assert!(schedule.is_empty(), "{schedule:?}");
+
+    stop_nodes([node]).await;
 }
 
 /// Repeated outgoing transitions for the same actor must be squashed into a
@@ -2706,6 +2712,8 @@ async fn value_send_delayed() {
         .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
         .unwrap();
     assert_eq!(router_balance, 0);
+
+    stop_nodes([node]).await;
 }
 
 /// Mint + Transfer flow on demo_fungible_token via the RPC injected-tx
