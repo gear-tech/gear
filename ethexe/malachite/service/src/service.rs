@@ -44,8 +44,6 @@ use futures::{Stream, stream::FusedStream};
 use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 
-use gprimitives::H256;
-
 use crate::{MalachiteConfig, MalachiteEvent, Mempool, externalities::EthexeExternalities};
 
 /// Public consensus service.
@@ -55,7 +53,7 @@ pub struct MalachiteService {
     chain_head_notify: Arc<Notify>,
     mempool: Arc<dyn Mempool>,
     /// Shared with the inner engine — held here so
-    /// [`Self::notify_block_synced`] can release pending events
+    /// [`Self::receive_new_chain_head`] can release pending events
     /// whose `last_advanced_block` Eth block has just been synced
     /// by the observer.
     externalities: Arc<EthexeExternalities>,
@@ -140,9 +138,7 @@ impl MalachiteService {
             validator_secret,
             validators: config.validators.clone(),
             role: ethexe_malachite_core::NodeRole::Validator,
-            // Producer waits up to one Ethereum slot for a fresh EB
-            // past quarantine. Matches the old NON_PROPOSER_PROPOSE
-            // window the previous app.rs configured.
+            // Producer waits up to one Ethereum slot for a fresh EB past quarantine.
             propose_timeout: alloy::eips::merge::SLOT_DURATION,
         };
 
@@ -183,27 +179,21 @@ impl MalachiteService {
     }
 
     /// Feed an observer-delivered Ethereum `BlockSynced` block into the
-    /// service. Updates the producer's view (used by
-    /// [`ethexe_malachite_core::Externalities::build_block_above`]) and the
-    /// mempool's GC head.
+    /// service. `BlockSynced` events arrive out-of-order, so this method
+    /// guarantees two invariants the producer relies on:
     ///
-    /// `BlockSynced` events are not ordered: the observer just retransmits
-    /// what the Ethereum RPC delivered, so we may see e.g.
-    /// `BlockSynced(34)` followed by `BlockSynced(15)` while concurrent
-    /// sync tasks finish in arbitrary order. Two invariants the producer
-    /// relies on:
+    /// 1. The chain-head register is monotone in **height** — a stale
+    ///    older head would push `anchor = head - quarantine` below
+    ///    `parent_advanced` and stall the producer for `propose_timeout`.
+    /// 2. Every `BlockSynced` fires `chain_head_notify`, even when height
+    ///    didn't move. A lower-height sync may have just landed parent
+    ///    headers the producer's `is_strict_descendant_of` walk needs;
+    ///    without this kick a failed walk would never retry.
     ///
-    /// 1. The chain-head register is monotone in **height** — never
-    ///    anchor backwards. A stale older head would push
-    ///    `anchor = head - quarantine` below `parent_advanced` and
-    ///    stall the producer for `propose_timeout`.
-    /// 2. Every `BlockSynced` still fires `chain_head_notify`, even when
-    ///    the head didn't move forward. Out-of-order delivery means a
-    ///    later-but-lower-height sync may have finally landed the
-    ///    intermediate parent headers the producer's
-    ///    `is_strict_descendant_of` walk needs; without this kick, a
-    ///    walk that failed on the first burst-tail wake never retries
-    ///    and the producer hangs at the 12s timeout boundary.
+    /// Also drains any queued [`MalachiteEvent::BlockProposal`] /
+    /// [`MalachiteEvent::BlockFinalized`] whose `last_advanced_block`
+    /// Eth block has now landed in the local DB — keeps the strict
+    /// FIFO ordering compute and the malachite engine rely on.
     pub fn receive_new_chain_head(&mut self, head: SimpleBlockData) {
         let mut current = self.chain_head.write().expect("chain_head poisoned");
         let advanced = match current.as_ref() {
@@ -220,20 +210,6 @@ impl MalachiteService {
         if advanced {
             self.mempool.set_chain_head(head);
         }
-    }
-
-    /// Tell the service the observer has finished syncing `synced`
-    /// (and, by ethexe-observer's contract, every canonical
-    /// ancestor too). Drains any queued
-    /// [`MalachiteEvent::BlockProposal`] / [`MalachiteEvent::BlockFinalized`]
-    /// whose `last_advanced_block` Eth block has now landed in the
-    /// local DB — preserves their original FIFO order, which is the
-    /// strict ordering requirement compute and the malachite engine
-    /// both rely on. The `synced` argument is informational; the
-    /// drain itself decides per-entry by looking at the local
-    /// `block_events` lookup.
-    pub fn notify_block_synced(&self, synced: H256) {
-        let _ = synced;
         self.externalities.drain_pending_events();
     }
 

@@ -763,15 +763,6 @@ impl Service {
                                 hash: block,
                                 header,
                             });
-                            // Release any BlockProposal / BlockFinalized
-                            // events that were waiting on this Eth
-                            // block (or any of its ancestors) to be
-                            // synced — the sync-replay path inside
-                            // malachite never calls validate, so this
-                            // is the only place those events can
-                            // safely fire on a node that's still
-                            // catching up.
-                            m.notify_block_synced(block);
                         }
                     }
                 },
@@ -963,16 +954,10 @@ impl Service {
                     }
                 },
                 Event::Malachite(event) => match event {
-                    MalachiteEvent::BlockProposal {
-                        height,
-                        block_hash,
-                        block,
-                    } => {
+                    MalachiteEvent::BlockProposal { height, block_hash } => {
                         tracing::info!(
                             height,
                             mb_hash = %block_hash,
-                            txs = block.len(),
-                            transactions = ?*block,
                             "🧱 Malachite: BlockProposal",
                         );
                         // Speculative compute: every proposal we see
@@ -984,12 +969,15 @@ impl Service {
                         // carried inside each `ProcessQueues` tx.
                         compute.compute_mb(block_hash);
                     }
-                    MalachiteEvent::BlockFinalized { cert, block } => {
+                    MalachiteEvent::BlockFinalized {
+                        cert,
+                        height,
+                        block_hash,
+                    } => {
                         tracing::info!(
-                            height = cert.height,
-                            block_hash = %cert.block_hash,
+                            height,
+                            mb_hash = %block_hash,
                             sigs = cert.signatures.len(),
-                            txs = block.len(),
                             "✅ Malachite: BlockFinalized",
                         );
                         // The malachite service has already advanced

@@ -101,8 +101,8 @@ pub(crate) struct EthexeExternalities {
     /// `compute_mb` walk would step through Eth blocks the
     /// observer hasn't synced yet. Drained in FIFO order by
     /// [`Self::drain_pending_events`] (called from
-    /// [`crate::MalachiteService::notify_block_synced`]) — preserves
-    /// the strict ordering of save / finalize cascades.
+    /// [`crate::MalachiteService::receive_new_chain_head`]) —
+    /// preserves the strict ordering of save / finalize cascades.
     pub(crate) pending_events: Mutex<VecDeque<PendingEvent>>,
     pub(crate) gas_allowance: u64,
     pub(crate) canonical_quarantine: u8,
@@ -174,7 +174,6 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             MalachiteEvent::BlockProposal {
                 height: block.height,
                 block_hash,
-                block: payload,
             },
             last_advanced,
         );
@@ -231,7 +230,8 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         self.try_emit_or_queue(
             MalachiteEvent::BlockFinalized {
                 cert: app_cert,
-                block: payload,
+                height: cert.height,
+                block_hash,
             },
             last_advanced,
         );
@@ -655,14 +655,10 @@ mod tests {
         assert!(meta.synced);
 
         match rx.try_recv().expect("event").expect("ok") {
-            MalachiteEvent::BlockProposal {
-                height,
-                block_hash,
-                block,
-            } => {
+            MalachiteEvent::BlockProposal { height, block_hash } => {
                 assert_eq!(height, 1);
                 assert_eq!(block_hash, mb_hash);
-                assert_eq!(block, p);
+                let _ = p;
             }
             other => panic!("expected BlockProposal, got {other:?}"),
         }
@@ -690,10 +686,16 @@ mod tests {
             .unwrap();
         assert_eq!(db.globals().latest_finalized_mb_hash, mb_hash);
         match rx.try_recv().expect("event").expect("ok") {
-            MalachiteEvent::BlockFinalized { cert, block } => {
+            MalachiteEvent::BlockFinalized {
+                cert,
+                height,
+                block_hash,
+            } => {
+                assert_eq!(height, 1);
+                assert_eq!(block_hash, mb_hash);
                 assert_eq!(cert.height, 1);
                 assert_eq!(cert.block_hash, mb_hash);
-                assert_eq!(block, p);
+                let _ = p;
             }
             other => panic!("expected BlockFinalized, got {other:?}"),
         }

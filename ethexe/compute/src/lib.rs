@@ -92,9 +92,9 @@
 //! Ethereum events do not become visible to the runtime on the block
 //! they arrive in. When the executor processes a
 //! [`Transaction::AdvanceTillEthereumBlock`] inside an MB it fetches the
-//! events from blocks already past the
-//! [`ComputeConfig::canonical_quarantine`](ComputeConfig) window —
-//! handled inside `ethexe-processor`'s `process_transitions`.
+//! events from blocks already past the canonical-quarantine window
+//! ([`ethexe_malachite::MalachiteConfig::canonical_quarantine`] —
+//! enforced inside `ethexe-processor`'s `process_transitions`).
 //!
 //! ## When modifying this crate
 //!
@@ -103,8 +103,8 @@
 //!   block waiting on that code will stall for an extra poll.
 //! - `compute_mb` must only be called once the malachite service has
 //!   recorded the matching `CompactBlock` + transactions blob. The
-//!   service layer enforces this by gating event emission on
-//!   [`MalachiteService::notify_block_synced`](ethexe_malachite::MalachiteService::notify_block_synced).
+//!   service layer enforces this by gating event emission inside
+//!   [`MalachiteService::receive_new_chain_head`](ethexe_malachite::MalachiteService::receive_new_chain_head).
 
 use ethexe_common::{CodeAndIdUnchecked, injected::Promise};
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
