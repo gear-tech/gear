@@ -161,6 +161,14 @@ pub enum ValidationRejectReason {
     HeadMbAlreadyCommitted(H256),
     #[display("requested head MB {_0} is not computed by this node")]
     HeadMbNotComputed(H256),
+    /// The latest finalized MB advanced to an Eth block that no longer sits
+    /// on the participant's canonical chain (deep Eth reorg). The coordinator
+    /// must not commit a stale advance, so the participant withholds its
+    /// signature.
+    #[display(
+        "latest finalized MB advance {_0} is not on the canonical chain ending at the current head"
+    )]
+    LatestFinalizedAdvanceNotCanonical(H256),
     #[display(
         "received batch contains validators commitment, but it's not time for validators election yet"
     )]

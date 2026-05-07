@@ -81,6 +81,25 @@ impl BatchCommitmentManager {
         // State transitions before code commitments.
         let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
         if !latest_finalized_mb.is_zero() {
+            let latest_advanced = self.db.mb_meta(latest_finalized_mb).last_advanced_block;
+            if !crate::utils::is_eth_block_canonical_to(&self.db, latest_advanced, block.hash)? {
+                // The latest finalized MB advanced to an Eth block on a stale
+                // branch (Eth reorg deeper than canonical_quarantine). Since
+                // finalized MBs are immutable, this contaminates every future
+                // commitment until Eth reverts; refuse to submit anything.
+                //
+                // TODO: implement bad-block compensation that reverts/recovers
+                // from a stale finalized advance instead of stalling.
+                tracing::error!(
+                    %latest_finalized_mb,
+                    %latest_advanced,
+                    block = %block.hash,
+                    "coordinator: latest finalized MB advanced to a non-canonical Eth block — \
+                     refusing to build batch (commitments to Eth are now blocked until recovery)"
+                );
+                return Ok(None);
+            }
+
             // `try_include_chain_commitment` is lenient; only DB-invariant errors propagate.
             super::utils::try_include_chain_commitment(
                 &self.db,
@@ -204,6 +223,28 @@ impl BatchCommitmentManager {
         };
 
         if let Some(head_mb) = head {
+            // Mirror the coordinator-side guard: refuse to sign anything if our
+            // own `latest_finalized_mb` advanced to a non-canonical Eth block
+            // (deep Eth reorg past quarantine). The coordinator's advance must
+            // also be canonical here for the batch to ever land.
+            let local_latest_finalized = self.db.globals().latest_finalized_mb_hash;
+            if !local_latest_finalized.is_zero() {
+                let latest_advanced =
+                    self.db.mb_meta(local_latest_finalized).last_advanced_block;
+                if !crate::utils::is_eth_block_canonical_to(
+                    &self.db,
+                    latest_advanced,
+                    block.hash,
+                )? {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::LatestFinalizedAdvanceNotCanonical(
+                            latest_advanced,
+                        ),
+                    });
+                }
+            }
+
             // BFT-safety: any two finalized MBs are linearly ordered, so reachability
             // from `latest_finalized_mb` via parents is iff "finalized locally".
             let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;

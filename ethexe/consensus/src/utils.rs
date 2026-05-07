@@ -22,10 +22,11 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Digest, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationReply,
+    db::OnChainStorageRO,
     ecdsa::{ContractSignature, PublicKey},
     gear::{AggregatedPublicKey, BatchCommitment},
 };
-use gprimitives::U256;
+use gprimitives::{H256, U256};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
@@ -148,4 +149,38 @@ pub fn generate_roast_keys(
 pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
     data.iter().any(|item| !seen.insert(item))
+}
+
+/// `target` lies on the canonical eth chain ending at `head` — i.e., `head`
+/// is `target` itself or one of its descendants reachable via parent links.
+/// `target == H256::zero()` is the genesis sentinel and returns `Ok(true)`.
+pub fn is_eth_block_canonical_to<DB: OnChainStorageRO>(
+    db: &DB,
+    target: H256,
+    head: H256,
+) -> Result<bool> {
+    if target.is_zero() {
+        return Ok(true);
+    }
+    let target_height = db
+        .block_header(target)
+        .ok_or_else(|| anyhow!("eth chain walk: missing header for target {target}"))?
+        .height;
+
+    let mut current = head;
+    loop {
+        if current == target {
+            return Ok(true);
+        }
+        if current.is_zero() {
+            return Ok(false);
+        }
+        let header = db
+            .block_header(current)
+            .ok_or_else(|| anyhow!("eth chain walk: missing header for {current}"))?;
+        if header.height <= target_height {
+            return Ok(false);
+        }
+        current = header.parent_hash;
+    }
 }
