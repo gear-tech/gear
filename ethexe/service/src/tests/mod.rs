@@ -43,7 +43,6 @@ use ethexe_common::{
 use ethexe_ethereum::TryGetReceipt;
 use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::Storage;
-use futures::StreamExt;
 use gear_core::{
     ids::prelude::MessageIdExt,
     message::{ReplyCode, SuccessReplyReason},
@@ -548,7 +547,7 @@ async fn write_memory_to_last_byte() {
 }
 
 #[tokio::test]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn value_send_program_to_program() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
@@ -698,7 +697,7 @@ async fn value_send_program_to_program() {
 }
 
 #[tokio::test]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn ping_deep_sync() {
     init_logger();
 
@@ -767,7 +766,7 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test]
-#[ntest::timeout(240_000)]
+#[ntest::timeout(120_000)]
 async fn many_validators_repeated_ping() {
     init_logger();
 
@@ -861,7 +860,7 @@ async fn many_validators_repeated_ping() {
 }
 
 #[tokio::test]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(60_000)]
 async fn incoming_transfers() {
     init_logger();
 
@@ -1559,16 +1558,11 @@ async fn send_injected_tx() {
 /// uninitialized program (UnavailableActor::InitializationFailure), and
 /// async-init handshake with three approval messages then a final reply.
 #[tokio::test]
-#[ntest::timeout(300_000)]
+#[ntest::timeout(60_000)]
 async fn uninitialized_program() {
     init_logger();
 
-    let mut env = TestEnv::new(TestEnvConfig {
-        continuous_block_generation: true,
-        ..Default::default()
-    })
-    .await
-    .unwrap();
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -1646,11 +1640,11 @@ async fn uninitialized_program() {
             .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id);
 
-        let msgs_for_reply: Vec<_> = receiver
-            .clone()
-            .filter_map_block_synced()
-            .filter_map(|event| async move {
-                match event {
+        let mut filtered = receiver.clone().filter_map_block_synced();
+        let mut msgs_for_reply: Vec<_> = Vec::with_capacity(3);
+        while msgs_for_reply.len() < 3 {
+            let mid = filtered
+                .find_map(|event| match event {
                     BlockEvent::Mirror {
                         actor_id,
                         event:
@@ -1661,11 +1655,10 @@ async fn uninitialized_program() {
                         Some(id)
                     }
                     _ => None,
-                }
-            })
-            .take(3)
-            .collect()
-            .await;
+                })
+                .await;
+            msgs_for_reply.push(mid);
+        }
 
         // Handle message to uninitialized program.
         let res = env
@@ -1720,16 +1713,11 @@ async fn uninitialized_program() {
 /// Mailbox round-trip with demo_async: Mutex command writes the original mid
 /// and a PING into the mailbox, sender replies, value gets claimed.
 #[tokio::test]
-#[ntest::timeout(300_000)]
+#[ntest::timeout(60_000)]
 async fn mailbox() {
     init_logger();
 
-    let mut env = TestEnv::new(TestEnvConfig {
-        continuous_block_generation: true,
-        ..Default::default()
-    })
-    .await
-    .unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -1985,16 +1973,11 @@ async fn mailbox() {
 /// delay window, restart — both PINGs land in one MB and squash to one
 /// transition with two PONG replies.
 #[tokio::test]
-#[ntest::timeout(300_000)]
+#[ntest::timeout(60_000)]
 async fn batch_commitment_squashes_repeated_ping_transitions() {
     init_logger();
 
-    let mut env = TestEnv::new(TestEnvConfig {
-        commitment_delay_limit: std::num::NonZero::new(20).unwrap(),
-        ..Default::default()
-    })
-    .await
-    .unwrap();
+    let mut env = TestEnv::default().await;
 
     use ethexe_common::{ecdsa::ContractSignature, gear::BatchCommitment};
     use ethexe_consensus::BatchCommitter;
@@ -2139,6 +2122,8 @@ async fn batch_commitment_squashes_repeated_ping_transitions() {
             .all(|message| message.payload == b"PONG"),
         "expected both outgoing messages to be PONG replies"
     );
+
+    stop_nodes([node]).await;
 }
 
 /// Ping survives a small Anvil reorg and a DB cleanup. The reorg depth in the
@@ -2151,9 +2136,8 @@ async fn batch_commitment_squashes_repeated_ping_transitions() {
 /// coordinator refuses to commit (correct per the canonical-advance check).
 /// Re-enable once bad-block compensation is implemented.
 #[tokio::test]
-#[ntest::timeout(120_000)]
-#[ignore = "post-reorg commits blocked until bad-block recovery lands"]
-async fn ping_reorg() {
+#[ntest::timeout(60_000)]
+async fn reorg_within_quarantine() {
     init_logger();
 
     let mut env = TestEnv::new(TestEnvConfig {
@@ -2194,72 +2178,141 @@ async fn ping_reorg() {
     test_info!("📗 Stop validator service to simulate node block skipping");
     node.stop_service().await;
 
-    let create_program = env
+    let wait_for_program_creation = env
         .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap();
-    let init = env
-        .send_message(create_program.program_id, b"PING")
+    let wait_for_init_reply = env
+        .send_message(wait_for_program_creation.program_id, b"PING")
         .await
         .unwrap();
 
     env.skip_blocks(10).await;
 
+    test_info!("Start service after 10 blocks skipping");
     node.start_service().await;
-    env.force_new_block().await;
 
-    let res = create_program.wait_for().await.unwrap();
-    let init_res = init.wait_for().await.unwrap();
+    let res = wait_for_program_creation.wait_for().await.unwrap();
+    let init_res = wait_for_init_reply.wait_for().await.unwrap();
     assert_eq!(res.code_id, code_id);
     assert_eq!(init_res.payload, b"PONG");
 
     let ping_id = res.program_id;
 
-    test_info!(
-        "📗 Snapshot at Eth block {} (program created)",
-        env.provider.get_block_number().await.unwrap()
-    );
+    let wait_for_reply_to_ping = env.send_message(ping_id, b"PING").await.unwrap();
+
+    let latest_block = env.latest_block().await;
+    test_info!("📗 Create snapshot at {latest_block}",);
     let program_created_snapshot_id = env.provider.anvil_snapshot().await.unwrap();
 
-    let res = env
-        .send_message(ping_id, b"PING")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.payload, b"PONG");
+    // Add more blocks for reorg
+    env.skip_blocks(2).await;
 
-    test_info!("📗 Reverting to program-created snapshot — small reorg");
+    let latest_block1 = env.latest_block().await;
+    test_info!("📗 Reverting from {latest_block1} to {latest_block} — small reorg");
     env.provider
         .anvil_revert(program_created_snapshot_id)
         .await
         .map(|res| assert!(res))
         .unwrap();
 
-    let res = env
-        .send_message(ping_id, b"PING")
+    // Skip quarantine to receive reply faster
+    env.skip_blocks(8).await;
+
+    let res = wait_for_reply_to_ping.wait_for().await.unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+
+    stop_nodes([connect_node, node]).await;
+}
+
+/// Deep reorg — past the `canonical_quarantine` window.
+#[tokio::test]
+#[ntest::timeout(80_000)]
+async fn reorg_deeper_than_quarantine() {
+    init_logger();
+
+    let mut env = TestEnv::new(TestEnvConfig {
+        // Tiny quarantine so an Anvil snapshot/revert easily surpasses it.
+        canonical_quarantine: 2,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    test_info!("Upload, create and initialize the demo-ping program");
+    let code = env
+        .upload_code(demo_ping::WASM_BINARY)
         .await
         .unwrap()
         .wait_for()
         .await
         .unwrap();
-    assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.payload, b"PONG");
+    let prog = env
+        .create_program(code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let r = env
+        .send_message(prog.program_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(r.payload, b"PONG");
+
+    // Snapshot the program is initialized and finalized in mb.
+    let snap = env.provider.anvil_snapshot().await.unwrap();
+    test_info!(
+        "Snapshot taken at block {}",
+        env.provider.get_block_number().await.unwrap()
+    );
+
+    env.skip_blocks(10).await;
 
     let latest_block = env.latest_block().await;
-    connect_node
-        .events()
-        .find_block_prepared(latest_block.hash)
+    test_info!("Waiting for {latest_block} to be finalized in MB");
+    node.events()
+        .wait_till_eth_block_finalized_in_mb(latest_block.hash)
         .await;
+
+    test_info!("📗 Reverting Anvil to deep snapshot — past quarantine");
+    env.provider
+        .anvil_revert(snap)
+        .await
+        .map(|res| assert!(res))
+        .unwrap();
+
+    env.skip_blocks(20).await;
+
+    let latest_block = env.latest_block().await;
+    test_info!(
+        "waiting 20 seconds: {latest_block} must not be finalized, because deep reorg breaks mb chain continuity"
+    );
+    let mut receiver = node.new_events();
+    // Here we take in account kicking stream - latest_block is not passed quarantine yet,
+    // but kicks will generate new anvil blocks, but still this block cannot be finalized in mb, because branch is broken.
+    let waiting_future = receiver.wait_till_eth_block_finalized_in_mb(latest_block.hash);
+    tokio::time::timeout(Duration::from_secs(20), waiting_future)
+        .await
+        .expect_err("block should not be finalized within 20 seconds after deep reorg");
+
+    stop_nodes([node]).await;
 }
 
 /// 5+5 validator election handover: stage next validator set during the
 /// election window of era N, fire one `ValidatorsCommittedForEra`, swap
 /// validators when era N+1 starts, and verify the new set can serve PING.
 #[tokio::test]
-#[ntest::timeout(420_000)]
+#[ntest::timeout(60_000)]
 #[ignore = "malachite swarm peer-list rotation is not atomic across validator handover"]
 async fn validators_election() {
     init_logger();
@@ -2658,7 +2711,7 @@ async fn value_send_delayed() {
 /// Mint + Transfer flow on demo_fungible_token via the RPC injected-tx
 /// path. Validates promise streaming and on-chain state convergence.
 #[tokio::test]
-#[ntest::timeout(300_000)]
+#[ntest::timeout(60_000)]
 async fn injected_tx_fungible_token() {
     use crate::tests::utils::TestingEvent as TE;
     use ethexe_common::events::{RouterEvent, mirror::StateChangedEvent};
@@ -2670,10 +2723,8 @@ async fn injected_tx_fungible_token() {
 
     let env_config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
-        canonical_quarantine: 0,
         ..Default::default()
     };
-
     let mut env = TestEnv::new(env_config).await.unwrap();
 
     let pubkey = env.validators[0].public_key;
@@ -2881,7 +2932,7 @@ async fn injected_tx_fungible_token() {
 /// (Alice) — the injected tx is gossiped through the p2p network to the
 /// validator (Bob) and the promise comes back through both nodes.
 #[tokio::test]
-#[ntest::timeout(300_000)]
+#[ntest::timeout(60_000)]
 async fn injected_tx_fungible_token_over_network() {
     init_logger();
 
@@ -3017,95 +3068,6 @@ async fn injected_tx_fungible_token_over_network() {
     assert_eq!(promise.reply.value, 0);
 
     stop_nodes([alice_node, bob_node]).await;
-}
-
-/// Deep reorg — past the `canonical_quarantine` window. The user's
-/// architectural prediction was that this should crash the validator
-/// (orphaned finalized MBs, no "bad blocks" list yet). Empirically the
-/// implementation is more resilient: an Anvil deep revert does NOT block
-/// the validator — it keeps producing PONG. Marked `#[ignore]` because the
-/// asserted expectation (network must fail) does not match observed
-/// behaviour; needs a refined scenario or contract-level invariant before
-/// it makes sense as a passing test.
-#[tokio::test]
-#[ntest::timeout(80_000)]
-async fn ping_reorg_deeper_than_quarantine_breaks_mb_chain() {
-    init_logger();
-
-    let mut env = TestEnv::new(TestEnvConfig {
-        // Tiny quarantine so an Anvil snapshot/revert easily surpasses it.
-        canonical_quarantine: 2,
-        ..Default::default()
-    })
-    .await
-    .unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    test_info!("Upload, create and initialize the demo-ping program");
-    let code = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    let prog = env
-        .create_program(code.code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    let r = env
-        .send_message(prog.program_id, b"PING")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(r.payload, b"PONG");
-
-    // Snapshot the program is initialized and finalized in mb.
-    let snap = env.provider.anvil_snapshot().await.unwrap();
-    test_info!(
-        "Snapshot taken at block {}",
-        env.provider.get_block_number().await.unwrap()
-    );
-
-    env.skip_blocks(10).await;
-
-    let latest_block = env.latest_block().await;
-    test_info!("Waiting for {latest_block} to be finalized in MB");
-    node.events()
-        .wait_till_eth_block_finalized_in_mb(latest_block.hash)
-        .await;
-
-    test_info!("📗 Reverting Anvil to deep snapshot — past quarantine");
-    env.provider
-        .anvil_revert(snap)
-        .await
-        .map(|res| assert!(res))
-        .unwrap();
-
-    env.skip_blocks(20).await;
-
-    let latest_block = env.latest_block().await;
-    test_info!(
-        "waiting 20 seconds: {latest_block} must not be finalized, because deep reorg breaks mb chain continuity"
-    );
-    let mut receiver = node.new_events();
-    // Here we take in account kicking stream - latest_block is not passed quarantine yet,
-    // but kicks will generate new anvil blocks, but still this block cannot be finalized in mb, because branch is broken.
-    let waiting_future = receiver.wait_till_eth_block_finalized_in_mb(latest_block.hash);
-    tokio::time::timeout(Duration::from_secs(20), waiting_future)
-        .await
-        .expect_err("block should not be finalized within 20 seconds after deep reorg");
-
-    stop_nodes([node]).await;
 }
 
 // TODO: port these tests to the MB-driven test harness. Bodies below reference
