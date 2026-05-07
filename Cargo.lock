@@ -5979,6 +5979,7 @@ dependencies = [
  "metrics-derive",
  "ntest",
  "parity-scale-codec",
+ "scopeguard",
  "serde",
  "sp-core",
  "tokio",

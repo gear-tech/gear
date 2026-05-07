@@ -30,6 +30,7 @@ tracing.workspace = true
 dashmap.workspace = true
 metrics.workspace = true
 metrics-derive.workspace = true
+scopeguard = { workspace = true, default-features = true }
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]

@@ -105,7 +105,6 @@ impl InjectedServer for InjectedApi {
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
-        self.metrics.send_and_watch_injected_tx_calls.increment(1);
 
         // Check that the transaction wasn't already sent.
         if self.promise_waiters.get(&tx_hash).is_some() {
@@ -189,7 +188,6 @@ impl InjectedApi {
 
         match promise_sender.send(promise.clone()) {
             Ok(()) => {
-                self.metrics.injected_tx_promises_given.increment(1);
                 tracing::trace!(promise = ?promise, "sent promise to subscriber");
             }
             Err(promise) => tracing::trace!(promise = ?promise, "rpc promise receiver dropped"),
@@ -222,7 +220,6 @@ impl InjectedApi {
     ) -> Result<InjectedTransactionAcceptance, ErrorObjectOwned> {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
-        self.metrics.send_injected_tx_calls.increment(1);
 
         if transaction.tx.data().value != 0 {
             tracing::warn!(
