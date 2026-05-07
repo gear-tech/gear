@@ -427,7 +427,7 @@ impl System {
     pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
         let program_id = id.into().0;
         if let Some(ethexe) = self.ethexe() {
-            return ethexe.borrow().is_program(program_id);
+            return ethexe.borrow().is_active_program(program_id);
         }
 
         ProgramsStorageManager::is_active_program(program_id)

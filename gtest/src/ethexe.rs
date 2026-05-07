@@ -17,7 +17,7 @@ use ethexe_db::Database;
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ValidCodeInfo};
 use ethexe_runtime_common::{
     RUNTIME_ID,
-    state::{ProgramState, Storage},
+    state::{Program, ProgramState, Storage},
 };
 use gear_core::{
     ids::{ActorId, CodeId, MessageId, prelude::MessageIdExt as _},
@@ -196,6 +196,13 @@ impl EthexeManager {
         self.program_states.contains_key(&actor_id)
     }
 
+    pub(crate) fn is_active_program(&self, actor_id: ActorId) -> bool {
+        self.program_states
+            .get(&actor_id)
+            .and_then(|entry| self.db.program_state(entry.hash))
+            .is_some_and(|state| matches!(state.program, Program::Active(_)))
+    }
+
     pub(crate) fn state(&self, actor_id: ActorId) -> ProgramState {
         let state = self
             .program_states
@@ -268,7 +275,7 @@ impl EthexeManager {
         payload: Vec<u8>,
         value: Value,
     ) -> MessageId {
-        if !self.is_program(destination) {
+        if !self.is_active_program(destination) {
             usage_panic!("User message can't be sent to non active ethexe program");
         }
         let payload_len = payload.len();
