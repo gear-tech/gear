@@ -513,6 +513,10 @@ impl TestEnv {
             .as_ref()
             .and_then(|c| self.malachite_listeners.remove(&c.public_key));
 
+        // Snapshot env.validators now so a node spawned post-rotation boots with the new set.
+        let active_validator_pub_keys: Vec<PublicKey> =
+            self.validators.iter().map(|v| v.public_key).collect();
+
         Node {
             name,
             db,
@@ -533,6 +537,7 @@ impl TestEnv {
             fast_sync,
             commitment_delay_limit: self.commitment_delay_limit,
             malachite_endpoints: self.malachite_endpoints.clone(),
+            active_validator_pub_keys,
             malachite_home,
             malachite_listener,
             running_service_handle: None,
@@ -1102,6 +1107,9 @@ pub struct Node {
 
     /// Endpoints of every validator (this node + peers).
     malachite_endpoints: Vec<MalachiteEndpoint>,
+    /// Snapshot of `env.validators` at `new_node` time — drives the
+    /// boot-time filter on `malachite_endpoints` in `start_service`.
+    active_validator_pub_keys: Vec<PublicKey>,
     /// Port reservation; dropped just before the first `MalachiteService::new`.
     malachite_listener: Option<TcpListener>,
 
@@ -1195,14 +1203,23 @@ impl Node {
                 .find(|e| e.pub_key == config.public_key)
                 .cloned()
                 .expect("validator's malachite endpoint missing — env not aware of this key");
-            let persistent_peers: Vec<MalachiteMultiaddr> = self
+            // Filter `malachite_endpoints` to era-current pubkeys — leftover entries from `extend_malachite_endpoints` would skew the >2/3 threshold.
+            let active: Vec<&MalachiteEndpoint> = self
                 .malachite_endpoints
+                .iter()
+                .filter(|e| self.active_validator_pub_keys.contains(&e.pub_key))
+                .collect();
+            assert!(
+                active.iter().any(|e| e.pub_key == config.public_key),
+                "test setup bug: local validator {} not in env.validators when start_service was called",
+                config.public_key,
+            );
+            let persistent_peers: Vec<MalachiteMultiaddr> = active
                 .iter()
                 .filter(|e| e.pub_key != config.public_key)
                 .map(|e| e.multiaddr())
                 .collect();
-            let validators: Vec<ValidatorEntry> = self
-                .malachite_endpoints
+            let validators: Vec<ValidatorEntry> = active
                 .iter()
                 .map(|e| ValidatorEntry {
                     public_key: e.pub_key,

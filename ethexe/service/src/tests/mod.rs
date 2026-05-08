@@ -2319,7 +2319,6 @@ async fn reorg_deeper_than_quarantine() {
 /// validators when era N+1 starts, and verify the new set can serve PING.
 #[tokio::test]
 #[ntest::timeout(60_000)]
-#[ignore = "malachite swarm peer-list rotation is not atomic across validator handover"]
 async fn validators_election() {
     init_logger();
     use crate::tests::utils::Wallets;

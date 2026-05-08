@@ -37,7 +37,7 @@ use crate::{
     signing::{
         MalachiteSigner, libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
     },
-    state::State,
+    state::{SharedValidatorSet, State},
     store::Store,
     types::{Address, MalachiteEvent},
 };
@@ -50,6 +50,9 @@ pub struct MalachiteService<P: BlockPayload, EXT: Externalities<P>> {
     events_rx: mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
     engine: EngineHandle,
     app_handle: JoinHandle<()>,
+    /// Shared with the inner app loop; [`Self::update_validators`]
+    /// writes here, the next `Finalized` / `ConsensusReady` reply reads.
+    validator_set: SharedValidatorSet,
     _externalities: Arc<EXT>,
     _phantom: PhantomData<fn() -> P>,
 }
@@ -127,8 +130,9 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
                 .context("converting validator public key")?;
             validators.push(Validator::new(pk, entry.voting_power));
         }
-        let validator_set = ValidatorSet::new(validators);
-        let in_set = validator_set.get_by_address(&address).is_some();
+        let initial_validator_set = ValidatorSet::new(validators);
+        let in_set = initial_validator_set.get_by_address(&address).is_some();
+        let validator_set = SharedValidatorSet::new(initial_validator_set);
 
         // ---- network identity, role-dependent ----
         let identity = match config.role {
@@ -197,7 +201,7 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
 
         let state = State::<P>::new(
             signer,
-            validator_set,
+            validator_set.clone(),
             address,
             start_height,
             store,
@@ -225,9 +229,36 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
             events_rx,
             engine,
             app_handle,
+            validator_set,
             _externalities: externalities,
             _phantom: PhantomData,
         })
+    }
+
+    /// Swap the active validator set used at the next height start.
+    /// Malachite's `StartHeight` snapshots the set at the height
+    /// start, so the current height runs to completion with whatever
+    /// it had; the `Finalized` reply then feeds the new set as the
+    /// next-height `HeightParams`, keeping the rotation gap-free.
+    ///
+    /// Caller is responsible for keeping the local validator's pub
+    /// key in `validators` while running in [`NodeRole::Validator`]
+    /// — we don't carry the role around here. Empty input is rejected.
+    pub fn update_validators(&self, validators: Vec<crate::ValidatorEntry>) -> Result<()> {
+        if validators.is_empty() {
+            return Err(anyhow::anyhow!(
+                "MalachiteService::update_validators: empty validators list"
+            ));
+        }
+        let mut converted = Vec::with_capacity(validators.len());
+        for entry in &validators {
+            let pk = public_key_from_gsigner(&entry.public_key)
+                .context("converting validator public key")?;
+            converted.push(Validator::new(pk, entry.voting_power));
+        }
+        let new_set = ValidatorSet::new(converted);
+        self.validator_set.update(new_set);
+        Ok(())
     }
 }
 

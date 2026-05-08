@@ -9,7 +9,11 @@
 //! cascade-save / cascade-finalize flows live in [`crate::app`]
 //! which calls into this struct.
 
-use std::{marker::PhantomData, time::Duration};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
 use anyhow::{Result, anyhow};
 use malachitebft_app_channel::app::{
@@ -46,9 +50,29 @@ pub struct DecidedValue {
     pub certificate: malachitebft_core_types::CommitCertificate<MalachiteCtx>,
 }
 
+/// Shared validator set handle — an external writer swaps the set
+/// in [`Self::update`], and the next `ConsensusReady` / `Finalized`
+/// reply via [`State::get_validator_set`] picks it up.
+#[derive(Clone)]
+pub(crate) struct SharedValidatorSet(Arc<RwLock<ValidatorSet>>);
+
+impl SharedValidatorSet {
+    pub fn new(set: ValidatorSet) -> Self {
+        Self(Arc::new(RwLock::new(set)))
+    }
+
+    pub fn get(&self) -> ValidatorSet {
+        self.0.read().expect("validator set lock poisoned").clone()
+    }
+
+    pub fn update(&self, set: ValidatorSet) {
+        *self.0.write().expect("validator set lock poisoned") = set;
+    }
+}
+
 pub(crate) struct State<P: BlockPayload> {
     pub signer: MalachiteSigner,
-    pub validator_set: ValidatorSet,
+    pub validator_set: SharedValidatorSet,
     pub address: Address,
     pub store: Store<P>,
     streams_map: PartStreamsMap,
@@ -62,7 +86,7 @@ pub(crate) struct State<P: BlockPayload> {
 impl<P: BlockPayload> State<P> {
     pub fn new(
         signer: MalachiteSigner,
-        validator_set: ValidatorSet,
+        validator_set: SharedValidatorSet,
         address: Address,
         start_height: Height,
         store: Store<P>,
@@ -83,7 +107,7 @@ impl<P: BlockPayload> State<P> {
     }
 
     pub fn get_validator_set(&self, _height: Height) -> ValidatorSet {
-        self.validator_set.clone()
+        self.validator_set.get()
     }
 
     /// Round timeouts. Propose phase is bounded by the configured
