@@ -380,6 +380,10 @@ impl EthexeManager {
             &succeed,
             &failed,
         );
+        let gas_allowance_spent = gas_burned
+            .values()
+            .copied()
+            .fold(0u64, |acc, gas| acc.saturating_add(gas));
 
         log::debug!(
             target: "gtest::ethexe",
@@ -403,7 +407,7 @@ impl EthexeManager {
                 height: self.block.header.height,
                 timestamp: self.block.header.timestamp,
             },
-            gas_allowance_spent: 0,
+            gas_allowance_spent,
             succeed,
             failed,
             not_executed: Default::default(),

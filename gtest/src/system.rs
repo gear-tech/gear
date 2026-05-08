@@ -437,6 +437,10 @@ impl System {
     ///
     /// Returns [`None`] otherwise.
     pub fn inheritor_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Option<ActorId> {
+        if self.ethexe().is_some() {
+            usage_panic!("`inheritor_of` is not supported in ethexe execution mode yet");
+        }
+
         let program_id = id.into().0;
         ProgramsStorageManager::access_primary_program(program_id, |program| {
             program.and_then(|program| {
@@ -531,6 +535,13 @@ impl System {
 
     /// Mint balance to user with given `id` and `value`.
     pub fn mint_to<ID: Into<ProgramIdWrapper>>(&self, id: ID, value: Value) {
+        if self.ethexe().is_some() {
+            usage_panic!(
+                "`mint_to` is not supported in ethexe execution mode; use `top_up_owned_balance` \
+                or `top_up_executable_balance` for programs instead."
+            );
+        }
+
         let id = id.into().0;
 
         if ProgramsStorageManager::is_program(id) {
@@ -551,6 +562,13 @@ impl System {
         value: Value,
         keep_alive: bool,
     ) {
+        if self.ethexe().is_some() {
+            usage_panic!(
+                "`transfer` is not supported in ethexe execution mode; use runtime message \
+                value flow and balance top-up helpers instead."
+            );
+        }
+
         let from = from.into().0;
         let to = to.into().0;
 
@@ -581,7 +599,11 @@ impl System {
     pub fn executable_balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let id = id.into().0;
         if let Some(ethexe) = self.ethexe() {
-            ethexe.borrow().executable_balance_of(id)
+            return if ethexe.borrow().is_program(id) {
+                ethexe.borrow().executable_balance_of(id)
+            } else {
+                0
+            };
         } else {
             0
         }
@@ -824,6 +846,49 @@ mod tests {
         sys.run_next_block();
 
         assert_eq!(sys.executable_balance_of(program.id()), 42);
+    }
+
+    #[test]
+    fn ethexe_executable_balance_of_non_program_is_zero() {
+        let sys = System::builder()
+            .execution_model(ExecutionModel::Ethexe)
+            .build();
+        init_ethexe_test_logger(&sys, "ethexe_executable_balance_of_non_program_is_zero");
+
+        assert_eq!(sys.executable_balance_of(10), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "`inheritor_of` is not supported in ethexe execution mode yet")]
+    fn ethexe_inheritor_of_panics_as_unsupported() {
+        let sys = System::builder()
+            .execution_model(ExecutionModel::Ethexe)
+            .build();
+        init_ethexe_test_logger(&sys, "ethexe_inheritor_of_panics_as_unsupported");
+
+        let _ = sys.inheritor_of(10);
+    }
+
+    #[test]
+    #[should_panic(expected = "`mint_to` is not supported in ethexe execution mode")]
+    fn ethexe_mint_to_panics_as_unsupported() {
+        let sys = System::builder()
+            .execution_model(ExecutionModel::Ethexe)
+            .build();
+        init_ethexe_test_logger(&sys, "ethexe_mint_to_panics_as_unsupported");
+
+        sys.mint_to(10, EXISTENTIAL_DEPOSIT);
+    }
+
+    #[test]
+    #[should_panic(expected = "`transfer` is not supported in ethexe execution mode")]
+    fn ethexe_transfer_panics_as_unsupported() {
+        let sys = System::builder()
+            .execution_model(ExecutionModel::Ethexe)
+            .build();
+        init_ethexe_test_logger(&sys, "ethexe_transfer_panics_as_unsupported");
+
+        sys.transfer(10, 11, EXISTENTIAL_DEPOSIT, true);
     }
 
     #[test]
