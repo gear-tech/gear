@@ -353,6 +353,7 @@ pub(crate) struct CommonRunContext {
 }
 
 impl CommonRunContext {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: Database,
         instance_creator: InstanceCreator,

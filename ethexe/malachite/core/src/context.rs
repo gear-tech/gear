@@ -852,7 +852,7 @@ mod tests {
     fn value_id_is_content_addressed() {
         let v1 = Value::new(b"abc".to_vec());
         let v2 = Value::new(b"abc".to_vec());
-        let v3 = Value::new(b"abd".to_vec());
+        let v3 = Value::new(b"xyz".to_vec());
         assert_eq!(v1.id(), v2.id());
         assert_ne!(v1.id(), v3.id());
     }

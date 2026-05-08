@@ -26,7 +26,7 @@
 //! chain head fed via `receive_new_chain_head`, and the [`Mempool`] sampled by
 //! the producer.
 //!
-//! Outputs ([`Stream<Item = Result<MalachiteEvent>>`]): `BlockProposal` fires
+//! Outputs (`Stream<Item = Result<MalachiteEvent>>`): `BlockProposal` fires
 //! after `save_block` persists, `BlockFinalized` after `mark_block_as_finalized`.
 //! Both are emitted ancestor-first.
 

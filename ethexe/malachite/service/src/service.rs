@@ -291,7 +291,10 @@ impl MalachiteService {
             return;
         }
         self.active_era = Some(era);
-        tracing::info!(era, "rotated malachite validator set to era's on-chain quorum");
+        tracing::info!(
+            era,
+            "rotated malachite validator set to era's on-chain quorum"
+        );
     }
 
     /// Swap the active validator set used by the BFT engine.

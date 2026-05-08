@@ -48,6 +48,7 @@ pub(crate) struct OverlaidRunContext {
 }
 
 impl OverlaidRunContext {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: Database,
         base_program: ActorId,

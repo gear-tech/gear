@@ -201,9 +201,7 @@ contract Base is POCBaseTest {
         bool revertExpected
     ) internal {
         Gear.ChainCommitment memory _chainCommitment = Gear.ChainCommitment({
-            transitions: _transactions,
-            head: keccak256("head"),
-            lastAdvancedEthBlock: bytes32(0)
+            transitions: _transactions, head: keccak256("head"), lastAdvancedEthBlock: bytes32(0)
         });
 
         Gear.ChainCommitment[] memory _chainCommitments = new Gear.ChainCommitment[](1);
