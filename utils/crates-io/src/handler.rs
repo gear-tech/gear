@@ -45,7 +45,7 @@ pub fn patch(pkg: &Package, is_published: bool, is_actualized: bool) -> Result<M
         "gear-core-processor" => core_processor::patch(doc),
         "gear-sandbox" => sandbox::patch(doc),
         "gear-sandbox-host" => sandbox_host::patch(doc),
-        "gear-sandbox-interface" => sandbox_interface::patch(doc),
+        "gear-sandbox-interface" | "gear-runtime-interface" => sandbox_interface::patch(doc),
         _ => {}
     }
 
