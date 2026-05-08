@@ -56,7 +56,7 @@ use std::{
 };
 
 #[repr(u64)]
-enum Key {
+pub enum Key {
     // TODO (kuzmindev): use `HashOf<T>` here
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
@@ -94,7 +94,7 @@ impl Key {
         H256::from_low_u64_be(discriminant).into()
     }
 
-    fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         // Pre-allocate enough space for the largest possible key.
         let mut bytes = Vec::with_capacity(2 * size_of::<H256>() + size_of::<u32>());
         bytes.extend(self.prefix());
@@ -859,6 +859,10 @@ impl Database {
 
     pub fn cas(&self) -> &dyn CASDatabase {
         self.raw.cas.as_ref()
+    }
+
+    pub fn kv(&self) -> &dyn KVDatabase {
+        self.raw.kv.as_ref()
     }
 }
 

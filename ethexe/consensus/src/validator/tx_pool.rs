@@ -20,13 +20,10 @@ use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf, MAX_TOUCHED_PROGRAMS_PER_ANNOUNCE, SimpleBlockData,
-    db::{
-        AnnounceStorageRO, CodesStorageRO, GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO,
-    },
+    db::{InjectedStorageRO, InjectedStorageRW},
     injected::{InjectedTransaction, SignedInjectedTransaction},
 };
-use ethexe_db::Database;
-use ethexe_runtime_common::state::Storage;
+use ethexe_db::{Database, Key as DBKey};
 use gprimitives::H256;
 use parity_scale_codec::Encode;
 use std::collections::HashSet;
@@ -37,23 +34,14 @@ pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE: usize = 127 * 1024;
 
 /// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
 #[derive(Clone)]
-pub(crate) struct InjectedTxPool<DB = Database> {
+pub(crate) struct InjectedTxPool {
     /// HashSet of (reference_block, injected_tx_hash).
     inner: HashSet<(H256, HashOf<InjectedTransaction>)>,
-    db: DB,
+    db: Database,
 }
 
-impl<DB> InjectedTxPool<DB>
-where
-    DB: InjectedStorageRW
-        + GlobalsStorageRO
-        + OnChainStorageRO
-        + AnnounceStorageRO
-        + CodesStorageRO
-        + Storage
-        + Clone,
-{
-    pub fn new(db: DB) -> Self {
+impl InjectedTxPool {
+    pub fn new(db: Database) -> Self {
         Self {
             inner: HashSet::new(),
             db,
@@ -180,7 +168,14 @@ where
         }
 
         remove_txs.into_iter().for_each(|key| {
+            // 1. Remove from local set
             self.inner.remove(&key);
+
+            // 2. Remove from database, because transaction no more need to be store
+            let tx_key = DBKey::InjectedTransaction(key.1).to_bytes();
+            if let Some(removed_tx) = unsafe { self.db.kv().take(&tx_key) } {
+                tracing::trace!(tx_hash=?key.1, removed_bytes=?removed_tx, "remove tx from database");
+            }
         });
 
         Ok(selected_txs)
@@ -194,7 +189,6 @@ mod tests {
     use super::*;
     use ethexe_common::{
         StateHashWithQueueSize,
-        db::*,
         events::{BlockEvent, MirrorEvent, mirror::MessageQueueingRequestedEvent},
         mock::*,
     };

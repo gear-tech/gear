@@ -30,7 +30,7 @@ mod rocks;
 pub mod verifier;
 pub mod visitor;
 
-pub use database::{Database, RawDatabase};
+pub use database::{Database, Key, RawDatabase};
 pub use mem::MemDb;
 pub use migrations::{
     CodeProcessingFuture, GenesisInitializer, InitConfig, LATEST_VERSION as VERSION, initialize_db,
