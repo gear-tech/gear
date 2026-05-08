@@ -8,6 +8,7 @@ edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 builtins-common = { workspace = true, optional = true }
@@ -17,7 +18,7 @@ gear-lazy-pages = { workspace = true, optional = true }
 gear-sandbox-interface.workspace = true
 
 sp-io.workspace = true
-sp-runtime-interface = { workspace = true, default-features = false }
+sp-runtime-interface = { default-features = false , version = "18.0.0", package = "gp-runtime-interface" }
 sp-std.workspace = true
 parity-scale-codec.workspace = true
 log = { workspace = true, optional = true }
