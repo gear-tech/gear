@@ -53,9 +53,9 @@ impl<P: ProcessorExt> ComputeService<P> {
 
 #[cfg(test)]
 impl ComputeService {
-    /// Creates the processor with default [`ComputeConfig::without_quarantine`] and [`Processor`] with default config.
+    /// Creates the processor with default [`ComputeConfig`] and [`Processor`] with default config.
     pub fn new_with_defaults(db: Database) -> Self {
-        let config = ComputeConfig::without_quarantine();
+        let config = ComputeConfig::default();
         let processor = Processor::new(db.clone()).unwrap();
         Self::new(config, db, processor)
     }
@@ -64,11 +64,7 @@ impl ComputeService {
 #[cfg(test)]
 impl ComputeService<MockProcessor> {
     pub fn new_mock_processor(db: Database) -> Self {
-        Self::new(
-            ComputeConfig::without_quarantine(),
-            db,
-            MockProcessor::default(),
-        )
+        Self::new(ComputeConfig::default(), db, MockProcessor::default())
     }
 }
 
@@ -211,11 +207,8 @@ mod tests {
         let db = DB::memory();
         let processor = MockProcessor::with_default_valid_code()
             .tap_mut(|p| p.process_codes_result.as_mut().unwrap().code_id = code_id);
-        let mut service = ComputeService::new(
-            ComputeConfig::without_quarantine(),
-            db.clone(),
-            processor.clone(),
-        );
+        let mut service =
+            ComputeService::new(ComputeConfig::default(), db.clone(), processor.clone());
 
         // Create test code
 

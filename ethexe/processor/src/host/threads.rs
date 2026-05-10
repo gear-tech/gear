@@ -30,6 +30,8 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};
 use std::{cell::RefCell, collections::BTreeMap};
 
+use crate::BoundPromiseSink;
+
 const UNSET_PANIC: &str = "params should be set before query";
 const UNKNOWN_STATE: &str = "state should always be valid (must exist)";
 

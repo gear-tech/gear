@@ -58,7 +58,7 @@ pub async fn spawn_chunk_execution(
         .map(|(program_id, state_hash)| {
             let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
             let mut executor = ctx.inner().instance_creator.instantiate()?;
-            let promise_out_tx = ctx.inner().promise_out_tx.clone();
+            let promise_sink = ctx.inner().promise_sink.clone();
             Ok(thread_pool::spawn(move || {
                 let (jn, new_state_hash, gas_spent) = executor.run(
                     ProcessQueueContext {
@@ -71,7 +71,7 @@ pub async fn spawn_chunk_execution(
                         block_info,
                         promise_policy,
                     },
-                    promise_out_tx,
+                    promise_sink,
                 )?;
                 Ok((program_id, new_state_hash, jn, gas_spent))
             }))

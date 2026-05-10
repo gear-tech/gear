@@ -45,8 +45,8 @@ use tokio::{time, time::Instant};
 pub struct ParityScaleCodec<Req, Resp>(PhantomData<(Req, Resp)>);
 
 impl<Req, Resp> ParityScaleCodec<Req, Resp> {
-    const MAX_REQUEST_SIZE: u64 = 1024 * 1024;
-    const MAX_RESPONSE_SIZE: u64 = 10 * 1024 * 1024;
+    pub const MAX_REQUEST_SIZE: u64 = 1024 * 1024;
+    pub const MAX_RESPONSE_SIZE: u64 = 10 * 1024 * 1024;
 }
 
 #[async_trait]

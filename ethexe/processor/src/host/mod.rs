@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::common::JournalNote;
-use ethexe_common::{gear::MessageType, injected::Promise};
+use ethexe_common::gear::MessageType;
 use ethexe_db::Database;
 use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, unpack_i64_to_u32};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
@@ -25,7 +25,8 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::FreeingBumpHeapAllocator;
 use std::sync::Arc;
-use tokio::sync::mpsc;
+
+use crate::BoundPromiseSink;
 
 pub mod api;
 pub mod runtime;
@@ -176,7 +177,7 @@ impl InstanceWrapper {
     pub fn run(
         &mut self,
         ctx: ProcessQueueContext,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<(ProgramJournals, H256, u64)> {
         threads::set(self.data().db.clone_boxed(), ctx.state_root);
 
