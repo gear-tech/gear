@@ -153,6 +153,7 @@
 //!   key-value storage from Database.
 
 pub use host::InstanceError;
+pub use promise::BoundPromiseSink;
 
 use core::num::NonZero;
 use ethexe_common::{
@@ -178,7 +179,6 @@ use host::InstanceCreator;
 mod handling;
 mod host;
 mod promise;
-pub use promise::BoundPromiseSink;
 
 #[cfg(test)]
 mod tests;

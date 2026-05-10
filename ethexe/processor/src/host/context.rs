@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::BoundPromiseSink;
 use core::ops::Range;
-use ethexe_common::injected::Promise;
 use ethexe_db::CASDatabase;
 use ethexe_runtime_common::unpack_i64_to_u32;
 use parity_scale_codec::Decode;
 use sp_allocator::FreeingBumpHeapAllocator;
-use tokio::sync::mpsc;
 use wasmtime::{AsContextMut, Memory, StoreContextMut, Table};
 
 pub(crate) fn checked_range(offset: usize, len: usize, max: usize) -> Option<Range<usize>> {
@@ -49,7 +48,7 @@ pub(crate) struct StoreData {
     pub(crate) table: Option<Table>,
     pub(crate) allocator: Option<FreeingBumpHeapAllocator>,
     pub(crate) db: Box<dyn CASDatabase>,
-    pub(crate) promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+    pub(crate) promise_sink: Option<BoundPromiseSink>,
 }
 
 impl StoreData {

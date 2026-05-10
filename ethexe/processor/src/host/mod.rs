@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::BoundPromiseSink;
 use core_processor::common::JournalNote;
 use ethexe_common::gear::MessageType;
 use ethexe_db::Database;
@@ -25,8 +26,6 @@ use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::FreeingBumpHeapAllocator;
 use std::sync::Arc;
-
-use crate::BoundPromiseSink;
 
 pub mod api;
 pub mod runtime;
@@ -129,7 +128,7 @@ impl InstanceCreator {
             table: None,
             allocator: None,
             db: self.db.cas().clone_boxed(),
-            promise_out_tx: None,
+            promise_sink: None,
         };
         let mut store = Store::new(&self.engine, store);
 
@@ -181,7 +180,7 @@ impl InstanceWrapper {
     ) -> Result<(ProgramJournals, H256, u64)> {
         threads::set(self.data().db.clone_boxed(), ctx.state_root);
 
-        self.with_promise_out_tx(promise_out_tx, |instance_wrapper| {
+        self.with_promise_sink(promise_sink, |instance_wrapper| {
             // Pieces of resulting journal. Hack to avoid single allocation limit.
             let (ptr_lens, gas_spent): (Vec<i64>, i64) =
                 instance_wrapper.call("run", ctx.encode())?;
@@ -228,14 +227,14 @@ impl InstanceWrapper {
         res
     }
 
-    fn with_promise_out_tx<T>(
+    fn with_promise_sink<T>(
         &mut self,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
         f: impl FnOnce(&mut Self) -> Result<T>,
     ) -> Result<T> {
-        self.data_mut().promise_out_tx = promise_out_tx;
+        self.data_mut().promise_sink = promise_sink;
         let res = f(self);
-        let _ = self.data_mut().promise_out_tx.take();
+        let _ = self.data_mut().promise_sink.take();
         res
     }
 

@@ -26,7 +26,7 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
 }
 
 fn publish_promise(mut caller: Caller<'_, StoreData>, promise_ptr_len: i64) {
-    if let Some(sender) = caller.data().promise_out_tx.clone() {
+    if let Some(sender) = caller.data().promise_sink.clone() {
         let promise = context::memory(&mut caller).decode_by_val(promise_ptr_len);
 
         match sender.send(promise) {
