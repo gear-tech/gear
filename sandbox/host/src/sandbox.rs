@@ -23,18 +23,7 @@
 mod wasmer_backend;
 mod wasmi_backend;
 
-use std::{collections::HashMap, pin::Pin, rc::Rc};
-
-use env::Instantiate;
-use gear_sandbox_env as sandbox_env;
-use parity_scale_codec::Decode;
-use sp_wasm_interface_common::{Pointer, Value};
-
-use crate::{
-    context::SupervisorContext,
-    error::{self, Result},
-    util,
-};
+pub use gear_sandbox_env as env;
 
 use self::{
     wasmer_backend::{
@@ -51,7 +40,16 @@ use self::{
     },
 };
 
-pub use gear_sandbox_env as env;
+use crate::{
+    context::SupervisorContextDispatcher,
+    error::{self, Result},
+    util,
+};
+use env::Instantiate;
+use gear_sandbox_env as sandbox_env;
+use parity_scale_codec::Decode;
+use sp_wasm_interface_common::{Pointer, Value};
+use std::{collections::HashMap, pin::Pin, rc::Rc};
 
 /// Index of a function inside the supervisor.
 ///
@@ -169,7 +167,7 @@ impl SandboxInstance {
         &self,
         export_name: &str,
         args: &[Value],
-        supervisor_context: &mut dyn SupervisorContext,
+        supervisor_context: &mut dyn SupervisorContextDispatcher,
     ) -> std::result::Result<Option<Value>, error::Error> {
         match &self.backend_instance {
             BackendInstanceBundle::Wasmi { instance, store } => {
@@ -634,27 +632,16 @@ impl SandboxComponents {
         version: Instantiate,
         wasm: &[u8],
         guest_env: GuestEnvironment,
-        dispatch_thunk_id: u32,
-        supervisor_context: &mut dyn SupervisorContext,
+        supervisor_context: &mut dyn SupervisorContextDispatcher,
     ) -> std::result::Result<UnregisteredInstance, InstantiationError> {
         let sandbox_instance = match self.backend_context {
-            BackendContext::Wasmi(ref context) => wasmi_instantiate(
-                version,
-                context,
-                wasm,
-                guest_env,
-                dispatch_thunk_id,
-                supervisor_context,
-            )?,
+            BackendContext::Wasmi(ref context) => {
+                wasmi_instantiate(version, context, wasm, guest_env, supervisor_context)?
+            }
 
-            BackendContext::Wasmer(ref context) => wasmer_instantiate(
-                version,
-                context,
-                wasm,
-                guest_env,
-                dispatch_thunk_id,
-                supervisor_context,
-            )?,
+            BackendContext::Wasmer(ref context) => {
+                wasmer_instantiate(version, context, wasm, guest_env, supervisor_context)?
+            }
         };
 
         Ok(UnregisteredInstance { sandbox_instance })

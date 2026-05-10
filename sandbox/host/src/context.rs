@@ -103,14 +103,6 @@ pub trait SupervisorContext {
     fn trace(&self, func: &str);
     fn store_data_key(&self) -> usize;
 
-    fn invoke(
-        &mut self,
-        dispatch_thunk_id: u32,
-        invoke_args_ptr: Pointer<u8>,
-        invoke_args_len: WordSize,
-        func_idx: SupervisorFuncIndex,
-    ) -> HostResult<i64>;
-
     fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String>;
 
     fn read_memory(&self, address: Pointer<u8>, size: WordSize) -> HostResult<Vec<u8>> {
@@ -124,6 +116,17 @@ pub trait SupervisorContext {
     fn allocate_memory(&mut self, size: WordSize) -> Result<Pointer<u8>, String>;
 
     fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> Result<(), String>;
+}
+
+pub trait SupervisorContextDispatcher: SupervisorContext {
+    fn dispatch_thunk_id(&self) -> u32;
+
+    fn invoke(
+        &mut self,
+        invoke_args_ptr: Pointer<u8>,
+        invoke_args_len: WordSize,
+        func_idx: SupervisorFuncIndex,
+    ) -> HostResult<i64>;
 }
 
 fn with_thread_state<R>(f: impl FnOnce(&mut ThreadState) -> R) -> R {
@@ -143,7 +146,7 @@ fn read_memory(
     Ok(vec)
 }
 
-pub fn get_buff(supervisor_context: &mut dyn SupervisorContext, memory_idx: u32) -> HostPointer {
+pub fn get_buff(supervisor_context: impl SupervisorContext, memory_idx: u32) -> HostPointer {
     use crate::util::MemoryTransfer;
 
     supervisor_context.trace("get_buff");
@@ -206,8 +209,7 @@ pub fn instance_teardown(supervisor_context: &mut dyn SupervisorContext, instanc
 }
 
 pub fn instantiate(
-    supervisor_context: &mut dyn SupervisorContext,
-    dispatch_thunk_id: u32,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
     wasm_code: &[u8],
     raw_env_def: &[u8],
     version: Instantiate,
@@ -231,7 +233,6 @@ pub fn instantiate(
                 version,
                 wasm_code,
                 guest_env,
-                dispatch_thunk_id,
                 supervisor_context,
             )
         })
@@ -245,7 +246,7 @@ pub fn instantiate(
     match result {
         Ok(instance) => with_thread_state(|state| {
             let store = state.sandboxes.get(store_data_key);
-            instance.register(store, dispatch_thunk_id)
+            instance.register(store, supervisor_context.dispatch_thunk_id())
         }),
         Err(sandbox_env::InstantiationError::StartTrapped) => sandbox_env::env::ERR_EXECUTION,
         Err(_) => sandbox_env::env::ERR_MODULE,
@@ -253,14 +254,21 @@ pub fn instantiate(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn invoke(
-    supervisor_context: &mut dyn SupervisorContext,
+pub fn invoke<C, D, F>(
+    supervisor_context: C,
+    supervisor_dispatcher: F,
     instance_idx: u32,
     function: &str,
     mut args: &[u8],
     return_val_ptr: Pointer<u8>,
     return_val_len: u32,
-) -> u32 {
+    state_ptr: Pointer<u8>,
+) -> u32
+where
+    C: SupervisorContext,
+    D: SupervisorContextDispatcher,
+    F: FnOnce(C, u32, Pointer<u8>) -> D,
+{
     supervisor_context.trace("invoke");
     log::trace!("invoke, instance_idx={instance_idx}");
 
@@ -269,15 +277,23 @@ pub fn invoke(
         .into_iter()
         .collect::<Vec<_>>();
 
-    let instance = with_thread_state(|state| {
+    let (instance, dispatch_thunk_id) = with_thread_state(|state| {
         let store = state.sandboxes.get(supervisor_context.store_data_key());
 
-        store
+        let instance = store
             .instance(instance_idx)
-            .expect("backend instance not found")
+            .expect("backend instance not found");
+
+        let dispatch_thunk_id = store
+            .dispatch_thunk_id(instance_idx)
+            .expect("dispatch_thunk not found");
+
+        (instance, dispatch_thunk_id)
     });
 
-    match instance.invoke(function, &args, supervisor_context) {
+    let mut dispatcher = supervisor_dispatcher(supervisor_context, dispatch_thunk_id, state_ptr);
+
+    match instance.invoke(function, &args, &mut dispatcher) {
         Ok(None) => sandbox_env::env::ERR_OK,
         Ok(Some(val)) => {
             let encoded = ReturnValue::Value(val).encode();
@@ -285,7 +301,7 @@ pub fn invoke(
                 panic!("Return value buffer is too small");
             }
 
-            supervisor_context
+            dispatcher
                 .write_memory(return_val_ptr, &encoded)
                 .expect("can't write return value");
 
