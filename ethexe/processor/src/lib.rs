@@ -269,6 +269,7 @@ impl Processor {
 
     pub fn overlaid(mut self) -> OverlaidProcessor {
         self.db = unsafe { self.db.overlaid() };
+        self.creator = self.creator.with_db(self.db.clone());
 
         OverlaidProcessor(self)
     }

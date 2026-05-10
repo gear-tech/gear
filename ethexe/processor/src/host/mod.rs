@@ -144,6 +144,14 @@ impl InstanceCreator {
 
         Ok(instance_wrapper)
     }
+
+    pub(crate) fn with_db(&self, db: Database) -> Self {
+        Self {
+            db,
+            engine: self.engine.clone(),
+            instance_pre: self.instance_pre.clone(),
+        }
+    }
 }
 
 pub(crate) struct InstanceWrapper {
