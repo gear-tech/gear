@@ -24,7 +24,7 @@ use gear_sandbox_host::context::{
     self as sandbox_context, HostResult, Instantiate, Pointer, SupervisorFuncIndex, Value, WordSize,
 };
 use parity_scale_codec::Encode;
-use wasmtime::{AsContext, AsContextMut, Caller, Linker, Val};
+use wasmtime::{AsContext, AsContextMut, Caller, Linker, StoreContextMut, Val};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     linker.func_wrap("env", "ext_sandbox_get_buff_version_1", get_buff)?;
@@ -64,20 +64,22 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     Ok(())
 }
 
-struct ProcessorContext<'a, 'b> {
-    caller: &'a mut Caller<'b, StoreData>,
+struct ProcessorContext<'a> {
+    caller: StoreContextMut<'a, StoreData>,
 }
 
-impl<'a, 'b> ProcessorContext<'a, 'b> {
-    fn new(caller: &'a mut Caller<'b, StoreData>) -> Self {
-        Self { caller }
+impl<'a> ProcessorContext<'a> {
+    fn new(caller: impl Into<StoreContextMut<'a, StoreData>>) -> Self {
+        Self {
+            caller: caller.into(),
+        }
     }
 
     fn dispatcher(
         self,
         dispatch_thunk_id: u32,
         state_ptr: Pointer<u8>,
-    ) -> ProcessorContextDispatcher<'a, 'b> {
+    ) -> ProcessorContextDispatcher<'a> {
         ProcessorContextDispatcher {
             context: self,
             dispatch_thunk_id,
@@ -86,10 +88,10 @@ impl<'a, 'b> ProcessorContext<'a, 'b> {
     }
 }
 
-impl sandbox_context::SupervisorContext for ProcessorContext<'_, '_> {
+impl sandbox_context::SupervisorContext for ProcessorContext<'_> {
     fn trace(&self, func: &str) {
         let data_ptr: *const _ = self.caller.data();
-        let caller_ptr: *const _ = self.caller;
+        let caller_ptr: *const _ = &self.caller;
         let thread_id = std::thread::current().id();
 
         log::trace!(
@@ -113,30 +115,30 @@ impl sandbox_context::SupervisorContext for ProcessorContext<'_, '_> {
     }
 
     fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> Result<(), String> {
-        context::write_memory_from(&mut *self.caller, u32::from(address), data)
+        context::write_memory_from(&mut self.caller, u32::from(address), data)
     }
 
     fn allocate_memory(&mut self, size: WordSize) -> Result<Pointer<u8>, String> {
-        context::allocator(&mut *self.caller)
+        context::allocator(&mut self.caller)
             .allocate(size)
             .map(Pointer::new)
             .map_err(|err| err.to_string())
     }
 
     fn deallocate_memory(&mut self, ptr: Pointer<u8>) -> Result<(), String> {
-        context::allocator(&mut *self.caller)
+        context::allocator(&mut self.caller)
             .deallocate(ptr.into())
             .map_err(|err| err.to_string())
     }
 }
 
-struct ProcessorContextDispatcher<'a, 'b> {
-    context: ProcessorContext<'a, 'b>,
+struct ProcessorContextDispatcher<'a> {
+    context: ProcessorContext<'a>,
     dispatch_thunk_id: u32,
     state_ptr: Pointer<u8>,
 }
 
-impl gear_sandbox_host::context::SupervisorContext for ProcessorContextDispatcher<'_, '_> {
+impl gear_sandbox_host::context::SupervisorContext for ProcessorContextDispatcher<'_> {
     fn trace(&self, func: &str) {
         self.context.trace(func)
     }
@@ -166,7 +168,7 @@ impl gear_sandbox_host::context::SupervisorContext for ProcessorContextDispatche
     }
 }
 
-impl sandbox_context::SupervisorContextDispatcher for ProcessorContextDispatcher<'_, '_> {
+impl sandbox_context::SupervisorContextDispatcher for ProcessorContextDispatcher<'_> {
     fn dispatch_thunk_id(&self) -> u32 {
         self.dispatch_thunk_id
     }
@@ -195,7 +197,7 @@ impl sandbox_context::SupervisorContextDispatcher for ProcessorContextDispatcher
 
         let mut ret_vals = [Val::I64(0)];
         let result = dispatch_thunk.call(
-            &mut *self.context.caller,
+            &mut self.context.caller,
             &[
                 Val::I32(u32::from(invoke_args_ptr) as i32),
                 Val::I32(invoke_args_len as i32),
@@ -214,10 +216,9 @@ impl sandbox_context::SupervisorContextDispatcher for ProcessorContextDispatcher
     }
 }
 
-fn get_buff(mut caller: Caller<'_, StoreData>, memory_idx: i32) -> i64 {
+fn get_buff(caller: Caller<'_, StoreData>, memory_idx: i32) -> i64 {
     log::trace!(target: "host_call", "get_buff(memory_idx={memory_idx:?})");
-    let res =
-        sandbox_context::get_buff(ProcessorContext::new(&mut caller), memory_idx as u32) as i64;
+    let res = sandbox_context::get_buff(ProcessorContext::new(caller), memory_idx as u32) as i64;
     log::trace!(target: "host_call", "get_buff(..) -> {res:?}");
     res
 }
@@ -232,7 +233,7 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
     let name = core::str::from_utf8(&name).unwrap_or_default();
 
     let res = sandbox_context::get_global_val(
-        &mut ProcessorContext::new(&mut caller),
+        ProcessorContext::new(&mut caller),
         instance_idx as u32,
         name,
     );
@@ -251,22 +252,17 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
     res
 }
 
-fn get_instance_ptr(mut caller: Caller<'_, StoreData>, instance_idx: i32) -> i64 {
+fn get_instance_ptr(caller: Caller<'_, StoreData>, instance_idx: i32) -> i64 {
     log::trace!(target: "host_call", "get_instance_ptr(instance_idx={instance_idx:?})");
-    let res = sandbox_context::get_instance_ptr(
-        &mut ProcessorContext::new(&mut caller),
-        instance_idx as u32,
-    ) as i64;
+    let res = sandbox_context::get_instance_ptr(ProcessorContext::new(caller), instance_idx as u32)
+        as i64;
     log::trace!(target: "host_call", "get_instance_ptr(..) -> {res:?}");
     res
 }
 
-fn instance_teardown(mut caller: Caller<'_, StoreData>, instance_idx: i32) {
+fn instance_teardown(caller: Caller<'_, StoreData>, instance_idx: i32) {
     log::trace!(target: "host_call", "instance_teardown(instance_idx={instance_idx:?})");
-    sandbox_context::instance_teardown(
-        &mut ProcessorContext::new(&mut caller),
-        instance_idx as u32,
-    );
+    sandbox_context::instance_teardown(ProcessorContext::new(caller), instance_idx as u32);
 }
 
 fn instantiate(
@@ -286,8 +282,7 @@ fn instantiate(
     let raw_env_def = memory.slice_by_val(raw_env_def).to_vec();
 
     let res = sandbox_context::instantiate(
-        &mut ProcessorContext::new(&mut caller)
-            .dispatcher(dispatch_thunk_id, Pointer::new(state_ptr)),
+        ProcessorContext::new(caller).dispatcher(dispatch_thunk_id, Pointer::new(state_ptr)),
         &wasm_code,
         &raw_env_def,
         Instantiate::Version2,
@@ -317,7 +312,7 @@ fn invoke(
     let args = memory.slice_by_val(args).to_vec();
 
     let res = sandbox_context::invoke(
-        ProcessorContext::new(&mut caller),
+        ProcessorContext::new(caller),
         ProcessorContext::dispatcher,
         instance_idx as u32,
         function,
@@ -332,7 +327,7 @@ fn invoke(
 }
 
 fn memory_get(
-    mut caller: Caller<'_, StoreData>,
+    caller: Caller<'_, StoreData>,
     memory_idx: i32,
     offset: i32,
     buff_ptr: i32,
@@ -344,7 +339,7 @@ fn memory_get(
     );
 
     let res = sandbox_context::memory_get(
-        &mut ProcessorContext::new(&mut caller),
+        ProcessorContext::new(caller),
         memory_idx as u32,
         offset as u32,
         Pointer::new(buff_ptr as u32),
@@ -355,10 +350,10 @@ fn memory_get(
     res
 }
 
-fn memory_grow(mut caller: Caller<'_, StoreData>, memory_idx: i32, size: i32) -> i32 {
+fn memory_grow(caller: Caller<'_, StoreData>, memory_idx: i32, size: i32) -> i32 {
     log::trace!(target: "host_call", "memory_grow(memory_idx={memory_idx:?}, size={size:?})");
     let res = sandbox_context::memory_grow(
-        &mut ProcessorContext::new(&mut caller),
+        ProcessorContext::new(caller),
         memory_idx as u32,
         size as u32,
     ) as i32;
@@ -366,10 +361,10 @@ fn memory_grow(mut caller: Caller<'_, StoreData>, memory_idx: i32, size: i32) ->
     res
 }
 
-fn memory_new(mut caller: Caller<'_, StoreData>, initial: i32, maximum: i32) -> i32 {
+fn memory_new(caller: Caller<'_, StoreData>, initial: i32, maximum: i32) -> i32 {
     log::trace!(target: "host_call", "memory_new(initial={initial:?}, maximum={maximum:?})");
     let res = sandbox_context::memory_new(
-        &mut ProcessorContext::new(&mut caller),
+        ProcessorContext::new(caller),
         initial as u32,
         maximum as u32,
     ) as i32;
@@ -378,7 +373,7 @@ fn memory_new(mut caller: Caller<'_, StoreData>, initial: i32, maximum: i32) -> 
 }
 
 fn memory_set(
-    mut caller: Caller<'_, StoreData>,
+    caller: Caller<'_, StoreData>,
     memory_idx: i32,
     offset: i32,
     val_ptr: i32,
@@ -390,7 +385,7 @@ fn memory_set(
     );
 
     let res = sandbox_context::memory_set(
-        &mut ProcessorContext::new(&mut caller),
+        ProcessorContext::new(caller),
         memory_idx as u32,
         offset as u32,
         Pointer::new(val_ptr as u32),
@@ -401,18 +396,16 @@ fn memory_set(
     res
 }
 
-fn memory_size(mut caller: Caller<'_, StoreData>, memory_idx: i32) -> i32 {
+fn memory_size(caller: Caller<'_, StoreData>, memory_idx: i32) -> i32 {
     log::trace!(target: "host_call", "memory_size(memory_idx={memory_idx:?})");
-    let res =
-        sandbox_context::memory_size(&mut ProcessorContext::new(&mut caller), memory_idx as u32)
-            as i32;
+    let res = sandbox_context::memory_size(ProcessorContext::new(caller), memory_idx as u32) as i32;
     log::trace!(target: "host_call", "memory_size(..) -> {res:?}");
     res
 }
 
-fn memory_teardown(mut caller: Caller<'_, StoreData>, memory_idx: i32) {
+fn memory_teardown(caller: Caller<'_, StoreData>, memory_idx: i32) {
     log::trace!(target: "host_call", "memory_teardown(memory_idx={memory_idx:?})");
-    sandbox_context::memory_teardown(&mut ProcessorContext::new(&mut caller), memory_idx as u32);
+    sandbox_context::memory_teardown(ProcessorContext::new(caller), memory_idx as u32);
 }
 
 fn set_global_val(
@@ -432,7 +425,7 @@ fn set_global_val(
     let value: Value = memory.decode_by_val(value);
 
     let res = sandbox_context::set_global_val(
-        &mut ProcessorContext::new(&mut caller),
+        ProcessorContext::new(caller),
         instance_idx as u32,
         name,
         value,

@@ -137,7 +137,7 @@ fn with_thread_state<R>(f: impl FnOnce(&mut ThreadState) -> R) -> R {
 }
 
 fn read_memory(
-    supervisor_context: &dyn SupervisorContext,
+    supervisor_context: &impl SupervisorContext,
     address: Pointer<u8>,
     size: WordSize,
 ) -> Result<Vec<u8>, String> {
@@ -162,7 +162,7 @@ pub fn get_buff(supervisor_context: impl SupervisorContext, memory_idx: u32) -> 
 }
 
 pub fn get_global_val(
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: impl SupervisorContext,
     instance_idx: u32,
     name: &str,
 ) -> Option<Value> {
@@ -180,7 +180,7 @@ pub fn get_global_val(
 }
 
 pub fn get_instance_ptr(
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: impl SupervisorContext,
     instance_idx: u32,
 ) -> HostPointer {
     supervisor_context.trace("get_instance_ptr");
@@ -196,7 +196,7 @@ pub fn get_instance_ptr(
     instance.as_ref().get_ref() as *const sandbox_env::SandboxInstance as HostPointer
 }
 
-pub fn instance_teardown(supervisor_context: &mut dyn SupervisorContext, instance_idx: u32) {
+pub fn instance_teardown(supervisor_context: impl SupervisorContext, instance_idx: u32) {
     supervisor_context.trace("instance_teardown");
 
     with_thread_state(|state| {
@@ -209,7 +209,7 @@ pub fn instance_teardown(supervisor_context: &mut dyn SupervisorContext, instanc
 }
 
 pub fn instantiate(
-    supervisor_context: &mut dyn SupervisorContextDispatcher,
+    mut supervisor_context: impl SupervisorContextDispatcher,
     wasm_code: &[u8],
     raw_env_def: &[u8],
     version: Instantiate,
@@ -233,7 +233,7 @@ pub fn instantiate(
                 version,
                 wasm_code,
                 guest_env,
-                supervisor_context,
+                &mut supervisor_context,
             )
         })
     }));
@@ -315,7 +315,7 @@ where
 }
 
 pub fn memory_get(
-    supervisor_context: &mut dyn SupervisorContext,
+    mut supervisor_context: impl SupervisorContext,
     memory_idx: u32,
     offset: u32,
     buf_ptr: Pointer<u8>,
@@ -344,11 +344,7 @@ pub fn memory_get(
     }
 }
 
-pub fn memory_grow(
-    supervisor_context: &mut dyn SupervisorContext,
-    memory_idx: u32,
-    size: u32,
-) -> u32 {
+pub fn memory_grow(supervisor_context: impl SupervisorContext, memory_idx: u32, size: u32) -> u32 {
     use crate::util::MemoryTransfer;
 
     supervisor_context.trace("memory_grow");
@@ -364,11 +360,7 @@ pub fn memory_grow(
     })
 }
 
-pub fn memory_new(
-    supervisor_context: &mut dyn SupervisorContext,
-    initial: u32,
-    maximum: u32,
-) -> u32 {
+pub fn memory_new(supervisor_context: impl SupervisorContext, initial: u32, maximum: u32) -> u32 {
     supervisor_context.trace("memory_new");
 
     with_thread_state(|state| {
@@ -383,7 +375,7 @@ pub fn memory_new(
 }
 
 pub fn memory_set(
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: impl SupervisorContext,
     memory_idx: u32,
     offset: u32,
     val_ptr: Pointer<u8>,
@@ -393,7 +385,7 @@ pub fn memory_set(
 
     supervisor_context.trace("memory_set");
 
-    let Ok(buffer) = read_memory(supervisor_context, val_ptr, val_len) else {
+    let Ok(buffer) = read_memory(&supervisor_context, val_ptr, val_len) else {
         return sandbox_env::env::ERR_OUT_OF_BOUNDS;
     };
 
@@ -411,7 +403,7 @@ pub fn memory_set(
     }
 }
 
-pub fn memory_size(supervisor_context: &mut dyn SupervisorContext, memory_idx: u32) -> u32 {
+pub fn memory_size(supervisor_context: impl SupervisorContext, memory_idx: u32) -> u32 {
     use crate::util::MemoryTransfer;
 
     supervisor_context.trace("memory_size");
@@ -426,7 +418,7 @@ pub fn memory_size(supervisor_context: &mut dyn SupervisorContext, memory_idx: u
     })
 }
 
-pub fn memory_teardown(supervisor_context: &mut dyn SupervisorContext, memory_idx: u32) {
+pub fn memory_teardown(supervisor_context: impl SupervisorContext, memory_idx: u32) {
     supervisor_context.trace("memory_teardown");
 
     with_thread_state(|state| {
@@ -439,7 +431,7 @@ pub fn memory_teardown(supervisor_context: &mut dyn SupervisorContext, memory_id
 }
 
 pub fn set_global_val(
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: impl SupervisorContext,
     instance_idx: u32,
     name: &str,
     value: Value,

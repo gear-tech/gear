@@ -632,7 +632,7 @@ impl SandboxComponents {
         version: Instantiate,
         wasm: &[u8],
         guest_env: GuestEnvironment,
-        supervisor_context: &mut dyn SupervisorContextDispatcher,
+        supervisor_context: &mut impl SupervisorContextDispatcher,
     ) -> std::result::Result<UnregisteredInstance, InstantiationError> {
         let sandbox_instance = match self.backend_context {
             BackendContext::Wasmi(ref context) => {
