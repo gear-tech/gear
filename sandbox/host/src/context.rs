@@ -22,9 +22,11 @@ use core::{
     cell::RefCell,
     sync::atomic::{AtomicU32, Ordering},
 };
-use std::panic::{self, AssertUnwindSafe};
-
 use parity_scale_codec::{Decode, Encode};
+use std::{
+    panic::{self, AssertUnwindSafe},
+    ptr,
+};
 
 use crate::sandbox as sandbox_env;
 
@@ -51,7 +53,7 @@ pub fn init(sandbox_backend: sandbox_env::SandboxBackend, store_clear_counter_li
 }
 
 pub struct Sandboxes {
-    store_data_key: usize,
+    store_data_ptr: *const (),
     store: sandbox_env::SandboxComponents,
 }
 
@@ -60,14 +62,14 @@ impl Sandboxes {
         let sandbox_backend = SANDBOX_BACKEND_TYPE.load(Ordering::SeqCst);
 
         Self {
-            store_data_key: 0,
+            store_data_ptr: ptr::null(),
             store: sandbox_env::SandboxComponents::new(sandbox_backend),
         }
     }
 
-    pub fn get(&mut self, store_data_key: usize) -> &mut sandbox_env::SandboxComponents {
-        if self.store_data_key != store_data_key {
-            self.store_data_key = store_data_key;
+    pub fn get(&mut self, store_data_ptr: *const ()) -> &mut sandbox_env::SandboxComponents {
+        if self.store_data_ptr != store_data_ptr {
+            self.store_data_ptr = store_data_ptr;
             self.store.clear();
         }
 
@@ -101,7 +103,7 @@ thread_local! {
 
 pub trait SupervisorContext {
     fn trace(&self, func: &str);
-    fn store_data_key(&self) -> usize;
+    fn data_ptr(&self) -> *const ();
 
     fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String>;
 
@@ -154,7 +156,7 @@ pub fn get_buff(supervisor_context: impl SupervisorContext, memory_idx: u32) -> 
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .memory(memory_idx)
             .expect("Failed to get memory buffer pointer: cannot get backend memory")
             .get_buff() as HostPointer
@@ -171,7 +173,7 @@ pub fn get_global_val(
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .instance(instance_idx)
             .map(|instance| instance.get_global_val(name))
             .map_err(|err| err.to_string())
@@ -188,7 +190,7 @@ pub fn get_instance_ptr(
     let instance = with_thread_state(|state| {
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .instance(instance_idx)
             .expect("Failed to get sandboxed instance")
     });
@@ -202,7 +204,7 @@ pub fn instance_teardown(supervisor_context: impl SupervisorContext, instance_id
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .instance_teardown(instance_idx)
             .expect("Failed to teardown sandbox instance");
     });
@@ -216,7 +218,7 @@ pub fn instantiate(
 ) -> u32 {
     supervisor_context.trace("instantiate");
 
-    let store_data_key = supervisor_context.store_data_key();
+    let store_data_key = supervisor_context.data_ptr();
 
     let guest_env = with_thread_state(|state| {
         let store = state.sandboxes.get(store_data_key);
@@ -278,7 +280,7 @@ where
         .collect::<Vec<_>>();
 
     let (instance, dispatch_thunk_id) = with_thread_state(|state| {
-        let store = state.sandboxes.get(supervisor_context.store_data_key());
+        let store = state.sandboxes.get(supervisor_context.data_ptr());
 
         let instance = store
             .instance(instance_idx)
@@ -328,7 +330,7 @@ pub fn memory_get(
     let sandboxed_memory = with_thread_state(|state| {
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .memory(memory_idx)
             .expect("sandboxed memory not found")
     });
@@ -352,7 +354,7 @@ pub fn memory_grow(supervisor_context: impl SupervisorContext, memory_idx: u32, 
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .memory(memory_idx)
             .expect("Failed to grow memory: cannot get backend memory")
             .memory_grow(size)
@@ -367,7 +369,7 @@ pub fn memory_new(supervisor_context: impl SupervisorContext, initial: u32, maxi
         state.sandboxes.clear(&mut state.clear_counter);
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .new_memory(initial, maximum)
             .map_err(|err| err.to_string())
             .expect("Failed to create new memory with sandbox")
@@ -392,7 +394,7 @@ pub fn memory_set(
     let sandboxed_memory = with_thread_state(|state| {
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .memory(memory_idx)
             .expect("memory_set: not found")
     });
@@ -411,7 +413,7 @@ pub fn memory_size(supervisor_context: impl SupervisorContext, memory_idx: u32) 
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .memory(memory_idx)
             .expect("Failed to get memory size: cannot get backend memory")
             .memory_size()
@@ -424,7 +426,7 @@ pub fn memory_teardown(supervisor_context: impl SupervisorContext, memory_idx: u
     with_thread_state(|state| {
         state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .memory_teardown(memory_idx)
             .expect("Failed to teardown sandbox memory");
     });
@@ -442,7 +444,7 @@ pub fn set_global_val(
     let result = with_thread_state(|state| {
         let instance = state
             .sandboxes
-            .get(supervisor_context.store_data_key())
+            .get(supervisor_context.data_ptr())
             .instance(instance_idx)
             .map_err(|err| err.to_string())
             .expect("Failed to set global in sandbox");

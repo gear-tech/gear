@@ -102,8 +102,8 @@ impl sandbox_context::SupervisorContext for ProcessorContext<'_> {
         );
     }
 
-    fn store_data_key(&self) -> usize {
-        self.caller.data() as *const _ as usize
+    fn data_ptr(&self) -> *const () {
+        self.caller.data() as *const _ as *const ()
     }
 
     fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String> {
@@ -143,8 +143,8 @@ impl gear_sandbox_host::context::SupervisorContext for ProcessorContextDispatche
         self.context.trace(func)
     }
 
-    fn store_data_key(&self) -> usize {
-        self.context.store_data_key()
+    fn data_ptr(&self) -> *const () {
+        self.context.data_ptr()
     }
 
     fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String> {

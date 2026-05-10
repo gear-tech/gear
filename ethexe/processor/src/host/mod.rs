@@ -23,7 +23,7 @@ use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, unpack_i64_to_
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
+use sp_allocator::FreeingBumpHeapAllocator;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
