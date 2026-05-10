@@ -53,19 +53,6 @@ impl<'a, 'b> RuntimeInterfaceContext<'a, 'b> {
     }
 }
 
-fn trace(func: &str, caller: &Caller<'_, StoreData>) {
-    let data_ptr: *const _ = caller.data();
-    let caller_ptr: *const _ = caller;
-    let thread_id = std::thread::current().id();
-
-    log::trace!(
-        "{func}; data_ptr = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
-        data_ptr as usize,
-        caller_ptr as usize,
-        thread_id,
-    );
-}
-
 impl context::SupervisorContext for RuntimeInterfaceContext<'_, '_> {
     fn data_ptr(&self) -> *const () {
         self.caller.data() as *const _ as *const ()
@@ -170,6 +157,19 @@ impl context::SupervisorContextDispatcher for RuntimeInterfaceDispatchContext<'_
             Err(err) => Err(err.to_string().into()),
         }
     }
+}
+
+fn trace(func: &str, caller: &Caller<'_, StoreData>) {
+    let data_ptr: *const _ = caller.data();
+    let caller_ptr: *const _ = caller;
+    let thread_id = std::thread::current().id();
+
+    log::trace!(
+        "{func}; data_ptr = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+        data_ptr as usize,
+        caller_ptr as usize,
+        thread_id,
+    );
 }
 
 pub fn get_buff(context: &mut dyn FunctionContext, memory_idx: u32) -> HostPointer {
