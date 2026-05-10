@@ -65,15 +65,6 @@ where
         self.slice(ptr, len).unwrap()
     }
 
-    pub fn array<const N: usize>(&self, ptr: u32) -> [u8; N] {
-        const {
-            assert!(N <= u32::MAX as usize);
-        };
-
-        let slice = self.slice(ptr, N as u32).unwrap();
-        slice.try_into().expect("infallible")
-    }
-
     pub fn slice(&self, ptr: u32, len: u32) -> Option<&[u8]> {
         self.memory
             .data(&self.caller)

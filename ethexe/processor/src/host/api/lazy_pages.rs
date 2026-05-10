@@ -121,11 +121,9 @@ fn pre_process_memory_accesses(
     let reads = memory.slice_by_val(reads);
     let writes = memory.slice_by_val(writes);
 
-    // 8 len bytes of u64 counter.
     // read gas_bytes into `mut` variable because `pre_process_memory_accesses` updates
-    // it, then write updated slice to memory. Can't use `slice_mut` here without using `.to_vec()`
-    // on `writes` and `reads`.
-    let mut gas_counter: u64 = u64::from_le_bytes(memory.array::<8>(gas_bytes));
+    // it, then write updated slice to memory.
+    let mut gas_counter: u64 = memory.decode_by_max_len(gas_bytes);
 
     let res =
         lazy_pages_detail::pre_process_memory_accesses(reads, writes, &mut gas_counter) as i32;
