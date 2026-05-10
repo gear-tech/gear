@@ -24,7 +24,7 @@ use gear_sandbox_host::context::{
     self as sandbox_context, HostResult, Instantiate, Pointer, SupervisorFuncIndex, Value, WordSize,
 };
 use parity_scale_codec::Encode;
-use wasmtime::{AsContext, AsContextMut, Caller, Linker, StoreContextMut, Val};
+use wasmtime::{AsContextMut, Caller, Linker, StoreContextMut, Val};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     linker.func_wrap("env", "ext_sandbox_get_buff_version_1", get_buff)?;
@@ -94,17 +94,18 @@ impl sandbox_context::SupervisorContext for ProcessorContext<'_> {
     }
 
     fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String> {
-        let memory = self.caller.as_context().data().memory().data(&self.caller);
-        let range = context::checked_range(u32::from(address) as usize, dest.len(), memory.len())
-            .ok_or_else(|| String::from("memory read is out of bounds"))?;
-        dest.copy_from_slice(&memory[range]);
+        let memory = context::memory(&self.caller);
+        let slice = memory
+            .slice(u32::from(address), dest.len() as u32)
+            .ok_or_else(|| "memory read out of bounds".to_string())?;
+        dest.copy_from_slice(slice);
         Ok(())
     }
 
     fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> Result<(), String> {
         context::memory(&mut self.caller)
             .slice_mut(u32::from(address), data.len() as u32)
-            .ok_or_else(|| "out of bounds".to_string())?
+            .ok_or_else(|| "memory write out of bounds".to_string())?
             .copy_from_slice(data);
         Ok(())
     }

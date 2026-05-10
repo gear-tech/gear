@@ -56,7 +56,7 @@ fn write(mut caller: Caller<'_, StoreData>, ptr: u32, len: u32) -> i32 {
 
     let db = caller.data().db.clone_boxed();
     let memory = context::memory(&mut caller);
-    let data = memory.slice(ptr, len);
+    let data = memory.slice(ptr, len).unwrap();
     let hash = db.write(data);
 
     let res = context::memory(caller).allocate_and_write_val(hash);

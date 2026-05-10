@@ -17,17 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::BoundPromiseSink;
-use core::ops::Range;
 use ethexe_db::CASDatabase;
 use ethexe_runtime_common::{pack_u32_to_i64, unpack_i64_to_u32};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_allocator::FreeingBumpHeapAllocator;
-use wasmtime::{Memory, StoreContextMut, Table};
-
-pub(crate) fn checked_range(offset: usize, len: usize, max: usize) -> Option<Range<usize>> {
-    let end = offset.checked_add(len)?;
-    (end <= max).then(|| offset..end)
-}
+use wasmtime::{AsContext, AsContextMut, Memory, StoreContextMut, Table};
 
 pub(crate) struct StoreData {
     pub(crate) memory: Option<Memory>,
@@ -44,13 +38,54 @@ impl StoreData {
     }
 }
 
-pub(crate) struct MemoryWrapper<'a> {
-    caller: StoreContextMut<'a, StoreData>,
+pub(crate) struct MemoryWrapper<C> {
+    caller: C,
     memory: Memory,
 }
 
 // TODO: return results for mem accesses.
-impl MemoryWrapper<'_> {
+impl<C> MemoryWrapper<C>
+where
+    C: AsContext<Data = StoreData>,
+{
+    pub fn decode_by_val<D: Decode>(&self, ptr_len: i64) -> D {
+        let mut slice = self.slice_by_val(ptr_len);
+        D::decode(&mut slice).unwrap()
+    }
+
+    pub fn decode_by_max_len<D: Decode + MaxEncodedLen>(&self, ptr: u32) -> D {
+        debug_assert!(D::max_encoded_len() < u32::MAX as usize);
+
+        let mut slice = self.slice(ptr, D::max_encoded_len() as u32).unwrap();
+        D::decode(&mut slice).unwrap()
+    }
+
+    pub fn slice_by_val(&self, ptr_len: i64) -> &[u8] {
+        let (ptr, len) = unpack_i64_to_u32(ptr_len);
+        self.slice(ptr, len).unwrap()
+    }
+
+    pub fn array<const N: usize>(&self, ptr: u32) -> [u8; N] {
+        const {
+            assert!(N <= u32::MAX as usize);
+        };
+
+        let slice = self.slice(ptr, N as u32).unwrap();
+        slice.try_into().expect("infallible")
+    }
+
+    pub fn slice(&self, ptr: u32, len: u32) -> Option<&[u8]> {
+        self.memory
+            .data(&self.caller)
+            .get(ptr as usize..)
+            .and_then(|s| s.get(..len as usize))
+    }
+}
+
+impl<C> MemoryWrapper<C>
+where
+    C: AsContextMut<Data = StoreData>,
+{
     pub fn allocate_and_write_val(&mut self, data: impl Encode) -> i64 {
         self.allocate_and_write_val_raw(data.encode())
     }
@@ -67,40 +102,6 @@ impl MemoryWrapper<'_> {
         pack_u32_to_i64(ptr, len as u32)
     }
 
-    pub fn decode_by_val<D: Decode>(&self, ptr_len: i64) -> D {
-        let mut slice = self.slice_by_val(ptr_len);
-        D::decode(&mut slice).unwrap()
-    }
-
-    pub fn decode_by_max_len<D: Decode + MaxEncodedLen>(&self, ptr: u32) -> D {
-        debug_assert!(D::max_encoded_len() < u32::MAX as usize);
-
-        let mut slice = self.slice(ptr, D::max_encoded_len() as u32);
-        D::decode(&mut slice).unwrap()
-    }
-
-    pub fn slice_by_val(&self, ptr_len: i64) -> &[u8] {
-        let (ptr, len) = unpack_i64_to_u32(ptr_len);
-        self.slice(ptr, len)
-    }
-
-    pub fn array<const N: usize>(&self, ptr: u32) -> [u8; N] {
-        const {
-            assert!(N <= u32::MAX as usize);
-        };
-
-        let slice = self.slice(ptr, N as u32);
-        slice.try_into().expect("infallible")
-    }
-
-    pub fn slice(&self, ptr: u32, len: u32) -> &[u8] {
-        self.memory
-            .data(&self.caller)
-            .get(ptr as usize..)
-            .and_then(|s| s.get(..len as usize))
-            .unwrap()
-    }
-
     pub fn slice_mut(&mut self, ptr: u32, len: u32) -> Option<&mut [u8]> {
         self.memory
             .data_mut(&mut self.caller)
@@ -109,7 +110,7 @@ impl MemoryWrapper<'_> {
     }
 }
 
-impl sp_allocator::Memory for MemoryWrapper<'_> {
+impl<C: AsContextMut> sp_allocator::Memory for MemoryWrapper<C> {
     fn with_access_mut<R>(&mut self, run: impl FnOnce(&mut [u8]) -> R) -> R {
         run(self.memory.data_mut(&mut self.caller))
     }
@@ -139,14 +140,16 @@ impl sp_allocator::Memory for MemoryWrapper<'_> {
     }
 }
 
-pub(crate) fn memory<'a>(caller: impl Into<StoreContextMut<'a, StoreData>>) -> MemoryWrapper<'a> {
-    let caller = caller.into();
-    let memory = caller.data().memory();
+pub(crate) fn memory<C>(caller: C) -> MemoryWrapper<C>
+where
+    C: AsContext<Data = StoreData>,
+{
+    let memory = caller.as_context().data().memory();
     MemoryWrapper { caller, memory }
 }
 
 pub(crate) struct Allocator<'a> {
-    memory: MemoryWrapper<'a>,
+    memory: MemoryWrapper<StoreContextMut<'a, StoreData>>,
     allocator: Option<FreeingBumpHeapAllocator>,
 }
 
