@@ -53,8 +53,6 @@ pub enum InstanceError {
     HeapBaseIsNotGlobal,
     #[error("`__heap_base` is not i32")]
     HeapBaseIsNotI32,
-    #[error("allocator should be set after `set_host_state`")]
-    AllocatorNotSet,
     #[error("wasmtime error: {0}")]
     Wasmtime(#[from] wasmtime::Error),
     #[error("decoding runtime call output error: {0}")]
@@ -219,9 +217,13 @@ impl InstanceWrapper {
     }
 
     fn with_host_state<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
-        self.set_allocator()?;
+        let heap_base = self.heap_base()?;
+        self.data_mut().allocator = Some(FreeingBumpHeapAllocator::new(heap_base));
+
         let res = f(self);
-        let _allocation_stats = self.unset_allocator()?;
+
+        let _allocator = self.data_mut().allocator.take().expect("allocator is None");
+
         res
     }
 
@@ -256,24 +258,6 @@ impl InstanceWrapper {
         let res = D::decode(&mut res)?;
 
         Ok(res)
-    }
-
-    fn set_allocator(&mut self) -> Result<()> {
-        let heap_base = self.heap_base()?;
-        let allocator = FreeingBumpHeapAllocator::new(heap_base);
-        self.data_mut().allocator = Some(allocator);
-
-        Ok(())
-    }
-
-    fn unset_allocator(&mut self) -> Result<AllocationStats> {
-        let allocator = self
-            .data_mut()
-            .allocator
-            .take()
-            .ok_or(InstanceError::AllocatorNotSet)?;
-
-        Ok(allocator.stats())
     }
 
     fn memory(&mut self) -> Result<wasmtime::Memory> {
