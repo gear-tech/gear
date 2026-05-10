@@ -247,9 +247,9 @@ impl InstanceWrapper {
     }
 
     fn set_call_input(&mut self, bytes: &[u8]) -> Result<(i32, i32)> {
-        let len = bytes.len(); // TODO: check len.
+        let len = bytes.len() as u32; // TODO: check len.
 
-        let ptr = context::allocator(&mut self.store).allocate(len as u32)?;
+        let ptr = context::allocator(&mut self.store).allocate(len)?;
 
         context::memory(&mut self.store)
             .slice_mut(ptr, len)

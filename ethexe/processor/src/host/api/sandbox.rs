@@ -103,7 +103,7 @@ impl sandbox_context::SupervisorContext for ProcessorContext<'_> {
 
     fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> Result<(), String> {
         context::memory(&mut self.caller)
-            .slice_mut(u32::from(address), data.len())
+            .slice_mut(u32::from(address), data.len() as u32)
             .ok_or_else(|| "out of bounds".to_string())?
             .copy_from_slice(data);
         Ok(())

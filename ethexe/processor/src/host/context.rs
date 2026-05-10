@@ -20,7 +20,7 @@ use crate::BoundPromiseSink;
 use core::ops::Range;
 use ethexe_db::CASDatabase;
 use ethexe_runtime_common::{pack_u32_to_i64, unpack_i64_to_u32};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use sp_allocator::FreeingBumpHeapAllocator;
 use wasmtime::{Memory, StoreContextMut, Table};
 
@@ -72,34 +72,40 @@ impl MemoryWrapper<'_> {
         D::decode(&mut slice).unwrap()
     }
 
-    pub fn decode<D: Decode>(&self, ptr: u32, len: usize) -> D {
-        let mut slice = self.slice(ptr, len);
+    pub fn decode_by_max_len<D: Decode + MaxEncodedLen>(&self, ptr: u32) -> D {
+        debug_assert!(D::max_encoded_len() < u32::MAX as usize);
+
+        let mut slice = self.slice(ptr, D::max_encoded_len() as u32);
         D::decode(&mut slice).unwrap()
     }
 
     pub fn slice_by_val(&self, ptr_len: i64) -> &[u8] {
         let (ptr, len) = unpack_i64_to_u32(ptr_len);
-        self.slice(ptr, len as usize)
+        self.slice(ptr, len)
     }
 
     pub fn array<const N: usize>(&self, ptr: u32) -> [u8; N] {
-        let slice = self.slice(ptr, N);
+        const {
+            assert!(N <= u32::MAX as usize);
+        };
+
+        let slice = self.slice(ptr, N as u32);
         slice.try_into().expect("infallible")
     }
 
-    pub fn slice(&self, ptr: u32, len: usize) -> &[u8] {
+    pub fn slice(&self, ptr: u32, len: u32) -> &[u8] {
         self.memory
             .data(&self.caller)
             .get(ptr as usize..)
-            .and_then(|s| s.get(..len))
+            .and_then(|s| s.get(..len as usize))
             .unwrap()
     }
 
-    pub fn slice_mut(&mut self, ptr: u32, len: usize) -> Option<&mut [u8]> {
+    pub fn slice_mut(&mut self, ptr: u32, len: u32) -> Option<&mut [u8]> {
         self.memory
             .data_mut(&mut self.caller)
             .get_mut(ptr as usize..)
-            .and_then(|s| s.get_mut(..len))
+            .and_then(|s| s.get_mut(..len as usize))
     }
 }
 

@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::host::{StoreData, context, threads};
-use gprimitives::H256;
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -31,8 +30,7 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
 fn update_state_hash(caller: Caller<'_, StoreData>, program_state_hash_ptr: u32) {
     log::trace!(target: "host_call", "update_state_hash(program_state_hash={program_state_hash_ptr:?})");
 
-    let program_state_hash =
-        context::memory(caller).decode(program_state_hash_ptr, size_of::<H256>());
+    let program_state_hash = context::memory(caller).decode_by_max_len(program_state_hash_ptr);
 
     threads::update_state_hash(program_state_hash);
 }
@@ -40,7 +38,7 @@ fn update_state_hash(caller: Caller<'_, StoreData>, program_state_hash_ptr: u32)
 fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: u32) -> i64 {
     log::trace!(target: "host_call", "read_by_hash(hash_ptr={hash_ptr:?})");
 
-    let hash = context::memory(&mut caller).decode(hash_ptr, size_of::<H256>());
+    let hash = context::memory(&mut caller).decode_by_max_len(hash_ptr);
 
     let maybe_data = caller.data().db.read(hash);
 
@@ -53,12 +51,12 @@ fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: u32) -> i64 {
     res
 }
 
-fn write(mut caller: Caller<'_, StoreData>, ptr: u32, len: i32) -> i32 {
+fn write(mut caller: Caller<'_, StoreData>, ptr: u32, len: u32) -> i32 {
     log::trace!(target: "host_call", "write(ptr={ptr:?}, len={len:?})");
 
     let db = caller.data().db.clone_boxed();
     let memory = context::memory(&mut caller);
-    let data = memory.slice(ptr, len as usize);
+    let data = memory.slice(ptr, len);
     let hash = db.write(data);
 
     let res = context::memory(caller).allocate_and_write_val(hash);
