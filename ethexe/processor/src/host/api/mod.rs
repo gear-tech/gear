@@ -16,38 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::host::{StoreData, context};
-use ethexe_runtime_common::pack_u32_to_i64;
-use parity_scale_codec::Encode;
-use wasmtime::StoreContextMut;
-
 pub mod allocator;
 pub mod database;
 pub mod lazy_pages;
 pub mod logging;
 pub mod promise;
 pub mod sandbox;
-
-pub fn allocate_and_write<'a>(
-    caller: impl Into<StoreContextMut<'a, StoreData>>,
-    data: impl Encode,
-) -> i64 {
-    allocate_and_write_raw(caller, data.encode())
-}
-
-pub fn allocate_and_write_raw<'a>(
-    caller: impl Into<StoreContextMut<'a, StoreData>>,
-    data: impl AsRef<[u8]>,
-) -> i64 {
-    let mut caller = caller.into();
-    let data = data.as_ref();
-    let len = data.len();
-
-    let ptr: u32 = context::allocator(&mut caller)
-        .allocate(len as u32)
-        .unwrap();
-    let memory = caller.data().memory();
-    memory.write(&mut caller, ptr as usize, data).unwrap();
-
-    pack_u32_to_i64(ptr, len as u32)
-}

@@ -19,28 +19,14 @@
 use crate::BoundPromiseSink;
 use core::ops::Range;
 use ethexe_db::CASDatabase;
-use ethexe_runtime_common::unpack_i64_to_u32;
-use parity_scale_codec::Decode;
+use ethexe_runtime_common::{pack_u32_to_i64, unpack_i64_to_u32};
+use parity_scale_codec::{Decode, Encode};
 use sp_allocator::FreeingBumpHeapAllocator;
-use wasmtime::{AsContextMut, Memory, StoreContextMut, Table};
+use wasmtime::{Memory, StoreContextMut, Table};
 
 pub(crate) fn checked_range(offset: usize, len: usize, max: usize) -> Option<Range<usize>> {
     let end = offset.checked_add(len)?;
     (end <= max).then(|| offset..end)
-}
-
-pub(crate) fn write_memory_from(
-    mut ctx: impl AsContextMut<Data = StoreData>,
-    address: u32,
-    data: &[u8],
-) -> Result<(), String> {
-    let memory = ctx.as_context().data().memory();
-    let memory = memory.data_mut(&mut ctx);
-
-    let range = checked_range(address as usize, data.len(), memory.len())
-        .ok_or_else(|| String::from("memory write is out of bounds"))?;
-    memory[range].copy_from_slice(data);
-    Ok(())
 }
 
 pub(crate) struct StoreData {
@@ -65,40 +51,55 @@ pub(crate) struct MemoryWrapper<'a> {
 
 // TODO: return results for mem accesses.
 impl MemoryWrapper<'_> {
+    pub fn allocate_and_write_val(&mut self, data: impl Encode) -> i64 {
+        self.allocate_and_write_val_raw(data.encode())
+    }
+
+    pub fn allocate_and_write_val_raw(&mut self, data: impl AsRef<[u8]>) -> i64 {
+        let data = data.as_ref();
+        let len = data.len();
+
+        let ptr: u32 = allocator(&mut self.caller).allocate(len as u32).unwrap();
+        self.memory
+            .write(&mut self.caller, ptr as usize, data)
+            .unwrap();
+
+        pack_u32_to_i64(ptr, len as u32)
+    }
+
     pub fn decode_by_val<D: Decode>(&self, ptr_len: i64) -> D {
         let mut slice = self.slice_by_val(ptr_len);
         D::decode(&mut slice).unwrap()
     }
 
-    pub fn decode<D: Decode>(&self, ptr: usize, len: usize) -> D {
+    pub fn decode<D: Decode>(&self, ptr: u32, len: usize) -> D {
         let mut slice = self.slice(ptr, len);
         D::decode(&mut slice).unwrap()
     }
 
     pub fn slice_by_val(&self, ptr_len: i64) -> &[u8] {
         let (ptr, len) = unpack_i64_to_u32(ptr_len);
-        self.slice(ptr as usize, len as usize)
+        self.slice(ptr, len as usize)
     }
 
-    pub fn array<const N: usize>(&self, ptr: usize) -> [u8; N] {
+    pub fn array<const N: usize>(&self, ptr: u32) -> [u8; N] {
         let slice = self.slice(ptr, N);
         slice.try_into().expect("infallible")
     }
 
-    pub fn slice(&self, ptr: usize, len: usize) -> &[u8] {
+    pub fn slice(&self, ptr: u32, len: usize) -> &[u8] {
         self.memory
             .data(&self.caller)
-            .get(ptr..)
+            .get(ptr as usize..)
             .and_then(|s| s.get(..len))
             .unwrap()
     }
 
-    pub fn slice_mut(&mut self, ptr: usize, len: usize) -> &mut [u8] {
+    pub fn slice_mut(&mut self, ptr: u32, len: usize) -> Option<&mut [u8]> {
         self.memory
             .data_mut(&mut self.caller)
-            .get_mut(ptr..)
+            .get_mut(ptr as usize..)
             .and_then(|s| s.get_mut(..len))
-            .unwrap()
     }
 }
 

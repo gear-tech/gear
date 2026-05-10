@@ -96,7 +96,7 @@ fn lazy_pages_status(caller: Caller<'_, StoreData>) -> i64 {
 
     let status = lazy_pages_detail::lazy_pages_status();
 
-    let res = super::allocate_and_write(caller, status);
+    let res = context::memory(caller).allocate_and_write_val(status);
 
     log::trace!(target: "host_call", "lazy_pages_status(..) -> {res:?}");
 
@@ -113,7 +113,7 @@ fn pre_process_memory_accesses(
     mut caller: Caller<'_, StoreData>,
     reads: i64,
     writes: i64,
-    gas_bytes: i32,
+    gas_bytes: u32,
 ) -> i32 {
     log::trace!(target: "host_call", "pre_process_memory_accesses(reads={reads:?}, writes={writes:?}, gas_bytes={gas_bytes:?})");
 
@@ -125,13 +125,14 @@ fn pre_process_memory_accesses(
     // read gas_bytes into `mut` variable because `pre_process_memory_accesses` updates
     // it, then write updated slice to memory. Can't use `slice_mut` here without using `.to_vec()`
     // on `writes` and `reads`.
-    let mut gas_counter: u64 = u64::from_le_bytes(memory.array::<8>(gas_bytes as usize));
+    let mut gas_counter: u64 = u64::from_le_bytes(memory.array::<8>(gas_bytes));
 
     let res =
         lazy_pages_detail::pre_process_memory_accesses(reads, writes, &mut gas_counter) as i32;
 
     memory
-        .slice_mut(gas_bytes as usize, 8)
+        .slice_mut(gas_bytes, 8)
+        .unwrap()
         .copy_from_slice(&gas_counter.to_le_bytes());
     log::trace!(target: "host_call", "pre_process_memory_accesses(..) -> {res:?}");
 
@@ -143,7 +144,7 @@ fn write_accessed_pages(caller: Caller<'_, StoreData>) -> i64 {
 
     let pages = lazy_pages_detail::write_accessed_pages();
 
-    let res = super::allocate_and_write(caller, pages);
+    let res = context::memory(caller).allocate_and_write_val(pages);
 
     log::trace!(target: "host_call", "write_accessed_pages(..) -> {res:?}");
 

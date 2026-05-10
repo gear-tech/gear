@@ -28,24 +28,24 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     Ok(())
 }
 
-fn update_state_hash(caller: Caller<'_, StoreData>, program_state_hash_ptr: i32) {
+fn update_state_hash(caller: Caller<'_, StoreData>, program_state_hash_ptr: u32) {
     log::trace!(target: "host_call", "update_state_hash(program_state_hash={program_state_hash_ptr:?})");
 
     let program_state_hash =
-        context::memory(caller).decode(program_state_hash_ptr as usize, size_of::<H256>());
+        context::memory(caller).decode(program_state_hash_ptr, size_of::<H256>());
 
     threads::update_state_hash(program_state_hash);
 }
 
-fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
+fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: u32) -> i64 {
     log::trace!(target: "host_call", "read_by_hash(hash_ptr={hash_ptr:?})");
 
-    let hash = context::memory(&mut caller).decode(hash_ptr as usize, size_of::<H256>());
+    let hash = context::memory(&mut caller).decode(hash_ptr, size_of::<H256>());
 
     let maybe_data = caller.data().db.read(hash);
 
     let res = maybe_data
-        .map(|data| super::allocate_and_write_raw(caller, data))
+        .map(|data| context::memory(caller).allocate_and_write_val_raw(data))
         .unwrap_or(0);
 
     log::trace!(target: "host_call", "read_by_hash(..) -> {res:?}");
@@ -53,15 +53,15 @@ fn read_by_hash(mut caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
     res
 }
 
-fn write(mut caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
+fn write(mut caller: Caller<'_, StoreData>, ptr: u32, len: i32) -> i32 {
     log::trace!(target: "host_call", "write(ptr={ptr:?}, len={len:?})");
 
     let db = caller.data().db.clone_boxed();
     let memory = context::memory(&mut caller);
-    let data = memory.slice(ptr as usize, len as usize);
+    let data = memory.slice(ptr, len as usize);
     let hash = db.write(data);
 
-    let res = super::allocate_and_write(caller, hash);
+    let res = context::memory(caller).allocate_and_write_val(hash);
 
     // This extracts first bytes (ptr).
     let res = res as i32;

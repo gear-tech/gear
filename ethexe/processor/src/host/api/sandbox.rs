@@ -102,7 +102,11 @@ impl sandbox_context::SupervisorContext for ProcessorContext<'_> {
     }
 
     fn write_memory(&mut self, address: Pointer<u8>, data: &[u8]) -> Result<(), String> {
-        context::write_memory_from(&mut self.caller, u32::from(address), data)
+        context::memory(&mut self.caller)
+            .slice_mut(u32::from(address), data.len())
+            .ok_or_else(|| "out of bounds".to_string())?
+            .copy_from_slice(data);
+        Ok(())
     }
 
     fn allocate_memory(&mut self, size: WordSize) -> Result<Pointer<u8>, String> {

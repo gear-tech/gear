@@ -33,12 +33,12 @@ pub mod runtime;
 mod context;
 mod threads;
 
-pub(crate) use context::{StoreData, write_memory_from};
+pub(crate) use context::StoreData;
 
 #[derive(thiserror::Error, Debug)]
 pub enum InstanceError {
-    #[error("failed to write call input: {0}")]
-    CallInputWrite(String),
+    #[error("failed to write call input: out of bounds")]
+    CallInputWriteOutOfBounds,
     #[error("couldn't find 'memory' export")]
     MemoryExportNotFound,
     #[error("'memory' export is not a wasm memory")]
@@ -247,11 +247,14 @@ impl InstanceWrapper {
     }
 
     fn set_call_input(&mut self, bytes: &[u8]) -> Result<(i32, i32)> {
-        let len = bytes.len() as u32; // TODO: check len.
+        let len = bytes.len(); // TODO: check len.
 
-        let ptr = context::allocator(&mut self.store).allocate(len)?;
+        let ptr = context::allocator(&mut self.store).allocate(len as u32)?;
 
-        write_memory_from(&mut self.store, ptr, bytes).map_err(InstanceError::CallInputWrite)?;
+        context::memory(&mut self.store)
+            .slice_mut(ptr, len)
+            .ok_or(InstanceError::CallInputWriteOutOfBounds)?
+            .copy_from_slice(bytes);
 
         Ok((ptr as i32, len as i32))
     }
