@@ -53,20 +53,20 @@ impl<'a, 'b> RuntimeInterfaceContext<'a, 'b> {
     }
 }
 
+fn trace(func: &str, caller: &Caller<'_, StoreData>) {
+    let data_ptr: *const _ = caller.data();
+    let caller_ptr: *const _ = caller;
+    let thread_id = std::thread::current().id();
+
+    log::trace!(
+        "{func}; data_ptr = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
+        data_ptr as usize,
+        caller_ptr as usize,
+        thread_id,
+    );
+}
+
 impl context::SupervisorContext for RuntimeInterfaceContext<'_, '_> {
-    fn trace(&self, func: &str) {
-        let data_ptr: *const _ = self.caller.data();
-        let caller_ptr: *const _ = self.caller;
-        let thread_id = std::thread::current().id();
-
-        log::trace!(
-            "{func}; data_ptr = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
-            data_ptr as usize,
-            caller_ptr as usize,
-            thread_id,
-        );
-    }
-
     fn data_ptr(&self) -> *const () {
         self.caller.data() as *const _ as *const ()
     }
@@ -97,10 +97,6 @@ struct RuntimeInterfaceDispatchContext<'a, 'b> {
 }
 
 impl context::SupervisorContext for RuntimeInterfaceDispatchContext<'_, '_> {
-    fn trace(&self, func: &str) {
-        self.context.trace(func)
-    }
-
     fn data_ptr(&self) -> *const () {
         self.context.data_ptr()
     }
@@ -180,6 +176,8 @@ pub fn get_buff(context: &mut dyn FunctionContext, memory_idx: u32) -> HostPoint
     let mut method_result: HostPointer = u32::MAX.into();
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("get_buff", caller);
+
         method_result = context::get_buff(RuntimeInterfaceContext::new(caller), memory_idx);
     });
 
@@ -194,6 +192,8 @@ pub fn get_global_val(
     let mut method_result = None::<Value>;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("get_global_val", caller);
+
         method_result =
             context::get_global_val(RuntimeInterfaceContext::new(caller), instance_idx, name);
     });
@@ -205,6 +205,8 @@ pub fn get_instance_ptr(context: &mut dyn FunctionContext, instance_id: u32) -> 
     let mut method_result: HostPointer = u32::MAX.into();
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("get_instance_ptr", caller);
+
         method_result =
             context::get_instance_ptr(RuntimeInterfaceContext::new(caller), instance_id);
     });
@@ -214,6 +216,8 @@ pub fn get_instance_ptr(context: &mut dyn FunctionContext, instance_id: u32) -> 
 
 pub fn instance_teardown(context: &mut dyn FunctionContext, instance_idx: u32) {
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("instance_teardown", caller);
+
         context::instance_teardown(RuntimeInterfaceContext::new(caller), instance_idx);
     });
 }
@@ -229,6 +233,8 @@ pub fn instantiate(
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("instantiate", caller);
+
         method_result = context::instantiate(
             RuntimeInterfaceContext::new(caller).dispatcher(dispatch_thunk_id, state_ptr),
             wasm_code,
@@ -252,6 +258,8 @@ pub fn invoke(
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("invoke", caller);
+
         method_result = context::invoke(
             RuntimeInterfaceContext::new(caller),
             RuntimeInterfaceContext::dispatcher,
@@ -277,6 +285,8 @@ pub fn memory_get(
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("memory_get", caller);
+
         method_result = context::memory_get(
             RuntimeInterfaceContext::new(caller),
             memory_idx,
@@ -293,6 +303,8 @@ pub fn memory_grow(context: &mut dyn FunctionContext, memory_idx: u32, size: u32
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("memory_grow", caller);
+
         method_result =
             context::memory_grow(RuntimeInterfaceContext::new(caller), memory_idx, size);
     });
@@ -304,6 +316,8 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("memory_new", caller);
+
         method_result = context::memory_new(RuntimeInterfaceContext::new(caller), initial, maximum);
     });
 
@@ -320,6 +334,8 @@ pub fn memory_set(
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("memory_set", caller);
+
         method_result = context::memory_set(
             RuntimeInterfaceContext::new(caller),
             memory_idx,
@@ -336,6 +352,8 @@ pub fn memory_size(context: &mut dyn FunctionContext, memory_idx: u32) -> u32 {
     let mut method_result = 0;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("memory_size", caller);
+
         method_result = context::memory_size(RuntimeInterfaceContext::new(caller), memory_idx);
     });
 
@@ -344,6 +362,8 @@ pub fn memory_size(context: &mut dyn FunctionContext, memory_idx: u32) -> u32 {
 
 pub fn memory_teardown(context: &mut dyn FunctionContext, memory_idx: u32) {
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("memory_teardown", caller);
+
         context::memory_teardown(RuntimeInterfaceContext::new(caller), memory_idx);
     });
 }
@@ -357,6 +377,8 @@ pub fn set_global_val(
     let mut method_result = u32::MAX;
 
     sp_wasm_interface::with_caller_mut(context, |caller| {
+        trace("set_global_val", caller);
+
         method_result = context::set_global_val(
             RuntimeInterfaceContext::new(caller),
             instance_idx,

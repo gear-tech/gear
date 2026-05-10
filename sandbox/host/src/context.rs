@@ -102,7 +102,6 @@ thread_local! {
 }
 
 pub trait SupervisorContext {
-    fn trace(&self, func: &str);
     fn data_ptr(&self) -> *const ();
 
     fn read_memory_into(&self, address: Pointer<u8>, dest: &mut [u8]) -> Result<(), String>;
@@ -151,8 +150,6 @@ fn read_memory(
 pub fn get_buff(supervisor_context: impl SupervisorContext, memory_idx: u32) -> HostPointer {
     use crate::util::MemoryTransfer;
 
-    supervisor_context.trace("get_buff");
-
     with_thread_state(|state| {
         state
             .sandboxes
@@ -168,8 +165,6 @@ pub fn get_global_val(
     instance_idx: u32,
     name: &str,
 ) -> Option<Value> {
-    supervisor_context.trace("get_global_val");
-
     with_thread_state(|state| {
         state
             .sandboxes
@@ -185,8 +180,6 @@ pub fn get_instance_ptr(
     supervisor_context: impl SupervisorContext,
     instance_idx: u32,
 ) -> HostPointer {
-    supervisor_context.trace("get_instance_ptr");
-
     let instance = with_thread_state(|state| {
         state
             .sandboxes
@@ -199,8 +192,6 @@ pub fn get_instance_ptr(
 }
 
 pub fn instance_teardown(supervisor_context: impl SupervisorContext, instance_idx: u32) {
-    supervisor_context.trace("instance_teardown");
-
     with_thread_state(|state| {
         state
             .sandboxes
@@ -216,8 +207,6 @@ pub fn instantiate(
     raw_env_def: &[u8],
     version: Instantiate,
 ) -> u32 {
-    supervisor_context.trace("instantiate");
-
     let store_data_key = supervisor_context.data_ptr();
 
     let guest_env = with_thread_state(|state| {
@@ -271,7 +260,6 @@ where
     D: SupervisorContextDispatcher,
     F: FnOnce(C, u32, Pointer<u8>) -> D,
 {
-    supervisor_context.trace("invoke");
     log::trace!("invoke, instance_idx={instance_idx}");
 
     let args = Vec::<Value>::decode(&mut args)
@@ -325,8 +313,6 @@ pub fn memory_get(
 ) -> u32 {
     use crate::util::MemoryTransfer;
 
-    supervisor_context.trace("memory_get");
-
     let sandboxed_memory = with_thread_state(|state| {
         state
             .sandboxes
@@ -349,8 +335,6 @@ pub fn memory_get(
 pub fn memory_grow(supervisor_context: impl SupervisorContext, memory_idx: u32, size: u32) -> u32 {
     use crate::util::MemoryTransfer;
 
-    supervisor_context.trace("memory_grow");
-
     with_thread_state(|state| {
         state
             .sandboxes
@@ -363,8 +347,6 @@ pub fn memory_grow(supervisor_context: impl SupervisorContext, memory_idx: u32, 
 }
 
 pub fn memory_new(supervisor_context: impl SupervisorContext, initial: u32, maximum: u32) -> u32 {
-    supervisor_context.trace("memory_new");
-
     with_thread_state(|state| {
         state.sandboxes.clear(&mut state.clear_counter);
         state
@@ -384,8 +366,6 @@ pub fn memory_set(
     val_len: u32,
 ) -> u32 {
     use crate::util::MemoryTransfer;
-
-    supervisor_context.trace("memory_set");
 
     let Ok(buffer) = read_memory(&supervisor_context, val_ptr, val_len) else {
         return sandbox_env::env::ERR_OUT_OF_BOUNDS;
@@ -408,8 +388,6 @@ pub fn memory_set(
 pub fn memory_size(supervisor_context: impl SupervisorContext, memory_idx: u32) -> u32 {
     use crate::util::MemoryTransfer;
 
-    supervisor_context.trace("memory_size");
-
     with_thread_state(|state| {
         state
             .sandboxes
@@ -421,8 +399,6 @@ pub fn memory_size(supervisor_context: impl SupervisorContext, memory_idx: u32) 
 }
 
 pub fn memory_teardown(supervisor_context: impl SupervisorContext, memory_idx: u32) {
-    supervisor_context.trace("memory_teardown");
-
     with_thread_state(|state| {
         state
             .sandboxes
@@ -438,7 +414,6 @@ pub fn set_global_val(
     name: &str,
     value: Value,
 ) -> u32 {
-    supervisor_context.trace("set_global_val");
     log::trace!("set_global_val, instance_idx={instance_idx}");
 
     let result = with_thread_state(|state| {

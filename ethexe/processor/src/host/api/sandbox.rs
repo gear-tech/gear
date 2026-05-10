@@ -89,19 +89,6 @@ impl<'a> ProcessorContext<'a> {
 }
 
 impl sandbox_context::SupervisorContext for ProcessorContext<'_> {
-    fn trace(&self, func: &str) {
-        let data_ptr: *const _ = self.caller.data();
-        let caller_ptr: *const _ = &self.caller;
-        let thread_id = std::thread::current().id();
-
-        log::trace!(
-            "{func}; data_ptr = {:#x?}, caller_ptr = {:#x?}, thread_id = {:?}",
-            data_ptr as usize,
-            caller_ptr as usize,
-            thread_id,
-        );
-    }
-
     fn data_ptr(&self) -> *const () {
         self.caller.data() as *const _ as *const ()
     }
@@ -139,10 +126,6 @@ struct ProcessorContextDispatcher<'a> {
 }
 
 impl gear_sandbox_host::context::SupervisorContext for ProcessorContextDispatcher<'_> {
-    fn trace(&self, func: &str) {
-        self.context.trace(func)
-    }
-
     fn data_ptr(&self) -> *const () {
         self.context.data_ptr()
     }
