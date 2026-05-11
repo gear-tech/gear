@@ -934,7 +934,14 @@ impl Service {
                             mb_hash = %block_hash,
                             "🧱 Malachite: BlockProposal",
                         );
-                        compute.compute_mb(block_hash);
+                        // Validators are interested in this MB's
+                        // promises so they can gossip them; the
+                        // service's `PromiseEmissionMode` can still
+                        // force the policy to `Enabled` regardless.
+                        compute.compute_mb(
+                            block_hash,
+                            ethexe_common::PromisePolicy::Enabled,
+                        );
                     }
                     MalachiteEvent::BlockFinalized {
                         cert,

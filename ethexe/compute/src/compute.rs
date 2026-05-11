@@ -26,6 +26,7 @@
 
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
+    PromisePolicy,
     db::{CodesStorageRW, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
     events::BlockRequestEvent,
     injected::Promise,
@@ -43,11 +44,16 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-// +_+_+ use promise streaming mode here PromisePolicy
 /// MB-execution request; payload is read from the DB by hash.
+///
+/// `promise_policy` decides whether the runtime should emit promises
+/// while executing the target MB. Predecessor MBs walked back through
+/// `parent` always run with [`PromisePolicy::Disabled`] regardless —
+/// other validators have already gossiped those promises.
 #[derive(Debug)]
 pub(crate) struct MbComputeRequest {
     pub mb_hash: H256,
+    pub promise_policy: PromisePolicy,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -101,8 +107,11 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         }
     }
 
-    pub fn receive_mb(&mut self, mb_hash: H256) {
-        self.input.push_back(MbComputeRequest { mb_hash });
+    pub fn receive_mb(&mut self, mb_hash: H256, promise_policy: PromisePolicy) {
+        self.input.push_back(MbComputeRequest {
+            mb_hash,
+            promise_policy,
+        });
     }
 
     async fn compute(
@@ -154,14 +163,17 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         let target_txs = db
             .transactions(target_compact.transactions_hash)
             .ok_or(ComputeError::MbBlockNotFound(target_hash))?;
-        let target_sink = BoundPromiseSink::new(promise_tx, target_hash);
+        let target_sink = match req.promise_policy {
+            PromisePolicy::Enabled => Some(BoundPromiseSink::new(promise_tx, target_hash)),
+            PromisePolicy::Disabled => None,
+        };
         Self::compute_one(
             &db,
             &mut processor,
             target_height,
             target_hash,
             target_txs,
-            Some(target_sink),
+            target_sink,
         )
         .await?;
 
@@ -496,7 +508,7 @@ mod tests {
 
         // Tail-only queue forces walking back through 4 ancestors.
         let (tail_height, tail_hash) = *hashes.last().unwrap();
-        sub.receive_mb(tail_hash);
+        sub.receive_mb(tail_hash, ::ethexe_common::PromisePolicy::Enabled);
 
         let event = sub.next().await.unwrap();
         match event {
@@ -530,7 +542,7 @@ mod tests {
             meta.computed = true; // pretend a previous run finished it
         });
 
-        sub.receive_mb(mb_hash);
+        sub.receive_mb(mb_hash, ::ethexe_common::PromisePolicy::Enabled);
 
         let event = sub.next().await.unwrap();
         match event {

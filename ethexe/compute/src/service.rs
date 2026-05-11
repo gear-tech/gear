@@ -22,7 +22,7 @@ use crate::{
     ComputeEvent, ProcessorExt, Result, codes::CodesSubService, compute::ComputeSubService,
     prepare::PrepareSubService,
 };
-use ethexe_common::CodeAndIdUnchecked;
+use ethexe_common::{CodeAndIdUnchecked, PromiseEmissionMode, PromisePolicy};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
@@ -36,15 +36,28 @@ pub struct ComputeService<P: ProcessorExt = Processor> {
     codes_sub_service: CodesSubService<P>,
     prepare_sub_service: PrepareSubService,
     mb_compute_sub_service: ComputeSubService<P>,
+    promise_emission_mode: PromiseEmissionMode,
 }
 
 impl<P: ProcessorExt> ComputeService<P> {
-    /// Creates new compute service.
+    /// Creates new compute service. Promises follow the consensus
+    /// layer's per-MB decision; use [`Self::with_promise_mode`] to
+    /// override.
     pub fn new(db: Database, processor: P) -> Self {
+        Self::with_promise_mode(db, processor, PromiseEmissionMode::default())
+    }
+
+    /// Creates a compute service with an explicit promise emission mode.
+    pub fn with_promise_mode(
+        db: Database,
+        processor: P,
+        promise_emission_mode: PromiseEmissionMode,
+    ) -> Self {
         Self {
             prepare_sub_service: PrepareSubService::new(db.clone()),
             mb_compute_sub_service: ComputeSubService::new(db.clone(), processor.clone()),
             codes_sub_service: CodesSubService::new(db, processor),
+            promise_emission_mode,
         }
     }
 }
@@ -75,8 +88,16 @@ impl<P: ProcessorExt> ComputeService<P> {
     }
 
     /// Queue a finalized Malachite sequencer block for execution.
-    pub fn compute_mb(&mut self, mb_hash: H256) {
-        self.mb_compute_sub_service.receive_mb(mb_hash);
+    /// `policy` decides whether the runtime emits promises during the
+    /// target MB's execution; predecessors always run with promises
+    /// disabled. In `PromiseEmissionMode::AlwaysEmit`, the requested
+    /// `policy` is overridden to `PromisePolicy::Enabled`.
+    pub fn compute_mb(&mut self, mb_hash: H256, policy: PromisePolicy) {
+        let policy = match self.promise_emission_mode {
+            PromiseEmissionMode::AlwaysEmit => PromisePolicy::Enabled,
+            PromiseEmissionMode::ConsensusDriven => policy,
+        };
+        self.mb_compute_sub_service.receive_mb(mb_hash, policy);
     }
 }
 
