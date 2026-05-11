@@ -114,7 +114,7 @@ use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 use std::collections::HashSet;
 
-pub use compute::ComputeSubService;
+pub use compute::{ComputeSubService, prepare_executable_for_mb};
 pub use service::ComputeService;
 
 mod codes;

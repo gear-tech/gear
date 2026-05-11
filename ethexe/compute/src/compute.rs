@@ -195,19 +195,8 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             .mb_compact_block(mb_hash)
             .and_then(|c| (!c.parent.is_zero()).then_some(c.parent));
 
-        let program_states = parent_mb_hash
-            .and_then(|h| db.mb_program_states(h))
-            .unwrap_or_default();
-        let schedule = parent_mb_hash
-            .and_then(|h| db.mb_schedule(h))
-            .unwrap_or_default();
-        let initial_advanced_block = parent_mb_hash
-            .map(|h| db.mb_meta(h).last_advanced_eb)
-            .unwrap_or_default();
-
         let _ = mb_height;
-        let prepared =
-            build_executable_data(db, block, program_states, schedule, initial_advanced_block)?;
+        let prepared = prepare_executable_with_parent_state(db, block, parent_mb_hash)?;
 
         log::debug!(
             "mb-compute: executing MB height {mb_height} hash {mb_hash} \
@@ -242,6 +231,46 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 
         Ok(())
     }
+}
+
+/// Reconstruct the same [`ExecutableData`] the live `compute_mb` pipeline
+/// would feed to the processor for `mb_hash`. Resolves the parent MB's
+/// cached program states / schedule / `last_advanced_eb`, reads the MB's
+/// `Transactions` blob from CAS, and walks the transactions list to build
+/// the processor input. Genesis MBs use empty parent state.
+///
+/// Intended for offline tools that want to re-run an already-computed MB
+/// (e.g. `ethexe check --computation`); the live pipeline calls into the
+/// same internals directly.
+pub fn prepare_executable_for_mb(db: &Database, mb_hash: H256) -> Result<ExecutableData> {
+    let compact = db
+        .mb_compact_block(mb_hash)
+        .ok_or(ComputeError::MbBlockNotFound(mb_hash))?;
+    let block = db
+        .transactions(compact.transactions_hash)
+        .ok_or(ComputeError::MbBlockNotFound(mb_hash))?;
+    let parent_mb_hash = (!compact.parent.is_zero()).then_some(compact.parent);
+    prepare_executable_with_parent_state(db, block, parent_mb_hash)
+}
+
+/// Builds executable data for a single MB given its parent (or `None` for
+/// genesis). Pulls parent's program states / schedule / `last_advanced_eb`
+/// from the DB before delegating to [`build_executable_data`].
+fn prepare_executable_with_parent_state(
+    db: &Database,
+    block: Transactions,
+    parent_mb_hash: Option<H256>,
+) -> Result<ExecutableData> {
+    let program_states = parent_mb_hash
+        .and_then(|h| db.mb_program_states(h))
+        .unwrap_or_default();
+    let schedule = parent_mb_hash
+        .and_then(|h| db.mb_schedule(h))
+        .unwrap_or_default();
+    let initial_advanced_block = parent_mb_hash
+        .map(|h| db.mb_meta(h).last_advanced_eb)
+        .unwrap_or_default();
+    build_executable_data(db, block, program_states, schedule, initial_advanced_block)
 }
 
 /// Walk the MB's `Transactions` list and prepare processor input.

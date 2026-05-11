@@ -19,18 +19,21 @@
 //! Implementation of the `ethexe check` command.
 
 use crate::params::{MergeParams, Params};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use clap::Parser;
 use ethexe_common::{
     SimpleBlockData,
     db::{DBGlobals, GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
 };
+use ethexe_compute::prepare_executable_for_mb;
 use ethexe_db::{
     Database, InitConfig, RawDatabase, RocksDatabase,
     iterator::{BlockNode, DatabaseIterator},
     verifier::IntegrityVerifier,
     visitor::{self},
 };
+use ethexe_processor::{Processor, ProcessorConfig};
+use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::H256;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{collections::HashSet, path::PathBuf};
@@ -49,10 +52,15 @@ pub struct CheckCommand {
     #[arg(long)]
     pub db: Option<PathBuf>,
 
-    /// Re-execute every persisted MB and assert the cached outcome /
-    /// states / schedule match. Currently disabled — not yet wired in.
+    /// Re-execute every persisted MB through the processor and assert the
+    /// cached outcome / states / schedule match the fresh computation.
     #[arg(long, alias = "compute")]
     pub computation_check: bool,
+
+    /// Chunk size passed to the re-execution [`Processor`]. Controls how
+    /// many programs the runtime works on per batch.
+    #[arg(long, default_value = "2")]
+    pub chunk_size: usize,
 
     /// Perform integrity check of the database, by default from start block to latest prepared block.
     #[arg(long, alias = "integrity")]
@@ -128,6 +136,7 @@ impl CheckCommand {
             db,
             globals,
             progress_bar: !self.verbose,
+            chunk_size: self.chunk_size,
         };
 
         if self.integrity_check {
@@ -154,6 +163,7 @@ struct Checker {
     db: Database,
     globals: DBGlobals,
     progress_bar: bool,
+    chunk_size: usize,
 }
 
 impl Checker {
@@ -232,15 +242,14 @@ impl Checker {
         Ok(())
     }
 
-    /// Walks the MB chain back from `globals.latest_finalized_mb_hash`
-    /// and asserts that every reachable MB has its cached
-    /// `mb_program_states` / `mb_outcome` / `mb_schedule` records
-    /// alongside `MbMeta { computed: true }`.
+    /// Walks the MB chain back from `globals.latest_finalized_mb_hash`,
+    /// re-executes each MB through a fresh [`Processor`] (using the
+    /// same `ExecutableData` the live `compute_mb` pipeline assembles),
+    /// and asserts the fresh outputs match the cached
+    /// `mb_program_states` / `mb_outcome` / `mb_schedule` records.
     ///
-    /// Re-execution through the processor (asserting the cached records
-    /// match a fresh run) is intentionally out of scope here — it
-    /// requires loading every code blob and reconstructing the runtime,
-    /// which the CLI command doesn't carry the context for.
+    /// Each MB runs against an overlaid DB so writes from the
+    /// re-execution don't pollute the on-disk state.
     async fn computation_check(&self) -> Result<()> {
         let head = self.globals.latest_finalized_mb_hash;
         if head.is_zero() {
@@ -270,55 +279,76 @@ impl Checker {
             None
         };
 
-        let mut errors: Vec<String> = Vec::new();
+        let processor = Processor::with_config(
+            ProcessorConfig {
+                chunk_size: self.chunk_size,
+            },
+            db.clone(),
+        )
+        .context("failed to create processor")?;
+
         let mut current = head;
         loop {
-            let Some(compact) = db.mb_compact_block(current) else {
-                errors.push(format!("CompactMB missing for MB {current}"));
-                break;
-            };
-
+            let compact = db
+                .mb_compact_block(current)
+                .ok_or_else(|| anyhow!("CompactMB missing for MB {current}"))?;
             let meta = db.mb_meta(current);
-            if !meta.computed {
-                errors.push(format!(
-                    "MB {current} (height {}) has not been computed",
-                    compact.height
-                ));
-            } else {
-                if db.mb_program_states(current).is_none() {
-                    errors.push(format!(
-                        "MB {current} (height {}) marked computed but program states missing",
-                        compact.height
-                    ));
-                }
-                if db.mb_outcome(current).is_none() {
-                    errors.push(format!(
-                        "MB {current} (height {}) marked computed but outcome missing",
-                        compact.height
-                    ));
-                }
-                if db.mb_schedule(current).is_none() {
-                    errors.push(format!(
-                        "MB {current} (height {}) marked computed but schedule missing",
-                        compact.height
-                    ));
-                }
-            }
+            ensure!(
+                meta.computed,
+                "MB {current} (height {}) has not been computed",
+                compact.height
+            );
+
+            let expected_states = db
+                .mb_program_states(current)
+                .ok_or_else(|| anyhow!("program states missing for MB {current}"))?;
+            let expected_outcome = db
+                .mb_outcome(current)
+                .ok_or_else(|| anyhow!("outcome missing for MB {current}"))?;
+            let expected_schedule = db
+                .mb_schedule(current)
+                .ok_or_else(|| anyhow!("schedule missing for MB {current}"))?;
+
+            let executable = prepare_executable_for_mb(db, current)
+                .with_context(|| format!("failed to prepare executable data for MB {current}"))?;
+
+            // Overlaid DB so re-execution doesn't mutate persisted state.
+            let mut overlay = processor.clone().overlaid();
+            let FinalizedBlockTransitions {
+                transitions,
+                states,
+                schedule,
+                program_creations: _,
+            } = overlay
+                .as_mut()
+                .process_programs(executable, None)
+                .await
+                .with_context(|| format!("failed to re-compute MB {current}"))?;
+
+            ensure!(
+                states == expected_states,
+                "MB {current} (height {}) program states mismatch",
+                compact.height
+            );
+            ensure!(
+                transitions == expected_outcome,
+                "MB {current} (height {}) outcome mismatch",
+                compact.height
+            );
+            ensure!(
+                schedule == expected_schedule,
+                "MB {current} (height {}) schedule mismatch",
+                compact.height
+            );
 
             if let Some(pb) = pb.as_ref() {
                 pb.inc(1);
             };
 
-            // Stop at genesis: parent == zero means we walked past the
-            // first finalized MB.
             if compact.parent == H256::zero() {
                 break;
             }
             current = compact.parent;
-        }
-
-        if !errors.is_empty() {
-            return Err(anyhow!("Computation check errors found: {errors:?}"));
         }
 
         Ok(())
