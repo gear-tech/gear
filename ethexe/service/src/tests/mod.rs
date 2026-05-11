@@ -54,7 +54,102 @@ use parity_scale_codec::{Decode, Encode};
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
 
-// +_+_+ make tests reordering as they are on master
+#[tokio::test]
+#[ntest::timeout(30_000)]
+async fn invalid_code() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let wasm_binary = [1; 10]; // Invalid WASM binary
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(!res.valid);
+
+    // Graceful shutdown so the malachite engine releases its
+    // RocksDB lock + libp2p listener — without this nextest's leak
+    // detector flags the test as leaky on fast paths.
+    stop_nodes([node]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn write_memory_to_last_byte() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let wat = r#"
+(module
+    (import "env" "memory" (memory 32768))
+    (export "init" (func $init))
+    (func $init
+        (i32.store8
+            (i32.const 2147483647)
+            (i32.const 0xff)
+        )
+    )
+)"#;
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse module");
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, wasm_binary);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, &[])
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(res.payload.is_empty());
+    assert_eq!(res.value, 0);
+
+    stop_nodes([node]).await;
+}
 
 #[tokio::test]
 #[ntest::timeout(60_000)]
@@ -192,1370 +287,6 @@ async fn multiple_validators_ping() {
     assert_eq!(res.payload, b"PONG");
 
     stop_nodes(validators).await;
-}
-
-/// Multi-validator end-to-end smoke. Boots four validators, runs
-/// upload+create+message round-trips against `demo-ping` and
-/// `demo-async`, then exercises liveness while validators are
-/// stopped/restarted to check the BFT quorum bookkeeping.
-///
-/// Tendermint quorum is strictly > 2/3 of voting power, so with
-/// N=3 even one failure halts BFT. We use N=4 (quorum = 3) so the
-/// "stop one validator and keep going" half of the test remains
-/// meaningful, while "stop two" still falls below quorum.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ntest::timeout(120_000)]
-async fn multiple_validators() {
-    init_logger();
-
-    let config = TestEnvConfig {
-        validators: ValidatorsConfig::PreDefined(4),
-        network: EnvNetworkConfig::Enabled,
-        ..Default::default()
-    };
-    let mut env = TestEnv::new(config).await.unwrap();
-
-    assert_eq!(
-        env.validators.len(),
-        4,
-        "Currently only 4 validators are supported for this test"
-    );
-    assert!(
-        !env.continuous_block_generation,
-        "Currently continuous block generation is not supported for this test"
-    );
-
-    let mut validators = vec![];
-    for (i, v) in env.validators.clone().into_iter().enumerate() {
-        test_info!("📗 Starting validator-{i}");
-        let mut validator = env
-            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
-            .await;
-        validator.start_service().await;
-        validators.push(validator);
-    }
-
-    let res = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(res.valid);
-
-    let ping_code_id = res.code_id;
-
-    let res = env
-        .create_program(ping_code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    let init_res = env
-        .send_message(res.program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code_id, ping_code_id);
-    assert_eq!(init_res.payload, b"");
-    assert_eq!(init_res.value, 0);
-    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-
-    let ping_id = res.program_id;
-
-    let res = env
-        .upload_code(demo_async::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(res.valid);
-
-    let async_code_id = res.code_id;
-
-    let res = env
-        .create_program(async_code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    let init_res = env
-        .send_message(res.program_id, ping_id.encode().as_slice())
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code_id, async_code_id);
-    assert_eq!(init_res.payload, b"");
-    assert_eq!(init_res.value, 0);
-    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-
-    let async_id = res.program_id;
-
-    let res = env
-        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.program_id, async_id);
-    assert_eq!(res.payload, res.message_id.encode().as_slice());
-    assert_eq!(res.value, 0);
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-
-    test_info!("📗 Stop validator 0 and check that ethexe is still working with 2/3 quorum");
-    validators[0].stop_service().await;
-
-    let res = env
-        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.payload, res.message_id.encode().as_slice());
-
-    test_info!("📗 Stop validator 1 and check that ethexe is not working below threshold");
-    validators[1].stop_service().await;
-
-    let wait_for_reply_to = env
-        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
-        .await
-        .unwrap();
-
-    tokio::time::timeout(
-        env.eth_cfg.block_time * 5,
-        wait_for_reply_to.clone().wait_for(),
-    )
-    .await
-    .expect_err("Timeout expected — only 1/3 validators alive");
-
-    test_info!("📗 Re-start validator 0; with 2/3 alive ethexe should make progress again");
-    validators[0].start_service().await;
-
-    let res = wait_for_reply_to.wait_for().await.unwrap();
-    assert_eq!(res.payload, res.message_id.encode().as_slice());
-}
-
-#[tokio::test]
-#[ntest::timeout(120_000)]
-async fn whole_network_restore() {
-    init_logger();
-
-    let config = TestEnvConfig {
-        validators: ValidatorsConfig::PreDefined(4),
-        network: EnvNetworkConfig::Enabled,
-        continuous_block_generation: true,
-        ..Default::default()
-    };
-    let mut env = TestEnv::new(config).await.unwrap();
-
-    let mut validators = vec![];
-    for (i, v) in env.validators.clone().into_iter().enumerate() {
-        test_info!("📗 Starting validator-{i}");
-        let mut validator = env
-            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
-            .await;
-        validator.start_service().await;
-        validators.push(validator);
-    }
-
-    // make sure we receive unique messages and not repeated ones
-    let mut seen_messages = HashSet::new();
-
-    let res = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(res.valid);
-    let ping_code_id = res.code_id;
-
-    let res = env
-        .create_program(ping_code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    let ping_id = res.program_id;
-
-    let init_res = env
-        .send_message(res.program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code_id, ping_code_id);
-    assert_eq!(init_res.payload, b"");
-    assert_eq!(init_res.value, 0);
-    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert!(seen_messages.insert(init_res.message_id));
-
-    for (i, v) in validators.iter_mut().enumerate() {
-        test_info!("📗 Stopping validator-{i}");
-        v.stop_service().await;
-    }
-
-    let ping_wait_for = env.send_message(ping_id, b"PING").await.unwrap();
-
-    let async_code_upload = env.upload_code(demo_async::WASM_BINARY).await.unwrap();
-
-    test_info!("📗 Skipping 20 blocks");
-    env.skip_blocks(20).await;
-
-    for (i, v) in validators.iter_mut().enumerate() {
-        test_info!("📗 Starting validator-{i} again");
-        v.start_service().await;
-    }
-
-    let res = ping_wait_for.wait_for().await.unwrap();
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-    assert_eq!(res.payload, b"PONG");
-    assert_eq!(res.value, 0);
-    assert!(seen_messages.insert(res.message_id));
-
-    let res = async_code_upload.wait_for().await.unwrap();
-    assert!(res.valid);
-    let async_code_id = res.code_id;
-    let res = env
-        .create_program(async_code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let init_res = env
-        .send_message(res.program_id, ping_id.encode().as_slice())
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code_id, async_code_id);
-    assert_eq!(init_res.payload, b"");
-    assert_eq!(init_res.value, 0);
-    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert!(seen_messages.insert(init_res.message_id));
-}
-
-#[tokio::test]
-#[ntest::timeout(30_000)]
-async fn invalid_code() {
-    init_logger();
-
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    let wasm_binary = [1; 10]; // Invalid WASM binary
-    let res = env
-        .upload_code(&wasm_binary)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(!res.valid);
-
-    // Graceful shutdown so the malachite engine releases its
-    // RocksDB lock + libp2p listener — without this nextest's leak
-    // detector flags the test as leaky on fast paths.
-    stop_nodes([node]).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(60_000)]
-async fn write_memory_to_last_byte() {
-    init_logger();
-
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    let wat = r#"
-(module
-    (import "env" "memory" (memory 32768))
-    (export "init" (func $init))
-    (func $init
-        (i32.store8
-            (i32.const 2147483647)
-            (i32.const 0xff)
-        )
-    )
-)"#;
-    let wasm_binary = wat::parse_str(wat).expect("failed to parse module");
-    let res = env
-        .upload_code(&wasm_binary)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(res.valid);
-
-    let code_id = res.code_id;
-
-    let code = node
-        .db
-        .original_code(code_id)
-        .expect("After approval, the code is guaranteed to be in the database");
-    assert_eq!(code, wasm_binary);
-
-    let _ = node
-        .db
-        .instrumented_code(1, code_id)
-        .expect("After approval, instrumented code is guaranteed to be in the database");
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code_id, code_id);
-
-    let res = env
-        .send_message(res.program_id, &[])
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert!(res.payload.is_empty());
-    assert_eq!(res.value, 0);
-
-    stop_nodes([node]).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(60_000)]
-async fn value_send_program_to_program() {
-    // 1_000 ETH
-    const VALUE_SENT: u128 = 1_000 * ETHER;
-
-    init_logger();
-
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    let res = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let code_id = res.code_id;
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    // Send init message to value receiver program (demo_ping)
-    let _ = env
-        .send_message(res.program_id, &[])
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let value_receiver_id = res.program_id;
-    let value_receiver = env
-        .ethereum
-        .mirror(value_receiver_id.to_address_lossy().into());
-
-    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
-    assert_eq!(value_receiver_on_eth_balance, 0);
-
-    let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
-    let value_receiver_local_balance = node
-        .db
-        .program_state(value_receiver_state_hash)
-        .unwrap()
-        .balance;
-    assert_eq!(value_receiver_local_balance, 0);
-
-    let res = env
-        .upload_code(demo_value_sender_ethexe::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let code_id = res.code_id;
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    // Send init message to value sender program with value to be sent to value receiver
-    let res = env
-        .send_message_with_params(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert_eq!(res.value, 0);
-
-    let value_sender_id = res.program_id;
-    let value_sender = env
-        .ethereum
-        .mirror(value_sender_id.to_address_lossy().into());
-
-    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
-    assert_eq!(value_sender_on_eth_balance, VALUE_SENT);
-
-    let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
-    let value_sender_local_balance = node
-        .db
-        .program_state(value_sender_state_hash)
-        .unwrap()
-        .balance;
-    assert_eq!(value_sender_local_balance, VALUE_SENT);
-
-    let res = env
-        .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode())
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert_eq!(res.value, 0);
-
-    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
-    assert_eq!(value_sender_on_eth_balance, 0);
-
-    let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
-    let value_sender_local_balance = node
-        .db
-        .program_state(value_sender_state_hash)
-        .unwrap()
-        .balance;
-    assert_eq!(value_sender_local_balance, 0);
-
-    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
-    assert_eq!(value_receiver_on_eth_balance, VALUE_SENT);
-
-    let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
-    let value_receiver_local_balance = node
-        .db
-        .program_state(value_receiver_state_hash)
-        .unwrap()
-        .balance;
-    assert_eq!(value_receiver_local_balance, VALUE_SENT);
-
-    // get router balance
-    let router_address = env.ethereum.router().address();
-    let router_balance = env
-        .ethereum
-        .provider()
-        .get_balance(router_address.into())
-        .await
-        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-        .unwrap();
-
-    assert_eq!(router_balance, 0);
-
-    stop_nodes([node]).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(60_000)]
-async fn ping_deep_sync() {
-    init_logger();
-
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    let res = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(res.valid);
-
-    let code_id = res.code_id;
-
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    let init_res = env
-        .send_message(res.program_id, b"PING")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code_id, code_id);
-    assert_eq!(init_res.payload, b"PONG");
-    assert_eq!(init_res.value, 0);
-    assert_eq!(
-        init_res.code,
-        ReplyCode::Success(SuccessReplyReason::Manual)
-    );
-
-    let ping_id = res.program_id;
-
-    node.stop_service().await;
-
-    env.skip_blocks(150).await;
-
-    let send_message = env.send_message(ping_id, b"PING").await.unwrap();
-
-    env.skip_blocks(150).await;
-
-    node.start_service().await;
-
-    // Important: mine one block to sent block event to the started service.
-    env.force_new_block().await;
-
-    let res = send_message.wait_for().await.unwrap();
-    assert_eq!(res.program_id, ping_id);
-    assert_eq!(res.payload, b"PONG");
-    assert_eq!(res.value, 0);
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-
-    stop_nodes([node]).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(120_000)]
-async fn many_validators_repeated_ping() {
-    init_logger();
-
-    const VALIDATORS_COUNT: usize = 8;
-    const PING_ROUNDS: usize = 4;
-
-    test_info!(
-        "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
-    );
-
-    let signer = Signer::memory();
-    let validators: Vec<_> = (0..VALIDATORS_COUNT)
-        .map(|_| signer.generate().expect("must generate validator key"))
-        .collect();
-
-    let config = TestEnvConfig {
-        validators: ValidatorsConfig::ProvidedValidators(validators),
-        network: EnvNetworkConfig::Enabled,
-        signer: signer.clone(),
-        ..Default::default()
-    };
-    let mut env = TestEnv::new(config).await.unwrap();
-
-    test_info!("📗 Top-up balances for all validator accounts");
-    let validator_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-    for validator in &env.validators {
-        env.provider
-            .anvil_set_balance(validator.public_key.to_address().into(), validator_balance)
-            .await
-            .unwrap();
-    }
-
-    let mut running_validators = Vec::with_capacity(VALIDATORS_COUNT);
-    for (i, validator_cfg) in env.validators.clone().into_iter().enumerate() {
-        test_info!("📗 Starting validator-{i}");
-        let mut node = env
-            .new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg))
-            .await;
-        node.start_service().await;
-        running_validators.push(node);
-    }
-
-    test_info!("📗 Upload demo_ping code");
-    let uploaded_code = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(uploaded_code.valid);
-
-    test_info!("📗 Create demo_ping program");
-    let program = env
-        .create_program(uploaded_code.code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let ping_id = program.program_id;
-    for i in 0..PING_ROUNDS {
-        test_info!("📗 PING round {}/{}", i + 1, PING_ROUNDS);
-        let reply = env
-            .send_message(ping_id, b"PING")
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        assert_eq!(
-            reply.program_id, ping_id,
-            "unexpected program for round {i}"
-        );
-        assert_eq!(
-            reply.code,
-            ReplyCode::Success(SuccessReplyReason::Manual),
-            "unexpected reply code for round {i}"
-        );
-        assert_eq!(reply.payload, b"PONG", "unexpected payload for round {i}");
-        assert_eq!(reply.value, 0, "unexpected value for round {i}");
-    }
-
-    test_info!("📗 Completed all ping rounds successfully");
-
-    assert_eq!(running_validators.len(), VALIDATORS_COUNT);
-
-    stop_nodes(running_validators).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(60_000)]
-async fn incoming_transfers() {
-    init_logger();
-
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    let res = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let code_id = res.code_id;
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let _ = env
-        .send_message(res.program_id, &env.sender_id.encode())
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let ping_id = res.program_id;
-
-    let wvara = env.ethereum.router().wvara();
-
-    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
-
-    let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
-
-    let on_eth_balance = ping.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, 0);
-
-    let state_hash = ping.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, 0);
-
-    // 1_000 ETH
-    const VALUE_SENT: u128 = 1_000 * ETHER;
-
-    ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
-
-    // Force the validator to advance past the top-up Eth event by
-    // sending a PING and waiting for its reply. By the time the
-    // reply lands, every prior Eth event (including the top-up
-    // we just submitted) has been folded into a finalised MB and
-    // the resulting batch committed on-chain.
-    let res = env
-        .send_message(ping_id, b"PING")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-
-    let on_eth_balance = ping.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, VALUE_SENT);
-
-    let state_hash = ping.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, VALUE_SENT);
-
-    let res = env
-        .send_message_with_params(ping_id, b"PING", VALUE_SENT)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-    assert_eq!(res.value, 0);
-
-    let on_eth_balance = ping.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, 2 * VALUE_SENT);
-
-    let state_hash = ping.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, 2 * VALUE_SENT);
-
-    stop_nodes([node]).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(120_000)]
-async fn value_reply_program_to_user() {
-    init_logger();
-
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    let res = env
-        .upload_code(demo_piggy_bank::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let code_id = res.code_id;
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let _ = env
-        .send_message(res.program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let piggy_bank_id = res.program_id;
-
-    let wvara = env.ethereum.router().wvara();
-
-    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
-
-    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
-
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, 0);
-
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, 0);
-
-    // 1_000 ETH
-    const VALUE_SENT: u128 = 1_000 * ETHER;
-
-    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
-
-    // Force the validator to advance past the top-up Eth event by
-    // sending a no-op `b""` message and waiting for its reply. By
-    // the time the reply lands, the deposit has been folded into a
-    // finalised MB and committed on-chain.
-    let res = env
-        .send_message(piggy_bank_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, VALUE_SENT);
-
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, VALUE_SENT);
-
-    let res = env
-        .send_message(piggy_bank_id, b"smash_with_reply")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
-    assert_eq!(res.value, VALUE_SENT);
-
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, 0);
-
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, 0);
-
-    let sender_address = env.ethereum.provider().default_signer_address();
-    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
-    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-    let balance = env
-        .ethereum
-        .provider()
-        .get_balance(sender_address)
-        .await
-        .unwrap();
-    assert!(default_anvil_balance - balance <= measurement_error);
-
-    stop_nodes([node]).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(120_000)]
-async fn value_send_program_to_user_and_claimed() {
-    init_logger();
-
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    let res = env
-        .upload_code(demo_piggy_bank::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let code_id = res.code_id;
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let _ = env
-        .send_message(res.program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let piggy_bank_id = res.program_id;
-
-    let wvara = env.ethereum.router().wvara();
-
-    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
-
-    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
-
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, 0);
-
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, 0);
-
-    // 1_000 ETH
-    const VALUE_SENT: u128 = 1_000 * ETHER;
-
-    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
-
-    // Force the validator to fold the deposit into a finalised
-    // MB by sending a no-op message and waiting for the reply.
-    let res = env
-        .send_message(piggy_bank_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, VALUE_SENT);
-
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, VALUE_SENT);
-
-    let res = env
-        .send_message(piggy_bank_id, b"smash")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert_eq!(res.value, 0);
-
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, 0);
-
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, 0);
-
-    let router_address = env.ethereum.router().address();
-    let router_balance = env
-        .ethereum
-        .provider()
-        .get_balance(router_address.into())
-        .await
-        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-        .unwrap();
-
-    assert_eq!(router_balance, VALUE_SENT);
-
-    let sender_address = env.ethereum.provider().default_signer_address();
-
-    let program_state = node.db.program_state(state_hash).unwrap();
-    let mailbox = node
-        .db
-        .mailbox(program_state.mailbox_hash.to_inner().unwrap())
-        .unwrap();
-    let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
-    let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
-
-    piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
-
-    // Force-process the claim by sending a follow-up no-op message
-    // through the program. Once its reply lands, the claim has been
-    // executed in the executor and committed to the mirror.
-    let _ = env
-        .send_message(piggy_bank_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
-    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-    let balance = env
-        .ethereum
-        .provider()
-        .get_balance(sender_address)
-        .await
-        .unwrap();
-    assert!(default_anvil_balance - balance <= measurement_error);
-
-    stop_nodes([node]).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(120_000)]
-async fn value_send_program_to_user_and_replied() {
-    init_logger();
-
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    let res = env
-        .upload_code(demo_piggy_bank::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let code_id = res.code_id;
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let _ = env
-        .send_message(res.program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let piggy_bank_id = res.program_id;
-
-    let wvara = env.ethereum.router().wvara();
-
-    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
-
-    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
-
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, 0);
-
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, 0);
-
-    // 1_000 ETH
-    const VALUE_SENT: u128 = 1_000 * ETHER;
-
-    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
-
-    // Force-fold the deposit into the next finalised MB.
-    let res = env
-        .send_message(piggy_bank_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, VALUE_SENT);
-
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, VALUE_SENT);
-
-    let res = env
-        .send_message(piggy_bank_id, b"smash")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert_eq!(res.value, 0);
-
-    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
-    assert_eq!(on_eth_balance, 0);
-
-    let state_hash = piggy_bank.query().state_hash().await.unwrap();
-    let local_balance = node.db.program_state(state_hash).unwrap().balance;
-    assert_eq!(local_balance, 0);
-
-    let router_address = env.ethereum.router().address();
-    let router_balance = env
-        .ethereum
-        .provider()
-        .get_balance(router_address.into())
-        .await
-        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
-        .unwrap();
-
-    assert_eq!(router_balance, VALUE_SENT);
-
-    let sender_address = env.ethereum.provider().default_signer_address();
-
-    let program_state = node.db.program_state(state_hash).unwrap();
-    let mailbox = node
-        .db
-        .mailbox(program_state.mailbox_hash.to_inner().unwrap())
-        .unwrap();
-    let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
-    let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
-
-    piggy_bank
-        .send_reply(mailboxed_msg_id, "", 0)
-        .await
-        .unwrap();
-
-    // Force-process the reply by sending a follow-up no-op message.
-    let _ = env
-        .send_message(piggy_bank_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
-    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
-    let balance = env
-        .ethereum
-        .provider()
-        .get_balance(sender_address)
-        .await
-        .unwrap();
-    assert!(default_anvil_balance - balance <= measurement_error);
-
-    stop_nodes([node]).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(120_000)]
-async fn reply_callback() {
-    init_logger();
-
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
-
-    let mut node = env
-        .new_node(NodeConfig::default().validator(env.validators[0]))
-        .await;
-    node.start_service().await;
-
-    let res = env
-        .upload_code(demo_reply_callback::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(res.valid);
-
-    let code_id = res.code_id;
-
-    let code = node
-        .db
-        .original_code(code_id)
-        .expect("After approval, the code is guaranteed to be in the database");
-    assert_eq!(code, demo_reply_callback::WASM_BINARY);
-
-    let _ = node
-        .db
-        .instrumented_code(1, code_id)
-        .expect("After approval, instrumented code is guaranteed to be in the database");
-    let res = env
-        .create_program(code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(res.code_id, code_id);
-
-    let res = env
-        .send_message(res.program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-    assert_eq!(res.payload, b"");
-    assert_eq!(res.value, 0);
-
-    let program_id = res.program_id;
-
-    let provider = env.ethereum.provider();
-    let demo_caller =
-        ethexe_ethereum::abi::IDemoCaller::deploy(provider.clone(), program_id.into())
-            .await
-            .expect("deploying DemoCaller failed");
-
-    assert!(!demo_caller.replyOnMethodNameCalled().call().await.unwrap());
-
-    demo_caller
-        .methodName(false)
-        .send()
-        .await
-        .unwrap()
-        .try_get_receipt()
-        .await
-        .unwrap();
-
-    // Force the validator to fold the demo_caller's call (and the
-    // resulting reply back into the contract) into a finalised MB
-    // by sending a no-op message + wait_for_reply.
-    let _ = env
-        .send_message(program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert!(demo_caller.replyOnMethodNameCalled().call().await.unwrap());
-
-    assert!(!demo_caller.onErrorReplyCalled().call().await.unwrap());
-
-    demo_caller
-        .methodName(true)
-        .send()
-        .await
-        .unwrap()
-        .try_get_receipt()
-        .await
-        .unwrap();
-
-    let _ = env
-        .send_message(program_id, b"")
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
-
-    stop_nodes([node]).await;
-}
-
-#[tokio::test]
-#[ntest::timeout(60_000)]
-async fn send_injected_tx() {
-    init_logger();
-
-    let test_env_config = TestEnvConfig {
-        validators: ValidatorsConfig::PreDefined(2),
-        network: EnvNetworkConfig::Enabled,
-        ..Default::default()
-    };
-
-    // Setup env of 2 nodes, one of them knows about the other one.
-    let mut env = TestEnv::new(test_env_config).await.unwrap();
-
-    let validator0_pubkey = env.validators[0].public_key;
-    let validator1_pubkey = env.validators[1].public_key;
-
-    test_info!("📗 Starting node 0");
-    let mut node0 = env
-        .new_node(
-            NodeConfig::default()
-                .validator(env.validators[0])
-                .service_rpc(9505),
-        )
-        .await;
-    node0.start_service().await;
-
-    test_info!("📗 Starting node 1");
-    let mut node1 = env
-        .new_node(
-            NodeConfig::default()
-                .service_rpc(9506)
-                .validator(env.validators[1]),
-        )
-        .await;
-    node1.start_service().await;
-
-    test_info!("Populate node-0 and node-1 with 2 valid blocks");
-
-    env.force_new_block().await;
-    env.force_new_block().await;
-
-    // Give some time for nodes to process the blocks
-    let reference_block = node0.db.globals().latest_prepared_eb_hash;
-
-    // Prepare tx data
-    let tx = InjectedTransaction {
-        destination: ActorId::from(H160::random()),
-        payload: H256::random().0.to_vec().try_into().unwrap(),
-        value: 0,
-        reference_block,
-        salt: vec![1].try_into().unwrap(),
-    };
-
-    let tx_for_node1 = AddressedInjectedTransaction {
-        recipient: validator1_pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_message(validator0_pubkey, tx.clone(), None)
-            .unwrap(),
-    };
-
-    // Send request
-    test_info!("Sending transaction to node-1");
-    let acceptance = node1
-        .rpc_http_client()
-        .unwrap()
-        .send_transaction(tx_for_node1.clone())
-        .await
-        .expect("rpc server is set");
-    assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
-
-    // Tx executable validation takes time, so wait for event.
-    node1
-        .events()
-        .find(|event| {
-            // RPC fan-out emits one InjectedTransaction event per
-            // validator, so match on the v1-targeted one — that's
-            // the one whose recipient equals `tx_for_node1.recipient`.
-            if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
-                && *transaction == tx_for_node1
-            {
-                true
-            } else {
-                false
-            }
-        })
-        .await;
-
-    // Check that node-1 save received tx.
-    let node1_db_tx = node1
-        .db
-        .injected_transaction(tx.to_hash())
-        .expect("tx not found");
-    assert_eq!(node1_db_tx, tx_for_node1.tx);
-
-    stop_nodes([node0, node1]).await;
 }
 
 /// Init-failure paths: panic-in-init then synchronous handle to the
@@ -1975,6 +706,395 @@ async fn mailbox() {
     stop_nodes([node]).await;
 }
 
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn value_reply_program_to_user() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let piggy_bank_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    // Force the validator to advance past the top-up Eth event by
+    // sending a no-op `b""` message and waiting for its reply. By
+    // the time the reply lands, the deposit has been folded into a
+    // finalised MB and committed on-chain.
+    let res = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message(piggy_bank_id, b"smash_with_reply")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.value, VALUE_SENT);
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    let sender_address = env.ethereum.provider().default_signer_address();
+    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
+    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    let balance = env
+        .ethereum
+        .provider()
+        .get_balance(sender_address)
+        .await
+        .unwrap();
+    assert!(default_anvil_balance - balance <= measurement_error);
+
+    stop_nodes([node]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn value_send_program_to_user_and_claimed() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let piggy_bank_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    // Force the validator to fold the deposit into a finalised
+    // MB by sending a no-op message and waiting for the reply.
+    let res = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message(piggy_bank_id, b"smash")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.value, 0);
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    let router_address = env.ethereum.router().address();
+    let router_balance = env
+        .ethereum
+        .provider()
+        .get_balance(router_address.into())
+        .await
+        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
+        .unwrap();
+
+    assert_eq!(router_balance, VALUE_SENT);
+
+    let sender_address = env.ethereum.provider().default_signer_address();
+
+    let program_state = node.db.program_state(state_hash).unwrap();
+    let mailbox = node
+        .db
+        .mailbox(program_state.mailbox_hash.to_inner().unwrap())
+        .unwrap();
+    let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
+    let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
+
+    piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
+
+    // Force-process the claim by sending a follow-up no-op message
+    // through the program. Once its reply lands, the claim has been
+    // executed in the executor and committed to the mirror.
+    let _ = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
+    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    let balance = env
+        .ethereum
+        .provider()
+        .get_balance(sender_address)
+        .await
+        .unwrap();
+    assert!(default_anvil_balance - balance <= measurement_error);
+
+    stop_nodes([node]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn value_send_program_to_user_and_replied() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let piggy_bank_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    // Force-fold the deposit into the next finalised MB.
+    let res = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message(piggy_bank_id, b"smash")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.value, 0);
+
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    let router_address = env.ethereum.router().address();
+    let router_balance = env
+        .ethereum
+        .provider()
+        .get_balance(router_address.into())
+        .await
+        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
+        .unwrap();
+
+    assert_eq!(router_balance, VALUE_SENT);
+
+    let sender_address = env.ethereum.provider().default_signer_address();
+
+    let program_state = node.db.program_state(state_hash).unwrap();
+    let mailbox = node
+        .db
+        .mailbox(program_state.mailbox_hash.to_inner().unwrap())
+        .unwrap();
+    let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
+    let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
+
+    piggy_bank
+        .send_reply(mailboxed_msg_id, "", 0)
+        .await
+        .unwrap();
+
+    // Force-process the reply by sending a follow-up no-op message.
+    let _ = env
+        .send_message(piggy_bank_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
+    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    let balance = env
+        .ethereum
+        .provider()
+        .get_balance(sender_address)
+        .await
+        .unwrap();
+    assert!(default_anvil_balance - balance <= measurement_error);
+
+    stop_nodes([node]).await;
+}
+
 /// Repeated outgoing transitions for the same actor must be squashed into a
 /// single transition (with all messages preserved) in the on-chain
 /// `ChainCommitment`. Stop the node, queue two PINGs, skip past the commitment
@@ -2130,6 +1250,105 @@ async fn batch_commitment_squashes_repeated_ping_transitions() {
             .all(|message| message.payload == b"PONG"),
         "expected both outgoing messages to be PONG replies"
     );
+
+    stop_nodes([node]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn incoming_transfers() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, &env.sender_id.encode())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
+
+    let on_eth_balance = ping.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    // Force the validator to advance past the top-up Eth event by
+    // sending a PING and waiting for its reply. By the time the
+    // reply lands, every prior Eth event (including the top-up
+    // we just submitted) has been folded into a finalised MB and
+    // the resulting batch committed on-chain.
+    let res = env
+        .send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+
+    let on_eth_balance = ping.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message_with_params(ping_id, b"PING", VALUE_SENT)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.value, 0);
+
+    let on_eth_balance = ping.query().balance().await.unwrap();
+    assert_eq!(on_eth_balance, 2 * VALUE_SENT);
+
+    let state_hash = ping.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 2 * VALUE_SENT);
 
     stop_nodes([node]).await;
 }
@@ -2314,6 +1533,650 @@ async fn reorg_deeper_than_quarantine() {
         .expect_err("block should not be finalized within 20 seconds after deep reorg");
 
     stop_nodes([node]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn ping_deep_sync() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+    assert_eq!(init_res.payload, b"PONG");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(
+        init_res.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+
+    let ping_id = res.program_id;
+
+    node.stop_service().await;
+
+    env.skip_blocks(150).await;
+
+    let send_message = env.send_message(ping_id, b"PING").await.unwrap();
+
+    env.skip_blocks(150).await;
+
+    node.start_service().await;
+
+    // Important: mine one block to sent block event to the started service.
+    env.force_new_block().await;
+
+    let res = send_message.wait_for().await.unwrap();
+    assert_eq!(res.program_id, ping_id);
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+
+    stop_nodes([node]).await;
+}
+
+/// Multi-validator end-to-end smoke. Boots four validators, runs
+/// upload+create+message round-trips against `demo-ping` and
+/// `demo-async`, then exercises liveness while validators are
+/// stopped/restarted to check the BFT quorum bookkeeping.
+///
+/// Tendermint quorum is strictly > 2/3 of voting power, so with
+/// N=3 even one failure halts BFT. We use N=4 (quorum = 3) so the
+/// "stop one validator and keep going" half of the test remains
+/// meaningful, while "stop two" still falls below quorum.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ntest::timeout(120_000)]
+async fn multiple_validators() {
+    init_logger();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(4),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    assert_eq!(
+        env.validators.len(),
+        4,
+        "Currently only 4 validators are supported for this test"
+    );
+    assert!(
+        !env.continuous_block_generation,
+        "Currently continuous block generation is not supported for this test"
+    );
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        test_info!("📗 Starting validator-{i}");
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
+            .await;
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let ping_code_id = res.code_id;
+
+    let res = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, ping_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let ping_id = res.program_id;
+
+    let res = env
+        .upload_code(demo_async::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let async_code_id = res.code_id;
+
+    let res = env
+        .create_program(async_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let init_res = env
+        .send_message(res.program_id, ping_id.encode().as_slice())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, async_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    let async_id = res.program_id;
+
+    let res = env
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.program_id, async_id);
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
+    assert_eq!(res.value, 0);
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+
+    test_info!("📗 Stop validator 0 and check that ethexe is still working with 2/3 quorum");
+    validators[0].stop_service().await;
+
+    let res = env
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
+
+    test_info!("📗 Stop validator 1 and check that ethexe is not working below threshold");
+    validators[1].stop_service().await;
+
+    let wait_for_reply_to = env
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
+        .await
+        .unwrap();
+
+    tokio::time::timeout(
+        env.eth_cfg.block_time * 5,
+        wait_for_reply_to.clone().wait_for(),
+    )
+    .await
+    .expect_err("Timeout expected — only 1/3 validators alive");
+
+    test_info!("📗 Re-start validator 0; with 2/3 alive ethexe should make progress again");
+    validators[0].start_service().await;
+
+    let res = wait_for_reply_to.wait_for().await.unwrap();
+    assert_eq!(res.payload, res.message_id.encode().as_slice());
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn many_validators_repeated_ping() {
+    init_logger();
+
+    const VALIDATORS_COUNT: usize = 8;
+    const PING_ROUNDS: usize = 4;
+
+    test_info!(
+        "📗 Starting many_validators_repeated_ping with {VALIDATORS_COUNT} validators and {PING_ROUNDS} ping rounds"
+    );
+
+    let signer = Signer::memory();
+    let validators: Vec<_> = (0..VALIDATORS_COUNT)
+        .map(|_| signer.generate().expect("must generate validator key"))
+        .collect();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::ProvidedValidators(validators),
+        network: EnvNetworkConfig::Enabled,
+        signer: signer.clone(),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    test_info!("📗 Top-up balances for all validator accounts");
+    let validator_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    for validator in &env.validators {
+        env.provider
+            .anvil_set_balance(validator.public_key.to_address().into(), validator_balance)
+            .await
+            .unwrap();
+    }
+
+    let mut running_validators = Vec::with_capacity(VALIDATORS_COUNT);
+    for (i, validator_cfg) in env.validators.clone().into_iter().enumerate() {
+        test_info!("📗 Starting validator-{i}");
+        let mut node = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(validator_cfg))
+            .await;
+        node.start_service().await;
+        running_validators.push(node);
+    }
+
+    test_info!("📗 Upload demo_ping code");
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    test_info!("📗 Create demo_ping program");
+    let program = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_id = program.program_id;
+    for i in 0..PING_ROUNDS {
+        test_info!("📗 PING round {}/{}", i + 1, PING_ROUNDS);
+        let reply = env
+            .send_message(ping_id, b"PING")
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            reply.program_id, ping_id,
+            "unexpected program for round {i}"
+        );
+        assert_eq!(
+            reply.code,
+            ReplyCode::Success(SuccessReplyReason::Manual),
+            "unexpected reply code for round {i}"
+        );
+        assert_eq!(reply.payload, b"PONG", "unexpected payload for round {i}");
+        assert_eq!(reply.value, 0, "unexpected value for round {i}");
+    }
+
+    test_info!("📗 Completed all ping rounds successfully");
+
+    assert_eq!(running_validators.len(), VALIDATORS_COUNT);
+
+    stop_nodes(running_validators).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn send_injected_tx() {
+    init_logger();
+
+    let test_env_config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(2),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+
+    // Setup env of 2 nodes, one of them knows about the other one.
+    let mut env = TestEnv::new(test_env_config).await.unwrap();
+
+    let validator0_pubkey = env.validators[0].public_key;
+    let validator1_pubkey = env.validators[1].public_key;
+
+    test_info!("📗 Starting node 0");
+    let mut node0 = env
+        .new_node(
+            NodeConfig::default()
+                .validator(env.validators[0])
+                .service_rpc(9505),
+        )
+        .await;
+    node0.start_service().await;
+
+    test_info!("📗 Starting node 1");
+    let mut node1 = env
+        .new_node(
+            NodeConfig::default()
+                .service_rpc(9506)
+                .validator(env.validators[1]),
+        )
+        .await;
+    node1.start_service().await;
+
+    test_info!("Populate node-0 and node-1 with 2 valid blocks");
+
+    env.force_new_block().await;
+    env.force_new_block().await;
+
+    // Give some time for nodes to process the blocks
+    let reference_block = node0.db.globals().latest_prepared_eb_hash;
+
+    // Prepare tx data
+    let tx = InjectedTransaction {
+        destination: ActorId::from(H160::random()),
+        payload: H256::random().0.to_vec().try_into().unwrap(),
+        value: 0,
+        reference_block,
+        salt: vec![1].try_into().unwrap(),
+    };
+
+    let tx_for_node1 = AddressedInjectedTransaction {
+        recipient: validator1_pubkey.to_address(),
+        tx: env
+            .signer
+            .signed_message(validator0_pubkey, tx.clone(), None)
+            .unwrap(),
+    };
+
+    // Send request
+    test_info!("Sending transaction to node-1");
+    let acceptance = node1
+        .rpc_http_client()
+        .unwrap()
+        .send_transaction(tx_for_node1.clone())
+        .await
+        .expect("rpc server is set");
+    assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
+
+    // Tx executable validation takes time, so wait for event.
+    node1
+        .events()
+        .find(|event| {
+            // RPC fan-out emits one InjectedTransaction event per
+            // validator, so match on the v1-targeted one — that's
+            // the one whose recipient equals `tx_for_node1.recipient`.
+            if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
+                && *transaction == tx_for_node1
+            {
+                true
+            } else {
+                false
+            }
+        })
+        .await;
+
+    // Check that node-1 save received tx.
+    let node1_db_tx = node1
+        .db
+        .injected_transaction(tx.to_hash())
+        .expect("tx not found");
+    assert_eq!(node1_db_tx, tx_for_node1.tx);
+
+    stop_nodes([node0, node1]).await;
+}
+
+// TODO: port these tests to the MB-driven test harness. Bodies below reference
+// the old announce-era APIs (`find_announce_computed`, `announce_meta`,
+// `announce_schedule`, `last_committed_announce`, `latest_computed_announce_hash`,
+// `genesis_announce_hash`, etc.) that no longer exist; they are kept as comments
+// so the original assertions and flow are visible to whoever ports them.
+
+#[tokio::test]
+#[ignore = "TODO: port to MB-driven test harness"]
+async fn fast_sync() {
+    /* Original body — references removed announce-era APIs:
+
+    #[tokio::test]
+    #[ntest::timeout(60_000)]
+    async fn fast_sync() {
+        init_logger();
+
+        let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
+            test_info!("Assert chain in range {latest_block}..{fast_synced_block}");
+
+            IntegrityVerifier::new(alice.db.clone())
+                .verify_chain(latest_block, fast_synced_block)
+                .expect("failed to verify Alice database");
+
+            IntegrityVerifier::new(bob.db.clone())
+                .verify_chain(latest_block, fast_synced_block)
+                .expect("failed to verify Bob database");
+
+            let alice_globals = alice.db.globals();
+            let bob_globals = bob.db.globals();
+            assert_eq!(
+                alice_globals.latest_computed_announce_hash,
+                bob_globals.latest_computed_announce_hash
+            );
+            assert_eq!(
+                alice_globals.latest_prepared_eb_hash,
+                bob_globals.latest_prepared_eb_hash
+            );
+
+            let mut block = latest_block;
+            loop {
+                if fast_synced_block == block {
+                    break;
+                }
+
+                log::trace!("assert block {block}");
+
+                // Check block meta, exclude codes_queue and announces, which can vary, and it's ok
+                let alice_meta = alice.db.block_meta(block);
+                let bob_meta = bob.db.block_meta(block);
+                assert!(
+                    alice_meta.prepared && bob_meta.prepared,
+                    "Block {block} is not prepared for alice or bob"
+                );
+                assert_eq!(
+                    alice_meta.last_committed_announce,
+                    bob_meta.last_committed_announce
+                );
+                assert_eq!(
+                    alice_meta.last_committed_batch,
+                    bob_meta.last_committed_batch
+                );
+
+                let alice_announces = alice.db.block_announces(block);
+                let bob_announces = bob.db.block_announces(block);
+                let Some((alice_announces, bob_announces)) = alice_announces.zip(bob_announces)
+                else {
+                    panic!("alice or bob has no announces");
+                };
+
+                for &announce_hash in alice_announces.intersection(&bob_announces) {
+                    if alice.db.announce_meta(announce_hash).computed
+                        != bob.db.announce_meta(announce_hash).computed
+                    {
+                        continue;
+                    }
+
+                    assert_eq!(
+                        alice.db.announce_program_states(announce_hash),
+                        bob.db.announce_program_states(announce_hash)
+                    );
+                    assert_eq!(
+                        alice.db.announce_outcome(announce_hash),
+                        bob.db.announce_outcome(announce_hash)
+                    );
+                    assert_eq!(
+                        alice.db.announce_outcome(announce_hash),
+                        bob.db.announce_outcome(announce_hash)
+                    );
+                }
+
+                assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
+                assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
+                assert_eq!(alice.db.block_synced(block), bob.db.block_synced(block));
+
+                let header = alice.db.block_header(block).unwrap();
+                block = header.parent_hash;
+            }
+        };
+
+        let config = TestEnvConfig {
+            network: EnvNetworkConfig::Enabled,
+            ..Default::default()
+        };
+        let mut env = TestEnv::new(config).await.unwrap();
+
+        test_info!("📗 Starting Alice");
+        let mut alice = env
+            .new_node(NodeConfig::named("Alice").validator(env.validators[0]))
+            .await;
+        alice.start_service().await;
+
+        test_info!("📗 Creating `demo-autoreply` programs");
+
+        let code_info = env
+            .upload_code(demo_mul_by_const::WASM_BINARY)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap();
+
+        let code_id = code_info.code_id;
+        let mut program_ids = [ActorId::zero(); 8];
+
+        for (i, program_id) in program_ids.iter_mut().enumerate() {
+            let program_info = env
+                .create_program_with_params(code_id, H256([i as u8; 32]), None, 500_000_000_000_000)
+                .await
+                .unwrap()
+                .wait_for()
+                .await
+                .unwrap();
+
+            *program_id = program_info.program_id;
+
+            let value = i as u64 % 3;
+            let _reply_info = env
+                .send_message(program_info.program_id, &value.encode())
+                .await
+                .unwrap()
+                .wait_for()
+                .await
+                .unwrap();
+        }
+
+        let latest_block = env.latest_block().await.hash;
+        alice.events().find_announce_computed(latest_block).await;
+
+        test_info!("Starting Bob (fast-sync)");
+        let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync()).await;
+
+        bob.start_service().await;
+
+        test_info!("📗 Sending messages to programs");
+
+        for (i, program_id) in program_ids.into_iter().enumerate() {
+            let reply_info = env
+                .send_message(program_id, &(i as u64).encode())
+                .await
+                .unwrap()
+                .wait_for()
+                .await
+                .unwrap();
+            assert_eq!(
+                reply_info.code,
+                ReplyCode::Success(SuccessReplyReason::Manual)
+            );
+        }
+
+        let latest_block = env.latest_block().await.hash;
+        alice.events().find_announce_computed(latest_block).await;
+        bob.events().find_announce_computed(latest_block).await;
+
+        test_info!("📗 Stopping Bob");
+        bob.stop_service().await;
+
+        assert_chain(
+            latest_block,
+            bob.latest_fast_synced_block.take().unwrap(),
+            &alice,
+            &bob,
+        );
+
+        for (i, program_id) in program_ids.into_iter().enumerate() {
+            let i = (i * 3) as u64;
+            let reply_info = env
+                .send_message(program_id, &i.encode())
+                .await
+                .unwrap()
+                .wait_for()
+                .await
+                .unwrap();
+            assert_eq!(
+                reply_info.code,
+                ReplyCode::Success(SuccessReplyReason::Manual)
+            );
+        }
+
+        env.skip_blocks(100).await;
+
+        let latest_block = env.latest_block().await.hash;
+        alice.events().find_announce_computed(latest_block).await;
+
+        test_info!("📗 Starting Bob again to check how it handles partially empty database");
+        bob.start_service().await;
+
+        // Mine some blocks so Bob can produce the event we will wait for.
+        // We mine several blocks here to ensure that Bob and Alice would converge to the same chain of announces.
+        // Why do we need that? Because Bob was disabled he missed some announces that Alice produced,
+        // this announces was not committed, so Bob would not see them during fast-sync
+        // and would not have them in his database. This is normal situation, after a few blocks Bob and Alice should
+        // converge to the same chain of announces.
+        for _ in 0..env.commitment_delay_limit {
+            env.skip_blocks(1).await;
+        }
+
+        let latest_block = env.latest_block().await.hash;
+        alice.events().find_announce_computed(latest_block).await;
+        bob.events().find_announce_computed(latest_block).await;
+
+        assert_chain(
+            latest_block,
+            bob.latest_fast_synced_block.take().unwrap(),
+            &alice,
+            &bob,
+        );
+    }
+
+    */
 }
 
 /// 5+5 validator election handover: stage next validator set during the
@@ -2581,6 +2444,156 @@ async fn execution_with_canonical_events_quarantine() {
     );
 
     stop_nodes([validator]).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(60_000)]
+async fn value_send_program_to_program() {
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    // Send init message to value receiver program (demo_ping)
+    let _ = env
+        .send_message(res.program_id, &[])
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let value_receiver_id = res.program_id;
+    let value_receiver = env
+        .ethereum
+        .mirror(value_receiver_id.to_address_lossy().into());
+
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
+    assert_eq!(value_receiver_on_eth_balance, 0);
+
+    let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
+    let value_receiver_local_balance = node
+        .db
+        .program_state(value_receiver_state_hash)
+        .unwrap()
+        .balance;
+    assert_eq!(value_receiver_local_balance, 0);
+
+    let res = env
+        .upload_code(demo_value_sender_ethexe::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    // Send init message to value sender program with value to be sent to value receiver
+    let res = env
+        .send_message_with_params(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.value, 0);
+
+    let value_sender_id = res.program_id;
+    let value_sender = env
+        .ethereum
+        .mirror(value_sender_id.to_address_lossy().into());
+
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
+    assert_eq!(value_sender_on_eth_balance, VALUE_SENT);
+
+    let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
+    let value_sender_local_balance = node
+        .db
+        .program_state(value_sender_state_hash)
+        .unwrap()
+        .balance;
+    assert_eq!(value_sender_local_balance, VALUE_SENT);
+
+    let res = env
+        .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.value, 0);
+
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
+    assert_eq!(value_sender_on_eth_balance, 0);
+
+    let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
+    let value_sender_local_balance = node
+        .db
+        .program_state(value_sender_state_hash)
+        .unwrap()
+        .balance;
+    assert_eq!(value_sender_local_balance, 0);
+
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
+    assert_eq!(value_receiver_on_eth_balance, VALUE_SENT);
+
+    let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
+    let value_receiver_local_balance = node
+        .db
+        .program_state(value_receiver_state_hash)
+        .unwrap()
+        .balance;
+    assert_eq!(value_receiver_local_balance, VALUE_SENT);
+
+    // get router balance
+    let router_address = env.ethereum.router().address();
+    let router_balance = env
+        .ethereum
+        .provider()
+        .get_balance(router_address.into())
+        .await
+        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
+        .unwrap();
+
+    assert_eq!(router_balance, 0);
+
+    stop_nodes([node]).await;
 }
 
 /// Delayed value send: program A queues a `send_value(receiver, V)` with a
@@ -3079,235 +3092,220 @@ async fn injected_tx_fungible_token_over_network() {
     stop_nodes([alice_node, bob_node]).await;
 }
 
-// TODO: port these tests to the MB-driven test harness. Bodies below reference
-// the old announce-era APIs (`find_announce_computed`, `announce_meta`,
-// `announce_schedule`, `last_committed_announce`, `latest_computed_announce_hash`,
-// `genesis_announce_hash`, etc.) that no longer exist; they are kept as comments
-// so the original assertions and flow are visible to whoever ports them.
-
 #[tokio::test]
-#[ignore = "TODO: port to MB-driven test harness"]
-async fn fast_sync() {
-    /* Original body — references removed announce-era APIs:
+#[ntest::timeout(120_000)]
+async fn whole_network_restore() {
+    init_logger();
 
-    #[tokio::test]
-    #[ntest::timeout(60_000)]
-    async fn fast_sync() {
-        init_logger();
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(4),
+        network: EnvNetworkConfig::Enabled,
+        continuous_block_generation: true,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
 
-        let assert_chain = |latest_block, fast_synced_block, alice: &Node, bob: &Node| {
-            test_info!("Assert chain in range {latest_block}..{fast_synced_block}");
-
-            IntegrityVerifier::new(alice.db.clone())
-                .verify_chain(latest_block, fast_synced_block)
-                .expect("failed to verify Alice database");
-
-            IntegrityVerifier::new(bob.db.clone())
-                .verify_chain(latest_block, fast_synced_block)
-                .expect("failed to verify Bob database");
-
-            let alice_globals = alice.db.globals();
-            let bob_globals = bob.db.globals();
-            assert_eq!(
-                alice_globals.latest_computed_announce_hash,
-                bob_globals.latest_computed_announce_hash
-            );
-            assert_eq!(
-                alice_globals.latest_prepared_eb_hash,
-                bob_globals.latest_prepared_eb_hash
-            );
-
-            let mut block = latest_block;
-            loop {
-                if fast_synced_block == block {
-                    break;
-                }
-
-                log::trace!("assert block {block}");
-
-                // Check block meta, exclude codes_queue and announces, which can vary, and it's ok
-                let alice_meta = alice.db.block_meta(block);
-                let bob_meta = bob.db.block_meta(block);
-                assert!(
-                    alice_meta.prepared && bob_meta.prepared,
-                    "Block {block} is not prepared for alice or bob"
-                );
-                assert_eq!(
-                    alice_meta.last_committed_announce,
-                    bob_meta.last_committed_announce
-                );
-                assert_eq!(
-                    alice_meta.last_committed_batch,
-                    bob_meta.last_committed_batch
-                );
-
-                let alice_announces = alice.db.block_announces(block);
-                let bob_announces = bob.db.block_announces(block);
-                let Some((alice_announces, bob_announces)) = alice_announces.zip(bob_announces)
-                else {
-                    panic!("alice or bob has no announces");
-                };
-
-                for &announce_hash in alice_announces.intersection(&bob_announces) {
-                    if alice.db.announce_meta(announce_hash).computed
-                        != bob.db.announce_meta(announce_hash).computed
-                    {
-                        continue;
-                    }
-
-                    assert_eq!(
-                        alice.db.announce_program_states(announce_hash),
-                        bob.db.announce_program_states(announce_hash)
-                    );
-                    assert_eq!(
-                        alice.db.announce_outcome(announce_hash),
-                        bob.db.announce_outcome(announce_hash)
-                    );
-                    assert_eq!(
-                        alice.db.announce_outcome(announce_hash),
-                        bob.db.announce_outcome(announce_hash)
-                    );
-                }
-
-                assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
-                assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
-                assert_eq!(alice.db.block_synced(block), bob.db.block_synced(block));
-
-                let header = alice.db.block_header(block).unwrap();
-                block = header.parent_hash;
-            }
-        };
-
-        let config = TestEnvConfig {
-            network: EnvNetworkConfig::Enabled,
-            ..Default::default()
-        };
-        let mut env = TestEnv::new(config).await.unwrap();
-
-        test_info!("📗 Starting Alice");
-        let mut alice = env
-            .new_node(NodeConfig::named("Alice").validator(env.validators[0]))
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        test_info!("📗 Starting validator-{i}");
+        let mut validator = env
+            .new_node(NodeConfig::named(format!("validator-{i}")).validator(v))
             .await;
-        alice.start_service().await;
-
-        test_info!("📗 Creating `demo-autoreply` programs");
-
-        let code_info = env
-            .upload_code(demo_mul_by_const::WASM_BINARY)
-            .await
-            .unwrap()
-            .wait_for()
-            .await
-            .unwrap();
-
-        let code_id = code_info.code_id;
-        let mut program_ids = [ActorId::zero(); 8];
-
-        for (i, program_id) in program_ids.iter_mut().enumerate() {
-            let program_info = env
-                .create_program_with_params(code_id, H256([i as u8; 32]), None, 500_000_000_000_000)
-                .await
-                .unwrap()
-                .wait_for()
-                .await
-                .unwrap();
-
-            *program_id = program_info.program_id;
-
-            let value = i as u64 % 3;
-            let _reply_info = env
-                .send_message(program_info.program_id, &value.encode())
-                .await
-                .unwrap()
-                .wait_for()
-                .await
-                .unwrap();
-        }
-
-        let latest_block = env.latest_block().await.hash;
-        alice.events().find_announce_computed(latest_block).await;
-
-        test_info!("Starting Bob (fast-sync)");
-        let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync()).await;
-
-        bob.start_service().await;
-
-        test_info!("📗 Sending messages to programs");
-
-        for (i, program_id) in program_ids.into_iter().enumerate() {
-            let reply_info = env
-                .send_message(program_id, &(i as u64).encode())
-                .await
-                .unwrap()
-                .wait_for()
-                .await
-                .unwrap();
-            assert_eq!(
-                reply_info.code,
-                ReplyCode::Success(SuccessReplyReason::Manual)
-            );
-        }
-
-        let latest_block = env.latest_block().await.hash;
-        alice.events().find_announce_computed(latest_block).await;
-        bob.events().find_announce_computed(latest_block).await;
-
-        test_info!("📗 Stopping Bob");
-        bob.stop_service().await;
-
-        assert_chain(
-            latest_block,
-            bob.latest_fast_synced_block.take().unwrap(),
-            &alice,
-            &bob,
-        );
-
-        for (i, program_id) in program_ids.into_iter().enumerate() {
-            let i = (i * 3) as u64;
-            let reply_info = env
-                .send_message(program_id, &i.encode())
-                .await
-                .unwrap()
-                .wait_for()
-                .await
-                .unwrap();
-            assert_eq!(
-                reply_info.code,
-                ReplyCode::Success(SuccessReplyReason::Manual)
-            );
-        }
-
-        env.skip_blocks(100).await;
-
-        let latest_block = env.latest_block().await.hash;
-        alice.events().find_announce_computed(latest_block).await;
-
-        test_info!("📗 Starting Bob again to check how it handles partially empty database");
-        bob.start_service().await;
-
-        // Mine some blocks so Bob can produce the event we will wait for.
-        // We mine several blocks here to ensure that Bob and Alice would converge to the same chain of announces.
-        // Why do we need that? Because Bob was disabled he missed some announces that Alice produced,
-        // this announces was not committed, so Bob would not see them during fast-sync
-        // and would not have them in his database. This is normal situation, after a few blocks Bob and Alice should
-        // converge to the same chain of announces.
-        for _ in 0..env.commitment_delay_limit {
-            env.skip_blocks(1).await;
-        }
-
-        let latest_block = env.latest_block().await.hash;
-        alice.events().find_announce_computed(latest_block).await;
-        bob.events().find_announce_computed(latest_block).await;
-
-        assert_chain(
-            latest_block,
-            bob.latest_fast_synced_block.take().unwrap(),
-            &alice,
-            &bob,
-        );
+        validator.start_service().await;
+        validators.push(validator);
     }
 
-    */
+    // make sure we receive unique messages and not repeated ones
+    let mut seen_messages = HashSet::new();
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let ping_code_id = res.code_id;
+
+    let res = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = res.program_id;
+
+    let init_res = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, ping_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(seen_messages.insert(init_res.message_id));
+
+    for (i, v) in validators.iter_mut().enumerate() {
+        test_info!("📗 Stopping validator-{i}");
+        v.stop_service().await;
+    }
+
+    let ping_wait_for = env.send_message(ping_id, b"PING").await.unwrap();
+
+    let async_code_upload = env.upload_code(demo_async::WASM_BINARY).await.unwrap();
+
+    test_info!("📗 Skipping 20 blocks");
+    env.skip_blocks(20).await;
+
+    for (i, v) in validators.iter_mut().enumerate() {
+        test_info!("📗 Starting validator-{i} again");
+        v.start_service().await;
+    }
+
+    let res = ping_wait_for.wait_for().await.unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
+    assert!(seen_messages.insert(res.message_id));
+
+    let res = async_code_upload.wait_for().await.unwrap();
+    assert!(res.valid);
+    let async_code_id = res.code_id;
+    let res = env
+        .create_program(async_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let init_res = env
+        .send_message(res.program_id, ping_id.encode().as_slice())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, async_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(seen_messages.insert(init_res.message_id));
+}
+
+#[tokio::test]
+#[ntest::timeout(120_000)]
+async fn reply_callback() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env
+        .new_node(NodeConfig::default().validator(env.validators[0]))
+        .await;
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_reply_callback::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, demo_reply_callback::WASM_BINARY);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert_eq!(res.payload, b"");
+    assert_eq!(res.value, 0);
+
+    let program_id = res.program_id;
+
+    let provider = env.ethereum.provider();
+    let demo_caller =
+        ethexe_ethereum::abi::IDemoCaller::deploy(provider.clone(), program_id.into())
+            .await
+            .expect("deploying DemoCaller failed");
+
+    assert!(!demo_caller.replyOnMethodNameCalled().call().await.unwrap());
+
+    demo_caller
+        .methodName(false)
+        .send()
+        .await
+        .unwrap()
+        .try_get_receipt()
+        .await
+        .unwrap();
+
+    // Force the validator to fold the demo_caller's call (and the
+    // resulting reply back into the contract) into a finalised MB
+    // by sending a no-op message + wait_for_reply.
+    let _ = env
+        .send_message(program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(demo_caller.replyOnMethodNameCalled().call().await.unwrap());
+
+    assert!(!demo_caller.onErrorReplyCalled().call().await.unwrap());
+
+    demo_caller
+        .methodName(true)
+        .send()
+        .await
+        .unwrap()
+        .try_get_receipt()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert!(demo_caller.onErrorReplyCalled().call().await.unwrap());
+
+    stop_nodes([node]).await;
 }
 
 #[tokio::test]
