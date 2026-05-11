@@ -31,7 +31,7 @@ pallet-gear-eth-bridge-rpc.workspace = true
 pallet-gear-eth-bridge-rpc-runtime-api = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 runtime-primitives = { workspace = true, features = ["std"] }
-gear-runtime-interface = { workspace = true, features = ["std"] }
+gear-runtime-interface = { workspace = true, features = ["std", "sandbox"] }
 authorship.workspace = true
 
 # Gear Runtimes

@@ -13,7 +13,6 @@ repository.workspace = true
 builtins-common = { workspace = true, optional = true }
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
-gear-lazy-pages-host-api = { workspace = true, features = ["pass-by"] }
 gear-lazy-pages = { workspace = true, optional = true }
 gear-sandbox-interface = { workspace = true, optional = true }
 
@@ -25,11 +24,10 @@ log = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "sandbox"]
 std = [
 	"gear-core/std",
 	"gear-lazy-pages",
-	"gear-sandbox-interface/std",
 
 	"sp-io/std",
 	"sp-std/std",
@@ -39,3 +37,4 @@ std = [
 
 	"builtins-common/bls12-381-std",
 ]
+sandbox = ["std", "gear-sandbox-interface/std"]
