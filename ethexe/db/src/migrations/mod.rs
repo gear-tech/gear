@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::dump::StateDump;
+use crate::{RawDatabase, dump::StateDump};
 #[cfg(feature = "mock")]
-use crate::{Database, MemDb, RawDatabase};
+use crate::{Database, MemDb};
+use anyhow::{Context, Result};
 use futures::future::BoxFuture;
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::CodeId;
@@ -28,8 +29,8 @@ pub use init::initialize_db;
 
 mod init;
 
-/// Single supported on-disk schema version; databases below this version
-/// must be wiped and re-initialised.
+/// Latest on-disk schema version. Databases on older versions are upgraded
+/// by running each [`Migration`] in [`migrations()`] in ascending order.
 pub const LATEST_VERSION: u32 = 5;
 
 pub type CodeProcessingFuture =
@@ -54,4 +55,64 @@ pub async fn create_initialized_empty_memory_db(config: InitConfig) -> anyhow::R
     Database::try_from_raw(raw)
 }
 
-// +_+_+ return back migrations logic, but without v1, v2, ... migrations implementations, they are useless for now.
+/// A single on-disk schema upgrade step.
+///
+/// Each migration bumps the database from `from_version()` to
+/// `from_version() + 1`. Implementations must be idempotent on the
+/// migration target version: running the same migration twice in a row
+/// against a `from_version() + 1` database must not corrupt state.
+pub trait Migration {
+    /// Schema version this migration upgrades from. The migration
+    /// produces a database at version `from_version() + 1`.
+    fn from_version(&self) -> u32;
+
+    /// Apply the migration in-place to the raw database.
+    fn migrate(&self, raw: &RawDatabase) -> Result<()>;
+}
+
+/// Returns the ordered list of in-tree migrations.
+///
+/// Populated as schema versions land. Earlier `v1`/`v2`/... entries were
+/// dropped — they no longer apply to any live database, and they were
+/// the only callers of removed APIs. New migrations should be appended
+/// here in ascending order of `from_version`.
+fn migrations() -> Vec<Box<dyn Migration>> {
+    Vec::new()
+}
+
+/// Run every applicable migration to bring `raw` up to [`LATEST_VERSION`].
+///
+/// Returns the final version. Errors if any migration fails, or if the
+/// resulting version doesn't reach [`LATEST_VERSION`].
+pub fn migrate(raw: &RawDatabase) -> Result<u32> {
+    let mut version = raw
+        .kv
+        .version()
+        .context("failed to read database version")?
+        .context("database has no version key")?;
+
+    if version > LATEST_VERSION {
+        anyhow::bail!(
+            "database version {version} is newer than supported {LATEST_VERSION}; \
+             refusing to downgrade"
+        );
+    }
+
+    for m in migrations() {
+        if version != m.from_version() {
+            continue;
+        }
+        m.migrate(raw)
+            .with_context(|| format!("migration from v{version} failed"))?;
+        version += 1;
+    }
+
+    if version != LATEST_VERSION {
+        anyhow::bail!(
+            "database left at v{version}, expected v{LATEST_VERSION} — \
+             missing migration step(s)"
+        );
+    }
+
+    Ok(version)
+}

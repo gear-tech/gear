@@ -18,7 +18,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{InitConfig, LATEST_VERSION};
+use super::{InitConfig, LATEST_VERSION, migrate};
 use crate::{Database, RawDatabase, dump::StateDump, migrations::GenesisInitializer};
 use alloy::providers::{Provider as _, RootProvider};
 use anyhow::{Context as _, Result, bail, ensure};
@@ -43,14 +43,12 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
         initialize_empty_db(config, &db).await?;
     } else {
         let db_version = db.kv.version()?.context("Version not found")?;
-
-        ensure!(
-            db_version == LATEST_VERSION,
-            "Database version {db_version} is not supported; expected version {LATEST_VERSION} \
-             (legacy migrations were removed; please wipe the database)",
-        );
-
         log::info!("Database has version {db_version}");
+
+        if db_version != LATEST_VERSION {
+            log::info!("Upgrading database from version {db_version} to {LATEST_VERSION}...");
+            migrate(&db).context("Failed to migrate database")?;
+        }
 
         validate_db(config, &db).await?;
     }
