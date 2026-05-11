@@ -208,10 +208,12 @@ pub enum ImportErrorWithContext {
     UnexpectedImportKind { kind: String, name: String },
 }
 
-impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
+impl TryFrom<(Module, ImportError, SyscallKind)> for ImportErrorWithContext {
     type Error = anyhow::Error;
 
-    fn try_from((module, import_error): (Module, ImportError)) -> Result<Self, Self::Error> {
+    fn try_from(
+        (module, import_error, syscall_kind): (Module, ImportError, SyscallKind),
+    ) -> Result<Self, Self::Error> {
         use ImportError::*;
 
         let idx = match import_error {
@@ -239,7 +241,7 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
                 name: import_name,
             },
             InvalidImportFnSignature(_) => {
-                let syscalls = SyscallName::instrumentable_map(SyscallKind::Vara);
+                let syscalls = SyscallName::instrumentable_map(syscall_kind);
                 let Some(syscall) = syscalls.get(&import_name) else {
                     bail!("failed to get syscall by name");
                 };
@@ -291,7 +293,11 @@ pub enum CodeErrorWithContext {
 }
 
 impl CodeErrorWithContext {
-    fn new(module: Module, error: CodeError) -> Result<Self, anyhow::Error> {
+    fn new(
+        module: Module,
+        error: CodeError,
+        syscall_kind: SyscallKind,
+    ) -> Result<Self, anyhow::Error> {
         use CodeError::*;
         match error {
             Validation(_) | Module(_) | Section(_) | Memory(_) | StackEnd(_) | DataSection(_)
@@ -301,7 +307,8 @@ impl CodeErrorWithContext {
                 Ok(Self::Export(error_with_context))
             }
             Import(error) => {
-                let error_with_context: ImportErrorWithContext = (module, error).try_into()?;
+                let error_with_context: ImportErrorWithContext =
+                    (module, error, syscall_kind).try_into()?;
                 Ok(Self::Import(error_with_context))
             }
         }
@@ -310,7 +317,11 @@ impl CodeErrorWithContext {
 
 /// Validates wasm code in the same way as
 /// `pallet_gear::pallet::Pallet::upload_program(...)`.
-pub fn validate_program(code: Vec<u8>, check_len: bool) -> anyhow::Result<()> {
+pub fn validate_program(
+    code: Vec<u8>,
+    check_len: bool,
+    syscall_kind: SyscallKind,
+) -> anyhow::Result<()> {
     let module = Module::new(&code)?;
     let schedule = Schedule::default();
 
@@ -332,6 +343,7 @@ pub fn validate_program(code: Vec<u8>, check_len: bool) -> anyhow::Result<()> {
         schedule.limits.data_segments_amount.into(),
         schedule.limits.type_section_len.into(),
         schedule.limits.parameters.into(),
+        syscall_kind,
     );
 
     match code {
@@ -348,6 +360,6 @@ pub fn validate_program(code: Vec<u8>, check_len: bool) -> anyhow::Result<()> {
 
             Ok(())
         }
-        Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
+        Err(code_error) => Err(CodeErrorWithContext::new(module, code_error, syscall_kind)?)?,
     }
 }

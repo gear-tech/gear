@@ -99,6 +99,7 @@ where
         gas_reserver: execution_context.gas_reserver,
         program: execution_context.program,
         memory_size: execution_context.memory_size,
+        syscall_kind: execution_context.syscall_kind,
     };
 
     // Sending fee: double write cost for addition and removal some time soon

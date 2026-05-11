@@ -74,34 +74,43 @@ mod tests {
             .with_test_writer()
             .init();
 
-        // Make module with one empty function.
-        let mut module = ModuleBuilder::default();
-        module.add_func(FuncType::new([], []), Function::default());
+        for syscall_kind in [SyscallKind::Vara, SyscallKind::Eth] {
+            // Make module with one empty function.
+            let mut module = ModuleBuilder::default();
+            module.add_func(FuncType::new([], []), Function::default());
 
-        // Insert syscalls imports.
-        for name in SyscallName::instrumentable(SyscallKind::Vara) {
-            let sign = name.signature();
-            let type_no = module.push_type(sign.func_type());
+            // Insert syscalls imports.
+            for name in SyscallName::instrumentable(syscall_kind) {
+                let sign = name.signature();
+                let type_no = module.push_type(sign.func_type());
 
-            module.push_import(Import::func("env", name.to_str(), type_no));
-        }
+                module.push_import(Import::func("env", name.to_str(), type_no));
+            }
 
-        let module = InstrumentationBuilder::new("env")
-            .with_gas_limiter(|_| CustomConstantCostRules::default())
-            .instrument(module.build())
+            let module = InstrumentationBuilder::new("env")
+                .with_gas_limiter(|_| CustomConstantCostRules::default())
+                .instrument(module.build())
+                .unwrap();
+            let code = module.serialize().unwrap();
+
+            // Execute wasm and check success.
+            let ext = MockExt::default();
+            let env = Environment::new(
+                ext,
+                &code,
+                DispatchKind::Init,
+                Default::default(),
+                0.into(),
+                syscall_kind,
+            )
             .unwrap();
-        let code = module.serialize().unwrap();
+            let report = env.execute(|_, _, _| {}).unwrap();
 
-        // Execute wasm and check success.
-        let ext = MockExt::default();
-        let env =
-            Environment::new(ext, &code, DispatchKind::Init, Default::default(), 0.into()).unwrap();
-        let report = env.execute(|_, _, _| {}).unwrap();
+            let BackendReport {
+                termination_reason, ..
+            } = report;
 
-        let BackendReport {
-            termination_reason, ..
-        } = report;
-
-        assert_eq!(termination_reason, ActorTerminationReason::Success.into());
+            assert_eq!(termination_reason, ActorTerminationReason::Success.into());
+        }
     }
 }

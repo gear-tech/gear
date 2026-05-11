@@ -18,6 +18,7 @@
 
 use super::*;
 use crate::state::programs::GTestProgram;
+use gear_core::code::SyscallKind;
 
 impl ExtManager {
     /// Call non-void meta function from actor stored in manager.
@@ -70,6 +71,7 @@ impl ExtManager {
                 payload,
                 MAX_USER_GAS_LIMIT,
                 self.blocks_manager.get(),
+                SyscallKind::Vara,
             )
             .map_err(TestError::ReadStateError)
         }

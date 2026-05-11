@@ -493,6 +493,7 @@ syscalls! {
     /// - `delay`: `u32` amount of blocks to delay.
     /// - `err_mid_pid`: `mut ptr` for concatenated error code, message id
     ///   and program id.
+    #[cfg(not(feature = "ethexe"))]
     pub fn gr_create_program(
         cid_value: *const HashWithValue,
         salt: *const SizedBufferStart,
@@ -576,6 +577,7 @@ syscalls! {
     /// Arguments type:
     /// - `subject`: `const ptr` for the subject.
     /// - `bn_random`: `mut ptr` for concatenated block number with hash.
+    #[cfg(not(feature = "ethexe"))]
     pub fn gr_random(subject: *const Hash, bn_random: *mut BlockNumberWithHash);
 
     // TODO: issue #1859
@@ -954,6 +956,7 @@ syscalls! {
     pub fn gr_wait_up_to(duration: BlockNumber) -> !;
 
     /// Infallible `gr_wait` control syscall.
+    #[cfg(not(feature = "ethexe"))]
     pub fn gr_wait() -> !;
 
     /// Fallible `gr_wake` control syscall.

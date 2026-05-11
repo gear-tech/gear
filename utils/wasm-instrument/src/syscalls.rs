@@ -223,6 +223,11 @@ impl SyscallName {
         self != Self::SystemBreak
     }
 
+    /// Checks whether the syscall is available in the Vara runtime (including SystemBreak).
+    pub const fn is_vara_including_system_break(self) -> bool {
+        true
+    }
+
     /// Checks whether the syscall is available under the `ethexe` feature.
     ///
     /// Keep this in sync with the `#[cfg(not(feature = "ethexe"))]` gates in
@@ -231,10 +236,12 @@ impl SyscallName {
         !matches!(
             self,
             Self::CreateProgramWGas
+                | Self::CreateProgram
                 | Self::ReplyDeposit
                 | Self::SignalCode
-                | Self::SignalFrom
+                | Self::Random
                 | Self::ReplyCommitWGas
+                | Self::SignalFrom
                 | Self::ReplyInputWGas
                 | Self::ReplyWGas
                 | Self::ReservationReplyCommit
@@ -247,6 +254,7 @@ impl SyscallName {
                 | Self::SendWGas
                 | Self::SystemReserveGas
                 | Self::UnreserveGas
+                | Self::Wait
         )
     }
 
