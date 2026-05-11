@@ -53,7 +53,7 @@ use std::{
 use async_trait::async_trait;
 use ethexe_common::{
     HashOf, SimpleBlockData,
-    db::{GlobalsStorageRO, OnChainStorageRO},
+    db::{GlobalsStorageRO, InjectedStorageRW, OnChainStorageRO},
     injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
 };
 use ethexe_db::Database;
@@ -273,6 +273,12 @@ impl Mempool for InjectedTxMempool {
             info!(%tx_hash, capacity = self.capacity, "mempool: rejecting tx — pool at capacity");
             return;
         }
+
+        // Persist the tx so the local RPC's `injected_getTransactions`
+        // can serve it to clients that look it up by hash later.
+        // Done before inserting into the pool so a producer that
+        // immediately picks the tx is guaranteed to find it in the DB.
+        self.db.set_injected_transaction(tx.clone());
 
         let pool_len_after = inner.pool.len() + 1;
         inner.pool.insert(tx_hash, tx);

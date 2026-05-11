@@ -57,7 +57,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     CodeAndIdUnchecked,
-    db::{InjectedStorageRW, OnChainStorageRO},
+    db::OnChainStorageRO,
     gear::CodeState,
     injected::SignedPromise,
     network::VerifiedValidatorMessage,
@@ -826,14 +826,9 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
-                                // +_+_+ must be refactored - it's not normal to set it here
-                                // Persist the tx so the local RPC's
-                                // `injected_getTransactions` can find it
-                                // when clients query, then hand it to the
-                                // malachite mempool — the sequencer pulls
-                                // from the same pool when assembling the
-                                // next MB.
-                                db.set_injected_transaction((*transaction).clone());
+                                // The mempool persists to the DB on insert,
+                                // so the local RPC's `injected_getTransactions`
+                                // can serve the tx by hash later.
                                 if let Some(m) = malachite.as_mut() {
                                     m.receive_injected_transaction((*transaction).clone());
                                 }
@@ -888,11 +883,10 @@ impl Service {
                             let is_our_address = Some(transaction.recipient) == validator_address;
 
                             if is_zero_address || is_our_address {
-                                // Persist for `injected_getTransactions`,
-                                // then hand the tx to the malachite mempool —
-                                // sequencer side will pick it up next time
-                                // it produces an MB.
-                                db.set_injected_transaction(transaction.tx.clone());
+                                // The mempool persists to the DB on insert
+                                // (so `injected_getTransactions` can serve
+                                // it later), then the producer pulls the
+                                // tx the next time it assembles an MB.
                                 if let Some(m) = malachite.as_mut() {
                                     m.receive_injected_transaction(transaction.tx.clone());
                                 }
