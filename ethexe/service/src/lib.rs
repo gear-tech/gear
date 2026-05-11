@@ -72,8 +72,7 @@ use ethexe_malachite::{
     InjectedTxMempool, MalachiteConfig, MalachiteEvent, MalachiteService, ValidatorEntry,
 };
 use ethexe_network::{
-    NetworkEvent, NetworkRuntimeConfig, NetworkService,
-    db_sync::{self, ExternalDataProvider},
+    NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
 };
 use ethexe_observer::{
     ObserverConfig, ObserverEvent, ObserverService,
@@ -83,7 +82,7 @@ use ethexe_processor::{ProcessedCodeInfo, Processor, ProcessorConfig, ValidCodeI
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
+use futures::{FutureExt, StreamExt};
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
 use std::{
@@ -111,7 +110,6 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Rpc(RpcEvent),
     Prometheus(PrometheusEvent),
-    Fetching(db_sync::HandleResult),
 }
 
 #[derive(Clone)]
@@ -697,7 +695,6 @@ impl Service {
             .send(tests::utils::TestingEvent::ServiceStarted)
             .await;
 
-        let mut network_fetcher = FuturesUnordered::new();
         let mut network_injected_txs: HashMap<_, oneshot::Sender<_>> = HashMap::new();
 
         loop {
@@ -709,7 +706,6 @@ impl Service {
                 event = observer.select_next_some() => event?.into(),
                 event = blob_loader.select_next_some() => event?.into(),
                 event = rpc.maybe_next_some() => event.into(),
-                fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
                 event = prometheus.maybe_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
                     bail!("`RPCWorker` has terminated, shutting down...")
@@ -968,26 +964,6 @@ impl Service {
                         bail!("Prometheus server closed with result: {result:?}");
                     }
                 },
-                Event::Fetching(result) => {
-                    let Some(network) = network.as_mut() else {
-                        unreachable!("Fetching event is impossible without network service");
-                    };
-
-                    match result {
-                        Ok(resp) => {
-                            // +_+_+ remove network fetcher
-                            // No active fetch consumers in the MB-driven
-                            // path yet; just drop responses if any arrive.
-                            log::trace!("ignoring db_sync response: {resp:?}");
-                        }
-                        Err((err, request)) => {
-                            log::trace!(
-                                "Retry fetching external data for request {request:?} due to error: {err:?}"
-                            );
-                            network_fetcher.push(network.db_sync_handle().retry(request));
-                        }
-                    }
-                }
             }
         }
 
