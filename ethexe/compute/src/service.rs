@@ -48,6 +48,8 @@ impl<P: ProcessorExt> ComputeService<P> {
     }
 
     /// Creates a compute service with an explicit promise emission mode.
+    /// The mode is forwarded to the MB sub-service so predecessor MBs
+    /// emit promises too under `AlwaysEmit`.
     pub fn with_promise_mode(
         db: Database,
         processor: P,
@@ -55,7 +57,11 @@ impl<P: ProcessorExt> ComputeService<P> {
     ) -> Self {
         Self {
             prepare_sub_service: PrepareSubService::new(db.clone()),
-            mb_compute_sub_service: ComputeSubService::new(db.clone(), processor.clone()),
+            mb_compute_sub_service: ComputeSubService::with_promise_mode(
+                db.clone(),
+                processor.clone(),
+                promise_emission_mode,
+            ),
             codes_sub_service: CodesSubService::new(db, processor),
             promise_emission_mode,
         }

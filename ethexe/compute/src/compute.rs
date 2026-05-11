@@ -26,7 +26,7 @@
 
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    PromisePolicy,
+    PromiseEmissionMode, PromisePolicy,
     db::{CodesStorageRW, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
     events::BlockRequestEvent,
     injected::Promise,
@@ -48,8 +48,8 @@ use tokio::sync::mpsc;
 ///
 /// `promise_policy` decides whether the runtime should emit promises
 /// while executing the target MB. Predecessor MBs walked back through
-/// `parent` always run with [`PromisePolicy::Disabled`] regardless —
-/// other validators have already gossiped those promises.
+/// `parent` follow [`ComputeSubService::promise_emission_mode`]
+/// instead — `AlwaysEmit` re-emits, `ConsensusDriven` stays silent.
 #[derive(Debug)]
 pub(crate) struct MbComputeRequest {
     pub mb_hash: H256,
@@ -86,6 +86,12 @@ impl Stream for MbPromisesStream {
 pub struct ComputeSubService<P: ProcessorExt> {
     db: Database,
     processor: P,
+    /// Decides whether predecessor MBs walked through `parent` also
+    /// emit promises. `AlwaysEmit` lets RPC nodes replaying the chain
+    /// publish replies for every MB; the default `ConsensusDriven`
+    /// keeps predecessors silent (their promises were already gossiped
+    /// by the producer at the time).
+    promise_emission_mode: PromiseEmissionMode,
 
     input: VecDeque<MbComputeRequest>,
     computation: Option<ComputationFuture>,
@@ -97,9 +103,18 @@ pub struct ComputeSubService<P: ProcessorExt> {
 
 impl<P: ProcessorExt> ComputeSubService<P> {
     pub fn new(db: Database, processor: P) -> Self {
+        Self::with_promise_mode(db, processor, PromiseEmissionMode::default())
+    }
+
+    pub fn with_promise_mode(
+        db: Database,
+        processor: P,
+        promise_emission_mode: PromiseEmissionMode,
+    ) -> Self {
         Self {
             db,
             processor,
+            promise_emission_mode,
             input: VecDeque::new(),
             computation: None,
             promises_stream: None,
@@ -118,6 +133,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         db: Database,
         mut processor: P,
         req: MbComputeRequest,
+        promise_emission_mode: PromiseEmissionMode,
         promise_tx: mpsc::UnboundedSender<(H256, Promise)>,
     ) -> Result<MbComputeOk> {
         let target_hash = req.mb_hash;
@@ -150,13 +166,19 @@ impl<P: ProcessorExt> ComputeSubService<P> {
                 target_height,
                 target_hash,
             );
-            // Predecessor MBs ran on a previous chain head; we
-            // execute them only to bring the local DB up to date,
-            // not to publish their replies (other validators have
-            // already gossiped those promises). Pass `None` for the
-            // promise sink so we don't double-emit.
+            // Predecessors normally ran on a previous chain head and
+            // their replies were already gossiped — silence them under
+            // `ConsensusDriven` to avoid double-emit. Under
+            // `AlwaysEmit` (e.g. an RPC node catching up) we *want*
+            // every MB's promises so subscribers see the replies.
             for (height, hash, txs) in predecessors {
-                Self::compute_one(&db, &mut processor, height, hash, txs, None).await?;
+                let predecessor_sink = match promise_emission_mode {
+                    PromiseEmissionMode::AlwaysEmit => {
+                        Some(BoundPromiseSink::new(promise_tx.clone(), hash))
+                    }
+                    PromiseEmissionMode::ConsensusDriven => None,
+                };
+                Self::compute_one(&db, &mut processor, height, hash, txs, predecessor_sink).await?;
             }
         }
 
@@ -410,8 +432,16 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
         {
             let (sender, receiver) = mpsc::unbounded_channel();
             self.promises_stream = Some(MbPromisesStream { receiver });
-            self.computation =
-                Some(Self::compute(self.db.clone(), self.processor.clone(), req, sender).boxed());
+            self.computation = Some(
+                Self::compute(
+                    self.db.clone(),
+                    self.processor.clone(),
+                    req,
+                    self.promise_emission_mode,
+                    sender,
+                )
+                .boxed(),
+            );
         }
 
         // (2) Forward streaming promises before anything else so the
