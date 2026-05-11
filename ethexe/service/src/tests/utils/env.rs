@@ -584,8 +584,9 @@ impl TestEnv {
 
     /// Upload code bytes and request a validation on router. Returns waiter for code validation result.
     ///
-    /// NOTE: [`WaitForUploadCode`] contains a hack for not continuous block generation mode,
-    /// it may cause new blocks mining, so use it carefully, for more info see [`WaitForUploadCode::wait_for`].
+    /// NOTE: when [`Self::continuous_block_generation`] is off, the returned
+    /// [`WaitForUploadCode`] carries a force-mine kick on its receiver, so
+    /// idle waits will mine an Anvil block — use it carefully.
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
         log::info!("📗 Upload code, len {}", code.len());
 
@@ -597,11 +598,7 @@ impl TestEnv {
         let (_tx_hash, new_code_id) = self.ethereum.router().request_code_validation(code).await?;
         assert_eq!(new_code_id, code_id);
 
-        Ok(WaitForUploadCode {
-            code_id,
-            receiver,
-            hack: self.force_mine_hack(),
-        })
+        Ok(WaitForUploadCode { code_id, receiver }.with_kicks(self.default_wait_kicks()))
     }
 
     pub async fn create_program(
@@ -643,8 +640,8 @@ impl TestEnv {
         Ok(WaitForProgramCreation {
             receiver,
             program_id,
-            hack: self.force_mine_hack(),
-        })
+        }
+        .with_kicks(self.default_wait_kicks()))
     }
 
     #[allow(dead_code)]
@@ -685,8 +682,8 @@ impl TestEnv {
         Ok(WaitForProgramCreation {
             receiver,
             program_id,
-            hack: self.force_mine_hack(),
-        })
+        }
+        .with_kicks(self.default_wait_kicks()))
     }
 
     pub async fn send_message(
@@ -716,18 +713,18 @@ impl TestEnv {
         Ok(WaitForReplyTo {
             receiver,
             message_id,
-            hack: self.force_mine_hack(),
-        })
+        }
+        .with_kicks(self.default_wait_kicks()))
     }
 
-    /// Returns a `(provider, block_time)` handle that
-    /// `WaitFor*::wait_for` can use to force-mine an Anvil block on
-    /// idle. `None` when the env is in continuous-block-generation
-    /// mode (Anvil already mines on its own).
-    fn force_mine_hack(&self) -> Option<(RootProvider, Duration)> {
+    /// Default kicks for `WaitFor*` waiters: forces an Anvil mine
+    /// every `block_time * 3` of idle time. `None` when the env is in
+    /// continuous-block-generation mode (Anvil already mines on its
+    /// own).
+    fn default_wait_kicks(&self) -> Option<(Duration, RootProvider)> {
         self.continuous_block_generation
             .not()
-            .then(|| (self.provider.clone(), self.eth_cfg.block_time))
+            .then(|| (self.eth_cfg.block_time * 3, self.provider.clone()))
     }
 
     #[allow(dead_code)]
@@ -1505,10 +1502,6 @@ pub struct WaitForUploadCode {
     pub code_id: CodeId,
 
     receiver: ObserverEventReceiver,
-    /// Hack: contains provider and block time.
-    /// If Some then while waiting for code validation result
-    /// it would trigger new block mining each 3 block times.
-    hack: Option<(RootProvider, Duration)>,
 }
 
 #[derive(Debug)]
@@ -1518,14 +1511,20 @@ pub struct UploadCodeInfo {
 }
 
 impl WaitForUploadCode {
-    pub async fn wait_for(mut self) -> anyhow::Result<UploadCodeInfo> {
-        log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
-
-        // Hand the force-mine kick to the receiver so KickingStream
-        // takes care of timing it instead of an inline select loop.
-        if let Some((provider, block_time)) = self.hack.take() {
-            self.receiver.set_kicks((block_time * 3, provider));
+    /// Replace the underlying receiver's kicks. `None` clears them.
+    /// While `Some`, [`Self::wait_for`] yields to a forced mine on
+    /// each idle interval — the producer then gets a fresh ETH head
+    /// and a chance to commit the validation result.
+    pub fn with_kicks(mut self, kicks: Option<(Duration, RootProvider)>) -> Self {
+        match kicks {
+            Some(k) => self.receiver.set_kicks(k),
+            None => self.receiver.clear_kicks(),
         }
+        self
+    }
+
+    pub async fn wait_for(self) -> anyhow::Result<UploadCodeInfo> {
+        log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
         let mut receiver = self.receiver.filter_map_block_synced();
         let valid = receiver
@@ -1549,10 +1548,6 @@ impl WaitForUploadCode {
 pub struct WaitForProgramCreation {
     receiver: ObserverEventReceiver,
     pub program_id: ActorId,
-    /// `(provider, block_time)`. While `Some`, every `block_time * 3`
-    /// idle interval triggers a forced Anvil mine so the coordinator
-    /// gets a fresh ETH head and a chance to commit the result.
-    hack: Option<(RootProvider, Duration)>,
 }
 
 #[derive(Debug)]
@@ -1562,12 +1557,16 @@ pub struct ProgramCreationInfo {
 }
 
 impl WaitForProgramCreation {
-    pub async fn wait_for(mut self) -> anyhow::Result<ProgramCreationInfo> {
-        log::info!("📗 Waiting for program {} creation", self.program_id);
-
-        if let Some((provider, block_time)) = self.hack.take() {
-            self.receiver.set_kicks((block_time * 3, provider));
+    pub fn with_kicks(mut self, kicks: Option<(Duration, RootProvider)>) -> Self {
+        match kicks {
+            Some(k) => self.receiver.set_kicks(k),
+            None => self.receiver.clear_kicks(),
         }
+        self
+    }
+
+    pub async fn wait_for(self) -> anyhow::Result<ProgramCreationInfo> {
+        log::info!("📗 Waiting for program {} creation", self.program_id);
 
         let mut receiver = self.receiver.filter_map_block_synced();
         let code_id = receiver
@@ -1591,10 +1590,6 @@ impl WaitForProgramCreation {
 pub struct WaitForReplyTo {
     receiver: ObserverEventReceiver,
     pub message_id: MessageId,
-    /// `(provider, block_time)`. While `Some`, every `block_time * 3`
-    /// idle interval triggers a forced Anvil mine so the coordinator
-    /// gets a fresh ETH head and a chance to commit the reply.
-    hack: Option<(RootProvider, Duration)>,
 }
 
 #[derive(Debug)]
@@ -1612,16 +1607,19 @@ impl WaitForReplyTo {
         Self {
             receiver,
             message_id,
-            hack: None,
         }
     }
 
-    pub async fn wait_for(mut self) -> anyhow::Result<ReplyInfo> {
-        log::info!("📗 Waiting for reply to message {}", self.message_id);
-
-        if let Some((provider, block_time)) = self.hack.take() {
-            self.receiver.set_kicks((block_time * 3, provider));
+    pub fn with_kicks(mut self, kicks: Option<(Duration, RootProvider)>) -> Self {
+        match kicks {
+            Some(k) => self.receiver.set_kicks(k),
+            None => self.receiver.clear_kicks(),
         }
+        self
+    }
+
+    pub async fn wait_for(self) -> anyhow::Result<ReplyInfo> {
+        log::info!("📗 Waiting for reply to message {}", self.message_id);
 
         let message_id = self.message_id;
         let mut receiver = self.receiver.filter_map_block_synced();

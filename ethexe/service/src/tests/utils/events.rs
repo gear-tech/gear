@@ -191,10 +191,6 @@ impl<S> KickingStream<S> {
     pub fn take_kicks(&mut self) -> Option<(Duration, RootProvider)> {
         self.kicks.take()
     }
-
-    pub fn inner(&self) -> &S {
-        &self.inner
-    }
 }
 
 impl<S: Stream + Unpin> Stream for KickingStream<S> {
