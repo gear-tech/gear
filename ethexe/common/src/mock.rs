@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, BlockData, BlockHeader, CodeBlobInfo, Digest, ProtocolTimelines, Rfm, Schedule,
-    ScheduledTask, Sd, SimpleBlockData, StateHashWithQueueSize, Sum, ValidatorsVec,
+    Address, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProtocolTimelines, Rfm,
+    Schedule, ScheduledTask, Sd, SimpleBlockData, StateHashWithQueueSize, Sum, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
@@ -26,12 +26,14 @@ use crate::{
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
     },
-    injected::{AddressedInjectedTransaction, InjectedTransaction},
+    injected::{AddressedInjectedTransaction, InjectedTransaction, Promise},
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     limited::LimitedVec,
+    message::{ReplyCode, SuccessReplyReason},
+    rpc::ReplyInfo,
     tasks::ScheduledTask as CoreScheduledTask,
 };
 use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
@@ -475,6 +477,25 @@ impl Arbitrary for AddressedInjectedTransaction {
                     .expect("signing injected transaction must succeed"),
             })
             .boxed()
+    }
+}
+
+impl Mock<()> for Promise {
+    fn mock(_args: ()) -> Self {
+        Promise::mock(HashOf::random())
+    }
+}
+
+impl Mock<HashOf<InjectedTransaction>> for Promise {
+    fn mock(tx_hash: HashOf<InjectedTransaction>) -> Self {
+        Promise {
+            tx_hash,
+            reply: ReplyInfo {
+                payload: H256::random().0.to_vec(),
+                value: 42,
+                code: ReplyCode::Success(SuccessReplyReason::Manual),
+            },
+        }
     }
 }
 

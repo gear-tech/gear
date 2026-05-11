@@ -23,7 +23,7 @@ use crate::{
     SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
     mb::Transactions,
 };
 use alloc::{
@@ -123,11 +123,21 @@ pub trait InjectedStorageRO {
         &self,
         hash: HashOf<InjectedTransaction>,
     ) -> Option<SignedInjectedTransaction>;
+
+    /// Returns the promise by its transaction hash.
+    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
+
+    /// Returns the compact promise by its transaction hash.
+    fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
+
+    fn set_promise(&self, promise: &Promise);
+
+    fn set_compact_promise(&self, promise: &SignedCompactPromise);
 }
 
 // +_+_+ rename to CompactMB

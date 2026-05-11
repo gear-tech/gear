@@ -34,7 +34,7 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
     mb::Transactions,
 };
 use ethexe_runtime_common::state::{
@@ -80,6 +80,9 @@ enum Key {
     MbSchedule(H256) = 21,
     MbMeta(H256) = 22,
     MbCompactBlock(H256) = 25,
+
+    Promise(HashOf<InjectedTransaction>) = 26,
+    CompactPromise(HashOf<InjectedTransaction>) = 27,
 }
 
 impl Key {
@@ -109,7 +112,9 @@ impl Key {
             | Self::MbMeta(hash)
             | Self::MbCompactBlock(hash) => bytes.extend(hash.as_ref()),
 
-            Self::InjectedTransaction(hash) => bytes.extend(hash.as_ref()),
+            Self::InjectedTransaction(hash)
+            | Self::Promise(hash)
+            | Self::CompactPromise(hash) => bytes.extend(hash.as_ref()),
 
             Self::ProgramToCodeId(program_id) => bytes.extend(program_id.as_ref()),
 
@@ -681,6 +686,24 @@ impl InjectedStorageRO for RawDatabase {
                     .expect("Failed to decode data into `SignedInjectedTransaction`")
             })
     }
+
+    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise> {
+        self.kv
+            .get(&Key::Promise(hash).to_bytes())
+            .map(|data| {
+                Promise::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Promise`")
+            })
+    }
+
+    fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise> {
+        self.kv
+            .get(&Key::CompactPromise(hash).to_bytes())
+            .map(|data| {
+                SignedCompactPromise::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SignedCompactPromise`")
+            })
+    }
 }
 
 impl InjectedStorageRW for RawDatabase {
@@ -690,6 +713,19 @@ impl InjectedStorageRW for RawDatabase {
         tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
         self.kv
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
+    }
+
+    fn set_promise(&self, promise: &Promise) {
+        tracing::trace!(tx_hash = ?promise.tx_hash, "Set promise");
+        self.kv
+            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode());
+    }
+
+    fn set_compact_promise(&self, promise: &SignedCompactPromise) {
+        let tx_hash = promise.data().tx_hash;
+        tracing::trace!(?tx_hash, "Set compact promise");
+        self.kv
+            .put(&Key::CompactPromise(tx_hash).to_bytes(), promise.encode());
     }
 }
 
@@ -873,6 +909,8 @@ impl OnChainStorageRW for Database {
 impl InjectedStorageRO for Database {
     delegate!(to self.raw {
         fn injected_transaction(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedInjectedTransaction>;
+        fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
+        fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise>;
     });
 }
 
@@ -901,6 +939,8 @@ impl MbStorageRW for Database {
 impl InjectedStorageRW for Database {
     delegate!(to self.raw {
         fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
+        fn set_promise(&self, promise: &Promise);
+        fn set_compact_promise(&self, promise: &SignedCompactPromise);
     });
 }
 

@@ -85,6 +85,17 @@ pub enum PromisePolicy {
     Disabled,
 }
 
+/// [`PromiseEmissionMode`] configures the promise emission mode for the ethexe node.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::IsVariant, Default)]
+pub enum PromiseEmissionMode {
+    /// Node should always emit promises during MB execution.
+    /// Always uses [`PromisePolicy::Enabled`].
+    AlwaysEmit,
+    /// [`PromisePolicy`] is decided per-MB by the consensus / compute layer.
+    #[default]
+    ConsensusDriven,
+}
+
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
