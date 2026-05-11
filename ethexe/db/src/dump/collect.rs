@@ -36,7 +36,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
 };
 
-// TODO: +_+_+ issue for re-implementing state dumps for new malachite architecture
+// TODO: (+_+_+ append issue number) re-implementing state dumps for new malachite architecture
 
 /// Collects all content-addressed blobs reachable from program states.
 struct BlobCollector<'a, S: ?Sized> {

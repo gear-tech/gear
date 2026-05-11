@@ -234,7 +234,7 @@ impl Checker {
     /// Re-runs every persisted MB and compares the cached outcome / states /
     /// schedule against fresh execution. Stubbed pending MB walk wiring.
     async fn computation_check(&self) -> Result<()> {
-        // TODO: +_+_+ walk `globals.latest_finalized_mb_hash` back through
+        // TODO: (+_+_+ append issue number) walk `globals.latest_finalized_mb_hash` back through
         // `CompactBlock.parent`, re-execute each MB through the
         // processor, and assert the persisted `mb_*` records match.
         println!("computation_check is currently a stub — MB walk not wired in yet");

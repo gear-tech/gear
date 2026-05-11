@@ -11,7 +11,6 @@
 //! blocking on the previous one. In-flight count grows with rate * latency,
 //! capped only by tokio's task budget.
 
-
 // +_+_+ move ping_rate_load to a separate branch.
 
 use anyhow::{Context, Result};

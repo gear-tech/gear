@@ -1600,6 +1600,7 @@ impl WaitForProgramCreation {
 
         tokio::pin!(wait_for_creation);
         let code_id = loop {
+            // +_+_+ remove this kicks here and in WaitForReplyTo, WaitForUploadCode and check that KickingStream is working correctly instead
             tokio::select! {
                 _ = tokio::time::sleep(block_time * 3) => {
                     log::info!("⏱️ Reached program creation timeout, forcing new block");

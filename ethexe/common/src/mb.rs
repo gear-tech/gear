@@ -32,7 +32,6 @@
 
 // +_+_+ rename to malachite.rs
 
-
 use crate::injected::SignedInjectedTransaction;
 use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, IntoIterator};
