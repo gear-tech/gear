@@ -53,9 +53,9 @@ use std::{
 };
 
 pub type TestingEventSender = EventSender<TestingEvent>;
-pub type TestingEventReceiver = EventReceiver<TestingEvent>;
+pub type TestingEventReceiver = KickingStream<EventReceiver<TestingEvent>>;
 pub type ObserverEventSender = EventSender<ObserverEvent>;
-pub type ObserverEventReceiver = EventReceiver<ObserverEvent>;
+pub type ObserverEventReceiver = KickingStream<EventReceiver<ObserverEvent>>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkInjectedEvent {
@@ -177,35 +177,7 @@ pub trait KickExt {
     fn clear_kicks(&mut self);
 }
 
-// `KickExt` on `EventReceiver` lets `WaitFor*` mutate kicks before the
-// receiver is consumed by `filter_map_block_synced` (which forwards
-// them into the resulting `KickingStream`). `KickingStream<…>` itself
-// also implements `KickExt` so callers can swap kicks after the fact.
-impl<T> KickExt for EventReceiver<T> {
-    fn kick(&self) -> BoxFuture<'static, ()> {
-        if let Some((duration, provider)) = &self.kicks {
-            let provider = provider.clone();
-            let duration = *duration;
-            async move {
-                tokio::time::sleep(duration).await;
-                log::info!("⏱️ Reached kicking timeout, forcing new block");
-                provider.evm_mine(None).await.unwrap();
-            }
-            .boxed()
-        } else {
-            future::pending().boxed()
-        }
-    }
-
-    fn set_kicks(&mut self, kicks: (Duration, RootProvider)) {
-        self.kicks = Some(kicks);
-    }
-
-    fn clear_kicks(&mut self) {
-        self.kicks = None;
-    }
-}
-
+#[derive(Debug, Clone)]
 pub struct KickingStream<S> {
     inner: S,
     kicks: Option<(Duration, RootProvider)>,
@@ -215,6 +187,14 @@ impl<S> KickingStream<S> {
     pub fn new(inner: S, kicks: Option<(Duration, RootProvider)>) -> Self {
         Self { inner, kicks }
     }
+
+    pub fn take_kicks(&mut self) -> Option<(Duration, RootProvider)> {
+        self.kicks.take()
+    }
+
+    pub fn inner(&self) -> &S {
+        &self.inner
+    }
 }
 
 impl<S: Stream + Unpin> Stream for KickingStream<S> {
@@ -222,6 +202,12 @@ impl<S: Stream + Unpin> Stream for KickingStream<S> {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.poll_next_unpin(cx)
+    }
+}
+
+impl<S: FusedStream + Unpin> FusedStream for KickingStream<S> {
+    fn is_terminated(&self) -> bool {
+        self.inner.is_terminated()
     }
 }
 
@@ -278,16 +264,13 @@ impl<T: StreamExt + KickExt + Sized + Unpin> InfiniteStreamExt for T {}
 pub fn channel<T>(
     db: Database,
     kicks: Option<(Duration, RootProvider)>,
-) -> (EventSender<T>, EventReceiver<T>) {
+) -> (EventSender<T>, KickingStream<EventReceiver<T>>) {
     let (mut tx, rx) = async_broadcast::broadcast(1024);
     tx.set_overflow(true);
+    let receiver = EventReceiver { inner: rx, db };
     (
         EventSender { inner: tx },
-        EventReceiver {
-            inner: rx,
-            db,
-            kicks,
-        },
+        KickingStream::new(receiver, kicks),
     )
 }
 
@@ -306,8 +289,6 @@ impl<T: Clone> EventSender<T> {
 pub struct EventReceiver<T> {
     inner: Receiver<T>,
     db: Database,
-
-    kicks: Option<(Duration, RootProvider)>,
 }
 
 impl<T: Clone> Stream for EventReceiver<T> {
@@ -335,11 +316,25 @@ impl<T: Clone> FusedStream for EventReceiver<T> {
 }
 
 impl<T: Clone> EventReceiver<T> {
+    pub fn db(&self) -> &Database {
+        &self.db
+    }
+
     pub fn new_receiver(&self) -> Self {
-        let inner = self.inner.new_receiver();
-        let db = self.db.clone();
-        let kicks = self.kicks.clone();
-        Self { inner, db, kicks }
+        Self {
+            inner: self.inner.new_receiver(),
+            db: self.db.clone(),
+        }
+    }
+}
+
+impl<T: Clone> KickingStream<EventReceiver<T>> {
+    pub fn new_receiver(&self) -> Self {
+        Self::new(self.inner.new_receiver(), self.kicks.clone())
+    }
+
+    pub fn db(&self) -> &Database {
+        self.inner.db()
     }
 }
 
@@ -421,7 +416,7 @@ impl TestingEventReceiver {
         &mut self,
         mut f: impl FnMut(Database, TestingEvent) -> Option<U>,
     ) -> U {
-        let db = self.db.clone();
+        let db = self.db().clone();
         let func = |event| f(db.clone(), event);
         self.find_map(func).await
     }
@@ -429,7 +424,7 @@ impl TestingEventReceiver {
 
 impl ObserverEventReceiver {
     pub fn filter_map_block(mut self) -> KickingStream<BoxStream<'static, SimpleBlockData>> {
-        let kicks = self.kicks.take();
+        let kicks = self.take_kicks();
         let stream = self
             .filter_map(|event| async move {
                 if let ObserverEvent::Block(block_data) = event {
@@ -447,8 +442,8 @@ impl ObserverEventReceiver {
     pub fn filter_map_block_synced_with_header(
         mut self,
     ) -> KickingStream<impl Stream<Item = (BlockEvent, SimpleBlockData)>> {
-        let db = self.db.clone();
-        let kicks = self.kicks.take();
+        let db = self.db().clone();
+        let kicks = self.take_kicks();
         let stream = self.flat_map(move |event| {
             let ObserverEvent::BlockSynced(block_hash) = event else {
                 return Either::Left(stream::empty());
@@ -471,7 +466,7 @@ impl ObserverEventReceiver {
     }
 
     pub fn filter_map_block_synced(mut self) -> KickingStream<impl Stream<Item = BlockEvent>> {
-        let kicks = self.kicks.take();
+        let kicks = self.take_kicks();
         let stream = self
             .filter_map_block_synced_with_header()
             .map(|(event, _)| event);
