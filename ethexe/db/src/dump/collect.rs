@@ -22,7 +22,7 @@ use super::StateDump;
 use anyhow::{Context, Result};
 use ethexe_common::{
     HashOf, MaybeHashOf, StateHashWithQueueSize,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO},
+    db::{BlockMetaStorageRO, CodesStorageRO, HashStorageRO, MbStorageRO},
 };
 use ethexe_runtime_common::state::{
     Dispatch, DispatchStash, Expiring, Mailbox, MailboxMessage, MemoryPages, MemoryPagesInner,
@@ -35,6 +35,8 @@ use std::{
     any::TypeId,
     collections::{BTreeMap, BTreeSet, VecDeque},
 };
+
+// TODO: +_+_+ issue for re-implementing state dumps for new malachite architecture
 
 /// Collects all content-addressed blobs reachable from program states.
 struct BlobCollector<'a, S: ?Sized> {
@@ -311,14 +313,14 @@ impl<S: HashStorageRO + ?Sized> BlobCollector<'_, S> {
 impl StateDump {
     /// Collect a state dump from the database for a given block hash.
     pub fn collect_from_storage(
-        storage: &(impl AnnounceStorageRO + CodesStorageRO + BlockMetaStorageRO + HashStorageRO),
+        storage: &(impl MbStorageRO + CodesStorageRO + BlockMetaStorageRO + HashStorageRO),
         block_hash: H256,
     ) -> Result<Self> {
         let block_meta = storage.block_meta(block_hash);
 
-        let announce_hash = block_meta
-            .last_committed_announce
-            .context("no committed announce found for block")?;
+        let mb_hash = block_meta
+            .last_committed_mb
+            .context("no committed MB found for block")?;
 
         let codes_queue = block_meta
             .codes_queue
@@ -346,8 +348,8 @@ impl StateDump {
         }
 
         let program_states = storage
-            .announce_program_states(announce_hash)
-            .with_context(|| format!("program states not found for announce {announce_hash}"))?;
+            .mb_program_states(mb_hash)
+            .with_context(|| format!("program states not found for MB {mb_hash}"))?;
 
         // Collect programs and their state trees.
         let mut programs = BTreeMap::new();
@@ -372,7 +374,7 @@ impl StateDump {
         }
 
         Ok(StateDump {
-            announce_hash,
+            mb_hash,
             block_hash,
             codes,
             programs,

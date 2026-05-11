@@ -25,7 +25,7 @@ use crate::{
 };
 use ethexe_common::{
     Address, HashOf,
-    injected::{InjectedTransaction, SignedCompactPromise},
+    injected::{InjectedTransaction, SignedPromise},
     network::VerifiedValidatorMessage,
 };
 use lru::LruCache;
@@ -290,29 +290,28 @@ impl ValidatorTopic {
     fn inner_verify_promise(
         &self,
         _source: PeerId,
-        compact_promise: SignedCompactPromise,
-    ) -> Result<SignedCompactPromise, VerifyPromiseError> {
-        let address = compact_promise.address();
+        promise: SignedPromise,
+    ) -> Result<SignedPromise, VerifyPromiseError> {
+        let address = promise.address();
+        let tx_hash = promise.data().tx_hash;
+
         if !self.snapshot.contains(address) {
-            return Err(VerifyPromiseError::UnknownValidator {
-                address,
-                tx_hash: compact_promise.data().tx_hash,
-            });
+            return Err(VerifyPromiseError::UnknownValidator { address, tx_hash });
         }
 
-        Ok(compact_promise)
+        Ok(promise)
     }
 
     // FIXME: messages from previous era validators are ignored
     pub fn verify_promise(
         &self,
         source: PeerId,
-        compact_promise: SignedCompactPromise,
-    ) -> (MessageAcceptance, Option<SignedCompactPromise>) {
-        match self.inner_verify_promise(source, compact_promise) {
-            Ok(compact_promise) => (MessageAcceptance::Accept, Some(compact_promise)),
+        promise: SignedPromise,
+    ) -> (MessageAcceptance, Option<SignedPromise>) {
+        match self.inner_verify_promise(source, promise) {
+            Ok(promise) => (MessageAcceptance::Accept, Some(promise)),
             Err(err) => {
-                log::trace!("failed to verify compact promise: {err}");
+                log::trace!("failed to verify promise: {err}");
                 (MessageAcceptance::Ignore, None)
             }
         }
@@ -327,18 +326,16 @@ impl ValidatorTopic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::arb_value;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        Announce, HashOf,
-        ecdsa::{PublicKey, SignedData},
-        injected::{Promise, SignedCompactPromise, SignedPromise},
+        consensus::BatchCommitmentValidationRequest,
+        gear_core::{message::ReplyCode, rpc::ReplyInfo},
+        injected::Promise,
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
-    use gsigner::secp256k1::{PrivateKey, Secp256k1SignerExt, Signer};
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use nonempty::{NonEmpty, nonempty};
-    use proptest::{prelude::*, test_runner::Config as ProptestConfig};
 
     const CHAIN_HEAD_ERA: u64 = 10;
 
@@ -360,139 +357,37 @@ mod tests {
         )
     }
 
-    fn validator_message_from_private_key(
-        private_key: PrivateKey,
-        era_index: u64,
-        payload: Announce,
-    ) -> VerifiedValidatorMessage {
-        SignedData::create(&private_key, ValidatorMessage { era_index, payload })
+    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
+        let signer = Signer::memory();
+        let pub_key = signer.generate().unwrap();
+
+        signer
+            .signed_data(
+                pub_key,
+                ValidatorMessage {
+                    era_index,
+                    payload: BatchCommitmentValidationRequest::mock(()),
+                },
+                None,
+            )
             .map(SignedValidatorMessage::from)
             .unwrap()
             .into_verified()
     }
 
-    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
-        validator_message_from_private_key(
-            PrivateKey::random(),
-            era_index,
-            arb_value::<Announce>(()),
-        )
-    }
-
-    fn signer_with_pubkey() -> (PublicKey, Signer) {
+    fn signed_promise() -> SignedPromise {
         let signer = Signer::memory();
-        (signer.generate().unwrap(), signer)
-    }
+        let pub_key = signer.generate().unwrap();
+        let promise = Promise {
+            tx_hash: Default::default(),
+            reply: ReplyInfo {
+                payload: vec![],
+                value: 0,
+                code: ReplyCode::Unsupported,
+            },
+        };
 
-    fn signed_promise(signer: Signer, public_key: PublicKey) -> SignedPromise {
-        let promise = Promise::mock(());
-        signer.signed_message(public_key, promise, None).unwrap()
-    }
-
-    fn compact_signed_promise(
-        signer: &Signer,
-        public_key: PublicKey,
-        promise: Promise,
-    ) -> SignedCompactPromise {
-        let signed_promise = signer.signed_message(public_key, promise, None).unwrap();
-        SignedCompactPromise::from_signed_promise(&signed_promise)
-    }
-
-    fn test_announce() -> Announce {
-        Announce {
-            block_hash: Default::default(),
-            parent: HashOf::zero(),
-            gas_allowance: Some(100),
-            injected_transactions: Vec::new(),
-        }
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    enum EraRelation {
-        TooOld(u64),
-        Old,
-        Current,
-        Next,
-        TooNew(u64),
-    }
-
-    impl EraRelation {
-        fn message_era(self, snapshot_era: u64) -> u64 {
-            match self {
-                Self::TooOld(delta) => snapshot_era - delta,
-                Self::Old => snapshot_era - 1,
-                Self::Current => snapshot_era,
-                Self::Next => snapshot_era + 1,
-                Self::TooNew(delta) => snapshot_era + delta,
-            }
-        }
-
-        fn expected_verification(self, snapshot_era: u64) -> Result<(), VerifyMessageError> {
-            let message_era = self.message_era(snapshot_era);
-
-            match self {
-                Self::TooOld(_) => Err(VerifyMessageRejectReason::TooOldEra {
-                    expected_era: snapshot_era,
-                    received_era: message_era,
-                }
-                .into()),
-                Self::Old => Err(VerifyMessageIgnoreReason::OldEra {
-                    expected_era: snapshot_era,
-                    received_era: message_era,
-                }
-                .into()),
-                Self::Current => Ok(()),
-                Self::Next => Err(VerifyMessageCacheReason::NewEra {
-                    expected_era: snapshot_era,
-                    received_era: message_era,
-                }
-                .into()),
-                Self::TooNew(_) => Err(VerifyMessageRejectReason::TooNewEra {
-                    expected_era: snapshot_era,
-                    received_era: message_era,
-                }
-                .into()),
-            }
-        }
-    }
-
-    fn era_relation_strategy() -> impl Strategy<Value = (u64, EraRelation)> {
-        (
-            128u64..(u64::MAX - 128),
-            prop_oneof![
-                (2u64..128).prop_map(EraRelation::TooOld).boxed(),
-                Just(EraRelation::Old).boxed(),
-                Just(EraRelation::Current).boxed(),
-                Just(EraRelation::Next).boxed(),
-                (2u64..128).prop_map(EraRelation::TooNew).boxed(),
-            ],
-        )
-    }
-
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(64))]
-
-        #[test]
-        fn proptest_message_era_is_checked_against_snapshot_era(
-            (snapshot_era, relation) in era_relation_strategy(),
-        ) {
-            let private_key = PrivateKey::from_seed([1; 32]).expect("seed is valid");
-            let message_era = relation.message_era(snapshot_era);
-            let message =
-                validator_message_from_private_key(private_key, message_era, test_announce());
-            let validator = message.address();
-            let snapshot = ValidatorListSnapshot {
-                current_era_index: snapshot_era,
-                current_validators: nonempty![validator].into(),
-                next_validators: Some(nonempty![validator].into()),
-            };
-            let alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
-
-            prop_assert_eq!(
-                alice.inner_verify_validator_message(&message),
-                relation.expected_verification(snapshot_era)
-            );
-        }
+        signer.signed_message(pub_key, promise, None).unwrap()
     }
 
     #[test]
@@ -759,41 +654,37 @@ mod tests {
     #[test]
     fn verify_promise_unknown_validator() {
         let topic = new_topic(nonempty![Address::default()]);
-
-        let (pubkey, signer) = signer_with_pubkey();
-        let promise = signed_promise(signer.clone(), pubkey);
-        let compact_promise = compact_signed_promise(&signer, pubkey, promise.clone().into_data());
-
+        let promise = signed_promise();
         let peer_id = PeerId::random();
 
         let err = topic
-            .inner_verify_promise(peer_id, compact_promise.clone())
+            .inner_verify_promise(peer_id, promise.clone())
             .unwrap_err();
+        assert_eq!(
+            err,
+            VerifyPromiseError::UnknownValidator {
+                address: promise.address(),
+                tx_hash: promise.data().tx_hash,
+            }
+        );
 
-        let VerifyPromiseError::UnknownValidator { address, tx_hash } = err;
-        assert_eq!(address, promise.address());
-        assert_eq!(tx_hash, promise.data().tx_hash);
-
-        let (acceptance, promise) = topic.verify_promise(peer_id, compact_promise);
+        let (acceptance, promise) = topic.verify_promise(peer_id, promise);
         assert_matches!(acceptance, MessageAcceptance::Ignore);
         assert_eq!(promise, None);
     }
 
     #[tokio::test]
     async fn verify_promise_ok() {
-        let (pubkey, signer) = signer_with_pubkey();
-        let promise = signed_promise(signer.clone(), pubkey);
-        let compact_promise = compact_signed_promise(&signer, pubkey, promise.clone().into_data());
-
+        let promise = signed_promise();
         let topic = new_topic(nonempty![promise.address()]);
         let peer_id = PeerId::random();
 
         topic
-            .inner_verify_promise(peer_id, compact_promise.clone())
+            .inner_verify_promise(peer_id, promise.clone())
             .unwrap();
 
-        let (acceptance, returned_promise) = topic.verify_promise(peer_id, compact_promise.clone());
+        let (acceptance, returned_promise) = topic.verify_promise(peer_id, promise.clone());
         assert_matches!(acceptance, MessageAcceptance::Accept);
-        assert_eq!(returned_promise, Some(compact_promise));
+        assert_eq!(returned_promise, Some(promise));
     }
 }

@@ -18,7 +18,7 @@
 
 use super::*;
 use ethexe_common::{
-    CodeBlobInfo, PromisePolicy,
+    CodeBlobInfo,
     db::*,
     events::{
         BlockEvent, RouterEvent,
@@ -27,14 +27,14 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_db::Database;
-use ethexe_processor::{BoundPromiseSink, ValidCodeInfo};
+use ethexe_processor::ValidCodeInfo;
 use futures::StreamExt;
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
 use std::time::Duration;
-use tokio::time::timeout;
+use tokio::{sync::mpsc, time::timeout};
 
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
 #[derive(Clone, Default)]
@@ -80,8 +80,8 @@ impl MockProcessor {
 impl ProcessorExt for MockProcessor {
     async fn process_programs(
         &mut self,
-        _executable: ExecutableData,
-        _promise_sink: Option<BoundPromiseSink>,
+        _executable: ethexe_processor::ExecutableData,
+        _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
         Ok(self.process_programs_result.take().unwrap_or_default())
     }
@@ -149,12 +149,6 @@ fn mark_as_not_prepared(chain: &mut BlockChain) {
     for block in chain.blocks.iter_mut().skip(1) {
         block.prepared = None;
     }
-
-    // remove all announces except genesis announce
-    let genesis_announce_hash = chain.block_top_announce_hash(0);
-    chain
-        .announces
-        .retain(|hash, _| *hash == genesis_announce_hash);
 }
 
 struct TestEnv {
@@ -221,39 +215,6 @@ impl TestEnv {
         let prepared_block = event.unwrap_block_prepared();
         assert_eq!(prepared_block, block);
     }
-
-    async fn compute_and_assert_announce(&mut self, announce: Announce) {
-        let announce_hash = announce.to_hash();
-        self.compute
-            .compute_announce(announce.clone(), PromisePolicy::Disabled);
-
-        let event = self
-            .compute
-            .next()
-            .await
-            .unwrap()
-            .expect("expect block will be processing");
-
-        let computed_announce = event.unwrap_announce_computed();
-        assert_eq!(computed_announce, announce_hash);
-
-        self.db
-            .mutate_block_announces(announce.block_hash, |announces| {
-                announces.insert(announce_hash);
-            });
-    }
-}
-
-#[track_caller]
-fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> Announce {
-    let parent_hash = db.block_header(block_hash).unwrap().parent_hash;
-    let parent_announce_hash = db.top_announce_hash(parent_hash);
-    Announce {
-        block_hash,
-        parent: parent_announce_hash,
-        gas_allowance,
-        injected_transactions: vec![],
-    }
 }
 
 #[tokio::test]
@@ -264,51 +225,6 @@ async fn block_computation_basic() -> Result<()> {
 
     for block in env.chain.blocks.clone().iter().skip(1) {
         env.prepare_and_assert_block(block.hash).await;
-
-        let announce = new_announce(&env.db, block.hash, Some(100));
-        env.compute_and_assert_announce(announce).await;
-    }
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn multiple_preparation_and_one_processing() -> Result<()> {
-    gear_utils::init_default_logger();
-
-    let mut env = TestEnv::new(3, 3);
-
-    for block in env.chain.blocks.clone().iter().skip(1) {
-        env.prepare_and_assert_block(block.hash).await;
-    }
-
-    // append announces to prepared blocks, except the last one, so that it can be computed
-    for i in 1..3 {
-        let announce = new_announce(&env.db, env.chain.blocks[i].hash, Some(100));
-        env.db
-            .mutate_block_announces(announce.block_hash, |announces| {
-                announces.insert(announce.to_hash());
-            });
-        env.db.set_announce(announce);
-    }
-
-    let announce = new_announce(&env.db, env.chain.blocks[3].hash, Some(100));
-    env.compute_and_assert_announce(announce).await;
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn one_preparation_and_multiple_processing() -> Result<()> {
-    gear_utils::init_default_logger();
-
-    let mut env = TestEnv::new(3, 3);
-
-    env.prepare_and_assert_block(env.chain.blocks[3].hash).await;
-
-    for block in env.chain.blocks.clone().iter().skip(1) {
-        let announce = new_announce(&env.db, block.hash, Some(100));
-        env.compute_and_assert_announce(announce).await;
     }
 
     Ok(())
@@ -334,10 +250,6 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
         .set_block_events(env.chain.blocks[1].hash, &block_events);
     env.prepare_and_assert_block(env.chain.blocks[1].hash).await;
 
-    let announce = new_announce(&env.db, env.chain.blocks[1].hash, Some(100));
-    env.compute_and_assert_announce(announce.clone()).await;
-    env.compute_and_assert_announce(announce.clone()).await;
-
     Ok(())
 }
 
@@ -348,7 +260,7 @@ async fn code_validation_request_for_already_processed_code_does_not_request_loa
 
     let db = Database::memory();
     let processor = MockProcessor::default();
-    let mut compute = ComputeService::new(ComputeConfig::default(), db.clone(), processor.clone());
+    let mut compute = ComputeService::new(db.clone(), processor.clone());
 
     let code = create_new_code(1);
     let code_id = db.set_original_code(&code);
@@ -409,7 +321,7 @@ async fn code_validation_request_for_non_validated_code_requests_loading() -> Re
 
     let db = Database::memory();
     let processor = MockProcessor::default();
-    let mut compute = ComputeService::new(ComputeConfig::default(), db.clone(), processor.clone());
+    let mut compute = ComputeService::new(db.clone(), processor.clone());
 
     let code = create_new_code(1);
     let code_id = db.set_original_code(&code);
@@ -458,7 +370,7 @@ async fn process_code_for_already_processed_valid_code_emits_code_processed() ->
 
     let db = Database::memory();
     let processor = MockProcessor::default();
-    let mut compute = ComputeService::new(ComputeConfig::default(), db.clone(), processor.clone());
+    let mut compute = ComputeService::new(db.clone(), processor.clone());
 
     let code = create_new_code(2);
     let code_id = db.set_original_code(&code);

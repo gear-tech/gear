@@ -19,19 +19,55 @@
 //! Application config in one place.
 
 use anyhow::Result;
+use ethexe_malachite::Multiaddr;
 use ethexe_network::NetworkConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use gsigner::secp256k1::{Address, PublicKey};
-use std::{path::PathBuf, str::FromStr, time::Duration};
+use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 
 #[derive(Debug)]
 pub struct Config {
     pub node: NodeConfig,
     pub ethereum: EthereumConfig,
     pub network: Option<NetworkConfig>,
+    pub malachite: MalachiteCliConfig,
     pub rpc: Option<RpcConfig>,
     pub prometheus: Option<PrometheusConfig>,
+}
+
+/// User-facing subset of [`ethexe_malachite::MalachiteConfig`],
+/// resolved at CLI/TOML parse time. The rest of the runtime fields
+/// (home directory, mempool) are filled in by the service itself.
+#[derive(Clone, Debug)]
+pub struct MalachiteCliConfig {
+    /// Listen address for the Malachite libp2p TCP swarm.
+    pub listen_addr: SocketAddr,
+    /// Persistent peers the local Malachite swarm should always
+    /// connect to. Each entry must include a `/p2p/<peer_id>` suffix.
+    /// Discovery is currently disabled, so for a multi-validator
+    /// deployment every peer must be listed (or transitively
+    /// reachable through the listed ones).
+    pub persistent_peers: Vec<Multiaddr>,
+    /// Map from validator Ethereum [`Address`] to its Malachite
+    /// secp256k1 [`PublicKey`]. The on-chain Router contract stores
+    /// the validator set as Ethereum addresses; Malachite needs the
+    /// matching public keys to verify votes/proposals. The service
+    /// resolves the final validator set by walking the on-chain
+    /// validator list (in router order) and looking each address up
+    /// in this table, so the table must contain every active
+    /// validator's address.
+    pub validator_pub_keys: BTreeMap<Address, PublicKey>,
+}
+
+impl Default for MalachiteCliConfig {
+    fn default() -> Self {
+        Self {
+            listen_addr: ethexe_malachite::MalachiteConfig::DEFAULT_LISTEN_ADDR,
+            persistent_peers: Vec::new(),
+            validator_pub_keys: BTreeMap::new(),
+        }
+    }
 }
 
 impl Config {
@@ -65,7 +101,19 @@ pub struct NodeConfig {
     pub dev: bool,
     pub pre_funded_accounts: u32,
     pub fast_sync: bool,
-    pub chain_deepness_threshold: u32,
+    /// How long the coordinator should wait between observing a new
+    /// Ethereum chain head and starting batch aggregation. Buys time for
+    /// participants to receive the same chain head and lets the previous
+    /// MB finish executing.
+    pub coordinator_aggregation_delay: Duration,
+    /// Coordinator-local: how many Ethereum blocks the resulting
+    /// `BatchCommitment` stays valid past its target block. Encoded into
+    /// `BatchCommitment::expiry`.
+    pub commitment_delay_limit: std::num::NonZero<u8>,
+    /// Force a checkpoint chain commitment when the producer's
+    /// `last_advanced_eth_block` runs ahead of `last_committed_advanced_eth_block`
+    /// by more than this many Eth blocks. Zero disables.
+    pub uncommitted_chain_len_threshold: u32,
     pub genesis_state_dump: Option<PathBuf>,
 }
 

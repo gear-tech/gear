@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD};
+use ethexe_common::consensus::DEFAULT_BATCH_SIZE_LIMIT;
 use ethexe_ethereum::Ethereum;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig};
@@ -57,7 +57,9 @@ async fn constructor() {
         dev: false,
         pre_funded_accounts: 10,
         fast_sync: false,
-        chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+        coordinator_aggregation_delay: Duration::from_millis(1500),
+        uncommitted_chain_len_threshold: 500,
+        commitment_delay_limit: ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT,
         batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
         genesis_state_dump: None,
     };
@@ -78,6 +80,7 @@ async fn constructor() {
         node: node_cfg,
         ethereum: eth_cfg,
         network: None,
+        malachite: Default::default(),
         rpc: None,
         prometheus: None,
     };

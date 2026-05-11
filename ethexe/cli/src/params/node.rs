@@ -24,7 +24,7 @@ use clap::Parser;
 use directories::ProjectDirs;
 use ethexe_common::{
     DEFAULT_BLOCK_GAS_LIMIT,
-    consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD, MAX_BATCH_SIZE_LIMIT},
+    consensus::{DEFAULT_BATCH_SIZE_LIMIT, MAX_BATCH_SIZE_LIMIT},
     gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
 };
 use ethexe_processor::DEFAULT_CHUNK_SIZE;
@@ -32,6 +32,13 @@ use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;
+
+/// Default delay before the coordinator starts aggregating a batch
+/// commitment, in milliseconds. ~1.5s strikes a balance between giving
+/// participants time to catch up and not stalling on-chain commitment
+/// turnaround.
+const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 0;
+const DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD: u32 = 500;
 
 #[static_init::dynamic(drop, lazy)]
 static mut TMP_DB: Option<TempDir> = None;
@@ -108,10 +115,28 @@ pub struct NodeParams {
     #[serde(default, rename = "fast-sync")]
     pub fast_sync: bool,
 
-    /// Threshold for producer to submit commitment despite of no transitions
+    /// Coordinator-side delay (milliseconds) between observing a new
+    /// Ethereum chain head and starting batch aggregation. Buys time for
+    /// participants to receive the same head and lets the previous MB
+    /// finish executing.
     #[arg(long)]
-    #[serde(default, rename = "chain-deepness-threshold")]
-    pub chain_deepness_threshold: Option<u32>,
+    #[serde(default, rename = "coordinator-aggregation-delay-ms")]
+    pub coordinator_aggregation_delay_ms: Option<u64>,
+
+    /// Force a checkpoint chain commitment when the producer's
+    /// `last_advanced_eth_block` runs ahead of the on-chain
+    /// `last_committed_advanced_eth_block` by more than this many Eth blocks.
+    /// Zero disables.
+    #[arg(long)]
+    #[serde(default, rename = "uncommitted-chain-len-threshold")]
+    pub uncommitted_chain_len_threshold: Option<u32>,
+
+    /// Coordinator-local: how many Ethereum blocks the resulting
+    /// `BatchCommitment` stays valid past its target block. Encoded into
+    /// `BatchCommitment::expiry`. Default 16.
+    #[arg(long)]
+    #[serde(default, rename = "commitment-delay-limit")]
+    pub commitment_delay_limit: Option<NonZero<u8>>,
 
     /// Path to genesis state dump file (.blob or .json) for initial chain state.
     #[arg(long)]
@@ -167,9 +192,16 @@ impl NodeParams {
                 .unwrap_or(Self::DEFAULT_PRE_FUNDED_ACCOUNTS)
                 .get(),
             fast_sync: self.fast_sync,
-            chain_deepness_threshold: self
-                .chain_deepness_threshold
-                .unwrap_or(DEFAULT_CHAIN_DEEPNESS_THRESHOLD),
+            coordinator_aggregation_delay: std::time::Duration::from_millis(
+                self.coordinator_aggregation_delay_ms
+                    .unwrap_or(DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS),
+            ),
+            uncommitted_chain_len_threshold: self
+                .uncommitted_chain_len_threshold
+                .unwrap_or(DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD),
+            commitment_delay_limit: self
+                .commitment_delay_limit
+                .unwrap_or(ethexe_common::DEFAULT_COMMITMENT_DELAY_LIMIT),
             genesis_state_dump: self.genesis_state_dump,
         })
     }
@@ -250,9 +282,15 @@ impl MergeParams for NodeParams {
 
             fast_sync: self.fast_sync || with.fast_sync,
 
-            chain_deepness_threshold: self
-                .chain_deepness_threshold
-                .or(with.chain_deepness_threshold),
+            coordinator_aggregation_delay_ms: self
+                .coordinator_aggregation_delay_ms
+                .or(with.coordinator_aggregation_delay_ms),
+
+            uncommitted_chain_len_threshold: self
+                .uncommitted_chain_len_threshold
+                .or(with.uncommitted_chain_len_threshold),
+
+            commitment_delay_limit: self.commitment_delay_limit.or(with.commitment_delay_limit),
 
             genesis_state_dump: self.genesis_state_dump.or(with.genesis_state_dump),
         }

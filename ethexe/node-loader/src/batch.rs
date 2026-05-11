@@ -740,6 +740,7 @@ async fn run_batch_impl(
                 let to = call.arg.0.0;
                 let value = call.arg.0.3;
                 if call.use_injected {
+                    let now = std::time::Instant::now();
                     let (message_id, promise) = rpc_pool
                         .send_message_injected_and_watch(
                             endpoint_idx,
@@ -753,7 +754,7 @@ async fn run_batch_impl(
                     injected_promises.insert(message_id, promise);
                     mid_map.write().await.insert(message_id, to);
                     injected_tx_count = injected_tx_count.saturating_add(1);
-                    tracing::trace!(call_id = i, %to, %message_id, "Injected message sent");
+                    tracing::trace!(time = now.elapsed().as_millis(), call_id = i, %to, %message_id, "Injected message sent and promise received");
                 } else {
                     regular_calls.push((i, to, call.arg.0.1.clone(), value));
                 }

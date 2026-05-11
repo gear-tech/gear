@@ -19,12 +19,11 @@
 //! Implementation of the `ethexe check` command.
 
 use crate::params::{MergeParams, Params};
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
-    db::{AnnounceStorageRO, DBGlobals, GlobalsStorageRO, OnChainStorageRO},
-    gear::CANONICAL_QUARANTINE,
+    SimpleBlockData,
+    db::{DBGlobals, GlobalsStorageRO, OnChainStorageRO},
 };
 use ethexe_db::{
     Database, InitConfig, RawDatabase, RocksDatabase,
@@ -32,7 +31,6 @@ use ethexe_db::{
     verifier::IntegrityVerifier,
     visitor::{self},
 };
-use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor, ProcessorConfig};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{collections::HashSet, path::PathBuf};
 
@@ -50,7 +48,8 @@ pub struct CheckCommand {
     #[arg(long)]
     pub db: Option<PathBuf>,
 
-    /// Perform computations of announces, by default from start announce to latest computed announce.
+    /// Re-execute every persisted MB and assert the cached outcome /
+    /// states / schedule match. Currently disabled — not yet wired in.
     #[arg(long, alias = "compute")]
     pub computation_check: bool,
 
@@ -123,18 +122,11 @@ impl CheckCommand {
 
         let globals = db.globals().clone();
 
-        let node_params = self.params.node.unwrap_or_default();
+        let _node_params = self.params.node.unwrap_or_default();
         let checker = Checker {
             db,
             globals,
             progress_bar: !self.verbose,
-            chunk_size: node_params
-                .chunk_processing_threads
-                .unwrap_or(DEFAULT_CHUNK_SIZE)
-                .get(),
-            canonical_quarantine: node_params
-                .canonical_quarantine
-                .unwrap_or(CANONICAL_QUARANTINE),
         };
 
         if self.integrity_check {
@@ -161,8 +153,6 @@ struct Checker {
     db: Database,
     globals: DBGlobals,
     progress_bar: bool,
-    chunk_size: usize,
-    canonical_quarantine: u8,
 }
 
 impl Checker {
@@ -241,106 +231,13 @@ impl Checker {
         Ok(())
     }
 
-    /// Recomputes announces and checks the stored outcomes against fresh execution results.
+    /// Re-runs every persisted MB and compares the cached outcome / states /
+    /// schedule against fresh execution. Stubbed pending MB walk wiring.
     async fn computation_check(&self) -> Result<()> {
-        let db = &self.db;
-        let bottom = self.globals.start_announce_hash;
-        let head = self.globals.latest_computed_announce_hash;
-        let progress_bar = self.progress_bar;
-        let chunk_size = self.chunk_size;
-        let canonical_quarantine = self.canonical_quarantine;
-
-        let bottom_block = announce_block(db, bottom)?;
-        let head_block = announce_block(db, head)?;
-        println!(
-            "📋 Starting computation check from announce {bottom} in {bottom_block} to announce {head} in {head_block}"
-        );
-
-        let pb = if progress_bar {
-            let total_blocks = announce_block(db, head)?
-                .header
-                .height
-                .checked_sub(announce_block(db, bottom)?.header.height)
-                .ok_or_else(|| anyhow!("Incorrect announces range"))?;
-            let bar_style = ProgressStyle::with_template(PROGRESS_BAR_TEMPLATE)
-                .unwrap()
-                .progress_chars("=>-");
-            let pb = ProgressBar::new(total_blocks as u64);
-            pb.set_style(bar_style);
-            Some(pb)
-        } else {
-            None
-        };
-
-        let processor = Processor::with_config(ProcessorConfig { chunk_size }, db.clone())
-            .context("failed to create processor")?;
-
-        // Iterate back: from `head` announce to `bottom` announce
-        let mut announce_hash = head;
-        while announce_hash != bottom {
-            let announce = db.announce(announce_hash).ok_or_else(|| {
-                anyhow!("announce {announce_hash} in computed chain not found in db")
-            })?;
-            let announce_parent_hash = announce.parent;
-
-            let mut processor = processor.clone().overlaid();
-            let executable =
-                ethexe_compute::prepare_executable_for_announce(db, announce, canonical_quarantine)
-                    .context("Unable to preparing announce data for execution")?;
-            let res = processor
-                .as_mut()
-                .process_programs(executable, None)
-                .await
-                .context("failed to re-compute announce")?;
-
-            let states = db.announce_program_states(announce_hash).ok_or_else(|| {
-                anyhow!("program states for announce {announce_hash:?} not found in db",)
-            })?;
-
-            let outcome = db
-                .announce_outcome(announce_hash)
-                .ok_or_else(|| anyhow!("announce outcome {announce_hash:?} not found in db",))?;
-
-            let schedule = db.announce_schedule(announce_hash).ok_or_else(|| {
-                anyhow!("schedule for announce {announce_hash:?} not found in db",)
-            })?;
-
-            ensure!(
-                states == res.states,
-                "announce {announce_hash:?} final program states mismatch",
-            );
-
-            ensure!(
-                outcome == res.transitions,
-                "announce {announce_hash:?} state transitions mismatch",
-            );
-
-            ensure!(
-                schedule == res.schedule,
-                "announce {announce_hash:?} schedule mismatch",
-            );
-
-            if let Some(ref pb) = pb {
-                pb.inc(1);
-            }
-
-            announce_hash = announce_parent_hash;
-        }
-
+        // TODO: +_+_+ walk `globals.latest_finalized_mb_hash` back through
+        // `CompactBlock.parent`, re-execute each MB through the
+        // processor, and assert the persisted `mb_*` records match.
+        println!("computation_check is currently a stub — MB walk not wired in yet");
         Ok(())
     }
-}
-
-/// Resolves the block associated with a stored announce.
-fn announce_block(db: &Database, announce_hash: HashOf<Announce>) -> Result<SimpleBlockData> {
-    let announce = db
-        .announce(announce_hash)
-        .ok_or_else(|| anyhow!("announce {announce_hash} not found in db",))?;
-
-    db.block_header(announce.block_hash)
-        .ok_or_else(|| anyhow!("block header not found for block {}", announce.block_hash))
-        .map(|header| SimpleBlockData {
-            hash: announce.block_hash,
-            header,
-        })
 }

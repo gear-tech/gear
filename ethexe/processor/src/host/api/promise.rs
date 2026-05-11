@@ -29,7 +29,7 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
 
 fn publish_promise(caller: Caller<'_, StoreData>, promise_ptr_len: i64) {
     threads::with_params(|params| {
-        if let Some(ref sender) = params.promise_sink {
+        if let Some(ref sender) = params.promise_out_tx {
             let memory = MemoryWrap(caller.data().memory());
             let promise = memory.decode_by_val(&caller, promise_ptr_len);
 

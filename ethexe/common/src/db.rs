@@ -19,11 +19,12 @@
 //! Common db types and traits.
 
 use crate::{
-    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, SimpleBlockData, ValidatorsVec,
+    Address, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines, Schedule,
+    SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
+    injected::{InjectedTransaction, SignedInjectedTransaction},
+    mb::Transactions,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -40,16 +41,14 @@ use scale_info::TypeInfo;
 /// Ethexe metadata associated with an on-chain block.
 #[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
-    /// Block has been prepared, meaning:
-    /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
-    /// Queue of code ids waiting for validation status commitment on-chain.
     pub codes_queue: Option<VecDeque<CodeId>>,
-    /// Last committed on-chain batch hash.
     pub last_committed_batch: Option<Digest>,
-    /// Last committed on-chain announce hash.
-    pub last_committed_announce: Option<HashOf<Announce>>,
-    /// Latest era with committed validators.
+    /// Last committed MB hash visible from this Eth block.
+    pub last_committed_mb: Option<H256>,
+    // +_+_+ rename to `last_committed_eb`
+    /// Eth block hash from the last committed `ChainCommitment::last_advanced_eth_block`.
+    pub last_committed_advanced_eth_block: Option<H256>,
     pub latest_era_validators_committed: Option<u64>,
 }
 
@@ -99,6 +98,13 @@ pub trait OnChainStorageRO {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
+
+    fn block_simple_data(&self, block_hash: H256) -> Option<SimpleBlockData> {
+        self.block_header(block_hash).map(|header| SimpleBlockData {
+            hash: block_hash,
+            header,
+        })
+    }
 }
 
 #[auto_impl::auto_impl(&)]
@@ -117,60 +123,58 @@ pub trait InjectedStorageRO {
         &self,
         hash: HashOf<InjectedTransaction>,
     ) -> Option<SignedInjectedTransaction>;
-
-    /// Returns the promise by its transaction hash.
-    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
-
-    /// Returns the compact promise by its transaction hash.
-    fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
-
-    fn set_promise(&self, promise: &Promise);
-
-    fn set_compact_promise(&self, promise: &SignedCompactPromise);
 }
 
+// +_+_+ rename to CompactMB
+/// MB static identity. Keyed by the Blake2b envelope hash; existence implies
+/// the matching `Transactions` blob is in CAS at `transactions_hash`.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
-pub struct AnnounceMeta {
+pub struct CompactBlock {
+    pub parent: H256,
+    pub height: u64,
+    pub transactions_hash: H256,
+}
+
+/// MB dynamic state. `last_advanced_block` is propagated forward at save time
+/// (resets on `AdvanceTillEthereumBlock`); `synced` requires this MB and every
+/// ancestor to be persisted.
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
+pub struct MbMeta {
     pub computed: bool,
+    pub synced: bool,
+    // +_+_+ rename to `last_advanced_eb`
+    pub last_advanced_block: H256,
 }
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait AnnounceStorageRO {
-    fn announce(&self, hash: HashOf<Announce>) -> Option<Announce>;
-    fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates>;
-    fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
-    fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
-    fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
-    fn block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
+pub trait MbStorageRO {
+    /// Static identity (parent + height + `transactions_hash`).
+    /// Existence implies the matching [`Transactions`] blob is in the
+    /// CAS at `transactions_hash`.
+    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactBlock>;
+    /// Read the [`Transactions`] blob from CAS by its content hash.
+    fn transactions(&self, transactions_hash: H256) -> Option<Transactions>;
+    fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
+    fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
+    fn mb_schedule(&self, mb_hash: H256) -> Option<Schedule>;
+    fn mb_meta(&self, mb_hash: H256) -> MbMeta;
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait AnnounceStorageRW: AnnounceStorageRO {
-    fn set_announce(&self, announce: Announce) -> HashOf<Announce>;
-    fn set_block_announces(&self, block_hash: H256, announces: BTreeSet<HashOf<Announce>>);
-    fn set_announce_program_states(
-        &self,
-        announce_hash: HashOf<Announce>,
-        program_states: ProgramStates,
-    );
-    fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
-    fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
-
-    fn mutate_announce_meta(
-        &self,
-        announce_hash: HashOf<Announce>,
-        f: impl FnOnce(&mut AnnounceMeta),
-    );
-    fn mutate_block_announces(
-        &self,
-        block_hash: H256,
-        f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
-    );
+pub trait MbStorageRW: MbStorageRO {
+    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactBlock);
+    /// Write a [`Transactions`] blob into the CAS and return its hash
+    /// (the value stored in [`CompactBlock::transactions_hash`]).
+    fn set_transactions(&self, transactions: Transactions) -> H256;
+    fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
+    fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
+    fn set_mb_schedule(&self, mb_hash: H256, schedule: Schedule);
+    fn mutate_mb_meta(&self, mb_hash: H256, f: impl FnOnce(&mut MbMeta));
 }
 
 pub struct PreparedBlockData {
@@ -178,16 +182,13 @@ pub struct PreparedBlockData {
     pub events: Vec<BlockEvent>,
     pub latest_era_with_committed_validators: u64,
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
-    pub last_committed_announce: HashOf<Announce>,
-}
-
-pub struct ComputedAnnounceData {
-    pub announce: Announce,
-    pub program_states: ProgramStates,
-    pub outcome: Vec<StateTransition>,
-    pub schedule: Schedule,
+    /// `H256::zero()` for genesis (no MB committed on-chain yet).
+    pub last_committed_mb: H256,
+    // +_+_+ rename to `last_committed_eb`
+    /// `H256::zero()` for genesis (no chain commitment has advanced an
+    /// Eth block yet).
+    pub last_committed_advanced_eth_block: H256,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
@@ -197,17 +198,23 @@ pub struct DBConfig {
     pub router_address: Address,
     pub timelines: ProtocolTimelines,
     pub genesis_block_hash: H256,
-    pub genesis_announce_hash: HashOf<Announce>,
     pub max_validators: u16,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct DBGlobals {
     pub start_block_hash: H256,
-    pub start_announce_hash: HashOf<Announce>,
+
+    // +_+_+ rename to `latest_synced_eb`
     pub latest_synced_block: SimpleBlockData,
+
+    // +_+_+ rename to `latest_prepared_eb_hash`
     pub latest_prepared_block_hash: H256,
-    pub latest_computed_announce_hash: HashOf<Announce>,
+
+    /// Hash of the most recent Malachite sequencer block this node
+    /// has seen finalized. `H256::zero()` means no MB has ever been
+    /// finalized. Updated on every `MalachiteEvent::BlockFinalized`.
+    pub latest_finalized_mb_hash: H256,
 }
 
 #[cfg(feature = "std")]
@@ -262,7 +269,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "af71cfe84dbd11ee47246e10dc1ad27e20a73ac080f7bf48ae9f3cf82848c85d";
+            "db6bc4839e6492298211d675ad7e98295343bbb3e617dca097d4bbd928fc4a9a";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -275,11 +282,12 @@ mod tests {
             meta_type::<ProtocolTimelines>(),
             meta_type::<HashOf<InjectedTransaction>>(),
             meta_type::<SignedInjectedTransaction>(),
-            meta_type::<Announce>(),
             meta_type::<ProgramStates>(),
             meta_type::<StateTransition>(),
             meta_type::<Schedule>(),
-            meta_type::<AnnounceMeta>(),
+            meta_type::<MbMeta>(),
+            meta_type::<CompactBlock>(),
+            meta_type::<crate::mb::Transactions>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),
         ];

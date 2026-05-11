@@ -26,10 +26,11 @@
 //! API to:
 //!
 //! - validate and instrument Gear WASM code blobs,
-//! - execute an ethexe block (announce) — routing [`BlockRequestEvent`]s
-//!   into program state mutations, appending [`InjectedTransaction`]s to
-//!   program queues, running scheduled tasks, and draining program
-//!   message queues until gas or other limits are exhausted,
+//! - execute a Malachite sequencer block (MB) — stepping through its
+//!   `Transactions` list, routing [`BlockRequestEvent`]s into program
+//!   state mutations, appending [`InjectedTransaction`]s to program
+//!   queues, running scheduled tasks, and draining program message
+//!   queues until gas or other limits are exhausted,
 //! - simulate a single message against a copy-on-write view of the
 //!   database without committing anything, for RPC reply queries.
 //!
@@ -38,7 +39,7 @@
 //! `ethexe-processor` is the bottom of the execution stack. It is
 //! consumed by:
 //!
-//! - `ethexe-compute` — calls [`Processor::process_programs`] and
+//! - `ethexe-compute` — calls [`Processor::process_transitions`] and
 //!   [`Processor::process_code`] through its `ProcessorExt` trait (the
 //!   trait is defined in `ethexe-compute`, together with a direct impl
 //!   for [`Processor`]). Compute is what the service layer talks to —
@@ -52,14 +53,15 @@
 //!
 //! ## Entry points
 //!
-//! | Method                                    | Purpose                                                                 |
-//! |-------------------------------------------|-------------------------------------------------------------------------|
-//! | [`Processor::process_code`]               | Validate + instrument a WASM blob. Synchronous, does not touch the DB.  |
-//! | [`Processor::process_programs`]           | Execute an ethexe block: events → tasks → queues. Main async workflow.  |
-//! | [`Processor::overlaid`]                   | Wrap `self` into an [`OverlaidProcessor`] backed by an overlaid DB.     |
-//! | [`OverlaidProcessor::execute_for_reply`]  | Simulate a single incoming message and return the reply.                |
+//! | Method                                    | Purpose                                                                       |
+//! |-------------------------------------------|-------------------------------------------------------------------------------|
+//! | [`Processor::process_code`]               | Validate + instrument a WASM blob. Synchronous, does not touch the DB.        |
+//! | [`Processor::process_transitions`]        | Execute an MB by walking its `Transactions` list (compute's primary entry).    |
+//! | [`Processor::process_programs`]           | "Block in one shot" path used only by the processor's own unit tests.         |
+//! | [`Processor::overlaid`]                   | Wrap `self` into an [`OverlaidProcessor`] backed by an overlaid DB.           |
+//! | [`OverlaidProcessor::execute_for_reply`]  | Simulate a single incoming message and return the reply.                      |
 //!
-//! ## `process_programs` contract
+//! ## `process_programs` contract (tests-only)
 //!
 //! Given an [`ExecutableData`] (block header, program states, schedule,
 //! injected transactions, block request events, and optional gas
@@ -156,10 +158,10 @@ pub use host::InstanceError;
 
 use core::num::NonZero;
 use ethexe_common::{
-    CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
+    CodeAndIdUnchecked, ProgramStates, Schedule,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
-    injected::InjectedTransaction,
+    injected::{InjectedTransaction, Promise},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -174,12 +176,10 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
+use tokio::sync::mpsc;
 
 mod handling;
 mod host;
-mod promise;
-pub use promise::BoundPromiseSink;
-
 #[cfg(test)]
 mod tests;
 mod thread_pool;
@@ -311,15 +311,18 @@ impl Processor {
         Ok(ProcessedCodeInfo { code_id, valid })
     }
 
+    /// Execute one MB given prepared inputs. Three-phase pipeline:
+    /// inject + apply events → run scheduled tasks → drain queues with `gas_allowance`.
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_sink: Option<BoundPromiseSink>,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!("{executable}");
 
         let ExecutableData {
-            block,
+            height,
+            timestamp,
             program_states,
             schedule,
             injected_transactions,
@@ -327,20 +330,21 @@ impl Processor {
             events,
         } = executable;
 
-        let mut transitions =
-            InBlockTransitions::new(block.header.height, program_states, schedule);
+        let mut transitions = InBlockTransitions::new(height, program_states, schedule);
 
-        // First step: push injected to queues and handle block events.
         transitions =
             self.handle_injected_and_events(transitions, injected_transactions, events)?;
-
-        // Second step: process scheduled tasks.
         transitions = self.process_tasks(transitions);
 
-        // Third step: process queues until limits are exhausted or all queues are empty.
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance, promise_sink)
+                .process_queues(
+                    transitions,
+                    height,
+                    timestamp,
+                    gas_allowance,
+                    promise_out_tx,
+                )
                 .await?;
         }
 
@@ -378,9 +382,10 @@ impl Processor {
     async fn process_queues(
         &mut self,
         transitions: InBlockTransitions,
-        block: SimpleBlockData,
+        height: u32,
+        timestamp: u64,
         gas_allowance: u64,
-        promise_sink: Option<BoundPromiseSink>,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<InBlockTransitions> {
         CommonRunContext::new(
             self.db.clone(),
@@ -388,8 +393,9 @@ impl Processor {
             transitions,
             gas_allowance,
             self.config.chunk_size,
-            block.header,
-            promise_sink,
+            height,
+            timestamp,
+            promise_out_tx,
         )
         .run()
         .await
@@ -431,13 +437,13 @@ pub struct ValidCodeInfo {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "{block}, programs amount: {}, schedule len: {}, gas_allowance: {gas_allowance:?},
-    injected: {injected_transactions:?},
-    events: {events:?}",
-    program_states.len(), schedule.len(),
+    "ExecutableData(height: {height}, timestamp: {timestamp}, programs: {}, \
+    schedule len: {}, gas_allowance: {gas_allowance:?}, injected: {}, events: {})",
+    program_states.len(), schedule.len(), injected_transactions.len(), events.len(),
 )]
 pub struct ExecutableData {
-    pub block: SimpleBlockData,
+    pub height: u32,
+    pub timestamp: u64,
     pub program_states: ProgramStates,
     pub schedule: Schedule,
     pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
@@ -449,7 +455,8 @@ pub struct ExecutableData {
 impl Default for ExecutableData {
     fn default() -> Self {
         Self {
-            block: SimpleBlockData::default(),
+            height: 0,
+            timestamp: 0,
             program_states: ProgramStates::default(),
             schedule: Schedule::default(),
             injected_transactions: vec![],
@@ -461,12 +468,13 @@ impl Default for ExecutableData {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "Execution for reply at {block:?}: block: {block:?}, \
+    "Execution for reply at height {height} timestamp {timestamp}: \
     program_id: {program_id}, source: {source}, payload len: {}, \
     value: {value}, gas_allowance: {gas_allowance}", payload.len()
 )]
 pub struct ExecutableDataForReply {
-    pub block: SimpleBlockData,
+    pub height: u32,
+    pub timestamp: u64,
     pub program_states: ProgramStates,
     pub source: ActorId,
     pub program_id: ActorId,
@@ -486,7 +494,8 @@ impl OverlaidProcessor {
         log::debug!("{executable}");
 
         let ExecutableDataForReply {
-            block,
+            height,
+            timestamp,
             program_states,
             source,
             program_id,
@@ -510,8 +519,7 @@ impl OverlaidProcessor {
             return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
-        let transitions =
-            InBlockTransitions::new(block.header.height, program_states, Schedule::default());
+        let transitions = InBlockTransitions::new(height, program_states, Schedule::default());
 
         let transitions = self.0.handle_injected_and_events(
             transitions,
@@ -537,7 +545,8 @@ impl OverlaidProcessor {
             gas_allowance,
             self.0.config.chunk_size,
             self.0.creator.clone(),
-            block.header,
+            height,
+            timestamp,
         )
         .run()
         .await?;

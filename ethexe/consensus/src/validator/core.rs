@@ -18,14 +18,13 @@
 
 //! Validator core utils and parameters.
 
-use crate::validator::{ValidatorMetrics, batch::BatchCommitmentManager, tx_pool::InjectedTxPool};
+use crate::validator::{ValidatorMetrics, batch::BatchCommitmentManager};
 use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_common::{
     Address, ProtocolTimelines, ValidatorsVec,
     ecdsa::{ContractSignature, PublicKey},
     gear::BatchCommitment,
-    injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
@@ -49,20 +48,19 @@ pub struct ValidatorCore {
     #[debug(skip)]
     pub committer: Box<dyn BatchCommitter>,
     #[debug(skip)]
-    pub injected_pool: InjectedTxPool,
-    #[debug(skip)]
     pub batch_manager: BatchCommitmentManager,
     #[debug(skip)]
     pub metrics: ValidatorMetrics,
 
-    /// Minimum deepness threshold to create chain commitment even if there are no transitions.
-    pub chain_deepness_threshold: u32,
-    /// Gas limit to be used when creating new announce.
-    pub block_gas_limit: u64,
-    /// Time limit in blocks for announce to be committed after its creation.
-    pub commitment_delay_limit: u32,
-    /// Delay before producer starts to creating new announce after block prepared.
-    pub producer_delay: Duration,
+    /// Coordinator-local lifetime (Eth blocks) of a fresh `BatchCommitment`
+    /// past its target block — copied into
+    /// [`BatchCommitment::expiry`](ethexe_common::gear::BatchCommitment).
+    pub commitment_delay_limit: std::num::NonZero<u8>,
+    /// Delay between receiving a new chain head and the coordinator
+    /// starting batch aggregation. Buys time for participants to receive
+    /// the same chain head and for malachite to finalize mb with fresh post-quarantine block included.
+    /// Anyway not necessary.
+    pub coordinator_aggregation_delay: Duration,
 }
 
 impl Clone for ValidatorCore {
@@ -76,21 +74,10 @@ impl Clone for ValidatorCore {
             db: self.db.clone(),
             committer: self.committer.clone_boxed(),
             batch_manager: self.batch_manager.clone(),
-            injected_pool: self.injected_pool.clone(),
             metrics: self.metrics.clone(),
-            chain_deepness_threshold: self.chain_deepness_threshold,
-            block_gas_limit: self.block_gas_limit,
             commitment_delay_limit: self.commitment_delay_limit,
-            producer_delay: self.producer_delay,
+            coordinator_aggregation_delay: self.coordinator_aggregation_delay,
         }
-    }
-}
-
-impl ValidatorCore {
-    pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
-        tracing::trace!(tx = ?tx, "Receive new injected transaction");
-        self.injected_pool.handle_tx(tx);
-        Ok(())
     }
 }
 

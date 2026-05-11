@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core_processor::common::JournalNote;
-use ethexe_common::gear::MessageType;
+use ethexe_common::{gear::MessageType, injected::Promise};
 use ethexe_db::CASDatabase;
 use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, unpack_i64_to_u32};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
@@ -26,8 +26,7 @@ use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
 use std::sync::Arc;
-
-use crate::BoundPromiseSink;
+use tokio::sync::mpsc;
 
 pub mod api;
 pub mod runtime;
@@ -172,13 +171,13 @@ impl InstanceWrapper {
         &mut self,
         db: Box<dyn CASDatabase>,
         ctx: ProcessQueueContext,
-        promise_sink: Option<BoundPromiseSink>,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Result<(ProgramJournals, H256, u64)> {
-        threads::set(db, ctx.state_root, promise_sink.clone());
+        threads::set(db, ctx.state_root, promise_out_tx.clone());
 
-        // Cleanup the `promise_sink` from thread-local to signal receiver that channel is closed.
+        // Cleanup the `promise_out_tx` from thread-local to signal receiver that channel is closed.
         let _cleanup = scopeguard::guard((), |()| {
-            threads::clear_promise_sink();
+            threads::clear_promise_out_tx();
         });
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.

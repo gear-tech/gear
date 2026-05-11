@@ -29,12 +29,14 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 mod ethereum;
+mod malachite;
 mod network;
 mod node;
 mod prometheus;
 mod rpc;
 
 pub use ethereum::EthereumParams;
+pub use malachite::MalachiteParams;
 pub use network::NetworkParams;
 pub use node::NodeParams;
 pub use prometheus::PrometheusParams;
@@ -57,6 +59,11 @@ pub struct Params {
     #[clap(flatten)]
     #[serde(alias = "net")]
     pub network: Option<NetworkParams>,
+
+    /// Malachite consensus service parameters.
+    #[clap(flatten)]
+    #[serde(alias = "mala")]
+    pub malachite: Option<MalachiteParams>,
 
     /// Ethexe RPC service hosting parameters.
     #[clap(flatten)]
@@ -86,6 +93,7 @@ impl Params {
             node,
             ethereum,
             network,
+            malachite,
             rpc,
             prometheus,
         } = self;
@@ -103,12 +111,14 @@ impl Params {
                     .transpose()
             })
             .transpose()?;
+        let malachite = malachite.unwrap_or_default().into_config()?;
         let rpc = rpc.and_then(|p| p.into_config(&node));
         let prometheus = prometheus.and_then(|p| p.into_config());
         Ok(Config {
             node,
             ethereum,
             network,
+            malachite,
             rpc,
             prometheus,
         })
@@ -121,6 +131,7 @@ impl MergeParams for Params {
             node: MergeParams::optional_merge(self.node, with.node),
             ethereum: MergeParams::optional_merge(self.ethereum, with.ethereum),
             network: MergeParams::optional_merge(self.network, with.network),
+            malachite: MergeParams::optional_merge(self.malachite, with.malachite),
             rpc: MergeParams::optional_merge(self.rpc, with.rpc),
             prometheus: MergeParams::optional_merge(self.prometheus, with.prometheus),
         }

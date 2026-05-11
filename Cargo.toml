@@ -12,7 +12,7 @@ resolver = "3"
 
 default-members = ["node/cli"]
 
-exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
+exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/malachite", "ethexe/scripts"]
 
 members = [
     "common",
@@ -109,6 +109,8 @@ members = [
     "utils/runtime-fuzzer/fuzz",
     "utils/lazy-pages-fuzzer/runner",
     "ethexe/*",
+    "ethexe/malachite/core",
+    "ethexe/malachite/service",
     "ethexe/runtime/common",
     "ethexe/service/utils",
 ]
@@ -125,6 +127,7 @@ arbitrary = "1.3.2"
 async-recursion = "1.1.1"
 async-trait = "0.1.81"
 base64 = "0.21.7"
+derive-where = "1.5"
 bytemuck = "1.23.2"
 byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
@@ -228,7 +231,6 @@ tap = "1.0.1"
 ntest = "0.9.3"
 dashmap = "5.5.3"
 delegate = "0.13.5"
-bon = "3.9.1"
 
 # metrics
 metrics = "0.24.0"
@@ -337,6 +339,30 @@ ethexe-compute = { path = "ethexe/compute", default-features = false }
 ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 ethexe-db-init = { path = "ethexe/db/init", default-features = false }
 ethexe-node-wrapper = {path = "ethexe/node-wrapper", default-features = false}
+ethexe-malachite = { path = "ethexe/malachite/service", default-features = false }
+ethexe-malachite-core = { path = "ethexe/malachite/core", default-features = false }
+
+# libp2p-identity for ethexe-malachite-core's swarm peer-id derivation.
+libp2p-identity = { version = "0.2", default-features = false, features = ["secp256k1"] }
+# Pinned at the version `ethexe-db`'s librocksdb-sys uses — only one
+# `links = "rocksdb"` crate may live in the dependency graph.
+rocksdb = { version = "0.21", default-features = false, features = ["snappy"] }
+
+# +_+_+ use malachite from creates.io instead of git deps
+# Malachite BFT engine — canonical fork at circlefin/malachite, pinned so
+# all sub-crates share the same snapshot.
+malachitebft-app-channel     = { package = "arc-malachitebft-app-channel",    git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-app             = { package = "arc-malachitebft-app",            git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-codec           = { package = "arc-malachitebft-codec",          git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-core-consensus  = { package = "arc-malachitebft-core-consensus", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-core-types      = { package = "arc-malachitebft-core-types",     git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-engine          = { package = "arc-malachitebft-engine",         git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-proto           = { package = "arc-malachitebft-proto",          git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-signing         = { package = "arc-malachitebft-signing",        git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-signing-ed25519 = { package = "arc-malachitebft-signing-ed25519", git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-signing-ecdsa   = { package = "arc-malachitebft-signing-ecdsa",   git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7", default-features = false, features = ["k256", "rand", "serde", "std"] }
+malachitebft-sync            = { package = "arc-malachitebft-sync",           git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
+malachitebft-test            = { package = "arc-malachitebft-test",           git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { version = "0.38" }

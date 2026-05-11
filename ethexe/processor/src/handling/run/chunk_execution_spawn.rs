@@ -47,10 +47,9 @@ pub async fn spawn_chunk_execution(
 
     let promise_policy = ctx.promise_policy();
 
-    let block_header = ctx.inner().block_header;
     let block_info = BlockInfo {
-        height: block_header.height,
-        timestamp: block_header.timestamp,
+        height: ctx.inner().height,
+        timestamp: ctx.inner().timestamp,
     };
 
     chunk
@@ -59,7 +58,7 @@ pub async fn spawn_chunk_execution(
             let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
             let mut executor = ctx.inner().instance_creator.instantiate()?;
             let db = ctx.inner().db.cas().clone_boxed();
-            let promise_sink = ctx.inner().promise_sink.clone();
+            let promise_out_tx = ctx.inner().promise_out_tx.clone();
             Ok(thread_pool::spawn(move || {
                 let (jn, new_state_hash, gas_spent) = executor.run(
                     db,
@@ -73,7 +72,7 @@ pub async fn spawn_chunk_execution(
                         block_info,
                         promise_policy,
                     },
-                    promise_sink,
+                    promise_out_tx,
                 )?;
                 Ok((program_id, new_state_hash, jn, gas_spent))
             }))

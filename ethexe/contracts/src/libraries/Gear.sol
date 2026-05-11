@@ -191,6 +191,12 @@ library Gear {
          * @dev Head of chain. Hash of the last block in chain.
          */
         bytes32 head;
+        /**
+         * @dev Latest Ethereum block hash whose events were folded into the MB head.
+         *      `bytes32(0)` when not advanced. Used to drive checkpoint batches
+         *      from `last_committed_advanced_eth_block`.
+         */
+        bytes32 lastAdvancedEthBlock;
     }
 
     /**
@@ -534,9 +540,14 @@ library Gear {
      * @dev Computes the hash of `ChainCommitment`.
      * @param _transitionsHash The hash of the transitions in the chain commitment.
      * @param _head The head of the chain commitment.
+     * @param _lastAdvancedEthBlock The latest folded-in Ethereum block hash.
      */
-    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head) internal pure returns (bytes32) {
-        return Hashes.efficientKeccak256AsBytes32(_transitionsHash, _head);
+    function chainCommitmentHash(bytes32 _transitionsHash, bytes32 _head, bytes32 _lastAdvancedEthBlock)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_transitionsHash, _head, _lastAdvancedEthBlock));
     }
 
     /**

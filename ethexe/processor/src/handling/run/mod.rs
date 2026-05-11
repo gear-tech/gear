@@ -110,16 +110,16 @@ pub(super) mod chunks_splitting;
 
 pub(crate) use chunks_splitting::ActorStateHashWithQueueSize;
 
-use crate::{BoundPromiseSink, ProcessorError, Result, host::InstanceCreator};
+use crate::{ProcessorError, Result, host::InstanceCreator};
 use chunk_execution_processing::ChunkJournalsProcessingOutput;
 use chunks_splitting::ExecutionChunks;
 use core_processor::common::JournalNote;
 use ethexe_common::{
-    BlockHeader, CALL_REPLY_SOFT_LIMIT, OUTGOING_MESSAGES_BYTES_SOFT_LIMIT,
-    OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT, PromisePolicy,
-    StateHashWithQueueSize,
+    CALL_REPLY_SOFT_LIMIT, OUTGOING_MESSAGES_BYTES_SOFT_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT,
+    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PromisePolicy, StateHashWithQueueSize,
     db::CodesStorageRO,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
+    injected::Promise,
 };
 use ethexe_db::{CASDatabase, Database};
 use ethexe_runtime_common::{
@@ -132,6 +132,7 @@ use gear_core::{
 };
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::Itertools;
+use tokio::sync::mpsc;
 
 // Process chosen queue type in chunks
 pub(super) async fn run_for_queue_type(
@@ -267,9 +268,9 @@ pub(super) trait RunContext {
     }
 
     /// [`PromisePolicy`] tells processor should it emit promises or not.
-    /// By default if [`RunContext::promise_sink`] returns [`Some`] this function will return [`PromisePolicy::Enabled`].
+    /// By default if [`RunContext::promise_out_tx`] returns [`Some`] this function will return [`PromisePolicy::Enabled`].
     fn promise_policy(&self) -> PromisePolicy {
-        match self.inner().promise_sink.is_some() {
+        match self.inner().promise_out_tx.is_some() {
             true => PromisePolicy::Enabled,
             false => PromisePolicy::Disabled,
         }
@@ -346,19 +347,22 @@ pub(crate) struct CommonRunContext {
     call_reply_limiter: u32,
     out_of_gas: bool,
     chunk_size: usize,
-    block_header: BlockHeader,
-    promise_sink: Option<BoundPromiseSink>,
+    height: u32,
+    timestamp: u64,
+    promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
 }
 
 impl CommonRunContext {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db: Database,
         instance_creator: InstanceCreator,
         in_block_transitions: InBlockTransitions,
         gas_allowance: u64,
         chunk_size: usize,
-        block_header: BlockHeader,
-        promise_sink: Option<BoundPromiseSink>,
+        height: u32,
+        timestamp: u64,
+        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
     ) -> Self {
         CommonRunContext {
             db,
@@ -370,13 +374,14 @@ impl CommonRunContext {
             call_reply_limiter: CALL_REPLY_SOFT_LIMIT,
             out_of_gas: false,
             chunk_size,
-            block_header,
-            promise_sink,
+            height,
+            timestamp,
+            promise_out_tx,
         }
     }
 
     fn disable_promises(&mut self) {
-        if self.promise_sink.take().is_some() {
+        if self.promise_out_tx.take().is_some() {
             log::trace!("dropping the promise sender");
         }
     }
@@ -503,7 +508,8 @@ mod tests {
             transitions,
             1_000_000,
             CHUNK_PROCESSING_THREADS,
-            BlockHeader::dummy(3),
+            3,
+            3,
             None,
         );
 
@@ -661,7 +667,8 @@ mod tests {
             100,
             16,
             InstanceCreator::new(host::runtime()).unwrap(),
-            BlockHeader::dummy(3),
+            3,
+            3,
         );
         access_state(
             pid2,

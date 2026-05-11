@@ -18,8 +18,8 @@
 
 use crate::{errors, utils};
 use ethexe_common::{
-    HashOf, SimpleBlockData,
-    db::{AnnounceStorageRO, CodesStorageRO, OnChainStorageRO},
+    HashOf,
+    db::{CodesStorageRO, MbStorageRO},
 };
 use ethexe_db::Database;
 use ethexe_processor::{ExecutableDataForReply, OverlaidProcessor};
@@ -135,25 +135,20 @@ impl ProgramServer for ProgramApi {
         payload: Bytes,
         value: u128,
     ) -> RpcResult<ReplyInfo> {
-        let announce_hash = utils::announce_at_or_latest_computed(&self.db, at)?;
-
-        let announce = self
-            .db
-            .announce(announce_hash)
-            .ok_or_else(|| errors::db("Failed to get announce"))?;
-        let block_hash = announce.block_hash;
+        // TODO: re-implement on MB — the `at` parameter selected an announce
+        // at a specific block; map it to a per-block MB snapshot once the
+        // MB↔block index exists. For now answer with the most recently
+        // finalized MB and the synced-block-tip as the `block` context.
+        let _ = at;
+        let mb_hash = utils::latest_finalized_mb(&self.db)?;
+        let block = utils::block_at_or_latest_synced(&self.db, None)?;
 
         let executable = ExecutableDataForReply {
-            block: SimpleBlockData {
-                hash: block_hash,
-                header: self
-                    .db
-                    .block_header(block_hash)
-                    .ok_or_else(|| errors::db("Failed to get block header"))?,
-            },
+            height: block.header.height,
+            timestamp: block.header.timestamp,
             program_states: self
                 .db
-                .announce_program_states(announce_hash)
+                .mb_program_states(mb_hash)
                 .ok_or_else(|| errors::db("Failed to get program states"))?,
             source: source.into(),
             program_id: program_id.into(),
@@ -173,11 +168,11 @@ impl ProgramServer for ProgramApi {
     }
 
     async fn ids(&self) -> RpcResult<Vec<H160>> {
-        let announce_hash = utils::announce_at_or_latest_computed(&self.db, None)?;
+        let mb_hash = utils::latest_finalized_mb(&self.db)?;
 
         Ok(self
             .db
-            .announce_program_states(announce_hash)
+            .mb_program_states(mb_hash)
             .ok_or_else(|| errors::db("Failed to get program states"))?
             .into_keys()
             .map(|id| id.try_into().unwrap())

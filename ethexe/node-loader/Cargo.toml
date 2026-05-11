@@ -12,6 +12,10 @@ rust-version.workspace = true
 name = "ethexe-node-loader"
 path = "src/main.rs"
 
+[[bin]]
+name = "ethexe-ping-rate-load"
+path = "src/bin/ping_rate_load.rs"
+
 [dependencies]
 
 anyhow.workspace = true

@@ -21,17 +21,18 @@ use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
-use gsigner::{PrivateKey, secp256k1::signature::SignResult};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
+
+// +_+_+ return back all logic from https://github.com/gear-tech/gear/commit/4138374dd246047187860adfe5f11e150e94b15d
 
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
 
 /// Maximum size of single injected transaction payload.
 ///
-/// Limited by the maximum injected transactions size per announce.
+/// Limited by the maximum injected transactions size per MB.
 /// Currently is 126 KiB.
 pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 126 * 1024;
 
@@ -145,114 +146,26 @@ pub struct Promise {
 /// It will be shared among other validators as a proof of promise.
 pub type SignedPromise = SignedMessage<Promise>;
 
-impl Promise {
-    /// Calculates the `blake2b` hash from promise's reply.
-    pub fn reply_hash(&self) -> HashOf<ReplyInfo> {
-        // Safety by implementation
-        unsafe { HashOf::new(self.reply.to_hash()) }
-    }
-
-    /// Converts promise to its compact version.
-    pub fn to_compact(&self) -> CompactPromise {
-        CompactPromise {
-            tx_hash: self.tx_hash,
-            reply_hash: self.reply_hash(),
-        }
-    }
-}
-
 impl ToDigest for Promise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        self.to_compact().update_hasher(hasher);
-    }
-}
-
-/// A signed wrapper on top of [`CompactPromise`].
-///
-/// [`SignedCompactPromise`] is a lightweight version of [`SignedPromise`], that is
-/// needed to reduce the amount of data transferred in network between validators.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
-pub struct SignedCompactPromise(SignedMessage<CompactPromise>);
-
-/// The hashes of [`Promise`] parts.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct CompactPromise {
-    pub tx_hash: HashOf<InjectedTransaction>,
-    pub reply_hash: HashOf<ReplyInfo>,
-}
-
-impl ToDigest for CompactPromise {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let Self {
-            tx_hash,
-            reply_hash,
-        } = self;
+        let Self { tx_hash, reply } = self;
 
         hasher.update(tx_hash.inner());
-        hasher.update(reply_hash.inner());
+        let ReplyInfo {
+            payload,
+            code,
+            value,
+        } = reply;
+
+        hasher.update(payload);
+        hasher.update(code.to_bytes());
+        hasher.update(value.to_be_bytes());
     }
 }
 
-impl SignedCompactPromise {
-    /// Create the [`SignedCompactPromise`] from private key and hashes.
-    pub fn create(private_key: PrivateKey, promise_hashes: CompactPromise) -> SignResult<Self> {
-        SignedMessage::create(private_key, promise_hashes).map(SignedCompactPromise)
-    }
-
-    pub fn create_from_promise(private_key: PrivateKey, promise: &Promise) -> SignResult<Self> {
-        Self::create(private_key, promise.to_compact())
-    }
-
-    /// Create the [`SignedCompactPromise`] from a valid [`SignedPromise`].
-    ///
-    /// # Panics
-    /// Panics if the digest of [`Promise`] and [`CompactPromise`] ever diverge.
-    /// This must hold by construction; tests enforce the invariant.
-    pub fn from_signed_promise(signed_promise: &SignedPromise) -> Self {
-        let compact = signed_promise.data().to_compact();
-        let (signature, address) = (*signed_promise.signature(), signed_promise.address());
-
-        SignedMessage::try_from_parts(compact, signature, address)
-            .expect("SignedPromise and CompactPromise must have identical digest")
-            .into()
-    }
-
-    /// Tries to restore the [SignedPromise] with provided [Promise] body.
-    pub fn restore(&self, promise: Promise) -> Result<SignedPromise, &'static str> {
-        SignedMessage::try_from_parts(promise, *self.0.signature(), self.0.address())
-    }
-}
-/// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
-#[cfg(feature = "std")]
-mod serde_hex {
-    pub fn serialize<S, const N: usize>(
-        data: &super::LimitedVec<u8, N>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        alloy_primitives::hex::serialize(data.to_vec(), serializer)
-    }
-
-    pub fn deserialize<'de, D, const N: usize>(
-        deserializer: D,
-    ) -> Result<super::LimitedVec<u8, N>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
-        super::LimitedVec::<u8, N>::try_from(vec)
-            .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
-    }
-}
-
-#[cfg(all(test, feature = "mock"))]
+#[cfg(test)]
 mod tests {
-    use gsigner::PrivateKey;
-
     use super::*;
-    use crate::mock::Mock;
 
     #[test]
     fn signed_message_and_injected_transactions() {
@@ -291,43 +204,29 @@ mod tests {
             signed_tx.address()
         );
     }
+}
 
-    #[test]
-    fn promise_hashes_digest_equal_to_promise_digest() {
-        let promise = Promise::mock(());
-
-        assert_eq!(promise.to_digest(), promise.to_compact().to_digest());
+/// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
+#[cfg(feature = "std")]
+mod serde_hex {
+    pub fn serialize<S, const N: usize>(
+        data: &super::LimitedVec<u8, N>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        alloy_primitives::serde_hex::serialize(data.to_vec(), serializer)
     }
 
-    #[test]
-    fn signatures_equal_for_promise_and_compact_promise() {
-        let private_key = PrivateKey::random();
-        let promise = Promise::mock(());
-
-        let signed_promise = SignedPromise::create(private_key.clone(), promise.clone()).unwrap();
-        let compact_signed_promise =
-            SignedCompactPromise::create_from_promise(private_key, &promise).unwrap();
-
-        assert_eq!(signed_promise.address(), compact_signed_promise.address());
-        assert_eq!(
-            signed_promise.signature().clone(),
-            compact_signed_promise.signature().clone()
-        );
-    }
-
-    #[test]
-    fn compact_signed_promise_correctly_builds_from_signed_promise() {
-        let private_key = PrivateKey::random();
-        let promise = Promise::mock(());
-
-        let signed_promise = SignedPromise::create(private_key.clone(), promise).unwrap();
-
-        let compact_signed_promise = SignedCompactPromise::from_signed_promise(&signed_promise);
-
-        assert_eq!(signed_promise.address(), compact_signed_promise.address());
-        assert_eq!(
-            signed_promise.signature().clone(),
-            compact_signed_promise.signature().clone()
-        );
+    pub fn deserialize<'de, D, const N: usize>(
+        deserializer: D,
+    ) -> Result<super::LimitedVec<u8, N>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let vec: Vec<u8> = alloy_primitives::serde_hex::deserialize(deserializer)?;
+        super::LimitedVec::<u8, N>::try_from(vec)
+            .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
     }
 }

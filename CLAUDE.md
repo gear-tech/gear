@@ -351,6 +351,30 @@ Errors are encoded as little-endian u32. Code `0xffff` is reserved for SyscallUs
 - `cargo nextest` is the test runner (not `cargo test`), except for doc tests
 - `cargo hakari` manages workspace dependency deduplication — run `make workspace-hack` after dependency changes
 
+### Test Timeouts
+
+Hard rule: **never set a test timeout above 2 minutes (`120_000` ms) without the user's explicit permission.** When a test legitimately needs more — either modernize it to fit under 2 minutes (mock heavy I/O, shrink the simulated chain, drive events explicitly instead of waiting on wall-clock pacing), or stop and ask the user before bumping the cap. A timeout is a symptom; the fix is the test logic, not the limit.
+
+### `unwrap_or` and friends in production code
+
+Hard rule: **outside tests and mocks, do not use `unwrap_or` / `unwrap_or_default` / `unwrap_or_else` to paper over an `Option`/`Result` whose `None`/`Err` branch is supposedly "impossible".** If an invariant guarantees the value is present, encode that with a real error (`ok_or_else(|| anyhow!("..."))`, `expect("invariant")`) so a violation becomes a loud, debuggable failure rather than silent fall-through to a sentinel. Reach for `unwrap_or*` only when the fallback is a meaningful semantic value — not when you're just trying to keep the type-checker happy. Tests, mocks, and explicit user direction can override this.
+
+### Comment & Doc Sizing
+
+Default rule (overridable per-session by the user). Comment length scales with the importance of the item:
+
+| Tier | Max length | Applies to |
+|------|------------|------------|
+| Large (≤200 lines) | full prose | crate-level docs (`//!` at the top of `lib.rs` / `main.rs`): purpose, usage, structure, surface-level implementation notes |
+| Medium (≤20 lines) | substantive | public structs / functions / modules: purpose, usage, structure, surface-level implementation notes |
+| Small (≤5 lines) | brief | private structs / functions / modules |
+| Tiny (1 line) | one-liner | inline comments inside function bodies |
+
+Rules of thumb:
+- A comment that exceeds its tier is a smell.
+- Don't restate what well-named identifiers already say.
+- Inline comments justify *why*, not *what*. If the why is obvious, drop the comment.
+
 ## GitHub PR Review
 
 When asked to review a PR (e.g. `@claude review` in a PR comment):

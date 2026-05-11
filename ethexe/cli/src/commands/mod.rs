@@ -28,12 +28,14 @@ use clap::Subcommand;
 mod check;
 mod dump;
 mod key;
+mod malachite;
 mod run;
 mod tx;
 
 pub use check::CheckCommand;
 pub use dump::DumpCommand;
 pub use key::KeyCommand;
+pub use malachite::MalachiteCommand;
 pub use run::RunCommand;
 pub use tx::TxCommand;
 
@@ -52,6 +54,8 @@ pub enum Command {
     Check(CheckCommand),
     /// State dump operations for re-genesis.
     Dump(DumpCommand),
+    /// Malachite-specific helper commands (peer-id derivation, etc.).
+    Malachite(MalachiteCommand),
 }
 
 impl Command {
@@ -63,6 +67,7 @@ impl Command {
             Self::Tx(tx_cmd) => Self::Tx(tx_cmd.with_params(file_params)),
             Self::Check(check_cmd) => Self::Check(check_cmd.with_params(file_params)),
             Self::Dump(dump_cmd) => Self::Dump(dump_cmd.with_params(file_params)),
+            Self::Malachite(mala_cmd) => Self::Malachite(mala_cmd.with_params(file_params)),
         }
     }
 
@@ -76,6 +81,7 @@ impl Command {
             Command::Run(run_cmd) => run_cmd.run(),
             Command::Check(check_cmd) => check_cmd.exec(),
             Command::Dump(dump_cmd) => dump_cmd.exec(),
+            Command::Malachite(mala_cmd) => mala_cmd.exec(),
         }
     }
 }
