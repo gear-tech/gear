@@ -18,11 +18,11 @@
 
 //! [`Participant`] receives a validation request from the coordinator,
 //! re-derives the batch independently, and replies with a signature on the
-//! resulting digest. After replying it returns to [`WaitForEthBlock`].
+//! resulting digest. After replying it returns to [`Idle`].
 
 use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
-    wait_for_eth_block::WaitForEthBlock,
+    idle::Idle,
 };
 use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::batch::ValidationStatus};
 
@@ -143,7 +143,7 @@ impl StateHandler for Participant {
             // After replying (or rejecting), return to idle. Even if the
             // coordinator's request was bad we don't wait for a retry —
             // next chain head triggers the next round.
-            WaitForEthBlock::create(self.ctx).map(|s| (Poll::Ready(()), s))
+            Idle::create(self.ctx).map(|s| (Poll::Ready(()), s))
         } else {
             Ok((Poll::Pending, self.into()))
         }

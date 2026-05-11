@@ -24,7 +24,7 @@
 //! [`ProtocolTimelines::block_coordinator_at`]. A new chain head always
 //! aborts the current attempt.
 
-use super::{StateHandler, ValidatorContext, ValidatorState, wait_for_eth_block::WaitForEthBlock};
+use super::{StateHandler, ValidatorContext, ValidatorState, idle::Idle};
 use crate::{
     BatchCommitmentValidationReply, CommitmentSubmitted, ConsensusEvent,
     utils::MultisignedBatchCommitment,
@@ -50,7 +50,7 @@ use tokio::time::sleep;
 ///
 /// After the delay elapses, [`CoordinatorBoot`] aggregates the batch and
 /// either transitions to [`Coordinator`] (gossiping a validation request)
-/// or returns to [`WaitForEthBlock`] (nothing to commit).
+/// or returns to [`Idle`] (nothing to commit).
 #[derive(Display)]
 #[display("COORDINATOR_BOOT")]
 pub struct CoordinatorBoot {
@@ -119,12 +119,12 @@ impl StateHandler for CoordinatorBoot {
             Poll::Ready(Err(err)) => Err(err),
             Poll::Ready(Ok(None)) => {
                 // Empty batch — coordinator has nothing to commit. Drop back
-                // to WaitForEthBlock and wait for the next chain head.
+                // to Idle and wait for the next chain head.
                 tracing::debug!(
                     block = %self.block.hash,
                     "coordinator skipped batch: no commitments to submit"
                 );
-                let next = WaitForEthBlock::create(self.ctx)?;
+                let next = Idle::create(self.ctx)?;
                 Ok((Poll::Ready(()), next))
             }
             Poll::Ready(Ok(Some(batch))) => {
@@ -301,6 +301,6 @@ impl Coordinator {
             }
             .boxed(),
         );
-        WaitForEthBlock::create(ctx)
+        Idle::create(ctx)
     }
 }

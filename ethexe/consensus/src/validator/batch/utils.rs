@@ -294,7 +294,7 @@ pub fn try_include_checkpoint_chain_commitment<
     };
 
     // `at_block` is `prepared` by the time the coordinator runs (see
-    // `WaitForEthBlock`), so the field must be populated.
+    // `Idle`), so the field must be populated.
     let last_committed_advanced = db
         .block_meta(at_block)
         .last_committed_eb

@@ -30,7 +30,7 @@
 //! the batch to the Router. Every other validator is a *participant*: it
 //! waits for the coordinator's request, re-derives the same batch
 //! independently, signs it if the digest matches, and replies. Off-cycle
-//! both states sit in `WaitForEthBlock` waiting for the next Ethereum
+//! both states sit in `Idle` waiting for the next Ethereum
 //! chain head.
 //!
 //! Block production is *not* a concern of this crate any more — Malachite
@@ -78,12 +78,12 @@
 //! ## State machine
 //!
 //! ```text
-//! WaitForEthBlock
-//!   ├── self == coordinator(eth_block) ──► Coordinator ──► WaitForEthBlock
-//!   └── otherwise                       ──► Participant ──► WaitForEthBlock
+//! Idle
+//!   ├── self == coordinator(eth_block) ──► Coordinator ──► Idle
+//!   └── otherwise                       ──► Participant ──► Idle
 //! ```
 //!
-//! A new chain head always resets to `WaitForEthBlock`.
+//! A new chain head always resets to `Idle`.
 
 use anyhow::Result;
 use ethexe_common::{

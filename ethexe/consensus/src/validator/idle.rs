@@ -16,9 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-// +_+_+ rename to idle.rs and Idle state
-
-//! [`WaitForEthBlock`] is the idle state of the MB-driven validator.
+//! [`Idle`] is the idle state of the MB-driven validator.
 //!
 //! It tracks three sub-states inline:
 //!  1. waiting for a fresh chain head;
@@ -47,8 +45,8 @@ use gprimitives::H256;
 /// Idle state — waits for the next Ethereum chain head and then routes to
 /// either [`Coordinator`] or [`Participant`] for that block.
 #[derive(Debug, Display)]
-#[display("WAIT_FOR_ETH_BLOCK in state {state:?}")]
-pub struct WaitForEthBlock {
+#[display("IDLE in state {state:?}")]
+pub struct Idle {
     ctx: ValidatorContext,
     state: SubState,
 }
@@ -63,7 +61,7 @@ enum SubState {
     WaitingForPrepared { block: SimpleBlockData },
 }
 
-impl StateHandler for WaitForEthBlock {
+impl StateHandler for Idle {
     fn context(&self) -> &ValidatorContext {
         &self.ctx
     }
@@ -113,7 +111,7 @@ impl StateHandler for WaitForEthBlock {
     }
 }
 
-impl WaitForEthBlock {
+impl Idle {
     /// Enter idle state — equivalent to "no chain head observed yet".
     pub fn create(ctx: ValidatorContext) -> Result<ValidatorState> {
         Ok(Self {

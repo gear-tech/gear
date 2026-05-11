@@ -21,9 +21,9 @@
 //! State flow:
 //!
 //! ```text
-//! WaitForEthBlock
-//!   ├── self == coordinator(eth_block_ts) ──► Coordinator ──► WaitForEthBlock
-//!   └── otherwise                          ──► Participant ──► WaitForEthBlock
+//! Idle
+//!   ├── self == coordinator(eth_block_ts) ──► Coordinator ──► Idle
+//!   └── otherwise                          ──► Participant ──► Idle
 //! ```
 //!
 //! Coordinator: aggregates finalized MBs into a [`BatchCommitment`], gossips
@@ -41,7 +41,7 @@ use crate::{
         coordinator::{Coordinator, CoordinatorBoot},
         core::{MiddlewareWrapper, ValidatorCore},
         participant::Participant,
-        wait_for_eth_block::WaitForEthBlock,
+        idle::Idle,
     },
 };
 use anyhow::Result;
@@ -72,7 +72,7 @@ pub(crate) mod batch;
 mod coordinator;
 mod core;
 mod participant;
-mod wait_for_eth_block;
+mod idle;
 
 /// The main validator service that implements the [`ConsensusService`] trait.
 pub struct ValidatorService {
@@ -142,7 +142,7 @@ impl ValidatorService {
         };
 
         Ok(Self {
-            inner: Some(WaitForEthBlock::create(ctx)?),
+            inner: Some(Idle::create(ctx)?),
         })
     }
 
@@ -300,7 +300,7 @@ where
     Debug, derive_more::Display, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
 )]
 enum ValidatorState {
-    WaitForEthBlock(WaitForEthBlock),
+    Idle(Idle),
     CoordinatorBoot(CoordinatorBoot),
     Coordinator(Coordinator),
     Participant(Participant),
@@ -309,7 +309,7 @@ enum ValidatorState {
 macro_rules! delegate_call {
     ($this:ident => $func:ident( $( $arg:ident ),* )) => {
         match $this {
-            ValidatorState::WaitForEthBlock(s) => s.$func($( $arg ),*),
+            ValidatorState::Idle(s) => s.$func($( $arg ),*),
             ValidatorState::CoordinatorBoot(s) => s.$func($( $arg ),*),
             ValidatorState::Coordinator(s) => s.$func($( $arg ),*),
             ValidatorState::Participant(s) => s.$func($( $arg ),*),
@@ -369,7 +369,7 @@ struct DefaultProcessing;
 
 impl DefaultProcessing {
     fn new_head(s: impl Into<ValidatorState>, block: SimpleBlockData) -> Result<ValidatorState> {
-        WaitForEthBlock::create_with_chain_head(s.into().into_context(), block)
+        Idle::create_with_chain_head(s.into().into_context(), block)
     }
 
     fn synced_block(s: impl Into<ValidatorState>, block: H256) -> Result<ValidatorState> {
