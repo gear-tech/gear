@@ -23,8 +23,9 @@ use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use ethexe_common::{
     SimpleBlockData,
-    db::{DBGlobals, GlobalsStorageRO, OnChainStorageRO},
+    db::{DBGlobals, GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
 };
+use gprimitives::H256;
 use ethexe_db::{
     Database, InitConfig, RawDatabase, RocksDatabase,
     iterator::{BlockNode, DatabaseIterator},
@@ -231,13 +232,95 @@ impl Checker {
         Ok(())
     }
 
-    /// Re-runs every persisted MB and compares the cached outcome / states /
-    /// schedule against fresh execution. Stubbed pending MB walk wiring.
+    /// Walks the MB chain back from `globals.latest_finalized_mb_hash`
+    /// and asserts that every reachable MB has its cached
+    /// `mb_program_states` / `mb_outcome` / `mb_schedule` records
+    /// alongside `MbMeta { computed: true }`.
+    ///
+    /// Re-execution through the processor (asserting the cached records
+    /// match a fresh run) is intentionally out of scope here — it
+    /// requires loading every code blob and reconstructing the runtime,
+    /// which the CLI command doesn't carry the context for.
     async fn computation_check(&self) -> Result<()> {
-        // TODO: (+_+_+ append issue number) walk `globals.latest_finalized_mb_hash` back through
-        // `CompactMB.parent`, re-execute each MB through the
-        // processor, and assert the persisted `mb_*` records match.
-        println!("computation_check is currently a stub — MB walk not wired in yet");
+        let head = self.globals.latest_finalized_mb_hash;
+        if head.is_zero() {
+            println!("📋 No finalized MB yet — nothing to verify");
+            return Ok(());
+        }
+
+        let db = &self.db;
+
+        let head_compact = db
+            .mb_compact_block(head)
+            .ok_or_else(|| anyhow!("latest_finalized_mb_hash {head} not in CompactMB store"))?;
+
+        println!(
+            "📋 Starting computation check from MB {head} (height {})",
+            head_compact.height
+        );
+
+        let pb = if self.progress_bar {
+            let bar_style = ProgressStyle::with_template(PROGRESS_BAR_TEMPLATE)
+                .unwrap()
+                .progress_chars("=>-");
+            let pb = ProgressBar::new(head_compact.height + 1);
+            pb.set_style(bar_style);
+            Some(pb)
+        } else {
+            None
+        };
+
+        let mut errors: Vec<String> = Vec::new();
+        let mut current = head;
+        loop {
+            let Some(compact) = db.mb_compact_block(current) else {
+                errors.push(format!("CompactMB missing for MB {current}"));
+                break;
+            };
+
+            let meta = db.mb_meta(current);
+            if !meta.computed {
+                errors.push(format!(
+                    "MB {current} (height {}) has not been computed",
+                    compact.height
+                ));
+            } else {
+                if db.mb_program_states(current).is_none() {
+                    errors.push(format!(
+                        "MB {current} (height {}) marked computed but program states missing",
+                        compact.height
+                    ));
+                }
+                if db.mb_outcome(current).is_none() {
+                    errors.push(format!(
+                        "MB {current} (height {}) marked computed but outcome missing",
+                        compact.height
+                    ));
+                }
+                if db.mb_schedule(current).is_none() {
+                    errors.push(format!(
+                        "MB {current} (height {}) marked computed but schedule missing",
+                        compact.height
+                    ));
+                }
+            }
+
+            if let Some(pb) = pb.as_ref() {
+                pb.inc(1);
+            };
+
+            // Stop at genesis: parent == zero means we walked past the
+            // first finalized MB.
+            if compact.parent == H256::zero() {
+                break;
+            }
+            current = compact.parent;
+        }
+
+        if !errors.is_empty() {
+            return Err(anyhow!("Computation check errors found: {errors:?}"));
+        }
+
         Ok(())
     }
 }
