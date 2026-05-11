@@ -253,7 +253,7 @@ pub fn invoke(
     args: &[u8],
     return_val_ptr: Pointer<u8>,
     return_val_len: u32,
-    state_ptr: Pointer<u8>, // TODO
+    state_ptr: Pointer<u8>,
 ) -> u32 {
     let mut method_result = u32::MAX;
 
