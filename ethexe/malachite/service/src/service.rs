@@ -96,8 +96,13 @@ impl MalachiteService {
     /// - `signer` — shared ethexe key manager; the secret matching
     ///   `validator_pub_key` is extracted once here and passed into
     ///   ethexe-malachite-core as the validator secret.
-    /// - `validator_pub_key` — this node's validator public key; must
-    ///   appear in [`MalachiteConfig::validators`].
+    /// - `validator_pub_key` — this node's validator public key. When
+    ///   `Some`, it must appear in [`MalachiteConfig::validators`] and
+    ///   the engine starts in [`ethexe_malachite_core::NodeRole::Validator`].
+    ///   When `None`, the engine starts as a full / connect node
+    ///   ([`ethexe_malachite_core::NodeRole::FullNode`]): joins gossip
+    ///   and sync but never signs anything. A fresh ephemeral key
+    ///   provides the libp2p peer identity in that case.
     /// - `db` — shared ethexe [`Database`] used by the externalities
     ///   to persist MBs and walk parent links.
     /// - `mempool` — source of injected user transactions for the
@@ -106,38 +111,48 @@ impl MalachiteService {
         config: MalachiteConfig,
         db: Database,
         signer: Signer<Secp256k1>,
-        validator_pub_key: gsigner::schemes::secp256k1::PublicKey,
+        validator_pub_key: Option<gsigner::schemes::secp256k1::PublicKey>,
         mempool: Arc<dyn Mempool>,
     ) -> Result<Self> {
         tracing::info!(
             listen = %config.listen_addr,
             persistent_peers = config.persistent_peers.len(),
             validators = config.validators.len(),
+            role = if validator_pub_key.is_some() { "validator" } else { "full" },
             "Bootstrapping Malachite engine",
         );
 
         std::fs::create_dir_all(&config.home_dir)
             .with_context(|| format!("creating Malachite home dir {:?}", config.home_dir))?;
 
-        // Sanity: the local validator must appear in the configured
-        // set, otherwise ethexe-malachite-core will reject the start-up anyway.
-        // Catching it here gives a clearer error.
         if config.validators.is_empty() {
             return Err(anyhow!("MalachiteConfig::validators is empty"));
         }
-        if !config
-            .validators
-            .iter()
-            .any(|v| v.public_key == validator_pub_key)
-        {
-            return Err(anyhow!(
-                "local validator {validator_pub_key} not present in MalachiteConfig::validators"
-            ));
-        }
 
-        let validator_secret = signer
-            .private_key(validator_pub_key)
-            .context("extracting validator private key from signer")?;
+        // Validators sign votes/proposals using their on-chain key;
+        // full nodes get an ephemeral secret used only as the libp2p
+        // peer identity.
+        let (role, validator_secret) = match validator_pub_key {
+            Some(pub_key) => {
+                if !config
+                    .validators
+                    .iter()
+                    .any(|v| v.public_key == pub_key)
+                {
+                    return Err(anyhow!(
+                        "local validator {pub_key} not present in MalachiteConfig::validators"
+                    ));
+                }
+                let secret = signer
+                    .private_key(pub_key)
+                    .context("extracting validator private key from signer")?;
+                (ethexe_malachite_core::NodeRole::Validator, secret)
+            }
+            None => (
+                ethexe_malachite_core::NodeRole::FullNode,
+                gsigner::schemes::secp256k1::PrivateKey::random(),
+            ),
+        };
 
         // Build the ethexe-malachite-core-side config. Application-side knobs
         // (gas allowance, quarantine depth) stay in [`MalachiteConfig`]
@@ -149,7 +164,7 @@ impl MalachiteService {
             persistent_peers: config.persistent_peers.clone(),
             validator_secret,
             validators: config.validators.clone(),
-            role: ethexe_malachite_core::NodeRole::Validator,
+            role,
             // Producer waits up to one Ethereum slot for a fresh EB past quarantine.
             propose_timeout: alloy::eips::merge::SLOT_DURATION,
         };

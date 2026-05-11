@@ -530,33 +530,36 @@ impl Service {
             malachite_base_config.listen_addr,
             malachite_base_config.persistent_peers.len(),
         );
-        let malachite = if let Some(pub_key) = validator_pub_key {
-            // Resolve the on-chain validator set to its Malachite
-            // public-key view. Only validator nodes need this — full
-            // nodes don't start the engine at all.
+        let malachite = {
+            // Validators and connect/full nodes both join the Malachite
+            // mesh. The validator set comes from the on-chain config
+            // either way — for full nodes the local key just isn't in it,
+            // and the engine starts in `NodeRole::FullNode` automatically.
             let malachite_validator_set = build_malachite_validator_set(
                 validators.iter().copied(),
                 &config.malachite.validator_pub_keys,
             )?;
-            log::info!("🪨 Malachite validators: {}", malachite_validator_set.len());
+            log::info!(
+                "🪨 Malachite validators: {} (local role: {})",
+                malachite_validator_set.len(),
+                if validator_pub_key.is_some() {
+                    "validator"
+                } else {
+                    "full"
+                },
+            );
             let malachite_config = malachite_base_config.with_validators(malachite_validator_set);
             Some(
                 MalachiteService::new(
                     malachite_config,
                     db.clone(),
                     signer.clone(),
-                    pub_key,
+                    validator_pub_key,
                     std::sync::Arc::new(InjectedTxMempool::new(db.clone())),
                 )
                 .await
                 .context("failed to start Malachite service")?,
             )
-        } else {
-            // +_+_+ VERY IMPORTANT: connect node must start malachite without pub key also
-            log::info!(
-                "🪨 No validator public key configured; Malachite service disabled on this node"
-            );
-            None
         };
 
         let fast_sync = config.node.fast_sync;

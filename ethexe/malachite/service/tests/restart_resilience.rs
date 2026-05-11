@@ -188,7 +188,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         build_config(home.path(), 30_001, pub_key),
         db.clone(),
         signer.clone(),
-        pub_key,
+        Some(pub_key),
         Arc::new(EmptyMempool),
     )
     .await
@@ -230,7 +230,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         build_config(home.path(), 30_001, pub_key),
         db.clone(),
         signer,
-        pub_key,
+        Some(pub_key),
         Arc::new(EmptyMempool),
     )
     .await

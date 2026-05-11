@@ -1248,7 +1248,7 @@ impl Node {
                 mc,
                 self.db.clone(),
                 self.signer.clone(),
-                config.public_key,
+                Some(config.public_key),
                 mempool,
             )
             .await
