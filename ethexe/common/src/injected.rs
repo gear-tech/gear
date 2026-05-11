@@ -21,7 +21,7 @@ use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
-use gsigner::{PrivateKey, Signature, secp256k1::signature::SignResult};
+use gsigner::Signature;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
@@ -167,13 +167,6 @@ impl ToDigest for Promise {
     }
 }
 
-/// A signed wrapper on top of [`CompactPromise`].
-///
-/// [`SignedCompactPromise`] is a lightweight version of [`SignedPromise`], that is
-/// needed to reduce the amount of data transferred in network between validators.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
-pub struct SignedCompactPromise(SignedMessage<CompactPromise>);
-
 /// The hashes of [`Promise`] parts.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct CompactPromise {
@@ -193,97 +186,60 @@ impl ToDigest for CompactPromise {
     }
 }
 
-impl SignedCompactPromise {
-    /// Create the [`SignedCompactPromise`] from private key and hashes.
-    pub fn create(private_key: PrivateKey, promise_hashes: CompactPromise) -> SignResult<Self> {
-        SignedMessage::create(private_key, promise_hashes).map(SignedCompactPromise)
+mod sealed {
+    pub trait Sealed {}
+
+    impl Sealed for super::Promise {}
+    impl Sealed for super::CompactPromise {}
+}
+
+pub trait PromiseKind: sealed::Sealed {
+    fn tx_hash(&self) -> HashOf<InjectedTransaction>;
+}
+
+impl PromiseKind for Promise {
+    fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+        self.tx_hash
     }
+}
 
-    pub fn create_from_promise(private_key: PrivateKey, promise: &Promise) -> SignResult<Self> {
-        Self::create(private_key, promise.to_compact())
-    }
-
-    /// Create the [`SignedCompactPromise`] from a valid [`SignedPromise`].
-    ///
-    /// # Panics
-    /// Panics if the digest of [`Promise`] and [`CompactPromise`] ever diverge.
-    /// This must hold by construction; tests enforce the invariant.
-    pub fn from_signed_promise(signed_promise: &SignedPromise) -> Self {
-        let compact = signed_promise.data().to_compact();
-        let (signature, address) = (*signed_promise.signature(), signed_promise.address());
-
-        SignedMessage::try_from_parts(compact, signature, address)
-            .expect("SignedPromise and CompactPromise must have identical digest")
-            .into()
-    }
-
-    /// Tries to restore the [SignedPromise] with provided [Promise] body.
-    pub fn restore(&self, promise: Promise) -> Result<SignedPromise, &'static str> {
-        SignedMessage::try_from_parts(promise, *self.0.signature(), self.0.address())
+impl PromiseKind for CompactPromise {
+    fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+        self.tx_hash
     }
 }
 
 /// Receipt for [InjectedTransaction].
+///
+/// This type generic over promise type in purpose to support both
+/// [CompactPromise] and [Promise].
+///
+/// [CompactPromise] generic uses only for transport purposes. End user
+/// always receives the full version.
+///
+/// **Important**: `Receipt<CompactPromise>` and `Receipt<Promise>` have the same
+///     digest. So it helps to reuses the producer's signature to construct the full
+///     version from compact.
 #[derive(
     Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::IsVariant, derive_more::Unwrap,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub enum TxReceipt {
-    Promise(Promise),
+pub enum Receipt<P> {
+    Promise(P),
+    /// No promise, transaction wasn't executed.
     Error(TransactionError),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Deref)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "std", serde(transparent))]
-pub struct SignedFullTxReceipt(SignedMessage<TxReceipt>);
-
-impl TxReceipt {
-    /// Returns the transaction hash the receipt belongs to
+impl<P: PromiseKind> Receipt<P> {
     pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
         match self {
-            Self::Promise(promise) => promise.tx_hash,
-            Self::Error(err) => err.tx_hash,
-        }
-    }
-
-    pub fn as_compact(&self) -> CompactTxReceipt {
-        match self {
-            Self::Promise(promise) => CompactTxReceipt::Promise(promise.to_compact()),
-            // Clone is cheap here, because the error is just hash + byte.
-            Self::Error(err) => CompactTxReceipt::Error(err.clone()),
-        }
-    }
-}
-
-impl ToDigest for TxReceipt {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        self.as_compact().update_hasher(hasher);
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::IsVariant, derive_more::Unwrap,
-)]
-pub enum CompactTxReceipt {
-    Promise(CompactPromise),
-    Error(TransactionError),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
-pub struct SignedCompactTxReceipt(SignedMessage<CompactTxReceipt>);
-
-impl CompactTxReceipt {
-    /// Returns the transaction hash the receipt belongs to
-    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
-        match self {
-            Self::Promise(promise) => promise.tx_hash,
+            Self::Promise(promise) => promise.tx_hash(),
             Self::Error(err) => err.tx_hash,
         }
     }
 }
 
-impl ToDigest for CompactTxReceipt {
+impl<P: ToDigest> ToDigest for Receipt<P> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         match self {
             Self::Promise(promise) => {
@@ -298,24 +254,69 @@ impl ToDigest for CompactTxReceipt {
     }
 }
 
+/// Signed [Receipt] with a [Promise] generic.
+/// End RPC user always receives this object.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Deref)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "std", serde(transparent))]
+pub struct SignedTxReceipt(SignedMessage<Receipt<Promise>>);
+
+/// Signed [Receipt] with a [CompactPromise] generic.
+/// It is uses as lightweight transfer type between validators.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
+pub struct SignedCompactTxReceipt(SignedMessage<Receipt<CompactPromise>>);
+
+/// The result of [upgrade](SignedCompactTxReceipt::upgrade) function.
+/// [Ready](Self::Ready) means that receipt contains an error and was upgraded
+/// to full version.
+/// [Pending](Self::Pending) means that receipt contains a promise and requires the
+/// full promise body to restore receipt.
+#[derive(Debug, PartialEq, Eq, derive_more::From)]
+pub enum UpgradedReceipt {
+    Pending(UnfilledPromiseReceipt),
+    Ready(SignedTxReceipt),
+}
+
 impl SignedCompactTxReceipt {
-    pub fn as_promise_with_signature(&self) -> Option<(&CompactPromise, &Signature, Address)> {
-        let CompactTxReceipt::Promise(compact) = self.0.data() else {
-            return None;
-        };
-        Some((compact, self.0.signature(), self.0.address()))
+    /// Upgrades the compact receipt to its full version ([SignedTxReceipt]).
+    pub fn upgrade(self) -> UpgradedReceipt {
+        let (receipt, signature, address) = self.0.into_parts_full();
+
+        match receipt {
+            Receipt::Promise(compact) => {
+                UpgradedReceipt::Pending(UnfilledPromiseReceipt(compact, signature, address))
+            }
+            Receipt::Error(error) => UpgradedReceipt::Ready(unsafe {
+                SignedMessage::from_parts_unchecked(Receipt::Error(error), signature, address)
+                    .into()
+            }),
+        }
     }
+}
 
-    pub fn as_full_receipt_error(&self) -> Option<SignedFullTxReceipt> {
-        let CompactTxReceipt::Error(error) = self.0.data() else {
-            return None;
-        };
+/// Intermediate type between receipt's states [SignedCompactTxReceipt] and [SignedTxReceipt].
+/// Use method [try_fill_with](Self::try_fill_with) to build the [SignedTxReceipt].
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Deref)]
+pub struct UnfilledPromiseReceipt(#[deref] CompactPromise, Signature, Address);
 
-        let (signature, address) = (*self.0.signature(), self.0.address());
-        let message = unsafe {
-            SignedMessage::from_parts_unchecked(TxReceipt::Error(error.clone()), signature, address)
-        };
-        Some(message.into())
+/// The result of [try_fill_with](UnfilledPromiseReceipt::try_fill_with) function.
+/// [Filled](Self::Filled) means the successful result.
+/// [HashesMismatch](Self::HashesMismatch) means that raw promise body and stored compact are not the same promise.
+pub enum TryFillPromiseResult {
+    Filled(SignedTxReceipt),
+    HashesMismatch(UnfilledPromiseReceipt),
+}
+
+impl UnfilledPromiseReceipt {
+    pub fn try_fill_with(self, promise: Promise) -> TryFillPromiseResult {
+        if self.0 != promise.to_compact() {
+            return TryFillPromiseResult::HashesMismatch(self);
+        }
+        let Self(.., signature, address) = self;
+        TryFillPromiseResult::Filled(unsafe {
+            SignedMessage::from_parts_unchecked(Receipt::Promise(promise), signature, address)
+                .into()
+        })
     }
 }
 
@@ -341,7 +342,7 @@ impl ToDigest for TransactionError {
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 pub enum TransactionErrorReason {
     /// Transaction is outdated and can not be included.
-    #[display("Transaction is oudated")]
+    #[display("Transaction is outdated")]
     Outdated = 1,
 
     // Important: Keep it in the end of enum.
@@ -434,45 +435,13 @@ mod tests {
     }
 
     #[test]
-    fn signatures_equal_for_promise_and_compact_promise() {
-        let private_key = PrivateKey::random();
-        let promise = Promise::mock(());
-
-        let signed_promise = SignedPromise::create(private_key.clone(), promise.clone()).unwrap();
-        let compact_signed_promise =
-            SignedCompactPromise::create_from_promise(private_key, &promise).unwrap();
-
-        assert_eq!(signed_promise.address(), compact_signed_promise.address());
-        assert_eq!(
-            signed_promise.signature().clone(),
-            compact_signed_promise.signature().clone()
-        );
-    }
-
-    #[test]
-    fn compact_signed_promise_correctly_builds_from_signed_promise() {
-        let private_key = PrivateKey::random();
-        let promise = Promise::mock(());
-
-        let signed_promise = SignedPromise::create(private_key.clone(), promise).unwrap();
-
-        let compact_signed_promise = SignedCompactPromise::from_signed_promise(&signed_promise);
-
-        assert_eq!(signed_promise.address(), compact_signed_promise.address());
-        assert_eq!(
-            signed_promise.signature().clone(),
-            compact_signed_promise.signature().clone()
-        );
-    }
-
-    #[test]
     fn tx_receipt_has_the_same_hash_for_promise() {
         let pk = PrivateKey::random();
         let promise = Promise::mock(());
         let compact_promise = promise.to_compact();
 
-        let receipt_promise = TxReceipt::Promise(promise);
-        let receipt_compact_promise = CompactTxReceipt::Promise(compact_promise);
+        let receipt_promise = Receipt::Promise(promise);
+        let receipt_compact_promise = Receipt::Promise(compact_promise);
         assert_eq!(
             receipt_promise.to_digest(),
             receipt_compact_promise.to_digest()
@@ -494,8 +463,8 @@ mod tests {
             tx_hash: unsafe { HashOf::new(H256::random()) },
             reason: TransactionErrorReason::Outdated,
         };
-        let receipt1 = TxReceipt::Error(error.clone());
-        let receipt2 = CompactTxReceipt::Error(error);
+        let receipt1 = Receipt::<Promise>::Error(error.clone());
+        let receipt2 = Receipt::<CompactPromise>::Error(error);
 
         assert_eq!(receipt1.to_digest(), receipt2.to_digest());
     }

@@ -287,7 +287,7 @@ impl ValidatorTopic {
         }
     }
 
-    fn inner_verify_promise(
+    fn inner_verify_receipt(
         &self,
         _source: PeerId,
         receipt: SignedCompactTxReceipt,
@@ -309,7 +309,7 @@ impl ValidatorTopic {
         source: PeerId,
         receipt: SignedCompactTxReceipt,
     ) -> (MessageAcceptance, Option<SignedCompactTxReceipt>) {
-        match self.inner_verify_promise(source, receipt) {
+        match self.inner_verify_receipt(source, receipt) {
             Ok(receipt) => (MessageAcceptance::Accept, Some(receipt)),
             Err(err) => {
                 log::trace!("failed to verify compact promise: {err}");
@@ -332,7 +332,7 @@ mod tests {
     use ethexe_common::{
         Announce, HashOf,
         ecdsa::{PublicKey, SignedData},
-        injected::{CompactTxReceipt, Promise, SignedPromise},
+        injected::{Promise, Receipt, SignedPromise},
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
@@ -395,11 +395,7 @@ mod tests {
         promise: Promise,
     ) -> SignedCompactTxReceipt {
         signer
-            .signed_message(
-                public_key,
-                CompactTxReceipt::Promise(promise.to_compact()),
-                None,
-            )
+            .signed_message(public_key, Receipt::Promise(promise.to_compact()), None)
             .unwrap()
             .into()
     }
@@ -773,7 +769,7 @@ mod tests {
         let peer_id = PeerId::random();
 
         let err = topic
-            .inner_verify_promise(peer_id, receipt.clone())
+            .inner_verify_receipt(peer_id, receipt.clone())
             .unwrap_err();
 
         let VerifyTxReceiptError::UnknownValidator { address, tx_hash } = err;
@@ -795,7 +791,7 @@ mod tests {
         let peer_id = PeerId::random();
 
         topic
-            .inner_verify_promise(peer_id, receipt.clone())
+            .inner_verify_receipt(peer_id, receipt.clone())
             .unwrap();
 
         let (acceptance, returned_receipt) = topic.verify_receipt(peer_id, receipt.clone());

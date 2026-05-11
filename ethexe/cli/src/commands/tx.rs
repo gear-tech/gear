@@ -38,7 +38,7 @@ use ethexe_common::{
     Address, BlockHeader, SimpleBlockData,
     gear_core::{ids::prelude::CodeIdExt, limited::LimitedVec, rpc::ReplyInfo},
     injected::{
-        AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE, TxReceipt,
+        AddressedInjectedTransaction, InjectedTransaction, MAX_INJECTED_TX_PAYLOAD_SIZE, Receipt,
     },
 };
 use ethexe_ethereum::{Ethereum, EthereumBuilder, mirror::ClaimInfo, router::CodeValidationResult};
@@ -1136,8 +1136,8 @@ impl TxCommand {
                                 .data()
                                 .clone();
                             let promise = match receipt {
-                                TxReceipt::Promise(promise) => promise,
-                                TxReceipt::Error(err) => {
+                                Receipt::Promise(promise) => promise,
+                                Receipt::Error(err) => {
                                     return Err(anyhow!("injected transaction failed: {err:?}"));
                                 }
                             };

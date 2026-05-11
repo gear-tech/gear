@@ -19,10 +19,11 @@
 use anyhow::Result;
 use dashmap::{DashMap, mapref::entry::Entry};
 use ethexe_common::{
-    HashOf, SignedMessage, ToDigest,
+    HashOf,
     db::{InjectedStorageRO, InjectedStorageRW},
     injected::{
-        InjectedTransaction, Promise, SignedCompactTxReceipt, SignedFullTxReceipt, TxReceipt,
+        InjectedTransaction, Promise, SignedCompactTxReceipt, SignedTxReceipt,
+        TryFillPromiseResult, UnfilledPromiseReceipt, UpgradedReceipt,
     },
 };
 use ethexe_db::Database;
@@ -32,8 +33,8 @@ use tracing::{trace, warn};
 
 // TODO: Issues #5384 and #5385.
 type PromiseSubscribers =
-    Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedFullTxReceipt>>>;
-type ReceiptsComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, SignedCompactTxReceipt>>;
+    Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedTxReceipt>>>;
+type ReceiptsComputationWaiting = Arc<DashMap<HashOf<InjectedTransaction>, UnfilledPromiseReceipt>>;
 
 /// The manager for promise subscribers.
 #[derive(Debug, Clone)]
@@ -50,7 +51,7 @@ pub enum RegisterSubscriberError {
     AlreadyRegistered(HashOf<InjectedTransaction>),
 }
 
-type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedFullTxReceipt>>;
+type TimeoutReceiver = tokio::time::Timeout<oneshot::Receiver<SignedTxReceipt>>;
 
 /// The pending [SignedTxReceipt] subscriber.
 /// Subscriber will be spawned in separate tokio runtime task and will wait for promise.
@@ -67,9 +68,9 @@ impl PendingSubscriber {
     pub fn new(
         db: &Database,
         tx_hash: HashOf<InjectedTransaction>,
-        receiver: oneshot::Receiver<SignedFullTxReceipt>,
+        receiver: oneshot::Receiver<SignedTxReceipt>,
     ) -> Self {
-        let timeout_duration = utils::promise_waiting_timeout(db);
+        let timeout_duration = utils::receipt_waiting_timeout(db);
         let receiver = tokio::time::timeout(timeout_duration, receiver);
         Self { tx_hash, receiver }
     }
@@ -106,44 +107,37 @@ impl PromiseSubscriptionManager {
     pub fn cancel_registration(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> Option<oneshot::Sender<SignedFullTxReceipt>> {
+    ) -> Option<oneshot::Sender<SignedTxReceipt>> {
         self.subscribers.remove(&tx_hash).map(|(_, v)| v)
     }
 
     // TODO: Issue #5403
     pub fn on_tx_receipt(&self, receipt: SignedCompactTxReceipt) {
-        trace!(?receipt, "received new compact promise");
-        if receipt.data().is_error() {
-            self.dispatch_receipt(receipt.as_full_receipt_error().expect("infallible"));
-            return;
-        }
+        trace!(?receipt, "received new compact receipt");
 
-        let tx_hash = receipt.data().tx_hash();
+        let unfilled_promise = match receipt.upgrade() {
+            UpgradedReceipt::Ready(receipt) => {
+                self.store_and_dispatch_receipt(receipt);
+                return;
+            }
+            UpgradedReceipt::Pending(unfilled_promise) => unfilled_promise,
+        };
+
+        let tx_hash = unfilled_promise.tx_hash;
         match self.db.promise(tx_hash) {
-            Some(promise) => match receipt.as_promise_with_signature() {
-                Some((compact, signature, address)) => {
-                    // self.db.set_compact_promise(&compact);
-                    if compact.to_digest() == promise.to_digest() {
-                        let message = unsafe {
-                            SignedMessage::from_parts_unchecked(
-                                TxReceipt::Promise(promise),
-                                *signature,
-                                address,
-                            )
-                        };
-                        self.dispatch_receipt(message.into());
-                    }
-                }
-                None => {
+            Some(promise) => match unfilled_promise.try_fill_with(promise) {
+                TryFillPromiseResult::Filled(receipt) => self.store_and_dispatch_receipt(receipt),
+                TryFillPromiseResult::HashesMismatch(unfilled) => {
                     warn!(
-                        ?receipt, %tx_hash, "failed to create signed receipt from parts, producer send invalid signature"
+                        ?unfilled,
+                        "locally computed promise do not match producer's receipt"
                     );
-                    self.waiting_for_compute.insert(tx_hash, receipt);
+                    self.waiting_for_compute.insert(tx_hash, unfilled);
                 }
             },
             None => {
                 trace!("not found promise in database, waiting for computation...");
-                self.waiting_for_compute.insert(tx_hash, receipt);
+                self.waiting_for_compute.insert(tx_hash, unfilled_promise);
             }
         }
     }
@@ -152,31 +146,35 @@ impl PromiseSubscriptionManager {
         trace!(?promise, "received new computed promise");
         self.db.set_promise(&promise);
 
-        if let Some((_, receipt)) = self.waiting_for_compute.remove(&promise.tx_hash) {
-            match receipt.as_promise_with_signature() {
-                Some((compact, signature, address)) => {
-                    // self.db.set_compact_promise(&compact_promise)
-                    if promise.to_digest() == compact.to_digest() {
-                        let receipt = TxReceipt::Promise(promise);
-                        let signed_receipt = unsafe {
-                            SignedMessage::from_parts_unchecked(receipt, *signature, address)
-                        };
-                        self.dispatch_receipt(signed_receipt.into());
-                    }
-                }
-                None => {
-                    trace!(?receipt, tx_hash=?receipt.data().tx_hash(), "failed to create signed promise from parts");
-                }
+        let Some((_, unfilled_promise)) = self.waiting_for_compute.remove(&promise.tx_hash) else {
+            return;
+        };
+
+        match unfilled_promise.try_fill_with(promise) {
+            TryFillPromiseResult::Filled(signed_receipt) => {
+                self.store_and_dispatch_receipt(signed_receipt)
+            }
+            TryFillPromiseResult::HashesMismatch(unfilled) => {
+                warn!(
+                    ?unfilled,
+                    "locally computed promise do not match producer's receipt"
+                );
+                self.waiting_for_compute.insert(unfilled.tx_hash, unfilled);
             }
         }
     }
 
-    fn dispatch_receipt(&self, receipt: SignedFullTxReceipt) {
+    fn dispatch_receipt(&self, receipt: SignedTxReceipt) {
         if let Some((_, sender)) = self.subscribers.remove(&receipt.data().tx_hash())
             && let Err(unsent_receipt) = sender.send(receipt)
         {
             trace!("failed to send receipt to subscriber, receipt={unsent_receipt:?}");
         }
+    }
+
+    fn store_and_dispatch_receipt(&self, receipt: SignedTxReceipt) {
+        self.db.set_receipt(&receipt);
+        self.dispatch_receipt(receipt);
     }
 
     #[cfg(test)]
@@ -192,7 +190,7 @@ mod utils {
     const MAX_PROMISE_WAITING_SLOTS: u64 = 20;
 
     /// Returns the maximum time that spawned [super::PendingSubscriber] will wait for promise.
-    pub fn promise_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> std::time::Duration {
+    pub fn receipt_waiting_timeout<DB: ConfigStorageRO>(db: &DB) -> std::time::Duration {
         let slot_duration_secs = db.config().timelines.slot.get();
         std::time::Duration::from_secs(slot_duration_secs * MAX_PROMISE_WAITING_SLOTS)
     }

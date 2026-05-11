@@ -25,7 +25,7 @@ use ethexe_common::{
     db::InjectedStorageRW,
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, CompactTxReceipt, Promise, SignedCompactTxReceipt},
+    injected::{AddressedInjectedTransaction, Promise, Receipt, SignedCompactTxReceipt},
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -94,7 +94,7 @@ impl MockService {
         txs.into_iter()
             .map(|tx| {
                 let promise = Promise::mock(tx.tx.data().to_hash());
-                let receipt = CompactTxReceipt::Promise(promise.to_compact());
+                let receipt = Receipt::Promise(promise.to_compact());
                 self.db.set_promise(&promise);
                 SignedMessage::create(pk.clone(), receipt).unwrap().into()
             })

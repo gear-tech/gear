@@ -24,7 +24,7 @@ use ethexe_common::{
     gear_core::rpc::ReplyInfo,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
-        TxReceipt,
+        Receipt,
     },
 };
 use ethexe_ethereum::{
@@ -270,8 +270,8 @@ impl<'a> Mirror<'a> {
             .data()
             .clone();
         let promise = match receipt {
-            TxReceipt::Promise(promise) => promise,
-            TxReceipt::Error(err) => {
+            Receipt::Promise(promise) => promise,
+            Receipt::Error(err) => {
                 return Err(anyhow!("injected transaction failed: {err:?}"));
             }
         };

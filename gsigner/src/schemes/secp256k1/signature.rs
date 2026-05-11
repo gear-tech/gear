@@ -452,6 +452,10 @@ impl<T: Sized> SignedMessage<T> {
         (self.data, self.signature)
     }
 
+    pub fn into_parts_full(self) -> (T, Signature, Address) {
+        (self.data, self.signature, self.address)
+    }
+
     /// Returns the address of the signer.
     pub fn address(&self) -> Address {
         self.address
@@ -548,8 +552,8 @@ where
 
     /// The unsafe constructor for [SignedMessage].
     ///
-    /// It is usefull to optimize the constructing signed wrappers for types
-    /// with the same [`ToDigest`](super::ToDigest) implmentation.
+    /// It is useful to optimize the constructing signed wrappers for types
+    /// with the same [`ToDigest`](super::ToDigest) implementation.
     ///
     /// # Safety
     /// Safety only in cases when you are sure when hashes are equal.
