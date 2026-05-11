@@ -718,8 +718,8 @@ impl BlockChain {
 
         let globals = DBGlobals {
             start_block_hash: blocks[0].hash,
-            latest_synced_block: blocks.back().unwrap().to_simple(),
-            latest_prepared_block_hash: blocks.back().unwrap().hash,
+            latest_synced_eb: blocks.back().unwrap().to_simple(),
+            latest_prepared_eb_hash: blocks.back().unwrap().hash,
             latest_finalized_mb_hash: H256::zero(),
         };
 
@@ -811,13 +811,13 @@ impl Arbitrary for DBGlobals {
             .prop_map(
                 |(
                     start_block_hash,
-                    latest_synced_block,
-                    latest_prepared_block_hash,
+                    latest_synced_eb,
+                    latest_prepared_eb_hash,
                     latest_finalized_mb_hash,
                 )| Self {
                     start_block_hash,
-                    latest_synced_block,
-                    latest_prepared_block_hash,
+                    latest_synced_eb,
+                    latest_prepared_eb_hash,
                     latest_finalized_mb_hash,
                 },
             )

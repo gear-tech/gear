@@ -28,7 +28,7 @@ use ethexe_common::{
     BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule, ValidatorsVec,
     db::{
         BlockMeta, BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, CodesStorageRW,
-        CompactBlock, ConfigStorageRO, DBConfig, DBGlobals, GlobalsStorageRO, GlobalsStorageRW,
+        CompactMB, ConfigStorageRO, DBConfig, DBGlobals, GlobalsStorageRO, GlobalsStorageRW,
         HashStorageRO, InjectedStorageRO, InjectedStorageRW, MbMeta, MbStorageRO, MbStorageRW,
         OnChainStorageRO, OnChainStorageRW,
     },
@@ -378,12 +378,12 @@ impl RawDatabase {
 }
 
 impl MbStorageRO for RawDatabase {
-    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactBlock> {
+    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMB> {
         self.kv
             .get(&Key::MbCompactBlock(mb_hash).to_bytes())
             .map(|data| {
-                CompactBlock::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `CompactBlock`")
+                CompactMB::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `CompactMB`")
             })
     }
 
@@ -432,7 +432,7 @@ impl MbStorageRO for RawDatabase {
 }
 
 impl MbStorageRW for RawDatabase {
-    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactBlock) {
+    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMB) {
         tracing::trace!(mb_hash = %mb_hash, "Set MB compact block");
         self.kv
             .put(&Key::MbCompactBlock(mb_hash).to_bytes(), compact.encode());
@@ -794,8 +794,8 @@ impl Database {
 
         let globals = DBGlobals {
             start_block_hash: H256::zero(),
-            latest_synced_block: SimpleBlockData::default(),
-            latest_prepared_block_hash: H256::zero(),
+            latest_synced_eb: SimpleBlockData::default(),
+            latest_prepared_eb_hash: H256::zero(),
             latest_finalized_mb_hash: H256::zero(),
         };
 
@@ -916,7 +916,7 @@ impl InjectedStorageRO for Database {
 
 impl MbStorageRO for Database {
     delegate!(to self.raw {
-        fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactBlock>;
+        fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMB>;
         fn transactions(&self, transactions_hash: H256) -> Option<Transactions>;
         fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
         fn mb_outcome(&self, mb_hash: H256) -> Option<Vec<StateTransition>>;
@@ -927,7 +927,7 @@ impl MbStorageRO for Database {
 
 impl MbStorageRW for Database {
     delegate!(to self.raw {
-        fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactBlock);
+        fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMB);
         fn set_transactions(&self, transactions: Transactions) -> H256;
         fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
         fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);

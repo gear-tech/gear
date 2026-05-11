@@ -18,7 +18,7 @@
 
 //! Per-MB execution sub-service.
 //!
-//! `compute_mb` walks the parent chain via [`CompactBlock::parent`], runs any
+//! `compute_mb` walks the parent chain via [`CompactMB::parent`], runs any
 //! uncomputed ancestors oldest-first, then the target. DB layout:
 //! `mb_compact_block` (persisted by the service at finalize), `transactions`
 //! (CAS payload), `mb_meta` (`computed` flips here), and the per-MB program
@@ -189,7 +189,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             .and_then(|h| db.mb_schedule(h))
             .unwrap_or_default();
         let initial_advanced_block = parent_mb_hash
-            .map(|h| db.mb_meta(h).last_advanced_block)
+            .map(|h| db.mb_meta(h).last_advanced_eb)
             .unwrap_or_default();
 
         let _ = mb_height;
@@ -233,7 +233,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 
 /// Walk the MB's `Transactions` list and prepare processor input.
 ///
-/// Synthetic block height/timestamp come from `last_advanced_block` (the latest
+/// Synthetic block height/timestamp come from `last_advanced_eb` (the latest
 /// EB pinned by this MB or any ancestor); if none, fall back to the router's
 /// genesis block from [`ConfigStorageRO::config`].
 fn build_executable_data(
@@ -425,7 +425,7 @@ mod tests {
     use crate::tests::MockProcessor;
     use ethexe_common::{
         BlockHeader,
-        db::{CompactBlock, OnChainStorageRW},
+        db::{CompactMB, OnChainStorageRW},
         mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction},
     };
 
@@ -457,12 +457,12 @@ mod tests {
         ])
     }
 
-    /// Mimics malachite `save_block`: CAS write + `CompactBlock`.
+    /// Mimics malachite `save_block`: CAS write + `CompactMB`.
     fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, txs: Transactions) {
         let transactions_hash = db.set_transactions(txs);
         db.set_mb_compact_block(
             mb_hash,
-            CompactBlock {
+            CompactMB {
                 parent,
                 height,
                 transactions_hash,

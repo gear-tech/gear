@@ -81,7 +81,7 @@
 //! For every MB hash submitted through [`ComputeService::compute_mb`] the
 //! stream yields one [`ComputeEvent::MbComputed`] once the MB and any
 //! uncomputed ancestor MBs have been executed. Compute walks the parent
-//! chain via [`ethexe_common::db::CompactBlock::parent`] until it reaches
+//! chain via [`ethexe_common::db::CompactMB::parent`] until it reaches
 //! a computed ancestor (or genesis), then runs the executor over the
 //! [`ethexe_common::mb::Transactions`] payload of each. Per-step gas
 //! budget is carried inside each `Transaction::ProcessQueues` payload
@@ -102,7 +102,7 @@
 //!   corresponding `CodeProcessed` is emitted upstream, otherwise a
 //!   block waiting on that code will stall for an extra poll.
 //! - `compute_mb` must only be called once the malachite service has
-//!   recorded the matching `CompactBlock` + transactions blob. The
+//!   recorded the matching `CompactMB` + transactions blob. The
 //!   service layer enforces this by gating event emission inside
 //!   [`MalachiteService::receive_new_chain_head`](ethexe_malachite::MalachiteService::receive_new_chain_head).
 

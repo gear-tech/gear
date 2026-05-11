@@ -46,9 +46,8 @@ pub struct BlockMeta {
     pub last_committed_batch: Option<Digest>,
     /// Last committed MB hash visible from this Eth block.
     pub last_committed_mb: Option<H256>,
-    // +_+_+ rename to `last_committed_eb`
     /// Eth block hash from the last committed `ChainCommitment::last_advanced_eth_block`.
-    pub last_committed_advanced_eth_block: Option<H256>,
+    pub last_committed_eb: Option<H256>,
     pub latest_era_validators_committed: Option<u64>,
 }
 
@@ -140,25 +139,23 @@ pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_compact_promise(&self, promise: &SignedCompactPromise);
 }
 
-// +_+_+ rename to CompactMB
 /// MB static identity. Keyed by the Blake2b envelope hash; existence implies
 /// the matching `Transactions` blob is in CAS at `transactions_hash`.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
-pub struct CompactBlock {
+pub struct CompactMB {
     pub parent: H256,
     pub height: u64,
     pub transactions_hash: H256,
 }
 
-/// MB dynamic state. `last_advanced_block` is propagated forward at save time
+/// MB dynamic state. `last_advanced_eb` is propagated forward at save time
 /// (resets on `AdvanceTillEthereumBlock`); `synced` requires this MB and every
 /// ancestor to be persisted.
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
     pub synced: bool,
-    // +_+_+ rename to `last_advanced_eb`
-    pub last_advanced_block: H256,
+    pub last_advanced_eb: H256,
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -166,7 +163,7 @@ pub trait MbStorageRO {
     /// Static identity (parent + height + `transactions_hash`).
     /// Existence implies the matching [`Transactions`] blob is in the
     /// CAS at `transactions_hash`.
-    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactBlock>;
+    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMB>;
     /// Read the [`Transactions`] blob from CAS by its content hash.
     fn transactions(&self, transactions_hash: H256) -> Option<Transactions>;
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
@@ -177,9 +174,9 @@ pub trait MbStorageRO {
 
 #[auto_impl::auto_impl(&)]
 pub trait MbStorageRW: MbStorageRO {
-    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactBlock);
+    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMB);
     /// Write a [`Transactions`] blob into the CAS and return its hash
-    /// (the value stored in [`CompactBlock::transactions_hash`]).
+    /// (the value stored in [`CompactMB::transactions_hash`]).
     fn set_transactions(&self, transactions: Transactions) -> H256;
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
@@ -195,10 +192,9 @@ pub struct PreparedBlockData {
     pub last_committed_batch: Digest,
     /// `H256::zero()` for genesis (no MB committed on-chain yet).
     pub last_committed_mb: H256,
-    // +_+_+ rename to `last_committed_eb`
     /// `H256::zero()` for genesis (no chain commitment has advanced an
     /// Eth block yet).
-    pub last_committed_advanced_eth_block: H256,
+    pub last_committed_eb: H256,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
@@ -215,11 +211,9 @@ pub struct DBConfig {
 pub struct DBGlobals {
     pub start_block_hash: H256,
 
-    // +_+_+ rename to `latest_synced_eb`
-    pub latest_synced_block: SimpleBlockData,
+    pub latest_synced_eb: SimpleBlockData,
 
-    // +_+_+ rename to `latest_prepared_eb_hash`
-    pub latest_prepared_block_hash: H256,
+    pub latest_prepared_eb_hash: H256,
 
     /// Hash of the most recent Malachite sequencer block this node
     /// has seen finalized. `H256::zero()` means no MB has ever been
@@ -279,7 +273,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "db6bc4839e6492298211d675ad7e98295343bbb3e617dca097d4bbd928fc4a9a";
+            "16a90b994094b8fe020c1b61987558c1f3e0a6856b12a6cc293c09aa43abc44f";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -296,7 +290,7 @@ mod tests {
             meta_type::<StateTransition>(),
             meta_type::<Schedule>(),
             meta_type::<MbMeta>(),
-            meta_type::<CompactBlock>(),
+            meta_type::<CompactMB>(),
             meta_type::<crate::mb::Transactions>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),

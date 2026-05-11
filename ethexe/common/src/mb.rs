@@ -21,10 +21,10 @@
 //!
 //! [`Transactions`] is the application's `BlockPayload` — an ordered
 //! list of [`Transaction`]s. Block-level identity (parent linkage,
-//! height) lives in [`crate::db::CompactBlock`], indexed by the
+//! height) lives in [`crate::db::CompactMB`], indexed by the
 //! `ethexe_malachite_core::Block` envelope hash. The transaction list
 //! itself is stored in the content-addressed half of [`ethexe_db`]
-//! and referenced by [`CompactBlock::transactions_hash`].
+//! and referenced by [`CompactMB::transactions_hash`].
 //!
 //! These types live in `ethexe-common` (rather than inside
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without

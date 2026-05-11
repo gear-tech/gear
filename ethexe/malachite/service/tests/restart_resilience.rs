@@ -27,7 +27,7 @@
 //!    height-non-decreasing order.
 //! 2. After a `drop` + rebuild on the same home directory and
 //!    `ethexe-db`, finalization picks up where it left off — the
-//!    `CompactBlock` chain reachable from
+//!    `CompactMB` chain reachable from
 //!    `globals.latest_finalized_mb_hash` is gap-free across the
 //!    restart boundary, and the latest pointer never rewinds.
 
@@ -35,7 +35,7 @@ use std::{path::Path, sync::Arc, time::Duration};
 
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
-    db::{BlockMetaStorageRW, CompactBlock, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
+    db::{BlockMetaStorageRW, CompactMB, GlobalsStorageRO, MbStorageRO, OnChainStorageRW},
 };
 use ethexe_db::Database;
 use ethexe_malachite::{
@@ -196,7 +196,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
 
     // Feed chain heads one-per-round so the quarantine-advance
     // probe always sees a strictly newer EB (parent's
-    // `last_advanced_block` is the previous head; same-hash returns
+    // `last_advanced_eb` is the previous head; same-hash returns
     // `Ok(false)` from `is_strict_descendant_of` and the producer
     // would idle).
     let mut pending = chain[..32].iter().copied();
@@ -211,7 +211,7 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
         !pre_restart_head.is_zero(),
         "globals.latest_finalized_mb_hash must advance during the first run"
     );
-    // Walk back from the head via `CompactBlock.parent` and check
+    // Walk back from the head via `CompactMB.parent` and check
     // the height chain is contiguous and matches `high1`.
     assert_chain_contiguous(&db, pre_restart_head, high1);
 
@@ -254,23 +254,23 @@ async fn single_validator_finalizes_and_recovers_after_restart() {
     svc2.shutdown().await;
 }
 
-/// Walk back from `head` via [`CompactBlock::parent`] and assert
+/// Walk back from `head` via [`CompactMB::parent`] and assert
 /// the height chain is contiguous (`expected_height`, `expected_height - 1`,
 /// …, 1) and that each step is reachable from the DB.
 fn assert_chain_contiguous(db: &Database, head: H256, expected_height: u64) {
     let mut current = head;
     let mut expected = expected_height;
     loop {
-        let compact: CompactBlock = db
+        let compact: CompactMB = db
             .mb_compact_block(current)
-            .unwrap_or_else(|| panic!("missing CompactBlock for {current}"));
+            .unwrap_or_else(|| panic!("missing CompactMB for {current}"));
         assert_eq!(
             compact.height, expected,
             "chain height mismatch at {current}: expected {expected}, got {}",
             compact.height
         );
         // Transactions blob must be reachable too — that's the
-        // contract behind CompactBlock existence.
+        // contract behind CompactMB existence.
         assert!(
             db.transactions(compact.transactions_hash).is_some(),
             "missing transactions blob {} for MB {current}",

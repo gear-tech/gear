@@ -61,7 +61,7 @@ pub struct MalachiteService {
     mempool: Arc<dyn Mempool>,
     /// Shared with the inner engine — held here so
     /// [`Self::receive_new_chain_head`] can release pending events
-    /// whose `last_advanced_block` Eth block has just been synced
+    /// whose `last_advanced_eb` Eth block has just been synced
     /// by the observer.
     externalities: Arc<EthexeExternalities>,
     /// On-chain validator addresses only — we keep operator-supplied
@@ -212,7 +212,7 @@ impl MalachiteService {
     ///    without this kick a failed walk would never retry.
     ///
     /// Also drains any queued [`MalachiteEvent::BlockProposal`] /
-    /// [`MalachiteEvent::BlockFinalized`] whose `last_advanced_block`
+    /// [`MalachiteEvent::BlockFinalized`] whose `last_advanced_eb`
     /// Eth block has now landed in the local DB — keeps the strict
     /// FIFO ordering compute and the malachite engine rely on.
     pub fn receive_new_chain_head(&mut self, head: SimpleBlockData) {

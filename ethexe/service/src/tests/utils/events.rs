@@ -379,7 +379,7 @@ impl TestingEventReceiver {
     /// Wait until a finalized MB advances the eth chain to or past
     /// `target_eth_block`. The target need not appear directly in an
     /// `AdvanceTillEthereumBlock` transaction — it suffices that it is an
-    /// ancestor of this MB's `last_advanced_block` (i.e., it sits inside
+    /// ancestor of this MB's `last_advanced_eb` (i.e., it sits inside
     /// the eth-chain segment this MB advanced over).
     #[allow(dead_code)]
     pub async fn wait_till_eth_block_finalized_in_mb(&mut self, target_eth_block: H256) {
@@ -388,16 +388,16 @@ impl TestingEventReceiver {
             else {
                 return None;
             };
-            let last_advanced = db.mb_meta(block_hash).last_advanced_block;
+            let last_advanced = db.mb_meta(block_hash).last_advanced_eb;
             if last_advanced.is_zero() {
                 return None;
             }
-            // Anchor: previous MB's `last_advanced_block` (genesis if none).
+            // Anchor: previous MB's `last_advanced_eb` (genesis if none).
             let prev_advanced = match db.mb_compact_block(block_hash) {
-                Some(c) if !c.parent.is_zero() => db.mb_meta(c.parent).last_advanced_block,
+                Some(c) if !c.parent.is_zero() => db.mb_meta(c.parent).last_advanced_eb,
                 _ => H256::zero(),
             };
-            // Walk the eth chain from this MB's `last_advanced_block` back to
+            // Walk the eth chain from this MB's `last_advanced_eb` back to
             // the previous anchor; if the target is in that segment, the MB
             // covers it.
             let mut cursor = last_advanced;

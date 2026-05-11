@@ -141,34 +141,34 @@ impl ChainSync {
 
     /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let latest_synced_block_height = self.db.globals().latest_synced_block.header.height;
+        let latest_synced_eb_height = self.db.globals().latest_synced_eb.header.height;
 
-        if header.height <= latest_synced_block_height {
+        if header.height <= latest_synced_eb_height {
             tracing::warn!(
                 "Got a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
-                latest_synced_block_height
+                latest_synced_eb_height
             );
             // Suppose here that all data is already in db.
             return Ok(Default::default());
         }
 
-        if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
+        if (header.height - latest_synced_eb_height) >= self.config.max_sync_depth {
             return Err(anyhow!(
                 "Too much to sync: current block number: {}, Latest synced block number: {}, Max depth: {}",
                 header.height,
-                latest_synced_block_height,
+                latest_synced_eb_height,
                 self.config.max_sync_depth
             ));
         }
 
-        if header.height - latest_synced_block_height < self.config.batched_sync_depth {
+        if header.height - latest_synced_eb_height < self.config.batched_sync_depth {
             // No need to pre load data, because amount of blocks is small enough.
             return Ok(Default::default());
         }
 
         self.block_loader
-            .load_many(latest_synced_block_height as u64..=header.height as u64)
+            .load_many(latest_synced_eb_height as u64..=header.height as u64)
             .await
     }
 
@@ -212,7 +212,7 @@ impl ChainSync {
             self.db.set_block_synced(hash);
 
             self.db
-                .globals_mutate(|g| g.latest_synced_block = SimpleBlockData { hash, header });
+                .globals_mutate(|g| g.latest_synced_eb = SimpleBlockData { hash, header });
         }
     }
 

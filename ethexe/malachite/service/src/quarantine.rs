@@ -20,7 +20,7 @@
 //!
 //! Both sides operate on the same inputs:
 //! - `head`: the most recent Ethereum block each node received via the
-//!   observer event stream — **not** `DBGlobals::latest_synced_block`,
+//!   observer event stream — **not** `DBGlobals::latest_synced_eb`,
 //!   which trails the event stream and is updated only after extra
 //!   processing.
 //! - the shared [`ethexe_db::Database`] as a source of

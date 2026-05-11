@@ -1502,7 +1502,7 @@ async fn send_injected_tx() {
     env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
-    let reference_block = node0.db.globals().latest_prepared_block_hash;
+    let reference_block = node0.db.globals().latest_prepared_eb_hash;
 
     // Prepare tx data
     let tx = InjectedTransaction {
@@ -1800,7 +1800,7 @@ async fn mailbox() {
 
                 false
             }
-            BlockEvent::Router(ethexe_common::events::RouterEvent::AnnouncesCommitted(ah))
+            BlockEvent::Router(ethexe_common::events::RouterEvent::MBCommitted(ah))
                 if block.is_some() =>
             {
                 mb_hash_opt = Some(ah.clone());
@@ -1811,7 +1811,7 @@ async fn mailbox() {
         .await;
 
     let block = block.expect("must be set");
-    let ethexe_common::events::router::AnnouncesCommittedEvent(mb_hash) =
+    let ethexe_common::events::router::MBCommittedEvent(mb_hash) =
         mb_hash_opt.expect("must be set");
 
     // In MB-driven flow the synthetic block height that the executor sees
@@ -1954,8 +1954,8 @@ async fn mailbox() {
                 claimed = true;
                 None
             }
-            BlockEvent::Router(ethexe_common::events::RouterEvent::AnnouncesCommitted(
-                ethexe_common::events::router::AnnouncesCommittedEvent(ah),
+            BlockEvent::Router(ethexe_common::events::RouterEvent::MBCommitted(
+                ethexe_common::events::router::MBCommittedEvent(ah),
             )) if claimed => Some(ah),
             _ => None,
         })
@@ -2799,7 +2799,7 @@ async fn injected_tx_fungible_token() {
         destination: usdt_actor_id,
         payload: mint_action.encode().try_into().unwrap(),
         value: 0,
-        reference_block: node.db.globals().latest_prepared_block_hash,
+        reference_block: node.db.globals().latest_prepared_eb_hash,
         salt: vec![1].try_into().unwrap(),
     };
 
@@ -2891,7 +2891,7 @@ async fn injected_tx_fungible_token() {
         destination: usdt_actor_id,
         payload: transfer_action.encode().try_into().unwrap(),
         value: 0,
-        reference_block: node.db.globals().latest_prepared_block_hash,
+        reference_block: node.db.globals().latest_prepared_eb_hash,
         salt: vec![1].try_into().unwrap(),
     };
 
@@ -3016,7 +3016,7 @@ async fn injected_tx_fungible_token_over_network() {
         destination: usdt_actor_id,
         payload: mint_action.encode().try_into().unwrap(),
         value: 0,
-        reference_block: bob_node.db.globals().latest_prepared_block_hash,
+        reference_block: bob_node.db.globals().latest_prepared_eb_hash,
         salt: vec![1].try_into().unwrap(),
     };
 
@@ -3113,8 +3113,8 @@ async fn fast_sync() {
                 bob_globals.latest_computed_announce_hash
             );
             assert_eq!(
-                alice_globals.latest_prepared_block_hash,
-                bob_globals.latest_prepared_block_hash
+                alice_globals.latest_prepared_eb_hash,
+                bob_globals.latest_prepared_eb_hash
             );
 
             let mut block = latest_block;

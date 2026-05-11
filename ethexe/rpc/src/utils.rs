@@ -35,7 +35,7 @@ pub fn block_at_or_latest_synced(
         }
         hash
     } else {
-        db.globals().latest_synced_block.hash
+        db.globals().latest_synced_eb.hash
     };
 
     db.block_header(hash)

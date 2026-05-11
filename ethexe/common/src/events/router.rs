@@ -28,16 +28,14 @@ pub struct BatchCommittedEvent {
     pub digest: Digest,
 }
 
-// +_+_+ rename to `MBCommittedEvent`
 /// Emitted when an MB-driven chain commitment lands on-chain. The inner
 /// `H256` is the MB hash that became `last_committed_mb` for the block.
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct AnnouncesCommittedEvent(pub H256);
+pub struct MBCommittedEvent(pub H256);
 
-// +_+_+ rename to `EBCommittedEvent`
 /// Carries the latest folded-in Ethereum block hash from a chain commitment.
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct LastAdvancedEthBlockCommittedEvent(pub H256);
+pub struct EBCommittedEvent(pub H256);
 
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CodeGotValidatedEvent {
@@ -82,10 +80,8 @@ pub struct ValidatorsCommittedForEraEvent {
 #[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Event {
     BatchCommitted(BatchCommittedEvent),
-    // +_+_+ rename to `MBCommitted`
-    AnnouncesCommitted(AnnouncesCommittedEvent),
-    // +_+_+ rename to `EBCommitted`
-    LastAdvancedEthBlockCommitted(LastAdvancedEthBlockCommittedEvent),
+    MBCommitted(MBCommittedEvent),
+    EBCommitted(EBCommittedEvent),
     CodeGotValidated(CodeGotValidatedEvent),
     CodeValidationRequested(CodeValidationRequestedEvent),
     ComputationSettingsChanged(ComputationSettingsChangedEvent),
@@ -108,8 +104,8 @@ impl Event {
                 RequestEvent::ValidatorsCommittedForEra(event)
             }
             Self::CodeGotValidated { .. }
-            | Self::AnnouncesCommitted(_)
-            | Self::LastAdvancedEthBlockCommitted(_)
+            | Self::MBCommitted(_)
+            | Self::EBCommitted(_)
             | Self::BatchCommitted { .. } => return None,
         })
     }

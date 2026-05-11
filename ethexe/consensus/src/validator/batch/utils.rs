@@ -243,7 +243,7 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         let trial_commitment = ChainCommitment {
             head: *mb_hash,
             transitions: trial,
-            last_advanced_eth_block: db.mb_meta(*mb_hash).last_advanced_block,
+            last_advanced_eth_block: db.mb_meta(*mb_hash).last_advanced_eb,
         };
         if !batch_filler.would_fit_chain_commitment(&trial_commitment) {
             break;
@@ -259,7 +259,7 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         last_advanced_eth_block: if last_included == last_committed_mb {
             H256::zero()
         } else {
-            db.mb_meta(last_included).last_advanced_block
+            db.mb_meta(last_included).last_advanced_eb
         },
     };
 
@@ -274,7 +274,7 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
 }
 
 /// If `last_advanced_eth_block` of `mb_head` is more than `threshold` Eth blocks
-/// past `block.last_committed_advanced_eth_block`, force an empty chain commitment
+/// past `block.last_committed_eb`, force an empty chain commitment
 /// that pins the head MB and the new advanced anchor on-chain.
 pub fn try_include_checkpoint_chain_commitment<
     DB: BlockMetaStorageRO + MbStorageRO + OnChainStorageRO,
@@ -285,7 +285,7 @@ pub fn try_include_checkpoint_chain_commitment<
     threshold: u32,
     batch_filler: &mut BatchFiller,
 ) -> Result<()> {
-    let advanced = db.mb_meta(mb_head).last_advanced_block;
+    let advanced = db.mb_meta(mb_head).last_advanced_eb;
     if advanced.is_zero() {
         return Ok(());
     }
@@ -297,10 +297,10 @@ pub fn try_include_checkpoint_chain_commitment<
     // `WaitForEthBlock`), so the field must be populated.
     let last_committed_advanced = db
         .block_meta(at_block)
-        .last_committed_advanced_eth_block
+        .last_committed_eb
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "block_meta({at_block}).last_committed_advanced_eth_block missing despite prepared==true"
+                "block_meta({at_block}).last_committed_eb missing despite prepared==true"
             )
         })?;
     let last_committed_height = if last_committed_advanced.is_zero() {
@@ -480,7 +480,7 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Schedule,
-        db::{CompactBlock, MbStorageRW},
+        db::{CompactMB, MbStorageRW},
         mb::{ProcessQueuesLimits, Transaction, Transactions},
     };
     use ethexe_db::Database;
@@ -510,7 +510,7 @@ mod tests {
         let mb_hash = H256::from_low_u64_be(0x1000 + height);
         db.set_mb_compact_block(
             mb_hash,
-            CompactBlock {
+            CompactMB {
                 parent: parent_mb,
                 height,
                 transactions_hash,
@@ -520,7 +520,7 @@ mod tests {
         db.set_mb_schedule(mb_hash, Schedule::default());
         db.mutate_mb_meta(mb_hash, |meta| {
             meta.computed = true;
-            meta.last_advanced_block = H256::zero();
+            meta.last_advanced_eb = H256::zero();
         });
         mb_hash
     }
@@ -684,7 +684,7 @@ mod tests {
         let chain_b_root = H256::from_low_u64_be(0xB001);
         db.set_mb_compact_block(
             chain_b_root,
-            CompactBlock {
+            CompactMB {
                 parent: H256::from_low_u64_be(0xB000), // unknown parent
                 height: 1,
                 transactions_hash: db.set_transactions(empty_txs(99)),

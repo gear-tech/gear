@@ -121,7 +121,7 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
             codes_queue: Default::default(),
             last_committed_batch: Default::default(),
             last_committed_mb: H256::zero(),
-            last_committed_advanced_eth_block: H256::zero(),
+            last_committed_eb: H256::zero(),
             latest_era_with_committed_validators: 0,
         },
     );
@@ -151,8 +151,8 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     // NOTE: start block could be changed later by fast-sync
     let globals = ethexe_common::db::DBGlobals {
         start_block_hash: genesis_block.hash,
-        latest_synced_block: genesis_block,
-        latest_prepared_block_hash: genesis_block.hash,
+        latest_synced_eb: genesis_block,
+        latest_prepared_eb_hash: genesis_block.hash,
         latest_finalized_mb_hash: H256::zero(),
     };
 

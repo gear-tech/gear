@@ -26,7 +26,7 @@
 //! ## Map of responsibilities
 //! - [`EthexeExternalities::save_block`] — once ethexe-malachite-core agrees an MB
 //!   is saveable (parent already saved), persist it to the ethexe
-//!   `mb_*` keyspace, propagate `last_advanced_block`, and fire
+//!   `mb_*` keyspace, propagate `last_advanced_eb`, and fire
 //!   [`MalachiteEvent::BlockProposal`].
 //! - [`EthexeExternalities::mark_block_as_finalized`] — flush the
 //!   committed injected txs out of the mempool, advance
@@ -44,7 +44,7 @@
 //! All MB-keyed storage in the ethexe DB is keyed by the
 //! `ethexe_malachite_core::Block` envelope hash (Blake2b over
 //! `(parent_hash, height, payload_hash, reserved)`).
-//! [`EthexeExternalities::save_block`] writes a [`CompactBlock`] under
+//! [`EthexeExternalities::save_block`] writes a [`CompactMB`] under
 //! that key (carrying parent + height + the Blake2b hash of the
 //! [`Transactions`] payload) and CAS-stores the `Transactions` blob;
 //! [`EthexeExternalities::mark_block_as_finalized`] reads both back
@@ -60,7 +60,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     SimpleBlockData,
     db::{
-        CompactBlock, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW,
+        CompactMB, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW,
         OnChainStorageRO,
     },
     injected::SignedInjectedTransaction,
@@ -83,7 +83,7 @@ pub(crate) struct EthexeExternalities {
     /// [`crate::MalachiteService::receive_new_chain_head`]. The
     /// producer reads this from inside [`Self::build_block_above`];
     /// validators read it from inside [`Self::validate_block_above`].
-    /// Decoupled from `globals.latest_synced_block` because the latter
+    /// Decoupled from `globals.latest_synced_eb` because the latter
     /// trails the event stream and would block proposals that the
     /// observer has already announced.
     pub(crate) chain_head: Arc<RwLock<Option<SimpleBlockData>>>,
@@ -94,7 +94,7 @@ pub(crate) struct EthexeExternalities {
     /// Outbound event channel — drained by
     /// [`crate::MalachiteService::poll_next`]. We wrap each emit in
     /// [`Self::try_emit_or_queue`] so that events whose
-    /// `last_advanced_block` Eth-block isn't fully synced into the
+    /// `last_advanced_eb` Eth-block isn't fully synced into the
     /// local DB are held back until the observer catches up.
     pub(crate) event_tx: mpsc::UnboundedSender<Result<MalachiteEvent>>,
     /// Buffer for [`MalachiteEvent`]s whose downstream
@@ -114,7 +114,7 @@ pub(crate) struct PendingEvent {
     pub event: MalachiteEvent,
     /// Eth-block hash whose `block_events` entry must be present
     /// before this event can fire — i.e. the MB's
-    /// `last_advanced_block`. `H256::zero()` skips the gate (genesis
+    /// `last_advanced_eb`. `H256::zero()` skips the gate (genesis
     /// or an MB that never advanced past the pre-genesis sentinel).
     pub prerequisite: H256,
 }
@@ -128,18 +128,18 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
     ) -> Result<()> {
         // The DB is keyed by the consensus envelope hash (Blake2b
         // over `Block`), passed in `block_hash`. Parent linkage lives
-        // in [`CompactBlock::parent`]; the transactions list itself
-        // lives in CAS keyed by [`CompactBlock::transactions_hash`].
+        // in [`CompactMB::parent`]; the transactions list itself
+        // lives in CAS keyed by [`CompactMB::transactions_hash`].
         let parent = block.parent_hash;
         let payload = block.payload;
 
-        // Propagate `last_advanced_block` forward — the latest
+        // Propagate `last_advanced_eb` forward — the latest
         // `AdvanceTillEthereumBlock` in this MB wins; otherwise we
         // inherit the parent's value (zero if pre-genesis).
         let parent_advanced = if parent.is_zero() {
             H256::zero()
         } else {
-            self.db.mb_meta(parent).last_advanced_block
+            self.db.mb_meta(parent).last_advanced_eb
         };
         let last_advanced = payload
             .iter()
@@ -151,19 +151,19 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             .unwrap_or(parent_advanced);
 
         // CAS-store transactions first so the contract — "if
-        // CompactBlock exists, transactions are reachable" — holds
+        // CompactMB exists, transactions are reachable" — holds
         // unconditionally.
         let transactions_hash = self.db.set_transactions(payload.clone());
         self.db.set_mb_compact_block(
             block_hash,
-            CompactBlock {
+            CompactMB {
                 parent,
                 height: block.height,
                 transactions_hash,
             },
         );
         self.db.mutate_mb_meta(block_hash, |meta| {
-            meta.last_advanced_block = last_advanced;
+            meta.last_advanced_eb = last_advanced;
             // ethexe-malachite-core's ancestor-first ordering means
             // the chain back to genesis is intact by the time
             // `save_block` fires.
@@ -186,7 +186,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         cert: ethexe_malachite_core::CommitCertificate,
     ) -> Result<()> {
         let compact = self.db.mb_compact_block(block_hash).ok_or_else(|| {
-            anyhow!("mark_finalized: no CompactBlock for {block_hash} (save_block must run first)")
+            anyhow!("mark_finalized: no CompactMB for {block_hash} (save_block must run first)")
         })?;
         let payload = self
             .db
@@ -225,8 +225,8 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         };
         // Same prerequisite as the matching BlockProposal — by the
         // time `mark_block_as_finalized` runs, `save_block` has
-        // already populated `mb_meta(block_hash).last_advanced_block`.
-        let last_advanced = self.db.mb_meta(block_hash).last_advanced_block;
+        // already populated `mb_meta(block_hash).last_advanced_eb`.
+        let last_advanced = self.db.mb_meta(block_hash).last_advanced_eb;
         self.try_emit_or_queue(
             MalachiteEvent::BlockFinalized {
                 cert: app_cert,
@@ -241,11 +241,11 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
     async fn build_block_above(&self, parent_hash: H256) -> Result<Transactions> {
         // `parent_hash` is the consensus envelope hash of the parent
         // (zero for genesis). Use it directly to seed the producer's
-        // `last_advanced_block` lookup.
+        // `last_advanced_eb` lookup.
         let parent_advanced = if parent_hash.is_zero() {
             H256::zero()
         } else {
-            self.db.mb_meta(parent_hash).last_advanced_block
+            self.db.mb_meta(parent_hash).last_advanced_eb
         };
 
         let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await;
@@ -326,7 +326,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         let parent_advanced = if parent_hash.is_zero() {
             H256::zero()
         } else {
-            self.db.mb_meta(parent_hash).last_advanced_block
+            self.db.mb_meta(parent_hash).last_advanced_eb
         };
 
         const VALIDATE_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_millis(2000);
@@ -475,7 +475,7 @@ impl EthexeExternalities {
     }
 
     /// Resolve the next `AdvanceTillEthereumBlock` candidate given
-    /// the parent MB's `last_advanced_block`. Returns `Some` only for
+    /// the parent MB's `last_advanced_eb`. Returns `Some` only for
     /// a strict descendant of `parent_advanced`; everything else
     /// (no candidate, same EB, or a misconfigured walk) is treated
     /// as "no advance this round" and logged.
@@ -502,7 +502,7 @@ impl EthexeExternalities {
                     candidate = %candidate,
                     parent_advanced = %parent_advanced,
                     "quarantine-passed EB is not a canonical descendant of \
-                     parent's last_advanced_block — skipping AdvanceTillEthereumBlock"
+                     parent's last_advanced_eb — skipping AdvanceTillEthereumBlock"
                 );
                 None
             }
@@ -594,7 +594,7 @@ mod tests {
     /// The `salt` byte is encoded as the number of leading
     /// `ProgressTasks` placeholders, which gives each block a unique
     /// hash without dragging an extraneous `AdvanceTillEthereumBlock`
-    /// through the test (the `last_advanced_block_propagates` case
+    /// through the test (the `last_advanced_eb_propagates` case
     /// would otherwise see an unintended advance).
     fn payload(advance: Option<H256>, salt: u8) -> Transactions {
         let mut txs = Vec::with_capacity(salt as usize + 3);
@@ -632,7 +632,7 @@ mod tests {
     }
 
     /// `save_block` populates `mb_block`, `mb_meta` (height,
-    /// parent_mb_hash, last_advanced_block, synced=true) and the
+    /// parent_mb_hash, last_advanced_eb, synced=true) and the
     /// height index, then emits a `BlockProposal`.
     #[tokio::test]
     async fn save_block_populates_db_and_emits_event() {
@@ -644,7 +644,7 @@ mod tests {
         let mb_hash = block.hash();
         ext.save_block(mb_hash, block).await.unwrap();
 
-        let compact = db.mb_compact_block(mb_hash).expect("CompactBlock saved");
+        let compact = db.mb_compact_block(mb_hash).expect("CompactMB saved");
         assert_eq!(compact.height, 1);
         assert_eq!(compact.parent, H256::zero());
         let txs = db
@@ -667,7 +667,7 @@ mod tests {
         assert!(db.globals().latest_finalized_mb_hash.is_zero());
     }
 
-    /// `mark_block_as_finalized` reads the [`CompactBlock`] +
+    /// `mark_block_as_finalized` reads the [`CompactMB`] +
     /// transactions blob keyed by the consensus envelope hash,
     /// advances `globals.latest_finalized_mb_hash`, and emits a
     /// `BlockFinalized`.
@@ -703,7 +703,7 @@ mod tests {
 
     /// Crash-recovery: build externalities A on a fresh DB, save +
     /// finalize K MBs, drop A, build externalities B on the same DB.
-    /// B sees the persisted globals and `CompactBlock` chain; the
+    /// B sees the persisted globals and `CompactMB` chain; the
     /// next `save_block` correctly chains off the previous head.
     #[tokio::test]
     async fn restart_continues_from_persisted_chain() {
@@ -759,11 +759,11 @@ mod tests {
         assert_eq!(db.globals().latest_finalized_mb_hash, mb4);
     }
 
-    /// `last_advanced_block` is propagated forward: an MB without an
+    /// `last_advanced_eb` is propagated forward: an MB without an
     /// `AdvanceTillEthereumBlock` inherits the parent's value; an MB
     /// with one resets it.
     #[tokio::test]
-    async fn last_advanced_block_propagates() {
+    async fn last_advanced_eb_propagates() {
         use ethexe_common::db::MbStorageRO;
         let db = Database::memory();
         let (ext, mut rx) = make_externalities(db.clone());
@@ -788,14 +788,14 @@ mod tests {
         }
         while rx.try_recv().is_ok() {}
 
-        assert!(db.mb_meta(chain[0]).last_advanced_block.is_zero());
+        assert!(db.mb_meta(chain[0]).last_advanced_eb.is_zero());
         assert_eq!(
-            db.mb_meta(chain[1]).last_advanced_block,
+            db.mb_meta(chain[1]).last_advanced_eb,
             H256::repeat_byte(0xAB),
             "h2 should anchor to its own AdvanceTillEthereumBlock"
         );
         assert_eq!(
-            db.mb_meta(chain[2]).last_advanced_block,
+            db.mb_meta(chain[2]).last_advanced_eb,
             H256::repeat_byte(0xAB),
             "h3 inherits h2's anchor"
         );

@@ -125,7 +125,7 @@ pub struct NodeParams {
 
     /// Force a checkpoint chain commitment when the producer's
     /// `last_advanced_eth_block` runs ahead of the on-chain
-    /// `last_committed_advanced_eth_block` by more than this many Eth blocks.
+    /// `last_committed_eb` by more than this many Eth blocks.
     /// Zero disables.
     #[arg(long)]
     #[serde(default, rename = "uncommitted-chain-len-threshold")]

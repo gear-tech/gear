@@ -160,7 +160,7 @@ impl Checker {
     async fn integrity_check(&self) -> Result<()> {
         let db = &self.db;
         let bottom = self.globals.start_block_hash;
-        let head = self.globals.latest_synced_block.hash;
+        let head = self.globals.latest_synced_eb.hash;
 
         let bottom = db
             .block_header(bottom)
@@ -235,7 +235,7 @@ impl Checker {
     /// schedule against fresh execution. Stubbed pending MB walk wiring.
     async fn computation_check(&self) -> Result<()> {
         // TODO: (+_+_+ append issue number) walk `globals.latest_finalized_mb_hash` back through
-        // `CompactBlock.parent`, re-execute each MB through the
+        // `CompactMB.parent`, re-execute each MB through the
         // processor, and assert the persisted `mb_*` records match.
         println!("computation_check is currently a stub — MB walk not wired in yet");
         Ok(())

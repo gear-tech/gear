@@ -194,7 +194,7 @@ library Gear {
         /**
          * @dev Latest Ethereum block hash whose events were folded into the MB head.
          *      `bytes32(0)` when not advanced. Used to drive checkpoint batches
-         *      from `last_committed_advanced_eth_block`.
+         *      from `last_committed_eb`.
          */
         bytes32 lastAdvancedEthBlock;
     }

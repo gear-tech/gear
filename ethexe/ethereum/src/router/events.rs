@@ -33,7 +33,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::events::{
     RouterEvent, RouterRequestEvent,
     router::{
-        AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
+        MBCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
         CodeValidationRequestedEvent, ComputationSettingsChangedEvent, ProgramCreatedEvent,
         StorageSlotChangedEvent, ValidatorsCommittedForEraEvent,
     },
@@ -48,10 +48,8 @@ pub mod signatures {
     crate::signatures_consts! {
         IRouter;
         BATCH_COMMITTED: BatchCommitted,
-        // +_+_+ rename to MB_COMMITTED
-        ANNOUNCES_COMMITTED: AnnouncesCommitted,
-        // +_+_+ rename to EB_COMMITTED
-        LAST_ADVANCED_ETH_BLOCK_COMMITTED: LastAdvancedEthBlockCommitted,
+        MB_COMMITTED: MBCommitted,
+        EB_COMMITTED: EBCommitted,
         CODE_GOT_VALIDATED: CodeGotValidated,
         CODE_VALIDATION_REQUESTED: CodeValidationRequested,
         COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
@@ -78,11 +76,11 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
         BATCH_COMMITTED => {
             RouterEvent::BatchCommitted(decode_log::<IRouter::BatchCommitted>(log)?.into())
         }
-        ANNOUNCES_COMMITTED => {
-            RouterEvent::AnnouncesCommitted(decode_log::<IRouter::AnnouncesCommitted>(log)?.into())
+        MB_COMMITTED => {
+            RouterEvent::MBCommitted(decode_log::<IRouter::MBCommitted>(log)?.into())
         }
-        LAST_ADVANCED_ETH_BLOCK_COMMITTED => RouterEvent::LastAdvancedEthBlockCommitted(
-            decode_log::<IRouter::LastAdvancedEthBlockCommitted>(log)?.into(),
+        EB_COMMITTED => RouterEvent::EBCommitted(
+            decode_log::<IRouter::EBCommitted>(log)?.into(),
         ),
         CODE_GOT_VALIDATED => {
             RouterEvent::CodeGotValidated(decode_log::<IRouter::CodeGotValidated>(log)?.into())
@@ -148,8 +146,8 @@ impl<'a> AllEventsBuilder<'a> {
             .address(*self.query.instance.address())
             .event_signature(Topic::from_iter([
                 signatures::BATCH_COMMITTED,
-                signatures::ANNOUNCES_COMMITTED,
-                signatures::LAST_ADVANCED_ETH_BLOCK_COMMITTED,
+                signatures::MB_COMMITTED,
+                signatures::EB_COMMITTED,
                 signatures::CODE_GOT_VALIDATED,
                 signatures::CODE_VALIDATION_REQUESTED,
                 signatures::COMPUTATION_SETTINGS_CHANGED,
@@ -191,20 +189,20 @@ impl<'a> BatchCommittedEventBuilder<'a> {
     }
 }
 
-pub struct AnnouncesCommittedEventBuilder<'a> {
-    event: Event<&'a RootProvider, IRouter::AnnouncesCommitted>,
+pub struct MBCommittedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IRouter::MBCommitted>,
 }
 
-impl<'a> AnnouncesCommittedEventBuilder<'a> {
+impl<'a> MBCommittedEventBuilder<'a> {
     pub(crate) fn new(query: &'a RouterQuery) -> Self {
         Self {
-            event: query.instance.AnnouncesCommitted_filter(),
+            event: query.instance.MBCommitted_filter(),
         }
     }
 
     pub async fn subscribe(
         self,
-    ) -> Result<impl Stream<Item = Result<(AnnouncesCommittedEvent, Log), Error>> + Unpin + use<>>
+    ) -> Result<impl Stream<Item = Result<(MBCommittedEvent, Log), Error>> + Unpin + use<>>
     {
         Ok(self
             .event

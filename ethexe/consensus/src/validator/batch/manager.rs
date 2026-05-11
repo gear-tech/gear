@@ -81,7 +81,7 @@ impl BatchCommitmentManager {
         // State transitions before code commitments.
         let latest_finalized_mb = self.db.globals().latest_finalized_mb_hash;
         if !latest_finalized_mb.is_zero() {
-            let latest_advanced = self.db.mb_meta(latest_finalized_mb).last_advanced_block;
+            let latest_advanced = self.db.mb_meta(latest_finalized_mb).last_advanced_eb;
             if !crate::utils::is_eth_block_canonical_to(&self.db, latest_advanced, block.hash)? {
                 // The latest finalized MB advanced to an Eth block on a stale
                 // branch (Eth reorg deeper than canonical_quarantine). Since
@@ -109,7 +109,7 @@ impl BatchCommitmentManager {
             )?;
 
             // Checkpoint: if no chain commitment fits but the producer's
-            // `last_advanced_eth_block` is far ahead of `last_committed_advanced_eth_block`,
+            // `last_advanced_eth_block` is far ahead of `last_committed_eb`,
             // emit an empty chain commitment that just bumps the on-chain anchor.
             if !batch_filler.has_chain_commitment()
                 && self.limits.uncommitted_chain_len_threshold > 0
@@ -229,7 +229,7 @@ impl BatchCommitmentManager {
             // also be canonical here for the batch to ever land.
             let local_latest_finalized = self.db.globals().latest_finalized_mb_hash;
             if !local_latest_finalized.is_zero() {
-                let latest_advanced = self.db.mb_meta(local_latest_finalized).last_advanced_block;
+                let latest_advanced = self.db.mb_meta(local_latest_finalized).last_advanced_eb;
                 if !crate::utils::is_eth_block_canonical_to(&self.db, latest_advanced, block.hash)?
                 {
                     return Ok(ValidationStatus::Rejected {
@@ -320,7 +320,7 @@ impl BatchCommitmentManager {
             let mut chain_commitment = ChainCommitment {
                 transitions: Vec::new(),
                 head: head_mb,
-                last_advanced_eth_block: self.db.mb_meta(head_mb).last_advanced_block,
+                last_advanced_eth_block: self.db.mb_meta(head_mb).last_advanced_eb,
             };
             for mb_hash in pending.into_iter() {
                 let Some(mb_transitions) = self.db.mb_outcome(mb_hash) else {

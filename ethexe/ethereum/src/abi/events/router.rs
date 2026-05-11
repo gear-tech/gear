@@ -27,14 +27,14 @@ impl From<IRouter::BatchCommitted> for BatchCommittedEvent {
     }
 }
 
-impl From<IRouter::AnnouncesCommitted> for AnnouncesCommittedEvent {
-    fn from(value: IRouter::AnnouncesCommitted) -> Self {
+impl From<IRouter::MBCommitted> for MBCommittedEvent {
+    fn from(value: IRouter::MBCommitted) -> Self {
         Self(bytes32_to_h256(value.head))
     }
 }
 
-impl From<IRouter::LastAdvancedEthBlockCommitted> for LastAdvancedEthBlockCommittedEvent {
-    fn from(value: IRouter::LastAdvancedEthBlockCommitted) -> Self {
+impl From<IRouter::EBCommitted> for EBCommittedEvent {
+    fn from(value: IRouter::EBCommitted) -> Self {
         Self(bytes32_to_h256(value.ethBlockHash))
     }
 }

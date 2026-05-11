@@ -111,7 +111,7 @@ pub struct NodeConfig {
     /// `BatchCommitment::expiry`.
     pub commitment_delay_limit: std::num::NonZero<u8>,
     /// Force a checkpoint chain commitment when the producer's
-    /// `last_advanced_eth_block` runs ahead of `last_committed_advanced_eth_block`
+    /// `last_advanced_eth_block` runs ahead of `last_committed_eb`
     /// by more than this many Eth blocks. Zero disables.
     pub uncommitted_chain_len_threshold: u32,
     pub genesis_state_dump: Option<PathBuf>,

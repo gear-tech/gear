@@ -280,9 +280,9 @@ async fn request_metrics(
 /// If the node has not committed any MB yet, the gauges are left unchanged.
 fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
     let Some(latest_committed_block_header) = db
-        .block_meta(db.globals().latest_prepared_block_hash)
+        .block_meta(db.globals().latest_prepared_eb_hash)
         .last_committed_mb
-        .map(|mb_hash| db.mb_meta(mb_hash).last_advanced_block)
+        .map(|mb_hash| db.mb_meta(mb_hash).last_advanced_eb)
         .and_then(|eth_block| db.block_header(eth_block))
     else {
         return;
@@ -290,7 +290,7 @@ fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
 
     let time_since_latest_committed_secs = db
         .globals()
-        .latest_synced_block
+        .latest_synced_eb
         .header
         .timestamp
         .saturating_sub(latest_committed_block_header.timestamp);

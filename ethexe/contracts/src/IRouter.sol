@@ -132,18 +132,16 @@ interface IRouter {
      * @dev This is an *informational* event, signaling that the all transitions until head were committed.
      * @param head The hash of committed announces chain head.
      */
-     // +_+_+ rename to MBCommitted
-    event AnnouncesCommitted(bytes32 head);
+    event MBCommitted(bytes32 head);
 
     /**
      * @notice Emitted when a chain commitment carrying a `lastAdvancedEthBlock` lands on-chain.
-     * @dev Lets observers update `last_committed_advanced_eth_block` so the producer
+     * @dev Lets observers update `last_committed_eb` so the producer
      *      can decide when to issue a checkpoint batch even with no transitions.
      * @param ethBlockHash Latest Ethereum block hash whose events were folded into the
      *                     chain commitment's MB head.
      */
-     // +_+_+ rename to EBCommitted
-    event LastAdvancedEthBlockCommitted(bytes32 ethBlockHash);
+    event EBCommitted(bytes32 ethBlockHash);
 
     /**
      * @notice Emitted when a code, previously requested for validation, receives validation results, so its `Gear.CodeState` changed.
@@ -671,7 +669,7 @@ interface IRouter {
     /**
      * @dev Commits new batch of changes to `Router` state.
      *      `CodeGotValidated` event is emitted for each code in commitment.
-     *      `AnnouncesCommitted` event is emitted on success. Triggers multiple events for each corresponding `Mirror` instances.
+     *      `MBCommitted` event is emitted on success. Triggers multiple events for each corresponding `Mirror` instances.
      * @param batchCommitment The batch commitment data.
      * @param signatureType The type of signature to validate.
      * @param signatures The signatures for the batch commitment.
