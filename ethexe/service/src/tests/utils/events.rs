@@ -177,7 +177,10 @@ pub trait KickExt {
     fn clear_kicks(&mut self);
 }
 
-// +_+_+ instead of implementing this to EventReceiver, use KickingStream<EventReceiver> and remove the kicks from EventReceiver.
+// `KickExt` on `EventReceiver` lets `WaitFor*` mutate kicks before the
+// receiver is consumed by `filter_map_block_synced` (which forwards
+// them into the resulting `KickingStream`). `KickingStream<…>` itself
+// also implements `KickExt` so callers can swap kicks after the fact.
 impl<T> KickExt for EventReceiver<T> {
     fn kick(&self) -> BoxFuture<'static, ()> {
         if let Some((duration, provider)) = &self.kicks {

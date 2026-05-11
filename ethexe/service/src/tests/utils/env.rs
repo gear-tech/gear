@@ -21,7 +21,9 @@ use crate::{
     config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
-        events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
+        events::{
+            self, KickExt, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver,
+        },
     },
 };
 use alloy::{
@@ -549,7 +551,8 @@ impl TestEnv {
         }
     }
 
-    // +_+_+ endpoints must be extended before - in the beginning of the test
+    // TODO: rework `TestEnv::new` to accept all era validator sets
+    // up front so callers don't need this mid-test extension.
     /// Pre-allocate malachite endpoints for an *additional* validator set
     /// (e.g. the "next" set in an era handover test) and merge them into
     /// `self.malachite_endpoints` / `self.malachite_listeners`. Without this,
@@ -1517,43 +1520,25 @@ pub struct UploadCodeInfo {
 }
 
 impl WaitForUploadCode {
-    pub async fn wait_for(self) -> anyhow::Result<UploadCodeInfo> {
+    pub async fn wait_for(mut self) -> anyhow::Result<UploadCodeInfo> {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
+        // Hand the force-mine kick to the receiver so KickingStream
+        // takes care of timing it instead of an inline select loop.
+        if let Some((provider, block_time)) = self.hack.take() {
+            self.receiver.set_kicks((block_time * 3, provider));
+        }
+
         let mut receiver = self.receiver.filter_map_block_synced();
-        let wait_for_validation_status = receiver.find_map(|event| match event {
-            BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
-                code_id,
-                valid,
-            })) if code_id == self.code_id => Some(valid),
-            _ => None,
-        });
-
-        let Some((provider, block_time)) = self.hack else {
-            return Ok(UploadCodeInfo {
-                code_id: self.code_id,
-                valid: wait_for_validation_status.await,
-            });
-        };
-
-        tokio::pin!(wait_for_validation_status);
-
-        let valid = loop {
-            tokio::select! {
-                _ = tokio::time::sleep(block_time * 3) => {
-                    // A hack to avoid waiting indefinitely in case
-                    // block producer skipped code validation commitment
-                    // by some reason in block with validation request.
-                    // We forcing a new block mining here,
-                    // so that producer have to start batch commitment aggregation for a new block.
-                    log::info!("⏱️ Reached code validation timeout, forcing new block to trigger commitment");
-                    provider.evm_mine(None).await.unwrap();
-                }
-                valid = &mut wait_for_validation_status => {
-                    break valid;
-                }
-            }
-        };
+        let valid = receiver
+            .find_map(|event| match event {
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                    code_id,
+                    valid,
+                })) if code_id == self.code_id => Some(valid),
+                _ => None,
+            })
+            .await;
 
         Ok(UploadCodeInfo {
             code_id: self.code_id,
@@ -1579,36 +1564,23 @@ pub struct ProgramCreationInfo {
 }
 
 impl WaitForProgramCreation {
-    pub async fn wait_for(self) -> anyhow::Result<ProgramCreationInfo> {
+    pub async fn wait_for(mut self) -> anyhow::Result<ProgramCreationInfo> {
         log::info!("📗 Waiting for program {} creation", self.program_id);
 
+        if let Some((provider, block_time)) = self.hack.take() {
+            self.receiver.set_kicks((block_time * 3, provider));
+        }
+
         let mut receiver = self.receiver.filter_map_block_synced();
-        let wait_for_creation = receiver.find_map(|event| match event {
-            BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
-                actor_id,
-                code_id,
-            })) if actor_id == self.program_id => Some(code_id),
-            _ => None,
-        });
-
-        let Some((provider, block_time)) = self.hack else {
-            return Ok(ProgramCreationInfo {
-                program_id: self.program_id,
-                code_id: wait_for_creation.await,
-            });
-        };
-
-        tokio::pin!(wait_for_creation);
-        let code_id = loop {
-            // +_+_+ remove this kicks here and in WaitForReplyTo, WaitForUploadCode and check that KickingStream is working correctly instead
-            tokio::select! {
-                _ = tokio::time::sleep(block_time * 3) => {
-                    log::info!("⏱️ Reached program creation timeout, forcing new block");
-                    provider.evm_mine(None).await.unwrap();
-                }
-                code_id = &mut wait_for_creation => break code_id,
-            }
-        };
+        let code_id = receiver
+            .find_map(|event| match event {
+                BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
+                    actor_id,
+                    code_id,
+                })) if actor_id == self.program_id => Some(code_id),
+                _ => None,
+            })
+            .await;
 
         Ok(ProgramCreationInfo {
             program_id: self.program_id,
@@ -1646,45 +1618,36 @@ impl WaitForReplyTo {
         }
     }
 
-    pub async fn wait_for(self) -> anyhow::Result<ReplyInfo> {
+    pub async fn wait_for(mut self) -> anyhow::Result<ReplyInfo> {
         log::info!("📗 Waiting for reply to message {}", self.message_id);
+
+        if let Some((provider, block_time)) = self.hack.take() {
+            self.receiver.set_kicks((block_time * 3, provider));
+        }
 
         let message_id = self.message_id;
         let mut receiver = self.receiver.filter_map_block_synced();
-        let wait_for_reply = receiver.find_map(|event| match event {
-            BlockEvent::Mirror {
-                actor_id,
-                event:
-                    MirrorEvent::Reply(ReplyEvent {
-                        reply_to,
-                        payload,
-                        reply_code,
-                        value,
-                    }),
-            } if reply_to == message_id => Some(ReplyInfo {
-                message_id: reply_to,
-                program_id: actor_id,
-                payload,
-                code: reply_code,
-                value,
-            }),
-            _ => None,
-        });
-
-        let Some((provider, block_time)) = self.hack else {
-            return Ok(wait_for_reply.await);
-        };
-
-        tokio::pin!(wait_for_reply);
-        let info = loop {
-            tokio::select! {
-                _ = tokio::time::sleep(block_time * 3) => {
-                    log::info!("⏱️ Reached reply timeout, forcing new block");
-                    provider.evm_mine(None).await.unwrap();
-                }
-                info = &mut wait_for_reply => break info,
-            }
-        };
+        let info = receiver
+            .find_map(|event| match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event:
+                        MirrorEvent::Reply(ReplyEvent {
+                            reply_to,
+                            payload,
+                            reply_code,
+                            value,
+                        }),
+                } if reply_to == message_id => Some(ReplyInfo {
+                    message_id: reply_to,
+                    program_id: actor_id,
+                    payload,
+                    code: reply_code,
+                    value,
+                }),
+                _ => None,
+            })
+            .await;
 
         Ok(info)
     }
