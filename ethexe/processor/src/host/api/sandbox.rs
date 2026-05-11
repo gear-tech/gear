@@ -204,14 +204,14 @@ impl sandbox_context::SupervisorContextDispatcher for ProcessorContextDispatcher
     }
 }
 
-fn get_buff(caller: Caller<'_, StoreData>, memory_idx: i32) -> i64 {
+fn get_buff(caller: Caller<'_, StoreData>, memory_idx: u32) -> i64 {
     log::trace!(target: "host_call", "get_buff(memory_idx={memory_idx:?})");
-    let res = sandbox_context::get_buff(ProcessorContext::new(caller), memory_idx as u32) as i64;
+    let res = sandbox_context::get_buff(ProcessorContext::new(caller), memory_idx) as i64;
     log::trace!(target: "host_call", "get_buff(..) -> {res:?}");
     res
 }
 
-fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i64) -> i64 {
+fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: u32, name: i64) -> i64 {
     log::trace!(
         target: "host_call",
         "get_global_val(instance_idx={instance_idx:?}, name={name:?})"
@@ -220,11 +220,8 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
     let name = context::memory(&mut caller).slice_by_val(name).to_vec();
     let name = core::str::from_utf8(&name).unwrap_or_default();
 
-    let res = sandbox_context::get_global_val(
-        ProcessorContext::new(&mut caller),
-        instance_idx as u32,
-        name,
-    );
+    let res =
+        sandbox_context::get_global_val(ProcessorContext::new(&mut caller), instance_idx, name);
     let res = res.encode();
     let res_len = res.len() as u32;
 
@@ -240,17 +237,16 @@ fn get_global_val(mut caller: Caller<'_, StoreData>, instance_idx: i32, name: i6
     res
 }
 
-fn get_instance_ptr(caller: Caller<'_, StoreData>, instance_idx: i32) -> i64 {
+fn get_instance_ptr(caller: Caller<'_, StoreData>, instance_idx: u32) -> i64 {
     log::trace!(target: "host_call", "get_instance_ptr(instance_idx={instance_idx:?})");
-    let res = sandbox_context::get_instance_ptr(ProcessorContext::new(caller), instance_idx as u32)
-        as i64;
+    let res = sandbox_context::get_instance_ptr(ProcessorContext::new(caller), instance_idx) as i64;
     log::trace!(target: "host_call", "get_instance_ptr(..) -> {res:?}");
     res
 }
 
-fn instance_teardown(caller: Caller<'_, StoreData>, instance_idx: i32) {
+fn instance_teardown(caller: Caller<'_, StoreData>, instance_idx: u32) {
     log::trace!(target: "host_call", "instance_teardown(instance_idx={instance_idx:?})");
-    sandbox_context::instance_teardown(ProcessorContext::new(caller), instance_idx as u32);
+    sandbox_context::instance_teardown(ProcessorContext::new(caller), instance_idx);
 }
 
 fn instantiate(
@@ -282,12 +278,12 @@ fn instantiate(
 
 fn invoke(
     mut caller: Caller<'_, StoreData>,
-    instance_idx: i32,
+    instance_idx: u32,
     function: i64,
     args: i64,
-    return_val_ptr: i32,
-    return_val_len: i32,
-    state_ptr: i32,
+    return_val_ptr: u32,
+    return_val_len: u32,
+    state_ptr: u32,
 ) -> i32 {
     log::trace!(
         target: "host_call",
@@ -302,12 +298,12 @@ fn invoke(
     let res = sandbox_context::invoke(
         ProcessorContext::new(caller),
         ProcessorContext::dispatcher,
-        instance_idx as u32,
+        instance_idx,
         function,
         &args,
-        Pointer::new(return_val_ptr as u32),
-        return_val_len as u32,
-        Pointer::new(state_ptr as u32),
+        Pointer::new(return_val_ptr),
+        return_val_len,
+        Pointer::new(state_ptr),
     ) as i32;
 
     log::trace!(target: "host_call", "invoke(..) -> {res:?}");
@@ -316,10 +312,10 @@ fn invoke(
 
 fn memory_get(
     caller: Caller<'_, StoreData>,
-    memory_idx: i32,
-    offset: i32,
-    buff_ptr: i32,
-    buff_len: i32,
+    memory_idx: u32,
+    offset: u32,
+    buff_ptr: u32,
+    buff_len: u32,
 ) -> i32 {
     log::trace!(
         target: "host_call",
@@ -328,44 +324,36 @@ fn memory_get(
 
     let res = sandbox_context::memory_get(
         ProcessorContext::new(caller),
-        memory_idx as u32,
-        offset as u32,
-        Pointer::new(buff_ptr as u32),
-        buff_len as u32,
+        memory_idx,
+        offset,
+        Pointer::new(buff_ptr),
+        buff_len,
     ) as i32;
 
     log::trace!(target: "host_call", "memory_get(..) -> {res:?}");
     res
 }
 
-fn memory_grow(caller: Caller<'_, StoreData>, memory_idx: i32, size: i32) -> i32 {
+fn memory_grow(caller: Caller<'_, StoreData>, memory_idx: u32, size: u32) -> i32 {
     log::trace!(target: "host_call", "memory_grow(memory_idx={memory_idx:?}, size={size:?})");
-    let res = sandbox_context::memory_grow(
-        ProcessorContext::new(caller),
-        memory_idx as u32,
-        size as u32,
-    ) as i32;
+    let res = sandbox_context::memory_grow(ProcessorContext::new(caller), memory_idx, size) as i32;
     log::trace!(target: "host_call", "memory_grow(..) -> {res:?}");
     res
 }
 
-fn memory_new(caller: Caller<'_, StoreData>, initial: i32, maximum: i32) -> i32 {
+fn memory_new(caller: Caller<'_, StoreData>, initial: u32, maximum: u32) -> i32 {
     log::trace!(target: "host_call", "memory_new(initial={initial:?}, maximum={maximum:?})");
-    let res = sandbox_context::memory_new(
-        ProcessorContext::new(caller),
-        initial as u32,
-        maximum as u32,
-    ) as i32;
+    let res = sandbox_context::memory_new(ProcessorContext::new(caller), initial, maximum) as i32;
     log::trace!(target: "host_call", "memory_new(..) -> {res:?}");
     res
 }
 
 fn memory_set(
     caller: Caller<'_, StoreData>,
-    memory_idx: i32,
-    offset: i32,
-    val_ptr: i32,
-    val_len: i32,
+    memory_idx: u32,
+    offset: u32,
+    val_ptr: u32,
+    val_len: u32,
 ) -> i32 {
     log::trace!(
         target: "host_call",
@@ -374,31 +362,31 @@ fn memory_set(
 
     let res = sandbox_context::memory_set(
         ProcessorContext::new(caller),
-        memory_idx as u32,
-        offset as u32,
-        Pointer::new(val_ptr as u32),
-        val_len as u32,
+        memory_idx,
+        offset,
+        Pointer::new(val_ptr),
+        val_len,
     ) as i32;
 
     log::trace!(target: "host_call", "memory_set(..) -> {res:?}");
     res
 }
 
-fn memory_size(caller: Caller<'_, StoreData>, memory_idx: i32) -> i32 {
+fn memory_size(caller: Caller<'_, StoreData>, memory_idx: u32) -> i32 {
     log::trace!(target: "host_call", "memory_size(memory_idx={memory_idx:?})");
-    let res = sandbox_context::memory_size(ProcessorContext::new(caller), memory_idx as u32) as i32;
+    let res = sandbox_context::memory_size(ProcessorContext::new(caller), memory_idx) as i32;
     log::trace!(target: "host_call", "memory_size(..) -> {res:?}");
     res
 }
 
-fn memory_teardown(caller: Caller<'_, StoreData>, memory_idx: i32) {
+fn memory_teardown(caller: Caller<'_, StoreData>, memory_idx: u32) {
     log::trace!(target: "host_call", "memory_teardown(memory_idx={memory_idx:?})");
-    sandbox_context::memory_teardown(ProcessorContext::new(caller), memory_idx as u32);
+    sandbox_context::memory_teardown(ProcessorContext::new(caller), memory_idx);
 }
 
 fn set_global_val(
     mut caller: Caller<'_, StoreData>,
-    instance_idx: i32,
+    instance_idx: u32,
     name: i64,
     value: i64,
 ) -> i32 {
@@ -412,12 +400,9 @@ fn set_global_val(
     let name = core::str::from_utf8(&name).unwrap_or_default();
     let value: Value = memory.decode_by_val(value);
 
-    let res = sandbox_context::set_global_val(
-        ProcessorContext::new(caller),
-        instance_idx as u32,
-        name,
-        value,
-    ) as i32;
+    let res =
+        sandbox_context::set_global_val(ProcessorContext::new(caller), instance_idx, name, value)
+            as i32;
     log::trace!(target: "host_call", "set_global_val(..) -> {res:?}");
     res
 }
