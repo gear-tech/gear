@@ -23,12 +23,13 @@ log = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "host-api"]
 std = [
   "gear-sandbox-host",
   "log",
 
   "sp-runtime-interface/std",
   "sp-wasm-interface/std",
-  "sp-wasm-interface/wasmtime",
+
 ]
+host-api = ["std", "sp-wasm-interface/wasmtime"]

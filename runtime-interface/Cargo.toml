@@ -24,7 +24,7 @@ log = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
 
 [features]
-default = ["std", "sandbox"]
+default = ["std", "sandbox-host-api"]
 std = [
 	"gear-core/std",
 	"gear-lazy-pages",
@@ -37,4 +37,4 @@ std = [
 
 	"builtins-common/bls12-381-std",
 ]
-sandbox = ["std", "gear-sandbox-interface/std"]
+sandbox-host-api = ["std", "gear-sandbox-interface/host-api"]
