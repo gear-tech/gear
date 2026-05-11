@@ -143,17 +143,17 @@ impl InjectedServer for InjectedApi {
         };
 
         let Some(compact) = self.db.compact_promise(tx_hash) else {
-            trace!(?tx_hash, "compact promise not found for injected transaction");
+            trace!(
+                ?tx_hash,
+                "compact promise not found for injected transaction"
+            );
             return Ok(None);
         };
 
         match compact.restore(promise) {
             Ok(message) => Ok(Some(message)),
             Err(err) => {
-                trace!(
-                    ?tx_hash, ?err,
-                    "failed to build signed promise from parts",
-                );
+                trace!(?tx_hash, ?err, "failed to build signed promise from parts",);
                 Ok(None)
             }
         }
@@ -183,7 +183,7 @@ impl InjectedServer for InjectedApi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{ecdsa::PrivateKey, db::InjectedStorageRW, mock::Mock};
+    use ethexe_common::{db::InjectedStorageRW, ecdsa::PrivateKey, mock::Mock};
 
     fn make_signed_tx() -> SignedInjectedTransaction {
         SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))

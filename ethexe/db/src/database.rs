@@ -112,9 +112,9 @@ impl Key {
             | Self::MbMeta(hash)
             | Self::MbCompactBlock(hash) => bytes.extend(hash.as_ref()),
 
-            Self::InjectedTransaction(hash)
-            | Self::Promise(hash)
-            | Self::CompactPromise(hash) => bytes.extend(hash.as_ref()),
+            Self::InjectedTransaction(hash) | Self::Promise(hash) | Self::CompactPromise(hash) => {
+                bytes.extend(hash.as_ref())
+            }
 
             Self::ProgramToCodeId(program_id) => bytes.extend(program_id.as_ref()),
 
@@ -688,12 +688,9 @@ impl InjectedStorageRO for RawDatabase {
     }
 
     fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise> {
-        self.kv
-            .get(&Key::Promise(hash).to_bytes())
-            .map(|data| {
-                Promise::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Promise`")
-            })
+        self.kv.get(&Key::Promise(hash).to_bytes()).map(|data| {
+            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into `Promise`")
+        })
     }
 
     fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise> {

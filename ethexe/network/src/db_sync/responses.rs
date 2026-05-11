@@ -95,7 +95,7 @@ impl OngoingResponses {
             InnerRequest::ProgramIds(request) => {
                 let actor_ids = db
                     .mb_program_states(request.at)
-                    .map(|states| states.into_iter().map(|(actor_id, _)| actor_id).collect())
+                    .map(|states| states.into_keys().collect())
                     .unwrap_or_default();
                 InnerProgramIdsResponse::new(actor_ids).into()
             }

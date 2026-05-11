@@ -33,8 +33,8 @@ use anyhow::{Result, anyhow};
 use ethexe_common::events::{
     RouterEvent, RouterRequestEvent,
     router::{
-        MBCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
-        CodeValidationRequestedEvent, ComputationSettingsChangedEvent, ProgramCreatedEvent,
+        BatchCommittedEvent, CodeGotValidatedEvent, CodeValidationRequestedEvent,
+        ComputationSettingsChangedEvent, MBCommittedEvent, ProgramCreatedEvent,
         StorageSlotChangedEvent, ValidatorsCommittedForEraEvent,
     },
 };
@@ -76,12 +76,8 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
         BATCH_COMMITTED => {
             RouterEvent::BatchCommitted(decode_log::<IRouter::BatchCommitted>(log)?.into())
         }
-        MB_COMMITTED => {
-            RouterEvent::MBCommitted(decode_log::<IRouter::MBCommitted>(log)?.into())
-        }
-        EB_COMMITTED => RouterEvent::EBCommitted(
-            decode_log::<IRouter::EBCommitted>(log)?.into(),
-        ),
+        MB_COMMITTED => RouterEvent::MBCommitted(decode_log::<IRouter::MBCommitted>(log)?.into()),
+        EB_COMMITTED => RouterEvent::EBCommitted(decode_log::<IRouter::EBCommitted>(log)?.into()),
         CODE_GOT_VALIDATED => {
             RouterEvent::CodeGotValidated(decode_log::<IRouter::CodeGotValidated>(log)?.into())
         }
@@ -202,8 +198,7 @@ impl<'a> MBCommittedEventBuilder<'a> {
 
     pub async fn subscribe(
         self,
-    ) -> Result<impl Stream<Item = Result<(MBCommittedEvent, Log), Error>> + Unpin + use<>>
-    {
+    ) -> Result<impl Stream<Item = Result<(MBCommittedEvent, Log), Error>> + Unpin + use<>> {
         Ok(self
             .event
             .subscribe()

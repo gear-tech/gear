@@ -21,8 +21,7 @@
 //! resulting digest. After replying it returns to [`Idle`].
 
 use super::{
-    DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
-    idle::Idle,
+    DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState, idle::Idle,
 };
 use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::batch::ValidationStatus};
 

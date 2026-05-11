@@ -40,8 +40,8 @@ use crate::{
         batch::{BatchCommitmentManager, BatchLimits},
         coordinator::{Coordinator, CoordinatorBoot},
         core::{MiddlewareWrapper, ValidatorCore},
-        participant::Participant,
         idle::Idle,
+        participant::Participant,
     },
 };
 use anyhow::Result;
@@ -71,8 +71,8 @@ use std::{
 pub(crate) mod batch;
 mod coordinator;
 mod core;
-mod participant;
 mod idle;
+mod participant;
 
 /// The main validator service that implements the [`ConsensusService`] trait.
 pub struct ValidatorService {

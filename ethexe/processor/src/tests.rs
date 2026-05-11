@@ -1131,7 +1131,8 @@ async fn overlay_execution() {
 async fn injected_ping_pong() {
     init_logger();
 
-    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel::<(::gprimitives::H256, ::ethexe_common::injected::Promise)>();
+    let (promise_out_tx, mut promise_receiver) =
+        mpsc::unbounded_channel::<(::gprimitives::H256, ::ethexe_common::injected::Promise)>();
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
@@ -1208,7 +1209,10 @@ async fn injected_ping_pong() {
             block1.header.height,
             block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(crate::BoundPromiseSink::new(promise_out_tx.clone(), ::gprimitives::H256::zero())),
+            Some(crate::BoundPromiseSink::new(
+                promise_out_tx.clone(),
+                ::gprimitives::H256::zero(),
+            )),
         )
         .await
         .unwrap();
@@ -1249,7 +1253,8 @@ async fn injected_prioritized_over_canonical() {
 
     init_logger();
 
-    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel::<(::gprimitives::H256, ::ethexe_common::injected::Promise)>();
+    let (promise_out_tx, mut promise_receiver) =
+        mpsc::unbounded_channel::<(::gprimitives::H256, ::ethexe_common::injected::Promise)>();
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
@@ -1334,14 +1339,17 @@ async fn injected_prioritized_over_canonical() {
             block1.header.height,
             block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(crate::BoundPromiseSink::new(promise_out_tx.clone(), ::gprimitives::H256::zero())),
+            Some(crate::BoundPromiseSink::new(
+                promise_out_tx.clone(),
+                ::gprimitives::H256::zero(),
+            )),
         )
         .await
         .unwrap();
 
     for tx_hash in tx_hashes {
         let (_, promise) = promise_receiver
-        .recv()
+            .recv()
             .await
             .expect("promise for injected transaction");
 
@@ -1462,7 +1470,8 @@ async fn executable_balance_injected_panic_not_charged() {
 
     init_logger();
 
-    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel::<(::gprimitives::H256, ::ethexe_common::injected::Promise)>();
+    let (promise_out_tx, mut promise_receiver) =
+        mpsc::unbounded_channel::<(::gprimitives::H256, ::ethexe_common::injected::Promise)>();
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
@@ -1512,7 +1521,10 @@ async fn executable_balance_injected_panic_not_charged() {
             block1.header.height,
             block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(crate::BoundPromiseSink::new(promise_out_tx.clone(), ::gprimitives::H256::zero())),
+            Some(crate::BoundPromiseSink::new(
+                promise_out_tx.clone(),
+                ::gprimitives::H256::zero(),
+            )),
         )
         .await
         .unwrap();
@@ -1530,7 +1542,10 @@ async fn executable_balance_injected_panic_not_charged() {
             block1.header.height,
             block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(crate::BoundPromiseSink::new(promise_out_tx.clone(), ::gprimitives::H256::zero())),
+            Some(crate::BoundPromiseSink::new(
+                promise_out_tx.clone(),
+                ::gprimitives::H256::zero(),
+            )),
         )
         .await
         .unwrap();
@@ -1578,7 +1593,10 @@ async fn executable_balance_injected_panic_not_charged() {
             block1.header.height,
             block1.header.timestamp,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(crate::BoundPromiseSink::new(promise_out_tx.clone(), ::gprimitives::H256::zero())),
+            Some(crate::BoundPromiseSink::new(
+                promise_out_tx.clone(),
+                ::gprimitives::H256::zero(),
+            )),
         )
         .await
         .unwrap();
@@ -1895,7 +1913,8 @@ async fn injected_and_events_then_tasks_then_queues() {
         }),
     }];
 
-    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel::<(::gprimitives::H256, ::ethexe_common::injected::Promise)>();
+    let (promise_out_tx, mut promise_receiver) =
+        mpsc::unbounded_channel::<(::gprimitives::H256, ::ethexe_common::injected::Promise)>();
 
     let executable = ExecutableData {
         height: block3.header.height,
@@ -1908,7 +1927,13 @@ async fn injected_and_events_then_tasks_then_queues() {
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
     };
     let FinalizedBlockTransitions { transitions, .. } = processor
-        .process_programs(executable, Some(crate::BoundPromiseSink::new(promise_out_tx, ::gprimitives::H256::zero())))
+        .process_programs(
+            executable,
+            Some(crate::BoundPromiseSink::new(
+                promise_out_tx,
+                ::gprimitives::H256::zero(),
+            )),
+        )
         .await
         .unwrap();
 

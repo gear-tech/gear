@@ -56,10 +56,7 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    CodeAndIdUnchecked,
-    db::OnChainStorageRO,
-    gear::CodeState,
-    injected::SignedPromise,
+    CodeAndIdUnchecked, db::OnChainStorageRO, gear::CodeState, injected::SignedPromise,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
@@ -938,10 +935,7 @@ impl Service {
                         // promises so they can gossip them; the
                         // service's `PromiseEmissionMode` can still
                         // force the policy to `Enabled` regardless.
-                        compute.compute_mb(
-                            block_hash,
-                            ethexe_common::PromisePolicy::Enabled,
-                        );
+                        compute.compute_mb(block_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                     MalachiteEvent::BlockFinalized {
                         cert,

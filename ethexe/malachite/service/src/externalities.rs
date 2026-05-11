@@ -60,8 +60,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     SimpleBlockData,
     db::{
-        CompactMB, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW,
-        OnChainStorageRO,
+        CompactMB, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRO,
     },
     injected::SignedInjectedTransaction,
     malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},

@@ -177,4 +177,3 @@ fn current_validators(db: &Database) -> anyhow::Result<ValidatorsVec> {
 fn now_since_unix_epoch() -> Result<Duration, SystemTimeError> {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
 }
-

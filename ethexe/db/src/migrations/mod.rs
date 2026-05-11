@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{RawDatabase, dump::StateDump};
 #[cfg(feature = "mock")]
 use crate::{Database, MemDb};
+use crate::{RawDatabase, dump::StateDump};
 use anyhow::{Context, Result};
 use futures::future::BoxFuture;
 use gear_core::code::{CodeMetadata, InstrumentedCode};
@@ -57,14 +57,14 @@ pub async fn create_initialized_empty_memory_db(config: InitConfig) -> anyhow::R
 
 /// A single on-disk schema upgrade step.
 ///
-/// Each migration bumps the database from `from_version()` to
-/// `from_version() + 1`. Implementations must be idempotent on the
+/// Each migration bumps the database from `source_version()` to
+/// `source_version() + 1`. Implementations must be idempotent on the
 /// migration target version: running the same migration twice in a row
-/// against a `from_version() + 1` database must not corrupt state.
+/// against a `source_version() + 1` database must not corrupt state.
 pub trait Migration {
     /// Schema version this migration upgrades from. The migration
-    /// produces a database at version `from_version() + 1`.
-    fn from_version(&self) -> u32;
+    /// produces a database at version `source_version() + 1`.
+    fn source_version(&self) -> u32;
 
     /// Apply the migration in-place to the raw database.
     fn migrate(&self, raw: &RawDatabase) -> Result<()>;
@@ -75,7 +75,7 @@ pub trait Migration {
 /// Populated as schema versions land. Earlier `v1`/`v2`/... entries were
 /// dropped — they no longer apply to any live database, and they were
 /// the only callers of removed APIs. New migrations should be appended
-/// here in ascending order of `from_version`.
+/// here in ascending order of `source_version`.
 fn migrations() -> Vec<Box<dyn Migration>> {
     Vec::new()
 }
@@ -99,7 +99,7 @@ pub fn migrate(raw: &RawDatabase) -> Result<u32> {
     }
 
     for m in migrations() {
-        if version != m.from_version() {
+        if version != m.source_version() {
             continue;
         }
         m.migrate(raw)

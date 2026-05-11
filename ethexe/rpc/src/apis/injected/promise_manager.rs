@@ -33,8 +33,7 @@ use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{trace, warn};
 
-type PromiseSubscribers =
-    Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
+type PromiseSubscribers = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 
 /// Maximum number of slots an RPC client will wait for an injected-tx
 /// promise before the spawned subscriber is dropped.

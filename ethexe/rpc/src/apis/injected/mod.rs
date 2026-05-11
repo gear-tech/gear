@@ -36,8 +36,8 @@ pub(crate) mod spawner;
 
 mod r#trait;
 
-pub use r#trait::InjectedServer;
 pub use server::InjectedApi;
+pub use r#trait::InjectedServer;
 
 #[cfg(feature = "client")]
 pub use r#trait::InjectedClient;

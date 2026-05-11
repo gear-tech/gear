@@ -25,13 +25,13 @@ use ethexe_common::{
     SimpleBlockData,
     db::{DBGlobals, GlobalsStorageRO, MbStorageRO, OnChainStorageRO},
 };
-use gprimitives::H256;
 use ethexe_db::{
     Database, InitConfig, RawDatabase, RocksDatabase,
     iterator::{BlockNode, DatabaseIterator},
     verifier::IntegrityVerifier,
     visitor::{self},
 };
+use gprimitives::H256;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{collections::HashSet, path::PathBuf};
 

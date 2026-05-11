@@ -66,7 +66,8 @@ pub fn spawn_pending_subscriber<F>(
             Ok(message) => {
                 if let Err(err) = sink.send(message).await {
                     trace!(
-                        ?promise, ?err,
+                        ?promise,
+                        ?err,
                         "failed to send promise, client disconnected",
                     );
                 }

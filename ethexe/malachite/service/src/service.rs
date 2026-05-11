@@ -134,11 +134,7 @@ impl MalachiteService {
         // peer identity.
         let (role, validator_secret) = match validator_pub_key {
             Some(pub_key) => {
-                if !config
-                    .validators
-                    .iter()
-                    .any(|v| v.public_key == pub_key)
-                {
+                if !config.validators.iter().any(|v| v.public_key == pub_key) {
                     return Err(anyhow!(
                         "local validator {pub_key} not present in MalachiteConfig::validators"
                     ));

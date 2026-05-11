@@ -21,9 +21,7 @@ use crate::{
     config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
-        events::{
-            self, KickExt, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver,
-        },
+        events::{self, KickExt, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
 use alloy::{

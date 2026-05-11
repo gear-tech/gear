@@ -47,10 +47,9 @@ use ethexe_common::{
     },
 };
 use events::{
-    MBCommittedEventBuilder, BatchCommittedEventBuilder, CodeGotValidatedEventBuilder,
-    CodeValidationRequestedEventBuilder, ComputationSettingsChangedEventBuilder,
-    ProgramCreatedEventBuilder, StorageSlotChangedEventBuilder,
-    ValidatorsCommittedForEraEventBuilder, signatures,
+    BatchCommittedEventBuilder, CodeGotValidatedEventBuilder, CodeValidationRequestedEventBuilder,
+    ComputationSettingsChangedEventBuilder, MBCommittedEventBuilder, ProgramCreatedEventBuilder,
+    StorageSlotChangedEventBuilder, ValidatorsCommittedForEraEventBuilder, signatures,
 };
 use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt as _;

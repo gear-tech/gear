@@ -26,9 +26,8 @@ use ethexe_common::{
     events::{
         BlockEvent, RouterEvent,
         router::{
-            MBCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
-            CodeValidationRequestedEvent, EBCommittedEvent,
-            ValidatorsCommittedForEraEvent,
+            BatchCommittedEvent, CodeGotValidatedEvent, CodeValidationRequestedEvent,
+            EBCommittedEvent, MBCommittedEvent, ValidatorsCommittedForEraEvent,
         },
     },
 };
@@ -321,9 +320,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
             BlockEvent::Router(RouterEvent::MBCommitted(head)) => {
                 last_committed_mb_hash = Some(head);
             }
-            BlockEvent::Router(RouterEvent::EBCommitted(
-                EBCommittedEvent(eth_block_hash),
-            )) => {
+            BlockEvent::Router(RouterEvent::EBCommitted(EBCommittedEvent(eth_block_hash))) => {
                 last_committed_eb = Some(eth_block_hash);
             }
 
@@ -347,15 +344,13 @@ fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageR
     codes_queue.retain(|code_id| !validated_codes.contains(code_id));
     codes_queue.extend(requested_codes);
 
-    let last_committed_mb_hash = if let Some(MBCommittedEvent(hash)) = last_committed_mb_hash
-    {
+    let last_committed_mb_hash = if let Some(MBCommittedEvent(hash)) = last_committed_mb_hash {
         Some(hash)
     } else {
         parent_meta.last_committed_mb
     };
 
-    let last_committed_eb =
-        last_committed_eb.or(parent_meta.last_committed_eb);
+    let last_committed_eb = last_committed_eb.or(parent_meta.last_committed_eb);
 
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
@@ -402,9 +397,7 @@ mod tests {
                 BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
                     digest: batch_committed,
                 })),
-                BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(
-                    block1_mb_hash,
-                ))),
+                BlockEvent::Router(RouterEvent::MBCommitted(MBCommittedEvent(block1_mb_hash))),
                 BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id: code1_id,
                     valid: true,

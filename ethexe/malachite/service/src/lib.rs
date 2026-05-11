@@ -46,7 +46,9 @@ pub use crate::{
 pub use ethexe_malachite_core::libp2p_peer_id as malachite_libp2p_peer_id;
 pub use ethexe_malachite_core::{Multiaddr, PeerId, derive_libp2p_secret};
 
-pub use ethexe_common::malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions};
+pub use ethexe_common::malachite::{
+    ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions,
+};
 pub use gprimitives::H256;
 
 /// Ethexe-shaped commit certificate; `block_hash` is the Blake2b envelope hash.
