@@ -107,11 +107,12 @@
 //!   [`MalachiteService::receive_new_chain_head`](ethexe_malachite::MalachiteService::receive_new_chain_head).
 
 use ethexe_common::{CodeAndIdUnchecked, injected::Promise};
-use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
+use ethexe_processor::{
+    BoundPromiseSink, ExecutableData, ProcessedCodeInfo, Processor, ProcessorError,
+};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 use std::collections::HashSet;
-use tokio::sync::mpsc;
 
 pub use compute::ComputeSubService;
 pub use service::ComputeService;
@@ -204,7 +205,7 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
     fn process_code(
         &mut self,
@@ -216,9 +217,9 @@ impl ProcessorExt for Processor {
     async fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<FinalizedBlockTransitions> {
-        self.process_programs(executable, promise_out_tx)
+        self.process_programs(executable, promise_sink)
             .await
             .map_err(Into::into)
     }

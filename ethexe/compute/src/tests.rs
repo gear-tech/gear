@@ -27,14 +27,14 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_db::Database;
-use ethexe_processor::ValidCodeInfo;
+use ethexe_processor::{BoundPromiseSink, ValidCodeInfo};
 use futures::StreamExt;
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
     ids::prelude::CodeIdExt,
 };
 use std::time::Duration;
-use tokio::{sync::mpsc, time::timeout};
+use tokio::time::timeout;
 
 // MockProcessor that implements ProcessorExt and always returns Ok with empty results
 #[derive(Clone, Default)]
@@ -81,7 +81,7 @@ impl ProcessorExt for MockProcessor {
     async fn process_programs(
         &mut self,
         _executable: ethexe_processor::ExecutableData,
-        _promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        _promise_sink: Option<BoundPromiseSink>,
     ) -> Result<FinalizedBlockTransitions> {
         Ok(self.process_programs_result.take().unwrap_or_default())
     }

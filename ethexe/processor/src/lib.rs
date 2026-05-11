@@ -161,7 +161,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
-    injected::{InjectedTransaction, Promise},
+    injected::InjectedTransaction,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -176,10 +176,12 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
-use tokio::sync::mpsc;
 
 mod handling;
 mod host;
+mod promise;
+pub use promise::BoundPromiseSink;
+
 #[cfg(test)]
 mod tests;
 mod thread_pool;
@@ -316,7 +318,7 @@ impl Processor {
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!("{executable}");
 
@@ -343,7 +345,7 @@ impl Processor {
                     height,
                     timestamp,
                     gas_allowance,
-                    promise_out_tx,
+                    promise_sink,
                 )
                 .await?;
         }
@@ -385,7 +387,7 @@ impl Processor {
         height: u32,
         timestamp: u64,
         gas_allowance: u64,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<InBlockTransitions> {
         CommonRunContext::new(
             self.db.clone(),
@@ -395,7 +397,7 @@ impl Processor {
             self.config.chunk_size,
             height,
             timestamp,
-            promise_out_tx,
+            promise_sink,
         )
         .run()
         .await

@@ -32,7 +32,7 @@ use ethexe_common::{
     malachite::{Transaction, Transactions},
 };
 use ethexe_db::Database;
-use ethexe_processor::ExecutableData;
+use ethexe_processor::{BoundPromiseSink, ExecutableData};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture};
 use gprimitives::H256;
@@ -60,19 +60,19 @@ type ComputationFuture = BoxFuture<'static, Result<MbComputeOk>>;
 
 /// Streams `ComputeEvent::Promise`s from the executor's per-MB channel; closes
 /// when every sender (incl. thread-local ones) is dropped at compute end.
+///
+/// The MB hash arrives on the channel pre-tagged by [`BoundPromiseSink`].
 struct MbPromisesStream {
-    receiver: mpsc::UnboundedReceiver<Promise>,
-    mb_hash: H256,
+    receiver: mpsc::UnboundedReceiver<(H256, Promise)>,
 }
 
 impl Stream for MbPromisesStream {
     type Item = ComputeEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mb_hash = self.mb_hash;
         Poll::Ready(
             futures::ready!(self.receiver.poll_recv(cx))
-                .map(|promise| ComputeEvent::Promise(promise, mb_hash)),
+                .map(|(mb_hash, promise)| ComputeEvent::Promise(promise, mb_hash)),
         )
     }
 }
@@ -109,7 +109,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         db: Database,
         mut processor: P,
         req: MbComputeRequest,
-        promise_out_tx: mpsc::UnboundedSender<Promise>,
+        promise_tx: mpsc::UnboundedSender<(H256, Promise)>,
     ) -> Result<MbComputeOk> {
         let target_hash = req.mb_hash;
         let target_compact = db
@@ -145,7 +145,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             // execute them only to bring the local DB up to date,
             // not to publish their replies (other validators have
             // already gossiped those promises). Pass `None` for the
-            // promise channel so we don't double-emit.
+            // promise sink so we don't double-emit.
             for (height, hash, txs) in predecessors {
                 Self::compute_one(&db, &mut processor, height, hash, txs, None).await?;
             }
@@ -154,13 +154,14 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         let target_txs = db
             .transactions(target_compact.transactions_hash)
             .ok_or(ComputeError::MbBlockNotFound(target_hash))?;
+        let target_sink = BoundPromiseSink::new(promise_tx, target_hash);
         Self::compute_one(
             &db,
             &mut processor,
             target_height,
             target_hash,
             target_txs,
-            Some(promise_out_tx),
+            Some(target_sink),
         )
         .await?;
 
@@ -176,7 +177,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         mb_height: u64,
         mb_hash: H256,
         block: Transactions,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<()> {
         let parent_mb_hash = db
             .mb_compact_block(mb_hash)
@@ -205,7 +206,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             prepared.injected_transactions.len(),
         );
 
-        let processing_result = processor.process_programs(prepared, promise_out_tx).await?;
+        let processing_result = processor.process_programs(prepared, promise_sink).await?;
 
         let FinalizedBlockTransitions {
             transitions,
@@ -366,9 +367,8 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
             && self.pending_event.is_none()
             && let Some(req) = self.input.pop_front()
         {
-            let mb_hash = req.mb_hash;
             let (sender, receiver) = mpsc::unbounded_channel();
-            self.promises_stream = Some(MbPromisesStream { receiver, mb_hash });
+            self.promises_stream = Some(MbPromisesStream { receiver });
             self.computation =
                 Some(Self::compute(self.db.clone(), self.processor.clone(), req, sender).boxed());
         }
