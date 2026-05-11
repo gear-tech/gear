@@ -35,7 +35,10 @@ pub(crate) use crate::{
 };
 use async_trait::async_trait;
 use ethexe_common::{
-    db::{BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, HashStorageRO},
+    db::{
+        BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO, HashStorageRO,
+        MbStorageRO,
+    },
     gear::CodeState,
 };
 use ethexe_db::Database;
@@ -343,6 +346,12 @@ pub(crate) struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub(crate) struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 
+impl InnerProgramIdsResponse {
+    pub(crate) fn new(actor_ids: BTreeSet<ActorId>) -> Self {
+        Self(actor_ids)
+    }
+}
+
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, derive_more::Unwrap, Encode, Decode)]
 pub(crate) enum InnerResponse {
@@ -355,7 +364,13 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest,
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait DbSyncDatabase:
-    Send + HashStorageRO + BlockMetaStorageRO + CodesStorageRO + ConfigStorageRO + GlobalsStorageRO
+    Send
+    + HashStorageRO
+    + BlockMetaStorageRO
+    + CodesStorageRO
+    + ConfigStorageRO
+    + GlobalsStorageRO
+    + MbStorageRO
 {
     /// Clone the database as a trait object.
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;

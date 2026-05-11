@@ -93,10 +93,11 @@ impl OngoingResponses {
                 InnerHashesResponse(response).into()
             }
             InnerRequest::ProgramIds(request) => {
-                // TODO: +_+_+ can be done in this PR - do it, re-implement on MB — fetch program-to-code mapping from MB program states.
-                let _ = request;
-                log::warn!("ProgramIds db-sync request is not yet implemented on MB");
-                InnerProgramIdsResponse::default().into()
+                let actor_ids = db
+                    .mb_program_states(request.at)
+                    .map(|states| states.into_iter().map(|(actor_id, _)| actor_id).collect())
+                    .unwrap_or_default();
+                InnerProgramIdsResponse::new(actor_ids).into()
             }
             InnerRequest::ValidCodes => db.valid_codes().into(),
         }
