@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use self::migration::Migration;
 #[cfg(feature = "mock")]
 use crate::{Database, MemDb};
 use crate::{RawDatabase, dump::StateDump};
@@ -28,10 +29,34 @@ use gsigner::Address;
 pub use init::initialize_db;
 
 mod init;
+mod migration;
 
-/// Latest on-disk schema version. Databases on older versions are upgraded
-/// by running each [`Migration`] in [`migrations()`] in ascending order.
-pub const LATEST_VERSION: u32 = 5;
+mod v5;
+
+/// Oldest on-disk schema version this binary still knows how to upgrade
+/// from. Databases below this must be wiped and re-initialised.
+pub const OLDEST_SUPPORTED_VERSION: u32 = v5::VERSION;
+
+/// Latest on-disk schema version. The [`migrate`] driver applies each
+/// step in [`MIGRATIONS`] until an on-disk database reaches this value.
+pub const LATEST_VERSION: u32 = v5::VERSION;
+
+/// Ordered list of in-tree migrations. Each entry's `source_version`
+/// must equal the previous entry's `source_version + 1` so the
+/// upgrade walk is a contiguous chain from [`OLDEST_SUPPORTED_VERSION`]
+/// up to [`LATEST_VERSION`].
+///
+/// Empty for now — the v1/v2/... migrations that used to live here
+/// were dropped because no live database is still on those versions
+/// and they were the only callers of removed APIs. New steps land here
+/// when a future schema bump (e.g. `v6`) introduces incompatible
+/// changes.
+pub const MIGRATIONS: &[&dyn Migration] = &[];
+
+const _: () = assert!(
+    (LATEST_VERSION - OLDEST_SUPPORTED_VERSION) as usize == MIGRATIONS.len(),
+    "Wrong number of migrations available"
+);
 
 pub type CodeProcessingFuture =
     BoxFuture<'static, anyhow::Result<Option<(InstrumentedCode, CodeMetadata)>>>;
@@ -55,42 +80,23 @@ pub async fn create_initialized_empty_memory_db(config: InitConfig) -> anyhow::R
     Database::try_from_raw(raw)
 }
 
-/// A single on-disk schema upgrade step.
-///
-/// Each migration bumps the database from `source_version()` to
-/// `source_version() + 1`. Implementations must be idempotent on the
-/// migration target version: running the same migration twice in a row
-/// against a `source_version() + 1` database must not corrupt state.
-pub trait Migration {
-    /// Schema version this migration upgrades from. The migration
-    /// produces a database at version `source_version() + 1`.
-    fn source_version(&self) -> u32;
-
-    /// Apply the migration in-place to the raw database.
-    fn migrate(&self, raw: &RawDatabase) -> Result<()>;
-}
-
-/// Returns the ordered list of in-tree migrations.
-///
-/// Populated as schema versions land. Earlier `v1`/`v2`/... entries were
-/// dropped — they no longer apply to any live database, and they were
-/// the only callers of removed APIs. New migrations should be appended
-/// here in ascending order of `source_version`.
-fn migrations() -> Vec<Box<dyn Migration>> {
-    Vec::new()
-}
-
-/// Run every applicable migration to bring `raw` up to [`LATEST_VERSION`].
-///
-/// Returns the final version. Errors if any migration fails, or if the
-/// resulting version doesn't reach [`LATEST_VERSION`].
-pub fn migrate(raw: &RawDatabase) -> Result<u32> {
+/// Walk [`MIGRATIONS`] applying any whose `source_version` matches the
+/// on-disk database version, until the version reaches
+/// [`LATEST_VERSION`]. Errors if a step fails or the resulting version
+/// doesn't reach the target.
+pub async fn migrate(config: &InitConfig, raw: &RawDatabase) -> Result<u32> {
     let mut version = raw
         .kv
         .version()
         .context("failed to read database version")?
         .context("database has no version key")?;
 
+    if version < OLDEST_SUPPORTED_VERSION {
+        anyhow::bail!(
+            "database version {version} is older than the oldest supported \
+             {OLDEST_SUPPORTED_VERSION}; please wipe the database"
+        );
+    }
     if version > LATEST_VERSION {
         anyhow::bail!(
             "database version {version} is newer than supported {LATEST_VERSION}; \
@@ -98,11 +104,12 @@ pub fn migrate(raw: &RawDatabase) -> Result<u32> {
         );
     }
 
-    for m in migrations() {
+    for m in MIGRATIONS {
         if version != m.source_version() {
             continue;
         }
-        m.migrate(raw)
+        m.migrate(config, raw)
+            .await
             .with_context(|| format!("migration from v{version} failed"))?;
         version += 1;
     }

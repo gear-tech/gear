@@ -47,7 +47,9 @@ pub async fn initialize_db(config: InitConfig, db: RawDatabase) -> Result<Databa
 
         if db_version != LATEST_VERSION {
             log::info!("Upgrading database from version {db_version} to {LATEST_VERSION}...");
-            migrate(&db).context("Failed to migrate database")?;
+            migrate(&config, &db)
+                .await
+                .context("Failed to migrate database")?;
         }
 
         validate_db(config, &db).await?;
