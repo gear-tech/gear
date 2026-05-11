@@ -20,7 +20,7 @@
 
 use crate::host::{StoreData, context, threads::EthexeHostLazyPages};
 use gear_lazy_pages::LazyPagesVersion;
-use gear_runtime_interface::{LazyPagesInitContext, lazy_pages_detail};
+use gear_lazy_pages_host_api::LazyPagesInitContext;
 use wasmtime::{Caller, Linker};
 
 pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
@@ -70,7 +70,7 @@ fn change_wasm_memory_addr_and_size(caller: Caller<'_, StoreData>, addr: i64, si
     let addr = memory.decode_by_val(addr);
     let size = memory.decode_by_val(size);
 
-    lazy_pages_detail::change_wasm_memory_addr_and_size(addr, size);
+    gear_lazy_pages_host_api::change_wasm_memory_addr_and_size(addr, size);
 }
 
 fn init_lazy_pages(caller: Caller<'_, StoreData>, ctx: i64) -> i32 {
@@ -88,13 +88,13 @@ fn init_lazy_pages_for_program(caller: Caller<'_, StoreData>, ctx: i64) {
 
     let ctx = context::memory(caller).decode_by_val(ctx);
 
-    lazy_pages_detail::init_lazy_pages_for_program(ctx);
+    gear_lazy_pages_host_api::init_lazy_pages_for_program(ctx);
 }
 
 fn lazy_pages_status(caller: Caller<'_, StoreData>) -> i64 {
     log::trace!(target: "host_call", "lazy_pages_status()");
 
-    let status = lazy_pages_detail::lazy_pages_status();
+    let status = gear_lazy_pages_host_api::lazy_pages_status();
 
     let res = context::memory(caller).allocate_and_write_val(status);
 
@@ -106,7 +106,7 @@ fn lazy_pages_status(caller: Caller<'_, StoreData>) -> i64 {
 fn mprotect_lazy_pages(_caller: Caller<'_, StoreData>, protect: i32) {
     log::trace!(target: "host_call", "mprotect_lazy_pages(protect={protect:?})");
 
-    lazy_pages_detail::mprotect_lazy_pages(protect != 0);
+    gear_lazy_pages_host_api::mprotect_lazy_pages(protect != 0);
 }
 
 fn pre_process_memory_accesses(
@@ -125,8 +125,8 @@ fn pre_process_memory_accesses(
     // it, then write updated slice to memory.
     let mut gas_counter: u64 = memory.decode_by_max_len(gas_bytes);
 
-    let res =
-        lazy_pages_detail::pre_process_memory_accesses(reads, writes, &mut gas_counter) as i32;
+    let res = gear_lazy_pages_host_api::pre_process_memory_accesses(reads, writes, &mut gas_counter)
+        as i32;
 
     memory
         .slice_mut(gas_bytes, 8)
@@ -140,7 +140,7 @@ fn pre_process_memory_accesses(
 fn write_accessed_pages(caller: Caller<'_, StoreData>) -> i64 {
     log::trace!(target: "host_call", "write_accessed_pages()");
 
-    let pages = lazy_pages_detail::write_accessed_pages();
+    let pages = gear_lazy_pages_host_api::write_accessed_pages();
 
     let res = context::memory(caller).allocate_and_write_val(pages);
 

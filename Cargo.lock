@@ -5631,7 +5631,7 @@ dependencies = [
  "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages",
- "gear-runtime-interface",
+ "gear-lazy-pages-host-api",
  "gear-sandbox-host",
  "gear-wasm-instrument",
  "gear-workspace-hack",
@@ -7148,6 +7148,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-lazy-pages-host-api"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-lazy-pages",
+ "gear-lazy-pages-common",
+ "parity-scale-codec",
+ "sp-runtime-interface",
+ "tracing",
+]
+
+[[package]]
 name = "gear-lazy-pages-interface"
 version = "1.10.0"
 dependencies = [
@@ -7283,6 +7295,7 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
+ "gear-lazy-pages-host-api",
  "gear-sandbox-interface",
  "gear-workspace-hack",
  "log",
