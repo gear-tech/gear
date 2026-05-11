@@ -56,8 +56,8 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    CodeAndIdUnchecked, db::OnChainStorageRO, gear::CodeState, injected::SignedPromise,
-    network::VerifiedValidatorMessage,
+    CodeAndIdUnchecked, PromiseEmissionMode, db::OnChainStorageRO, gear::CodeState,
+    injected::SignedPromise, network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService};
@@ -506,7 +506,14 @@ impl Service {
             chunk_size: config.node.chunk_processing_threads,
         };
         let processor = Processor::with_config(processor_config, db.clone())?;
-        let compute = ComputeService::new(db.clone(), processor);
+        // RPC-nodes always need promises so subscribers see replies;
+        // pure validator/peer nodes leave it to consensus.
+        let promises_mode = if rpc.is_some() {
+            PromiseEmissionMode::AlwaysEmit
+        } else {
+            PromiseEmissionMode::ConsensusDriven
+        };
+        let compute = ComputeService::with_promise_mode(db.clone(), processor, promises_mode);
 
         // Malachite consensus service.
         let malachite_home = config
