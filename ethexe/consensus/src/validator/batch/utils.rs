@@ -481,7 +481,7 @@ mod tests {
     use ethexe_common::{
         Schedule,
         db::{CompactMB, MbStorageRW},
-        mb::{ProcessQueuesLimits, Transaction, Transactions},
+        malachite::{ProcessQueuesLimits, Transaction, Transactions},
     };
     use ethexe_db::Database;
 

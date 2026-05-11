@@ -83,9 +83,9 @@
 //! uncomputed ancestor MBs have been executed. Compute walks the parent
 //! chain via [`ethexe_common::db::CompactMB::parent`] until it reaches
 //! a computed ancestor (or genesis), then runs the executor over the
-//! [`ethexe_common::mb::Transactions`] payload of each. Per-step gas
+//! [`ethexe_common::malachite::Transactions`] payload of each. Per-step gas
 //! budget is carried inside each `Transaction::ProcessQueues` payload
-//! (see [`ethexe_common::mb::ProcessQueuesLimits`]).
+//! (see [`ethexe_common::malachite::ProcessQueuesLimits`]).
 //!
 //! ## Canonical event quarantine
 //!

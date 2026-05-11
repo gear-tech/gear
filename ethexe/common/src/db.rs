@@ -24,7 +24,7 @@ use crate::{
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
-    mb::Transactions,
+    malachite::Transactions,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "16a90b994094b8fe020c1b61987558c1f3e0a6856b12a6cc293c09aa43abc44f";
+            "07a54793c71d33588d880d43e8f27cf6d1a67d4909c62a1784e484a8bf35151e";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -291,7 +291,7 @@ mod tests {
             meta_type::<Schedule>(),
             meta_type::<MbMeta>(),
             meta_type::<CompactMB>(),
-            meta_type::<crate::mb::Transactions>(),
+            meta_type::<crate::malachite::Transactions>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),
         ];

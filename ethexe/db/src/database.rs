@@ -35,7 +35,7 @@ use ethexe_common::{
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedCompactPromise, SignedInjectedTransaction},
-    mb::Transactions,
+    malachite::Transactions,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,

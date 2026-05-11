@@ -28,7 +28,7 @@ pub mod events;
 pub mod gear;
 mod hash;
 pub mod injected;
-pub mod mb;
+pub mod malachite;
 pub mod network;
 mod primitives;
 mod utils;

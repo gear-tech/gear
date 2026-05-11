@@ -30,8 +30,6 @@
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without
 //! depending on the consensus layer.
 
-// +_+_+ rename to malachite.rs
-
 use crate::injected::SignedInjectedTransaction;
 use alloc::vec::Vec;
 use derive_more::{Deref, DerefMut, IntoIterator};

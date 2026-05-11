@@ -29,7 +29,7 @@ use ethexe_common::{
     db::{CodesStorageRW, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
     events::BlockRequestEvent,
     injected::Promise,
-    mb::{Transaction, Transactions},
+    malachite::{Transaction, Transactions},
 };
 use ethexe_db::Database;
 use ethexe_processor::ExecutableData;
@@ -426,7 +426,7 @@ mod tests {
     use ethexe_common::{
         BlockHeader,
         db::{CompactMB, OnChainStorageRW},
-        mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction},
+        malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction},
     };
 
     fn dummy_txs(db: &Database, tag: u8) -> Transactions {

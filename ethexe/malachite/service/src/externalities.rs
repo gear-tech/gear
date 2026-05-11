@@ -64,7 +64,7 @@ use ethexe_common::{
         OnChainStorageRO,
     },
     injected::SignedInjectedTransaction,
-    mb::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
+    malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
 };
 use ethexe_db::Database;
 use gprimitives::H256;
@@ -561,7 +561,7 @@ mod tests {
     use ethexe_common::{
         BlockHeader,
         db::{BlockMetaStorageRW, OnChainStorageRW},
-        mb::{ProcessQueuesLimits, ProgressTasksLimits},
+        malachite::{ProcessQueuesLimits, ProgressTasksLimits},
     };
     use ethexe_malachite_core::Externalities as _;
 

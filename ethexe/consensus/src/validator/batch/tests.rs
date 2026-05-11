@@ -31,7 +31,7 @@ use ethexe_common::{
     consensus::BatchCommitmentValidationRequest,
     db::{BlockMetaStorageRW, CompactMB, GlobalsStorageRW, MbStorageRW, SetConfig},
     gear::StateTransition,
-    mb::{ProcessQueuesLimits, Transaction, Transactions},
+    malachite::{ProcessQueuesLimits, Transaction, Transactions},
     mock::*,
 };
 use ethexe_db::Database;
