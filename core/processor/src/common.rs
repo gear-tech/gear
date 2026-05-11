@@ -22,7 +22,7 @@ use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation}
 use actor_system_error::actor_system_error;
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use gear_core::{
-    code::{CodeMetadata, InstrumentedCode},
+    code::{CodeMetadata, InstrumentedCode, SyscallKind},
     env::MessageWaitedType,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
     ids::{ActorId, CodeId, MessageId, ReservationId},
@@ -542,4 +542,6 @@ pub(crate) struct WasmExecutionContext {
     pub program: Program,
     /// Size of the memory block.
     pub memory_size: WasmPagesAmount,
+    /// What kind of syscall is being executed (Vara or Vara.ETH).
+    pub syscall_kind: SyscallKind,
 }

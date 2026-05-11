@@ -33,7 +33,7 @@ use core_processor::{
     ContextCharged, ForProgram, ProcessExecutionContext, SystemReservationContext,
 };
 use gear_core::{
-    code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
+    code::{InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT, SyscallKind},
     gas::GasCounter,
     limited::LimitedStr,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
@@ -630,6 +630,7 @@ impl ExtManager {
                     metadata: code_metadata,
                 },
                 balance,
+                SyscallKind::Vara,
             ),
             (
                 blocks::current_epoch_random(),

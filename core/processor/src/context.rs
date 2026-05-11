@@ -23,7 +23,7 @@ use crate::{
     precharge::{ContextCharged, ForModuleInstantiation},
 };
 use gear_core::{
-    code::InstrumentedCodeAndMetadata,
+    code::{InstrumentedCodeAndMetadata, SyscallKind},
     gas::{GasAllowanceCounter, GasCounter},
     ids::ActorId,
     message::IncomingDispatch,
@@ -41,6 +41,7 @@ pub struct ProcessExecutionContext {
     pub(crate) balance: u128,
     pub(crate) program: Program,
     pub(crate) memory_size: WasmPagesAmount,
+    pub(crate) syscall_kind: SyscallKind,
 }
 
 impl ProcessExecutionContext {
@@ -49,6 +50,7 @@ impl ProcessExecutionContext {
         context: ContextCharged<ForModuleInstantiation>,
         instrumented_code_and_metadata: InstrumentedCodeAndMetadata,
         balance: u128,
+        syscall_kind: SyscallKind,
     ) -> Self {
         let (
             destination_id,
@@ -82,6 +84,7 @@ impl ProcessExecutionContext {
             balance,
             program,
             memory_size: allocations_data.memory_size,
+            syscall_kind,
         }
     }
 

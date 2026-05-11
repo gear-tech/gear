@@ -111,9 +111,6 @@ pub enum FuzzCommand {
         repeat: u16,
     },
 
-    /// Execute `exec::wait()` — pauses execution (terminates this handle call).
-    /// Only the *last* command in a sequence should use this.
-    WaitCmd,
     /// Execute `exec::wait_for(duration)`.
     WaitForCmd(u32),
     /// Execute `exec::wait_up_to(duration)`.

@@ -21,7 +21,7 @@ use gear_wasm_builder::{
     code_validator::validate_program,
     optimize::{self, Optimizer},
 };
-use gear_wasm_instrument::{Module, TypeRef};
+use gear_wasm_instrument::{Module, SyscallKind, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
 use tracing_subscriber::EnvFilter;
 
@@ -290,7 +290,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimized_wasm_path.display()
         );
 
-        validate_program(code, false)?;
+        validate_program(code, false, SyscallKind::Vara)?;
     }
 
     Ok(())

@@ -25,7 +25,7 @@ use crate::{
 };
 use gear_common::Origin;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
+    code::{Code, CodeAndId, InstrumentedCodeAndMetadata, SyscallKind},
     gas_metering::Schedule,
     ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{Dispatch, DispatchKind, Message},
@@ -276,6 +276,7 @@ impl ProgramBuilder {
             schedule.limits.data_segments_amount.into(),
             schedule.limits.type_section_len.into(),
             schedule.limits.parameters.into(),
+            SyscallKind::Vara,
         )
         .expect("Failed to create Program from provided code");
 

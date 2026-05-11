@@ -19,7 +19,7 @@
 use super::*;
 use arbitrary::Unstructured;
 use gear_core::{
-    code::Code,
+    code::{Code, SyscallKind},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
     ids::{ActorId, CodeId, prelude::*},
@@ -64,7 +64,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let _code = Code::try_new(original_code.clone(), 1, |_| CustomConstantCostRules::default(), None, None, None, None).unwrap();
+        let _code = Code::try_new(original_code.clone(), 1, |_| CustomConstantCostRules::default(), None, None, None, None, SyscallKind::Vara).unwrap();
     }
 
     #[test]
@@ -93,7 +93,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None, None, None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None, None, None, SyscallKind::Vara);
         assert!(code_res.is_ok());
     }
 
@@ -1069,6 +1069,7 @@ fn execute_wasm_with_custom_configs(
         None,
         None,
         None,
+        SyscallKind::Vara,
     )
     .expect("Failed to create Code");
 
@@ -1109,6 +1110,7 @@ fn execute_wasm_with_custom_configs(
         DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),
+        SyscallKind::Vara,
     )
     .expect("Failed to create environment");
 
