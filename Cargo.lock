@@ -5705,6 +5705,7 @@ dependencies = [
  "gprimitives",
  "gsigner",
  "hex",
+ "indoc",
  "log",
  "parity-scale-codec",
  "paste",
@@ -5713,6 +5714,7 @@ dependencies = [
  "scopeguard",
  "serde",
  "serde_json",
+ "sha3",
  "tempfile",
  "tracing",
 ]
