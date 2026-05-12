@@ -25,7 +25,7 @@ use crate::{
 };
 use ethexe_common::{
     Address, HashOf,
-    injected::{InjectedTransaction, SignedPromise},
+    injected::{InjectedTransaction, SignedCompactPromise},
     network::VerifiedValidatorMessage,
 };
 use lru::LruCache;
@@ -290,8 +290,8 @@ impl ValidatorTopic {
     fn inner_verify_promise(
         &self,
         _source: PeerId,
-        promise: SignedPromise,
-    ) -> Result<SignedPromise, VerifyPromiseError> {
+        promise: SignedCompactPromise,
+    ) -> Result<SignedCompactPromise, VerifyPromiseError> {
         let address = promise.address();
         let tx_hash = promise.data().tx_hash;
 
@@ -306,8 +306,8 @@ impl ValidatorTopic {
     pub fn verify_promise(
         &self,
         source: PeerId,
-        promise: SignedPromise,
-    ) -> (MessageAcceptance, Option<SignedPromise>) {
+        promise: SignedCompactPromise,
+    ) -> (MessageAcceptance, Option<SignedCompactPromise>) {
         match self.inner_verify_promise(source, promise) {
             Ok(promise) => (MessageAcceptance::Accept, Some(promise)),
             Err(err) => {
@@ -330,7 +330,7 @@ mod tests {
     use ethexe_common::{
         consensus::BatchCommitmentValidationRequest,
         gear_core::{message::ReplyCode, rpc::ReplyInfo},
-        injected::Promise,
+        injected::{Promise, SignedPromise},
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
@@ -375,7 +375,7 @@ mod tests {
             .into_verified()
     }
 
-    fn signed_promise() -> SignedPromise {
+    fn signed_promise() -> SignedCompactPromise {
         let signer = Signer::memory();
         let pub_key = signer.generate().unwrap();
         let promise = Promise {
@@ -387,7 +387,8 @@ mod tests {
             },
         };
 
-        signer.signed_message(pub_key, promise, None).unwrap()
+        let signed: SignedPromise = signer.signed_message(pub_key, promise, None).unwrap();
+        SignedCompactPromise::from_signed_promise(&signed)
     }
 
     #[test]

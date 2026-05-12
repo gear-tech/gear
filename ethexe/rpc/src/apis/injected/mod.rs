@@ -22,8 +22,16 @@
 //! [`promise_manager::PromiseSubscriptionManager`] is the main entity
 //! responsible for promise handling. It maintains single-promise
 //! subscribers indexed by transaction hash and dispatches the matching
-//! [`ethexe_common::injected::SignedPromise`] to the right subscriber
-//! when one arrives via [`server::InjectedApi::send_promise`].
+//! [`ethexe_common::injected::SignedPromise`] to the right subscriber.
+//!
+//! Promise delivery is two-staged: the local node feeds a computed
+//! [`ethexe_common::injected::Promise`] body via
+//! [`promise_manager::PromiseSubscriptionManager::on_computed_promise`],
+//! the producer's signature arrives as a compact
+//! [`ethexe_common::injected::SignedCompactPromise`] via
+//! [`promise_manager::PromiseSubscriptionManager::on_compact_promise`],
+//! and the manager reconstructs the full [`SignedPromise`] once both
+//! are available (in either order) and dispatches it to the subscriber.
 //!
 //! Subscribers are spawned via [`spawner::spawn_pending_subscriber`].
 //! The pending subscriber is dropped after waiting for `20 * slot`

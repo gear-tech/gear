@@ -57,7 +57,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode, db::OnChainStorageRO, gear::CodeState,
-    injected::SignedPromise, network::VerifiedValidatorMessage,
+    injected::SignedCompactPromise, network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService};
@@ -785,19 +785,32 @@ impl Service {
                         tracing::info!(height, mb_hash = %mb_hash, "🛠️ MB executed");
                     }
                     ComputeEvent::Promise(promise, _mb_hash) => {
+                        // The local node always feeds its computed body
+                        // into the RPC subscription manager so the
+                        // matching producer signature (which arrives via
+                        // gossip or local self-signing below) can be
+                        // joined into a full SignedPromise.
+                        if let Some(rpc) = &rpc {
+                            rpc.receive_computed_promise(promise.clone());
+                        }
+
+                        // Producers additionally sign the promise hash
+                        // and gossip the compact form so other nodes can
+                        // reconstruct the full SignedPromise once they
+                        // compute the matching body locally.
                         if let Some(pub_key) = validator_pub_key {
                             let private_key = signer.private_key(pub_key)?;
-                            match SignedPromise::create(private_key, promise) {
-                                Ok(signed) => {
-                                    if let Some(net) = network.as_mut() {
-                                        net.publish_promise(signed.clone());
-                                    }
+                            match SignedCompactPromise::create_from_promise(private_key, &promise) {
+                                Ok(compact) => {
                                     if let Some(rpc) = &rpc {
-                                        rpc.provide_promise(signed);
+                                        rpc.receive_compact_promise(compact.clone());
+                                    }
+                                    if let Some(net) = network.as_mut() {
+                                        net.publish_promise(compact);
                                     }
                                 }
                                 Err(err) => {
-                                    log::warn!("failed to sign reply promise: {err}");
+                                    log::warn!("failed to sign compact promise: {err}");
                                 }
                             }
                         }
@@ -864,9 +877,9 @@ impl Service {
                                 }
                             }
                         },
-                        NetworkEvent::PromiseMessage(promise) => {
+                        NetworkEvent::PromiseMessage(compact_promise) => {
                             if let Some(rpc) = &rpc {
-                                rpc.provide_promise(promise);
+                                rpc.receive_compact_promise(compact_promise);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)

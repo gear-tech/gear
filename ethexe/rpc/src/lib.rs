@@ -58,7 +58,7 @@ use apis::{
     ProgramApi, ProgramServer,
 };
 use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
+    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactPromise,
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -195,16 +195,21 @@ impl RpcService {
         }
     }
 
-    /// Provides a promise inside RPC service to be sent to subscribers.
-    pub fn provide_promise(&self, promise: SignedPromise) {
-        self.injected_api.send_promise(promise);
+    /// Feed a locally computed promise body into the RPC subscription
+    /// manager. If a matching compact signature has already arrived from
+    /// the network, the full [`SignedPromise`] is reconstructed and
+    /// dispatched to the subscriber.
+    pub fn receive_computed_promise(&self, promise: Promise) {
+        self.injected_api.on_computed_promise(promise);
     }
 
-    /// Provides a bundle of promises inside RPC service to be sent to subscribers.
-    pub fn provide_promises(&self, promises: Vec<SignedPromise>) {
-        promises.into_iter().for_each(|promise| {
-            self.provide_promise(promise);
-        });
+    /// Feed a producer-signed compact promise into the RPC subscription
+    /// manager. If a matching local promise body has already been
+    /// computed, the full [`SignedPromise`] is reconstructed and
+    /// dispatched to the subscriber; otherwise the compact signature is
+    /// parked until the body lands.
+    pub fn receive_compact_promise(&self, compact_promise: SignedCompactPromise) {
+        self.injected_api.on_compact_promise(compact_promise);
     }
 }
 

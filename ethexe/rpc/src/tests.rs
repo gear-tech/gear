@@ -24,7 +24,7 @@ use crate::{
 use ethexe_common::{
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{AddressedInjectedTransaction, Promise, SignedPromise},
+    injected::{AddressedInjectedTransaction, Promise, SignedCompactPromise},
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -67,8 +67,11 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = tx_batch.drain(..).map(Self::create_promise_for).collect();
-                        self.rpc.provide_promises(promises);
+                        for tx in tx_batch.drain(..) {
+                            let (promise, compact) = Self::create_promise_for(tx);
+                            self.rpc.receive_computed_promise(promise);
+                            self.rpc.receive_compact_promise(compact);
+                        }
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -84,7 +87,7 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: AddressedInjectedTransaction) -> SignedPromise {
+    fn create_promise_for(tx: AddressedInjectedTransaction) -> (Promise, SignedCompactPromise) {
         let promise = Promise {
             tx_hash: tx.tx.data().to_hash(),
             reply: ReplyInfo {
@@ -93,7 +96,9 @@ impl MockService {
                 code: ReplyCode::Success(SuccessReplyReason::Manual),
             },
         };
-        SignedPromise::create(PrivateKey::random(), promise).expect("Signing promise will succeed")
+        let compact = SignedCompactPromise::create_from_promise(PrivateKey::random(), &promise)
+            .expect("Signing compact promise will succeed");
+        (promise, compact)
     }
 }
 
@@ -114,7 +119,7 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
 
 /// This helper function waits until all promise subscriptions being closed and cleaned up.
 async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
-    while injected_api.promise_subscribers_count() > 0 {
+    while injected_api.subscribers_count() > 0 {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
 }

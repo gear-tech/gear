@@ -34,6 +34,7 @@ use jsonrpsee::{
     PendingSubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
 };
+use std::ops::Deref;
 use tokio::sync::mpsc;
 use tracing::trace;
 
@@ -57,17 +58,13 @@ impl InjectedApi {
             metrics: InjectedApiMetrics::default(),
         }
     }
+}
 
-    /// Forward a freshly produced promise to its subscriber, if any.
-    pub fn send_promise(&self, promise: SignedPromise) {
-        self.metrics.injected_tx_active_subscriptions.decrement(1);
-        self.manager.dispatch_promise(promise);
-    }
+impl Deref for InjectedApi {
+    type Target = PromiseSubscriptionManager;
 
-    /// Number of currently registered promise subscribers.
-    #[cfg(test)]
-    pub fn promise_subscribers_count(&self) -> usize {
-        self.manager.subscribers_count()
+    fn deref(&self) -> &Self::Target {
+        &self.manager
     }
 }
 
@@ -120,15 +117,10 @@ impl InjectedServer for InjectedApi {
         })?;
 
         self.metrics.injected_tx_active_subscriptions.increment(1);
-        let manager = self.manager.clone();
-        let metrics = self.metrics.clone();
+        let (manager, metrics) = (self.manager.clone(), self.metrics.clone());
         spawner::spawn_pending_subscriber(sink, pending_subscriber, move |tx_hash| {
-            // Decrement only if the subscriber still owned the slot
-            // when the task exited (timeout / client disconnect).
-            // Successful delivery already decremented in `send_promise`.
-            if manager.cancel_registration(tx_hash).is_some() {
-                metrics.injected_tx_active_subscriptions.decrement(1);
-            }
+            manager.cancel_registration(tx_hash);
+            metrics.injected_tx_active_subscriptions.decrement(1);
         });
         Ok(())
     }

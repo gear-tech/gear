@@ -59,7 +59,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedPromise},
+    injected::{AddressedInjectedTransaction, SignedCompactPromise},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -102,8 +102,9 @@ const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 pub enum NetworkEvent {
     /// A validator-signed message from the validator gossipsub topic.
     ValidatorMessage(VerifiedValidatorMessage),
-    /// A public promise observed on the promise gossipsub topic.
-    PromiseMessage(SignedPromise),
+    /// A producer-signed compact promise observed on the promise
+    /// gossipsub topic.
+    PromiseMessage(SignedCompactPromise),
     /// Validator discovery learned or refreshed the network identity of the
     /// given validator address.
     ValidatorIdentityUpdated(Address),
@@ -654,8 +655,9 @@ impl NetworkService {
             .send_transaction(behaviour.validator_discovery.identities(), data)
     }
 
-    /// Publish a signed promise to the public promise gossipsub topic.
-    pub fn publish_promise(&mut self, promise: SignedPromise) {
+    /// Publish a producer-signed compact promise to the public promise
+    /// gossipsub topic.
+    pub fn publish_promise(&mut self, promise: SignedCompactPromise) {
         self.swarm.behaviour_mut().gossipsub.publish(promise)
     }
 }
