@@ -18,13 +18,17 @@
 
 //! Fast synchronization stub.
 //!
-//! TODO: implement MB-driven recovery anchored on `last_committed_mb`.
-//! `sync` is currently a no-op so the rest of the service can run.
+//! TODO +_+_+: implement MB-driven recovery anchored on `last_committed_mb`.
+//! Until then `sync` fails loudly so operators don't unknowingly run a
+//! node configured with `--fast-sync` that silently degrades to a
+//! full-from-genesis catch-up.
 
 use crate::Service;
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 pub(crate) async fn sync(_service: &mut Service) -> Result<()> {
-    log::warn!("Fast synchronization is disabled (MB-driven recovery not implemented)");
-    Ok(())
+    bail!(
+        "fast-sync is not implemented for the MB-driven recovery path yet; \
+         start the node without --fast-sync (or omit `fast_sync = true` in config)"
+    );
 }
