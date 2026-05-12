@@ -131,12 +131,20 @@ impl CheckCommand {
 
         let globals = db.globals().clone();
 
-        let _node_params = self.params.node.unwrap_or_default();
+        // Honor the node-level `chunk-processing-threads` from the
+        // shared NodeParams so `ethexe check` lines up with the
+        // operator's `ethexe run` configuration. The `--chunk-size`
+        // CLI flag stays as an explicit override for one-off runs.
+        let node_params = self.params.node.unwrap_or_default();
+        let chunk_size = node_params
+            .chunk_processing_threads
+            .map(|n| n.get())
+            .unwrap_or(self.chunk_size);
         let checker = Checker {
             db,
             globals,
             progress_bar: !self.verbose,
-            chunk_size: self.chunk_size,
+            chunk_size,
         };
 
         if self.integrity_check {
