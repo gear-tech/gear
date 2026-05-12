@@ -17,9 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests.
-//!
-//! `utils` is `pub(crate)` because lib code references
-//! `tests::utils::TestingEvent` for its testing event channel.
+
 pub(crate) mod utils;
 
 use std::{collections::HashSet, time::Duration};
@@ -30,7 +28,7 @@ use crate::tests::utils::{
 };
 use alloy::{
     primitives::U256,
-    providers::{Provider, WalletProvider, ext::AnvilApi},
+    providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
     db::{CodesStorageRO, GlobalsStorageRO, InjectedStorageRO, MbStorageRO, OnChainStorageRO},
@@ -407,11 +405,14 @@ async fn uninitialized_program() {
             SimpleUnavailableActorError::Uninitialized,
         ));
         assert_eq!(res.code, expected_err);
+        // Checking further initialization.
 
+        // Required replies.
         for mid in msgs_for_reply {
             mirror.send_reply(mid, [], 0).await.unwrap();
         }
 
+        // Success end of initialization.
         let code = receiver
             .filter_map_block_synced()
             .find_map(|event| match event {
@@ -432,6 +433,7 @@ async fn uninitialized_program() {
 
         assert!(code.is_success());
 
+        // Handle message handled, but panicked due to incorrect payload as expected.
         let res = env
             .send_message(init_res.program_id, &[])
             .await
@@ -2199,6 +2201,7 @@ async fn validators_election() {
     };
 
     let signer = Signer::memory();
+    // 10 wallets - hardcoded in anvil
     let mut wallets = Wallets::anvil(&signer);
 
     let current_validators: Vec<_> = (0..5).map(|_| wallets.next()).collect();
@@ -2229,6 +2232,7 @@ async fn validators_election() {
         .header
         .timestamp;
 
+    // Start initial validators
     let mut validators = vec![];
     for (i, v) in env.validators.clone().into_iter().enumerate() {
         test_info!("📗 Starting validator-{i}");
@@ -2763,6 +2767,7 @@ async fn injected_tx_fungible_token() {
         .await
         .expect("RPC client provide by node");
 
+    // 1. Create Fungible token config
     let token_config = demo_fungible_token::InitConfig {
         name: "USD Tether".to_string(),
         symbol: "USDT".to_string(),
@@ -2770,6 +2775,7 @@ async fn injected_tx_fungible_token() {
         initial_capacity: None,
     };
 
+    // 2. Uploading code and creating program
     let res = env
         .upload_code(demo_fungible_token::WASM_BINARY)
         .await
@@ -2789,6 +2795,7 @@ async fn injected_tx_fungible_token() {
 
     let usdt_actor_id = res.program_id;
 
+    // 3. Initialize program
     let init_reply = env
         .send_message(usdt_actor_id, &token_config.encode())
         .await
@@ -2983,6 +2990,7 @@ async fn injected_tx_fungible_token_over_network() {
         .await;
     bob_node.start_service().await;
 
+    // 1. Create Fungible token config
     let token_config = demo_fungible_token::InitConfig {
         name: "USD Tether".to_string(),
         symbol: "USDT".to_string(),
@@ -2990,6 +2998,7 @@ async fn injected_tx_fungible_token_over_network() {
         initial_capacity: None,
     };
 
+    // 2. Uploading code and creating program
     let res = env
         .upload_code(demo_fungible_token::WASM_BINARY)
         .await
@@ -2997,6 +3006,7 @@ async fn injected_tx_fungible_token_over_network() {
         .wait_for()
         .await
         .unwrap();
+
     let code_id = res.code_id;
     let res = env
         .create_program(code_id, 500_000_000_000_000)
@@ -3005,8 +3015,10 @@ async fn injected_tx_fungible_token_over_network() {
         .wait_for()
         .await
         .unwrap();
+
     let usdt_actor_id = res.program_id;
 
+    // 3. Initialize program
     let init_reply = env
         .send_message(usdt_actor_id, &token_config.encode())
         .await
@@ -3014,14 +3026,21 @@ async fn injected_tx_fungible_token_over_network() {
         .wait_for()
         .await
         .unwrap();
+
     assert_eq!(init_reply.program_id, usdt_actor_id);
     assert_eq!(init_reply.value, 0);
     assert_eq!(
         init_reply.code,
         ReplyCode::Success(SuccessReplyReason::Auto)
     );
-    assert!(init_reply.payload.is_empty());
+    assert!(
+        init_reply.payload.is_empty(),
+        "Expect empty payload, because of initializing Fungible Token returns nothing"
+    );
 
+    tracing::info!("✅ Fungible token successfully initialized");
+
+    // 4. Try minting some tokens
     let amount: u128 = 5_000_000_000;
     let mint_action = demo_fungible_token::FTAction::Mint(amount);
 
@@ -3056,6 +3075,7 @@ async fn injected_tx_fungible_token_over_network() {
         .await
         .expect("successfully subscribe for transaction promise");
 
+    // wait for the injected transaction received before forcing a block
     bob_node
         .events()
         .find(|event| {
@@ -3066,6 +3086,7 @@ async fn injected_tx_fungible_token_over_network() {
         })
         .await;
 
+    // force new block so consensus can produce promise
     env.force_new_block().await;
 
     let promise = subscription

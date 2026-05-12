@@ -346,12 +346,6 @@ pub(crate) struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub(crate) struct InnerProgramIdsResponse(BTreeSet<ActorId>);
 
-impl InnerProgramIdsResponse {
-    pub(crate) fn new(actor_ids: BTreeSet<ActorId>) -> Self {
-        Self(actor_ids)
-    }
-}
-
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, derive_more::Unwrap, Encode, Decode)]
 pub(crate) enum InnerResponse {

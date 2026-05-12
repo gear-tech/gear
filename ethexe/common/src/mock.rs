@@ -173,6 +173,10 @@ fn message_id_strategy() -> BoxedStrategy<MessageId> {
     h256_strategy().prop_map(Into::into).boxed()
 }
 
+fn reservation_id_strategy() -> BoxedStrategy<ReservationId> {
+    any::<[u8; 32]>().prop_map(Into::into).boxed()
+}
+
 fn private_key_strategy() -> BoxedStrategy<PrivateKey> {
     any::<[u8; 32]>()
         .prop_filter_map("valid secp256k1 private key", |seed| {
@@ -188,12 +192,6 @@ fn limited_bytes_strategy<const N: usize>(
         .prop_map(|bytes| {
             LimitedVec::try_from(bytes).expect("strategy range must fit within LimitedVec bound")
         })
-        .boxed()
-}
-
-fn reservation_id_strategy() -> BoxedStrategy<ReservationId> {
-    h256_strategy()
-        .prop_map(|h| ReservationId::from(h.0))
         .boxed()
 }
 
@@ -243,30 +241,6 @@ pub fn schedule_strategy() -> BoxedStrategy<Schedule> {
     .boxed()
 }
 
-impl Arbitrary for MessageType {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        prop_oneof![Just(Self::Canonical), Just(Self::Injected)].boxed()
-    }
-}
-
-impl Arbitrary for StateHashWithQueueSize {
-    type Parameters = ();
-    type Strategy = BoxedStrategy<Self>;
-
-    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-        (h256_strategy(), any::<u8>(), any::<u8>())
-            .prop_map(|(hash, canonical_queue_size, injected_queue_size)| Self {
-                hash,
-                canonical_queue_size,
-                injected_queue_size,
-            })
-            .boxed()
-    }
-}
-
 impl Arbitrary for SimpleBlockData {
     type Parameters = BlockHeaderParams;
     type Strategy = BoxedStrategy<Self>;
@@ -310,6 +284,30 @@ impl Arbitrary for ProtocolTimelines {
             slot: 10.try_into().unwrap(),
         })
         .boxed()
+    }
+}
+
+impl Arbitrary for MessageType {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        prop_oneof![Just(Self::Canonical), Just(Self::Injected)].boxed()
+    }
+}
+
+impl Arbitrary for StateHashWithQueueSize {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+        (h256_strategy(), any::<u8>(), any::<u8>())
+            .prop_map(|(hash, canonical_queue_size, injected_queue_size)| Self {
+                hash,
+                canonical_queue_size,
+                injected_queue_size,
+            })
+            .boxed()
     }
 }
 

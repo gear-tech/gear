@@ -366,6 +366,11 @@ impl Service {
             None
         };
 
+        let rpc = config
+            .rpc
+            .clone()
+            .map(|config| RpcServer::new(config, db.clone()));
+
         let observer = ObserverService::new(
             db.clone(),
             ObserverConfig {
@@ -497,11 +502,6 @@ impl Service {
         } else {
             None
         };
-
-        let rpc = config
-            .rpc
-            .as_ref()
-            .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let processor_config = ProcessorConfig {
             chunk_size: config.node.chunk_processing_threads,
@@ -737,7 +737,7 @@ impl Service {
                             timestamp = %block_data.header.timestamp,
                             hash = %block_data.hash,
                             parent_hash = %block_data.header.parent_hash,
-                            "📦 receive new chain head",
+                            "📦 receive a chain head",
                         );
                         if let Some(c) = consensus.as_mut() {
                             c.receive_new_chain_head(block_data)?;
@@ -896,7 +896,7 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            // zero address means any validator may pick up the tx.
+                            // zero address means that no matter what validator will insert this tx.
                             let is_zero_address = transaction.recipient == Address::default();
                             let is_our_address = Some(transaction.recipient) == validator_address;
 

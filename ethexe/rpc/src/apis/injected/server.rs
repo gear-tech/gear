@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2025-2026 Gear Technologies Inc.
+// Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,11 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
+
 use super::{
     InjectedServer, promise_manager::PromiseSubscriptionManager, relay::TransactionsRelayer,
     spawner,
 };
-use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 use ethexe_common::{
     HashOf,
     db::InjectedStorageRO,
@@ -31,8 +32,8 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use jsonrpsee::{
-    PendingSubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
+    server::PendingSubscriptionSink,
 };
 use std::ops::Deref;
 use tokio::sync::mpsc;
@@ -40,13 +41,53 @@ use tracing::trace;
 
 const MAX_TRANSACTION_IDS: usize = 100;
 
-/// JSON-RPC server implementation for the `injected_*` namespace.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct InjectedApi {
     db: Database,
     manager: PromiseSubscriptionManager,
     relayer: TransactionsRelayer,
     metrics: InjectedApiMetrics,
+}
+
+// TODO: Issue #5387
+#[async_trait]
+impl InjectedServer for InjectedApi {
+    async fn send_transaction(
+        &self,
+        transaction: AddressedInjectedTransaction,
+    ) -> RpcResult<InjectedTransactionAcceptance> {
+        self.send_transaction(transaction).await
+    }
+
+    async fn send_transaction_and_watch(
+        &self,
+        pending: PendingSubscriptionSink,
+        transaction: AddressedInjectedTransaction,
+    ) -> SubscriptionResult {
+        self.send_transaction_and_watch(pending, transaction).await
+    }
+
+    async fn get_transaction_promise(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> RpcResult<Option<SignedPromise>> {
+        self.get_transaction_promise(tx_hash).await
+    }
+
+    async fn get_transactions(
+        &self,
+        transaction_ids: Vec<HashOf<InjectedTransaction>>,
+    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>> {
+        self.get_transactions(transaction_ids).await
+    }
+}
+
+impl Deref for InjectedApi {
+    type Target = PromiseSubscriptionManager;
+
+    fn deref(&self) -> &Self::Target {
+        &self.manager
+    }
 }
 
 impl InjectedApi {
@@ -60,61 +101,44 @@ impl InjectedApi {
     }
 }
 
-impl Deref for InjectedApi {
-    type Target = PromiseSubscriptionManager;
-
-    fn deref(&self) -> &Self::Target {
-        &self.manager
-    }
-}
-
-#[async_trait]
-impl InjectedServer for InjectedApi {
+// RPC API implementation.
+impl InjectedApi {
     async fn send_transaction(
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        tracing::trace!(
-            tx_hash = %transaction.tx.data().to_hash(),
-            ?transaction,
-            "Called injected_sendTransaction",
-        );
         self.relayer.relay(transaction).await
     }
 
+    // TODO: Issue #5386.
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
-        tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
 
-        // Register the subscriber *before* relaying — the producer can
-        // deliver the promise back into this RPC server within
-        // microseconds, especially when the producer happens to be the
-        // local node, and registering after `relay()` returns races
-        // promise delivery into the "unregistered" warn path.
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
-            Ok(s) => s,
-            Err(err) => return Err(errors::bad_request(err).into()),
+            Ok(subscriber) => subscriber,
+            Err(err) => {
+                return Err(errors::bad_request(err).into());
+            }
         };
 
         let acceptance = self.relayer.relay(transaction).await.inspect_err(|_err| {
             self.manager.cancel_registration(tx_hash);
         })?;
-
-        match acceptance {
-            InjectedTransactionAcceptance::Accept => {}
+        let sink = match acceptance {
+            InjectedTransactionAcceptance::Accept => {
+                pending.accept().await.inspect_err(|_err| {
+                    self.manager.cancel_registration(tx_hash);
+                })?
+            }
             InjectedTransactionAcceptance::Reject { reason } => {
                 self.manager.cancel_registration(tx_hash);
                 return Err(reason.into());
             }
-        }
-
-        let sink = pending.accept().await.inspect_err(|_err| {
-            self.manager.cancel_registration(tx_hash);
-        })?;
+        };
 
         self.metrics.injected_tx_active_subscriptions.increment(1);
         let (manager, metrics) = (self.manager.clone(), self.metrics.clone());
@@ -145,7 +169,11 @@ impl InjectedServer for InjectedApi {
         match compact.restore(promise) {
             Ok(message) => Ok(Some(message)),
             Err(err) => {
-                trace!(?tx_hash, ?err, "failed to build signed promise from parts",);
+                trace!(
+                    ?tx_hash,
+                    ?err,
+                    "failed to build signed promise from parts for injected transaction"
+                );
                 Ok(None)
             }
         }
@@ -166,7 +194,7 @@ impl InjectedServer for InjectedApi {
         let transactions = transaction_ids
             .into_iter()
             .map(|tx_id| self.db.injected_transaction(tx_id))
-            .collect();
+            .collect::<Vec<Option<SignedInjectedTransaction>>>();
 
         Ok(transactions)
     }
@@ -175,7 +203,7 @@ impl InjectedServer for InjectedApi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{db::InjectedStorageRW, ecdsa::PrivateKey, mock::Mock};
+    use ethexe_common::{PrivateKey, db::InjectedStorageRW, mock::Mock};
 
     fn make_signed_tx() -> SignedInjectedTransaction {
         SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))
@@ -206,6 +234,7 @@ mod tests {
         let api = make_injected_api(db.clone());
 
         let tx_hash = make_signed_tx().data().to_hash();
+        // Transaction not stored in DB.
         let result = api.get_transactions(vec![tx_hash]).await.unwrap();
         assert_eq!(result, vec![None]);
     }
@@ -220,6 +249,7 @@ mod tests {
         let hash1 = tx1.data().to_hash();
         let hash2 = tx2.data().to_hash();
         db.set_injected_transaction(tx1.clone());
+        // tx2 not stored.
 
         let result = api.get_transactions(vec![hash1, hash2]).await.unwrap();
         assert_eq!(result, vec![Some(tx1), None]);

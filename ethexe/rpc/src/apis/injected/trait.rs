@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2025-2026 Gear Technologies Inc.
+// Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -49,15 +49,13 @@ pub trait Injected {
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
 
-    /// Look up a previously delivered promise by injected-transaction hash.
-    /// Returns `None` if no promise is known yet.
     #[method(name = "getTransactionPromise")]
     async fn get_transaction_promise(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
     ) -> RpcResult<Option<SignedPromise>>;
 
-    /// Retrieves injected transactions by the provided IDs.
+    /// Retrieves injected transactions by the provided IDs
     #[method(name = "getTransactions")]
     async fn get_transactions(
         &self,

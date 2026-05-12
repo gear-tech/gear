@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2025-2026 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -92,7 +92,7 @@ pub struct ValidatorConfig {
     pub commitment_delay_limit: std::num::NonZero<u8>,
     /// Address of the router contract.
     pub router_address: Address,
-    /// The maximum size of abi-encoded batch commitment.
+    /// The maximum size of abi encoded batch commitment.
     pub batch_size_limit: u64,
     /// Delay between receiving a chain head and the coordinator beginning
     /// batch aggregation. Buys participants time to receive the same head
@@ -215,8 +215,10 @@ impl Stream for ValidatorService {
                 }
             }
 
-            // Polling tasks after inner state futures is important: polling
-            // inner state can spawn new consensus tasks.
+            // Note: polling tasks after inner state futures is important,
+            // because polling inner state can create consensus tasks.
+
+            // Poll consensus tasks if any
             let ctx = inner.context_mut();
             if let Poll::Ready(Some(res)) = ctx.tasks.poll_next_unpin(cx) {
                 ctx.output(res?);
@@ -411,9 +413,11 @@ struct ValidatorContext {
     /// Core validator parameters and utilities.
     core: ValidatorCore,
 
-    /// New events are pushed-front, so the most recent event is processed first.
+    /// ## Important
+    /// New events are pushed-front, in order to process the most recent event first.
+    /// So, actually it is a stack.
     pending_events: VecDeque<PendingEvent>,
-    /// Output events for outer services.
+    /// Output events for outer services. Populates during the poll.
     output: VecDeque<ConsensusEvent>,
 
     /// Ongoing consensus tasks, if any.

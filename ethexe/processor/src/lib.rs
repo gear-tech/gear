@@ -312,8 +312,6 @@ impl Processor {
         Ok(ProcessedCodeInfo { code_id, valid })
     }
 
-    /// Execute one MB given prepared inputs. Three-phase pipeline:
-    /// inject + apply events → run scheduled tasks → drain queues with `gas_allowance`.
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
@@ -333,10 +331,14 @@ impl Processor {
 
         let mut transitions = InBlockTransitions::new(height, program_states, schedule);
 
+        // First step: push injected to queues and handle block events.
         transitions =
             self.handle_injected_and_events(transitions, injected_transactions, events)?;
+
+        // Second step: process scheduled tasks.
         transitions = self.process_tasks(transitions);
 
+        // Third step: process queues until limits are exhausted or all queues are empty.
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
                 .process_queues(transitions, height, timestamp, gas_allowance, promise_sink)

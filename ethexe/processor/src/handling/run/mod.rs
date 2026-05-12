@@ -265,9 +265,8 @@ pub(super) trait RunContext {
         false
     }
 
-    /// [`PromisePolicy`] tells processor whether to emit promises.
-    /// Defaults to [`PromisePolicy::Enabled`] when the run context
-    /// holds a [`BoundPromiseSink`].
+    /// [`PromisePolicy`] tells processor should it emit promises or not.
+    /// By default if [`RunContext::promise_sink`] returns [`Some`] this function will return [`PromisePolicy::Enabled`].
     fn promise_policy(&self) -> PromisePolicy {
         match self.inner().promise_sink.is_some() {
             true => PromisePolicy::Enabled,

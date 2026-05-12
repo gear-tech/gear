@@ -687,18 +687,21 @@ impl InjectedStorageRO for RawDatabase {
             })
     }
 
-    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise> {
-        self.kv.get(&Key::Promise(hash).to_bytes()).map(|data| {
-            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into `Promise`")
+    fn promise(&self, tx_hash: HashOf<InjectedTransaction>) -> Option<Promise> {
+        self.kv.get(&Key::Promise(tx_hash).to_bytes()).map(|data| {
+            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into Promise")
         })
     }
 
-    fn compact_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<SignedCompactPromise> {
+    fn compact_promise(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> Option<SignedCompactPromise> {
         self.kv
-            .get(&Key::CompactPromise(hash).to_bytes())
+            .get(&Key::CompactPromise(tx_hash).to_bytes())
             .map(|data| {
                 SignedCompactPromise::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `SignedCompactPromise`")
+                    .expect("Failed to decode data into SignedCompactPromise")
             })
     }
 }
@@ -713,16 +716,18 @@ impl InjectedStorageRW for RawDatabase {
     }
 
     fn set_promise(&self, promise: &Promise) {
-        tracing::trace!(tx_hash = ?promise.tx_hash, "Set promise");
+        tracing::trace!(?promise, "Set promise for injected transaction");
+
         self.kv
-            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode());
+            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode())
     }
 
     fn set_compact_promise(&self, promise: &SignedCompactPromise) {
         let tx_hash = promise.data().tx_hash;
-        tracing::trace!(?tx_hash, "Set compact promise");
+        tracing::trace!(?promise, "Set compact promise for injected transaction");
+
         self.kv
-            .put(&Key::CompactPromise(tx_hash).to_bytes(), promise.encode());
+            .put(&Key::CompactPromise(tx_hash).to_bytes(), promise.encode())
     }
 }
 

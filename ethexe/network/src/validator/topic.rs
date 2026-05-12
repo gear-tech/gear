@@ -290,28 +290,29 @@ impl ValidatorTopic {
     fn inner_verify_promise(
         &self,
         _source: PeerId,
-        promise: SignedCompactPromise,
+        compact_promise: SignedCompactPromise,
     ) -> Result<SignedCompactPromise, VerifyPromiseError> {
-        let address = promise.address();
-        let tx_hash = promise.data().tx_hash;
-
+        let address = compact_promise.address();
         if !self.snapshot.contains(address) {
-            return Err(VerifyPromiseError::UnknownValidator { address, tx_hash });
+            return Err(VerifyPromiseError::UnknownValidator {
+                address,
+                tx_hash: compact_promise.data().tx_hash,
+            });
         }
 
-        Ok(promise)
+        Ok(compact_promise)
     }
 
     // FIXME: messages from previous era validators are ignored
     pub fn verify_promise(
         &self,
         source: PeerId,
-        promise: SignedCompactPromise,
+        compact_promise: SignedCompactPromise,
     ) -> (MessageAcceptance, Option<SignedCompactPromise>) {
-        match self.inner_verify_promise(source, promise) {
-            Ok(promise) => (MessageAcceptance::Accept, Some(promise)),
+        match self.inner_verify_promise(source, compact_promise) {
+            Ok(compact_promise) => (MessageAcceptance::Accept, Some(compact_promise)),
             Err(err) => {
-                log::trace!("failed to verify promise: {err}");
+                log::trace!("failed to verify compact promise: {err}");
                 (MessageAcceptance::Ignore, None)
             }
         }

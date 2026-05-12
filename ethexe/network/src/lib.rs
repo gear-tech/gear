@@ -102,8 +102,7 @@ const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 pub enum NetworkEvent {
     /// A validator-signed message from the validator gossipsub topic.
     ValidatorMessage(VerifiedValidatorMessage),
-    /// A producer-signed compact promise observed on the promise
-    /// gossipsub topic.
+    /// A public promise observed on the promise gossipsub topic.
     PromiseMessage(SignedCompactPromise),
     /// Validator discovery learned or refreshed the network identity of the
     /// given validator address.
@@ -550,10 +549,10 @@ impl NetworkService {
                             .verify_validator_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Promise(promise) => {
+                    gossipsub::Message::Promise(compact_promise) => {
                         // FIXME: previous era validators are ignored
                         let (acceptance, promise) =
-                            self.validator_topic.verify_promise(source, promise);
+                            self.validator_topic.verify_promise(source, compact_promise);
                         (acceptance, promise.map(NetworkEvent::PromiseMessage))
                     }
                 })
@@ -655,10 +654,12 @@ impl NetworkService {
             .send_transaction(behaviour.validator_discovery.identities(), data)
     }
 
-    /// Publish a producer-signed compact promise to the public promise
-    /// gossipsub topic.
-    pub fn publish_promise(&mut self, promise: SignedCompactPromise) {
-        self.swarm.behaviour_mut().gossipsub.publish(promise)
+    /// Publish a signed promise to the public promise gossipsub topic.
+    pub fn publish_promise(&mut self, compact_promise: SignedCompactPromise) {
+        self.swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(compact_promise)
     }
 }
 

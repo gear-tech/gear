@@ -97,7 +97,7 @@ impl OngoingResponses {
                     .mb_program_states(request.at)
                     .map(|states| states.into_keys().collect())
                     .unwrap_or_default();
-                InnerProgramIdsResponse::new(actor_ids).into()
+                InnerProgramIdsResponse(actor_ids).into()
             }
             InnerRequest::ValidCodes => db.valid_codes().into(),
         }

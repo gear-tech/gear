@@ -28,11 +28,11 @@ gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
 dashmap.workspace = true
-thiserror.workspace = true
 metrics.workspace = true
 metrics-derive.workspace = true
-scopeguard = { workspace = true, default-features = true }
 gear-workspace-hack.workspace = true
+thiserror.workspace = true
+scopeguard.workspace = true
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }

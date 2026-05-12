@@ -176,8 +176,7 @@ impl InstanceWrapper {
     ) -> Result<(ProgramJournals, H256, u64)> {
         threads::set(db, ctx.state_root, promise_sink.clone());
 
-        // Drop the thread-local `promise_sink` so the receiver knows
-        // the channel is closed for this MB.
+        // Cleanup the `promise_sink` from thread-local to signal receiver that channel is closed.
         let _cleanup = scopeguard::guard((), |()| {
             threads::clear_promise_sink();
         });

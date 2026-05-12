@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2025-2026 Gear Technologies Inc.
+// Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,32 +19,36 @@
 //! # RPC Server Injected API
 //!
 //! ## Promises Flow
-//! [`promise_manager::PromiseSubscriptionManager`] is the main entity
-//! responsible for promise handling. It maintains single-promise
-//! subscribers indexed by transaction hash and dispatches the matching
-//! [`ethexe_common::injected::SignedPromise`] to the right subscriber.
+//! [promise_manager::PromiseSubscriptionManager] is the main entity that is responsible for
+//! promises handling.
+//! Internally it maintains single-promise subscribers.
 //!
-//! Promise delivery is two-staged: the local node feeds a computed
-//! [`ethexe_common::injected::Promise`] body via
-//! [`promise_manager::PromiseSubscriptionManager::on_computed_promise`],
-//! the producer's signature arrives as a compact
-//! [`ethexe_common::injected::SignedCompactPromise`] via
-//! [`promise_manager::PromiseSubscriptionManager::on_compact_promise`],
-//! and the manager reconstructs the full [`SignedPromise`] once both
-//! are available (in either order) and dispatches it to the subscriber.
+//! After the manager successfully registers a subscriber for
+//! [ethexe_common::injected::SignedPromise], it creates the
+//! [promise_manager::PendingSubscriber] and spawns it using
+//! [spawner::spawn_pending_subscriber].
 //!
-//! Subscribers are spawned via [`spawner::spawn_pending_subscriber`].
-//! The pending subscriber is dropped after waiting for `20 * slot`
-//! seconds to avoid stuck subscribers.
+//! **Important:** the pending subscriber will be dropped after
+//! waiting for **20 * Ethereum slot** seconds to avoid dead subscribers.
+//!
+//! [promise_manager::PromiseSubscriptionManager] provides two methods for receiving promises:
+//! - [promise_manager::PromiseSubscriptionManager::on_compact_promise] receives the promise
+//!   signature from the producer. If it matches a promise already stored in the database, it is
+//!   sent to the subscriber.
+//! - [promise_manager::PromiseSubscriptionManager::on_computed_promise] receives the promise
+//!   body. When RPC receives the corresponding promise signature, it sends the signed promise to
+//!   the subscriber.
 
 pub(crate) mod promise_manager;
+
 pub(crate) mod relay;
+
 pub(crate) mod server;
+pub use server::InjectedApi;
+
 pub(crate) mod spawner;
 
 mod r#trait;
-
-pub use server::InjectedApi;
 pub use r#trait::InjectedServer;
 
 #[cfg(feature = "client")]

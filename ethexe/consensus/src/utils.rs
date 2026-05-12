@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2025-2026 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,8 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utilities for batch commitment, multi-sig accumulation, and FROST keygen.
-//
+//! # Utilities Module
+//!
+//! This module provides utility functions and data structures for handling batch commitments,
+//! validation requests, and multi-signature operations in the Ethexe system.
+
 // TODO +_+_+: revisit whether `block_touched_programs` (a helper that
 // scanned an Eth block's events for `ProgramCreated` + `Mirror{actor_id}`
 // and returned the touched program set) needs to come back here. It was
@@ -44,10 +47,9 @@ use roast_secp256k1_evm::frost::{
 };
 use std::collections::{BTreeMap, HashSet};
 
-/// A batch commitment that has been signed by multiple validators.
-///
-/// Manages the collection of signatures from different validators for a
-/// single batch commitment.
+/// A batch commitment, that has been signed by multiple validators.
+/// This structure manages the collection of signatures from different validators
+/// for a single batch commitment.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct MultisignedBatchCommitment {
     batch: BatchCommitment,
@@ -57,7 +59,15 @@ pub struct MultisignedBatchCommitment {
 }
 
 impl MultisignedBatchCommitment {
-    /// Create a new multisigned batch commitment with an initial signature.
+    /// Creates a new multisigned batch commitment with an initial signature.
+    ///
+    /// # Arguments
+    /// * `batch` - The batch commitment to be signed
+    /// * `signer` - The contract signer used to create signatures
+    /// * `pub_key` - The public key of the initial signer
+    ///
+    /// # Returns
+    /// A new `MultisignedBatchCommitment` instance with the initial signature
     pub fn new(
         batch: BatchCommitment,
         signer: &Signer,
@@ -77,7 +87,14 @@ impl MultisignedBatchCommitment {
         })
     }
 
-    /// Accept a validation reply from another validator and add its signature.
+    /// Accepts a validation reply from another validator and adds it's signature.
+    ///
+    /// # Arguments
+    /// * `reply` - The validation reply containing the signature
+    /// * `check_origin` - A closure to verify the origin of the signature
+    ///
+    /// # Returns
+    /// Result indicating success or failure of the operation
     pub fn accept_batch_commitment_validation_reply(
         &mut self,
         reply: BatchCommitmentValidationReply,
@@ -98,19 +115,24 @@ impl MultisignedBatchCommitment {
         Ok(())
     }
 
+    /// Returns a reference to the map of validator addresses to their signatures
     pub fn signatures(&self) -> &BTreeMap<Address, ContractSignature> {
         &self.signatures
     }
 
+    /// Returns a reference to the underlying batch commitment
     pub fn batch(&self) -> &BatchCommitment {
         &self.batch
     }
 
+    /// Consumes the structure and returns its parts
+    ///
+    /// # Returns
+    /// A tuple containing the batch commitment and the map of signatures
     pub fn into_parts(self) -> (BatchCommitment, Vec<ContractSignature>) {
         (self.batch, self.signatures.into_values().collect())
     }
 }
-
 // TODO: #5019 this is a temporal solution. In future need to implement DKG algorithm.
 pub fn generate_roast_keys(
     validators: &ValidatorsVec,
