@@ -34,9 +34,13 @@ use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;
 
 /// Default delay before the coordinator starts aggregating a batch
-/// commitment, in milliseconds. ~1.5s strikes a balance between giving
-/// participants time to catch up and not stalling on-chain commitment
-/// turnaround.
+/// commitment, in milliseconds.
+///
+/// TODO +_+_+: this is currently `0`, but the docstring above used to
+/// claim ~1.5s as the "balance between giving participants time to
+/// catch up and not stalling on-chain commitment turnaround." The
+/// smoke tests still wire `1500`, so production should probably move
+/// back to a non-zero default. Revisit and pick a final value.
 const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 0;
 const DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD: u32 = 500;
 

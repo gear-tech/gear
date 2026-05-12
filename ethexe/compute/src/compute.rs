@@ -474,7 +474,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                 None => {
                     // Channel is fully drained — the executor has
                     // dropped every sender clone, which means
-                    // `compute_one` is past the `process_transitions`
+                    // `compute_one` is past the `process_programs`
                     // await (and thus `computation` is at most a
                     // book-keeping step away from completing).
                     self.promises_stream = None;

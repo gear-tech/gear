@@ -94,7 +94,7 @@
 //! [`Transaction::AdvanceTillEthereumBlock`] inside an MB it fetches the
 //! events from blocks already past the canonical-quarantine window
 //! ([`ethexe_malachite::MalachiteConfig::canonical_quarantine`] —
-//! enforced inside `ethexe-processor`'s `process_transitions`).
+//! enforced inside `ethexe-processor`'s `process_programs`).
 //!
 //! ## When modifying this crate
 //!

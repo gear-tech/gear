@@ -39,7 +39,7 @@
 //! `ethexe-processor` is the bottom of the execution stack. It is
 //! consumed by:
 //!
-//! - `ethexe-compute` — calls [`Processor::process_transitions`] and
+//! - `ethexe-compute` — calls [`Processor::process_programs`] and
 //!   [`Processor::process_code`] through its `ProcessorExt` trait (the
 //!   trait is defined in `ethexe-compute`, together with a direct impl
 //!   for [`Processor`]). Compute is what the service layer talks to —
@@ -56,8 +56,7 @@
 //! | Method                                    | Purpose                                                                       |
 //! |-------------------------------------------|-------------------------------------------------------------------------------|
 //! | [`Processor::process_code`]               | Validate + instrument a WASM blob. Synchronous, does not touch the DB.        |
-//! | [`Processor::process_transitions`]        | Execute an MB by walking its `Transactions` list (compute's primary entry).    |
-//! | [`Processor::process_programs`]           | "Block in one shot" path used only by the processor's own unit tests.         |
+//! | [`Processor::process_programs`]           | Execute an MB by walking its `Transactions` list (compute's primary entry).   |
 //! | [`Processor::overlaid`]                   | Wrap `self` into an [`OverlaidProcessor`] backed by an overlaid DB.           |
 //! | [`OverlaidProcessor::execute_for_reply`]  | Simulate a single incoming message and return the reply.                      |
 //!
