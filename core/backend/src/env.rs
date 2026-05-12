@@ -43,8 +43,8 @@ use gear_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Store},
 };
 use gear_wasm_instrument::{
-    GLOBAL_NAME_GAS,
-    syscalls::SyscallName::{self, *},
+    GLOBAL_NAME_GAS, SyscallKind,
+    SyscallName::{self, *},
 };
 #[cfg(feature = "std")]
 use {
@@ -162,10 +162,14 @@ where
     EntryPoint: WasmEntryPoint,
 {
     #[rustfmt::skip]
-    fn bind_funcs(builder: &mut EnvBuilder<Ext>) {
+    fn bind_funcs(builder: &mut EnvBuilder<Ext>, syscall_kind: SyscallKind) {
         macro_rules! add_function {
             ($syscall:ident, $func:ident) => {
-                builder.add_func($syscall, wrap_syscall!($func, $syscall));
+                match syscall_kind {
+                    SyscallKind::Vara if !$syscall.is_vara_including_system_break() => {},
+                    SyscallKind::Eth if !$syscall.is_eth() => {},
+                    _ => builder.add_func($syscall, wrap_syscall!($func, $syscall)),
+                }
             };
         }
 
@@ -271,6 +275,7 @@ where
         entry_point: EntryPoint,
         entries: BTreeSet<DispatchKind>,
         mem_size: WasmPagesAmount,
+        syscall_kind: SyscallKind,
     ) -> Result<Self, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
@@ -290,14 +295,19 @@ where
 
         builder.add_memory(memory.clone());
 
-        Self::bind_funcs(&mut builder);
+        Self::bind_funcs(&mut builder, syscall_kind);
 
         // Check that we have implementations for all the syscalls.
         // This is intended to panic during any testing, when the
         // condition is not met.
+        let expected_count = match syscall_kind {
+            SyscallKind::Vara => SyscallName::all().count(),
+            SyscallKind::Eth => SyscallName::all()
+                .filter(|syscall| syscall.is_eth())
+                .count(),
+        };
         assert_eq!(
-            builder.funcs_count,
-            SyscallName::all().count(),
+            builder.funcs_count, expected_count,
             "Not all existing syscalls were added to the module's env."
         );
 

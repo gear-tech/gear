@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(not(feature = "ethexe"))]
+use crate::ActorId;
 use crate::{
-    ActorId, Config, MessageId,
+    Config, MessageId,
     async_runtime::{self, Lock, ReplyPoll, signals},
     errors::{Error, Result},
     prelude::Vec,
@@ -159,6 +161,7 @@ impl_futures!(
 /// }
 /// # fn main() {}
 /// ```
+#[cfg(not(feature = "ethexe"))]
 pub struct CodecCreateProgramFuture<T> {
     /// A message identifier for an expected reply.
     pub waiting_reply_to: MessageId,
@@ -177,6 +180,7 @@ pub struct CodecCreateProgramFuture<T> {
     pub(crate) _marker: PhantomData<T>,
 }
 
+#[cfg(not(feature = "ethexe"))]
 impl_futures!(
     CodecCreateProgramFuture,
     D,
@@ -272,6 +276,7 @@ impl_futures!(
 /// }
 /// # fn main() {}
 /// ```
+#[cfg(not(feature = "ethexe"))]
 pub struct CreateProgramFuture {
     /// A message identifier for an expected reply.
     pub waiting_reply_to: MessageId,
@@ -283,6 +288,7 @@ pub struct CreateProgramFuture {
     pub(crate) reply_deposit: u64,
 }
 
+#[cfg(not(feature = "ethexe"))]
 impl_futures!(
     CreateProgramFuture,
     (ActorId, Vec<u8>),

@@ -99,12 +99,12 @@ mod utils {
         tx: &mut AddressedInjectedTransaction,
     ) -> RpcResult<()> {
         let now = now_since_unix_epoch().map_err(|err| {
-            tracing::error!("system clock error: {err}");
+            error!("system clock error: {err}");
             crate::errors::internal()
         })?;
 
         let next_producer = calculate_next_producer(db, now).map_err(|err| {
-            tracing::error!("calculate next producer error: {err}");
+            error!("calculate next producer error: {err}");
             crate::errors::internal()
         })?;
         tx.recipient = next_producer;

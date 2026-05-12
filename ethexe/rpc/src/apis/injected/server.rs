@@ -107,8 +107,6 @@ impl InjectedApi {
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        self.metrics.send_injected_tx_calls.increment(1);
-
         self.relayer.relay(transaction).await
     }
 
@@ -118,8 +116,6 @@ impl InjectedApi {
         pending: PendingSubscriptionSink,
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult {
-        self.metrics.send_and_watch_injected_tx_calls.increment(1);
-
         let tx_hash = transaction.tx.data().to_hash();
 
         let pending_subscriber = match self.manager.try_register_subscriber(tx_hash) {
@@ -144,9 +140,11 @@ impl InjectedApi {
             }
         };
 
-        let manager = self.manager.clone();
+        self.metrics.injected_tx_active_subscriptions.increment(1);
+        let (manager, metrics) = (self.manager.clone(), self.metrics.clone());
         spawner::spawn_pending_subscriber(sink, pending_subscriber, move |tx_hash| {
             manager.cancel_registration(tx_hash);
+            metrics.injected_tx_active_subscriptions.decrement(1);
         });
         Ok(())
     }
