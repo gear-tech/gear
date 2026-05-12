@@ -504,11 +504,14 @@ impl TestEnv {
         });
 
         // Allocate once: stop+start reuses the same WAL/store.
-        let malachite_home = validator_config
-            .as_ref()
-            .map(|_| tempfile::tempdir().expect("malachite home tempdir"));
+        // Both validators and full nodes need a malachite home — full nodes
+        // run the engine in `NodeRole::FullNode` so they receive
+        // `BlockFinalized` and can compute MBs locally.
+        let malachite_home = Some(tempfile::tempdir().expect("malachite home tempdir"));
 
-        // Take this validator's listener; it lives on the Node until first `start_service`.
+        // Take this validator's listener; it lives on the Node until first
+        // `start_service`. Full nodes don't have a pre-allocated endpoint
+        // in `self.malachite_endpoints` and bind a fresh port at start.
         let malachite_listener = validator_config
             .as_ref()
             .and_then(|c| self.malachite_listeners.remove(&c.public_key));
@@ -1196,30 +1199,56 @@ impl Node {
         let validator_pub_key = self.validator_config.as_ref().map(|c| c.public_key);
         let validator_address = validator_pub_key.map(|key| key.to_address());
 
-        // Validators boot a Malachite engine; connect-only nodes leave it None.
-        let malachite = if let Some(config) = self.validator_config.as_ref() {
-            let me = self
-                .malachite_endpoints
-                .iter()
-                .find(|e| e.pub_key == config.public_key)
-                .cloned()
-                .expect("validator's malachite endpoint missing — env not aware of this key");
-            // Filter `malachite_endpoints` to era-current pubkeys — leftover entries from `extend_malachite_endpoints` would skew the >2/3 threshold.
+        // Validators and full/RPC nodes both join the Malachite mesh.
+        // Full nodes run in `NodeRole::FullNode` (no signing) but still
+        // receive `BlockFinalized` and trigger local compute so promise
+        // bodies reach the RPC subscription manager.
+        let malachite = {
+            // Filter `malachite_endpoints` to era-current pubkeys —
+            // leftover entries from `extend_malachite_endpoints` would
+            // skew the >2/3 threshold.
             let active: Vec<&MalachiteEndpoint> = self
                 .malachite_endpoints
                 .iter()
                 .filter(|e| self.active_validator_pub_keys.contains(&e.pub_key))
                 .collect();
-            assert!(
-                active.iter().any(|e| e.pub_key == config.public_key),
-                "test setup bug: local validator {} not in env.validators when start_service was called",
-                config.public_key,
-            );
-            let persistent_peers: Vec<MalachiteMultiaddr> = active
-                .iter()
-                .filter(|e| e.pub_key != config.public_key)
-                .map(|e| e.multiaddr())
-                .collect();
+
+            let (listen_addr, persistent_peers) = match self.validator_config.as_ref() {
+                Some(config) => {
+                    let me = self
+                        .malachite_endpoints
+                        .iter()
+                        .find(|e| e.pub_key == config.public_key)
+                        .cloned()
+                        .expect(
+                            "validator's malachite endpoint missing — env not aware of this key",
+                        );
+                    assert!(
+                        active.iter().any(|e| e.pub_key == config.public_key),
+                        "test setup bug: local validator {} not in env.validators when start_service was called",
+                        config.public_key,
+                    );
+                    let peers: Vec<MalachiteMultiaddr> = active
+                        .iter()
+                        .filter(|e| e.pub_key != config.public_key)
+                        .map(|e| e.multiaddr())
+                        .collect();
+                    (me.listen_addr, peers)
+                }
+                None => {
+                    // Full node: bind a fresh port, dial every active
+                    // validator. No reserved listener since `new_node`
+                    // never allocated one for this key.
+                    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+                        .expect("bind 127.0.0.1:0 for full-node malachite endpoint");
+                    let addr = listener.local_addr().expect("local_addr");
+                    let peers: Vec<MalachiteMultiaddr> =
+                        active.iter().map(|e| e.multiaddr()).collect();
+                    drop(listener);
+                    (addr, peers)
+                }
+            };
+
             let validators: Vec<ValidatorEntry> = active
                 .iter()
                 .map(|e| ValidatorEntry {
@@ -1232,12 +1261,12 @@ impl Node {
             let home_path = self
                 .malachite_home
                 .as_ref()
-                .expect("validator node must have a malachite home allocated in new_node")
+                .expect("node must have a malachite home allocated in new_node")
                 .path()
                 .to_path_buf();
 
             let mut mc = MalachiteConfig::from_home_dir(home_path)
-                .with_listen_addr(me.listen_addr)
+                .with_listen_addr(listen_addr)
                 .with_persistent_peers(persistent_peers)
                 .with_validators(validators);
             mc.canonical_quarantine = self.canonical_quarantine;
@@ -1248,14 +1277,12 @@ impl Node {
                 mc,
                 self.db.clone(),
                 self.signer.clone(),
-                Some(config.public_key),
+                self.validator_config.as_ref().map(|c| c.public_key),
                 mempool,
             )
             .await
             .expect("MalachiteService::new");
             Some(svc)
-        } else {
-            None
         };
 
         let (sender, receiver) = events::channel(self.db.clone(), self.kicking_per_blocks.clone());

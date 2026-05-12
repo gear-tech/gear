@@ -970,6 +970,17 @@ impl Service {
                             sigs = cert.signatures.len(),
                             "✅ Malachite: BlockFinalized",
                         );
+                        // Non-proposer nodes (validators that didn't propose
+                        // this height + every full/RPC node) first see the MB
+                        // here. Trigger compute so the body — including any
+                        // injected-tx `Promise` — is produced locally; the
+                        // matching `SignedCompactPromise` arrives via the
+                        // network and is joined into a full `SignedPromise`
+                        // by the RPC subscription manager. Calls are
+                        // idempotent: a proposer that already computed via
+                        // `BlockProposal` short-circuits on
+                        // `mb_meta.computed`.
+                        compute.compute_mb(block_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                 },
                 Event::Prometheus(event) => match event {
