@@ -64,8 +64,7 @@ pub struct AddressBook {
 }
 
 /// Squashed chain commitment with state transitions, MB head, and the latest
-/// folded-in Ethereum block hash. The Eth block field drives checkpoint batches
-/// when the producer's local chain pulls far ahead of `last_committed_eb`.
+/// advanced Ethereum block hash, zero if no ethereum block has been advanced.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,

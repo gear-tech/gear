@@ -148,23 +148,12 @@ pub enum ValidationRejectReason {
     CodeNotWaitingForCommitment(CodeId),
     #[display("code id {_0} is not processed yet")]
     CodeIsNotProcessedYet(CodeId),
-    /// The coordinator's `head_mb` has not yet been marked finalized in
-    /// this participant's local view (Malachite's `mark_block_as_finalized`
-    /// cascade hasn't reached it). Either we are running behind on MB
-    /// finalization or the coordinator is on a different chain — in both
-    /// cases we drop the signature.
     #[display("requested head MB {_0} is not finalized locally")]
     HeadMbNotFinalized(H256),
-    /// The coordinator's `head_mb` is at or below the height of the chain's
-    /// `last_committed_mb` — there is nothing new to commit on top of it.
     #[display("requested head MB {_0} is at or below last committed MB")]
     HeadMbAlreadyCommitted(H256),
     #[display("requested head MB {_0} is not computed by this node")]
     HeadMbNotComputed(H256),
-    /// The latest finalized MB advanced to an Eth block that no longer sits
-    /// on the participant's canonical chain (deep Eth reorg). The coordinator
-    /// must not commit a stale advance, so the participant withholds its
-    /// signature.
     #[display(
         "latest finalized MB advance {_0} is not on the canonical chain ending at the current head"
     )]

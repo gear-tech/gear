@@ -515,7 +515,7 @@ mod tests {
     #[test]
     fn test_mb_schedule_has_expired_tasks_error() {
         use crate::iterator::MbScheduleTasksNode;
-        use ethexe_common::db::{CompactMB, MbStorageRW};
+        use ethexe_common::db::{CompactMb, MbStorageRW};
 
         let db = setup_db();
         let mb_hash = H256::random();
@@ -523,7 +523,7 @@ mod tests {
         // MB at height 100; a task scheduled for height 50 is expired.
         db.set_mb_compact_block(
             mb_hash,
-            CompactMB {
+            CompactMb {
                 parent: H256::zero(),
                 height: 100,
                 transactions_hash: H256::zero(),

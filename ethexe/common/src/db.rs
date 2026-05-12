@@ -41,13 +41,18 @@ use scale_info::TypeInfo;
 /// Ethexe metadata associated with an on-chain block.
 #[derive(Clone, Debug, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct BlockMeta {
+    /// Block has been prepared, meaning:
+    /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
+    /// Queue of code ids waiting for validation status commitment on-chain.
     pub codes_queue: Option<VecDeque<CodeId>>,
+    /// Last committed on-chain batch hash (digest).
     pub last_committed_batch: Option<Digest>,
-    /// Last committed MB hash visible from this Eth block.
+    /// Last committed MB hash.
     pub last_committed_mb: Option<H256>,
-    /// Eth block hash from the last committed `ChainCommitment::last_advanced_eth_block`.
+    /// Last committed EB hash.
     pub last_committed_eb: Option<H256>,
+    /// Latest era with committed validators.
     pub latest_era_validators_committed: Option<u64>,
 }
 
@@ -98,6 +103,7 @@ pub trait OnChainStorageRO {
     fn block_synced(&self, block_hash: H256) -> bool;
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
 
+    // TODO: +_+_+ find places where this can be applied (AI-friendly)
     fn block_simple_data(&self, block_hash: H256) -> Option<SimpleBlockData> {
         self.block_header(block_hash).map(|header| SimpleBlockData {
             hash: block_hash,
@@ -141,8 +147,11 @@ pub trait InjectedStorageRW: InjectedStorageRO {
 
 /// MB static identity. Keyed by the Blake2b envelope hash; existence implies
 /// the matching `Transactions` blob is in CAS at `transactions_hash`.
-#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
-pub struct CompactMB {
+#[derive(
+    Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash, derive_more::Display,
+)]
+#[display("MB(height {height}, parent {parent}, transactions_hash {transactions_hash})")]
+pub struct CompactMb {
     pub parent: H256,
     pub height: u64,
     pub transactions_hash: H256,
@@ -154,7 +163,6 @@ pub struct CompactMB {
 #[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 pub struct MbMeta {
     pub computed: bool,
-    pub synced: bool,
     pub last_advanced_eb: H256,
 }
 
@@ -163,7 +171,7 @@ pub trait MbStorageRO {
     /// Static identity (parent + height + `transactions_hash`).
     /// Existence implies the matching [`Transactions`] blob is in the
     /// CAS at `transactions_hash`.
-    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMB>;
+    fn mb_compact_block(&self, mb_hash: H256) -> Option<CompactMb>;
     /// Read the [`Transactions`] blob from CAS by its content hash.
     fn transactions(&self, transactions_hash: H256) -> Option<Transactions>;
     fn mb_program_states(&self, mb_hash: H256) -> Option<ProgramStates>;
@@ -174,9 +182,9 @@ pub trait MbStorageRO {
 
 #[auto_impl::auto_impl(&)]
 pub trait MbStorageRW: MbStorageRO {
-    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMB);
+    fn set_mb_compact_block(&self, mb_hash: H256, compact: CompactMb);
     /// Write a [`Transactions`] blob into the CAS and return its hash
-    /// (the value stored in [`CompactMB::transactions_hash`]).
+    /// (the value stored in [`CompactMb::transactions_hash`]).
     fn set_transactions(&self, transactions: Transactions) -> H256;
     fn set_mb_program_states(&self, mb_hash: H256, program_states: ProgramStates);
     fn set_mb_outcome(&self, mb_hash: H256, outcome: Vec<StateTransition>);
@@ -190,10 +198,7 @@ pub struct PreparedBlockData {
     pub latest_era_with_committed_validators: u64,
     pub codes_queue: VecDeque<CodeId>,
     pub last_committed_batch: Digest,
-    /// `H256::zero()` for genesis (no MB committed on-chain yet).
     pub last_committed_mb: H256,
-    /// `H256::zero()` for genesis (no chain commitment has advanced an
-    /// Eth block yet).
     pub last_committed_eb: H256,
 }
 
@@ -212,9 +217,6 @@ pub struct DBGlobals {
     pub start_block_hash: H256,
     pub latest_synced_eb: SimpleBlockData,
     pub latest_prepared_eb_hash: H256,
-    /// Hash of the most recent Malachite sequencer block this node
-    /// has seen finalized. `H256::zero()` means no MB has ever been
-    /// finalized. Updated on every `MalachiteEvent::BlockFinalized`.
     pub latest_finalized_mb_hash: H256,
 }
 
@@ -263,6 +265,7 @@ pub use mock_interfaces::{SetConfig, SetGlobals};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::malachite::Transactions;
     use indoc::formatdoc;
     use scale_info::{PortableRegistry, Registry, meta_type};
     use sha3::{Digest, Sha3_256};
@@ -270,7 +273,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "07a54793c71d33588d880d43e8f27cf6d1a67d4909c62a1784e484a8bf35151e";
+            "359cd50c066ea0ba61bf5b5a85a0d4c5161f4931f14cf2474700748c34307662";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -287,8 +290,8 @@ mod tests {
             meta_type::<StateTransition>(),
             meta_type::<Schedule>(),
             meta_type::<MbMeta>(),
-            meta_type::<CompactMB>(),
-            meta_type::<crate::malachite::Transactions>(),
+            meta_type::<CompactMb>(),
+            meta_type::<Transactions>(),
             meta_type::<DBConfig>(),
             meta_type::<DBGlobals>(),
         ];

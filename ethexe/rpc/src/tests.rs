@@ -20,7 +20,6 @@ use crate::{
     InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
     RpcService,
 };
-
 use ethexe_common::{
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,

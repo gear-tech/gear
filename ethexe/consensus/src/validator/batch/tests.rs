@@ -29,7 +29,7 @@ use crate::validator::core::MiddlewareWrapper;
 use ethexe_common::{
     Address, Digest, ProgramStates, Schedule, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRW, CompactMB, GlobalsStorageRW, MbStorageRW, SetConfig},
+    db::{BlockMetaStorageRW, CompactMb, GlobalsStorageRW, MbStorageRW, SetConfig},
     gear::StateTransition,
     malachite::{ProcessQueuesLimits, Transaction, Transactions},
     mock::*,
@@ -87,7 +87,7 @@ fn append_mb(db: &Database, parent: H256, height: u64, outcome: Vec<StateTransit
     let mb_hash = H256::from_low_u64_be(0x1000 + height);
     db.set_mb_compact_block(
         mb_hash,
-        CompactMB {
+        CompactMb {
             parent,
             height,
             transactions_hash,

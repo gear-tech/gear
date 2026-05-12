@@ -269,7 +269,7 @@ impl Checker {
 
         let head_compact = db
             .mb_compact_block(head)
-            .ok_or_else(|| anyhow!("latest_finalized_mb_hash {head} not in CompactMB store"))?;
+            .ok_or_else(|| anyhow!("latest_finalized_mb_hash {head} not in CompactMb store"))?;
 
         println!(
             "📋 Starting computation check from MB {head} (height {})",
@@ -295,30 +295,32 @@ impl Checker {
         )
         .context("failed to create processor")?;
 
-        let mut current = head;
+        let mut current_mb = head;
         loop {
-            let compact = db
-                .mb_compact_block(current)
-                .ok_or_else(|| anyhow!("CompactMB missing for MB {current}"))?;
-            let meta = db.mb_meta(current);
+            let current_compact_mb = db
+                .mb_compact_block(current_mb)
+                .ok_or_else(|| anyhow!("CompactMb missing for MB {current_mb}"))?;
+            let height = current_compact_mb.height;
+            let meta = db.mb_meta(current_mb);
             ensure!(
                 meta.computed,
-                "MB {current} (height {}) has not been computed",
-                compact.height
+                "MB {current_mb} (height {height}) has not been computed",
             );
 
             let expected_states = db
-                .mb_program_states(current)
-                .ok_or_else(|| anyhow!("program states missing for MB {current}"))?;
+                .mb_program_states(current_mb)
+                .ok_or_else(|| anyhow!("program states missing for MB {current_mb}"))?;
             let expected_outcome = db
-                .mb_outcome(current)
-                .ok_or_else(|| anyhow!("outcome missing for MB {current}"))?;
+                .mb_outcome(current_mb)
+                .ok_or_else(|| anyhow!("outcome missing for MB {current_mb}"))?;
             let expected_schedule = db
-                .mb_schedule(current)
-                .ok_or_else(|| anyhow!("schedule missing for MB {current}"))?;
+                .mb_schedule(current_mb)
+                .ok_or_else(|| anyhow!("schedule missing for MB {current_mb}"))?;
 
-            let executable = prepare_executable_for_mb(db, current)
-                .with_context(|| format!("failed to prepare executable data for MB {current}"))?;
+            let executable = prepare_executable_for_mb(db, current_mb, current_compact_mb)
+                .with_context(|| {
+                    format!("failed to prepare executable data for MB {current_mb}")
+                })?;
 
             // Overlaid DB so re-execution doesn't mutate persisted state.
             let mut overlay = processor.clone().overlaid();
@@ -331,32 +333,29 @@ impl Checker {
                 .as_mut()
                 .process_programs(executable, None)
                 .await
-                .with_context(|| format!("failed to re-compute MB {current}"))?;
+                .with_context(|| format!("failed to re-compute MB {current_mb}"))?;
 
             ensure!(
                 states == expected_states,
-                "MB {current} (height {}) program states mismatch",
-                compact.height
+                "MB {current_mb} (height {height}) program states mismatch",
             );
             ensure!(
                 transitions == expected_outcome,
-                "MB {current} (height {}) outcome mismatch",
-                compact.height
+                "MB {current_mb} (height {height}) outcome mismatch",
             );
             ensure!(
                 schedule == expected_schedule,
-                "MB {current} (height {}) schedule mismatch",
-                compact.height
+                "MB {current_mb} (height {height}) schedule mismatch",
             );
 
             if let Some(pb) = pb.as_ref() {
                 pb.inc(1);
             };
 
-            if compact.parent == H256::zero() {
+            if current_compact_mb.parent == H256::zero() {
                 break;
             }
-            current = compact.parent;
+            current_mb = current_compact_mb.parent;
         }
 
         Ok(())

@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+// _+_+_: some test hast been removed - analyze which ones can be re-added for new MB approach and add them.
+
 use super::*;
 use ethexe_common::{
     CodeBlobInfo,

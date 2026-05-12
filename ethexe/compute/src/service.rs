@@ -36,7 +36,6 @@ pub struct ComputeService<P: ProcessorExt = Processor> {
     codes_sub_service: CodesSubService<P>,
     prepare_sub_service: PrepareSubService,
     mb_compute_sub_service: ComputeSubService<P>,
-    promise_emission_mode: PromiseEmissionMode,
 }
 
 impl<P: ProcessorExt> ComputeService<P> {
@@ -63,7 +62,6 @@ impl<P: ProcessorExt> ComputeService<P> {
                 promise_emission_mode,
             ),
             codes_sub_service: CodesSubService::new(db, processor),
-            promise_emission_mode,
         }
     }
 }
@@ -93,16 +91,7 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.prepare_sub_service.receive_block_to_prepare(block);
     }
 
-    /// Queue a finalized Malachite sequencer block for execution.
-    /// `policy` decides whether the runtime emits promises during the
-    /// target MB's execution; predecessors always run with promises
-    /// disabled. In `PromiseEmissionMode::AlwaysEmit`, the requested
-    /// `policy` is overridden to `PromisePolicy::Enabled`.
     pub fn compute_mb(&mut self, mb_hash: H256, policy: PromisePolicy) {
-        let policy = match self.promise_emission_mode {
-            PromiseEmissionMode::AlwaysEmit => PromisePolicy::Enabled,
-            PromiseEmissionMode::ConsensusDriven => policy,
-        };
         self.mb_compute_sub_service.receive_mb(mb_hash, policy);
     }
 }
@@ -154,6 +143,7 @@ pub(crate) trait SubService: Unpin + Send + 'static {
 
 #[cfg(test)]
 mod tests {
+    // _+_+_: compute_announce test has been removed - make compute_mb test instead
 
     use super::*;
     use ethexe_common::{CodeAndIdUnchecked, db::*, mock::*};

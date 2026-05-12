@@ -21,14 +21,6 @@
 //! This module provides utility functions and data structures for handling batch commitments,
 //! validation requests, and multi-signature operations in the Ethexe system.
 
-// TODO +_+_+: revisit whether `block_touched_programs` (a helper that
-// scanned an Eth block's events for `ProgramCreated` + `Mirror{actor_id}`
-// and returned the touched program set) needs to come back here. It was
-// available on master as `block_touched_programs` and is the natural
-// primitive for MB-validation against "does this MB touch programs not
-// yet in the validator's known set?". If the equivalent now lives in
-// ethexe-malachite, this should be a no-op; otherwise port and use.
-
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Digest, ToDigest, ValidatorsVec,

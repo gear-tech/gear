@@ -43,7 +43,7 @@
 //! The RPC server is configured from [`RpcConfig`]. It provides the following configuration:
 //! - [`RpcConfig::listen_addr`] - the address of RPC server running on
 //! - [`RpcConfig::cors`] - the list of allowed CORS origins
-//! - [`RpcConfig::gas_allowance`] - the gas allowace for program reply calculation
+//! - [`RpcConfig::gas_allowance`] - the gas allowance for program reply calculation
 //! - [`RpcConfig::chunk_size`] - the amount of queue processing threads in message reply calculation.
 //! - [`RpcConfig::with_dev_api`] - flag to enable the development API (available only in development builds)
 
@@ -195,19 +195,10 @@ impl RpcService {
         }
     }
 
-    /// Feed a locally computed promise body into the RPC subscription
-    /// manager. If a matching compact signature has already arrived from
-    /// the network, the full [`SignedPromise`] is reconstructed and
-    /// dispatched to the subscriber.
     pub fn receive_computed_promise(&self, promise: Promise) {
         self.injected_api.on_computed_promise(promise);
     }
 
-    /// Feed a producer-signed compact promise into the RPC subscription
-    /// manager. If a matching local promise body has already been
-    /// computed, the full [`SignedPromise`] is reconstructed and
-    /// dispatched to the subscriber; otherwise the compact signature is
-    /// parked until the body lands.
     pub fn receive_compact_promise(&self, compact_promise: SignedCompactPromise) {
         self.injected_api.on_compact_promise(compact_promise);
     }

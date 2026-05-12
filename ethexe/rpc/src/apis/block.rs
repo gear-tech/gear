@@ -18,10 +18,7 @@
 
 use crate::{errors, utils};
 use ethexe_common::{
-    BlockHeader, SimpleBlockData,
-    db::{MbStorageRO, OnChainStorageRO},
-    events::BlockRequestEvent,
-    gear::StateTransition,
+    BlockHeader, SimpleBlockData, db::OnChainStorageRO, events::BlockRequestEvent,
 };
 use ethexe_db::Database;
 use gprimitives::H256;
@@ -38,9 +35,6 @@ pub trait Block {
 
     #[method(name = "block_events")]
     async fn block_events(&self, block_hash: Option<H256>) -> RpcResult<Vec<BlockRequestEvent>>;
-
-    #[method(name = "block_outcome")]
-    async fn block_outcome(&self, block_hash: Option<H256>) -> RpcResult<Vec<StateTransition>>;
 }
 
 #[derive(Clone)]
@@ -73,15 +67,5 @@ impl BlockServer for BlockApi {
                     .collect()
             })
             .ok_or_else(|| errors::db("Block events weren't found"))
-    }
-
-    async fn block_outcome(&self, _hash: Option<H256>) -> RpcResult<Vec<StateTransition>> {
-        // TODO: re-implement on MB — map an Ethereum block hash to the MB
-        // that was applied at that block. For now return the outcome of the
-        // most recently finalized MB regardless of `_hash`.
-        let mb_hash = utils::latest_finalized_mb(&self.db)?;
-        self.db
-            .mb_outcome(mb_hash)
-            .ok_or_else(|| errors::db("MB outcome wasn't found"))
     }
 }

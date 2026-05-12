@@ -475,7 +475,7 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Schedule,
-        db::{CompactMB, MbStorageRW},
+        db::{CompactMb, MbStorageRW},
         malachite::{ProcessQueuesLimits, Transaction, Transactions},
     };
     use ethexe_db::Database;
@@ -505,7 +505,7 @@ mod tests {
         let mb_hash = H256::from_low_u64_be(0x1000 + height);
         db.set_mb_compact_block(
             mb_hash,
-            CompactMB {
+            CompactMb {
                 parent: parent_mb,
                 height,
                 transactions_hash,
@@ -746,7 +746,7 @@ mod tests {
         let chain_b_root = H256::from_low_u64_be(0xB001);
         db.set_mb_compact_block(
             chain_b_root,
-            CompactMB {
+            CompactMb {
                 parent: H256::from_low_u64_be(0xB000), // unknown parent
                 height: 1,
                 transactions_hash: db.set_transactions(empty_txs(99)),
@@ -964,6 +964,8 @@ mod tests {
         assert_eq!(squashed[0].inheritor, ActorId::zero());
         assert_eq!(squashed[0].value_to_receive, 3);
     }
+
+    // _+_+_ return back test_squash_comprehensive (from master) adapted for MB
 
     /// Exit in a later block overrides an earlier exit's inheritor.
     #[test]

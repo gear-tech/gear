@@ -46,7 +46,7 @@ pub fn block_at_or_latest_synced(
 /// Returns the most recently finalized Malachite-block hash for serving
 /// MB-based RPC reads (program states, outcome, schedule).
 ///
-/// `None` (`H256::zero()`) is returned as an error — callers cannot serve
+/// `H256::zero()` is returned as an error — callers cannot serve
 /// a meaningful answer before any MB has been finalized.
 pub fn latest_finalized_mb(db: &Database) -> RpcResult<H256> {
     let hash = db.globals().latest_finalized_mb_hash;

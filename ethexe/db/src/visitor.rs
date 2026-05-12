@@ -19,7 +19,7 @@
 use crate::iterator::{DatabaseIterator, DatabaseIteratorError, DatabaseIteratorStorage, Node};
 use ethexe_common::{
     BlockHeader, ProgramStates, Schedule, ScheduledTask,
-    db::{BlockMeta, CompactMB, MbMeta},
+    db::{BlockMeta, CompactMb, MbMeta},
     events::BlockEvent,
     gear::StateTransition,
 };

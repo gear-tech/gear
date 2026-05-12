@@ -503,10 +503,6 @@ impl Service {
             None
         };
 
-        let processor_config = ProcessorConfig {
-            chunk_size: config.node.chunk_processing_threads,
-        };
-        let processor = Processor::with_config(processor_config, db.clone())?;
         // RPC-nodes always need promises so subscribers see replies;
         // pure validator/peer nodes leave it to consensus.
         let promises_mode = if rpc.is_some() {
@@ -514,6 +510,10 @@ impl Service {
         } else {
             PromiseEmissionMode::ConsensusDriven
         };
+        let processor_config = ProcessorConfig {
+            chunk_size: config.node.chunk_processing_threads,
+        };
+        let processor = Processor::with_config(processor_config, db.clone())?;
         let compute = ComputeService::with_promise_mode(db.clone(), processor, promises_mode);
 
         // Malachite consensus service.
@@ -598,6 +598,7 @@ impl Service {
         }
     }
 
+    // _+_+_: why async and Result added? remove them
     #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new_from_parts(

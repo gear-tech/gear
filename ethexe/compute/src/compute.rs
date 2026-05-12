@@ -18,7 +18,7 @@
 
 //! Per-MB execution sub-service.
 //!
-//! `compute_mb` walks the parent chain via [`CompactMB::parent`], runs any
+//! `compute_mb` walks the parent chain via [`CompactMb::parent`], runs any
 //! uncomputed ancestors oldest-first, then the target. DB layout:
 //! `mb_compact_block` (persisted by the service at finalize), `transactions`
 //! (CAS payload), `mb_meta` (`computed` flips here), and the per-MB program
@@ -27,7 +27,7 @@
 use crate::{ComputeError, ComputeEvent, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
     PromiseEmissionMode, PromisePolicy,
-    db::{CodesStorageRW, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
+    db::{CodesStorageRW, CompactMb, ConfigStorageRO, MbStorageRO, MbStorageRW, OnChainStorageRO},
     events::BlockRequestEvent,
     injected::Promise,
     malachite::{Transaction, Transactions},
@@ -56,13 +56,7 @@ pub(crate) struct MbComputeRequest {
     pub promise_policy: PromisePolicy,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct MbComputeOk {
-    mb_hash: H256,
-    height: u64,
-}
-
-type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<MbComputeOk>>>;
+type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<H256>>>;
 
 /// Metrics for the [`ComputeSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
@@ -145,101 +139,49 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         req: MbComputeRequest,
         promise_emission_mode: PromiseEmissionMode,
         promise_tx: mpsc::UnboundedSender<(H256, Promise)>,
-    ) -> Result<MbComputeOk> {
-        let target_hash = req.mb_hash;
-        let target_compact = db
-            .mb_compact_block(target_hash)
-            .ok_or(ComputeError::MbBlockNotFound(target_hash))?;
-        let target_height = target_compact.height;
+    ) -> Result<H256> {
+        let MbComputeRequest {
+            mb_hash: head_mb_hash,
+            promise_policy,
+        } = req;
 
         // Idempotent: if the target has already been computed (e.g.,
         // service queued it again after restart), there's nothing to
         // do — emit the completion event right away.
-        if db.mb_meta(target_hash).computed {
-            return Ok(MbComputeOk {
-                mb_hash: target_hash,
-                height: target_height,
-            });
+        if db.mb_meta(head_mb_hash).computed {
+            return Ok(head_mb_hash);
         }
 
-        // Walk back from the target via `mb_compact_block.parent`,
-        // collecting uncomputed predecessors. Linear heights mean
-        // each step simply decrements by 1. We stop at:
-        // - the genesis predecessor (parent is `H256::zero()`), or
-        // - the first computed ancestor (already done).
-        let predecessors = collect_uncomputed_predecessors(&db, target_hash, target_height)?;
+        let uncomputed_chain = collect_uncomputed_chain(&db, head_mb_hash)?;
 
-        if !predecessors.is_empty() {
-            log::info!(
-                "mb-compute: walking {} uncomputed predecessor(s) before MB height {} hash {}",
-                predecessors.len(),
-                target_height,
-                target_hash,
-            );
-            // Predecessors normally ran on a previous chain head and
-            // their replies were already gossiped — silence them under
-            // `ConsensusDriven` to avoid double-emit. Under
-            // `AlwaysEmit` (e.g. an RPC node catching up) we *want*
-            // every MB's promises so subscribers see the replies.
-            for (height, hash, txs) in predecessors {
-                let predecessor_sink = match promise_emission_mode {
-                    PromiseEmissionMode::AlwaysEmit => {
-                        Some(BoundPromiseSink::new(promise_tx.clone(), hash))
-                    }
-                    PromiseEmissionMode::ConsensusDriven => None,
-                };
-                Self::compute_one(&db, &mut processor, height, hash, txs, predecessor_sink).await?;
-            }
+        log::debug!("walking {} uncomputed MBs", uncomputed_chain.len());
+        for (mb_hash, compact_mb) in uncomputed_chain {
+            let predecessor_sink = match (promise_emission_mode, promise_policy) {
+                (PromiseEmissionMode::AlwaysEmit, _)
+                | (PromiseEmissionMode::ConsensusDriven, PromisePolicy::Enabled)
+                    if mb_hash == head_mb_hash =>
+                {
+                    Some(BoundPromiseSink::new(promise_tx.clone(), mb_hash))
+                }
+                _ => None,
+            };
+            Self::compute_one(&db, &mut processor, mb_hash, compact_mb, predecessor_sink).await?;
         }
 
-        let target_txs = db
-            .transactions(target_compact.transactions_hash)
-            .ok_or(ComputeError::MbBlockNotFound(target_hash))?;
-        let target_sink = match req.promise_policy {
-            PromisePolicy::Enabled => Some(BoundPromiseSink::new(promise_tx, target_hash)),
-            PromisePolicy::Disabled => None,
-        };
-        Self::compute_one(
-            &db,
-            &mut processor,
-            target_height,
-            target_hash,
-            target_txs,
-            target_sink,
-        )
-        .await?;
-
-        Ok(MbComputeOk {
-            mb_hash: target_hash,
-            height: target_height,
-        })
+        Ok(head_mb_hash)
     }
 
     async fn compute_one(
         db: &Database,
         processor: &mut P,
-        mb_height: u64,
         mb_hash: H256,
-        block: Transactions,
+        compact_mb: CompactMb,
         promise_sink: Option<BoundPromiseSink>,
     ) -> Result<()> {
-        let parent_mb_hash = db
-            .mb_compact_block(mb_hash)
-            .and_then(|c| (!c.parent.is_zero()).then_some(c.parent));
+        log::debug!("compute one MB: hash {mb_hash} {compact_mb}");
 
-        let _ = mb_height;
-        let prepared = prepare_executable_with_parent_state(db, block, parent_mb_hash)?;
-
-        log::debug!(
-            "mb-compute: executing MB height {mb_height} hash {mb_hash} \
-             (parent {parent_mb_hash:?}, eth height {}, eth ts {}, events: {}, injected: {})",
-            prepared.height,
-            prepared.timestamp,
-            prepared.events.len(),
-            prepared.injected_transactions.len(),
-        );
-
-        let processing_result = processor.process_programs(prepared, promise_sink).await?;
+        let executable = prepare_executable_for_mb(db, mb_hash, compact_mb)?;
+        let processing_result = processor.process_programs(executable, promise_sink).await?;
 
         let FinalizedBlockTransitions {
             transitions,
@@ -265,53 +207,55 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     }
 }
 
-/// Reconstruct the same [`ExecutableData`] the live `compute_mb` pipeline
-/// would feed to the processor for `mb_hash`. Resolves the parent MB's
-/// cached program states / schedule / `last_advanced_eb`, reads the MB's
-/// `Transactions` blob from CAS, and walks the transactions list to build
-/// the processor input. Genesis MBs use empty parent state.
-///
-/// Intended for offline tools that want to re-run an already-computed MB
-/// (e.g. `ethexe check --computation`); the live pipeline calls into the
-/// same internals directly.
-pub fn prepare_executable_for_mb(db: &Database, mb_hash: H256) -> Result<ExecutableData> {
-    let compact = db
-        .mb_compact_block(mb_hash)
-        .ok_or(ComputeError::MbBlockNotFound(mb_hash))?;
-    let block = db
-        .transactions(compact.transactions_hash)
-        .ok_or(ComputeError::MbBlockNotFound(mb_hash))?;
-    let parent_mb_hash = (!compact.parent.is_zero()).then_some(compact.parent);
-    prepare_executable_with_parent_state(db, block, parent_mb_hash)
+/// Builds executable data for a single MB, parent MB must be computed.
+pub fn prepare_executable_for_mb(
+    db: &Database,
+    mb_hash: H256,
+    compact_mb: CompactMb,
+) -> Result<ExecutableData> {
+    let CompactMb {
+        parent,
+        transactions_hash,
+        ..
+    } = compact_mb;
+
+    let mb_payload = db
+        .transactions(transactions_hash)
+        .ok_or(ComputeError::MbPayloadNotFound {
+            mb_hash,
+            payload_hash: transactions_hash,
+        })?;
+
+    let (program_states, schedule, initial_advanced_block) = if parent.is_zero() {
+        // Genesis MB has no parent, so start with empty states and the router's genesis block as the anchor.
+        (Default::default(), Default::default(), H256::zero())
+    } else {
+        let states = db
+            .mb_program_states(parent)
+            .ok_or(ComputeError::ParentMbStatesMissing(parent))?;
+        let schedule = db
+            .mb_schedule(parent)
+            .ok_or(ComputeError::ParentMbScheduleMissing(parent))?;
+        (states, schedule, db.mb_meta(parent).last_advanced_eb)
+    };
+
+    build_executable_data(
+        db,
+        mb_payload,
+        program_states,
+        schedule,
+        initial_advanced_block,
+    )
 }
 
-/// Builds executable data for a single MB given its parent (or `None` for
-/// genesis). Pulls parent's program states / schedule / `last_advanced_eb`
-/// from the DB before delegating to [`build_executable_data`].
-///
-/// Invariant: an MB cannot be computed before its ancestors, so when
-/// `parent_mb_hash` is set, the matching `mb_program_states` and
-/// `mb_schedule` rows MUST exist in the DB. A missing row is a hard
-/// inconsistency, not a recoverable empty-state case, and is surfaced
-/// as [`ComputeError::ParentMbStatesMissing`] / [`ComputeError::ParentMbScheduleMissing`].
-fn prepare_executable_with_parent_state(
-    db: &Database,
-    block: Transactions,
-    parent_mb_hash: Option<H256>,
-) -> Result<ExecutableData> {
-    let (program_states, schedule, initial_advanced_block) = if let Some(h) = parent_mb_hash {
-        let states = db
-            .mb_program_states(h)
-            .ok_or(ComputeError::ParentMbStatesMissing(h))?;
-        let schedule = db
-            .mb_schedule(h)
-            .ok_or(ComputeError::ParentMbScheduleMissing(h))?;
-        (states, schedule, db.mb_meta(h).last_advanced_eb)
-    } else {
-        (Default::default(), Default::default(), H256::zero())
-    };
-    build_executable_data(db, block, program_states, schedule, initial_advanced_block)
-}
+// _+_+_: BIG TASK for ethexe-compute and ethexe-processor:
+// executable data is constructed from MB transactions. But the ordering of transactions is not
+// provided in ExecutableData, this is not good. What should be done:
+// 1) Create special type of transaction, ProcessorTransaction
+// 2) Transaction::AdvanceTillEthereumBlock must be expanded to ProcessorTransaction::EthereumEvents { events }
+// 3) Transactions Injected, ProgressTasks and ProcessQueues must be mapped into same corresponding Processor variant
+// 4) height, timestamp, program_states, schedule stay as is
+// 5) injected_transactions, gas_allowance, events - replace with Vec<ProcessorTransaction>
 
 /// Walk the MB's `Transactions` list and prepare processor input.
 ///
@@ -320,7 +264,7 @@ fn prepare_executable_with_parent_state(
 /// genesis block from [`ConfigStorageRO::config`].
 fn build_executable_data(
     db: &Database,
-    block: Transactions,
+    transactions: Transactions,
     program_states: ethexe_common::ProgramStates,
     schedule: ethexe_common::Schedule,
     initial_advanced_block: H256,
@@ -330,7 +274,7 @@ fn build_executable_data(
     let mut gas_allowance: Option<u64> = None;
     let mut current_anchor = initial_advanced_block;
 
-    for tx in block.0 {
+    for tx in transactions.0 {
         match tx {
             Transaction::AdvanceTillEthereumBlock { block_hash } => {
                 let chain = collect_advance_chain(db, block_hash, current_anchor)?;
@@ -408,35 +352,22 @@ fn collect_advance_chain(db: &Database, target: H256, last_advanced: H256) -> Re
     Ok(chain)
 }
 
-/// Uncomputed ancestors of `target_hash`, oldest-first; stops at genesis or
-/// the first computed parent. Errors on missing parent (DB invariant).
-fn collect_uncomputed_predecessors(
+/// Collect a chain of uncomputed MBs, beginning from head `mb_hash`, oldest-first;
+/// Stops at the first computed ancestor or genesis (inclusive).
+/// Returns an error if any MB in the chain is missing from the DB.
+fn collect_uncomputed_chain(
     db: &Database,
-    target_hash: H256,
-    target_height: u64,
-) -> Result<VecDeque<(u64, H256, Transactions)>> {
+    head_mb_hash: H256,
+) -> Result<VecDeque<(H256, CompactMb)>> {
     let mut chain = VecDeque::new();
-    let mut current_parent = db
-        .mb_compact_block(target_hash)
-        .ok_or(ComputeError::MbBlockNotFound(target_hash))?
-        .parent;
-    let mut current_height = target_height.saturating_sub(1);
-
-    while !current_parent.is_zero() {
-        if db.mb_meta(current_parent).computed {
-            break;
-        }
-        let parent_compact = db
-            .mb_compact_block(current_parent)
-            .ok_or(ComputeError::MbBlockNotFound(current_parent))?;
-        let parent_txs = db
-            .transactions(parent_compact.transactions_hash)
-            .ok_or(ComputeError::MbBlockNotFound(current_parent))?;
-        chain.push_front((current_height, current_parent, parent_txs));
-        current_parent = parent_compact.parent;
-        current_height = current_height.saturating_sub(1);
+    let mut mb_hash = head_mb_hash;
+    while !mb_hash.is_zero() && !db.mb_meta(mb_hash).computed {
+        let compact_mb = db
+            .mb_compact_block(mb_hash)
+            .ok_or(ComputeError::MbCompactNotFound(mb_hash))?;
+        chain.push_front((mb_hash, compact_mb));
+        mb_hash = compact_mb.parent;
     }
-
     Ok(chain)
 }
 
@@ -500,10 +431,14 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                 .record((timing.busy() + timing.idle()).as_secs_f64());
 
             self.computation = None;
-            let event = result.map(|ok| ComputeEvent::MbComputed {
-                mb_hash: ok.mb_hash,
-                height: ok.height,
-            });
+            let event = match result {
+                Ok(mb_hash) => self
+                    .db
+                    .mb_compact_block(mb_hash)
+                    .map(|CompactMb { height, .. }| ComputeEvent::MbComputed { mb_hash, height })
+                    .ok_or(ComputeError::MbCompactNotFound(mb_hash)),
+                Err(e) => Err(e),
+            };
             if self.promises_stream.is_some() {
                 self.pending_event = Some(event);
                 return Poll::Pending;
@@ -517,11 +452,13 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 
 #[cfg(test)]
 mod tests {
+    // _+_+_: some tests from master has been removed - investigate which one can be adapted to the new MB-driven compute path and re-add them here.
+
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
         BlockHeader,
-        db::{CompactMB, OnChainStorageRW},
+        db::{CompactMb, OnChainStorageRW},
         malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction},
     };
 
@@ -553,12 +490,12 @@ mod tests {
         ])
     }
 
-    /// Mimics malachite `save_block`: CAS write + `CompactMB`.
+    /// Mimics malachite `save_block`: CAS write + `CompactMb`.
     fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, txs: Transactions) {
         let transactions_hash = db.set_transactions(txs);
         db.set_mb_compact_block(
             mb_hash,
-            CompactMB {
+            CompactMb {
                 parent,
                 height,
                 transactions_hash,
@@ -570,6 +507,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(5000)]
     async fn walks_uncomputed_predecessors() {
+        gear_utils::init_default_logger();
+
         let db = Database::memory();
         let processor = MockProcessor::default();
         let mut sub = ComputeSubService::new(db.clone(), processor);

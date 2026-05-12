@@ -992,6 +992,7 @@ async fn value_send_program_to_user_and_claimed() {
 async fn value_send_program_to_user_and_replied() {
     init_logger();
 
+    // _+_+_: use TestEnv::default() here and in other places where it can be applied
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
     let mut node = env
@@ -1127,11 +1128,6 @@ async fn value_send_program_to_user_and_replied() {
     stop_nodes([node]).await;
 }
 
-/// Repeated outgoing transitions for the same actor must be squashed into a
-/// single transition (with all messages preserved) in the on-chain
-/// `ChainCommitment`. Stop the node, queue two PINGs, skip past the commitment
-/// delay window, restart — both PINGs land in one MB and squash to one
-/// transition with two PONG replies.
 #[tokio::test]
 #[ntest::timeout(60_000)]
 async fn batch_commitment_squashes_repeated_ping_transitions() {

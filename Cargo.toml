@@ -348,7 +348,6 @@ libp2p-identity = { version = "0.2", default-features = false, features = ["secp
 # `links = "rocksdb"` crate may live in the dependency graph.
 rocksdb = { version = "0.21", default-features = false, features = ["snappy"] }
 
-# +_+_+ use malachite from creates.io instead of git deps
 # Malachite BFT engine — canonical fork at circlefin/malachite, pinned so
 # all sub-crates share the same snapshot.
 malachitebft-app-channel     = { package = "arc-malachitebft-app-channel",    git = "https://github.com/circlefin/malachite", rev = "1fe7961aca933cefad8e4d9a52f50eda565288e7" }

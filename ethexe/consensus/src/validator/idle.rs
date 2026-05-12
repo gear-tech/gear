@@ -51,6 +51,7 @@ pub struct Idle {
     state: SubState,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum SubState {
     /// Waiting for `receive_new_chain_head`.
@@ -185,3 +186,5 @@ impl Idle {
         }
     }
 }
+
+// _+_+_ append tests for idle state

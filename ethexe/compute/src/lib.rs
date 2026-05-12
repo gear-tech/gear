@@ -81,7 +81,7 @@
 //! For every MB hash submitted through [`ComputeService::compute_mb`] the
 //! stream yields one [`ComputeEvent::MbComputed`] once the MB and any
 //! uncomputed ancestor MBs have been executed. Compute walks the parent
-//! chain via [`ethexe_common::db::CompactMB::parent`] until it reaches
+//! chain via [`ethexe_common::db::CompactMb::parent`] until it reaches
 //! a computed ancestor (or genesis), then runs the executor over the
 //! [`ethexe_common::malachite::Transactions`] payload of each. Per-step gas
 //! budget is carried inside each `Transaction::ProcessQueues` payload
@@ -102,7 +102,7 @@
 //!   corresponding `CodeProcessed` is emitted upstream, otherwise a
 //!   block waiting on that code will stall for an extra poll.
 //! - `compute_mb` must only be called once the malachite service has
-//!   recorded the matching `CompactMB` + transactions blob. The
+//!   recorded the matching `CompactMb` + transactions blob. The
 //!   service layer enforces this by gating event emission inside
 //!   [`MalachiteService::receive_new_chain_head`](ethexe_malachite::MalachiteService::receive_new_chain_head).
 
@@ -135,28 +135,12 @@ pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    /// A Malachite sequencer block has been executed and its
-    /// post-execution state persisted to the DB. Indexed by the
-    /// consensus envelope hash (Blake2b over
-    /// `ethexe_malachite_core::Block`).
+    // _+_+_: the `height` here is redundant, remove it. remove unwrap ignore too after that
     #[unwrap(ignore)]
     MbComputed {
         mb_hash: H256,
         height: u64,
     },
-    /// Reply promise emitted by the runtime mid-MB, *before*
-    /// `MbComputed` fires. Streamed one-by-one via the per-MB
-    /// promise channel so the service can sign and gossip each
-    /// `SignedPromise` immediately — the cumulative gas budget for
-    /// a full MB ranges into seconds, but a single dispatch's reply
-    /// usually lands in milliseconds, and the on-chain block-time
-    /// floor is the only latency the loader's subscription should
-    /// observe.
-    ///
-    /// `mb_hash` identifies the MB whose execution produced the
-    /// promise; non-validator nodes can use it to drop promises
-    /// that don't match the MB they're tracking, but the producer
-    /// just signs and publishes regardless.
     Promise(Promise, H256),
 }
 
@@ -183,15 +167,10 @@ pub enum ComputeError {
         previous_commitment_era_index: u64,
         commitment_era_index: u64,
     },
-    #[error("MB block {0} not found in db while walking parent chain")]
-    MbBlockNotFound(H256),
-
-    // `mb computed` implies that the MB and every one of its ancestors back
-    // to genesis are also computed; the matching `mb_program_states`,
-    // `mb_schedule` and `mb_meta` rows therefore MUST be present when the
-    // parent MB is referenced. A missing row here means DB corruption /
-    // inconsistency rather than a recoverable state — surface it as a hard
-    // error instead of silently degrading to an empty world.
+    #[error("MB payload {payload_hash} not found for mb {mb_hash}")]
+    MbPayloadNotFound { mb_hash: H256, payload_hash: H256 },
+    #[error("MB {0} CompactMb is missing")]
+    MbCompactNotFound(H256),
     #[error("parent MB {0} marked computed but program_states row missing")]
     ParentMbStatesMissing(H256),
     #[error("parent MB {0} marked computed but schedule row missing")]
@@ -200,10 +179,8 @@ pub enum ComputeError {
     AdvanceBlockEventsMissing(H256),
     #[error("anchor Eth block header missing for {0}")]
     AnchorBlockHeaderMissing(H256),
-
     #[error("AdvanceTillEthereumBlock walk hit a missing parent header at {hash}")]
     AdvanceMissingHeader { hash: H256 },
-
     #[error(
         "AdvanceTillEthereumBlock walk from {target} to {last_advanced} exceeded the safety cap"
     )]
@@ -216,7 +193,7 @@ pub enum ComputeError {
 type Result<T> = std::result::Result<T, ComputeError>;
 
 pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
-    /// Run the processor's three-phase pipeline against `executable`.
+    /// Run the processor's pipeline against `executable`.
     fn process_programs(
         &mut self,
         executable: ExecutableData,

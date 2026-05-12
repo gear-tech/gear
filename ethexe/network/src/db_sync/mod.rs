@@ -329,6 +329,7 @@ impl Handle {
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub(crate) struct InnerProgramIdsRequest {
+    // _+_+_: use `HashOf<MB>` instead of raw H256 for better readability and type safety
     at: H256,
 }
 
@@ -1194,6 +1195,7 @@ pub(crate) mod tests {
             .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
 
+        // _+_+_: do this TODO, looks like ProgramIds already adapted for MB
         // TODO: re-implement on MB — populate the responder DB with program states.
         Response::ProgramIds(std::iter::zip(program_ids, code_ids).collect())
     }

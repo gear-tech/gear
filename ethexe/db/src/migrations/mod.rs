@@ -33,24 +33,10 @@ mod migration;
 
 mod v5;
 
-/// Oldest on-disk schema version this binary still knows how to upgrade
-/// from. Databases below this must be wiped and re-initialised.
 pub const OLDEST_SUPPORTED_VERSION: u32 = v5::VERSION;
 
-/// Latest on-disk schema version. The [`migrate`] driver applies each
-/// step in [`MIGRATIONS`] until an on-disk database reaches this value.
 pub const LATEST_VERSION: u32 = v5::VERSION;
 
-/// Ordered list of in-tree migrations. Each entry's `source_version`
-/// must equal the previous entry's `source_version + 1` so the
-/// upgrade walk is a contiguous chain from [`OLDEST_SUPPORTED_VERSION`]
-/// up to [`LATEST_VERSION`].
-///
-/// Empty for now — the v1/v2/... migrations that used to live here
-/// were dropped because no live database is still on those versions
-/// and they were the only callers of removed APIs. New steps land here
-/// when a future schema bump (e.g. `v6`) introduces incompatible
-/// changes.
 pub const MIGRATIONS: &[&dyn Migration] = &[];
 
 const _: () = assert!(

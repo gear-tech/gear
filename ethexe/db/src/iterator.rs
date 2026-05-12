@@ -20,7 +20,7 @@ use ethexe_common::{
     BlockHeader, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
     StateHashWithQueueSize,
     db::{
-        BlockMeta, BlockMetaStorageRO, CodesStorageRO, CompactMB, MbMeta, MbStorageRO,
+        BlockMeta, BlockMetaStorageRO, CodesStorageRO, CompactMb, MbMeta, MbStorageRO,
         OnChainStorageRO,
     },
     events::BlockEvent,
@@ -169,7 +169,7 @@ node! {
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct MbNode {
                 pub mb_hash: H256,
-                pub mb: CompactMB,
+                pub mb: CompactMb,
             }
         ),
         MbMeta(

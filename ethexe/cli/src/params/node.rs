@@ -33,15 +33,12 @@ use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;
 
+// TODO +_+_+: this is currently `0`, but must be tuned based on empirical observations.
 /// Default delay before the coordinator starts aggregating a batch
 /// commitment, in milliseconds.
-///
-/// TODO +_+_+: this is currently `0`, but the docstring above used to
-/// claim ~1.5s as the "balance between giving participants time to
-/// catch up and not stalling on-chain commitment turnaround." The
-/// smoke tests still wire `1500`, so production should probably move
-/// back to a non-zero default. Revisit and pick a final value.
 const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 0;
+
+/// Default threshold for the coordinator to force a checkpoint commitment when the uncommitted chain gets too long.
 const DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD: u32 = 500;
 
 #[static_init::dynamic(drop, lazy)]

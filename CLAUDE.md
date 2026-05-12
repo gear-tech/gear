@@ -351,6 +351,7 @@ Errors are encoded as little-endian u32. Code `0xffff` is reserved for SyscallUs
 - `cargo nextest` is the test runner (not `cargo test`), except for doc tests
 - `cargo hakari` manages workspace dependency deduplication — run `make workspace-hack` after dependency changes
 
+// _+_+_: simplify text you added in this branch. Do not use tables
 ### Test Timeouts
 
 Hard rule: **never set a test timeout above 2 minutes (`120_000` ms) without the user's explicit permission.** When a test legitimately needs more — either modernize it to fit under 2 minutes (mock heavy I/O, shrink the simulated chain, drive events explicitly instead of waiting on wall-clock pacing), or stop and ask the user before bumping the cap. A timeout is a symptom; the fix is the test logic, not the limit.

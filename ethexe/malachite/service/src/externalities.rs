@@ -44,7 +44,7 @@
 //! All MB-keyed storage in the ethexe DB is keyed by the
 //! `ethexe_malachite_core::Block` envelope hash (Blake2b over
 //! `(parent_hash, height, payload_hash, reserved)`).
-//! [`EthexeExternalities::save_block`] writes a [`CompactMB`] under
+//! [`EthexeExternalities::save_block`] writes a [`CompactMb`] under
 //! that key (carrying parent + height + the Blake2b hash of the
 //! [`Transactions`] payload) and CAS-stores the `Transactions` blob;
 //! [`EthexeExternalities::mark_block_as_finalized`] reads both back
@@ -60,7 +60,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     SimpleBlockData,
     db::{
-        CompactMB, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRO,
+        CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRO,
     },
     injected::SignedInjectedTransaction,
     malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
@@ -127,8 +127,8 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
     ) -> Result<()> {
         // The DB is keyed by the consensus envelope hash (Blake2b
         // over `Block`), passed in `block_hash`. Parent linkage lives
-        // in [`CompactMB::parent`]; the transactions list itself
-        // lives in CAS keyed by [`CompactMB::transactions_hash`].
+        // in [`CompactMb::parent`]; the transactions list itself
+        // lives in CAS keyed by [`CompactMb::transactions_hash`].
         let parent = block.parent_hash;
         let payload = block.payload;
 
@@ -150,12 +150,12 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             .unwrap_or(parent_advanced);
 
         // CAS-store transactions first so the contract — "if
-        // CompactMB exists, transactions are reachable" — holds
+        // CompactMb exists, transactions are reachable" — holds
         // unconditionally.
         let transactions_hash = self.db.set_transactions(payload.clone());
         self.db.set_mb_compact_block(
             block_hash,
-            CompactMB {
+            CompactMb {
                 parent,
                 height: block.height,
                 transactions_hash,
@@ -163,10 +163,6 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         );
         self.db.mutate_mb_meta(block_hash, |meta| {
             meta.last_advanced_eb = last_advanced;
-            // ethexe-malachite-core's ancestor-first ordering means
-            // the chain back to genesis is intact by the time
-            // `save_block` fires.
-            meta.synced = true;
         });
 
         self.try_emit_or_queue(
@@ -185,7 +181,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         cert: ethexe_malachite_core::CommitCertificate,
     ) -> Result<()> {
         let compact = self.db.mb_compact_block(block_hash).ok_or_else(|| {
-            anyhow!("mark_finalized: no CompactMB for {block_hash} (save_block must run first)")
+            anyhow!("mark_finalized: no CompactMb for {block_hash} (save_block must run first)")
         })?;
         let payload = self
             .db
@@ -643,15 +639,13 @@ mod tests {
         let mb_hash = block.hash();
         ext.save_block(mb_hash, block).await.unwrap();
 
-        let compact = db.mb_compact_block(mb_hash).expect("CompactMB saved");
+        let compact = db.mb_compact_block(mb_hash).expect("CompactMb saved");
         assert_eq!(compact.height, 1);
         assert_eq!(compact.parent, H256::zero());
         let txs = db
             .transactions(compact.transactions_hash)
             .expect("transactions in CAS");
         assert_eq!(txs, p);
-        let meta = db.mb_meta(mb_hash);
-        assert!(meta.synced);
 
         match rx.try_recv().expect("event").expect("ok") {
             MalachiteEvent::BlockProposal { height, block_hash } => {
@@ -666,7 +660,7 @@ mod tests {
         assert!(db.globals().latest_finalized_mb_hash.is_zero());
     }
 
-    /// `mark_block_as_finalized` reads the [`CompactMB`] +
+    /// `mark_block_as_finalized` reads the [`CompactMb`] +
     /// transactions blob keyed by the consensus envelope hash,
     /// advances `globals.latest_finalized_mb_hash`, and emits a
     /// `BlockFinalized`.
@@ -702,7 +696,7 @@ mod tests {
 
     /// Crash-recovery: build externalities A on a fresh DB, save +
     /// finalize K MBs, drop A, build externalities B on the same DB.
-    /// B sees the persisted globals and `CompactMB` chain; the
+    /// B sees the persisted globals and `CompactMb` chain; the
     /// next `save_block` correctly chains off the previous head.
     #[tokio::test]
     async fn restart_continues_from_persisted_chain() {

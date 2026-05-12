@@ -98,12 +98,6 @@ impl InBlockTransitions {
     /// Drain every scheduled task whose deadline is at or before
     /// `block_height` and return them in chronological order
     /// (oldest height first; within a height, BTreeSet `Ord`).
-    ///
-    /// Under the MB-driven model a single MB can advance through many
-    /// Eth heights at once, so a task scheduled for height 100 must
-    /// still fire when the MB is being run at height 134. This function
-    /// also drains *future-of-the-original-anchor / past-of-the-current*
-    /// gaps left by previous MBs that stopped short.
     pub fn take_actual_tasks(&mut self) -> Vec<ScheduledTask> {
         let cutoff = self.block_height.saturating_add(1);
         let kept = self.schedule.split_off(&cutoff);

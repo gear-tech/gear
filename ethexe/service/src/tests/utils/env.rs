@@ -549,7 +549,7 @@ impl TestEnv {
         }
     }
 
-    // TODO: rework `TestEnv::new` to accept all era validator sets
+    // TODO: +_+_+ rework `TestEnv::new` to accept all era validator sets
     // up front so callers don't need this mid-test extension.
     /// Pre-allocate malachite endpoints for an *additional* validator set
     /// (e.g. the "next" set in an era handover test) and merge them into
@@ -637,6 +637,8 @@ impl TestEnv {
                 .await
         }?;
 
+        // _+_+_: remove here and in other places. Because kicks are controlled by env and receiver already has them enabled,
+        // with_kicks function is for using in tests body, when test creator wanna to disable or enable kicks in a specific place of test.
         Ok(WaitForProgramCreation {
             receiver,
             program_id,

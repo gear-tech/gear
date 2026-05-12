@@ -1047,6 +1047,7 @@ mod tests {
         assert_matches!(event, NetworkEvent::PeerBlocked(peer_id) if peer_id == service2_peer_id);
     }
 
+    // _+_+_ re-enable and adapt for MB
     #[tokio::test]
     #[ignore = "ProgramIds db-sync needs to be re-implemented on MB program states"]
     async fn external_data_provider() {

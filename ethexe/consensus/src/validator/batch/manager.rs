@@ -88,7 +88,7 @@ impl BatchCommitmentManager {
                 // finalized MBs are immutable, this contaminates every future
                 // commitment until Eth reverts; refuse to submit anything.
                 //
-                // TODO: implement bad-block compensation that reverts/recovers
+                // TODO: +_+_+ implement bad-block compensation that reverts/recovers
                 // from a stale finalized advance instead of stalling.
                 tracing::error!(
                     %latest_finalized_mb,
@@ -250,7 +250,6 @@ impl BatchCommitmentManager {
                     %head_mb,
                     %latest_finalized_mb,
                     head_computed = head_meta.computed,
-                    head_synced = head_meta.synced,
                     "manager: rejecting batch — head_mb not yet finalized locally",
                 );
                 return Ok(ValidationStatus::Rejected {
