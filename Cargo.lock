@@ -5642,6 +5642,7 @@ dependencies = [
  "ethexe-db",
  "ethexe-processor",
  "ethexe-runtime-common",
+ "future-timing",
  "futures",
  "gear-core",
  "gear-utils",

@@ -25,6 +25,7 @@ gear-workspace-hack.workspace = true
 # metrics
 metrics.workspace = true
 metrics-derive.workspace = true
+future-timing.workspace = true
 
 [dev-dependencies]
 gear-core.workspace = true

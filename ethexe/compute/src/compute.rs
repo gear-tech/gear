@@ -62,7 +62,15 @@ struct MbComputeOk {
     height: u64,
 }
 
-type ComputationFuture = BoxFuture<'static, Result<MbComputeOk>>;
+type ComputationFuture = future_timing::Timed<BoxFuture<'static, Result<MbComputeOk>>>;
+
+/// Metrics for the [`ComputeSubService`].
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute_compute")]
+struct Metrics {
+    /// The latency of MB execution in seconds represented as f64.
+    mb_processing_latency: metrics::Histogram,
+}
 
 /// Streams `ComputeEvent::Promise`s from the executor's per-MB channel; closes
 /// when every sender (incl. thread-local ones) is dropped at compute end.
@@ -92,6 +100,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
     /// keeps predecessors silent (their promises were already gossiped
     /// by the producer at the time).
     promise_emission_mode: PromiseEmissionMode,
+    metrics: Metrics,
 
     input: VecDeque<MbComputeRequest>,
     computation: Option<ComputationFuture>,
@@ -115,6 +124,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             db,
             processor,
             promise_emission_mode,
+            metrics: Metrics::default(),
             input: VecDeque::new(),
             computation: None,
             promises_stream: None,
@@ -442,7 +452,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
         {
             let (sender, receiver) = mpsc::unbounded_channel();
             self.promises_stream = Some(MbPromisesStream { receiver });
-            self.computation = Some(
+            self.computation = Some(future_timing::timed(
                 Self::compute(
                     self.db.clone(),
                     self.processor.clone(),
@@ -451,7 +461,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                     sender,
                 )
                 .boxed(),
-            );
+            ));
         }
 
         // (2) Forward streaming promises before anything else so the
@@ -482,8 +492,13 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
         // `MbComputed` back if the promise stream still has buffered
         // sends — preserves "all promises before MbComputed" ordering.
         if let Some(ref mut computation) = self.computation
-            && let Poll::Ready(result) = computation.poll_unpin(cx)
+            && let Poll::Ready(timing_result) = computation.poll_unpin(cx)
         {
+            let (timing, result) = timing_result.into_parts();
+            self.metrics
+                .mb_processing_latency
+                .record((timing.busy() + timing.idle()).as_secs_f64());
+
             self.computation = None;
             let event = result.map(|ok| ComputeEvent::MbComputed {
                 mb_hash: ok.mb_hash,
