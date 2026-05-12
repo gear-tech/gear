@@ -210,11 +210,8 @@ pub struct DBConfig {
 #[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct DBGlobals {
     pub start_block_hash: H256,
-
     pub latest_synced_eb: SimpleBlockData,
-
     pub latest_prepared_eb_hash: H256,
-
     /// Hash of the most recent Malachite sequencer block this node
     /// has seen finalized. `H256::zero()` means no MB has ever been
     /// finalized. Updated on every `MalachiteEvent::BlockFinalized`.

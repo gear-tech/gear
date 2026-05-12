@@ -20,7 +20,7 @@
 
 pub(crate) mod utils;
 
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use crate::tests::utils::{
     EnvNetworkConfig, InfiniteStreamExt, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
@@ -32,15 +32,19 @@ use alloy::{
 };
 use ethexe_common::{
     db::{CodesStorageRO, GlobalsStorageRO, InjectedStorageRO, MbStorageRO, OnChainStorageRO},
+    ecdsa::ContractSignature,
     events::{
         BlockEvent, MirrorEvent,
         mirror::{MessageEvent, ReplyEvent},
     },
+    gear::BatchCommitment,
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
 };
-use ethexe_ethereum::TryGetReceipt;
+use ethexe_consensus::BatchCommitter;
+use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
 use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::Storage;
+use futures::StreamExt;
 use gear_core::{
     ids::prelude::MessageIdExt,
     message::{ReplyCode, SuccessReplyReason},
@@ -49,8 +53,33 @@ use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailable
 use gprimitives::{ActorId, H160, H256, MessageId};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
+use tokio::sync::Mutex;
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
+
+#[derive(Clone)]
+struct RecordingCommitter {
+    router: Router,
+    committed_batches: Arc<Mutex<Vec<BatchCommitment>>>,
+}
+
+#[async_trait::async_trait]
+impl BatchCommitter for RecordingCommitter {
+    fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+        Box::new(self.clone())
+    }
+
+    async fn commit(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> anyhow::Result<H256> {
+        self.committed_batches.lock().await.push(batch.clone());
+        Box::new(self.router.clone())
+            .commit(batch, signatures)
+            .await
+    }
+}
 
 #[tokio::test]
 #[ntest::timeout(30_000)]
@@ -373,11 +402,11 @@ async fn uninitialized_program() {
             .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id);
 
-        let mut filtered = receiver.clone().filter_map_block_synced();
-        let mut msgs_for_reply: Vec<_> = Vec::with_capacity(3);
-        while msgs_for_reply.len() < 3 {
-            let mid = filtered
-                .find_map(|event| match event {
+        let msgs_for_reply: Vec<_> = receiver
+            .clone()
+            .filter_map_block_synced()
+            .filter_map(|event| async move {
+                match event {
                     BlockEvent::Mirror {
                         actor_id,
                         event:
@@ -388,10 +417,11 @@ async fn uninitialized_program() {
                         Some(id)
                     }
                     _ => None,
-                })
-                .await;
-            msgs_for_reply.push(mid);
-        }
+                }
+            })
+            .take(3)
+            .collect()
+            .await;
 
         // Handle message to uninitialized program.
         let res = env
@@ -1109,37 +1139,7 @@ async fn batch_commitment_squashes_repeated_ping_transitions() {
 
     let mut env = TestEnv::default().await;
 
-    use ethexe_common::{ecdsa::ContractSignature, gear::BatchCommitment};
-    use ethexe_consensus::BatchCommitter;
-    use ethexe_ethereum::{EthereumBuilder, router::Router};
-    use std::sync::Arc;
-    use tokio::sync::Mutex as TokioMutex;
-
-    #[derive(Clone)]
-    struct RecordingCommitter {
-        router: Router,
-        committed_batches: Arc<TokioMutex<Vec<BatchCommitment>>>,
-    }
-
-    #[async_trait::async_trait]
-    impl BatchCommitter for RecordingCommitter {
-        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
-            Box::new(self.clone())
-        }
-
-        async fn commit(
-            self: Box<Self>,
-            batch: BatchCommitment,
-            signatures: Vec<ContractSignature>,
-        ) -> anyhow::Result<H256> {
-            self.committed_batches.lock().await.push(batch.clone());
-            Box::new(self.router.clone())
-                .commit(batch, signatures)
-                .await
-        }
-    }
-
-    let committed_batches = Arc::new(TokioMutex::new(Vec::new()));
+    let committed_batches = Arc::new(Mutex::new(Vec::new()));
     let recording_committer = RecordingCommitter {
         router: EthereumBuilder::default()
             .rpc_url(&env.eth_cfg.rpc)
@@ -2739,11 +2739,9 @@ async fn value_send_delayed() {
 #[tokio::test]
 #[ntest::timeout(60_000)]
 async fn injected_tx_fungible_token() {
-    use crate::tests::utils::TestingEvent as TE;
-    use ethexe_common::events::{RouterEvent, mirror::StateChangedEvent};
-    use ethexe_compute::ComputeEvent as ComputeEv;
+    use ethexe_common::events::mirror::StateChangedEvent;
+    use ethexe_compute::ComputeEvent;
     use ethexe_observer::ObserverEvent;
-    let _ = (RouterEvent::BatchCommitted, |_: ()| {});
 
     init_logger();
 
@@ -2810,8 +2808,14 @@ async fn injected_tx_fungible_token() {
         init_reply.code,
         ReplyCode::Success(SuccessReplyReason::Auto)
     );
-    assert!(init_reply.payload.is_empty());
+    assert!(
+        init_reply.payload.is_empty(),
+        "Expect empty payload, because of initializing Fungible Token returns nothing"
+    );
 
+    tracing::info!("✅ Fungible token successfully initialized");
+
+    // 4. Try minting some tokens
     let amount: u128 = 5_000_000_000;
     let mint_action = demo_fungible_token::FTAction::Mint(amount);
 
@@ -2842,21 +2846,24 @@ async fn injected_tx_fungible_token() {
         amount,
     };
 
+    // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TE::Compute(ComputeEv::Promise(promise, _)) = event {
+            if let TestingEvent::Compute(ComputeEvent::Promise(promise, _)) = event {
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
                     ReplyCode::Success(SuccessReplyReason::Manual)
                 );
                 assert_eq!(promise.reply.value, 0);
+
                 true
             } else {
                 false
             }
         })
         .await;
+    tracing::info!("✅ Tokens mint successfully");
 
     let subscription_promise = subscription
         .next()
@@ -2877,10 +2884,11 @@ async fn injected_tx_fungible_token() {
     let db = node.db.clone();
     node.events()
         .find(|event| {
-            if let TE::Observer(ObserverEvent::BlockSynced(synced_block)) = event {
+            if let TestingEvent::Observer(ObserverEvent::BlockSynced(synced_block)) = event {
                 let Some(block_events) = db.block_events(*synced_block) else {
                     return false;
                 };
+
                 for block_event in block_events {
                     if let BlockEvent::Mirror {
                         actor_id,
@@ -2888,7 +2896,7 @@ async fn injected_tx_fungible_token() {
                     } = block_event
                         && actor_id == mint_tx.destination
                     {
-                        let state = db.program_state(state_hash).expect("state should exist");
+                        let state = db.program_state(state_hash).expect("state should be exist");
                         assert_eq!(state.balance, 0);
                         assert_eq!(state.injected_queue.cached_queue_size, 0);
                         assert_eq!(state.canonical_queue.cached_queue_size, 0);
@@ -2896,10 +2904,13 @@ async fn injected_tx_fungible_token() {
                     }
                 }
             }
+
             false
         })
         .await;
+    tracing::info!("✅ State successfully changed on Ethereum");
 
+    // 5. Transfer some token and wait for promise.
     let random_actor = ActorId::new(H256::random().0);
     let transfer_amount = 100_000;
     let transfer_action = demo_fungible_token::FTAction::Transfer {
@@ -2949,10 +2960,13 @@ async fn injected_tx_fungible_token() {
     assert_eq!(promise.reply.payload, expected_payload.encode());
     assert_eq!(promise.reply.value, 0);
 
+    // Check unsubscribe from subscription
     subscription
         .unsubscribe()
         .await
         .expect("successfully unsubscribe for promise");
+
+    tracing::info!("✅ Promise successfully received from RPC subscription");
 
     stop_nodes([node]).await;
 }

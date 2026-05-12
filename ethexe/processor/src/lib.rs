@@ -26,11 +26,10 @@
 //! API to:
 //!
 //! - validate and instrument Gear WASM code blobs,
-//! - execute a Malachite sequencer block (MB) — stepping through its
-//!   `Transactions` list, routing [`BlockRequestEvent`]s into program
-//!   state mutations, appending [`InjectedTransaction`]s to program
-//!   queues, running scheduled tasks, and draining program message
-//!   queues until gas or other limits are exhausted,
+//! - execute an ethexe block (announce) — routing [`BlockRequestEvent`]s
+//!   into program state mutations, appending [`InjectedTransaction`]s to
+//!   program queues, running scheduled tasks, and draining program
+//!   message queues until gas or other limits are exhausted,
 //! - simulate a single message against a copy-on-write view of the
 //!   database without committing anything, for RPC reply queries.
 //!
@@ -53,14 +52,14 @@
 //!
 //! ## Entry points
 //!
-//! | Method                                    | Purpose                                                                       |
-//! |-------------------------------------------|-------------------------------------------------------------------------------|
-//! | [`Processor::process_code`]               | Validate + instrument a WASM blob. Synchronous, does not touch the DB.        |
-//! | [`Processor::process_programs`]           | Execute an MB by walking its `Transactions` list (compute's primary entry).   |
-//! | [`Processor::overlaid`]                   | Wrap `self` into an [`OverlaidProcessor`] backed by an overlaid DB.           |
-//! | [`OverlaidProcessor::execute_for_reply`]  | Simulate a single incoming message and return the reply.                      |
+//! | Method                                    | Purpose                                                                 |
+//! |-------------------------------------------|-------------------------------------------------------------------------|
+//! | [`Processor::process_code`]               | Validate + instrument a WASM blob. Synchronous, does not touch the DB.  |
+//! | [`Processor::process_programs`]           | Execute an ethexe block: events → tasks → queues. Main async workflow.  |
+//! | [`Processor::overlaid`]                   | Wrap `self` into an [`OverlaidProcessor`] backed by an overlaid DB.     |
+//! | [`OverlaidProcessor::execute_for_reply`]  | Simulate a single incoming message and return the reply.                |
 //!
-//! ## `process_programs` contract (tests-only)
+//! ## `process_programs` contract
 //!
 //! Given an [`ExecutableData`] (block header, program states, schedule,
 //! injected transactions, block request events, and optional gas

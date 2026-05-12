@@ -16,22 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! [`BoundPromiseSink`] — a producer-side wrapper around
-//! [`tokio::sync::mpsc::UnboundedSender`] that automatically tags every
-//! promise it sends with the MB hash the executor is currently working
-//! on. The receiver side gets a stream of `(mb_hash, promise)` and
-//! never has to thread the binding through the processor itself.
-
 use ethexe_common::injected::Promise;
 use gprimitives::H256;
 use tokio::sync::mpsc::{UnboundedSender, error::SendError};
 
 type SinkEvent = (H256, Promise);
 
-/// Wrapper on top of [`UnboundedSender`] that pre-binds every send to
-/// a single MB hash. Cloning the sink shares the same channel and
-/// binding — used by the processor's worker threads, which all emit
-/// promises for the same MB.
+/// Wrapper on top of [tokio::sync::mpsc::UnboundedSender].
+/// [BoundPromiseSink] is responsible for sending the promises with
+/// MB hash it belongs to.
 #[derive(Clone)]
 pub struct BoundPromiseSink {
     sender: UnboundedSender<SinkEvent>,
@@ -39,14 +32,13 @@ pub struct BoundPromiseSink {
 }
 
 impl BoundPromiseSink {
-    /// Create a new sink bound to `mb_hash`.
+    /// Creates new instance of [BoundPromiseSink].
     pub fn new(sender: UnboundedSender<SinkEvent>, mb_hash: H256) -> Self {
         Self { sender, mb_hash }
     }
 
-    /// Send a `Promise`, automatically tagging it with the bound MB
-    /// hash. The error path returns the original promise so callers
-    /// can inspect it without re-stripping the tag.
+    /// Sends [Promise] to outer service.
+    /// Internally wraps result into `(H256, Promise)`.
     pub fn send(&self, promise: Promise) -> Result<(), SendError<Promise>> {
         let event = (self.mb_hash, promise);
         self.sender.send(event).map_err(|err| SendError(err.0.1))

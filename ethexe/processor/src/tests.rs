@@ -1546,6 +1546,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .await
         .expect("promise for injected transaction")
         .1;
+
     assert_eq!(panic_promise.tx_hash, panic_tx.to_hash());
     assert_eq!(panic_promise.reply.value, 0);
     assert_eq!(
@@ -1793,7 +1794,6 @@ async fn injected_and_events_then_tasks_then_queues() {
 
     let executable = ExecutableData {
         height: block1.header.height,
-
         timestamp: block1.header.timestamp,
         events: create_and_init_events,
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
@@ -1825,7 +1825,6 @@ async fn injected_and_events_then_tasks_then_queues() {
 
     let executable = ExecutableData {
         height: block2.header.height,
-
         timestamp: block2.header.timestamp,
         program_states: states,
         schedule,

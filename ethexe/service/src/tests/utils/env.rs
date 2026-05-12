@@ -1279,8 +1279,8 @@ impl Node {
 
         let rpc = self
             .service_rpc_config
-            .as_ref()
-            .map(|service_rpc_config| RpcServer::new(service_rpc_config.clone(), self.db.clone()));
+            .clone()
+            .map(|config| RpcServer::new(config, self.db.clone()));
 
         self.receiver = Some(receiver);
 
@@ -1568,14 +1568,21 @@ impl WaitForProgramCreation {
     pub async fn wait_for(self) -> anyhow::Result<ProgramCreationInfo> {
         log::info!("📗 Waiting for program {} creation", self.program_id);
 
-        let mut receiver = self.receiver.filter_map_block_synced();
-        let code_id = receiver
-            .find_map(|event| match event {
-                BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
-                    actor_id,
-                    code_id,
-                })) if actor_id == self.program_id => Some(code_id),
-                _ => None,
+        let code_id = self
+            .receiver
+            .filter_map_block_synced()
+            .find_map(|event| {
+                match event {
+                    BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
+                        actor_id,
+                        code_id,
+                    })) if actor_id == self.program_id => {
+                        return Some(code_id);
+                    }
+
+                    _ => {}
+                }
+                None
             })
             .await;
 
@@ -1621,9 +1628,9 @@ impl WaitForReplyTo {
     pub async fn wait_for(self) -> anyhow::Result<ReplyInfo> {
         log::info!("📗 Waiting for reply to message {}", self.message_id);
 
-        let message_id = self.message_id;
-        let mut receiver = self.receiver.filter_map_block_synced();
-        let info = receiver
+        let info = self
+            .receiver
+            .filter_map_block_synced()
             .find_map(|event| match event {
                 BlockEvent::Mirror {
                     actor_id,
@@ -1634,7 +1641,7 @@ impl WaitForReplyTo {
                             reply_code,
                             value,
                         }),
-                } if reply_to == message_id => Some(ReplyInfo {
+                } if reply_to == self.message_id => Some(ReplyInfo {
                     message_id: reply_to,
                     program_id: actor_id,
                     payload,

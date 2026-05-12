@@ -102,50 +102,46 @@ mod validator;
 pub trait ConsensusService:
     Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static
 {
-    /// Returns the role info of the service.
+    /// Returns the role info of the service
     fn role(&self) -> String;
 
-    /// Process a new chain head.
+    /// Process a new chain head
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()>;
 
-    /// Process a synced block notification.
+    /// Process a synced block info
     fn receive_synced_block(&mut self, block: H256) -> Result<()>;
 
-    /// Process a prepared block notification.
+    /// Process a prepared block received
     fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
 
-    /// Process a received validation request.
+    /// Process a received validation request
     fn receive_validation_request(&mut self, request: VerifiedValidationRequest) -> Result<()>;
 
-    /// Process a received validation reply.
+    /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 #[display("Commitment submitted, block_hash: {block_hash}, batch {batch_digest}, tx: {tx}")]
 pub struct CommitmentSubmitted {
-    /// Block hash for which the commitment was submitted.
-    pub block_hash: H256,
-    /// Digest of the committed batch.
-    pub batch_digest: Digest,
-    /// Hash of the submission transaction.
-    pub tx: H256,
+    /// Block hash for which the commitment was submitted
+    block_hash: H256,
+    /// Digest of the committed batch
+    batch_digest: Digest,
+    /// Hash of the submission transaction
+    tx: H256,
 }
 
 #[derive(
     Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
 )]
 pub enum ConsensusEvent {
-    /// Outer service has to publish signed message.
+    /// Outer service have to publish signed message
     #[from]
     PublishMessage(SignedValidatorMessage),
-    /// Informational: a batch commitment was successfully submitted.
+    /// Informational event: commitment was successfully submitted
     #[from]
     CommitmentSubmitted(CommitmentSubmitted),
-    /// Informational: a non-fatal anomaly was detected.
+    /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }
-
-pub use ethexe_common::consensus::BatchCommitmentValidationRequest;
-pub use utils::MultisignedBatchCommitment;
-pub use validator::batch::{BatchLimits, ValidationStatus};

@@ -87,12 +87,6 @@ impl StateHandler for Participant {
         {
             match res {
                 Ok(ValidationStatus::Accepted(digest)) => {
-                    tracing::debug!(
-                        block = %self.block.hash,
-                        block_height = self.block.header.height,
-                        %digest,
-                        "participant: accepting batch — signing reply",
-                    );
                     let signature = self.ctx.core.signer.sign_for_contract_digest(
                         self.ctx.core.router_address,
                         self.ctx.core.pub_key,
@@ -128,12 +122,6 @@ impl StateHandler for Participant {
                         .output(ConsensusEvent::PublishMessage(reply.into()));
                 }
                 Ok(ValidationStatus::Rejected { request, reason }) => {
-                    tracing::warn!(
-                        block = %self.block.hash,
-                        digest = %request.digest,
-                        reason = %reason,
-                        "participant: rejecting batch validation request",
-                    );
                     self.warning(format!("reject validation request {request:?} : {reason}"));
                 }
                 Err(err) => return Err(err),
@@ -161,9 +149,13 @@ impl Participant {
                 if earlier_validation_request.is_none() && signed_data.address() == coordinator =>
             {
                 earlier_validation_request = Some(signed_data.data().clone());
+
                 false
             }
-            _ => true,
+            _ => {
+                // NOTE: keep all other events in queue.
+                true
+            }
         });
 
         let participant = Self {

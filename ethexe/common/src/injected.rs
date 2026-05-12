@@ -148,7 +148,7 @@ pub type SignedPromise = SignedMessage<Promise>;
 impl Promise {
     /// Calculates the `blake2b` hash from promise's reply.
     pub fn reply_hash(&self) -> HashOf<ReplyInfo> {
-        // Safe by construction — wrapping a `blake2b` digest of `ReplyInfo`.
+        // Safety by implementation
         unsafe { HashOf::new(self.reply.to_hash()) }
     }
 
@@ -167,8 +167,14 @@ impl ToDigest for Promise {
     }
 }
 
-/// The hashes of [`Promise`] parts. Lightweight version of [`Promise`] used
-/// to reduce the amount of data transferred in network between validators.
+/// A signed wrapper on top of [`CompactPromise`].
+///
+/// [`SignedCompactPromise`] is a lightweight version of [`SignedPromise`], that is
+/// needed to reduce the amount of data transferred in network between validators.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
+pub struct SignedCompactPromise(SignedMessage<CompactPromise>);
+
+/// The hashes of [`Promise`] parts.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct CompactPromise {
     pub tx_hash: HashOf<InjectedTransaction>,
@@ -186,13 +192,6 @@ impl ToDigest for CompactPromise {
         hasher.update(reply_hash.inner());
     }
 }
-
-/// A signed wrapper on top of [`CompactPromise`].
-///
-/// [`SignedCompactPromise`] is a lightweight version of [`SignedPromise`], that is
-/// needed to reduce the amount of data transferred in network between validators.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
-pub struct SignedCompactPromise(SignedMessage<CompactPromise>);
 
 impl SignedCompactPromise {
     /// Create the [`SignedCompactPromise`] from private key and hashes.
@@ -218,14 +217,40 @@ impl SignedCompactPromise {
             .into()
     }
 
-    /// Tries to restore the [`SignedPromise`] with provided [`Promise`] body.
+    /// Tries to restore the [SignedPromise] with provided [Promise] body.
     pub fn restore(&self, promise: Promise) -> Result<SignedPromise, &'static str> {
         SignedMessage::try_from_parts(promise, *self.0.signature(), self.0.address())
+    }
+}
+/// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
+#[cfg(feature = "std")]
+mod serde_hex {
+    pub fn serialize<S, const N: usize>(
+        data: &super::LimitedVec<u8, N>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        alloy_primitives::hex::serialize(data.to_vec(), serializer)
+    }
+
+    pub fn deserialize<'de, D, const N: usize>(
+        deserializer: D,
+    ) -> Result<super::LimitedVec<u8, N>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
+        super::LimitedVec::<u8, N>::try_from(vec)
+            .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
     }
 }
 
 #[cfg(all(test, feature = "mock"))]
 mod tests {
+    use gsigner::PrivateKey;
+
     use super::*;
     use crate::mock::Mock;
 
@@ -285,8 +310,8 @@ mod tests {
 
         assert_eq!(signed_promise.address(), compact_signed_promise.address());
         assert_eq!(
-            *signed_promise.signature(),
-            *compact_signed_promise.signature()
+            signed_promise.signature().clone(),
+            compact_signed_promise.signature().clone()
         );
     }
 
@@ -295,39 +320,14 @@ mod tests {
         let private_key = PrivateKey::random();
         let promise = Promise::mock(());
 
-        let signed_promise = SignedPromise::create(private_key, promise).unwrap();
+        let signed_promise = SignedPromise::create(private_key.clone(), promise).unwrap();
 
         let compact_signed_promise = SignedCompactPromise::from_signed_promise(&signed_promise);
 
         assert_eq!(signed_promise.address(), compact_signed_promise.address());
         assert_eq!(
-            *signed_promise.signature(),
-            *compact_signed_promise.signature()
+            signed_promise.signature().clone(),
+            compact_signed_promise.signature().clone()
         );
-    }
-}
-
-/// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
-#[cfg(feature = "std")]
-mod serde_hex {
-    pub fn serialize<S, const N: usize>(
-        data: &super::LimitedVec<u8, N>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        alloy_primitives::serde_hex::serialize(data.to_vec(), serializer)
-    }
-
-    pub fn deserialize<'de, D, const N: usize>(
-        deserializer: D,
-    ) -> Result<super::LimitedVec<u8, N>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let vec: Vec<u8> = alloy_primitives::serde_hex::deserialize(deserializer)?;
-        super::LimitedVec::<u8, N>::try_from(vec)
-            .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
     }
 }

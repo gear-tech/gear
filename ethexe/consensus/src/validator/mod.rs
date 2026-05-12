@@ -68,29 +68,30 @@ use std::{
     time::Duration,
 };
 
-pub(crate) mod batch;
+mod batch;
 mod coordinator;
 mod core;
 mod idle;
 mod participant;
 
-/// The main validator service that implements the [`ConsensusService`] trait.
+/// The main validator service that implements the `ConsensusService` trait.
+/// This service manages the validation workflow.
 pub struct ValidatorService {
     inner: Option<ValidatorState>,
 }
 
 /// Configuration parameters for the validator service.
 pub struct ValidatorConfig {
-    /// ECDSA public key of this validator.
+    /// ECDSA public key of this validator
     pub pub_key: PublicKey,
-    /// ECDSA multi-signature threshold.
+    /// ECDSA multi-signature threshold
     // TODO #4637: threshold should be a ratio (and maybe also a block dependent value)
     pub signatures_threshold: u64,
     /// Coordinator-local: how many Ethereum blocks the resulting
     /// `BatchCommitment` stays valid past its target block. Encoded into
     /// `BatchCommitment::expiry` (u8). Set freely per-coordinator.
     pub commitment_delay_limit: std::num::NonZero<u8>,
-    /// Address of the router contract.
+    /// Address of the router contract
     pub router_address: Address,
     /// The maximum size of abi encoded batch commitment.
     pub batch_size_limit: u64,
@@ -244,7 +245,7 @@ impl FusedStream for ValidatorService {
 /// An event that can be saved for later processing.
 #[derive(Clone, Debug, From, PartialEq, Eq, derive_more::IsVariant)]
 enum PendingEvent {
-    /// A validation request received before the validator entered Participant.
+    /// A validation request
     ValidationRequest(VerifiedValidationRequest),
 }
 

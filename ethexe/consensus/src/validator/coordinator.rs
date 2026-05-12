@@ -163,7 +163,6 @@ impl StateHandler for Coordinator {
         mut self,
         reply: BatchCommitmentValidationReply,
     ) -> Result<ValidatorState> {
-        let reply_digest = reply.digest;
         if let Err(err) = self
             .multisigned_batch
             .accept_batch_commitment_validation_reply(reply, |addr| {
@@ -174,13 +173,6 @@ impl StateHandler for Coordinator {
             })
         {
             self.warning(format!("validation reply rejected: {err}"));
-        } else {
-            tracing::debug!(
-                %reply_digest,
-                signatures = self.multisigned_batch.signatures().len(),
-                threshold = self.ctx.core.signatures_threshold,
-                "coordinator: validation reply accepted",
-            );
         }
 
         if self.multisigned_batch.signatures().len() as u64 >= self.ctx.core.signatures_threshold {
@@ -221,25 +213,6 @@ impl Coordinator {
             .last_signed_commitment_block_number
             .set(block.header.height);
 
-        let batch_digest = multisigned_batch.batch().to_digest();
-        let chain_transitions = multisigned_batch
-            .batch()
-            .chain_commitment
-            .as_ref()
-            .map(|c| c.transitions.len())
-            .unwrap_or(0);
-        tracing::debug!(
-            block = %block.hash,
-            block_height = block.header.height,
-            %batch_digest,
-            chain_transitions,
-            code_commitments = multisigned_batch.batch().code_commitments.len(),
-            validators = validators.len(),
-            threshold = ctx.core.signatures_threshold,
-            initial_signatures = multisigned_batch.signatures().len(),
-            "coordinator: batch built, broadcasting validation request",
-        );
-
         if multisigned_batch.signatures().len() as u64 >= ctx.core.signatures_threshold {
             return Self::submission(ctx, multisigned_batch);
         }
@@ -273,29 +246,19 @@ impl Coordinator {
     ) -> Result<ValidatorState> {
         let (batch, signatures) = multisigned_batch.into_parts();
         let cloned_committer = ctx.core.committer.clone_boxed();
-        let signatures_count = signatures.len();
         ctx.tasks.push(
             async move {
                 let block_hash = batch.block_hash;
                 let batch_digest = batch.to_digest();
                 let event = match cloned_committer.commit(batch, signatures).await {
-                    Ok(tx) => {
-                        tracing::info!(
-                            %block_hash,
-                            %batch_digest,
-                            signatures = signatures_count,
-                            ?tx,
-                            "coordinator: batch commitment landed on-chain",
-                        );
-                        CommitmentSubmitted {
-                            block_hash,
-                            batch_digest,
-                            tx,
-                        }.into()
-                    }
+                    Ok(tx) => CommitmentSubmitted {
+                        block_hash,
+                        batch_digest,
+                        tx,
+                    }.into(),
                     Err(err) => ConsensusEvent::Warning(format!(
                         "Failed to submit commitment for block {block_hash}, digest {batch_digest}: {err}"
-                    )),
+                    ))
                 };
                 Ok(event)
             }
