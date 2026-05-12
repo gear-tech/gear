@@ -17,8 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
-    BlockHeader, HashOf, MaybeHashOf, ScheduledTask,
-    db::{BlockMeta, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
+    BlockHeader, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
+    StateHashWithQueueSize,
+    db::{
+        BlockMeta, BlockMetaStorageRO, CodesStorageRO, CompactMB, MbMeta, MbStorageRO,
+        OnChainStorageRO,
+    },
     events::BlockEvent,
     gear::StateTransition,
 };
@@ -34,17 +38,17 @@ use gear_core::{
 };
 use gprimitives::{ActorId, CodeId, H256};
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{BTreeSet, HashSet, VecDeque},
     hash::{DefaultHasher, Hash, Hasher},
 };
 
 pub trait DatabaseIteratorStorage:
-    OnChainStorageRO + BlockMetaStorageRO + CodesStorageRO + Storage
+    OnChainStorageRO + BlockMetaStorageRO + CodesStorageRO + MbStorageRO + Storage
 {
 }
 
-impl<T: OnChainStorageRO + BlockMetaStorageRO + CodesStorageRO + Storage> DatabaseIteratorStorage
-    for T
+impl<T: OnChainStorageRO + BlockMetaStorageRO + CodesStorageRO + MbStorageRO + Storage>
+    DatabaseIteratorStorage for T
 {
 }
 
@@ -161,6 +165,20 @@ node! {
                 pub block_synced: bool,
             }
         ),
+        Mb(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MbNode {
+                pub mb_hash: H256,
+                pub mb: CompactMB,
+            }
+        ),
+        MbMeta(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MbMetaNode {
+                pub mb_hash: H256,
+                pub mb_meta: MbMeta,
+            }
+        ),
         CodeId(
             #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
             pub struct CodeIdNode {
@@ -200,16 +218,45 @@ node! {
                 pub program_id: ActorId,
             }
         ),
+        MbProgramStates(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MbProgramStatesNode {
+                pub mb_hash: H256,
+                pub mb_program_states: ProgramStates,
+            }
+        ),
         ProgramState(
             #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
             pub struct ProgramStateNode {
                 pub program_state: ProgramState,
             }
         ),
+        MbSchedule(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MbScheduleNode {
+                pub mb_hash: H256,
+                pub mb_schedule: Schedule,
+            }
+        ),
+        MbScheduleTasks(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MbScheduleTasksNode {
+                pub mb_hash: H256,
+                pub height: u32,
+                pub tasks: BTreeSet<ScheduledTask>,
+            }
+        ),
         ScheduledTask(
             #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
             pub struct ScheduledTaskNode {
                 pub task: ScheduledTask,
+            }
+        ),
+        MbOutcome(
+            #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+            pub struct MbOutcomeNode {
+                pub mb_hash: H256,
+                pub mb_outcome: Vec<StateTransition>,
             }
         ),
         StateTransition(
@@ -315,6 +362,12 @@ pub enum DatabaseIteratorError {
     NoBlockEvents(H256),
     NoBlockCodesQueue(H256),
 
+    /* MB */
+    NoMb(H256),
+    NoMbProgramStates(H256),
+    NoMbSchedule(H256),
+    NoMbOutcome(H256),
+
     /* memory */
     NoMemoryPages(HashOf<MemoryPages>),
     NoMemoryPagesRegion(HashOf<MemoryPagesRegion>),
@@ -410,8 +463,12 @@ where
             Node::InstrumentedCode(_) => {}
             Node::CodeMetadata(_) => {}
             Node::ProgramId(node) => self.iter_program_id(*node),
+            Node::MbProgramStates(node) => self.iter_mb_program_states(node),
             Node::ProgramState(node) => self.iter_program_state(*node),
+            Node::MbSchedule(node) => self.iter_mb_schedule(node),
+            Node::MbScheduleTasks(node) => self.iter_mb_schedule_tasks(node),
             Node::ScheduledTask(node) => self.iter_scheduled_task(*node),
+            Node::MbOutcome(node) => self.iter_mb_outcome(node),
             Node::StateTransition(node) => self.iter_state_transition(node),
             Node::Allocations(_) => {}
             Node::MemoryPages(node) => self.iter_memory_pages(node),
@@ -426,6 +483,8 @@ where
             Node::UserMailbox(node) => self.iter_user_mailbox(node),
             Node::DispatchStash(node) => self.iter_dispatch_stash(node),
             Node::Error(_) => {}
+            Node::Mb(node) => self.iter_mb(node),
+            Node::MbMeta(_) => {}
             Node::BlockSynced(_) => {}
         }
     }
@@ -464,7 +523,23 @@ where
     }
 
     fn iter_block_meta(&mut self, BlockMetaNode { block, meta }: &BlockMetaNode) {
-        let BlockMeta { codes_queue, .. } = meta;
+        let BlockMeta {
+            codes_queue,
+            last_committed_mb,
+            ..
+        } = meta;
+
+        // `H256::zero()` is the genesis sentinel: no MB has been
+        // committed on-chain yet, so there is nothing to walk.
+        if let Some(mb_hash) = *last_committed_mb
+            && mb_hash != H256::zero()
+        {
+            if let Some(mb) = self.storage.mb_compact_block(mb_hash) {
+                self.push_node(MbNode { mb_hash, mb });
+            } else {
+                self.push_node(DatabaseIteratorError::NoMb(mb_hash));
+            }
+        }
 
         if let Some(codes_queue) = codes_queue {
             for &code_id in codes_queue {
@@ -474,6 +549,83 @@ where
             self.push_node(Node::Error(DatabaseIteratorError::NoBlockCodesQueue(
                 *block,
             )));
+        }
+    }
+
+    fn iter_mb(&mut self, MbNode { mb_hash, mb: _ }: &MbNode) {
+        let mb_hash = *mb_hash;
+
+        let mb_meta = self.storage.mb_meta(mb_hash);
+        let computed = mb_meta.computed;
+
+        self.push_node(MbMetaNode { mb_hash, mb_meta });
+
+        // MB is not obligated to be computed; once it is, all per-MB
+        // post-execution rows must exist.
+        if computed {
+            try_push_node!(with_hash: self.mb_schedule(mb_hash));
+            try_push_node!(with_hash: self.mb_outcome(mb_hash));
+            try_push_node!(with_hash: self.mb_program_states(mb_hash));
+        }
+    }
+
+    fn iter_mb_program_states(
+        &mut self,
+        MbProgramStatesNode {
+            mb_hash: _,
+            mb_program_states,
+        }: &MbProgramStatesNode,
+    ) {
+        for StateHashWithQueueSize {
+            hash: program_state,
+            canonical_queue_size: _,
+            injected_queue_size: _,
+        } in mb_program_states.values().copied()
+        {
+            try_push_node!(no_hash: self.program_state(program_state));
+        }
+    }
+
+    fn iter_mb_schedule(
+        &mut self,
+        MbScheduleNode {
+            mb_hash,
+            mb_schedule,
+        }: &MbScheduleNode,
+    ) {
+        for (&height, tasks) in mb_schedule {
+            self.push_node(MbScheduleTasksNode {
+                mb_hash: *mb_hash,
+                height,
+                tasks: tasks.clone(),
+            });
+        }
+    }
+
+    fn iter_mb_schedule_tasks(
+        &mut self,
+        MbScheduleTasksNode {
+            mb_hash: _,
+            height: _,
+            tasks,
+        }: &MbScheduleTasksNode,
+    ) {
+        for &task in tasks {
+            self.push_node(ScheduledTaskNode { task });
+        }
+    }
+
+    fn iter_mb_outcome(
+        &mut self,
+        MbOutcomeNode {
+            mb_hash: _,
+            mb_outcome,
+        }: &MbOutcomeNode,
+    ) {
+        for state_transition in mb_outcome {
+            self.push_node(StateTransitionNode {
+                state_transition: state_transition.clone(),
+            });
         }
     }
 
@@ -892,5 +1044,123 @@ pub(crate) mod tests {
         .collect();
 
         assert_eq!(visited_payloads, [payload]);
+    }
+
+    #[test]
+    fn walk_mb_program_states() {
+        use ethexe_common::StateHashWithQueueSize;
+        use std::collections::BTreeMap;
+
+        let mb_hash = H256::random();
+        let program_id = ActorId::from([3u8; 32]);
+        let state_hash = H256::random();
+
+        let mut mb_program_states = BTreeMap::new();
+        mb_program_states.insert(
+            program_id,
+            StateHashWithQueueSize {
+                hash: state_hash,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
+            },
+        );
+
+        let errors: Vec<_> = DatabaseIterator::new(
+            setup_db(),
+            MbProgramStatesNode {
+                mb_hash,
+                mb_program_states,
+            },
+        )
+        .filter_map(Node::into_error)
+        .collect();
+
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramState(state_hash)));
+    }
+
+    #[test]
+    fn walk_mb_schedule_tasks() {
+        use gear_core::ids::MessageId;
+
+        let mb_hash = H256::random();
+        let program_id = ActorId::from([10u8; 32]);
+
+        let mut tasks = BTreeSet::new();
+        tasks.insert(ScheduledTask::WakeMessage(program_id, MessageId::zero()));
+
+        let visited: Vec<_> = DatabaseIterator::new(
+            setup_db(),
+            MbScheduleTasksNode {
+                mb_hash,
+                height: 123,
+                tasks,
+            },
+        )
+        .collect();
+
+        let visited_programs: Vec<ActorId> = visited
+            .iter()
+            .cloned()
+            .filter_map(Node::into_program_id)
+            .map(|node| node.program_id)
+            .collect();
+
+        assert!(visited_programs.contains(&program_id));
+    }
+
+    #[test]
+    fn walk_mb_schedule() {
+        use gear_core::ids::MessageId;
+        use std::collections::BTreeMap;
+
+        let mb_hash = H256::random();
+        let program_id = ActorId::from([14u8; 32]);
+
+        let mut mb_schedule = BTreeMap::new();
+        let mut tasks = BTreeSet::new();
+        tasks.insert(ScheduledTask::WakeMessage(program_id, MessageId::zero()));
+        mb_schedule.insert(1000u32, tasks);
+
+        let visited_programs: Vec<_> = DatabaseIterator::new(
+            setup_db(),
+            MbScheduleNode {
+                mb_hash,
+                mb_schedule,
+            },
+        )
+        .filter_map(Node::into_program_id)
+        .map(|node| node.program_id)
+        .collect();
+
+        assert!(visited_programs.contains(&program_id));
+    }
+
+    #[test]
+    fn walk_mb_outcome() {
+        let mb_hash = H256::random();
+        let actor_id = ActorId::from([15u8; 32]);
+        let new_state_hash = H256::random();
+
+        let errors: Vec<_> = DatabaseIterator::new(
+            setup_db(),
+            MbOutcomeNode {
+                mb_hash,
+                mb_outcome: vec![StateTransition {
+                    actor_id,
+                    new_state_hash,
+                    exited: false,
+                    inheritor: Default::default(),
+                    value_to_receive: 0,
+                    value_to_receive_negative_sign: false,
+                    value_claims: vec![],
+                    messages: vec![],
+                }],
+            },
+        )
+        .filter_map(Node::into_error)
+        .collect();
+
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramCodeId(actor_id)));
+        assert!(errors.contains(&DatabaseIteratorError::NoProgramState(new_state_hash)));
     }
 }

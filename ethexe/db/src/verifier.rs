@@ -21,12 +21,18 @@ use crate::{
     iterator::{ChainNode, DatabaseIteratorError, DatabaseIteratorStorage},
     visitor::{DatabaseVisitor, walk},
 };
-use ethexe_common::{BlockHeader, HashOf, db::BlockMeta};
+use ethexe_common::{
+    BlockHeader, HashOf, ScheduledTask,
+    db::{BlockMeta, MbStorageRO},
+};
 use ethexe_runtime_common::state::{MessageQueue, MessageQueueHashWithSize};
 use gear_core::code::CodeMetadata;
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
-use std::{collections::HashMap, hash::Hash};
+use std::{
+    collections::{BTreeSet, HashMap},
+    hash::Hash,
+};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum IntegrityVerifierError {
@@ -60,6 +66,12 @@ pub enum IntegrityVerifierError {
     },
 
     /* rest */
+    MbNotFound(H256),
+    MbScheduleHasExpiredTasks {
+        mb_hash: H256,
+        expiry: u32,
+        tasks: usize,
+    },
     InvalidCachedMessageQueueSize {
         hash: HashOf<MessageQueue>,
         cached_size: u8,
@@ -218,6 +230,28 @@ impl DatabaseVisitor for IntegrityVerifier {
                     code_id,
                     metadata_len: metadata.original_code_len(),
                     original_len: original_code.len() as u32,
+                });
+        }
+    }
+
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn visit_mb_schedule_tasks(
+        &mut self,
+        mb_hash: H256,
+        height: u32,
+        tasks: BTreeSet<ScheduledTask>,
+    ) {
+        let Some(mb) = self.db.mb_compact_block(mb_hash) else {
+            self.errors
+                .push(IntegrityVerifierError::MbNotFound(mb_hash));
+            return;
+        };
+        if u64::from(height) <= mb.height {
+            self.errors
+                .push(IntegrityVerifierError::MbScheduleHasExpiredTasks {
+                    mb_hash,
+                    expiry: height,
+                    tasks: tasks.len(),
                 });
         }
     }
@@ -475,6 +509,45 @@ mod tests {
                 metadata_len: 10,
                 original_len: ORIGINAL_CODE.len() as u32,
             }]
+        );
+    }
+
+    #[test]
+    fn test_mb_schedule_has_expired_tasks_error() {
+        use crate::iterator::MbScheduleTasksNode;
+        use ethexe_common::db::{CompactMB, MbStorageRW};
+
+        let db = setup_db();
+        let mb_hash = H256::random();
+
+        // MB at height 100; a task scheduled for height 50 is expired.
+        db.set_mb_compact_block(
+            mb_hash,
+            CompactMB {
+                parent: H256::zero(),
+                height: 100,
+                transactions_hash: H256::zero(),
+            },
+        );
+
+        let mut verifier = IntegrityVerifier::new(db);
+        walk(
+            &mut verifier,
+            MbScheduleTasksNode {
+                mb_hash,
+                height: 50,
+                tasks: BTreeSet::new(),
+            },
+        );
+
+        assert!(
+            verifier
+                .errors
+                .contains(&IntegrityVerifierError::MbScheduleHasExpiredTasks {
+                    mb_hash,
+                    expiry: 50,
+                    tasks: 0,
+                })
         );
     }
 
