@@ -272,7 +272,7 @@ impl<'a> Mirror<'a> {
         let promise = match receipt {
             Receipt::Promise(promise) => promise,
             Receipt::Error(err) => {
-                return Err(anyhow!("injected transaction failed: {err:?}"));
+                return Err(anyhow!("injected transaction failed: {err}"));
             }
         };
 

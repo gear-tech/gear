@@ -262,7 +262,7 @@ impl<P: ToDigest> ToDigest for Receipt<P> {
 pub struct SignedTxReceipt(SignedMessage<Receipt<Promise>>);
 
 /// Signed [Receipt] with a [CompactPromise] generic.
-/// It is uses as lightweight transfer type between validators.
+/// It is used as a lightweight transfer type
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Deref, derive_more::From)]
 pub struct SignedCompactTxReceipt(SignedMessage<Receipt<CompactPromise>>);
 
@@ -321,8 +321,9 @@ impl UnfilledPromiseReceipt {
 }
 
 /// Represents the reason why [InjectedTransaction] was not included.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[display("Injected transaction wasn't executed: tx_hash={tx_hash}, reason={reason}")]
 pub struct TransactionError {
     pub tx_hash: HashOf<InjectedTransaction>,
     pub reason: TransactionErrorReason,
@@ -353,7 +354,7 @@ pub enum TransactionErrorReason {
 
 impl TransactionErrorReason {
     pub fn variant_index(&self) -> u8 {
-        unsafe { (self as *const TransactionErrorReason).cast::<u8>().read() }
+        unsafe { (self as *const TransactionErrorReason as *const u8).read() }
     }
 }
 

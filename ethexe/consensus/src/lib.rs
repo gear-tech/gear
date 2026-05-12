@@ -286,10 +286,9 @@ pub enum ConsensusEvent {
     /// Outer service have to publish signed message
     #[from]
     PublishMessage(SignedValidatorMessage),
+    /// Signed injected transaction receipt.
     #[from]
     PublishTxReceipt(SignedCompactTxReceipt),
-    // #[from]
-    // PublishTransactionResult(SignedTransactionResult),
     /// Outer service have to request announces
     #[from]
     RequestAnnounces(AnnouncesRequest),

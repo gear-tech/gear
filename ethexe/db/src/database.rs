@@ -82,7 +82,7 @@ enum Key {
     Announces(HashOf<Announce>) = 17,
     BlockAnnounces(H256) = 18,
     Promise(HashOf<InjectedTransaction>) = 19,
-    TxReceipt(HashOf<InjectedTransaction>) = 21,
+    TxReceipt(HashOf<InjectedTransaction>) = 20,
 }
 
 impl Key {

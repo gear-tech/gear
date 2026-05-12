@@ -49,7 +49,7 @@ pub trait Injected {
         transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
 
-    #[method(name = "getTransactionPromise")]
+    #[method(name = "getTransactionReceipt")]
     async fn get_transaction_receipt(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
