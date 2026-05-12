@@ -48,8 +48,9 @@ use ethexe_common::{
 };
 use events::{
     BatchCommittedEventBuilder, CodeGotValidatedEventBuilder, CodeValidationRequestedEventBuilder,
-    ComputationSettingsChangedEventBuilder, MBCommittedEventBuilder, ProgramCreatedEventBuilder,
-    StorageSlotChangedEventBuilder, ValidatorsCommittedForEraEventBuilder, signatures,
+    ComputationSettingsChangedEventBuilder, EBCommittedEventBuilder, MBCommittedEventBuilder,
+    ProgramCreatedEventBuilder, StorageSlotChangedEventBuilder,
+    ValidatorsCommittedForEraEventBuilder, signatures,
 };
 use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt as _;
@@ -947,6 +948,10 @@ impl<'a> RouterEvents<'a> {
 
     pub fn mb_committed(&self) -> MBCommittedEventBuilder<'a> {
         MBCommittedEventBuilder::new(self.query)
+    }
+
+    pub fn eb_committed(&self) -> EBCommittedEventBuilder<'a> {
+        EBCommittedEventBuilder::new(self.query)
     }
 
     pub fn code_got_validated(&self) -> CodeGotValidatedEventBuilder<'a> {

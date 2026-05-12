@@ -34,7 +34,7 @@ use ethexe_common::events::{
     RouterEvent, RouterRequestEvent,
     router::{
         BatchCommittedEvent, CodeGotValidatedEvent, CodeValidationRequestedEvent,
-        ComputationSettingsChangedEvent, MBCommittedEvent, ProgramCreatedEvent,
+        ComputationSettingsChangedEvent, EBCommittedEvent, MBCommittedEvent, ProgramCreatedEvent,
         StorageSlotChangedEvent, ValidatorsCommittedForEraEvent,
     },
 };
@@ -199,6 +199,29 @@ impl<'a> MBCommittedEventBuilder<'a> {
     pub async fn subscribe(
         self,
     ) -> Result<impl Stream<Item = Result<(MBCommittedEvent, Log), Error>> + Unpin + use<>> {
+        Ok(self
+            .event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct EBCommittedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IRouter::EBCommitted>,
+}
+
+impl<'a> EBCommittedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a RouterQuery) -> Self {
+        Self {
+            event: query.instance.EBCommitted_filter(),
+        }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(EBCommittedEvent, Log), Error>> + Unpin + use<>> {
         Ok(self
             .event
             .subscribe()
