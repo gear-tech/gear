@@ -391,6 +391,99 @@ mod tests {
         SignedCompactPromise::from_signed_promise(&signed)
     }
 
+    /// Buckets a message era can fall into relative to the snapshot era.
+    #[derive(Debug, Clone, Copy)]
+    enum EraRelation {
+        TooOld(u64),
+        Old,
+        Current,
+        Next,
+        TooNew(u64),
+    }
+
+    impl EraRelation {
+        fn message_era(self, snapshot_era: u64) -> u64 {
+            match self {
+                Self::TooOld(delta) => snapshot_era - delta,
+                Self::Old => snapshot_era - 1,
+                Self::Current => snapshot_era,
+                Self::Next => snapshot_era + 1,
+                Self::TooNew(delta) => snapshot_era + delta,
+            }
+        }
+
+        fn expected_verification(self, snapshot_era: u64) -> Result<(), VerifyMessageError> {
+            let message_era = self.message_era(snapshot_era);
+
+            match self {
+                Self::TooOld(_) => Err(VerifyMessageRejectReason::TooOldEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+                Self::Old => Err(VerifyMessageIgnoreReason::OldEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+                Self::Current => Ok(()),
+                Self::Next => Err(VerifyMessageCacheReason::NewEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+                Self::TooNew(_) => Err(VerifyMessageRejectReason::TooNewEra {
+                    expected_era: snapshot_era,
+                    received_era: message_era,
+                }
+                .into()),
+            }
+        }
+    }
+
+    fn era_relation_strategy() -> impl proptest::strategy::Strategy<Value = (u64, EraRelation)> {
+        use proptest::prelude::*;
+        (
+            128u64..(u64::MAX - 128),
+            prop_oneof![
+                (2u64..128).prop_map(EraRelation::TooOld).boxed(),
+                Just(EraRelation::Old).boxed(),
+                Just(EraRelation::Current).boxed(),
+                Just(EraRelation::Next).boxed(),
+                (2u64..128).prop_map(EraRelation::TooNew).boxed(),
+            ],
+        )
+    }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::test_runner::Config::with_cases(64))]
+
+        // Random eras × five relative buckets — the only systematic
+        // coverage of `inner_verify_validator_message`'s era-acceptance
+        // matrix (Accept / Cache / Ignore / Reject). era-gating is the
+        // sole defense between healthy validator gossip and spam from
+        // adjacent eras, so a fast proptest is worth keeping around.
+        #[test]
+        fn proptest_message_era_is_checked_against_snapshot_era(
+            (snapshot_era, relation) in era_relation_strategy(),
+        ) {
+            let message_era = relation.message_era(snapshot_era);
+            let message = new_validator_message(message_era);
+            let validator = message.address();
+            let snapshot = ValidatorListSnapshot {
+                current_era_index: snapshot_era,
+                current_validators: nonempty![validator].into(),
+                next_validators: Some(nonempty![validator].into()),
+            };
+            let alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
+
+            proptest::prop_assert_eq!(
+                alice.inner_verify_validator_message(&message),
+                relation.expected_verification(snapshot_era)
+            );
+        }
+    }
+
     #[test]
     fn too_old_era() {
         let bob_message = new_validator_message(CHAIN_HEAD_ERA - 2);

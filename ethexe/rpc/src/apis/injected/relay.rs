@@ -20,6 +20,16 @@
 //!
 //! [`TransactionsRelayer::relay`] broadcasts a transaction to every
 //! validator in the current era and returns the first acceptance.
+//
+// TODO +_+_+: master had three unit tests pinning the previous
+// `calculate_next_producer` routing math (`test_calculate_next_producer_return_next`,
+// `_return_next_next`, `_in_next_era`); the underlying function was
+// deleted in favor of the fan-out path above. The new strategy
+// (`current_validators` + `fan_out`) has no unit coverage at all —
+// add at minimum `test_fan_out_uses_all_validators_in_era`,
+// `test_fan_out_falls_back_to_send_single_when_validators_empty`,
+// `test_fan_out_returns_last_reject_when_no_accept`. Setup mirrors
+// the master tests' `setup_db` + `set_validators(0, ...)` helpers.
 
 use crate::{RpcEvent, errors};
 use anyhow::Context as _;

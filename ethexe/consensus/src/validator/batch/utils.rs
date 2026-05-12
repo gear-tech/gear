@@ -673,6 +673,73 @@ mod tests {
     }
 
     #[test]
+    fn create_batch_commitment_writes_commitment_delay_limit_into_expiry() {
+        use ethexe_common::{
+            BlockHeader, SimpleBlockData,
+            db::{BlockMetaStorageRW, OnChainStorageRW},
+            gear::{ChainCommitment, StateTransition},
+        };
+        use std::num::NonZero;
+
+        let db = Database::memory();
+        let block_hash = H256::from_low_u64_be(0xB10C);
+        db.set_block_header(
+            block_hash,
+            BlockHeader {
+                height: 7,
+                parent_hash: H256::zero(),
+                timestamp: 1234,
+            },
+        );
+        let last_committed_batch = ethexe_common::Digest::random();
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.last_committed_batch = Some(last_committed_batch);
+        });
+        let block = SimpleBlockData {
+            hash: block_hash,
+            header: db.block_header(block_hash).unwrap(),
+        };
+
+        let parts = BatchParts {
+            chain_commitment: Some(ChainCommitment {
+                transitions: vec![StateTransition {
+                    actor_id: gprimitives::ActorId::from([0xAB; 32]),
+                    new_state_hash: H256::from_low_u64_be(0xDEAD_BEEF),
+                    exited: false,
+                    inheritor: Default::default(),
+                    value_to_receive: 0,
+                    value_to_receive_negative_sign: false,
+                    value_claims: vec![],
+                    messages: vec![],
+                }],
+                head: block_hash,
+                last_advanced_eth_block: H256::zero(),
+            }),
+            code_commitments: vec![],
+            validators_commitment: None,
+            rewards_commitment: None,
+        };
+
+        // Coordinator-local knob: expiry on the BatchCommitment must
+        // exactly mirror `commitment_delay_limit.get()` from the
+        // validator config so the on-chain submission path honors the
+        // operator-configured delay.
+        for raw_limit in [1u8, 3, 5, 32, u8::MAX] {
+            let commitment = create_batch_commitment(
+                &db,
+                &block,
+                parts.clone(),
+                NonZero::new(raw_limit).unwrap(),
+            )
+            .unwrap()
+            .expect("non-empty batch commitment");
+            assert_eq!(commitment.expiry, raw_limit);
+            assert_eq!(commitment.previous_batch, last_committed_batch);
+            assert_eq!(commitment.block_hash, block_hash);
+        }
+    }
+
+    #[test]
     fn is_finalized_returns_false_on_disjoint_chain() {
         let db = Database::memory();
         let chain_a = write_mb(&db, H256::zero(), 1, vec![]);
