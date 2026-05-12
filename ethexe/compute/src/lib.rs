@@ -186,6 +186,21 @@ pub enum ComputeError {
     #[error("MB block {0} not found in db while walking parent chain")]
     MbBlockNotFound(H256),
 
+    // `mb computed` implies that the MB and every one of its ancestors back
+    // to genesis are also computed; the matching `mb_program_states`,
+    // `mb_schedule` and `mb_meta` rows therefore MUST be present when the
+    // parent MB is referenced. A missing row here means DB corruption /
+    // inconsistency rather than a recoverable state — surface it as a hard
+    // error instead of silently degrading to an empty world.
+    #[error("parent MB {0} marked computed but program_states row missing")]
+    ParentMbStatesMissing(H256),
+    #[error("parent MB {0} marked computed but schedule row missing")]
+    ParentMbScheduleMissing(H256),
+    #[error("block events row missing for advance-chain block({0})")]
+    AdvanceBlockEventsMissing(H256),
+    #[error("anchor Eth block header missing for {0}")]
+    AnchorBlockHeaderMissing(H256),
+
     #[error("AdvanceTillEthereumBlock walk hit a missing parent header at {hash}")]
     AdvanceMissingHeader { hash: H256 },
 

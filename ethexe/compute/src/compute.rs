@@ -278,20 +278,28 @@ pub fn prepare_executable_for_mb(db: &Database, mb_hash: H256) -> Result<Executa
 /// Builds executable data for a single MB given its parent (or `None` for
 /// genesis). Pulls parent's program states / schedule / `last_advanced_eb`
 /// from the DB before delegating to [`build_executable_data`].
+///
+/// Invariant: an MB cannot be computed before its ancestors, so when
+/// `parent_mb_hash` is set, the matching `mb_program_states` and
+/// `mb_schedule` rows MUST exist in the DB. A missing row is a hard
+/// inconsistency, not a recoverable empty-state case, and is surfaced
+/// as [`ComputeError::ParentMbStatesMissing`] / [`ComputeError::ParentMbScheduleMissing`].
 fn prepare_executable_with_parent_state(
     db: &Database,
     block: Transactions,
     parent_mb_hash: Option<H256>,
 ) -> Result<ExecutableData> {
-    let program_states = parent_mb_hash
-        .and_then(|h| db.mb_program_states(h))
-        .unwrap_or_default();
-    let schedule = parent_mb_hash
-        .and_then(|h| db.mb_schedule(h))
-        .unwrap_or_default();
-    let initial_advanced_block = parent_mb_hash
-        .map(|h| db.mb_meta(h).last_advanced_eb)
-        .unwrap_or_default();
+    let (program_states, schedule, initial_advanced_block) = if let Some(h) = parent_mb_hash {
+        let states = db
+            .mb_program_states(h)
+            .ok_or(ComputeError::ParentMbStatesMissing(h))?;
+        let schedule = db
+            .mb_schedule(h)
+            .ok_or(ComputeError::ParentMbScheduleMissing(h))?;
+        (states, schedule, db.mb_meta(h).last_advanced_eb)
+    } else {
+        (Default::default(), Default::default(), H256::zero())
+    };
     build_executable_data(db, block, program_states, schedule, initial_advanced_block)
 }
 
@@ -317,7 +325,9 @@ fn build_executable_data(
             Transaction::AdvanceTillEthereumBlock { block_hash } => {
                 let chain = collect_advance_chain(db, block_hash, current_anchor)?;
                 for hash in chain {
-                    let block_events = db.block_events(hash).unwrap_or_default();
+                    let block_events = db
+                        .block_events(hash)
+                        .ok_or(ComputeError::AdvanceBlockEventsMissing(hash))?;
                     for event in block_events.into_iter().filter_map(|e| e.to_request()) {
                         events.push(event);
                     }
@@ -344,7 +354,7 @@ fn build_executable_data(
     let (height, timestamp) = db
         .block_header(anchor_eth_block)
         .map(|h| (h.height, h.timestamp))
-        .unwrap_or((0, 0));
+        .ok_or(ComputeError::AnchorBlockHeaderMissing(anchor_eth_block))?;
 
     Ok(ExecutableData {
         height,
@@ -398,8 +408,8 @@ fn collect_uncomputed_predecessors(
     let mut chain = VecDeque::new();
     let mut current_parent = db
         .mb_compact_block(target_hash)
-        .map(|c| c.parent)
-        .unwrap_or(H256::zero());
+        .ok_or(ComputeError::MbBlockNotFound(target_hash))?
+        .parent;
     let mut current_height = target_height.saturating_sub(1);
 
     while !current_parent.is_zero() {
