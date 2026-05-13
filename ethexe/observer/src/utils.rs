@@ -224,13 +224,8 @@ impl BlockLoader for EthereumBlockLoader {
 
     async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
         let filter = Self::log_filter().at_block_hash(block.0);
-        // The closure does `anyhow::Error::from(err)`, NOT
-        // `anyhow!("...{err}")` — the latter formats `err` into a
-        // string and loses the underlying type. The former keeps the
-        // alloy `RpcError` accessible via the source chain so
-        // `SyncError::from_anyhow` in `sync.rs` can detect "block
-        // reorged out" and similar conditions at the
-        // `ObserverService::poll_next` boundary.
+        // Use `Error::from` (not `anyhow!("…{err}")`) so the underlying
+        // `RpcError` type stays reachable for `SyncError`'s classifier.
         let logs_request = self.provider.get_logs(&filter).map_err(anyhow::Error::from);
 
         let (block_hash, header, logs) = if let Some(header) = header {

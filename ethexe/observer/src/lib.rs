@@ -79,12 +79,7 @@ pub(crate) struct ObserverMetrics {
     pub blocks_latency: metrics::Histogram,
     /// The statistics about time for blocks syncing.
     pub block_syncing_latency: metrics::Histogram,
-    /// Total count of sync attempts that ended with a recoverable
-    /// `SyncError::RpcError` — typically a reorg orphaning a block we
-    /// were mid-loading, a transient transport blip, or a provider
-    /// rate limit. The observer drops the in-flight sync and retries
-    /// on the next chain head; a sustained high rate here means the
-    /// upstream Ethereum endpoint is unhealthy.
+    /// Sync attempts that ended with a recoverable RPC error.
     pub recoverable_sync_errors: metrics::Counter,
 }
 
@@ -194,22 +189,10 @@ impl Stream for ObserverService {
                     return Poll::Ready(Some(Ok(ObserverEvent::BlockSynced(hash))));
                 }
                 Err(SyncError::RpcError(err)) => {
-                    // Recoverable: reorg, transient transport blip,
-                    // rate limit, etc. The alloy header subscription
-                    // delivers the next canonical head shortly which
-                    // triggers a fresh sync; until then we keep the
-                    // last-good `latest_synced_eb` in DB.
-                    //
-                    // `block_sync_queue` may still have earlier
-                    // headers buffered from a burst — wake ourselves
-                    // so the runtime re-polls immediately and starts
-                    // the next sync without waiting for an external
-                    // signal.
-                    log::warn!(
-                        "observer: dropping in-flight sync after RPC error \
-                         (will retry on next chain head): {err:#}"
-                    );
+                    log::warn!("observer: RPC error, retrying on next head: {err:#}");
                     self.metrics.recoverable_sync_errors.increment(1);
+                    // Self-wake: `block_sync_queue` may still hold
+                    // headers buffered before this failure.
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }

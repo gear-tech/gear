@@ -212,24 +212,9 @@ async fn resubscribes_when_headers_stream_terminates() -> Result<()> {
     Ok(())
 }
 
-/// Regression guard for the `ensure_validators` reorg gap pinned by
-/// Opus review #3.
-///
-/// `ChainSync::ensure_validators` makes pinned `eth_call` queries via
-/// `router_query.validators_at(block_hash)` and
-/// `middleware_query.make_election_at(...)`. When the chain reorgs
-/// out the block hash these calls are pinned at, the node responds
-/// with a reorg-flavoured RPC error wrapped inside
-/// `alloy::contract::Error -> alloy::transports::RpcError`. The
-/// original classifier was only wired into `EthereumBlockLoader::load`
-/// (the `eth_getLogs` path), so the `ensure_validators` failure
-/// crashed the service.
-///
-/// The fix moved classification to a single point — `SyncError`'s
-/// `From<anyhow::Error>` walks the source chain looking for any
-/// `alloy::transports::RpcError`. This test exercises the
-/// `validators_at` path directly and checks the classifier still
-/// catches it.
+/// `validators_at` on a reorged-out block must classify as
+/// `SyncError::RpcError`; otherwise the service crashes on every
+/// reorg through `ensure_validators`.
 #[tokio::test]
 async fn validators_at_on_orphaned_block_is_recoverable_rpc_error() -> Result<()> {
     use crate::SyncError;
@@ -254,14 +239,9 @@ async fn validators_at_on_orphaned_block_is_recoverable_rpc_error() -> Result<()
         .await?;
 
     let router_query = ethereum.router().query();
-
-    // Take a snapshot at the post-deploy tip. Anything we mine after
-    // this point will be reverted out.
     let provider = ethereum.provider();
     let snapshot_id = provider.anvil_snapshot().await?;
 
-    // Mine a fresh block and record its hash. `validators_at` calls
-    // succeed against this hash *before* the revert (sanity check).
     provider.anvil_mine(Some(1), None).await?;
     let orphaned_block = provider
         .get_block(alloy::eips::BlockId::latest())
@@ -274,31 +254,16 @@ async fn validators_at_on_orphaned_block_is_recoverable_rpc_error() -> Result<()
         .await
         .expect("validators_at must succeed before the revert");
 
-    // Revert anvil to the snapshot — `orphaned_hash` is no longer
-    // canonical and the node returns the reorg-flavoured error
-    // family we're after.
     let reverted = provider.anvil_revert(snapshot_id).await?;
-    assert!(reverted, "anvil_revert must accept the snapshot id");
+    assert!(reverted);
 
     let err = router_query
         .validators_at(orphaned_hash)
         .await
-        .expect_err("validators_at must error on a block that was reorged out");
+        .expect_err("validators_at must error on a reorged-out block");
 
-    // The fix: `SyncError`'s anyhow conversion walks the source chain
-    // for an `alloy::transports::RpcError` and classifies it as
-    // recoverable. `ObserverService::poll_next` then logs a warning,
-    // bumps the counter, and waits for the next chain head instead
-    // of crashing.
-    let classified = SyncError::from(err);
-    match classified {
-        SyncError::RpcError(_) => { /* expected */ }
-        SyncError::Fatal(err) => panic!(
-            "regression: validators_at error on an orphaned block is NOT classified as \
-             recoverable — service will crash on every reorg through ensure_validators. \
-             err: {err:?}"
-        ),
+    match SyncError::from(err) {
+        SyncError::RpcError(_) => Ok(()),
+        SyncError::Fatal(err) => panic!("expected RpcError, got Fatal: {err:?}"),
     }
-
-    Ok(())
 }
