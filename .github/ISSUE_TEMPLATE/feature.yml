@@ -1,6 +1,5 @@
 name: Feature
 description: New functionality or improvement
-title: ""
 labels: ["type: feat"]
 
 body:
