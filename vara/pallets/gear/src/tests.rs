@@ -47,6 +47,7 @@ use gear_core::{
     buffer::Payload,
     code::{
         self, Code, CodeError, ExportError, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT,
+        SyscallKind,
     },
     gas_metering::CustomConstantCostRules,
     ids::{ActorId, CodeId, MessageId, prelude::*},
@@ -409,6 +410,7 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             schedule.limits.data_segments_amount.into(),
             schedule.limits.type_section_len.into(),
             schedule.limits.parameters.into(),
+            SyscallKind::Vara,
         )
         .expect("Failed to create dummy code");
 
@@ -4952,6 +4954,7 @@ fn test_code_submission_pass() {
             schedule.limits.data_segments_amount.into(),
             schedule.limits.type_section_len.into(),
             schedule.limits.parameters.into(),
+            SyscallKind::Vara,
         )
         .expect("Error creating Code");
         assert_eq!(
@@ -6882,6 +6885,7 @@ fn test_create_program_works() {
             schedule.limits.data_segments_amount.into(),
             schedule.limits.type_section_len.into(),
             schedule.limits.parameters.into(),
+            SyscallKind::Vara,
         )
         .expect("Code failed to load");
 
@@ -10588,6 +10592,7 @@ fn test_mad_big_prog_instrumentation() {
             schedule.limits.data_segments_amount.into(),
             schedule.limits.type_section_len.into(),
             schedule.limits.parameters.into(),
+            SyscallKind::Vara,
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -13584,6 +13589,7 @@ fn wrong_entry_type() {
                 None,
                 None,
                 None,
+                SyscallKind::Vara,
             ),
             Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
         ));

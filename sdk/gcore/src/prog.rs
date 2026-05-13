@@ -121,7 +121,6 @@ pub fn create_program(
 }
 
 /// Same as [`create_program`], but with an explicit gas limit.
-#[cfg(not(feature = "ethexe"))]
 pub fn create_program_with_gas(
     code_id: CodeId,
     salt: &[u8],

@@ -32,7 +32,7 @@ use core_processor::{
 };
 use frame_support::traits::{Currency, Get};
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndMetadata},
+    code::{Code, CodeAndId, InstrumentedCodeAndMetadata, SyscallKind},
     ids::{ActorId, CodeId, MessageId, prelude::*},
     limited::LimitedVecError,
     message::{Dispatch, DispatchKind, Message, ReplyDetails, SignalDetails},
@@ -98,6 +98,7 @@ where
                 schedule.limits.data_segments_amount.into(),
                 schedule.limits.type_section_len.into(),
                 schedule.limits.parameters.into(),
+                SyscallKind::Vara,
             )
             .map_err(|_| "Code failed to load")?;
 
@@ -290,6 +291,7 @@ where
             metadata: code_metadata,
         },
         balance,
+        SyscallKind::Vara,
     );
 
     Ok(Exec {

@@ -31,6 +31,7 @@ mod metadata;
 mod utils;
 
 pub use errors::*;
+pub use gear_wasm_instrument::SyscallKind;
 pub use instrumented::*;
 pub use metadata::*;
 pub use utils::{ALLOWED_EXPORTS, MAX_WASM_PAGES_AMOUNT, REQUIRED_EXPORTS};
@@ -73,6 +74,8 @@ pub struct TryNewCodeConfig {
     pub check_table_section: bool,
     /// Make wasmparser validation
     pub make_validation: bool,
+    /// Syscall kind for imports check
+    pub syscall_kind: SyscallKind,
 }
 
 impl TryNewCodeConfig {
@@ -103,6 +106,7 @@ impl Default for TryNewCodeConfig {
             check_data_section: true,
             check_table_section: true,
             make_validation: true,
+            syscall_kind: SyscallKind::default(),
         }
     }
 }
@@ -161,7 +165,7 @@ impl Code {
             utils::check_exports(&module)?;
         }
         if config.check_imports {
-            utils::check_imports(&module)?;
+            utils::check_imports(&module, config.syscall_kind)?;
         }
         if let Some(limit) = config.type_section_params_per_type_limit {
             utils::check_type_section(&module, limit)?;
@@ -299,6 +303,7 @@ impl Code {
     ///   )
     /// )
     /// ```
+    #[allow(clippy::too_many_arguments)]
     pub fn try_new<R, GetRulesFn>(
         original_code: Vec<u8>,
         version: u32,
@@ -307,6 +312,7 @@ impl Code {
         data_segments_amount_limit: Option<u32>,
         type_section_len_limit: Option<u32>,
         type_section_params_per_type_limit: Option<u32>,
+        syscall_kind: SyscallKind,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
@@ -321,6 +327,7 @@ impl Code {
                 data_segments_amount_limit,
                 type_section_len_limit,
                 type_section_params_per_type_limit,
+                syscall_kind,
                 ..Default::default()
             },
         )
@@ -454,7 +461,7 @@ mod tests {
     use crate::{
         code::{
             Code, CodeError, DataSectionError, ExportError, GENERIC_OS_PAGE_SIZE, ImportError,
-            StackEndError, TryNewCodeConfig, TypeSectionError, utils::REF_TYPE_SIZE,
+            StackEndError, SyscallKind, TryNewCodeConfig, TypeSectionError, utils::REF_TYPE_SIZE,
         },
         gas_metering::CustomConstantCostRules,
     };
@@ -793,6 +800,7 @@ mod tests {
             None,
             None,
             None,
+            SyscallKind::Vara,
         );
 
         assert_code_err!(res, CodeError::Validation(_));
