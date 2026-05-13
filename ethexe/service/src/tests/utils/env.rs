@@ -21,7 +21,7 @@ use crate::{
     config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
-        events::{self, KickExt, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
+        events::{self, ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
 use alloy::{
@@ -81,7 +81,6 @@ use std::{
     fmt, mem,
     net::{SocketAddr, TcpListener},
     num::NonZero,
-    ops::Not,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
@@ -601,7 +600,7 @@ impl TestEnv {
         let (_tx_hash, new_code_id) = self.ethereum.router().request_code_validation(code).await?;
         assert_eq!(new_code_id, code_id);
 
-        Ok(WaitForUploadCode { code_id, receiver }.with_kicks(self.default_wait_kicks()))
+        Ok(WaitForUploadCode { code_id, receiver })
     }
 
     pub async fn create_program(
@@ -640,13 +639,10 @@ impl TestEnv {
                 .await
         }?;
 
-        // _+_+_: remove here and in other places. Because kicks are controlled by env and receiver already has them enabled,
-        // with_kicks function is for using in tests body, when test creator wanna to disable or enable kicks in a specific place of test.
         Ok(WaitForProgramCreation {
             receiver,
             program_id,
-        }
-        .with_kicks(self.default_wait_kicks()))
+        })
     }
 
     #[allow(dead_code)]
@@ -687,8 +683,7 @@ impl TestEnv {
         Ok(WaitForProgramCreation {
             receiver,
             program_id,
-        }
-        .with_kicks(self.default_wait_kicks()))
+        })
     }
 
     pub async fn send_message(
@@ -718,18 +713,7 @@ impl TestEnv {
         Ok(WaitForReplyTo {
             receiver,
             message_id,
-        }
-        .with_kicks(self.default_wait_kicks()))
-    }
-
-    /// Default kicks for `WaitFor*` waiters: forces an Anvil mine
-    /// every `block_time * 3` of idle time. `None` when the env is in
-    /// continuous-block-generation mode (Anvil already mines on its
-    /// own).
-    fn default_wait_kicks(&self) -> Option<(Duration, RootProvider)> {
-        self.continuous_block_generation
-            .not()
-            .then(|| (self.eth_cfg.block_time * 3, self.provider.clone()))
+        })
     }
 
     #[allow(dead_code)]
@@ -1538,18 +1522,6 @@ pub struct UploadCodeInfo {
 }
 
 impl WaitForUploadCode {
-    /// Replace the underlying receiver's kicks. `None` clears them.
-    /// While `Some`, [`Self::wait_for`] yields to a forced mine on
-    /// each idle interval — the producer then gets a fresh ETH head
-    /// and a chance to commit the validation result.
-    pub fn with_kicks(mut self, kicks: Option<(Duration, RootProvider)>) -> Self {
-        match kicks {
-            Some(k) => self.receiver.set_kicks(k),
-            None => self.receiver.clear_kicks(),
-        }
-        self
-    }
-
     pub async fn wait_for(self) -> anyhow::Result<UploadCodeInfo> {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
@@ -1584,14 +1556,6 @@ pub struct ProgramCreationInfo {
 }
 
 impl WaitForProgramCreation {
-    pub fn with_kicks(mut self, kicks: Option<(Duration, RootProvider)>) -> Self {
-        match kicks {
-            Some(k) => self.receiver.set_kicks(k),
-            None => self.receiver.clear_kicks(),
-        }
-        self
-    }
-
     pub async fn wait_for(self) -> anyhow::Result<ProgramCreationInfo> {
         log::info!("📗 Waiting for program {} creation", self.program_id);
 
@@ -1642,14 +1606,6 @@ impl WaitForReplyTo {
             receiver,
             message_id,
         }
-    }
-
-    pub fn with_kicks(mut self, kicks: Option<(Duration, RootProvider)>) -> Self {
-        match kicks {
-            Some(k) => self.receiver.set_kicks(k),
-            None => self.receiver.clear_kicks(),
-        }
-        self
     }
 
     pub async fn wait_for(self) -> anyhow::Result<ReplyInfo> {

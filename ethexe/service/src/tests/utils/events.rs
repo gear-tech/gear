@@ -171,10 +171,6 @@ impl TestingEvent {
 
 pub trait KickExt {
     fn kick(&self) -> BoxFuture<'static, ()>;
-    #[allow(unused)]
-    fn set_kicks(&mut self, kicks: (Duration, RootProvider));
-    #[allow(unused)]
-    fn clear_kicks(&mut self);
 }
 
 #[derive(Debug, Clone)]
@@ -221,14 +217,6 @@ impl<S> KickExt for KickingStream<S> {
         } else {
             future::pending().boxed()
         }
-    }
-
-    fn set_kicks(&mut self, kicks: (Duration, RootProvider)) {
-        self.kicks = Some(kicks);
-    }
-
-    fn clear_kicks(&mut self) {
-        self.kicks = None;
     }
 }
 
