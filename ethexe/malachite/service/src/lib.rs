@@ -38,7 +38,10 @@ mod service;
 
 pub use crate::{
     config::{MalachiteConfig, ValidatorEntry},
-    mempool::{DEFAULT_POOL_CAPACITY, EmptyMempool, InjectedTxMempool, Mempool},
+    mempool::{
+        DEFAULT_POOL_CAPACITY, EmptyMempool, InjectedTxMempool, Mempool, MempoolInsertError,
+        classify_insert_outcome,
+    },
     service::MalachiteService,
 };
 

@@ -237,7 +237,8 @@ impl<'a> Mirror<'a> {
             .with_context(|| "failed to send injected transaction")?;
 
         match result {
-            InjectedTransactionAcceptance::Accept => Ok(message_id),
+            InjectedTransactionAcceptance::Accept
+            | InjectedTransactionAcceptance::AlreadyPooled { .. } => Ok(message_id),
             InjectedTransactionAcceptance::Reject { reason } => {
                 Err(anyhow!("injected transaction was rejected: {reason}"))
             }

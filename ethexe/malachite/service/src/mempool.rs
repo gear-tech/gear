@@ -74,6 +74,33 @@ pub enum MempoolInsertError {
     PoolFull,
 }
 
+impl MempoolInsertError {
+    /// The tx is already known to a validator (either pooled or recently
+    /// committed) — its promise will still fire, so RPC callers can keep
+    /// watching for the reply.
+    pub fn is_already_pooled(&self) -> bool {
+        matches!(self, Self::AlreadyCommitted | Self::Duplicate)
+    }
+}
+
+/// Surface a mempool insert outcome as a typed acceptance: `AlreadyPooled`
+/// for `AlreadyCommitted` / `Duplicate` (promise still fires), `Reject` for
+/// fatal cases.
+pub fn classify_insert_outcome(
+    outcome: Result<(), MempoolInsertError>,
+) -> ethexe_common::injected::InjectedTransactionAcceptance {
+    use ethexe_common::injected::InjectedTransactionAcceptance;
+    match outcome {
+        Ok(()) => InjectedTransactionAcceptance::Accept,
+        Err(err) if err.is_already_pooled() => InjectedTransactionAcceptance::AlreadyPooled {
+            reason: err.to_string(),
+        },
+        Err(err) => InjectedTransactionAcceptance::Reject {
+            reason: err.to_string(),
+        },
+    }
+}
+
 /// Producer-side source of injected transactions. Fetch is non-destructive;
 /// `forget` runs after MB finalization and dedups within `VALIDITY_WINDOW`.
 #[async_trait]
@@ -381,10 +408,46 @@ mod tests {
     use ethexe_common::{
         BlockHeader, PrivateKey, SignedMessage, SimpleBlockData,
         db::{BlockMetaStorageRW, GlobalsStorageRW, OnChainStorageRW},
-        injected::InjectedTransaction,
+        injected::{InjectedTransaction, InjectedTransactionAcceptance},
     };
     use gprimitives::ActorId;
     use std::time::Duration;
+
+    /// Pins the link between [`MempoolInsertError`] variants and the
+    /// `AlreadyPooled` / `Reject` classification consumed by RPC fan-out.
+    /// Adding a variant without updating [`MempoolInsertError::is_already_pooled`]
+    /// will be caught here.
+    #[test]
+    fn classify_insert_outcome_maps_each_variant() {
+        assert!(matches!(
+            classify_insert_outcome(Ok(())),
+            InjectedTransactionAcceptance::Accept
+        ));
+        for err in [
+            MempoolInsertError::AlreadyCommitted,
+            MempoolInsertError::Duplicate,
+        ] {
+            assert!(
+                matches!(
+                    classify_insert_outcome(Err(err)),
+                    InjectedTransactionAcceptance::AlreadyPooled { .. }
+                ),
+                "already-pooled variant must classify as AlreadyPooled",
+            );
+        }
+        for err in [
+            MempoolInsertError::ExpiredRefBlock,
+            MempoolInsertError::PoolFull,
+        ] {
+            assert!(
+                matches!(
+                    classify_insert_outcome(Err(err)),
+                    InjectedTransactionAcceptance::Reject { .. }
+                ),
+                "fatal variant must classify as Reject",
+            );
+        }
+    }
 
     /// Persist a synthetic linear chain of length `len` into the DB.
     /// Returns blocks oldest-first; first block has parent_hash = 0

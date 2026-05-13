@@ -132,23 +132,8 @@ impl Stream for ObserverService {
                     self.subscription_retry_attempt = 0;
                 }
                 Err(e) => {
-                    let attempt = self.subscription_retry_attempt.saturating_add(1);
-                    self.subscription_retry_attempt = attempt;
-                    let backoff = std::time::Duration::from_millis(
-                        (500u64.saturating_mul(1u64 << attempt.min(6))).min(30_000),
-                    );
-                    log::warn!(
-                        "observer: header subscription failed (attempt {attempt}, retry in {backoff:?}): {e:#}"
-                    );
-                    self.metrics.recoverable_sync_errors.increment(1);
-                    let provider = self.provider().clone();
-                    self.subscription_future = Some(
-                        async move {
-                            tokio::time::sleep(backoff).await;
-                            provider.subscribe_blocks().await
-                        }
-                        .boxed(),
-                    );
+                    log::warn!("observer: header subscription failed: {e:#}");
+                    self.schedule_subscription_retry();
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
@@ -157,12 +142,11 @@ impl Stream for ObserverService {
 
         if let Poll::Ready(res) = self.headers_stream.poll_next_unpin(cx) {
             let Some(header) = res else {
-                log::warn!("Alloy headers stream ended. Creating a new one...");
-
-                let provider = self.provider().clone();
-                let _fut = provider.get_block_by_number(alloy::eips::BlockNumberOrTag::Earliest);
-                self.subscription_future = Some(provider.subscribe_blocks().into_future());
-
+                // Treat an unexpected stream end like a failed attempt:
+                // a flapping endpoint can otherwise tight-loop us through
+                // accept-then-immediate-close cycles with no sleep.
+                log::warn!("observer: header stream ended unexpectedly");
+                self.schedule_subscription_retry();
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
             };
@@ -289,6 +273,28 @@ impl ObserverService {
 
     pub fn router_query(&self) -> RouterQuery {
         RouterQuery::from_provider(self.config.router_address, self.provider.clone())
+    }
+
+    /// Arm `subscription_future` with the next exponential backoff before
+    /// re-subscribing. Used by both the `Err` arm of an in-flight subscribe
+    /// and the unexpected-stream-end branch — the latter would otherwise
+    /// hammer the RPC if the provider accepts then immediately closes.
+    fn schedule_subscription_retry(&mut self) {
+        let attempt = self.subscription_retry_attempt.saturating_add(1);
+        self.subscription_retry_attempt = attempt;
+        let backoff = std::time::Duration::from_millis(
+            (500u64.saturating_mul(1u64 << attempt.min(6))).min(30_000),
+        );
+        log::warn!("observer: re-subscribing to headers (attempt {attempt}, after {backoff:?})");
+        self.metrics.recoverable_sync_errors.increment(1);
+        let provider = self.provider().clone();
+        self.subscription_future = Some(
+            async move {
+                tokio::time::sleep(backoff).await;
+                provider.subscribe_blocks().await
+            }
+            .boxed(),
+        );
     }
 }
 

@@ -42,7 +42,23 @@ pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 pub enum InjectedTransactionAcceptance {
     Accept,
-    Reject { reason: String },
+    /// Mempool already holds (or has recently committed) this tx. The promise
+    /// will still fire — the subscription should stay open and fan-out should
+    /// prefer this over a `Reject`.
+    AlreadyPooled {
+        reason: String,
+    },
+    Reject {
+        reason: String,
+    },
+}
+
+impl InjectedTransactionAcceptance {
+    /// Either fresh acceptance or duplicate of a pooled tx — the caller's
+    /// promise subscription will receive the reply in both cases.
+    pub fn is_promise_bound(&self) -> bool {
+        matches!(self, Self::Accept | Self::AlreadyPooled { .. })
+    }
 }
 
 impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
