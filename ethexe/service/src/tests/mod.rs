@@ -86,7 +86,7 @@ impl BatchCommitter for RecordingCommitter {
 async fn invalid_code() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -114,7 +114,7 @@ async fn invalid_code() {
 async fn write_memory_to_last_byte() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -183,7 +183,7 @@ async fn write_memory_to_last_byte() {
 async fn ping() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -324,7 +324,7 @@ async fn multiple_validators_ping() {
 async fn uninitialized_program() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -743,7 +743,7 @@ async fn mailbox() {
 async fn value_reply_program_to_user() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -852,7 +852,7 @@ async fn value_reply_program_to_user() {
 async fn value_send_program_to_user_and_claimed() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -992,8 +992,7 @@ async fn value_send_program_to_user_and_claimed() {
 async fn value_send_program_to_user_and_replied() {
     init_logger();
 
-    // _+_+_: use TestEnv::default() here and in other places where it can be applied
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -1257,7 +1256,7 @@ async fn batch_commitment_squashes_repeated_ping_transitions() {
 async fn incoming_transfers() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -1538,7 +1537,7 @@ async fn reorg_deeper_than_quarantine() {
 async fn ping_deep_sync() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -2454,7 +2453,7 @@ async fn value_send_program_to_program() {
 
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -2608,7 +2607,7 @@ async fn value_send_delayed() {
 
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -3234,7 +3233,7 @@ async fn whole_network_restore() {
 async fn reply_callback() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::default().await;
 
     let mut node = env
         .new_node(NodeConfig::default().validator(env.validators[0]))
@@ -3349,7 +3348,7 @@ async fn re_genesis_with_state_dump() {
     async fn re_genesis_with_state_dump() {
         init_logger();
 
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
+        let mut env = TestEnv::default().await;
 
         test_info!("📗 Phase 1: start a node, deploy ping program, do ping-pong.");
         let mut node = env
@@ -3483,7 +3482,7 @@ async fn re_genesis_delayed_message() {
     async fn re_genesis_delayed_message() {
         init_logger();
 
-        let mut env = TestEnv::new(Default::default()).await.unwrap();
+        let mut env = TestEnv::default().await;
 
         // WAT program: on handle, sends a delayed message to source and replies.
         //
