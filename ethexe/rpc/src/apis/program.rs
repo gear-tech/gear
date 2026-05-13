@@ -138,10 +138,10 @@ impl ProgramServer for ProgramApi {
         if at.is_some() {
             return Err(errors::bad_request(
                 "`at` is not supported on this RPC method (no MB↔block index yet); \
-                 pass `null` to use the latest finalized MB",
+                 pass `null` to use the latest computed MB",
             ));
         }
-        let mb_hash = utils::latest_finalized_mb(&self.db)?;
+        let mb_hash = utils::latest_computed_mb(&self.db)?;
         let block = utils::block_at_or_latest_synced(&self.db, None)?;
 
         let executable = ExecutableDataForReply {
@@ -169,7 +169,7 @@ impl ProgramServer for ProgramApi {
     }
 
     async fn ids(&self) -> RpcResult<Vec<H160>> {
-        let mb_hash = utils::latest_finalized_mb(&self.db)?;
+        let mb_hash = utils::latest_computed_mb(&self.db)?;
 
         Ok(self
             .db

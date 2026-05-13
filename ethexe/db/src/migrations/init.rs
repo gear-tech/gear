@@ -25,7 +25,7 @@ use anyhow::{Context as _, Result, bail, ensure};
 use ethexe_common::{
     BlockHeader, ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData,
     StateHashWithQueueSize,
-    db::{CodesStorageRO, CodesStorageRW, PreparedBlockData},
+    db::{CodesStorageRO, CodesStorageRW, CompactMb, MbStorageRW, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
 };
 use ethexe_ethereum::router::RouterQuery;
@@ -106,10 +106,29 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         },
     };
 
-    let (_program_states, _schedule) = if let Some(initializer) = config.genesis_initializer {
-        genesis_data_initialization(initializer, db, genesis_block).await?
+    let genesis_mb = if let Some(initializer) = config.genesis_initializer {
+        let (mb_hash, program_states, schedule) =
+            genesis_data_initialization(initializer, db, genesis_block).await?;
+        // Seed MB rows so RPC reads (program_states / schedule / outcome)
+        // resolve before the first post-genesis MB lands.
+        db.set_mb_compact_block(
+            mb_hash,
+            CompactMb {
+                parent: H256::zero(),
+                height: 0,
+                transactions_hash: H256::zero(),
+            },
+        );
+        db.set_mb_program_states(mb_hash, program_states);
+        db.set_mb_schedule(mb_hash, schedule);
+        db.set_mb_outcome(mb_hash, Vec::new());
+        db.mutate_mb_meta(mb_hash, |m| {
+            m.computed = true;
+            m.last_advanced_eb = genesis_block.hash;
+        });
+        Some(mb_hash)
     } else {
-        (ProgramStates::default(), Schedule::default())
+        None
     };
 
     ethexe_common::setup_block_in_db(
@@ -149,12 +168,13 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
     };
 
     // NOTE: start block could be changed later by fast-sync
+    let genesis_mb_hash = genesis_mb.unwrap_or(H256::zero());
     let globals = ethexe_common::db::DBGlobals {
         start_block_hash: genesis_block.hash,
         latest_synced_eb: genesis_block,
         latest_prepared_eb_hash: genesis_block.hash,
-        latest_finalized_mb_hash: H256::zero(),
-        latest_computed_mb_hash: H256::zero(),
+        latest_finalized_mb_hash: genesis_mb_hash,
+        latest_computed_mb_hash: genesis_mb_hash,
     };
 
     db.kv.set_globals(globals);
@@ -167,7 +187,7 @@ async fn genesis_data_initialization(
     mut initializer: Box<dyn GenesisInitializer>,
     db: &RawDatabase,
     genesis_block: SimpleBlockData,
-) -> Result<(ProgramStates, Schedule)> {
+) -> Result<(H256, ProgramStates, Schedule)> {
     log::info!("Start genesis {genesis_block} data initialization...");
 
     let StateDump {
@@ -192,8 +212,6 @@ async fn genesis_data_initialization(
         programs.len(),
         blobs.len()
     );
-
-    let (_, _) = (mb_hash, block_hash); // to avoid unused variable warning if log is disabled
 
     let mut code_bytes = BTreeMap::<CodeId, Vec<u8>>::new();
     for blob in blobs {
@@ -267,5 +285,5 @@ async fn genesis_data_initialization(
 
     log::info!("Genesis data initialization completed");
 
-    Ok((program_states, schedule))
+    Ok((mb_hash, program_states, schedule))
 }

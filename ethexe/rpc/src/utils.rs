@@ -43,11 +43,8 @@ pub fn block_at_or_latest_synced(
         .ok_or_else(|| errors::db("Block header for requested hash wasn't found"))
 }
 
-/// Latest MB whose per-row state is on disk (`mb_program_states` /
-/// `mb_outcome` / `mb_schedule`). Trails `latest_finalized_mb_hash`
-/// until compute catches up; serve RPC reads from this so callers
-/// never see a finalized-but-not-yet-computed pointer.
-pub fn latest_finalized_mb(db: &Database) -> RpcResult<H256> {
+/// Latest MB whose per-row state is on disk.
+pub fn latest_computed_mb(db: &Database) -> RpcResult<H256> {
     let hash = db.globals().latest_computed_mb_hash;
     if hash.is_zero() {
         return Err(errors::db(

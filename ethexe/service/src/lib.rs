@@ -57,7 +57,7 @@ use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     CodeAndIdUnchecked, PromiseEmissionMode,
-    db::{GlobalsStorageRW, OnChainStorageRO},
+    db::{GlobalsStorageRW, MbStorageRO, OnChainStorageRO},
     gear::CodeState,
     injected::SignedCompactPromise,
     network::VerifiedValidatorMessage,
@@ -761,10 +761,19 @@ impl Service {
                     }
                     ComputeEvent::MbComputed(mb_hash) => {
                         tracing::info!(mb_hash = %mb_hash, "MB executed");
-                        // RPC needs a pointer whose per-row state is
-                        // already on disk; advance separately from
-                        // `latest_finalized_mb_hash` (set by malachite).
-                        db.globals_mutate(|g| g.latest_computed_mb_hash = mb_hash);
+                        // Monotonic by height — predecessor recomputes
+                        // (catch-up replay) must not retreat the RPC tip.
+                        let new_height =
+                            db.mb_compact_block(mb_hash).map(|c| c.height).unwrap_or(0);
+                        db.globals_mutate(|g| {
+                            let prev_height = db
+                                .mb_compact_block(g.latest_computed_mb_hash)
+                                .map(|c| c.height)
+                                .unwrap_or(0);
+                            if new_height >= prev_height {
+                                g.latest_computed_mb_hash = mb_hash;
+                            }
+                        });
                     }
                     ComputeEvent::Promise(promise, _mb_hash) => {
                         // The local node always feeds its computed body
