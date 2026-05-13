@@ -531,7 +531,7 @@ impl Service {
         // "needs ≥ default-quarantine" — and consensus deadlocks.
         malachite_base_config.canonical_quarantine = config.node.canonical_quarantine;
         log::info!(
-            "🪨 Malachite listen: {}  persistent_peers: {}",
+            "Malachite listen: {}  persistent_peers: {}",
             malachite_base_config.listen_addr,
             malachite_base_config.persistent_peers.len(),
         );
@@ -545,7 +545,7 @@ impl Service {
                 &config.malachite.validator_pub_keys,
             )?;
             log::info!(
-                "🪨 Malachite validators: {} (local role: {})",
+                "Malachite validators: {} (local role: {})",
                 malachite_validator_set.len(),
                 if validator_pub_key.is_some() {
                     "validator"
@@ -783,7 +783,7 @@ impl Service {
                         // Nothing
                     }
                     ComputeEvent::MbComputed(mb_hash) => {
-                        tracing::info!(mb_hash = %mb_hash, "🛠️ MB executed");
+                        tracing::info!(mb_hash = %mb_hash, "MB executed");
                     }
                     ComputeEvent::Promise(promise, _mb_hash) => {
                         // The local node always feeds its computed body
@@ -950,7 +950,7 @@ impl Service {
                         tracing::info!(
                             height,
                             mb_hash = %block_hash,
-                            "🧱 Malachite: BlockProposal",
+                            "Malachite: BlockProposal",
                         );
                         // Validators are interested in this MB's
                         // promises so they can gossip them; the
@@ -967,7 +967,7 @@ impl Service {
                             height,
                             mb_hash = %block_hash,
                             sigs = cert.signatures.len(),
-                            "✅ Malachite: BlockFinalized",
+                            "Malachite: BlockFinalized",
                         );
                         // Non-proposer nodes (validators that didn't propose
                         // this height + every full/RPC node) first see the MB
