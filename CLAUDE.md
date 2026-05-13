@@ -351,30 +351,23 @@ Errors are encoded as little-endian u32. Code `0xffff` is reserved for SyscallUs
 - `cargo nextest` is the test runner (not `cargo test`), except for doc tests
 - `cargo hakari` manages workspace dependency deduplication — run `make workspace-hack` after dependency changes
 
-// _+_+_: simplify text you added in this branch. Do not use tables
 ### Test Timeouts
 
-Hard rule: **never set a test timeout above 2 minutes (`120_000` ms) without the user's explicit permission.** When a test legitimately needs more — either modernize it to fit under 2 minutes (mock heavy I/O, shrink the simulated chain, drive events explicitly instead of waiting on wall-clock pacing), or stop and ask the user before bumping the cap. A timeout is a symptom; the fix is the test logic, not the limit.
+Test timeouts cap at 2 minutes (`120_000` ms). If a test needs more, fix the test (mock I/O, shrink the chain, drive events directly) or ask before raising the cap.
 
-### `unwrap_or` and friends in production code
+### `unwrap_or` outside tests
 
-Hard rule: **outside tests and mocks, do not use `unwrap_or` / `unwrap_or_default` / `unwrap_or_else` to paper over an `Option`/`Result` whose `None`/`Err` branch is supposedly "impossible".** If an invariant guarantees the value is present, encode that with a real error (`ok_or_else(|| anyhow!("..."))`, `expect("invariant")`) so a violation becomes a loud, debuggable failure rather than silent fall-through to a sentinel. Reach for `unwrap_or*` only when the fallback is a meaningful semantic value — not when you're just trying to keep the type-checker happy. Tests, mocks, and explicit user direction can override this.
+Outside tests and mocks, don't reach for `unwrap_or` / `unwrap_or_default` / `unwrap_or_else` on an `Option`/`Result` whose `None`/`Err` branch is supposedly impossible. Use `expect("invariant")` or `ok_or_else(|| anyhow!(...))` instead so a violation becomes a loud failure. `unwrap_or*` is only for fallbacks that are a real semantic value.
 
-### Comment & Doc Sizing
+### Comment Sizing
 
-Default rule (overridable per-session by the user). Comment length scales with the importance of the item:
+Comment length tracks the item's importance:
+- Crate-level `//!` at the top of `lib.rs` / `main.rs`: up to ~200 lines.
+- Public items: up to ~20 lines.
+- Private items: up to ~5 lines.
+- Inline comments inside a function body: one line.
 
-| Tier | Max length | Applies to |
-|------|------------|------------|
-| Large (≤200 lines) | full prose | crate-level docs (`//!` at the top of `lib.rs` / `main.rs`): purpose, usage, structure, surface-level implementation notes |
-| Medium (≤20 lines) | substantive | public structs / functions / modules: purpose, usage, structure, surface-level implementation notes |
-| Small (≤5 lines) | brief | private structs / functions / modules |
-| Tiny (1 line) | one-liner | inline comments inside function bodies |
-
-Rules of thumb:
-- A comment that exceeds its tier is a smell.
-- Don't restate what well-named identifiers already say.
-- Inline comments justify *why*, not *what*. If the why is obvious, drop the comment.
+Don't restate what well-named identifiers already say, and only explain *why* — never *what*.
 
 ## GitHub PR Review
 
