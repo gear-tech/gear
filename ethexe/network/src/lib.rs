@@ -59,7 +59,7 @@ use ethexe_common::{
     db::ConfigStorageRO,
     ecdsa::PublicKey,
     injected::{AddressedInjectedTransaction, SignedCompactPromise},
-    network::{SignedValidatorMessage, VerifiedValidatorMessage},
+    network::{BitswapHandle, SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
@@ -102,6 +102,12 @@ const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 /// Hard cap for the amount of announces that can be returned in one db-sync
 /// response.
 pub const DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
+
+impl BitswapHandle for bitswap::Handle {
+    async fn request(&self, hash: H256) -> Vec<u8> {
+        bitswap::Handle::request(self, hash).await
+    }
+}
 
 /// High-level events produced by [`NetworkService`].
 #[derive(derive_more::Debug)]
@@ -264,7 +270,7 @@ impl NetworkService {
             transport_type,
             router_address,
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
+            max_chain_len_for_announces_response: _,
         } = config;
 
         let NetworkRuntimeConfig {
@@ -301,7 +307,6 @@ impl NetworkService {
             general_signer,
             validator_list_snapshot: validator_list_snapshot.clone(),
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
             metrics: (&mut registry, metrics.clone()),
         };
         let behaviour = Behaviour::new(behaviour_config)?;
@@ -703,7 +708,6 @@ struct BehaviourConfig<'a> {
     general_signer: Signer,
     validator_list_snapshot: Arc<ValidatorListSnapshot>,
     allow_non_global_addresses: bool,
-    max_chain_len_for_announces_response: NonZeroU32,
     metrics: (
         &'a mut libp2p::metrics::Registry,
         Arc<libp2p::metrics::Metrics>,
@@ -747,7 +751,6 @@ impl Behaviour {
             general_signer,
             validator_list_snapshot,
             allow_non_global_addresses,
-            max_chain_len_for_announces_response,
             metrics: (registry, metrics),
         } = config;
 

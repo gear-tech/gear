@@ -31,7 +31,7 @@ use ethexe_common::{
         router::{AnnouncesCommittedEvent, BatchCommittedEvent},
     },
     injected,
-    network::{AnnouncesRequest, AnnouncesRequestUntil},
+    network::{AnnouncesRequest, AnnouncesRequestUntil, request_announces},
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::{
@@ -44,7 +44,7 @@ use ethexe_db::{
     visitor::DatabaseVisitor,
 };
 use ethexe_ethereum::mirror::MirrorQuery;
-use ethexe_network::NetworkService;
+use ethexe_network::{DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, NetworkService};
 use ethexe_observer::{
     ObserverService,
     utils::{BlockId, BlockLoader},
@@ -129,24 +129,34 @@ impl EventData {
     }
 }
 
-async fn net_fetch(
-    network: &mut NetworkService,
-    request: db_sync::Request,
-) -> Result<db_sync::Response> {
-    let mut fut = network.db_sync_handle().request(request);
+async fn bitswap_fetch(network: &mut NetworkService, hash: H256) -> Vec<u8> {
+    let bitswap = network.bitswap_handle();
+    let fut = bitswap.request(hash);
+    tokio::pin!(fut);
     loop {
         tokio::select! {
             _ = network.select_next_some() => {},
-            res = &mut fut => {
-                match res {
-                    Ok(response) => break Ok(response),
-                    Err((err, request)) => {
-                        log::warn!("Request {:?} failed: {err}. Retrying...", request.id());
-                        fut = network.db_sync_handle().retry(request);
-                        continue;
-                    }
-                }
-            }
+            data = &mut fut => break data,
+        }
+    }
+}
+
+async fn bitswap_fetch_announces(
+    network: &mut NetworkService,
+    request: AnnouncesRequest,
+) -> Result<ethexe_common::network::AnnouncesResponse> {
+    let bitswap = network.bitswap_handle();
+    let fut = request_announces(
+        &bitswap,
+        request,
+        DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+    );
+    tokio::pin!(fut);
+
+    loop {
+        tokio::select! {
+            _ = network.select_next_some() => {},
+            response = &mut fut => break response.map_err(Into::into),
         }
     }
 }
@@ -154,22 +164,15 @@ async fn net_fetch(
 /// Collects program code IDs for the latest committed block.
 async fn collect_program_code_ids(
     observer: &mut ObserverService,
-    network: &mut NetworkService,
+    _network: &mut NetworkService,
     latest_committed_block: H256,
 ) -> Result<BTreeMap<ActorId, CodeId>> {
     let router_query = observer.router_query();
-    let programs_count = router_query
+    let _programs_count = router_query
         .programs_count_at(latest_committed_block)
         .await?;
 
-    let response = net_fetch(
-        network,
-        db_sync::Request::program_ids(latest_committed_block, programs_count),
-    )
-    .await?;
-
-    let program_code_ids = response.unwrap_program_ids();
-    Ok(program_code_ids)
+    anyhow::bail!("fast-sync program id enumeration via bitswap is not implemented yet")
 }
 
 async fn collect_announce(
@@ -181,16 +184,14 @@ async fn collect_announce(
         return Ok(announce);
     }
 
-    let response = net_fetch(
+    let response = bitswap_fetch_announces(
         network,
         AnnouncesRequest {
             head: announce_hash,
             until: AnnouncesRequestUntil::ChainLen(NonZeroU32::MIN),
-        }
-        .into(),
+        },
     )
-    .await?
-    .unwrap_announces();
+    .await?;
 
     // Response is checked so we can just take the first announce
     let (_, mut announces) = response.into_parts();
@@ -200,28 +201,17 @@ async fn collect_announce(
 /// Collects a set of valid code IDs that are not yet validated in the local database.
 async fn collect_code_ids(
     observer: &mut ObserverService,
-    network: &mut NetworkService,
+    _network: &mut NetworkService,
     db: &Database,
     latest_committed_block: H256,
 ) -> Result<BTreeSet<CodeId>> {
     let router_query = observer.router_query();
-    let codes_count = router_query
+    let _codes_count = router_query
         .validated_codes_count_at(latest_committed_block)
         .await?;
 
-    let response = net_fetch(
-        network,
-        db_sync::Request::valid_codes(latest_committed_block, codes_count),
-    )
-    .await?;
-
-    let code_ids = response
-        .unwrap_valid_codes()
-        .into_iter()
-        .filter(|&code_id| db.code_valid(code_id).is_none())
-        .collect();
-
-    Ok(code_ids)
+    let _ = db;
+    anyhow::bail!("fast-sync valid code enumeration via bitswap is not implemented yet")
 }
 
 /// Collects the program states for a given set of program IDs at a specified block height.
@@ -324,10 +314,10 @@ impl RequestManager {
         let pending_network_requests = self.handle_pending_requests();
 
         if !pending_network_requests.is_empty() {
-            let request: BTreeSet<H256> = pending_network_requests.keys().copied().collect();
-            let response = net_fetch(network, db_sync::Request::hashes(request))
-                .await
-                .expect("no external validation required");
+            let mut response = Vec::with_capacity(pending_network_requests.len());
+            for &hash in pending_network_requests.keys() {
+                response.push((hash, bitswap_fetch(network, hash).await));
+            }
 
             self.handle_response(pending_network_requests, response);
         }
@@ -364,9 +354,8 @@ impl RequestManager {
     fn handle_response(
         &mut self,
         mut pending_network_requests: HashMap<H256, RequestMetadata>,
-        response: db_sync::Response,
+        data: Vec<(H256, Vec<u8>)>,
     ) {
-        let data = response.unwrap_hashes();
         for (hash, data) in data {
             let metadata = pending_network_requests
                 .remove(&hash)

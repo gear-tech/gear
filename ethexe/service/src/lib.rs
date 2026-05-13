@@ -56,7 +56,7 @@ use anyhow::{Context, Result, bail};
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, PromiseEmissionMode,
-    network::VerifiedValidatorMessage,
+    network::{AnnouncesRequestError, VerifiedValidatorMessage, request_announces},
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -66,7 +66,10 @@ use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
 use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
-use ethexe_network::{NetworkEvent, NetworkRuntimeConfig, NetworkService};
+use ethexe_network::{
+    DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, NetworkEvent, NetworkRuntimeConfig,
+    NetworkService,
+};
 use ethexe_observer::{
     ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
@@ -96,7 +99,7 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Rpc(RpcEvent),
     Prometheus(PrometheusEvent),
-    Fetching(db_sync::HandleResult),
+    Fetching(Result<ethexe_common::network::AnnouncesResponse, AnnouncesRequestError>),
 }
 
 /// ethexe service.
@@ -743,7 +746,15 @@ impl Service {
                             panic!("Requesting announces is not allowed without network service");
                         };
 
-                        network_fetcher.push(network.db_sync_handle().request(request.into()));
+                        let bitswap = network.bitswap_handle();
+                        network_fetcher.push(async move {
+                            request_announces(
+                                &bitswap,
+                                request,
+                                DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
+                            )
+                            .await
+                        });
                     }
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
@@ -762,11 +773,11 @@ impl Service {
                     }
                 },
                 Event::Fetching(result) => {
-                    let Some(network) = network.as_mut() else {
+                    if network.is_none() {
                         unreachable!("Fetching event is impossible without network service");
                     };
 
-                    consensus.receive_announces_response(result)?;
+                    consensus.receive_announces_response(result?)?;
                 }
             }
         }
