@@ -171,8 +171,7 @@ pub struct Service {
     observer: ObserverService,
     blob_loader: Box<dyn BlobLoaderService>,
     compute: ComputeService,
-    /// `None` for connect (non-validator) nodes — they only observe and
-    /// execute MBs, they don't co-sign or submit batch commitments.
+    /// `None` for connect (non-validator) nodes.
     consensus: Option<Pin<Box<dyn ConsensusService>>>,
     malachite: Option<MalachiteService>,
     signer: Signer,
@@ -184,18 +183,9 @@ pub struct Service {
 
     fast_sync: bool,
     validator_address: Option<Address>,
-    /// Public key matching `validator_address`, retained so the run
-    /// loop can resolve the corresponding `PrivateKey` from the
-    /// `Signer` when it needs to sign reply promises produced by
-    /// `compute_mb`.
     validator_pub_key: Option<PublicKey>,
 
-    /// When set, the run loop selects on this receiver and exits
-    /// gracefully on the first signal — finalizing the malachite
-    /// engine through [`MalachiteService::shutdown`] so the RocksDB
-    /// advisory lock and libp2p listener are released before
-    /// returning. Defaults to `None`, in which case `run` only exits
-    /// on a sub-service error or natural EOS.
+    /// When set, `run` performs `MalachiteService::shutdown` on signal.
     shutdown_rx: Option<oneshot::Receiver<()>>,
 
     #[cfg(test)]
@@ -214,10 +204,6 @@ impl Service {
         if let Some(client_commit_sha) = client_commit_sha
             && client_commit_sha != Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA
         {
-            // bail!(
-            //     "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install nightly-{commit_sha} --force`.",
-            //     commit_sha = Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA,
-            // );
             bail!(
                 "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install {version} --force`.",
                 version = Self::FOUNDRY_TOOLCHAIN_VERSION,
@@ -464,8 +450,6 @@ impl Service {
                 },
             )?))
         } else {
-            // Connect nodes don't run a consensus service — they observe
-            // and execute MBs, that's it.
             None
         };
 
@@ -503,8 +487,7 @@ impl Service {
             None
         };
 
-        // RPC-nodes always need promises so subscribers see replies;
-        // pure validator/peer nodes leave it to consensus.
+        // RPC subscribers need every promise; validators emit on consensus only.
         let promises_mode = if rpc.is_some() {
             PromiseEmissionMode::AlwaysEmit
         } else {
@@ -524,11 +507,7 @@ impl Service {
         let mut malachite_base_config = MalachiteConfig::from_home_dir(malachite_home)
             .with_listen_addr(config.malachite.listen_addr)
             .with_persistent_peers(config.malachite.persistent_peers.clone());
-        // Keep the malachite producer/validator's quarantine depth in
-        // lockstep with the compute layer's, otherwise the producer
-        // proposes an `AdvanceTillEthereumBlock` to a block N
-        // descendants from head while validators reject it as
-        // "needs ≥ default-quarantine" — and consensus deadlocks.
+        // Must match the compute layer's quarantine or consensus deadlocks.
         malachite_base_config.canonical_quarantine = config.node.canonical_quarantine;
         log::info!(
             "Malachite listen: {}  persistent_peers: {}",
@@ -536,10 +515,6 @@ impl Service {
             malachite_base_config.persistent_peers.len(),
         );
         let malachite = {
-            // Validators and connect/full nodes both join the Malachite
-            // mesh. The validator set comes from the on-chain config
-            // either way — for full nodes the local key just isn't in it,
-            // and the engine starts in `NodeRole::FullNode` automatically.
             let malachite_validator_set = build_malachite_validator_set(
                 validators.iter().copied(),
                 &config.malachite.validator_pub_keys,
@@ -676,10 +651,6 @@ impl Service {
             #[cfg(test)]
             sender,
         } = self;
-        // The select! arms below need a polling target whether or
-        // not the caller installed a shutdown channel. `pending()`
-        // never resolves, so when `shutdown_rx` is None the arm
-        // contributes nothing to the select.
         let mut shutdown_rx = shutdown_rx;
 
         let (mut rpc_handle, mut rpc) = if let Some(rpc) = rpc {
@@ -858,19 +829,8 @@ impl Service {
                                 transaction_hash,
                                 acceptance,
                             } => {
-                                // The RPC fan-out broadcasts the same
-                                // tx to every other validator with the
-                                // same `transaction_hash`. Each remote
-                                // dispatch reuses the slot in
-                                // `network_injected_txs`, so only the
-                                // last `oneshot::Sender` survives —
-                                // earlier inserts are clobbered and
-                                // their receivers resolve with `Err`,
-                                // which the RPC layer's
-                                // `FuturesUnordered` already handles.
-                                // Treat the late `OutboundAcceptance`
-                                // arrivals as a no-op rather than
-                                // panicking.
+                                // Fan-out clobbers earlier senders; late arrivals
+                                // miss the slot and resolve as Err upstream.
                                 if let Some(response_sender) =
                                     network_injected_txs.remove(&transaction_hash)
                                 {

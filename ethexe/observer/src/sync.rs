@@ -58,10 +58,8 @@ type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
 
 impl From<anyhow::Error> for SyncError {
     fn from(err: anyhow::Error) -> Self {
-        // `alloy::contract::Error::TransportError` uses
-        // `#[error(transparent)]` + `#[from]` which forwards `source()`
-        // through the wrapper — the inner `RpcError` is not a distinct
-        // chain item, so match the variant explicitly.
+        // `contract::Error::TransportError` is `#[error(transparent)]` +
+        // `#[from]`; its `source()` skips the wrapper, so match it directly.
         let is_rpc = err.chain().any(|e| {
             e.downcast_ref::<AlloyRpcError<TransportErrorKind>>()
                 .is_some()

@@ -191,8 +191,7 @@ impl Stream for ObserverService {
                 Err(SyncError::RpcError(err)) => {
                     log::warn!("observer: RPC error, retrying on next head: {err:#}");
                     self.metrics.recoverable_sync_errors.increment(1);
-                    // Self-wake: `block_sync_queue` may still hold
-                    // headers buffered before this failure.
+                    // Self-wake: queued headers may still be drainable.
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
