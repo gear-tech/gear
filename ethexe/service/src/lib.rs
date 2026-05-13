@@ -56,8 +56,11 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    CodeAndIdUnchecked, PromiseEmissionMode, db::OnChainStorageRO, gear::CodeState,
-    injected::SignedCompactPromise, network::VerifiedValidatorMessage,
+    CodeAndIdUnchecked, PromiseEmissionMode,
+    db::{GlobalsStorageRW, OnChainStorageRO},
+    gear::CodeState,
+    injected::SignedCompactPromise,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService};
@@ -758,6 +761,10 @@ impl Service {
                     }
                     ComputeEvent::MbComputed(mb_hash) => {
                         tracing::info!(mb_hash = %mb_hash, "MB executed");
+                        // RPC needs a pointer whose per-row state is
+                        // already on disk; advance separately from
+                        // `latest_finalized_mb_hash` (set by malachite).
+                        db.globals_mutate(|g| g.latest_computed_mb_hash = mb_hash);
                     }
                     ComputeEvent::Promise(promise, _mb_hash) => {
                         // The local node always feeds its computed body

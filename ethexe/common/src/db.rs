@@ -216,7 +216,15 @@ pub struct DBGlobals {
     pub start_block_hash: H256,
     pub latest_synced_eb: SimpleBlockData,
     pub latest_prepared_eb_hash: H256,
+    /// Latest MB BFT-finalized by Malachite. Rows
+    /// (`mb_program_states`/`mb_outcome`/`mb_schedule`) may not yet
+    /// be persisted — use [`Self::latest_computed_mb_hash`] for any
+    /// read that depends on those rows existing.
     pub latest_finalized_mb_hash: H256,
+    /// Latest MB whose per-row state has been written by the compute
+    /// pipeline. Trails `latest_finalized_mb_hash` until compute
+    /// catches up.
+    pub latest_computed_mb_hash: H256,
 }
 
 #[cfg(feature = "std")]
@@ -272,7 +280,7 @@ mod tests {
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "359cd50c066ea0ba61bf5b5a85a0d4c5161f4931f14cf2474700748c34307662";
+            "512eb917dfc6c79ecfbab68492ceeb4871f6c47e4afd7040a74c5c34182a5969";
 
         let types = [
             meta_type::<BlockMeta>(),

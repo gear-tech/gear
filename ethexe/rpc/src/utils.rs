@@ -43,16 +43,15 @@ pub fn block_at_or_latest_synced(
         .ok_or_else(|| errors::db("Block header for requested hash wasn't found"))
 }
 
-/// Returns the most recently finalized Malachite-block hash for serving
-/// MB-based RPC reads (program states, outcome, schedule).
-///
-/// `H256::zero()` is returned as an error — callers cannot serve
-/// a meaningful answer before any MB has been finalized.
+/// Latest MB whose per-row state is on disk (`mb_program_states` /
+/// `mb_outcome` / `mb_schedule`). Trails `latest_finalized_mb_hash`
+/// until compute catches up; serve RPC reads from this so callers
+/// never see a finalized-but-not-yet-computed pointer.
 pub fn latest_finalized_mb(db: &Database) -> RpcResult<H256> {
-    let hash = db.globals().latest_finalized_mb_hash;
+    let hash = db.globals().latest_computed_mb_hash;
     if hash.is_zero() {
         return Err(errors::db(
-            "no finalized MB available yet; RPC reads require an MB-side state",
+            "no computed MB available yet; RPC reads require an MB-side state",
         ));
     }
     Ok(hash)

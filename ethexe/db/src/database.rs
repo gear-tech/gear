@@ -801,6 +801,7 @@ impl Database {
             latest_synced_eb: SimpleBlockData::default(),
             latest_prepared_eb_hash: H256::zero(),
             latest_finalized_mb_hash: H256::zero(),
+            latest_computed_mb_hash: H256::zero(),
         };
 
         <dyn KVDatabase>::set_config(&mem_db, config);
