@@ -598,10 +598,9 @@ impl Service {
         }
     }
 
-    // _+_+_: why async and Result added? remove them
     #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn new_from_parts(
+    pub(crate) fn new_from_parts(
         db: Database,
         observer: ObserverService,
         blob_loader: Box<dyn BlobLoaderService>,
@@ -616,8 +615,8 @@ impl Service {
         fast_sync: bool,
         validator_address: Option<Address>,
         validator_pub_key: Option<PublicKey>,
-    ) -> Result<Self> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             db,
             observer,
             blob_loader,
@@ -633,7 +632,7 @@ impl Service {
             validator_address,
             validator_pub_key,
             shutdown_rx: None,
-        })
+        }
     }
 
     /// Install a graceful-shutdown channel. The returned sender,

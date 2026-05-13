@@ -1328,9 +1328,7 @@ impl Node {
             self.fast_sync,
             validator_address,
             validator_pub_key,
-        )
-        .await
-        .expect("Failed to construct test service");
+        );
 
         let mut service = service;
         let shutdown_tx = service.install_shutdown_channel();
