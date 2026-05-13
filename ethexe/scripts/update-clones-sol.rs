@@ -1,7 +1,7 @@
+#!/usr/bin/env rust-script
+
 // Copyright (C) Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-#!/usr/bin/env rust-script
 
 //! ```cargo
 //! [dependencies]
