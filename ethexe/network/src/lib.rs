@@ -33,7 +33,7 @@
 //! hands out protocol-specific handles such as [`db_sync::Handle`] for
 //! database synchronization and a peer-scoring handle for internal use.
 
-pub mod db_sync;
+mod bitswap;
 mod gossipsub;
 mod injected;
 mod kad;
@@ -50,7 +50,6 @@ pub mod export {
 pub use injected::Event as NetworkInjectedEvent;
 
 use crate::{
-    db_sync::DbSyncDatabase,
     utils::MultiaddrExt,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
@@ -201,8 +200,6 @@ pub struct NetworkRuntimeConfig {
     pub general_signer: Signer,
     /// Signer used only to construct the libp2p networking keypair.
     pub network_signer: Signer,
-    /// External lookups needed by db-sync request validation.
-    pub external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     /// Database backing validator discovery and db-sync responses.
     pub db: Database,
 }
@@ -276,7 +273,6 @@ impl NetworkService {
             validator_key,
             general_signer,
             network_signer,
-            external_data_provider,
             db,
         } = runtime_config;
 
@@ -299,8 +295,7 @@ impl NetworkService {
         let behaviour_config = BehaviourConfig {
             router_address,
             keypair: keypair.clone(),
-            external_data_provider,
-            db: DbSyncDatabase::clone_boxed(&db),
+            db: bitswap::BlockstoreDatabase::clone_boxed(&db),
             transport_type,
             validator_key,
             general_signer,
@@ -451,7 +446,7 @@ impl NetworkService {
             }
             BehaviourEvent::Kad(event) => self.handle_kad_event(event),
             BehaviourEvent::Gossipsub(event) => return self.handle_gossipsub_event(event),
-            BehaviourEvent::DbSync(_event) => {}
+            BehaviourEvent::Bitswap(_event) => {}
             BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
             BehaviourEvent::ValidatorDiscovery(event) => {
                 return self.handle_validator_discovery_event(event);
@@ -630,9 +625,9 @@ impl NetworkService {
         self.swarm.behaviour().peer_score.handle()
     }
 
-    /// Handle used by external services to start db-sync requests.
-    pub fn db_sync_handle(&self) -> db_sync::Handle {
-        self.swarm.behaviour().db_sync.handle()
+    /// Handle used by external services to start Bitswap requests.
+    pub fn bitswap_handle(&self) -> bitswap::Handle {
+        self.swarm.behaviour().bitswap.handle()
     }
 
     /// Refresh validator-era state after the chain head changes.
@@ -702,8 +697,7 @@ impl NetworkService {
 struct BehaviourConfig<'a> {
     router_address: Address,
     keypair: identity::Keypair,
-    external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-    db: Box<dyn DbSyncDatabase>,
+    db: Box<dyn bitswap::BlockstoreDatabase>,
     transport_type: TransportType,
     validator_key: Option<PublicKey>,
     general_signer: Signer,
@@ -734,8 +728,8 @@ pub(crate) struct Behaviour {
     pub kad: kad::Behaviour,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
-    // database synchronization protocol
-    pub db_sync: db_sync::Behaviour,
+    // data request protocol
+    pub bitswap: bitswap::Behaviour,
     // injected transaction shenanigans
     pub injected: injected::Behaviour,
     // validator discovery
@@ -747,7 +741,6 @@ impl Behaviour {
         let BehaviourConfig {
             router_address,
             keypair,
-            external_data_provider,
             db,
             transport_type,
             validator_key,
@@ -805,15 +798,7 @@ impl Behaviour {
         )
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
 
-        let db_sync = db_sync::Behaviour::new(
-            db_sync::Config {
-                max_chain_len_for_announces_response,
-                ..Default::default()
-            },
-            peer_score_handle.clone(),
-            external_data_provider,
-            db,
-        );
+        let bitswap = bitswap::Behaviour::new(db);
 
         let injected = injected::Behaviour::new();
 
@@ -836,7 +821,7 @@ impl Behaviour {
             mdns4,
             kad,
             gossipsub,
-            db_sync,
+            bitswap,
             injected,
             validator_discovery,
         })
@@ -846,95 +831,22 @@ impl Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        db_sync::{ExternalDataProvider, tests::fill_data_provider},
-        utils::tests::{arb_value, init_logger},
-    };
+    use crate::utils::tests::{arb_value, init_logger};
     use assert_matches::assert_matches;
-    use async_trait::async_trait;
-    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState};
+    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*};
     use ethexe_db::Database;
-    use gprimitives::{ActorId, CodeId, H256};
+    use futures::future;
+    use gprimitives::H256;
     use gsigner::secp256k1::Signer;
     use nonempty::nonempty;
-    use std::{
-        collections::{BTreeSet, HashMap},
-        future,
-        num::NonZeroU64,
-        sync::Arc,
-    };
+    use std::num::NonZeroU64;
     use tokio::{
-        sync::RwLock,
         time,
         time::{Duration, timeout},
     };
 
-    #[derive(Default)]
-    struct DataProviderInner {
-        programs_code_ids_at: HashMap<(BTreeSet<ActorId>, H256), Vec<CodeId>>,
-        code_states_at: HashMap<(BTreeSet<CodeId>, H256), Vec<CodeState>>,
-    }
-
-    #[derive(Default, Clone)]
-    pub struct DataProvider(Arc<RwLock<DataProviderInner>>);
-
-    impl DataProvider {
-        pub async fn set_programs_code_ids_at(
-            &self,
-            program_ids: BTreeSet<ActorId>,
-            at: H256,
-            code_ids: Vec<CodeId>,
-        ) {
-            self.0
-                .write()
-                .await
-                .programs_code_ids_at
-                .insert((program_ids, at), code_ids);
-        }
-    }
-
-    #[async_trait]
-    impl ExternalDataProvider for DataProvider {
-        fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
-            Box::new(self.clone())
-        }
-
-        async fn programs_code_ids_at(
-            self: Box<Self>,
-            program_ids: BTreeSet<ActorId>,
-            block: H256,
-        ) -> anyhow::Result<Vec<CodeId>> {
-            assert!(!program_ids.is_empty());
-            Ok(self
-                .0
-                .read()
-                .await
-                .programs_code_ids_at
-                .get(&(program_ids, block))
-                .cloned()
-                .unwrap_or_default())
-        }
-
-        async fn codes_states_at(
-            self: Box<Self>,
-            code_ids: BTreeSet<CodeId>,
-            block: H256,
-        ) -> anyhow::Result<Vec<CodeState>> {
-            assert!(!code_ids.is_empty());
-            Ok(self
-                .0
-                .read()
-                .await
-                .code_states_at
-                .get(&(code_ids, block))
-                .cloned()
-                .unwrap_or_default())
-        }
-    }
-
     struct NetworkServiceBuilder {
         db: Database,
-        data_provider: DataProvider,
         latest_validators: ValidatorsVec,
         signer: Signer,
         validator_key: Option<PublicKey>,
@@ -944,7 +856,6 @@ mod tests {
         fn new() -> Self {
             Self {
                 db: Database::memory(),
-                data_provider: DataProvider::default(),
                 latest_validators: nonempty![Address::default()].into(),
                 signer: Signer::memory(),
                 validator_key: None,
@@ -966,7 +877,6 @@ mod tests {
 
             let Self {
                 db,
-                data_provider,
                 latest_validators,
                 signer,
                 validator_key,
@@ -986,7 +896,6 @@ mod tests {
                 validator_key,
                 general_signer: signer.clone(),
                 network_signer: signer,
-                external_data_provider: Box::new(data_provider),
                 db,
             };
 
@@ -1013,7 +922,7 @@ mod tests {
         init_logger();
 
         let mut service1 = new_service();
-        let service1_handle = service1.db_sync_handle();
+        let service1_handle = service1.bitswap_handle();
 
         // second service
         let service2 = NetworkServiceBuilder::new();
@@ -1027,17 +936,15 @@ mod tests {
         tokio::spawn(service1.loop_on_next());
         tokio::spawn(service2.loop_on_next());
 
-        let request = service1_handle.request(db_sync::Request::hashes([hello, world]));
-        let response = timeout(Duration::from_secs(5), request)
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        assert_eq!(
-            response,
-            db_sync::Response::Hashes(
-                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-            )
-        );
+        let hello_request = service1_handle.request(hello);
+        let world_request = service1_handle.request(world);
+        let response = timeout(
+            Duration::from_secs(5),
+            future::join(hello_request, world_request),
+        )
+        .await
+        .expect("time has elapsed");
+        assert_eq!(response, (b"hello".to_vec(), b"world".to_vec()));
     }
 
     #[tokio::test]
@@ -1063,33 +970,6 @@ mod tests {
             .expect("time has elapsed")
             .unwrap();
         assert_matches!(event, NetworkEvent::PeerBlocked(peer_id) if peer_id == service2_peer_id);
-    }
-
-    #[tokio::test]
-    async fn external_data_provider() {
-        init_logger();
-
-        let alice = NetworkServiceBuilder::new();
-        let alice_data_provider = alice.data_provider.clone();
-        let mut alice = alice.build();
-        let alice_handle = alice.db_sync_handle();
-
-        let bob = NetworkServiceBuilder::new();
-        let bob_db = bob.db.clone();
-        let mut bob = bob.build();
-
-        alice.connect(&mut bob).await;
-        tokio::spawn(alice.loop_on_next());
-        tokio::spawn(bob.loop_on_next());
-
-        let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
-
-        let request = alice_handle.request(db_sync::Request::program_ids(H256::zero(), 2));
-        let response = timeout(Duration::from_secs(5), request)
-            .await
-            .expect("time has elapsed")
-            .unwrap();
-        assert_eq!(response, expected_response);
     }
 
     #[tokio::test]

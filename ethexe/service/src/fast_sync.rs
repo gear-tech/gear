@@ -44,7 +44,7 @@ use ethexe_db::{
     visitor::DatabaseVisitor,
 };
 use ethexe_ethereum::mirror::MirrorQuery;
-use ethexe_network::{NetworkService, db_sync};
+use ethexe_network::NetworkService;
 use ethexe_observer::{
     ObserverService,
     utils::{BlockId, BlockLoader},

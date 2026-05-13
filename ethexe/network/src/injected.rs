@@ -16,11 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    db_sync::{Multiaddr, PeerId},
-    utils::ParityScaleCodec,
-    validator::discovery::ValidatorIdentities,
-};
+use crate::{utils::ParityScaleCodec, validator::discovery::ValidatorIdentities};
 use ethexe_common::{
     Address, HashOf,
     injected::{
@@ -30,7 +26,7 @@ use ethexe_common::{
 };
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
-    StreamProtocol,
+    Multiaddr, PeerId, StreamProtocol,
     core::{Endpoint, transport::PortUse},
     request_response,
     request_response::{

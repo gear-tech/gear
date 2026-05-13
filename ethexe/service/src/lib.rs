@@ -53,10 +53,9 @@ use alloy::{
     rpc::types::anvil::Metadata,
 };
 use anyhow::{Context, Result, bail};
-use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, PromiseEmissionMode, gear::CodeState,
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, PromiseEmissionMode,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
@@ -67,10 +66,7 @@ use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
 use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
-use ethexe_network::{
-    NetworkEvent, NetworkRuntimeConfig, NetworkService,
-    db_sync::{self, ExternalDataProvider},
-};
+use ethexe_network::{NetworkEvent, NetworkRuntimeConfig, NetworkService};
 use ethexe_observer::{
     ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
@@ -80,15 +76,9 @@ use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{FutureExt, StreamExt, stream::FuturesUnordered};
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::CodeId;
 use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
-use std::{
-    collections::{BTreeSet, HashMap},
-    num::NonZero,
-    path::PathBuf,
-    pin::Pin,
-    time::Duration,
-};
+use std::{collections::HashMap, num::NonZero, path::PathBuf, pin::Pin, time::Duration};
 use tokio::sync::oneshot;
 
 pub mod config;
@@ -107,32 +97,6 @@ pub enum Event {
     Rpc(RpcEvent),
     Prometheus(PrometheusEvent),
     Fetching(db_sync::HandleResult),
-}
-
-#[derive(Clone)]
-struct RouterDataProvider(RouterQuery);
-
-#[async_trait]
-impl ExternalDataProvider for RouterDataProvider {
-    fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
-        Box::new(self.clone())
-    }
-
-    async fn programs_code_ids_at(
-        self: Box<Self>,
-        program_ids: BTreeSet<ActorId>,
-        block: H256,
-    ) -> Result<Vec<CodeId>> {
-        self.0.programs_code_ids_at(program_ids, block).await
-    }
-
-    async fn codes_states_at(
-        self: Box<Self>,
-        code_ids: BTreeSet<CodeId>,
-        block: H256,
-    ) -> Result<Vec<CodeState>> {
-        self.0.codes_states_at(code_ids, block).await
-    }
 }
 
 /// ethexe service.
@@ -450,7 +414,6 @@ impl Service {
                 validator_key: validator_pub_key,
                 general_signer: signer.clone(),
                 network_signer,
-                external_data_provider: Box::new(RouterDataProvider(router_query)),
                 db: db.clone(),
             };
 
@@ -803,20 +766,7 @@ impl Service {
                         unreachable!("Fetching event is impossible without network service");
                     };
 
-                    match result {
-                        Ok(db_sync::Response::Announces(response)) => {
-                            consensus.receive_announces_response(response)?;
-                        }
-                        Ok(resp) => {
-                            panic!("only announces are requested currently, but got: {resp:?}");
-                        }
-                        Err((err, request)) => {
-                            log::trace!(
-                                "Retry fetching external data for request {request:?} due to error: {err:?}"
-                            );
-                            network_fetcher.push(network.db_sync_handle().retry(request));
-                        }
-                    }
+                    consensus.receive_announces_response(result)?;
                 }
             }
         }

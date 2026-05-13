@@ -21,9 +21,13 @@ ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
 gprimitives = { workspace = true, features = ["std", "codec"] }
 
-# libp2p
+# libp2p & friends
 libp2p = { version = "0.56.0", features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tcp", "dns", "tls", "tokio", "macros", "plaintext", "yamux", "metrics"] }
 libp2p-gossipsub = { version = "0.49.4", features = ["metrics"] }
+beetswap = "0.5.0"
+blockstore = "0.8.0"
+cid = "0.11.3"
+multihash = "0.19.5"
 
 # other deps
 tokio = { workspace = true, features = ["macros", "sync"] }

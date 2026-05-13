@@ -18,13 +18,11 @@
 
 pub(crate) use libp2p::gossipsub::*;
 
-use crate::{
-    db_sync::{Multiaddr, PeerId},
-    peer_score,
-};
+use crate::peer_score;
 use anyhow::anyhow;
 use ethexe_common::{Address, injected::SignedCompactPromise, network::SignedValidatorMessage};
 use libp2p::{
+    Multiaddr, PeerId,
     core::{Endpoint, transport::PortUse},
     gossipsub,
     identity::Keypair,
