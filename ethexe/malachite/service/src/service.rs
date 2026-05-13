@@ -206,8 +206,11 @@ impl MalachiteService {
 
     /// Hand an injected transaction to the mempool. The local
     /// producer pulls from the same pool when assembling the next MB.
-    pub fn receive_injected_transaction(&self, tx: SignedInjectedTransaction) {
-        self.mempool.insert(tx);
+    pub fn receive_injected_transaction(
+        &self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<(), crate::mempool::MempoolInsertError> {
+        self.mempool.insert(tx)
     }
 
     /// Feed an observer-delivered Ethereum `BlockSynced` block into the

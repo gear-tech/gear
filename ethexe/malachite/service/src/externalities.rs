@@ -886,7 +886,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Mempool for ForgetTracker {
-        fn insert(&self, _tx: SignedInjectedTransaction) {}
+        fn insert(
+            &self,
+            _tx: SignedInjectedTransaction,
+        ) -> Result<(), crate::mempool::MempoolInsertError> {
+            Ok(())
+        }
         fn set_chain_head(&self, _head: SimpleBlockData) {}
         async fn fetch(
             &self,

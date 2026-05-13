@@ -61,12 +61,26 @@ use gprimitives::H256;
 use tokio::sync::Notify;
 use tracing::{info, trace};
 
+/// Reasons a tx can be rejected at insert time.
+#[derive(Debug, thiserror::Error)]
+pub enum MempoolInsertError {
+    #[error("tx hash already committed within validity window")]
+    AlreadyCommitted,
+    #[error("tx already in pool")]
+    Duplicate,
+    #[error("reference_block past validity window")]
+    ExpiredRefBlock,
+    #[error("mempool at capacity")]
+    PoolFull,
+}
+
 /// Producer-side source of injected transactions. Fetch is non-destructive;
 /// `forget` runs after MB finalization and dedups within `VALIDITY_WINDOW`.
 #[async_trait]
 pub trait Mempool: Send + Sync + 'static {
-    /// Fire-and-forget; aged-out / duplicate txs are dropped silently.
-    fn insert(&self, tx: SignedInjectedTransaction);
+    /// Returns `Err` for the reasons in [`MempoolInsertError`]; callers map
+    /// the result to an `InjectedTransactionAcceptance`.
+    fn insert(&self, tx: SignedInjectedTransaction) -> Result<(), MempoolInsertError>;
 
     /// Drives validity-window GC.
     fn set_chain_head(&self, head: SimpleBlockData);
@@ -88,7 +102,9 @@ pub struct EmptyMempool;
 
 #[async_trait]
 impl Mempool for EmptyMempool {
-    fn insert(&self, _tx: SignedInjectedTransaction) {}
+    fn insert(&self, _tx: SignedInjectedTransaction) -> Result<(), MempoolInsertError> {
+        Ok(())
+    }
 
     fn set_chain_head(&self, _head: SimpleBlockData) {}
 
@@ -230,7 +246,7 @@ impl InjectedTxMempool {
 
 #[async_trait]
 impl Mempool for InjectedTxMempool {
-    fn insert(&self, tx: SignedInjectedTransaction) {
+    fn insert(&self, tx: SignedInjectedTransaction) -> Result<(), MempoolInsertError> {
         let tx_data = tx.data();
         let tx_hash = tx_data.to_hash();
         let ref_block = tx_data.reference_block;
@@ -239,24 +255,18 @@ impl Mempool for InjectedTxMempool {
 
         if inner.seen.contains_key(&tx_hash) {
             info!(%tx_hash, "mempool: rejecting tx — hash already committed within validity window");
-            return;
+            return Err(MempoolInsertError::AlreadyCommitted);
         }
 
         if inner.pool.contains_key(&tx_hash) {
             info!(%tx_hash, pool_len = inner.pool.len(), "mempool: skip — duplicate insert");
-            return;
+            return Err(MempoolInsertError::Duplicate);
         }
 
-        // ref_block resolution is best-effort at insert time. The
-        // RPC fan-out delivers a tx to every validator in parallel,
-        // and a recipient that hasn't yet observed the producer's
-        // reference Eth block (e.g. dell-side validator a few
-        // milliseconds behind AWS for the latest Hoodi tip) used to
-        // reject — but the RPC has no retry path, so the tx was
-        // simply lost on that validator. We now accept the tx
-        // unconditionally at insert time and filter at `fetch` time:
-        // once the ref_block lands in our local DB, the tx becomes
-        // eligible automatically, and we never lose a fan-out arm.
+        // ref_block resolution is best-effort: a recipient that hasn't yet
+        // observed the producer's reference Eth block accepts and filters
+        // at fetch time once the block lands locally. Only reject when
+        // the ref_block is known AND already past the validity window.
         let ref_height_opt = self.ref_block_height(ref_block);
         if let Some(ref_height) = ref_height_opt
             && let Some(head_height) = inner.latest_head_height
@@ -266,12 +276,12 @@ impl Mempool for InjectedTxMempool {
                 %tx_hash, %ref_block, ref_height, head_height,
                 "mempool: rejecting tx — reference_block past VALIDITY_WINDOW"
             );
-            return;
+            return Err(MempoolInsertError::ExpiredRefBlock);
         }
 
         if inner.pool.len() >= self.capacity {
             info!(%tx_hash, capacity = self.capacity, "mempool: rejecting tx — pool at capacity");
-            return;
+            return Err(MempoolInsertError::PoolFull);
         }
 
         // Persist the tx so the local RPC's `injected_getTransactions`
@@ -302,6 +312,7 @@ impl Mempool for InjectedTxMempool {
         // round-trip latency picks up an extra ETH-block of
         // jitter for every tx that races the loop boundary.
         self.new_tx_notify.notify_one();
+        Ok(())
     }
 
     fn set_chain_head(&self, head: SimpleBlockData) {
@@ -429,7 +440,7 @@ mod tests {
         // the ref_block resolves locally — keeps the RPC fan-out arm alive
         // on validators a few ms behind the producer.
         let tx = signed_tx(&pk, ActorId::zero(), H256::random(), 1);
-        pool.insert(tx);
+        pool.insert(tx).unwrap();
         assert_eq!(pool.len(), 1);
     }
 
@@ -443,7 +454,7 @@ mod tests {
         let tx = signed_tx(&pk, ActorId::zero(), chain[2].hash, 1);
         let tx_hash = tx.data().to_hash();
 
-        pool.insert(tx.clone());
+        pool.insert(tx.clone()).unwrap();
         assert_eq!(pool.len(), 1);
 
         // The pool fetches when ref_block is on the canonical chain
@@ -462,9 +473,12 @@ mod tests {
 
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 7);
-        pool.insert(tx.clone());
+        pool.insert(tx.clone()).unwrap();
         assert_eq!(pool.len(), 1);
-        pool.insert(tx);
+        assert!(matches!(
+            pool.insert(tx),
+            Err(MempoolInsertError::Duplicate)
+        ));
         assert_eq!(pool.len(), 1, "duplicate by hash should be a no-op");
     }
 
@@ -475,9 +489,14 @@ mod tests {
         let pool = InjectedTxMempool::with_capacity(db, 2);
 
         let pk = PrivateKey::random();
-        for i in 0..3 {
-            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, i));
-        }
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0))
+            .unwrap();
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 1))
+            .unwrap();
+        assert!(matches!(
+            pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 2)),
+            Err(MempoolInsertError::PoolFull),
+        ));
         assert_eq!(pool.len(), 2, "third insert must hit the capacity cap");
     }
 
@@ -492,7 +511,7 @@ mod tests {
         let pk = PrivateKey::random();
         // tx anchored at block 1 — height 1
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 0);
-        pool.insert(tx);
+        pool.insert(tx).unwrap();
         assert_eq!(pool.len(), 1);
 
         // Advance head far enough that block 1's height is past the
@@ -514,14 +533,17 @@ mod tests {
 
         let pk = PrivateKey::random();
         let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, 99);
-        pool.insert(tx.clone());
+        pool.insert(tx.clone()).unwrap();
         assert_eq!(pool.len(), 1);
 
         futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
         assert_eq!(pool.len(), 0);
 
         // Re-inserting the same tx must be rejected (seen-hash hit).
-        pool.insert(tx);
+        assert!(matches!(
+            pool.insert(tx),
+            Err(MempoolInsertError::AlreadyCommitted),
+        ));
         assert_eq!(pool.len(), 0, "forgotten tx must not return to the pool");
     }
 
@@ -552,7 +574,7 @@ mod tests {
 
         // tx anchored to the ALT branch
         let tx_alt = signed_tx(&pk, ActorId::zero(), alt_hash, 1);
-        pool.insert(tx_alt);
+        pool.insert(tx_alt).unwrap();
         assert_eq!(pool.len(), 1);
 
         // Fetching for canonical branch (chain[1]) — alt tx must NOT
@@ -584,7 +606,8 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         let pk = PrivateKey::random();
-        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0));
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0))
+            .unwrap();
 
         // Waiter should now wake up promptly.
         tokio::time::timeout(Duration::from_secs(1), waiter)
@@ -605,7 +628,7 @@ mod tests {
 
         // Seed one accepted insert and consume the resulting permit so
         // the next `.notified()` re-blocks until the next signal.
-        pool.insert(tx.clone());
+        pool.insert(tx.clone()).unwrap();
         pool.wait_for_new_tx().await;
 
         let waiter = {
@@ -618,7 +641,10 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(10)).await;
 
         // Same tx hash — rejected as duplicate, no signal.
-        pool.insert(tx);
+        assert!(matches!(
+            pool.insert(tx),
+            Err(MempoolInsertError::Duplicate)
+        ));
 
         // Waiter must still be pending.
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -714,8 +740,9 @@ mod tests {
                 match action {
                     Action::Insert { ref_idx, salt } => {
                         let tx = signed_tx(&pk, ActorId::zero(), chain[ref_idx].hash, salt);
-                        pool.insert(tx.clone());
-                        live.push(tx);
+                        if pool.insert(tx.clone()).is_ok() {
+                            live.push(tx);
+                        }
                     }
                     Action::Forget { which } => {
                         if !live.is_empty() {
@@ -767,7 +794,7 @@ mod tests {
             // Inserts: alternating canonical-tail and alt anchors.
             for i in 0..n_txs {
                 let anchor = if i % 2 == 0 { chain[3].hash } else { alt_hash };
-                pool.insert(signed_tx(&pk, ActorId::zero(), anchor, i as u8));
+                pool.insert(signed_tx(&pk, ActorId::zero(), anchor, i as u8)).unwrap();
             }
 
             let head = chain[3];
@@ -793,13 +820,16 @@ mod tests {
             let pool = InjectedTxMempool::new(db);
             let pk = PrivateKey::random();
             let tx = signed_tx(&pk, ActorId::zero(), chain[1].hash, salt);
-            pool.insert(tx.clone());
+            pool.insert(tx.clone()).unwrap();
             prop_assert_eq!(pool.len(), 1);
             futures::executor::block_on(pool.forget(std::slice::from_ref(&tx)));
             prop_assert_eq!(pool.len(), 0);
             // Re-insert: rejected because the hash sits in the
             // seen-set and `reference_block` hasn't aged out.
-            pool.insert(tx);
+            prop_assert!(matches!(
+                pool.insert(tx),
+                Err(MempoolInsertError::AlreadyCommitted)
+            ));
             prop_assert_eq!(pool.len(), 0);
         }
     }

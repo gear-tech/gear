@@ -815,15 +815,13 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
-                                // The mempool persists to the DB on insert,
-                                // so the local RPC's `injected_getTransactions`
-                                // can serve the tx by hash later.
-                                if let Some(m) = malachite.as_mut() {
-                                    m.receive_injected_transaction((*transaction).clone());
-                                }
-                                let _ = channel.send(
-                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept,
-                                );
+                                let acceptance = if let Some(m) = malachite.as_mut() {
+                                    m.receive_injected_transaction((*transaction).clone())
+                                        .into()
+                                } else {
+                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept
+                                };
+                                let _ = channel.send(acceptance);
                             }
                             ethexe_network::NetworkInjectedEvent::OutboundAcceptance {
                                 transaction_hash,
@@ -861,16 +859,13 @@ impl Service {
                             let is_our_address = Some(transaction.recipient) == validator_address;
 
                             if is_zero_address || is_our_address {
-                                // The mempool persists to the DB on insert
-                                // (so `injected_getTransactions` can serve
-                                // it later), then the producer pulls the
-                                // tx the next time it assembles an MB.
-                                if let Some(m) = malachite.as_mut() {
-                                    m.receive_injected_transaction(transaction.tx.clone());
-                                }
-                                let _res = response_sender.send(
-                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept,
-                                );
+                                let acceptance = if let Some(m) = malachite.as_mut() {
+                                    m.receive_injected_transaction(transaction.tx.clone())
+                                        .into()
+                                } else {
+                                    ethexe_common::injected::InjectedTransactionAcceptance::Accept
+                                };
+                                let _res = response_sender.send(acceptance);
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
