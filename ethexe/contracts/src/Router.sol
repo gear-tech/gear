@@ -64,8 +64,8 @@ contract Router is
      * @param _eraDuration The duration of an era in seconds.
      * @param _electionDuration The duration of an election in seconds.
      * @param _validationDelay The delay before validators can start validating in seconds.
-     * @param _aggregatedPublicKey The aggregated public key of the initial validators. Will be used in future.
-     * @param _verifiableSecretSharingCommitment The verifiable secret sharing commitment of the initial validators. Will be used in future.
+     * @param _aggregatedPublicKey The optional aggregated public key of the initial validators. Will be used in future.
+     * @param _verifiableSecretSharingCommitment The optional verifiable secret sharing commitment of the initial validators. Will be used in future.
      * @param _validators The list of initial validators' addresses. Currently `Router` batch commitments uses ECDSA signatures,
      *                    so the list of validators is used for signature verification.
      */
@@ -114,6 +114,7 @@ contract Router is
         // Set validators for the era 0.
         _resetValidators(
             router.validationSettings.validators0,
+            _aggregatedPublicKey.x != 0 || _aggregatedPublicKey.y != 0,
             _aggregatedPublicKey,
             _verifiableSecretSharingCommitment,
             _validators,
@@ -292,7 +293,8 @@ contract Router is
      * @return validatorsVerifiableSecretSharingCommitment The verifiable secret sharing commitment of the current validators.
      */
     function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory) {
-        return SSTORE2.read(Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer);
+        address _pointer = Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer;
+        return _pointer == address(0) ? bytes("") : SSTORE2.read(_pointer);
     }
 
     /**
@@ -1008,6 +1010,7 @@ contract Router is
 
         _resetValidators(
             _validators,
+            _commitment.aggregatedPublicKey.x != 0 || _commitment.aggregatedPublicKey.y != 0,
             _commitment.aggregatedPublicKey,
             _commitment.verifiableSecretSharingCommitment,
             _commitment.validators,
@@ -1051,22 +1054,27 @@ contract Router is
 
     function _resetValidators(
         Gear.Validators storage _validators,
+        bool _hasAggregatedPublicKey,
         Gear.AggregatedPublicKey memory _newAggregatedPublicKey,
         bytes memory _verifiableSecretSharingCommitment,
         address[] memory _newValidators,
         uint256 _useFromTimestamp
     ) private {
-        // basic checks for aggregated public key
-        // but it probably should be checked with
-        // [`frost_core::keys::PublicKeyPackage::{from_commitment, from_dkg_commitments}`]
-        // https://docs.rs/frost-core/latest/frost_core/keys/struct.PublicKeyPackage.html#method.from_dkg_commitments
-        // ideally onchain
-        require(
-            FROST.isValidPublicKey(_newAggregatedPublicKey.x, _newAggregatedPublicKey.y),
-            InvalidFROSTAggregatedPublicKey()
-        );
-        _validators.aggregatedPublicKey = _newAggregatedPublicKey;
-        _validators.verifiableSecretSharingCommitmentPointer = SSTORE2.write(_verifiableSecretSharingCommitment);
+        if (_hasAggregatedPublicKey) {
+            // Basic checks for aggregated public key, but it probably should be checked with
+            // [`frost_core::keys::PublicKeyPackage::{from_commitment, from_dkg_commitments}`]
+            // https://docs.rs/frost-core/latest/frost_core/keys/struct.PublicKeyPackage.html#method.from_dkg_commitments
+            // ideally onchain.
+            require(
+                FROST.isValidPublicKey(_newAggregatedPublicKey.x, _newAggregatedPublicKey.y),
+                InvalidFROSTAggregatedPublicKey()
+            );
+            _validators.aggregatedPublicKey = _newAggregatedPublicKey;
+            _validators.verifiableSecretSharingCommitmentPointer = SSTORE2.write(_verifiableSecretSharingCommitment);
+        } else {
+            delete _validators.aggregatedPublicKey;
+            delete _validators.verifiableSecretSharingCommitmentPointer;
+        }
         for (uint256 i = 0; i < _validators.list.length; i++) {
             address _validator = _validators.list[i];
             _validators.map[_validator] = false;

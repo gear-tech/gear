@@ -25,9 +25,13 @@ contract DeploymentScript is Script {
     function run() public {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address[] memory validatorsArray = vm.envAddress("ROUTER_VALIDATORS_LIST", ",");
-        uint256 aggregatedPublicKeyX = vm.envUint("ROUTER_AGGREGATED_PUBLIC_KEY_X");
-        uint256 aggregatedPublicKeyY = vm.envUint("ROUTER_AGGREGATED_PUBLIC_KEY_Y");
-        bytes memory verifiableSecretSharingCommitment = vm.envBytes("ROUTER_VERIFIABLE_SECRET_SHARING_COMMITMENT");
+        uint256 aggregatedPublicKeyX =
+            vm.envExists("ROUTER_AGGREGATED_PUBLIC_KEY_X") ? vm.envUint("ROUTER_AGGREGATED_PUBLIC_KEY_X") : 0;
+        uint256 aggregatedPublicKeyY =
+            vm.envExists("ROUTER_AGGREGATED_PUBLIC_KEY_Y") ? vm.envUint("ROUTER_AGGREGATED_PUBLIC_KEY_Y") : 0;
+        bytes memory verifiableSecretSharingCommitment = vm.envExists("ROUTER_VERIFIABLE_SECRET_SHARING_COMMITMENT")
+            ? vm.envBytes("ROUTER_VERIFIABLE_SECRET_SHARING_COMMITMENT")
+            : bytes("");
         address deployerAddress = vm.addr(privateKey);
 
         vm.startBroadcast(privateKey);

@@ -141,6 +141,34 @@ contract RouterTest is Base {
         commitValidators(commitment, true);
     }
 
+    function test_validatorsCommitmentWithoutAggregatedPublicKey() public {
+        address[] memory _validators = new address[](3);
+        uint256[] memory _validatorPrivateKeys = new uint256[](3);
+        for (uint256 i = 0; i < 3; i++) {
+            (address addr, uint256 key) = makeAddrAndKey(vm.toString(i));
+            _validators[i] = addr;
+            _validatorPrivateKeys[i] = key;
+        }
+
+        Gear.ValidatorsCommitment memory commitment =
+            Gear.ValidatorsCommitment(Gear.AggregatedPublicKey(0, 0), "", _validators, 1);
+
+        rollOneBlockAndWarp(uint256(router.genesisTimestamp() + eraDuration - electionDuration));
+
+        commitValidators(commitment, false);
+
+        rollOneBlockAndWarp(uint256(router.genesisTimestamp() + eraDuration));
+
+        assertEq(router.validators(), _validators);
+
+        Gear.AggregatedPublicKey memory aggregatedPublicKey = router.validatorsAggregatedPublicKey();
+        assertEq(aggregatedPublicKey.x, 0);
+        assertEq(aggregatedPublicKey.y, 0);
+
+        validators = _validators;
+        validatorsPrivateKeys = _validatorPrivateKeys;
+    }
+
     function test_lateCommitments() public {
         address[] memory _validators = new address[](3);
         uint256[] memory _validatorPrivateKeys = new uint256[](3);
