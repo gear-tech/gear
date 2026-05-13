@@ -1,0 +1,15 @@
+[package]
+name = "gbuild-test-foo"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gstd = { path = "../../../gstd" }
+
+[features]
+debug = ["gstd/debug"]
+default = []
+std = []
