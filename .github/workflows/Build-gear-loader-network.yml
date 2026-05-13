@@ -42,7 +42,7 @@ jobs:
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v9
         with:
-          directory: ./ansible/
+          directory: ./.github/ansible/
           playbook: gear-loader-update.yaml
           key: ${{secrets.SSH_PRIVATE_KEY}}
           inventory: |

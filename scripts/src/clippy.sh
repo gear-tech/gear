@@ -30,7 +30,7 @@ examples_clippy() {
   # find crates that use "gear-wasm-builder"
   mapfile -t examples < <(
     cargo metadata --no-deps --format-version=1 |
-    jq -r '.packages.[] | select(.manifest_path | contains("gear/examples")) | select(.dependencies.[].name == "gear-wasm-builder") | "-p=" + .name'
+    jq -r '.packages.[] | select(.manifest_path | contains("gear/sdk/examples")) | select(.dependencies.[].name == "gear-wasm-builder") | "-p=" + .name'
   )
   # clippy will try to link "test" crate which is not available for "wasm32v1-none" target
   mapfile -t filtered_args < <(printf "%s\n" "${@}" | grep -v "all-targets")
