@@ -93,10 +93,16 @@ impl OngoingResponses {
                 InnerHashesResponse(response).into()
             }
             InnerRequest::ProgramIds(request) => {
-                let actor_ids = db
-                    .mb_program_states(request.at)
-                    .map(|states| states.into_keys().collect())
-                    .unwrap_or_default();
+                let actor_ids = match db.mb_program_states(request.at) {
+                    Some(states) => states.into_keys().collect(),
+                    None => {
+                        log::warn!(
+                            "mb_program_states({}) not found; responder returning empty set",
+                            request.at,
+                        );
+                        Default::default()
+                    }
+                };
                 InnerProgramIdsResponse(actor_ids).into()
             }
             InnerRequest::ValidCodes => db.valid_codes().into(),

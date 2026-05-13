@@ -67,9 +67,13 @@ impl TransactionsRelayer {
             ));
         }
 
-        let recipients: Vec<Address> = current_validators(&self.db)
-            .map(|set| set.iter().copied().collect())
-            .unwrap_or_default();
+        let recipients: Vec<Address> = match current_validators(&self.db) {
+            Ok(set) => set.iter().copied().collect(),
+            Err(err) => {
+                tracing::warn!(%tx_hash, ?err, "validator set unavailable; falling back to single recipient");
+                Vec::new()
+            }
+        };
 
         if recipients.is_empty() {
             return self.send_single(transaction, tx_hash).await;
