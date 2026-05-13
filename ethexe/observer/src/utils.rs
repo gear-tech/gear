@@ -32,7 +32,7 @@ use alloy::{
 };
 use anyhow::{Context, Result};
 use ethexe_common::{Address, BlockData, BlockHeader, SimpleBlockData, events::BlockEvent};
-use ethexe_ethereum::{abi::IRouter, mirror, router};
+use ethexe_ethereum::{IntoBlockId, abi::IRouter, mirror, router};
 use futures::{TryFutureExt, future};
 use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture, ops::RangeInclusive};
@@ -45,26 +45,9 @@ const LOGS_CHUNK_SIZE: u64 = 256;
 /// Maximum number of in-flight log chunk requests issued by [`alloy::contract::ChunkedEvent`].
 const LOGS_MAX_CONCURRENCY: usize = 8;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::From)]
-pub enum BlockId {
-    Hash(H256),
-    Latest,
-    Finalized,
-}
-
-impl BlockId {
-    fn as_alloy(self) -> alloy::eips::BlockId {
-        match self {
-            BlockId::Hash(hash) => alloy::eips::BlockId::hash(hash.0.into()),
-            BlockId::Latest => alloy::eips::BlockId::latest(),
-            BlockId::Finalized => alloy::eips::BlockId::finalized(),
-        }
-    }
-}
-
 #[allow(async_fn_in_trait)]
 pub trait BlockLoader {
-    async fn load_simple(&self, block: BlockId) -> Result<SimpleBlockData>;
+    async fn load_simple(&self, block: impl IntoBlockId) -> Result<SimpleBlockData>;
 
     async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData>;
 
@@ -210,13 +193,10 @@ impl EthereumBlockLoader {
 }
 
 impl BlockLoader for EthereumBlockLoader {
-    async fn load_simple(&self, block: BlockId) -> Result<SimpleBlockData> {
+    async fn load_simple(&self, block: impl IntoBlockId) -> Result<SimpleBlockData> {
+        let block = block.into_block_id();
         log::trace!("Querying simple data for one block {block:?}");
-        let block = self
-            .provider
-            .get_block(block.as_alloy())
-            .into_future()
-            .await?;
+        let block = self.provider.get_block(block).into_future().await?;
         let block = block.context("block not found")?;
         let (hash, header) = Self::block_response_to_data(block);
         Ok(SimpleBlockData { hash, header })
@@ -232,7 +212,7 @@ impl BlockLoader for EthereumBlockLoader {
         let (block_hash, header, logs) = if let Some(header) = header {
             (block, header, logs_request.await?)
         } else {
-            let data = self.load_simple(block.into());
+            let data = self.load_simple(block);
             let (SimpleBlockData { hash, header }, logs) =
                 future::try_join(data, logs_request).await?;
             (hash, header, logs)

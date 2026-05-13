@@ -25,6 +25,7 @@ use crate::{
     },
 };
 use alloy::{
+    eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::{Metadata, MineOptions},
@@ -56,7 +57,7 @@ use ethexe_ethereum::{
 use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
     ObserverConfig, ObserverService,
-    utils::{BlockId, BlockLoader, EthereumBlockLoader},
+    utils::{BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{DEFAULT_CHUNK_SIZE, Processor};
 use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
@@ -268,7 +269,7 @@ impl TestEnv {
         .unwrap();
         let latest_block = observer
             .block_loader()
-            .load_simple(BlockId::Latest)
+            .load_simple(BlockId::latest())
             .await
             .context("failed to get latest block")?;
         let latest_validators = router_query
@@ -677,7 +678,7 @@ impl TestEnv {
 
     pub async fn latest_block(&self) -> SimpleBlockData {
         EthereumBlockLoader::new(self.provider.clone(), self.eth_cfg.router_address)
-            .load_simple(BlockId::Latest)
+            .load_simple(BlockId::latest())
             .await
             .unwrap()
     }
@@ -975,7 +976,7 @@ impl Node {
         .unwrap();
         let latest_block = observer
             .block_loader()
-            .load_simple(BlockId::Latest)
+            .load_simple(BlockId::latest())
             .await
             .unwrap();
         let latest_validators = observer
@@ -1203,7 +1204,7 @@ impl Node {
 
         let provider = RootProvider::connect(&self.eth_cfg.rpc).await.unwrap();
         let block_loader = EthereumBlockLoader::new(provider, self.eth_cfg.router_address);
-        let latest_block = block_loader.load_simple(BlockId::Latest).await.unwrap();
+        let latest_block = block_loader.load_simple(BlockId::latest()).await.unwrap();
         let latest_validators = self
             .router_query
             .validators_at(latest_block.hash)

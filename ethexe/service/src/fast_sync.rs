@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Service;
+use alloy::eips::BlockId;
 use anyhow::{Context, Result};
 use ethexe_common::{
     Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
@@ -45,10 +46,7 @@ use ethexe_db::{
 };
 use ethexe_ethereum::mirror::MirrorQuery;
 use ethexe_network::NetworkService;
-use ethexe_observer::{
-    ObserverService,
-    utils::{BlockId, BlockLoader},
-};
+use ethexe_observer::{ObserverService, utils::BlockLoader};
 use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
@@ -160,15 +158,21 @@ async fn bitswap_fetch_announces(
 /// Collects program code IDs for the latest committed block.
 async fn collect_program_code_ids(
     observer: &mut ObserverService,
-    _network: &mut NetworkService,
-    latest_committed_block: H256,
+    genesis_block: u32,
+    latest_committed_block: u32,
 ) -> Result<BTreeMap<ActorId, CodeId>> {
-    let router_query = observer.router_query();
-    let _programs_count = router_query
-        .programs_count_at(latest_committed_block)
-        .await?;
-
-    anyhow::bail!("fast-sync program id enumeration via bitswap is not implemented yet")
+    Ok(observer
+        .router_query()
+        .events()
+        .program_created()
+        .from_block(genesis_block)
+        .to_block(latest_committed_block)
+        .query()
+        .await
+        .context("failed to ProgramCreated events")?
+        .into_iter()
+        .map(|(event, _log)| (event.actor_id, event.code_id))
+        .collect())
 }
 
 async fn collect_announce(
@@ -196,17 +200,25 @@ async fn collect_announce(
 /// Collects a set of valid code IDs that are not yet validated in the local database.
 async fn collect_code_ids(
     observer: &mut ObserverService,
-    _network: &mut NetworkService,
-    db: &Database,
-    latest_committed_block: H256,
+    genesis_block: u32,
+    latest_committed_block: u32,
 ) -> Result<BTreeSet<CodeId>> {
-    let router_query = observer.router_query();
-    let _codes_count = router_query
-        .validated_codes_count_at(latest_committed_block)
-        .await?;
-
-    let _ = db;
-    anyhow::bail!("fast-sync valid code enumeration via bitswap is not implemented yet")
+    Ok(observer
+        .router_query()
+        .events()
+        .code_got_validated()
+        .valid(true)
+        .from_block(genesis_block)
+        .to_block(latest_committed_block)
+        .query()
+        .await
+        .context("failed to query CodeGotValidated events")?
+        .into_iter()
+        .map(|(event, _log)| {
+            debug_assert!(event.valid);
+            event.code_id
+        })
+        .collect())
 }
 
 /// Collects the program states for a given set of program IDs at a specified block height.
@@ -647,10 +659,18 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         // we get finalized block to avoid block reorganization
         // because we restore the database only for the latest block of a chain,
         // and thus the reorganization can lead us to an empty block
-        .load_simple(BlockId::Finalized)
+        .load_simple(BlockId::finalized())
         .await
         .context("failed to get latest block")?
         .hash;
+
+    let genesis_block = db.config().genesis_block_hash;
+    let genesis_block = observer
+        .block_loader()
+        .load_simple(genesis_block)
+        .await
+        .context("failed to get genesis block")?;
+    let genesis_block = genesis_block.header.height;
 
     let block_loader = observer.block_loader();
 
@@ -676,8 +696,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         events,
     } = block_loader.load(announce.block_hash, None).await?;
 
-    let code_ids = collect_code_ids(observer, network, db, announce.block_hash).await?;
-    let program_code_ids = collect_program_code_ids(observer, network, announce.block_hash).await?;
+    let code_ids = collect_code_ids(observer, genesis_block, header.height).await?;
+    let program_code_ids = collect_program_code_ids(observer, genesis_block, header.height).await?;
     // we fetch program states from the finalized block
     // because actual states are at the same block as we acquired the latest committed block
     let program_states =
