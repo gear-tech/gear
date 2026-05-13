@@ -1,3 +1,6 @@
+// Copyright (C) Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
 use gear_node_wrapper::Node;
 use std::{env, path::PathBuf, thread, time::Duration};
 
