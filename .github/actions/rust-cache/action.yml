@@ -80,8 +80,8 @@ runs:
         key: ${{ inputs.key }}
         workspaces: |
           . -> target
-          program/tools/wasm-builder/test-program -> target
-          program/tools/cargo-gbuild/test-program -> target
+          program/wasm-builder/test-program -> target
+          program/cargo-gbuild/test-program -> target
         cache-provider: ${{ steps.env.outputs.cache-provider }}
         cache-all-crates: ${{ inputs.cache-all-crates }}
       env:
