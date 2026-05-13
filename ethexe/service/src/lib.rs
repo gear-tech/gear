@@ -763,14 +763,22 @@ impl Service {
                         tracing::info!(mb_hash = %mb_hash, "MB executed");
                         // Monotonic by height — predecessor recomputes
                         // (catch-up replay) must not retreat the RPC tip.
-                        let new_height =
-                            db.mb_compact_block(mb_hash).map(|c| c.height).unwrap_or(0);
+                        let new_height = db
+                            .mb_compact_block(mb_hash)
+                            .expect("MbComputed invariant: CompactMb persisted before emit")
+                            .height;
                         db.globals_mutate(|g| {
-                            let prev_height = db
-                                .mb_compact_block(g.latest_computed_mb_hash)
-                                .map(|c| c.height)
-                                .unwrap_or(0);
-                            if new_height >= prev_height {
+                            let prev = g.latest_computed_mb_hash;
+                            let advance = if prev.is_zero() {
+                                true
+                            } else {
+                                let prev_height = db
+                                    .mb_compact_block(prev)
+                                    .expect("latest_computed_mb_hash always points at a stored MB")
+                                    .height;
+                                new_height >= prev_height
+                            };
+                            if advance {
                                 g.latest_computed_mb_hash = mb_hash;
                             }
                         });

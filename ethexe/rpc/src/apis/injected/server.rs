@@ -134,6 +134,17 @@ impl InjectedApi {
                     self.manager.cancel_registration(tx_hash);
                 })?
             }
+            InjectedTransactionAcceptance::Reject { reason }
+                if is_already_pooled_reason(&reason) =>
+            {
+                // The tx is already queued on at least one validator;
+                // the promise will fire normally. Keep the subscription
+                // so a retry / duplicate submit doesn't lose the reply.
+                tracing::debug!(%tx_hash, reason, "watch: retaining subscription on duplicate");
+                pending.accept().await.inspect_err(|_err| {
+                    self.manager.cancel_registration(tx_hash);
+                })?
+            }
             InjectedTransactionAcceptance::Reject { reason } => {
                 self.manager.cancel_registration(tx_hash);
                 return Err(reason.into());
@@ -198,6 +209,13 @@ impl InjectedApi {
 
         Ok(transactions)
     }
+}
+
+/// `Reject` reason originates from a mempool that already holds the tx —
+/// the promise will still fire normally. Keyed off the strings in
+/// `MempoolInsertError`; kept in sync with `ethexe-malachite::mempool`.
+fn is_already_pooled_reason(reason: &str) -> bool {
+    reason.contains("tx already in pool")
 }
 
 #[cfg(test)]

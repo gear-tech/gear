@@ -27,6 +27,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{CodesStorageRO, CodesStorageRW, CompactMb, MbStorageRW, PreparedBlockData},
     gear::{GenesisBlockInfo, Timelines},
+    malachite::Transactions,
 };
 use ethexe_ethereum::router::RouterQuery;
 use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
@@ -110,13 +111,17 @@ pub async fn initialize_empty_db(config: InitConfig, db: &RawDatabase) -> Result
         let (mb_hash, program_states, schedule) =
             genesis_data_initialization(initializer, db, genesis_block).await?;
         // Seed MB rows so RPC reads (program_states / schedule / outcome)
-        // resolve before the first post-genesis MB lands.
+        // resolve before the first post-genesis MB lands. The empty
+        // Transactions blob is persisted in CAS so downstream walkers
+        // (`prepare_executable_for_mb`, `ethexe check`) can resolve
+        // `transactions_hash` without tripping on `H256::zero`.
+        let transactions_hash = db.set_transactions(Transactions::default());
         db.set_mb_compact_block(
             mb_hash,
             CompactMb {
                 parent: H256::zero(),
                 height: 0,
-                transactions_hash: H256::zero(),
+                transactions_hash,
             },
         );
         db.set_mb_program_states(mb_hash, program_states);
