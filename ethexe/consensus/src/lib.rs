@@ -25,7 +25,7 @@
 //! Per Ethereum block exactly one validator is elected as the *coordinator*
 //! for that block (deterministically from the block timestamp). The
 //! coordinator collects all MBs that finalized since the last on-chain
-//! commitment, aggregates their outcomes into a [`BatchCommitment`], gossips
+//! commitment, aggregates their outcomes into a batch commitment, gossips
 //! a validation request, and once it has enough threshold signatures pushes
 //! the batch to the Router. Every other validator is a *participant*: it
 //! waits for the coordinator's request, re-derives the same batch

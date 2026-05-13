@@ -23,8 +23,8 @@
 //! list of [`Transaction`]s. Block-level identity (parent linkage,
 //! height) lives in [`crate::db::CompactMb`], indexed by the
 //! `ethexe_malachite_core::Block` envelope hash. The transaction list
-//! itself is stored in the content-addressed half of [`ethexe_db`]
-//! and referenced by [`CompactMb::transactions_hash`].
+//! itself is stored in the content-addressed half of the ethexe db
+//! and referenced by `CompactMb::transactions_hash`.
 //!
 //! These types live in `ethexe-common` (rather than inside
 //! `ethexe-malachite`) so `ethexe-processor` can accept them without
