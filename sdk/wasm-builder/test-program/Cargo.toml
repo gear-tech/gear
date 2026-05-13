@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-gstd = { path = "../../../gstd", features = ["debug"] }
+gstd = { path = "../../gstd", features = ["debug"] }
 
 [dev-dependencies]
 gtest = { path = "../../gtest" }
-gsdk = { path = "../../../../vara/sdk/gsdk" }
+gsdk = { path = "../../../vara/sdk/gsdk" }
 
 [build-dependencies]
 gear-wasm-builder = { path = ".." }

@@ -1,5 +1,5 @@
 [package]
-name = "gbuild-test-program"
+name = "gbuild-test-bar"
 version = "0.1.0"
 edition = "2024"
 
@@ -9,16 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 gstd = { path = "../../../gstd" }
 
-[dev-dependencies]
-gtest = { path = "../../gtest" }
-
 [features]
 debug = ["gstd/debug"]
 default = []
 std = []
-
-[workspace]
-members = ["foo", "bar"]
-
-[workspace.metadata.gbuild]
-programs = ["foo", "bar"]

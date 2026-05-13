@@ -15,106 +15,113 @@ default-members = ["vara/node/cli"]
 exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
 
 members = [
-    # core
-    "core/*",
-    "core/lazy-pages",
-    "core/lazy-pages/common",
-    "core/lazy-pages/fuzzer",
-    "core/lazy-pages/fuzzer/runner",
-    "core/lazy-pages/interface",
-    "core/lazy-pages/native-interface",
-    "core/sandbox",
-    "core/sandbox/env",
-    "core/sandbox/host",
-    # vara
-    "vara/common",
-    "vara/common/codegen",
-    "vara/builtins/*",
-    "vara/sdk/*",
-    "vara/node/authorship",
-    "vara/node/cli",
-    "vara/node/service",
-    "vara/node/testing",
-    "vara/pallets/*",
-    "vara/runtime/*",
-    "vara/runtime/interface/sandbox",
-    "vara/tools/*",
-    "vara/tools/runtime-fuzzer/fuzz",
-    "vara/tools/regression-analysis/junit-common",
-    # ethexe
-    "ethexe/*",
-    "ethexe/runtime/common",
-    "ethexe/service/utils",
-    # program
-    "program/galloc",
-    "program/gcore",
-    "program/gstd",
-    "program/gstd/codegen",
-    "program/gsys",
-    "program/tools/*",
-    # program/examples
-    "program/examples/async",
-    "program/examples/async-critical",
-    "program/examples/async-custom-entry",
-    "program/examples/async-init",
-    "program/examples/async-reply-hook",
-    "program/examples/async-signal-entry",
-    "program/examples/async-tester",
-    "program/examples/autoreply",
-    "program/examples/big-data-section",
-    "program/examples/bls381",
-    "program/examples/calc-hash",
-    "program/examples/custom",
-    "program/examples/delayed-reservation-sender",
-    "program/examples/compose",
-    "program/examples/constructor",
-    "program/examples/create-program-reentrance",
-    "program/examples/ctor",
-    "program/examples/delayed-sender",
-    "program/examples/distributor",
-    "program/examples/fungible-token",
-    "program/examples/stack-allocations",
-    "program/examples/futures-unordered",
-    "program/examples/gas-burned",
-    "program/examples/incomplete-async-payloads",
-    "program/examples/inheritor-in-error-reply",
-    "program/examples/init-fail-sender",
-    "program/examples/init-wait",
-    "program/examples/init-wait-reply-exit",
-    "program/examples/messenger",
-    "program/examples/mul-by-const",
-    "program/examples/ncompose",
-    "program/examples/node",
-    "program/examples/out-of-memory",
-    "program/examples/panic-payload",
-    "program/examples/piggy-bank",
-    "program/examples/ping",
-    "program/examples/program-factory",
-    "program/examples/program-generator",
-    "program/examples/proxy",
-    "program/examples/proxy-broker",
-    "program/examples/proxy-relay",
-    "program/examples/proxy-reservation-with-gas",
-    "program/examples/read-big-state",
-    "program/examples/reservation-manager",
-    "program/examples/reserve-gas",
-    "program/examples/rwlock",
-    "program/examples/send-from-reservation",
-    "program/examples/signal-entry",
-    "program/examples/state-rollback",
-    "program/examples/sync-duplicate",
-    "program/examples/syscalls",
-    "program/examples/syscall-error",
-    "program/examples/value-sender",
-    "program/examples/vec",
-    "program/examples/wait",
-    "program/examples/wait-timeout",
-    "program/examples/wait_wake",
-    "program/examples/waiter",
-    "program/examples/waiting-proxy",
-    "program/examples/wat",
-    # utils
-    "utils/*",
+  # protocol
+  "protocol/*",
+  "protocol/lazy-pages",
+  "protocol/lazy-pages/common",
+  "protocol/lazy-pages/fuzzer",
+  "protocol/lazy-pages/fuzzer/runner",
+  "protocol/lazy-pages/interface",
+  "protocol/lazy-pages/native-interface",
+  "protocol/sandbox",
+  "protocol/sandbox/env",
+  "protocol/sandbox/host",
+  # vara
+  "vara/common",
+  "vara/common/codegen",
+  "vara/sdk/builtins/*",
+  "vara/sdk/gcli",
+  "vara/sdk/gsdk",
+  "vara/sdk/node-wrapper",
+  "vara/node/authorship",
+  "vara/node/cli",
+  "vara/node/service",
+  "vara/node/testing",
+  "vara/pallets/*",
+  "vara/runtime/*",
+  "vara/runtime/interface/sandbox",
+  "vara/tools/*",
+  "vara/tools/runtime-fuzzer/fuzz",
+  "vara/tools/regression-analysis/junit-common",
+  # ethexe
+  "ethexe/*",
+  "ethexe/runtime/common",
+  "ethexe/service/utils",
+  # sdk
+  "sdk/cargo-gbuild",
+  "sdk/galloc",
+  "sdk/gcore",
+  "sdk/gstd",
+  "sdk/gstd/codegen",
+  "sdk/gsys",
+  "sdk/gtest",
+  "sdk/stack-buffer",
+  "sdk/wasm-builder",
+  "sdk/wasm-optimizer",
+  "sdk/wasm-proc",
+  # sdk/examples
+  "sdk/examples/async",
+  "sdk/examples/async-critical",
+  "sdk/examples/async-custom-entry",
+  "sdk/examples/async-init",
+  "sdk/examples/async-reply-hook",
+  "sdk/examples/async-signal-entry",
+  "sdk/examples/async-tester",
+  "sdk/examples/autoreply",
+  "sdk/examples/big-data-section",
+  "sdk/examples/bls381",
+  "sdk/examples/calc-hash",
+  "sdk/examples/custom",
+  "sdk/examples/delayed-reservation-sender",
+  "sdk/examples/compose",
+  "sdk/examples/constructor",
+  "sdk/examples/create-program-reentrance",
+  "sdk/examples/ctor",
+  "sdk/examples/delayed-sender",
+  "sdk/examples/distributor",
+  "sdk/examples/fungible-token",
+  "sdk/examples/stack-allocations",
+  "sdk/examples/futures-unordered",
+  "sdk/examples/gas-burned",
+  "sdk/examples/incomplete-async-payloads",
+  "sdk/examples/inheritor-in-error-reply",
+  "sdk/examples/init-fail-sender",
+  "sdk/examples/init-wait",
+  "sdk/examples/init-wait-reply-exit",
+  "sdk/examples/messenger",
+  "sdk/examples/mul-by-const",
+  "sdk/examples/ncompose",
+  "sdk/examples/node",
+  "sdk/examples/out-of-memory",
+  "sdk/examples/panic-payload",
+  "sdk/examples/piggy-bank",
+  "sdk/examples/ping",
+  "sdk/examples/program-factory",
+  "sdk/examples/program-generator",
+  "sdk/examples/proxy",
+  "sdk/examples/proxy-broker",
+  "sdk/examples/proxy-relay",
+  "sdk/examples/proxy-reservation-with-gas",
+  "sdk/examples/read-big-state",
+  "sdk/examples/reservation-manager",
+  "sdk/examples/reserve-gas",
+  "sdk/examples/rwlock",
+  "sdk/examples/send-from-reservation",
+  "sdk/examples/signal-entry",
+  "sdk/examples/state-rollback",
+  "sdk/examples/sync-duplicate",
+  "sdk/examples/syscalls",
+  "sdk/examples/syscall-error",
+  "sdk/examples/value-sender",
+  "sdk/examples/vec",
+  "sdk/examples/wait",
+  "sdk/examples/wait-timeout",
+  "sdk/examples/wait_wake",
+  "sdk/examples/waiter",
+  "sdk/examples/waiting-proxy",
+  "sdk/examples/wat",
+  # utils
+  "utils/*",
 ]
 
 [workspace.dependencies]
@@ -203,7 +210,7 @@ wasmer-cache = "6.1.0"
 wasmer-types = "6.1.0"
 wasmer-vm = "6.1.0"
 wasmer-compiler = "6.1.0"
-gear-wasmer-cache = { path = "core/wasmer-cache" }
+gear-wasmer-cache = { path = "protocol/wasmer-cache" }
 wasmtime = "8.0.1"
 wasmparser = { version = "0.230", default-features = false, features = [
     "validate",
@@ -247,55 +254,55 @@ dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
 # Internal deps
 numerated = { path = "utils/numerated" }
 authorship = { package = "gear-authorship", path = "vara/node/authorship" }
-builtins-common = { path = "vara/builtins/common", default-features = false }
+builtins-common = { path = "vara/sdk/builtins/common", default-features = false }
 common = { package = "gear-common", path = "vara/common", default-features = false }
-core-processor = { package = "gear-core-processor", path = "core/processor", default-features = false }
-galloc = { path = "program/galloc" }
-gbuiltin-bls381 = { path = "vara/builtins/bls381", default-features = false }
-gbuiltin-eth-bridge = { path = "vara/builtins/eth-bridge", default-features = false }
-gbuiltin-staking = { path = "vara/builtins/staking" }
-gbuiltin-proxy = { path = "vara/builtins/proxy" }
-gcore = { path = "program/gcore" }
+core-processor = { package = "gear-core-processor", path = "protocol/processor", default-features = false }
+galloc = { path = "sdk/galloc" }
+gbuiltin-bls381 = { path = "vara/sdk/builtins/bls381", default-features = false }
+gbuiltin-eth-bridge = { path = "vara/sdk/builtins/eth-bridge", default-features = false }
+gbuiltin-staking = { path = "vara/sdk/builtins/staking" }
+gbuiltin-proxy = { path = "vara/sdk/builtins/proxy" }
+gcore = { path = "sdk/gcore" }
 gcli = { path = "vara/sdk/gcli" }
 gear-node-wrapper = { path = "vara/sdk/node-wrapper" }
 gsdk = { path = "vara/sdk/gsdk" }
 gsdk-codegen = { path = "vara/sdk/gsdk/codegen" }
-gstd = { path = "program/gstd", features = ["nightly"] }
-gstd-codegen = { path = "program/gstd/codegen" }
-gsigner = { path = "core/gsigner", default-features = false }
-gsys = { path = "program/gsys" }
-gtest = { path = "program/tools/gtest" }
-gprimitives = { path = "core/gprimitives", default-features = false }
+gstd = { path = "sdk/gstd", features = ["nightly"] }
+gstd-codegen = { path = "sdk/gstd/codegen" }
+gsigner = { path = "protocol/gsigner", default-features = false }
+gsys = { path = "sdk/gsys" }
+gtest = { path = "sdk/gtest" }
+gprimitives = { path = "protocol/gprimitives", default-features = false }
 gear-authorship = { path = "vara/node/authorship" }
-gear-core-backend = { path = "core/backend", default-features = false }
+gear-core-backend = { path = "protocol/backend", default-features = false }
 gear-call-gen = { path = "vara/tools/call-gen" }
 gear-common = { path = "vara/common", default-features = false }
 gear-common-codegen = { path = "vara/common/codegen" }
-gear-core = { path = "core/core", default-features = false }
-gear-core-errors = { path = "core/errors" }
-gear-core-processor = { path = "core/processor", default-features = false }
-gear-lazy-pages = { path = "core/lazy-pages" }
-gear-lazy-pages-common = { path = "core/lazy-pages/common", default-features = false }
-gear-lazy-pages-interface = { path = "core/lazy-pages/interface", default-features = false }
-gear-lazy-pages-native-interface = { path = "core/lazy-pages/native-interface" }
+gear-core = { path = "protocol/core", default-features = false }
+gear-core-errors = { path = "protocol/errors" }
+gear-core-processor = { path = "protocol/processor", default-features = false }
+gear-lazy-pages = { path = "protocol/lazy-pages" }
+gear-lazy-pages-common = { path = "protocol/lazy-pages/common", default-features = false }
+gear-lazy-pages-interface = { path = "protocol/lazy-pages/interface", default-features = false }
+gear-lazy-pages-native-interface = { path = "protocol/lazy-pages/native-interface" }
 gear-node-testing = { path = "vara/node/testing" }
 gear-runtime-common = { path = "vara/runtime/common", default-features = false }
 gear-runtime-interface = { path = "vara/runtime/interface", default-features = false }
 gear-sandbox-interface = { path = "vara/runtime/interface/sandbox", default-features = false }
 gear-runtime-primitives = { path = "vara/runtime/primitives", default-features = false }
-gear-sandbox = { path = "core/sandbox", default-features = false }
-gear-sandbox-env = { path = "core/sandbox/env", default-features = false }
-gear-sandbox-host = { path = "core/sandbox/host" }
+gear-sandbox = { path = "protocol/sandbox", default-features = false }
+gear-sandbox-env = { path = "protocol/sandbox/env", default-features = false }
+gear-sandbox-host = { path = "protocol/sandbox/host" }
 gear-service = { path = "vara/node/service", default-features = false }
-gear-stack-buffer = { path = "program/stack-buffer" }
-gear-ss58 = { path = "core/ss58", default-features = false }
+gear-stack-buffer = { path = "sdk/stack-buffer" }
+gear-ss58 = { path = "protocol/ss58", default-features = false }
 gear-utils = { path = "utils/utils" }
-gear-wasm-builder = { path = "program/tools/wasm-builder", default-features = false }
-gear-wasm-optimizer = { path = "program/tools/wasm-optimizer", default-features = false }
-gear-wasm-gen = { path = "program/tools/wasm-gen" }
-gear-wasm-instrument = { path = "core/wasm-instrument", default-features = false }
+gear-wasm-builder = { path = "sdk/wasm-builder", default-features = false }
+gear-wasm-optimizer = { path = "sdk/wasm-optimizer", default-features = false }
+gear-wasm-gen = { path = "protocol/wasm-gen" }
+gear-wasm-instrument = { path = "protocol/wasm-instrument", default-features = false }
 junit-common = { path = "vara/tools/regression-analysis/junit-common" }
-actor-system-error = { path = "core/actor-system-error" }
+actor-system-error = { path = "protocol/actor-system-error" }
 pallet-gear = { path = "vara/pallets/gear", default-features = false }
 pallet-gear-eth-bridge = { path = "vara/pallets/gear-eth-bridge", default-features = false }
 pallet-gear-eth-bridge-primitives = { path = "vara/pallets/gear-eth-bridge/primitives", default-features = false }
@@ -469,68 +476,68 @@ substrate-test-client = { version = "2.0.0", git = "https://github.com/gear-tech
 substrate-wasm-builder = { version = "24.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 
 # Examples
-test-syscalls = { path = "program/examples/syscalls", default-features = false }
-demo-async = { path = "program/examples/async" }
-demo-async-critical = { path = "program/examples/async-critical" }
-demo-async-custom-entry = { path = "program/examples/async-custom-entry" }
-demo-async-init = { path = "program/examples/async-init" }
-demo-async-reply-hook = { path = "program/examples/async-reply-hook" }
-demo-async-recursion = { path = "program/examples/async-recursion" }
-demo-async-signal-entry = { path = "program/examples/async-signal-entry" }
-demo-async-tester = { path = "program/examples/async-tester" }
-demo-bls381 = { path = "program/examples/bls381" }
-demo-calc-hash = { path = "program/examples/calc-hash" }
-demo-calc-hash-in-one-block = { path = "program/examples/calc-hash/in-one-block" }
-demo-calc-hash-over-blocks = { path = "program/examples/calc-hash/over-blocks" }
-demo-custom = { path = "program/examples/custom" }
-demo-delayed-reservation-sender = { path = "program/examples/delayed-reservation-sender" }
-demo-compose = { path = "program/examples/compose" }
-demo-constructor = { path = "program/examples/constructor", default-features = false }
-demo-create-program-reentrance = { path = "program/examples/create-program-reentrance" }
-demo-delayed-sender = { path = "program/examples/delayed-sender" }
-demo-distributor = { path = "program/examples/distributor" }
-demo-futures-unordered = { path = "program/examples/futures-unordered", features = [
+test-syscalls = { path = "sdk/examples/syscalls", default-features = false }
+demo-async = { path = "sdk/examples/async" }
+demo-async-critical = { path = "sdk/examples/async-critical" }
+demo-async-custom-entry = { path = "sdk/examples/async-custom-entry" }
+demo-async-init = { path = "sdk/examples/async-init" }
+demo-async-reply-hook = { path = "sdk/examples/async-reply-hook" }
+demo-async-recursion = { path = "sdk/examples/async-recursion" }
+demo-async-signal-entry = { path = "sdk/examples/async-signal-entry" }
+demo-async-tester = { path = "sdk/examples/async-tester" }
+demo-bls381 = { path = "sdk/examples/bls381" }
+demo-calc-hash = { path = "sdk/examples/calc-hash" }
+demo-calc-hash-in-one-block = { path = "sdk/examples/calc-hash/in-one-block" }
+demo-calc-hash-over-blocks = { path = "sdk/examples/calc-hash/over-blocks" }
+demo-custom = { path = "sdk/examples/custom" }
+demo-delayed-reservation-sender = { path = "sdk/examples/delayed-reservation-sender" }
+demo-compose = { path = "sdk/examples/compose" }
+demo-constructor = { path = "sdk/examples/constructor", default-features = false }
+demo-create-program-reentrance = { path = "sdk/examples/create-program-reentrance" }
+demo-delayed-sender = { path = "sdk/examples/delayed-sender" }
+demo-distributor = { path = "sdk/examples/distributor" }
+demo-futures-unordered = { path = "sdk/examples/futures-unordered", features = [
     "debug",
 ] }
-demo-gas-burned = { path = "program/examples/gas-burned" }
-demo-fungible-token = { path = "program/examples/fungible-token" }
-demo-init-fail-sender = { path = "program/examples/init-fail-sender" }
-demo-init-wait = { path = "program/examples/init-wait", default-features = false }
-demo-init-wait-reply-exit = { path = "program/examples/init-wait-reply-exit" }
-demo-messenger = { path = "program/examples/messenger" }
-demo-mul-by-const = { path = "program/examples/mul-by-const" }
-demo-out-of-memory = { path = "program/examples/out-of-memory" }
-demo-panic-payload = { path = "program/examples/panic-payload" }
-demo-piggy-bank = { path = "program/examples/piggy-bank", features = ["debug"] }
-demo-ping = { path = "program/examples/ping" }
-demo-program-factory = { path = "program/examples/program-factory" }
-demo-program-generator = { path = "program/examples/program-generator" }
-demo-proxy = { path = "program/examples/proxy", default-features = false }
-demo-proxy-relay = { path = "program/examples/proxy-relay" }
-demo-proxy-reservation-with-gas = { path = "program/examples/proxy-reservation-with-gas" }
-demo-read-big-state = { path = "program/examples/read-big-state", default-features = false }
-demo-reply-callback = { path = "program/examples/reply-callback" }
-demo-reservation-manager = { path = "program/examples/reservation-manager" }
-demo-reserve-gas = { path = "program/examples/reserve-gas", default-features = false }
-demo-rwlock = { path = "program/examples/rwlock" }
-demo-send-from-reservation = { path = "program/examples/send-from-reservation" }
-demo-signal-entry = { path = "program/examples/signal-entry", default-features = false }
-demo-staking-broker = { path = "program/examples/staking-broker" }
-demo-proxy-broker = { path = "program/examples/proxy-broker" }
-demo-state-rollback = { path = "program/examples/state-rollback" }
-demo-sync-duplicate = { path = "program/examples/sync-duplicate" }
-demo-vec = { path = "program/examples/vec" }
-demo-value-sender = { path = "program/examples/value-sender" }
-demo-wait = { path = "program/examples/wait" }
-demo-waiter = { path = "program/examples/waiter", default-features = false }
-demo-wait-timeout = { path = "program/examples/wait-timeout" }
-demo-waiting-proxy = { path = "program/examples/waiting-proxy" }
-demo-wat = { path = "program/examples/wat" }
+demo-gas-burned = { path = "sdk/examples/gas-burned" }
+demo-fungible-token = { path = "sdk/examples/fungible-token" }
+demo-init-fail-sender = { path = "sdk/examples/init-fail-sender" }
+demo-init-wait = { path = "sdk/examples/init-wait", default-features = false }
+demo-init-wait-reply-exit = { path = "sdk/examples/init-wait-reply-exit" }
+demo-messenger = { path = "sdk/examples/messenger" }
+demo-mul-by-const = { path = "sdk/examples/mul-by-const" }
+demo-out-of-memory = { path = "sdk/examples/out-of-memory" }
+demo-panic-payload = { path = "sdk/examples/panic-payload" }
+demo-piggy-bank = { path = "sdk/examples/piggy-bank", features = ["debug"] }
+demo-ping = { path = "sdk/examples/ping" }
+demo-program-factory = { path = "sdk/examples/program-factory" }
+demo-program-generator = { path = "sdk/examples/program-generator" }
+demo-proxy = { path = "sdk/examples/proxy", default-features = false }
+demo-proxy-relay = { path = "sdk/examples/proxy-relay" }
+demo-proxy-reservation-with-gas = { path = "sdk/examples/proxy-reservation-with-gas" }
+demo-read-big-state = { path = "sdk/examples/read-big-state", default-features = false }
+demo-reply-callback = { path = "sdk/examples/reply-callback" }
+demo-reservation-manager = { path = "sdk/examples/reservation-manager" }
+demo-reserve-gas = { path = "sdk/examples/reserve-gas", default-features = false }
+demo-rwlock = { path = "sdk/examples/rwlock" }
+demo-send-from-reservation = { path = "sdk/examples/send-from-reservation" }
+demo-signal-entry = { path = "sdk/examples/signal-entry", default-features = false }
+demo-staking-broker = { path = "sdk/examples/staking-broker" }
+demo-proxy-broker = { path = "sdk/examples/proxy-broker" }
+demo-state-rollback = { path = "sdk/examples/state-rollback" }
+demo-sync-duplicate = { path = "sdk/examples/sync-duplicate" }
+demo-vec = { path = "sdk/examples/vec" }
+demo-value-sender = { path = "sdk/examples/value-sender" }
+demo-wait = { path = "sdk/examples/wait" }
+demo-waiter = { path = "sdk/examples/waiter", default-features = false }
+demo-wait-timeout = { path = "sdk/examples/wait-timeout" }
+demo-waiting-proxy = { path = "sdk/examples/waiting-proxy" }
+demo-wat = { path = "sdk/examples/wat" }
 
 # TODO: fix demos' feature resolving bug with workspace build
-demo-value-sender-ethexe = { path = "program/examples/value-sender-ethexe" }
-demo-delayed-sender-ethexe = { path = "program/examples/delayed-sender-ethexe" }
-demo-syscalls-ethexe = { path = "program/examples/syscalls-ethexe" }
+demo-value-sender-ethexe = { path = "sdk/examples/value-sender-ethexe" }
+demo-delayed-sender-ethexe = { path = "sdk/examples/delayed-sender-ethexe" }
+demo-syscalls-ethexe = { path = "sdk/examples/syscalls-ethexe" }
 
 # Dependencies that only used in one package
 #
