@@ -304,7 +304,6 @@ Files derived from third-party sources MUST preserve the original copyright line
 ```
 
 The `LICENSE` file in the repository root is the authoritative license text.
-```
 
 ---
 
