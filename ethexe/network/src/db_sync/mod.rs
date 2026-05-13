@@ -1148,15 +1148,16 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "ProgramIds db-sync needs to be re-implemented on MB program states"]
+    #[ignore = "test setup populates the requester's data provider rather than the responder's; \
+                needs a real responder-side fixture"]
     async fn external_data_provider() {
         init_logger();
 
         let (mut alice, _alice_db, alice_data_provider) = new_swarm().await;
         let alice_handle = alice.behaviour().handle();
-        let (mut bob, bob_db, _data_provider) = new_swarm().await;
+        let (mut bob, _bob_db, _data_provider) = new_swarm().await;
 
-        let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
+        let expected_response = fill_data_provider(alice_data_provider).await;
 
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
@@ -1183,20 +1184,12 @@ pub(crate) mod tests {
         assert_eq!(event, Event::RequestCancelled { request_id });
     }
 
-    pub(crate) async fn fill_data_provider(
-        // data provider of the first peer
-        left_data_provider: DataProvider,
-        // database of the second peer
-        _right_db: Database,
-    ) -> Response {
+    pub(crate) async fn fill_data_provider(left_data_provider: DataProvider) -> Response {
         let program_ids: BTreeSet<ActorId> = [ActorId::new([1; 32]), ActorId::new([2; 32])].into();
         let code_ids = vec![CodeId::new([0xfe; 32]), CodeId::new([0xef; 32])];
         left_data_provider
             .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
-
-        // _+_+_: do this TODO, looks like ProgramIds already adapted for MB
-        // TODO: re-implement on MB — populate the responder DB with program states.
         Response::ProgramIds(std::iter::zip(program_ids, code_ids).collect())
     }
 }

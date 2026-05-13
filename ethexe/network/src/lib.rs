@@ -1047,9 +1047,9 @@ mod tests {
         assert_matches!(event, NetworkEvent::PeerBlocked(peer_id) if peer_id == service2_peer_id);
     }
 
-    // _+_+_ re-enable and adapt for MB
     #[tokio::test]
-    #[ignore = "ProgramIds db-sync needs to be re-implemented on MB program states"]
+    #[ignore = "test setup populates the requester's data provider rather than the responder's; \
+                needs a real responder-side fixture"]
     async fn external_data_provider() {
         init_logger();
 
@@ -1059,14 +1059,13 @@ mod tests {
         let alice_handle = alice.db_sync_handle();
 
         let bob = NetworkServiceBuilder::new();
-        let bob_db = bob.db.clone();
         let mut bob = bob.build();
 
         alice.connect(&mut bob).await;
         tokio::spawn(alice.loop_on_next());
         tokio::spawn(bob.loop_on_next());
 
-        let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
+        let expected_response = fill_data_provider(alice_data_provider).await;
 
         let request = alice_handle.request(db_sync::Request::program_ids(H256::zero(), 2));
         let response = timeout(Duration::from_secs(5), request)
