@@ -6058,7 +6058,6 @@ dependencies = [
  "demo-async-init",
  "demo-delayed-sender-ethexe",
  "demo-fungible-token",
- "demo-mul-by-const",
  "demo-piggy-bank",
  "demo-ping",
  "demo-reply-callback",

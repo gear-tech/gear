@@ -41,9 +41,8 @@ use ethexe_ethereum::{
 use gprimitives::H256;
 use std::collections::HashMap;
 
-/// Outcome of one [`ChainSync::sync`] attempt. `RpcError` is
-/// recoverable (caller retries on the next chain head); `Fatal`
-/// propagates.
+/// Outcome of one chain-sync attempt. `RpcError` is recoverable (caller
+/// retries on the next chain head); `Fatal` propagates.
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {
     #[error("RPC error during sync: {0:?}")]

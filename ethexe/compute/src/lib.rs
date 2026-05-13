@@ -92,10 +92,10 @@
 //! ## Canonical event quarantine
 //!
 //! Ethereum events do not become visible to the runtime on the block
-//! they arrive in. When the executor processes a
-//! [`Transaction::AdvanceTillEthereumBlock`] inside an MB it fetches the
+//! they arrive in. When the executor processes an
+//! `AdvanceTillEthereumBlock` transaction inside an MB it fetches the
 //! events from blocks already past the canonical-quarantine window
-//! ([`ethexe_malachite::MalachiteConfig::canonical_quarantine`] —
+//! (`MalachiteConfig::canonical_quarantine` in `ethexe-malachite` —
 //! enforced inside `ethexe-processor`'s `process_programs`).
 //!
 //! ## When modifying this crate
@@ -106,7 +106,7 @@
 //! - `compute_mb` must only be called once the malachite service has
 //!   recorded the matching `CompactMb` + transactions blob. The
 //!   service layer enforces this by gating event emission inside
-//!   [`MalachiteService::receive_new_chain_head`](ethexe_malachite::MalachiteService::receive_new_chain_head).
+//!   `MalachiteService::receive_new_chain_head` (in `ethexe-malachite`).
 
 use ethexe_common::{CodeAndIdUnchecked, injected::Promise};
 use ethexe_processor::{
