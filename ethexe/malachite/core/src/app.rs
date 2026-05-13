@@ -156,7 +156,12 @@ where
                         state
                             .store
                             .finalized_block_at(height.as_u64() - 1)?
-                            .unwrap_or(H256::zero())
+                            .ok_or_else(|| {
+                                anyhow::anyhow!(
+                                    "no finalized block at height {} — Malachite invariant violated",
+                                    height.as_u64() - 1,
+                                )
+                            })?
                     };
                     let build_fut = externalities.build_block_above(parent_hash);
                     let payload = match tokio::time::timeout(state.propose_timeout, build_fut).await
@@ -434,7 +439,12 @@ where
         state
             .store
             .finalized_block_at(proposed.height.as_u64() - 1)?
-            .unwrap_or(H256::zero())
+            .ok_or_else(|| {
+                anyhow!(
+                    "no finalized block at height {} — Malachite invariant violated",
+                    proposed.height.as_u64() - 1,
+                )
+            })?
     };
     if block.parent_hash != local_parent {
         return Err(anyhow!(

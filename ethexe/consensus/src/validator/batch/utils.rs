@@ -58,8 +58,8 @@ pub fn collect_not_committed_mb_predecessors<DB: MbStorageRO>(
         mbs.push(current);
         current = db
             .mb_compact_block(current)
-            .map(|c| c.parent)
-            .unwrap_or(H256::zero());
+            .ok_or_else(|| anyhow!("MB {current} missing compact block — DB invariant"))?
+            .parent;
     }
 
     Ok(mbs.into_iter().rev().collect())
