@@ -362,7 +362,7 @@ impl TestingEventReceiver {
     #[allow(dead_code)]
     pub async fn find_any_mb_computed(&mut self) -> H256 {
         self.find_map(|event| match event {
-            TestingEvent::Compute(ComputeEvent::MbComputed { mb_hash, .. }) => Some(mb_hash),
+            TestingEvent::Compute(ComputeEvent::MbComputed(mb_hash)) => Some(mb_hash),
             _ => None,
         })
         .await

@@ -431,14 +431,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                 .record((timing.busy() + timing.idle()).as_secs_f64());
 
             self.computation = None;
-            let event = match result {
-                Ok(mb_hash) => self
-                    .db
-                    .mb_compact_block(mb_hash)
-                    .map(|CompactMb { height, .. }| ComputeEvent::MbComputed { mb_hash, height })
-                    .ok_or(ComputeError::MbCompactNotFound(mb_hash)),
-                Err(e) => Err(e),
-            };
+            let event = result.map(ComputeEvent::MbComputed);
             if self.promises_stream.is_some() {
                 self.pending_event = Some(event);
                 return Poll::Pending;
@@ -530,15 +523,12 @@ mod tests {
         }
 
         // Tail-only queue forces walking back through 4 ancestors.
-        let (tail_height, tail_hash) = *hashes.last().unwrap();
+        let (_tail_height, tail_hash) = *hashes.last().unwrap();
         sub.receive_mb(tail_hash, ::ethexe_common::PromisePolicy::Enabled);
 
         let event = sub.next().await.unwrap();
         match event {
-            ComputeEvent::MbComputed { mb_hash, height } => {
-                assert_eq!(mb_hash, tail_hash);
-                assert_eq!(height, tail_height);
-            }
+            ComputeEvent::MbComputed(mb_hash) => assert_eq!(mb_hash, tail_hash),
             other => panic!("expected MbComputed, got {other:?}"),
         }
 
@@ -569,13 +559,7 @@ mod tests {
 
         let event = sub.next().await.unwrap();
         match event {
-            ComputeEvent::MbComputed {
-                mb_hash: out,
-                height,
-            } => {
-                assert_eq!(out, mb_hash);
-                assert_eq!(height, 1);
-            }
+            ComputeEvent::MbComputed(out) => assert_eq!(out, mb_hash),
             other => panic!("expected MbComputed, got {other:?}"),
         }
     }

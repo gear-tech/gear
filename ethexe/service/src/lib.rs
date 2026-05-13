@@ -782,8 +782,8 @@ impl Service {
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing
                     }
-                    ComputeEvent::MbComputed { mb_hash, height } => {
-                        tracing::info!(height, mb_hash = %mb_hash, "🛠️ MB executed");
+                    ComputeEvent::MbComputed(mb_hash) => {
+                        tracing::info!(mb_hash = %mb_hash, "🛠️ MB executed");
                     }
                     ComputeEvent::Promise(promise, _mb_hash) => {
                         // The local node always feeds its computed body

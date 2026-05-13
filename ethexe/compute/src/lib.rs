@@ -135,12 +135,8 @@ pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    // _+_+_: the `height` here is redundant, remove it. remove unwrap ignore too after that
-    #[unwrap(ignore)]
-    MbComputed {
-        mb_hash: H256,
-        height: u64,
-    },
+    #[from(skip)]
+    MbComputed(H256),
     Promise(Promise, H256),
 }
 
