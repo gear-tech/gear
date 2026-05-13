@@ -674,7 +674,10 @@ impl Service {
             .send(tests::utils::TestingEvent::ServiceStarted)
             .await;
 
-        let mut network_injected_txs: HashMap<_, oneshot::Sender<_>> = HashMap::new();
+        // One fan-out can park N senders under the same tx_hash (one per
+        // recipient validator), so we hold a Vec — earlier inserts must
+        // not be clobbered by later ones.
+        let mut network_injected_txs: HashMap<_, Vec<oneshot::Sender<_>>> = HashMap::new();
 
         loop {
             let event: Event = tokio::select! {
@@ -827,12 +830,14 @@ impl Service {
                                 transaction_hash,
                                 acceptance,
                             } => {
-                                // Fan-out clobbers earlier senders; late arrivals
-                                // miss the slot and resolve as Err upstream.
-                                if let Some(response_sender) =
-                                    network_injected_txs.remove(&transaction_hash)
+                                if let Some(senders) =
+                                    network_injected_txs.get_mut(&transaction_hash)
+                                    && let Some(response_sender) = senders.pop()
                                 {
                                     let _res = response_sender.send(acceptance);
+                                    if senders.is_empty() {
+                                        network_injected_txs.remove(&transaction_hash);
+                                    }
                                 }
                             }
                         },
@@ -875,7 +880,10 @@ impl Service {
 
                                 match network.send_injected_transaction(transaction) {
                                     Ok(()) => {
-                                        network_injected_txs.insert(tx_hash, response_sender);
+                                        network_injected_txs
+                                            .entry(tx_hash)
+                                            .or_default()
+                                            .push(response_sender);
                                     }
                                     Err(err) => {
                                         let _res = response_sender.send(Err(err).into());
