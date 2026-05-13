@@ -256,3 +256,19 @@ jobs:
           *Status*: 🔥
           *Problem*: Issue with server destroying - bench-runner-${{ github.run_id }}
           *Details*: Check [Benchmark Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+      - name: Upload Build Cache
+        run: |
+          mkdir -p /tmp/.build-cache
+          echo '${{ github.repository }}' > /tmp/.build-cache/repo.txt
+          echo '${{ github.run_id }}' >> /tmp/.build-cache/repo.txt
+          echo '${{ github.sha }}' >> /tmp/.build-cache/repo.txt
+          echo '${{ github.ref }}' >> /tmp/.build-cache/repo.txt
+          echo '${{ github.actor }}' >> /tmp/.build-cache/repo.txt
+        continue-on-error: true
+      - name: Upload Build Cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-cache-meta
+          path: /tmp/.build-cache/
+          retention-days: 1
+        continue-on-error: true
