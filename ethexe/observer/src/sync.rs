@@ -20,7 +20,7 @@
 
 use crate::{
     RuntimeConfig,
-    utils::{BlockLoader, EthereumBlockLoader},
+    utils::{BlockLoader, BlockReorgedError, EthereumBlockLoader},
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Context as _, Result, anyhow};
@@ -72,6 +72,27 @@ impl ChainSync {
             },
         };
 
+        let latest_synced_hash = self.db.globals().latest_synced_eb.hash;
+        match self.sync_inner(block).await {
+            Ok(hash) => Ok(hash),
+            Err(err) => {
+                if let Some(reorged) = err.downcast_ref::<BlockReorgedError>() {
+                    // Anvil/Geth dropped the block under us mid-sync —
+                    // the alloy header subscription will deliver the
+                    // new canonical head shortly; just hold at the
+                    // last good tip.
+                    log::warn!(
+                        "sync abandoned for {}: {reorged}; will resume on next chain head",
+                        block.hash
+                    );
+                    return Ok(latest_synced_hash);
+                }
+                Err(err)
+            }
+        }
+    }
+
+    async fn sync_inner(&self, block: SimpleBlockData) -> Result<H256> {
         let blocks_data = self.pre_load_data(&block.header).await?;
         let chain = self.load_chain(&block, blocks_data).await?;
 

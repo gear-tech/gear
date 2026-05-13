@@ -29,6 +29,7 @@ use alloy::{
             eth::{Filter, Topic},
         },
     },
+    transports::RpcError,
 };
 use anyhow::{Context, Result};
 use ethexe_common::{Address, BlockData, BlockHeader, SimpleBlockData, events::BlockEvent};
@@ -36,6 +37,29 @@ use ethexe_ethereum::{abi::IRouter, mirror, router};
 use futures::{TryFutureExt, future};
 use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture, ops::RangeInclusive};
+
+/// The observer asked the Ethereum RPC for data anchored at a specific
+/// block hash, but the node no longer recognises that hash (typical
+/// JSON-RPC code `-32000 "unknown block"` after a reorg). The caller
+/// should abandon the in-flight sync and wait for the next canonical
+/// chain head — the same alloy header subscription will deliver it.
+#[derive(Debug, thiserror::Error)]
+#[error("block {hash} is no longer in the canonical chain (likely reorged out)")]
+pub struct BlockReorgedError {
+    pub hash: H256,
+}
+
+fn classify_get_logs_error(
+    block: H256,
+    err: RpcError<alloy::transports::TransportErrorKind>,
+) -> anyhow::Error {
+    if let Some(payload) = err.as_error_resp()
+        && payload.message.to_lowercase().contains("unknown block")
+    {
+        return BlockReorgedError { hash: block }.into();
+    }
+    anyhow::anyhow!("failed to get logs: {err}")
+}
 
 // TODO: #4562 append also a configurable batch size parameter
 /// Max number of blocks per `eth_getBlockByNumber` JSON-RPC batch.
@@ -227,7 +251,7 @@ impl BlockLoader for EthereumBlockLoader {
         let logs_request = self
             .provider
             .get_logs(&filter)
-            .map_err(|err| anyhow::anyhow!("failed to get logs: {err}"));
+            .map_err(move |err| classify_get_logs_error(block, err));
 
         let (block_hash, header, logs) = if let Some(header) = header {
             (block, header, logs_request.await?)
