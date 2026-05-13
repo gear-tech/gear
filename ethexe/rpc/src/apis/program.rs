@@ -135,11 +135,12 @@ impl ProgramServer for ProgramApi {
         payload: Bytes,
         value: u128,
     ) -> RpcResult<ReplyInfo> {
-        // TODO: +_+_+ re-implement on MB — the `at` parameter selected an announce
-        // at a specific block; map it to a per-block MB snapshot once the
-        // MB↔block index exists. For now answer with the most recently
-        // finalized MB and the synced-block-tip as the `block` context.
-        let _ = at;
+        if at.is_some() {
+            return Err(errors::bad_request(
+                "`at` is not supported on this RPC method (no MB↔block index yet); \
+                 pass `null` to use the latest finalized MB",
+            ));
+        }
         let mb_hash = utils::latest_finalized_mb(&self.db)?;
         let block = utils::block_at_or_latest_synced(&self.db, None)?;
 
