@@ -329,7 +329,6 @@ impl Handle {
 
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub(crate) struct InnerProgramIdsRequest {
-    // _+_+_: use `HashOf<MB>` instead of raw H256 for better readability and type safety
     at: H256,
 }
 

@@ -34,16 +34,6 @@ mod primitives;
 mod utils;
 mod validators;
 
-// _+_+_: it's hard to understand in code where H256 is eth block hash or mb hash ot just some data hash.
-// To improve this situation create empty struct MB;
-// point in the comments that MB is Block<Transactions> from ethexe-malachite-core.
-// Investigate all ethexe code and use HashOf<MB> instead of raw H256;
-// Use HashOf<Transactions> also instead of H256 where it's about transactions hash (e.g. in CompactMb).
-// Do not use ethexe-common in ethexe-malachite-core.
-// Do not use ethexe-malachite-core in ethexe-common too.
-
-// TODO +_+_+: use `HashOf<T>` instead of H256 for ethereum blocks
-
 #[cfg(feature = "mock")]
 pub mod mock;
 

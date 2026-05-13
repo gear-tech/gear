@@ -143,8 +143,6 @@ pub(crate) trait SubService: Unpin + Send + 'static {
 
 #[cfg(test)]
 mod tests {
-    // _+_+_: compute_announce test has been removed - make compute_mb test instead
-
     use super::*;
     use ethexe_common::{CodeAndIdUnchecked, db::*, mock::*};
     use ethexe_db::Database as DB;

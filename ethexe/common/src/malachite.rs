@@ -81,7 +81,6 @@ impl Transaction {
     }
 }
 
-// TODO: +_+_+ append versioning, to support future block
 /// `BlockPayload`: ordered transactions; CAS key = Blake2b-256 of the SCALE-encoded list.
 #[derive(
     Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo, Deref, DerefMut, IntoIterator,

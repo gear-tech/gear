@@ -1058,8 +1058,6 @@ mod tests {
         assert_eq!(db.injected_transaction(tx_hash), Some(tx));
     }
 
-    // _+_+_: MB tests
-
     #[test]
     fn test_block_events() {
         let db = Database::memory();

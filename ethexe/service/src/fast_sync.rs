@@ -16,12 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Fast synchronization stub.
-//!
-//! TODO +_+_+: implement MB-driven recovery anchored on `last_committed_mb`.
-//! Until then `sync` fails loudly so operators don't unknowingly run a
-//! node configured with `--fast-sync` that silently degrades to a
-//! full-from-genesis catch-up.
+//! Fast synchronization stub — always fails so `--fast-sync` doesn't
+//! silently degrade to a full-from-genesis catch-up.
 
 use crate::Service;
 use anyhow::{Result, bail};

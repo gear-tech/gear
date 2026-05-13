@@ -103,7 +103,6 @@ pub trait OnChainStorageRO {
     fn block_synced(&self, block_hash: H256) -> bool;
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
 
-    // TODO: +_+_+ find places where this can be applied (AI-friendly)
     fn block_simple_data(&self, block_hash: H256) -> Option<SimpleBlockData> {
         self.block_header(block_hash).map(|header| SimpleBlockData {
             hash: block_hash,

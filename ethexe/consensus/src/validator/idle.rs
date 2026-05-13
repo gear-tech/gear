@@ -186,5 +186,3 @@ impl Idle {
         }
     }
 }
-
-// _+_+_ append tests for idle state

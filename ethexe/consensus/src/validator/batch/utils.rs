@@ -965,8 +965,6 @@ mod tests {
         assert_eq!(squashed[0].value_to_receive, 3);
     }
 
-    // _+_+_ return back test_squash_comprehensive (from master) adapted for MB
-
     /// Exit in a later block overrides an earlier exit's inheritor.
     #[test]
     fn test_squash_later_exit_overrides_earlier() {

@@ -33,7 +33,6 @@ use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
 use tempfile::TempDir;
 
-// TODO +_+_+: this is currently `0`, but must be tuned based on empirical observations.
 /// Default delay before the coordinator starts aggregating a batch
 /// commitment, in milliseconds.
 const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 0;

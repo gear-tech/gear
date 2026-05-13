@@ -551,8 +551,6 @@ impl TestEnv {
         }
     }
 
-    // TODO: +_+_+ rework `TestEnv::new` to accept all era validator sets
-    // up front so callers don't need this mid-test extension.
     /// Pre-allocate malachite endpoints for an *additional* validator set
     /// (e.g. the "next" set in an era handover test) and merge them into
     /// `self.malachite_endpoints` / `self.malachite_listeners`. Without this,

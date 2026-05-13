@@ -266,6 +266,4 @@ impl Coordinator {
         );
         Idle::create(ctx)
     }
-
-    // _+_+_ return back coordinator tests adapted for MB approach (from master)
 }

@@ -248,15 +248,6 @@ pub fn prepare_executable_for_mb(
     )
 }
 
-// _+_+_: BIG TASK for ethexe-compute and ethexe-processor:
-// executable data is constructed from MB transactions. But the ordering of transactions is not
-// provided in ExecutableData, this is not good. What should be done:
-// 1) Create special type of transaction, ProcessorTransaction
-// 2) Transaction::AdvanceTillEthereumBlock must be expanded to ProcessorTransaction::EthereumEvents { events }
-// 3) Transactions Injected, ProgressTasks and ProcessQueues must be mapped into same corresponding Processor variant
-// 4) height, timestamp, program_states, schedule stay as is
-// 5) injected_transactions, gas_allowance, events - replace with Vec<ProcessorTransaction>
-
 /// Walk the MB's `Transactions` list and prepare processor input.
 ///
 /// Synthetic block height/timestamp come from `last_advanced_eb` (the latest
@@ -445,8 +436,6 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 
 #[cfg(test)]
 mod tests {
-    // _+_+_: some tests from master has been removed - investigate which one can be adapted to the new MB-driven compute path and re-add them here.
-
     use super::*;
     use crate::tests::MockProcessor;
     use ethexe_common::{
