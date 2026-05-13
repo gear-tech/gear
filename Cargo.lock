@@ -5612,8 +5612,6 @@ dependencies = [
  "log",
  "ntest",
  "parity-scale-codec",
- "rand 0.8.5",
- "roast-secp256k1-evm",
  "tempfile",
  "tokio",
  "tracing",
