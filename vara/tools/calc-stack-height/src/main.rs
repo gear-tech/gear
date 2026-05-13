@@ -40,7 +40,7 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     let schedule = Schedule::default();
-    let inf_recursion = fs::read_to_string("program/examples/wat/spec/inf_recursion.wat")
+    let inf_recursion = fs::read_to_string("sdk/examples/wat/spec/inf_recursion.wat")
         .context("Failed to read `inf_recursion.wat`")?;
     let inf_recursion = wat::parse_str(inf_recursion).context("Failed to convert WAT to WASM")?;
 
