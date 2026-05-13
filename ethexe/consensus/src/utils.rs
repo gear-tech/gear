@@ -36,7 +36,7 @@ use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
     Identifier,
-    keys::{self, IdentifierList, VerifiableSecretSharingCommitment},
+    keys::{self, IdentifierList},
 };
 use std::collections::{BTreeMap, HashSet};
 
@@ -127,9 +127,7 @@ impl MultisignedBatchCommitment {
     }
 }
 // TODO: #5019 this is a temporal solution. In future need to implement DKG algorithm.
-pub fn generate_roast_keys(
-    validators: &ValidatorsVec,
-) -> Result<(AggregatedPublicKey, VerifiableSecretSharingCommitment)> {
+pub fn generate_roast_keys(validators: &ValidatorsVec) -> Result<(AggregatedPublicKey, Vec<u8>)> {
     let validators_identifiers = validators
         .iter()
         .map(|validator| {
@@ -166,7 +164,10 @@ pub fn generate_roast_keys(
         y: U256::from_big_endian(public_key_y_bytes),
     };
 
-    Ok((aggregated_public_key, verifiable_secret_sharing_commitment))
+    Ok((
+        aggregated_public_key,
+        verifiable_secret_sharing_commitment.serialize()?.concat(),
+    ))
 }
 
 pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {

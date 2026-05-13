@@ -71,7 +71,7 @@ use jsonrpsee::{
 use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
     Identifier, SigningKey, keys,
-    keys::{IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
+    keys::{IdentifierList, PublicKeyPackage},
 };
 use std::{
     fmt, mem,
@@ -686,7 +686,7 @@ impl TestEnv {
     pub fn define_session_keys(
         signer: &Signer,
         validators: Vec<PublicKey>,
-    ) -> (Vec<ValidatorConfig>, VerifiableSecretSharingCommitment) {
+    ) -> (Vec<ValidatorConfig>, Vec<u8>) {
         let max_signers: u16 = validators.len().try_into().expect("conversion failed");
         let min_signers = max_signers
             .checked_mul(2)
@@ -737,7 +737,10 @@ impl TestEnv {
                     }
                 })
                 .collect(),
-            verifiable_secret_sharing_commitment,
+            verifiable_secret_sharing_commitment
+                .serialize()
+                .expect("conversion failed")
+                .concat(),
         )
     }
 }
