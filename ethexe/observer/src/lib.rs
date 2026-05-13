@@ -25,7 +25,7 @@ use alloy::{
     rpc::types::eth::Header,
     transports::TransportResult,
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Context as _, Result};
 use ethexe_common::{
     Address, BlockHeader, ProtocolTimelines, SimpleBlockData, db::ConfigStorageRO,
 };
@@ -128,9 +128,12 @@ impl Stream for ObserverService {
                     self.subscription_future = None;
                 }
                 Err(e) => {
-                    return Poll::Ready(Some(Err(anyhow!(
-                        "failed to create new headers stream: {e}"
-                    ))));
+                    log::warn!("observer: header subscription failed, retrying: {e:#}");
+                    self.metrics.recoverable_sync_errors.increment(1);
+                    let provider = self.provider().clone();
+                    self.subscription_future = Some(provider.subscribe_blocks().into_future());
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
                 }
             }
         }
