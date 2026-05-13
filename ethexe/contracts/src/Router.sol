@@ -114,7 +114,7 @@ contract Router is
         // Set validators for the era 0.
         _resetValidators(
             router.validationSettings.validators0,
-            _aggregatedPublicKey.x != 0 || _aggregatedPublicKey.y != 0,
+            true,
             _aggregatedPublicKey,
             _verifiableSecretSharingCommitment,
             _validators,
@@ -1010,7 +1010,7 @@ contract Router is
 
         _resetValidators(
             _validators,
-            _commitment.aggregatedPublicKey.x != 0 || _commitment.aggregatedPublicKey.y != 0,
+            false,
             _commitment.aggregatedPublicKey,
             _commitment.verifiableSecretSharingCommitment,
             _commitment.validators,
@@ -1071,9 +1071,6 @@ contract Router is
             );
             _validators.aggregatedPublicKey = _newAggregatedPublicKey;
             _validators.verifiableSecretSharingCommitmentPointer = SSTORE2.write(_verifiableSecretSharingCommitment);
-        } else {
-            delete _validators.aggregatedPublicKey;
-            delete _validators.verifiableSecretSharingCommitmentPointer;
         }
         for (uint256 i = 0; i < _validators.list.length; i++) {
             address _validator = _validators.list[i];
