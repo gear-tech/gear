@@ -112,6 +112,9 @@ pub struct ObserverService {
     block_sync_queue: VecDeque<Header>,
     sync_future: Option<SyncFuture>,
     subscription_future: Option<HeadersSubscriptionFuture>,
+    /// Exponent for the subscription-retry backoff. Bumped on every
+    /// `subscribe_blocks` failure, cleared on success.
+    subscription_retry_attempt: u32,
 }
 
 impl Stream for ObserverService {
@@ -126,12 +129,26 @@ impl Stream for ObserverService {
                 Ok(subscription) => {
                     self.headers_stream = subscription.into_stream();
                     self.subscription_future = None;
+                    self.subscription_retry_attempt = 0;
                 }
                 Err(e) => {
-                    log::warn!("observer: header subscription failed, retrying: {e:#}");
+                    let attempt = self.subscription_retry_attempt.saturating_add(1);
+                    self.subscription_retry_attempt = attempt;
+                    let backoff = std::time::Duration::from_millis(
+                        (500u64.saturating_mul(1u64 << attempt.min(6))).min(30_000),
+                    );
+                    log::warn!(
+                        "observer: header subscription failed (attempt {attempt}, retry in {backoff:?}): {e:#}"
+                    );
                     self.metrics.recoverable_sync_errors.increment(1);
                     let provider = self.provider().clone();
-                    self.subscription_future = Some(provider.subscribe_blocks().into_future());
+                    self.subscription_future = Some(
+                        async move {
+                            tokio::time::sleep(backoff).await;
+                            provider.subscribe_blocks().await
+                        }
+                        .boxed(),
+                    );
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
@@ -257,6 +274,7 @@ impl ObserverService {
             block_sync_queue: VecDeque::new(),
             metrics: ObserverMetrics::default(),
             subscription_future: None,
+            subscription_retry_attempt: 0,
             headers_stream,
         })
     }
