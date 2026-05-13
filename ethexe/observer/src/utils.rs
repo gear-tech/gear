@@ -40,13 +40,51 @@ use std::{collections::HashMap, future::IntoFuture, ops::RangeInclusive};
 
 /// The observer asked the Ethereum RPC for data anchored at a specific
 /// block hash, but the node no longer recognises that hash (typical
-/// JSON-RPC code `-32000 "unknown block"` after a reorg). The caller
-/// should abandon the in-flight sync and wait for the next canonical
-/// chain head — the same alloy header subscription will deliver it.
+/// after a reorg / `anvil_revert` / geth dropping a deep reorg). The
+/// caller should abandon the in-flight sync and wait for the next
+/// canonical chain head — the alloy header subscription delivers it.
 #[derive(Debug, thiserror::Error)]
 #[error("block {hash} is no longer in the canonical chain (likely reorged out)")]
 pub struct BlockReorgedError {
     pub hash: H256,
+}
+
+/// Known wordings different Ethereum clients return for "block hash you
+/// asked for no longer exists" when an RPC method is pinned via
+/// `at_block_hash` — covers both `eth_getLogs` (used by the block
+/// loader) and `eth_call` (used by `RouterQuery::validators_at` and
+/// friends inside `ensure_validators`):
+///
+/// - `"unknown block"` — anvil/geth `eth_getLogs` (code -32000)
+/// - `"resource not found"` — anvil/geth `eth_call` against an
+///   orphaned block hash (code -32001, EIP-1474 standard wording)
+/// - `"block not found"` — reth, erigon (recent), some nethermind paths
+/// - `"header not found"` — infura load-balancer + a few geth paths
+///   (alloy already lists this as a retryable wording, see
+///   alloy-json-rpc::ErrorPayload::is_retry_err)
+/// - `"could not be found"` — nethermind block-by-hash response
+/// - `"missing trie node"` — reth/geth when the state has been pruned;
+///   includes reorg-evicted blocks
+///
+/// Match is case-insensitive substring across the full set; we
+/// deliberately do NOT gate on JSON-RPC code because different clients
+/// (and even the same client across different methods — `eth_getLogs`
+/// uses -32000 on anvil, `eth_call` uses -32001) pick different codes
+/// for the same condition. Callers must only invoke this on requests
+/// anchored at a block hash — for range queries the same wording can
+/// mean "the from/to block was bad", not necessarily a reorg.
+pub(crate) const REORG_MARKERS: &[&str] = &[
+    "unknown block",
+    "resource not found",
+    "block not found",
+    "header not found",
+    "could not be found",
+    "missing trie node",
+];
+
+fn is_reorg_indication(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    REORG_MARKERS.iter().any(|m| lower.contains(m))
 }
 
 fn classify_get_logs_error(
@@ -54,7 +92,7 @@ fn classify_get_logs_error(
     err: RpcError<alloy::transports::TransportErrorKind>,
 ) -> anyhow::Error {
     if let Some(payload) = err.as_error_resp()
-        && payload.message.to_lowercase().contains("unknown block")
+        && is_reorg_indication(&payload.message)
     {
         return BlockReorgedError { hash: block }.into();
     }
@@ -322,5 +360,107 @@ impl BlockLoader for EthereumBlockLoader {
         }
 
         Ok(blocks_data)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy::rpc::json_rpc::ErrorPayload;
+    use std::borrow::Cow;
+
+    fn error_resp(
+        code: i64,
+        message: &'static str,
+    ) -> RpcError<alloy::transports::TransportErrorKind> {
+        RpcError::ErrorResp(ErrorPayload {
+            code,
+            message: Cow::Borrowed(message),
+            data: None,
+        })
+    }
+
+    fn dummy_hash() -> H256 {
+        H256([0xab; 32])
+    }
+
+    /// Every client wording we know about must be recognised as a
+    /// reorg signal — the alternative is the service crash this
+    /// classifier was added to prevent. Add new wordings here when
+    /// support for new clients is needed.
+    #[test]
+    fn classifier_recognises_known_reorg_wordings() {
+        let cases: &[(&'static str, &'static str)] = &[
+            ("anvil/geth eth_getLogs", "unknown block"),
+            ("anvil mixed-case", "Unknown Block"),
+            ("anvil prefix", "unknown block 0x123abc"),
+            ("anvil/geth eth_call (EIP-1474)", "Resource not found"),
+            ("reth", "block not found"),
+            ("erigon", "Block not found"),
+            ("infura/geth", "header not found"),
+            ("nethermind", "Block 0xabc... could not be found"),
+            ("reth pruned/reorged", "missing trie node 0xdeadbeef"),
+        ];
+        for (label, msg) in cases {
+            let err = classify_get_logs_error(dummy_hash(), error_resp(-32000, msg));
+            assert!(
+                err.downcast_ref::<BlockReorgedError>().is_some(),
+                "client wording for {label}: {msg:?} must classify as BlockReorgedError"
+            );
+        }
+    }
+
+    /// Non-reorg `eth_getLogs` failures must remain fatal — the
+    /// service relies on them to surface real RPC outages.
+    #[test]
+    fn classifier_passes_non_reorg_errors_through() {
+        let cases: &[(&'static str, i64, &'static str)] = &[
+            ("rate limit", -32005, "rate limit exceeded"),
+            ("provider down", -32603, "Internal error"),
+            (
+                "bad params",
+                -32602,
+                "invalid argument 0: hex string has length 0",
+            ),
+            (
+                "range too wide",
+                -32600,
+                "query returned more than 10000 results",
+            ),
+        ];
+        for (label, code, msg) in cases {
+            let err = classify_get_logs_error(dummy_hash(), error_resp(*code, msg));
+            assert!(
+                err.downcast_ref::<BlockReorgedError>().is_none(),
+                "non-reorg error for {label}: {msg:?} must NOT classify as BlockReorgedError"
+            );
+        }
+    }
+
+    /// Transport-layer failures (socket dead, malformed json) carry
+    /// no `ErrorPayload`; the classifier must leave them alone.
+    #[test]
+    fn classifier_ignores_transport_errors() {
+        let err = classify_get_logs_error(
+            dummy_hash(),
+            RpcError::LocalUsageError("simulated boot-time misconfig".into()),
+        );
+        assert!(err.downcast_ref::<BlockReorgedError>().is_none());
+    }
+
+    /// `BlockReorgedError` must carry the offending hash so logs /
+    /// metrics can surface which block we abandoned.
+    #[test]
+    fn reorg_error_carries_the_block_hash() {
+        let hash = H256([0xcd; 32]);
+        let err = classify_get_logs_error(hash, error_resp(-32000, "unknown block"));
+        let reorged = err
+            .downcast_ref::<BlockReorgedError>()
+            .expect("classifier recognised the wording");
+        assert_eq!(reorged.hash, hash);
+        assert!(
+            reorged.to_string().contains(&format!("{hash}")),
+            "Display must include the hash: {reorged}"
+        );
     }
 }
