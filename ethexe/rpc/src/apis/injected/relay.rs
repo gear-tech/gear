@@ -107,7 +107,9 @@ impl TransactionsRelayer {
         })
     }
 
-    // _+_+_: append doc
+    /// Broadcast the transaction to every recipient concurrently and return
+    /// the first `Accept`. If no recipient accepts, return the last reject;
+    /// if every channel is dropped, return an internal error.
     async fn fan_out(
         &self,
         transaction: AddressedInjectedTransaction,
