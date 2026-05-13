@@ -20,10 +20,14 @@
 
 use crate::{
     RuntimeConfig,
-    utils::{BlockLoader, BlockReorgedError, EthereumBlockLoader},
+    utils::{BlockLoader, EthereumBlockLoader},
 };
-use alloy::{providers::RootProvider, rpc::types::eth::Header};
-use anyhow::{Context as _, Result, anyhow};
+use alloy::{
+    providers::RootProvider,
+    rpc::types::eth::Header,
+    transports::{RpcError as AlloyRpcError, TransportErrorKind},
+};
+use anyhow::{Context as _, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
     db::{GlobalsStorageRO, GlobalsStorageRW, OnChainStorageRO, OnChainStorageRW},
@@ -36,6 +40,88 @@ use ethexe_ethereum::{
 };
 use gprimitives::H256;
 use std::collections::HashMap;
+
+/// Outcome of one [`ChainSync::sync`] attempt.
+///
+/// The only recoverable failure class is anything that originated in
+/// the Ethereum RPC layer — reorgs (block hash orphaned mid-call),
+/// transient transport blips, rate limits, ws disconnects, etc. The
+/// observer drops the in-flight sync, logs a warning, bumps the
+/// recovery counter, and retries on the next chain head from the
+/// alloy header subscription. Everything else is `Fatal` and surfaces
+/// to the service main loop the way it always did — DB I/O failure,
+/// validator-set decoding bug, our own protocol invariant violation,
+/// etc.
+#[derive(Debug, thiserror::Error)]
+pub enum SyncError {
+    /// At least one error in the chain is an `alloy::transports::RpcError`.
+    /// Recoverable: the next chain head drives the next attempt.
+    #[error("RPC error during sync: {0:?}")]
+    RpcError(anyhow::Error),
+
+    /// Not an RPC failure. Crash the service.
+    #[error(transparent)]
+    Fatal(anyhow::Error),
+}
+
+impl SyncError {
+    /// Walk the anyhow source chain looking for "this originated in
+    /// the Ethereum RPC layer". If any layer matches, classify as
+    /// recoverable. Otherwise fatal.
+    ///
+    /// This is the SINGLE classification point for the whole sync
+    /// pipeline: any future caller that introduces a new RPC-facing
+    /// query gets reorg/transient recovery for free, as long as the
+    /// alloy error type is preserved in the anyhow source chain
+    /// (i.e. don't use `anyhow!("...{err}")` — use `?` /
+    /// `.context()` / `anyhow::Error::from`).
+    ///
+    /// Two markers count:
+    ///
+    /// - `alloy::transports::RpcError<TransportErrorKind>` directly
+    ///   in the chain. This is the natural outcome of preserving an
+    ///   `eth_getLogs` / `subscribe_blocks` / raw-RPC failure.
+    ///
+    /// - `alloy::contract::Error::TransportError(_)` at any layer.
+    ///   `eth_call`-flavoured failures (`RouterQuery::validators_at`,
+    ///   `MiddlewareQuery::make_election_at`, etc.) flow through
+    ///   `alloy_contract::Error`, whose `#[error(transparent)]` +
+    ///   `#[from]` derive forwards `source()` to the wrapped
+    ///   `TransportError` — meaning the inner `RpcError` is NOT in
+    ///   `chain()` as a distinct item. We catch it by downcasting
+    ///   the outer `contract::Error` and matching the variant.
+    fn from_anyhow(err: anyhow::Error) -> Self {
+        let is_rpc = err.chain().any(|e| {
+            if e.downcast_ref::<AlloyRpcError<TransportErrorKind>>()
+                .is_some()
+            {
+                return true;
+            }
+            if let Some(contract_err) = e.downcast_ref::<alloy::contract::Error>() {
+                return matches!(contract_err, alloy::contract::Error::TransportError(_));
+            }
+            false
+        });
+        if is_rpc {
+            Self::RpcError(err)
+        } else {
+            Self::Fatal(err)
+        }
+    }
+}
+
+pub type SyncResult<T> = std::result::Result<T, SyncError>;
+
+// Local alias so existing `?`s on `anyhow::Result<T>` inside the
+// methods keep working — they get `From<anyhow::Error>` for
+// `SyncError` via the impl below.
+type Result<T, E = anyhow::Error> = std::result::Result<T, E>;
+
+impl From<anyhow::Error> for SyncError {
+    fn from(err: anyhow::Error) -> Self {
+        Self::from_anyhow(err)
+    }
+}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -62,7 +148,7 @@ impl ChainSync {
         }
     }
 
-    pub async fn sync(self, chain_head: Header) -> Result<H256> {
+    pub async fn sync(self, chain_head: Header) -> SyncResult<H256> {
         let block = SimpleBlockData {
             hash: H256(chain_head.hash.0),
             header: BlockHeader {
@@ -72,30 +158,18 @@ impl ChainSync {
             },
         };
 
-        let latest_synced_hash = self.db.globals().latest_synced_eb.hash;
-        match self.sync_inner(block).await {
-            Ok(hash) => Ok(hash),
-            Err(err) => {
-                if let Some(reorged) = err.downcast_ref::<BlockReorgedError>() {
-                    // Anvil/Geth dropped the block under us mid-sync —
-                    // the alloy header subscription will deliver the
-                    // new canonical head shortly; just hold at the
-                    // last good tip.
-                    log::warn!(
-                        "sync abandoned for {}: {reorged}; will resume on next chain head",
-                        block.hash
-                    );
-                    return Ok(latest_synced_hash);
-                }
-                Err(err)
-            }
-        }
-    }
-
-    async fn sync_inner(&self, block: SimpleBlockData) -> Result<H256> {
+        // Every fallible call inside the body talks to the Ethereum
+        // RPC at some point, so we classify the outcome through
+        // [`SyncError::from_anyhow`] which inspects the source chain
+        // for an `alloy::transports::RpcError`. Reorgs (eth_getLogs
+        // "unknown block", eth_call "Resource not found", etc.),
+        // transient transport blips, rate limits — all of those land
+        // as `SyncError::RpcError` and `ObserverService::poll_next`
+        // recovers without crashing. Anything else (DB I/O,
+        // validator-set decoding, our own invariant violations) keeps
+        // surfacing as `SyncError::Fatal`.
         let blocks_data = self.pre_load_data(&block.header).await?;
         let chain = self.load_chain(&block, blocks_data).await?;
-
         self.ensure_validators(block).await?;
         self.mark_chain_as_synced(chain.into_iter().rev());
 

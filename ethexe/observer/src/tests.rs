@@ -212,32 +212,27 @@ async fn resubscribes_when_headers_stream_terminates() -> Result<()> {
     Ok(())
 }
 
-/// Adversarial test from Opus review #3: the `BlockReorgedError`
-/// classifier was wired only into `EthereumBlockLoader::load` (the
-/// `eth_getLogs` path). `ChainSync::sync_inner` also makes pinned
-/// `eth_call` queries via `router_query.validators_at(block_hash)`
-/// inside `ensure_validators`. If the chain reorgs *between*
-/// `load_chain` succeeding and `ensure_validators` running, that
-/// `eth_call` fails with the same family of "block was reorged out"
-/// JSON-RPC errors — but those errors go through alloy's
-/// contract-call decoder, NOT through our classifier. The result is
-/// a plain `anyhow::Error` that the service main loop still treats
-/// as fatal.
+/// Regression guard for the `ensure_validators` reorg gap pinned by
+/// Opus review #3.
 ///
-/// This test reproduces that path deterministically (anvil snapshot
-/// + revert) and asserts two things:
+/// `ChainSync::ensure_validators` makes pinned `eth_call` queries via
+/// `router_query.validators_at(block_hash)` and
+/// `middleware_query.make_election_at(...)`. When the chain reorgs
+/// out the block hash these calls are pinned at, the node responds
+/// with a reorg-flavoured RPC error wrapped inside
+/// `alloy::contract::Error -> alloy::transports::RpcError`. The
+/// original classifier was only wired into `EthereumBlockLoader::load`
+/// (the `eth_getLogs` path), so the `ensure_validators` failure
+/// crashed the service.
 ///
-///   (a) The wording IS one of our reorg markers — so a classifier
-///       would recognise it.
-///   (b) The error coming back from `validators_at` is NOT a
-///       `BlockReorgedError` today.
-///
-/// (a) ∧ (b) proves the bug: the reorg signal is present and
-/// detectable, but `ensure_validators` is on the wrong side of the
-/// classifier wiring.
+/// The fix moved classification to a single point — `SyncError`'s
+/// `From<anyhow::Error>` walks the source chain looking for any
+/// `alloy::transports::RpcError`. This test exercises the
+/// `validators_at` path directly and checks the classifier still
+/// catches it.
 #[tokio::test]
-async fn validators_at_on_orphaned_block_is_unclassified_reorg() -> Result<()> {
-    use crate::utils::{BlockReorgedError, REORG_MARKERS};
+async fn validators_at_on_orphaned_block_is_recoverable_rpc_error() -> Result<()> {
+    use crate::SyncError;
 
     gear_utils::init_default_logger();
 
@@ -290,40 +285,20 @@ async fn validators_at_on_orphaned_block_is_unclassified_reorg() -> Result<()> {
         .await
         .expect_err("validators_at must error on a block that was reorged out");
 
-    // Walk the error chain — the raw RPC wording lives somewhere in
-    // it once alloy's contract-call decoder is done wrapping.
-    let chain: String = err
-        .chain()
-        .map(|e| e.to_string())
-        .collect::<Vec<_>>()
-        .join(" | ");
-    let lower = chain.to_lowercase();
-
-    // (a) The wording is detectable.
-    let matched_marker = REORG_MARKERS.iter().find(|m| lower.contains(*m));
-    assert!(
-        matched_marker.is_some(),
-        "no known reorg marker in error chain — classifier wouldn't help even if wired in. \
-         chain was: {chain:?}"
-    );
-    log::info!(
-        "validators_at returned a reorg error with marker {:?} in chain {:?}",
-        matched_marker.unwrap(),
-        chain,
-    );
-
-    // (b) Nothing currently translates it to BlockReorgedError —
-    // the recovery path in `ChainSync::sync` will NOT catch this and
-    // the service main loop will bail. Once `ensure_validators` is
-    // routed through the classifier, this assertion must be flipped
-    // to `assert!(reorged.is_some(), ...)` and the test becomes a
-    // regression guard.
-    let reorged = err.downcast_ref::<BlockReorgedError>();
-    assert!(
-        reorged.is_none(),
-        "regression: BlockReorgedError downcast succeeded, meaning ensure_validators \
-         IS classified — flip this assertion. err: {err:?}"
-    );
+    // The fix: `SyncError`'s anyhow conversion walks the source chain
+    // for an `alloy::transports::RpcError` and classifies it as
+    // recoverable. `ObserverService::poll_next` then logs a warning,
+    // bumps the counter, and waits for the next chain head instead
+    // of crashing.
+    let classified = SyncError::from(err);
+    match classified {
+        SyncError::RpcError(_) => { /* expected */ }
+        SyncError::Fatal(err) => panic!(
+            "regression: validators_at error on an orphaned block is NOT classified as \
+             recoverable — service will crash on every reorg through ensure_validators. \
+             err: {err:?}"
+        ),
+    }
 
     Ok(())
 }

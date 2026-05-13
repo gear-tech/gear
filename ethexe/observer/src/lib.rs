@@ -38,7 +38,8 @@ use std::{
     pin::Pin,
     task::{Context, Poll, ready},
 };
-use sync::ChainSync;
+pub use sync::SyncError;
+use sync::{ChainSync, SyncResult};
 
 mod sync;
 pub mod utils;
@@ -50,7 +51,7 @@ type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription
 
 /// The wrapper on top of [`ChainSync::sync`] future.
 /// It is needed to measure time taken for syncing a block.
-type SyncFuture = future_timing::Timed<BoxFuture<'static, Result<H256>>>;
+type SyncFuture = future_timing::Timed<BoxFuture<'static, SyncResult<H256>>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
@@ -78,6 +79,13 @@ pub(crate) struct ObserverMetrics {
     pub blocks_latency: metrics::Histogram,
     /// The statistics about time for blocks syncing.
     pub block_syncing_latency: metrics::Histogram,
+    /// Total count of sync attempts that ended with a recoverable
+    /// `SyncError::RpcError` — typically a reorg orphaning a block we
+    /// were mid-loading, a transient transport blip, or a provider
+    /// rate limit. The observer drops the in-flight sync and retries
+    /// on the next chain head; a sustained high rate here means the
+    /// upstream Ethereum endpoint is unhealthy.
+    pub recoverable_sync_errors: metrics::Counter,
 }
 
 #[derive(Clone, Debug)]
@@ -181,8 +189,34 @@ impl Stream for ObserverService {
                 .record((timing.busy() + timing.idle()).as_secs_f64());
             self.sync_future = None;
 
-            let maybe_event = result.map(ObserverEvent::BlockSynced);
-            return Poll::Ready(Some(maybe_event));
+            match result {
+                Ok(hash) => {
+                    return Poll::Ready(Some(Ok(ObserverEvent::BlockSynced(hash))));
+                }
+                Err(SyncError::RpcError(err)) => {
+                    // Recoverable: reorg, transient transport blip,
+                    // rate limit, etc. The alloy header subscription
+                    // delivers the next canonical head shortly which
+                    // triggers a fresh sync; until then we keep the
+                    // last-good `latest_synced_eb` in DB.
+                    //
+                    // `block_sync_queue` may still have earlier
+                    // headers buffered from a burst — wake ourselves
+                    // so the runtime re-polls immediately and starts
+                    // the next sync without waiting for an external
+                    // signal.
+                    log::warn!(
+                        "observer: dropping in-flight sync after RPC error \
+                         (will retry on next chain head): {err:#}"
+                    );
+                    self.metrics.recoverable_sync_errors.increment(1);
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
+                }
+                Err(SyncError::Fatal(err)) => {
+                    return Poll::Ready(Some(Err(err)));
+                }
+            }
         }
 
         Poll::Pending
