@@ -181,7 +181,7 @@ contract Base is POCBaseTest {
         if (revertExpected) {
             vm.expectRevert();
         }
-        router.commitBatch(_batch, Gear.SignatureType.FROST, signHash(_privateKeys, batchCommitmentHash(_batch)));
+        router.commitBatch(false, _batch, Gear.SignatureType.FROST, signHash(_privateKeys, batchCommitmentHash(_batch)));
     }
 
     function commitBlock(uint256[] memory _privateKeys, Gear.StateTransition[] memory _transactions) internal {
@@ -261,7 +261,16 @@ contract Base is POCBaseTest {
 
         rollBlocks(1);
 
-        commitBatch(_privateKeys, _batch, revertExpected);
+        bool hasAggregatedPublicKey = _commitment.aggregatedPublicKey.x != 0 || _commitment.aggregatedPublicKey.y != 0;
+        if (revertExpected) {
+            vm.expectRevert();
+        }
+        router.commitBatch(
+            hasAggregatedPublicKey,
+            _batch,
+            Gear.SignatureType.FROST,
+            signHash(_privateKeys, batchCommitmentHash(_batch))
+        );
     }
 
     function batchCommitmentHash(Gear.BatchCommitment memory _batch) internal pure returns (bytes32) {

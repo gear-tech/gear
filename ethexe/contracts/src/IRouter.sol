@@ -666,6 +666,7 @@ interface IRouter {
      * @param signatures The signatures for the batch commitment.
      */
     function commitBatch(
+        bool hasAggregatedPublicKey,
         Gear.BatchCommitment calldata batchCommitment,
         Gear.SignatureType signatureType,
         bytes[] calldata signatures
