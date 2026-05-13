@@ -59,21 +59,19 @@
 //! All inputs arrive through the [`ConsensusService`] trait. Outputs leave
 //! through the `futures::Stream` impl.
 //!
-//! | Trait method                                                          | Meaning                                          |
-//! |-----------------------------------------------------------------------|--------------------------------------------------|
-//! | [`receive_new_chain_head`](ConsensusService::receive_new_chain_head)  | A new Ethereum chain head.                       |
-//! | [`receive_synced_block`](ConsensusService::receive_synced_block)      | Block data is now available in the DB.           |
-//! | [`receive_prepared_block`](ConsensusService::receive_prepared_block)  | Block has been prepared (events processed).      |
-//! | [`receive_validation_request`](ConsensusService::receive_validation_request) | Request to validate a batch commitment.   |
-//! | [`receive_validation_reply`](ConsensusService::receive_validation_reply)     | Signed reply to a coordinated batch.      |
+//! Inputs:
+//!
+//! - [`receive_new_chain_head`](ConsensusService::receive_new_chain_head) — new Ethereum chain head.
+//! - [`receive_synced_block`](ConsensusService::receive_synced_block) — block data is now in DB.
+//! - [`receive_prepared_block`](ConsensusService::receive_prepared_block) — block prepared (events processed).
+//! - [`receive_validation_request`](ConsensusService::receive_validation_request) — validate a batch commitment.
+//! - [`receive_validation_reply`](ConsensusService::receive_validation_reply) — signed reply to a coordinated batch.
 //!
 //! ## Output events
 //!
-//! | [`ConsensusEvent`]                                       | What it tells the service layer                                          |
-//! |----------------------------------------------------------|--------------------------------------------------------------------------|
-//! | [`PublishMessage`](ConsensusEvent::PublishMessage)       | Validator-to-validator gossip (request or reply).                        |
-//! | [`CommitmentSubmitted`](ConsensusEvent::CommitmentSubmitted) | A batch landed on-chain.                                             |
-//! | [`Warning`](ConsensusEvent::Warning)                     | Non-fatal anomaly.                                                       |
+//! - [`PublishMessage`](ConsensusEvent::PublishMessage) — validator-to-validator gossip.
+//! - [`CommitmentSubmitted`](ConsensusEvent::CommitmentSubmitted) — a batch landed on-chain.
+//! - [`Warning`](ConsensusEvent::Warning) — non-fatal anomaly.
 //!
 //! ## State machine
 //!

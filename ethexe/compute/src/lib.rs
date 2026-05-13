@@ -53,12 +53,14 @@
 //!
 //! ## Entry points
 //!
-//! | Method                                  | Effect                                                                       |
-//! |-----------------------------------------|------------------------------------------------------------------------------|
-//! | [`ComputeService::process_code`]        | Queue a code blob for validation + instrumentation + DB persistence.         |
-//! | [`ComputeService::prepare_block`]       | Queue a synced Eth block for preparation (walks ancestors, requests codes).  |
-//! | [`ComputeService::compute_mb`]          | Queue a finalised MB for execution (walks uncomputed ancestor MBs first).    |
-//! | `<ComputeService as Stream>::poll_next` | Drive all sub-services and yield the next [`ComputeEvent`].                  |
+//! - [`ComputeService::process_code`] — queue a code blob for validation +
+//!   instrumentation + DB persistence.
+//! - [`ComputeService::prepare_block`] — queue a synced Eth block for
+//!   preparation (walks ancestors, requests codes).
+//! - [`ComputeService::compute_mb`] — queue a finalised MB for execution
+//!   (walks uncomputed ancestor MBs first).
+//! - `<ComputeService as Stream>::poll_next` — drive all sub-services
+//!   and yield the next [`ComputeEvent`].
 //!
 //! ## Code processing pipeline (`codes`)
 //!
