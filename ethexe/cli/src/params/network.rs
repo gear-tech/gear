@@ -23,7 +23,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use ethexe_common::Address;
 use ethexe_network::{
-    DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, NetworkConfig,
+    NetworkConfig,
     export::{Multiaddr, Protocol},
 };
 use gsigner::secp256k1::Signer;
@@ -146,9 +146,6 @@ impl NetworkParams {
             listen_addresses,
             transport_type: Default::default(),
             allow_non_global_addresses: is_dev,
-            max_chain_len_for_announces_response: self
-                .max_chain_len_for_announces_response
-                .unwrap_or(DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE),
         }))
     }
 }

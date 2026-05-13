@@ -328,7 +328,7 @@ impl ConsensusService for ConnectService {
         let block = *block;
         let producer = *producer;
 
-        let (request, announces) = response.into_parts();
+        let AnnouncesResponse { request, announces } = response;
 
         if waiting_request != &request {
             return Ok(());

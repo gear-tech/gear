@@ -56,7 +56,7 @@ use anyhow::{Context, Result, bail};
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, PromiseEmissionMode,
-    network::{AnnouncesRequestError, VerifiedValidatorMessage, request_announces},
+    network::{AnnouncesResponse, VerifiedValidatorMessage},
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -66,10 +66,7 @@ use ethexe_db::{
     Database, GenesisInitializer, InitConfig, RawDatabase, RocksDatabase, dump::StateDump,
 };
 use ethexe_ethereum::{EthereumBuilder, deploy::EthereumDeployer, router::RouterQuery};
-use ethexe_network::{
-    DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, NetworkEvent, NetworkRuntimeConfig,
-    NetworkService,
-};
+use ethexe_network::{NetworkEvent, NetworkRuntimeConfig, NetworkService};
 use ethexe_observer::{
     ObserverConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader},
@@ -99,7 +96,7 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Rpc(RpcEvent),
     Prometheus(PrometheusEvent),
-    Fetching(Result<ethexe_common::network::AnnouncesResponse, AnnouncesRequestError>),
+    Fetching(AnnouncesResponse),
 }
 
 /// ethexe service.
@@ -747,14 +744,7 @@ impl Service {
                         };
 
                         let bitswap = network.bitswap_handle();
-                        network_fetcher.push(async move {
-                            request_announces(
-                                &bitswap,
-                                request,
-                                DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
-                            )
-                            .await
-                        });
+                        network_fetcher.push(request.request(bitswap));
                     }
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
@@ -777,7 +767,7 @@ impl Service {
                         unreachable!("Fetching event is impossible without network service");
                     };
 
-                    consensus.receive_announces_response(result?)?;
+                    consensus.receive_announces_response(result)?;
                 }
             }
         }

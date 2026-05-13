@@ -55,11 +55,11 @@ use crate::{
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, ValidatorsVec,
+    Address, Announce, BlockHeader, HashOf, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
     injected::{AddressedInjectedTransaction, SignedCompactPromise},
-    network::{BitswapHandle, SignedValidatorMessage, VerifiedValidatorMessage},
+    network::{BitswapAnnouncesHandle, SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
@@ -78,10 +78,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{
-    collections::HashSet, fmt::Write, num::NonZeroU32, pin::Pin, sync::Arc, task::Poll,
-    time::Duration,
-};
+use std::{collections::HashSet, fmt::Write, pin::Pin, sync::Arc, task::Poll, time::Duration};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 /// Default listen port.
@@ -99,13 +96,9 @@ const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
 const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
 const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 
-/// Hard cap for the amount of announces that can be returned in one db-sync
-/// response.
-pub const DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
-
-impl BitswapHandle for bitswap::Handle {
-    async fn request(&self, hash: H256) -> Vec<u8> {
-        bitswap::Handle::request(self, hash).await
+impl BitswapAnnouncesHandle for bitswap::Handle {
+    async fn request(&self, hash: HashOf<Announce>) -> Announce {
+        bitswap::Handle::request(self, hash).await.unwrap_announce()
     }
 }
 
@@ -159,8 +152,6 @@ pub struct NetworkConfig {
     /// Whether private and local addresses are allowed in discovery and
     /// identify flows.
     pub allow_non_global_addresses: bool,
-    /// Upper bound for `Announces` db-sync responses served by this node.
-    pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl NetworkConfig {
@@ -175,7 +166,6 @@ impl NetworkConfig {
             transport_type: TransportType::Default,
             router_address,
             allow_non_global_addresses: false,
-            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 
@@ -189,7 +179,6 @@ impl NetworkConfig {
             transport_type: TransportType::Test,
             router_address,
             allow_non_global_addresses: true,
-            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 }
@@ -270,7 +259,6 @@ impl NetworkService {
             transport_type,
             router_address,
             allow_non_global_addresses,
-            max_chain_len_for_announces_response: _,
         } = config;
 
         let NetworkRuntimeConfig {
@@ -947,7 +935,13 @@ mod tests {
         )
         .await
         .expect("time has elapsed");
-        assert_eq!(response, (b"hello".to_vec(), b"world".to_vec()));
+        assert_eq!(
+            response,
+            (
+                bitswap::Response::Hash(b"hello".to_vec()),
+                bitswap::Response::Hash(b"world".to_vec())
+            )
+        );
     }
 
     #[tokio::test]

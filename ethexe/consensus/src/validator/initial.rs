@@ -174,12 +174,11 @@ impl StateHandler for Initial {
                 block,
                 chain,
                 announces,
-            } if announces == *response.request() => {
+            } if announces == response.request => {
                 tracing::debug!(block = %block.hash, "Received missing announces response");
 
                 let missing_announces = response
-                    .into_parts()
-                    .1
+                    .announces
                     .into_iter()
                     .map(|a| (a.to_hash(), a))
                     .collect();
@@ -382,20 +381,18 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
-        let response = unsafe {
-            AnnouncesResponse::from_parts(
-                expected_request,
-                vec![
-                    chain
-                        .announces
-                        .get(&chain.block_top_announce_hash(last - 3))
-                        .unwrap()
-                        .announce
-                        .clone(),
-                    announce2.clone(),
-                    announce1.clone(),
-                ],
-            )
+        let response = AnnouncesResponse {
+            request: expected_request,
+            announces: vec![
+                chain
+                    .announces
+                    .get(&chain.block_top_announce_hash(last - 3))
+                    .unwrap()
+                    .announce
+                    .clone(),
+                announce2.clone(),
+                announce1.clone(),
+            ],
         };
 
         // In successful case no new events are produced
@@ -566,14 +563,12 @@ mod tests {
         let invalid_announce = Announce::base(H256::random(), HashOf::random());
         let invalid_announce_hash = invalid_announce.to_hash();
 
-        let response = unsafe {
-            AnnouncesResponse::from_parts(
-                AnnouncesRequest {
-                    head: invalid_announce_hash,
-                    until: NonZeroU32::new(1).unwrap().into(),
-                },
-                vec![invalid_announce],
-            )
+        let response = AnnouncesResponse {
+            request: AnnouncesRequest {
+                head: invalid_announce_hash,
+                until: NonZeroU32::new(1).unwrap().into(),
+            },
+            announces: vec![invalid_announce],
         };
 
         let state = Initial::create_with_chain_head(ctx, block)
@@ -642,19 +637,17 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
-        let response = unsafe {
-            AnnouncesResponse::from_parts(
-                expected_request,
-                vec![
-                    chain
-                        .announces
-                        .get(&chain.block_top_announce_hash(last - 7))
-                        .unwrap()
-                        .announce
-                        .clone(),
-                    unknown_announce,
-                ],
-            )
+        let response = AnnouncesResponse {
+            request: expected_request,
+            announces: vec![
+                chain
+                    .announces
+                    .get(&chain.block_top_announce_hash(last - 7))
+                    .unwrap()
+                    .announce
+                    .clone(),
+                unknown_announce,
+            ],
         };
 
         let state = state.process_announces_response(response).unwrap();

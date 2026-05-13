@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    RouterDataProvider, Service,
+    Service,
     config::EthereumConfig,
     tests::utils::{
         InfiniteStreamExt, TestingEvent, TestingNetworkEvent,
@@ -325,7 +325,6 @@ impl TestEnv {
                 validator_key: None,
                 general_signer: signer.clone(),
                 network_signer: signer.clone(),
-                external_data_provider: Box::new(RouterDataProvider(router_query.clone())),
                 db: db.clone(),
             };
 
@@ -1182,7 +1181,6 @@ impl Node {
             validator_key: self.validator_config.as_ref().map(|c| c.public_key),
             general_signer: self.signer.clone(),
             network_signer: self.signer.clone(),
-            external_data_provider: Box::new(RouterDataProvider(self.router_query.clone())),
             db: self.db.clone(),
         };
 

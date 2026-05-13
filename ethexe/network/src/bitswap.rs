@@ -19,7 +19,10 @@
 use beetswap::multihasher::{Multihasher, MultihasherError};
 use blockstore::{block::CidError, cond_send::CondSend};
 use cid::{Cid, CidGeneric};
-use ethexe_common::db::HashStorageRO;
+use ethexe_common::{
+    Announce, HashOf,
+    db::{AnnounceStorageRO, HashStorageRO},
+};
 use futures::FutureExt;
 use gprimitives::H256;
 use libp2p::{
@@ -31,6 +34,7 @@ use libp2p::{
     },
 };
 use multihash::Multihash;
+use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::HashMap,
     mem,
@@ -42,22 +46,62 @@ use tokio::{
     task,
 };
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::From)]
+pub enum Request {
+    Hash(H256),
+    Announce(HashOf<Announce>),
+}
+
+impl Request {
+    fn into_cid(self) -> Cid {
+        match self {
+            Request::Hash(hash) => Cid::new_v1(
+                Blockstore::RAW_CODEC,
+                Multihash::wrap(Blockstore::BLAKE2B_CODE, hash.as_bytes())
+                    .expect("size is always correct"),
+            ),
+            Request::Announce(hash) => Cid::new_v1(
+                Blockstore::ANNOUNCES_CODEC,
+                Multihash::wrap(Blockstore::BLAKE2B_CODE, hash.inner().as_bytes())
+                    .expect("size is always correct"),
+            ),
+        }
+    }
+
+    fn into_response(self, data: Vec<u8>) -> Response {
+        match self {
+            Request::Hash(_) => Response::Hash(data),
+            Request::Announce(_) => {
+                Response::Announce(Announce::decode(&mut data.as_slice()).expect("valid announce"))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
+pub enum Response {
+    Hash(Vec<u8>),
+    Announce(Announce),
+}
+
 #[derive(Clone)]
-pub struct Handle(mpsc::UnboundedSender<(H256, oneshot::Sender<Vec<u8>>)>);
+pub struct Handle(mpsc::UnboundedSender<(Request, oneshot::Sender<Response>)>);
 
 impl Handle {
-    pub async fn request(&self, request: H256) -> Vec<u8> {
+    pub async fn request(&self, request: impl Into<Request>) -> Response {
         let (tx, rx) = oneshot::channel();
 
         self.0
-            .send((request, tx))
+            .send((request.into(), tx))
             .expect("channel should never be closed");
 
         rx.await.expect("channel should never be closed")
     }
 }
 
-pub(crate) trait BlockstoreDatabase: Send + Sync + HashStorageRO {
+pub(crate) trait BlockstoreDatabase:
+    Send + Sync + HashStorageRO + AnnounceStorageRO
+{
     fn clone_boxed(&self) -> Box<dyn BlockstoreDatabase>;
 }
 
@@ -74,7 +118,25 @@ pub struct Blockstore {
 impl Blockstore {
     const MAX_BLOCK_SIZE: u64 = 1024 * 1024; // 1MB
     const BLAKE2B_CODE: u64 = 0xb220;
-    const CID_CODEC: u64 = 0x55;
+    const RAW_CODEC: u64 = 0x55;
+    const ANNOUNCES_CODEC: u64 = 0x300000;
+
+    fn convert_multihash<const S: usize>(multihash: &Multihash<S>) -> blockstore::Result<H256> {
+        let hash: Multihash<32> =
+            beetswap::utils::convert_multihash(multihash).ok_or(blockstore::Error::CidTooLarge)?;
+        if hash.code() != Self::BLAKE2B_CODE {
+            return Err(blockstore::Error::CidError(CidError::InvalidMultihashCode(
+                hash.code(),
+                Self::BLAKE2B_CODE,
+            )));
+        }
+        if hash.size() as usize != mem::size_of::<H256>() {
+            return Err(blockstore::Error::CidError(
+                CidError::InvalidMultihashLength(hash.size() as usize),
+            ));
+        }
+        Ok(H256::from_slice(hash.digest()))
+    }
 }
 
 impl blockstore::Blockstore for Blockstore {
@@ -82,34 +144,41 @@ impl blockstore::Blockstore for Blockstore {
         &self,
         cid: &CidGeneric<S>,
     ) -> impl Future<Output = blockstore::Result<Option<Vec<u8>>>> + CondSend {
-        let hash = *cid.hash();
         let db = self.db.clone_boxed();
+        let hash = *cid.hash();
+        let codec = cid.codec();
         task::spawn_blocking(move || {
-            let hash: Multihash<32> =
-                beetswap::utils::convert_multihash(&hash).ok_or(blockstore::Error::CidTooLarge)?;
-            if hash.code() != Self::BLAKE2B_CODE {
-                return Err(blockstore::Error::CidError(CidError::InvalidMultihashCode(
-                    hash.code(),
-                    Self::BLAKE2B_CODE,
-                )));
-            }
-            if hash.size() as usize != mem::size_of::<H256>() {
-                return Err(blockstore::Error::CidError(
-                    CidError::InvalidMultihashLength(hash.size() as usize),
-                ));
-            }
+            let hash = Self::convert_multihash(&hash)?;
+            match codec {
+                Self::RAW_CODEC => {
+                    let data = db.read_by_hash(hash);
 
-            let hash = H256::from_slice(hash.digest());
-            let data = db.read_by_hash(hash);
+                    if let Some(data) = &data
+                        && data.len() as u64 > Self::MAX_BLOCK_SIZE
+                    {
+                        log::warn!("{hash} is too large: {} bytes", data.len());
+                        return Err(blockstore::Error::ValueTooLarge);
+                    }
 
-            if let Some(data) = &data
-                && data.len() as u64 > Self::MAX_BLOCK_SIZE
-            {
-                log::warn!("{hash} is too large: {} bytes", data.len());
-                return Err(blockstore::Error::ValueTooLarge);
+                    Ok(data)
+                }
+                Self::ANNOUNCES_CODEC => {
+                    let hash = unsafe { HashOf::new(hash) };
+                    let announce = db.announce(hash);
+
+                    if let Some(announce) = &announce
+                        && announce.encoded_size() as u64 > Self::MAX_BLOCK_SIZE
+                    {
+                        log::warn!("{hash} is too large: {} bytes", announce.encoded_size());
+                        return Err(blockstore::Error::ValueTooLarge);
+                    }
+
+                    Ok(announce.map(|announce| announce.encode()))
+                }
+                codec => Err(blockstore::Error::CidError(CidError::InvalidCidCodec(
+                    codec,
+                ))),
             }
-
-            Ok(data)
         })
         .map(|res| res.expect("database panicked"))
     }
@@ -155,8 +224,8 @@ type InnerBehaviour = beetswap::Behaviour<32, Blockstore>;
 pub struct Behaviour {
     inner: InnerBehaviour,
     handle: Handle,
-    rx: mpsc::UnboundedReceiver<(H256, oneshot::Sender<Vec<u8>>)>,
-    requests: HashMap<beetswap::QueryId, oneshot::Sender<Vec<u8>>>,
+    rx: mpsc::UnboundedReceiver<(Request, oneshot::Sender<Response>)>,
+    requests: HashMap<beetswap::QueryId, (Request, oneshot::Sender<Response>)>,
 }
 
 impl Behaviour {
@@ -180,19 +249,12 @@ impl Behaviour {
         self.handle.clone()
     }
 
-    fn cid(hash: H256) -> Cid {
-        Cid::new_v1(
-            Blockstore::CID_CODEC,
-            Multihash::wrap(Blockstore::BLAKE2B_CODE, hash.as_bytes())
-                .expect("size is always correct"),
-        )
-    }
-
     fn handle_inner_event(&mut self, event: beetswap::Event) {
         match event {
             beetswap::Event::GetQueryResponse { query_id, data } => {
-                if let Some(channel) = self.requests.remove(&query_id) {
-                    let _ = channel.send(data);
+                if let Some((request, channel)) = self.requests.remove(&query_id) {
+                    let response = request.into_response(data);
+                    let _ = channel.send(response);
                 }
             }
             beetswap::Event::GetQueryError { query_id, error } => {
@@ -283,7 +345,7 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        self.requests.retain(|&query_id, channel| {
+        self.requests.retain(|&query_id, (_, channel)| {
             if channel.is_closed() {
                 self.inner.cancel(query_id);
                 return false;
@@ -292,10 +354,10 @@ impl NetworkBehaviour for Behaviour {
             true
         });
 
-        while let Poll::Ready(Some((hash, channel))) = self.rx.poll_recv(cx) {
-            let cid = Self::cid(hash);
+        while let Poll::Ready(Some((request, channel))) = self.rx.poll_recv(cx) {
+            let cid = request.into_cid();
             let query_id = self.inner.get(&cid);
-            self.requests.insert(query_id, channel);
+            self.requests.insert(query_id, (request, channel));
         }
 
         if let Poll::Ready(to_swarm) = self.inner.poll(cx) {

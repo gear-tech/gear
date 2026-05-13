@@ -31,7 +31,7 @@ use ethexe_common::{
         router::{AnnouncesCommittedEvent, BatchCommittedEvent},
     },
     injected,
-    network::{AnnouncesRequest, AnnouncesRequestUntil, request_announces},
+    network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::{
@@ -44,7 +44,7 @@ use ethexe_db::{
     visitor::DatabaseVisitor,
 };
 use ethexe_ethereum::mirror::MirrorQuery;
-use ethexe_network::{DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, NetworkService};
+use ethexe_network::NetworkService;
 use ethexe_observer::{
     ObserverService,
     utils::{BlockId, BlockLoader},
@@ -136,7 +136,7 @@ async fn bitswap_fetch(network: &mut NetworkService, hash: H256) -> Vec<u8> {
     loop {
         tokio::select! {
             _ = network.select_next_some() => {},
-            data = &mut fut => break data,
+            data = &mut fut => break data.unwrap_hash(),
         }
     }
 }
@@ -146,17 +146,13 @@ async fn bitswap_fetch_announces(
     request: AnnouncesRequest,
 ) -> Result<ethexe_common::network::AnnouncesResponse> {
     let bitswap = network.bitswap_handle();
-    let fut = request_announces(
-        &bitswap,
-        request,
-        DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
-    );
+    let fut = request.request(bitswap);
     tokio::pin!(fut);
 
     loop {
         tokio::select! {
             _ = network.select_next_some() => {},
-            response = &mut fut => break response.map_err(Into::into),
+            response = &mut fut => break Ok(response),
         }
     }
 }
@@ -184,7 +180,7 @@ async fn collect_announce(
         return Ok(announce);
     }
 
-    let response = bitswap_fetch_announces(
+    let mut response = bitswap_fetch_announces(
         network,
         AnnouncesRequest {
             head: announce_hash,
@@ -194,8 +190,7 @@ async fn collect_announce(
     .await?;
 
     // Response is checked so we can just take the first announce
-    let (_, mut announces) = response.into_parts();
-    Ok(announces.remove(0))
+    Ok(response.announces.remove(0))
 }
 
 /// Collects a set of valid code IDs that are not yet validated in the local database.
