@@ -97,6 +97,9 @@ pub struct ComputeSubService<P: ProcessorExt> {
     metrics: Metrics,
 
     input: VecDeque<MbComputeRequest>,
+    /// Head of the in-flight computation, kept so [`Self::receive_mb`] can
+    /// skip duplicates that would otherwise re-emit `MbComputed`.
+    in_flight_mb: Option<H256>,
     computation: Option<ComputationFuture>,
     /// Per-MB promise channel; polled before `computation` so promises stream out live.
     promises_stream: Option<MbPromisesStream>,
@@ -120,6 +123,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             promise_emission_mode,
             metrics: Metrics::default(),
             input: VecDeque::new(),
+            in_flight_mb: None,
             computation: None,
             promises_stream: None,
             pending_event: None,
@@ -127,6 +131,15 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     }
 
     pub fn receive_mb(&mut self, mb_hash: H256, promise_policy: PromisePolicy) {
+        // Idempotent: skip if already computed, in flight, or queued —
+        // otherwise BlockProposal+BlockFinalized for the same head emit
+        // `MbComputed` twice.
+        if self.db.mb_meta(mb_hash).computed
+            || self.in_flight_mb == Some(mb_hash)
+            || self.input.iter().any(|r| r.mb_hash == mb_hash)
+        {
+            return;
+        }
         self.input.push_back(MbComputeRequest {
             mb_hash,
             promise_policy,
@@ -373,6 +386,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
             && let Some(req) = self.input.pop_front()
         {
             let (sender, receiver) = mpsc::unbounded_channel();
+            self.in_flight_mb = Some(req.mb_hash);
             self.promises_stream = Some(MbPromisesStream { receiver });
             self.computation = Some(future_timing::timed(
                 Self::compute(
@@ -422,6 +436,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
                 .record((timing.busy() + timing.idle()).as_secs_f64());
 
             self.computation = None;
+            self.in_flight_mb = None;
             let event = result.map(ComputeEvent::MbComputed);
             if self.promises_stream.is_some() {
                 self.pending_event = Some(event);
@@ -530,7 +545,11 @@ mod tests {
         }
     }
 
-    /// Re-queueing an already-computed MB is a no-op (idempotent).
+    /// Re-queueing an already-computed MB is a no-op: receive_mb
+    /// drops the request before it ever reaches `compute`, so the
+    /// stream emits nothing (preventing a duplicate `MbComputed`
+    /// when both `BlockProposal` and `BlockFinalized` queue the
+    /// same head).
     #[tokio::test]
     #[ntest::timeout(5000)]
     async fn idempotent_for_computed_target() {
@@ -541,15 +560,15 @@ mod tests {
         let mb_hash = H256::from_low_u64_be(0xCAFE);
         seed_mb(&db, mb_hash, H256::zero(), 1, dummy_txs(&db, 0));
         db.mutate_mb_meta(mb_hash, |meta| {
-            meta.computed = true; // pretend a previous run finished it
+            meta.computed = true;
         });
 
         sub.receive_mb(mb_hash, ::ethexe_common::PromisePolicy::Enabled);
 
-        let event = sub.next().await.unwrap();
-        match event {
-            ComputeEvent::MbComputed(out) => assert_eq!(out, mb_hash),
-            other => panic!("expected MbComputed, got {other:?}"),
-        }
+        let result = tokio::time::timeout(std::time::Duration::from_millis(100), sub.next()).await;
+        assert!(
+            result.is_err(),
+            "stream must stay pending — re-queue of computed MB is a no-op"
+        );
     }
 }
