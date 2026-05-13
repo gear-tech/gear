@@ -242,7 +242,7 @@ jobs:
       - name: "Check: Wasm-builder recommended toolchain matches rust-toolchain.toml"
         run: |
           TOOLCHAIN=$(grep 'channel' rust-toolchain.toml | cut -d '"' -f 2)
-          CARGO_TOOLCHAIN="utils/wasm-optimizer/src/cargo_toolchain.rs"
+          CARGO_TOOLCHAIN="sdk/wasm-optimizer/src/cargo_toolchain.rs"
           if ! grep -q "$TOOLCHAIN" $CARGO_TOOLCHAIN; then
             echo "Please update PINNED_NIGHTLY_TOOLCHAIN constant in $CARGO_TOOLCHAIN to match rust-toolchain.toml."
             exit 1
@@ -255,8 +255,8 @@ jobs:
         run: ./scripts/gear.sh clippy no_std --locked
 
       - run: cargo +stable check -p gstd --target wasm32v1-none
-      - run: cargo +stable check --manifest-path utils/wasm-builder/test-program/Cargo.toml
-      - run: cargo +stable check --manifest-path utils/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
+      - run: cargo +stable check --manifest-path sdk/wasm-builder/test-program/Cargo.toml
+      - run: cargo +stable check --manifest-path sdk/cargo-gbuild/test-program/Cargo.toml --workspace --target wasm32v1-none
 
   vara-runtime-imports:
     runs-on: ubuntu-latest

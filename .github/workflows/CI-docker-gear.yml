@@ -64,7 +64,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
-          file: ./docker/Dockerfile-release
+          file: ./vara/docker/Dockerfile-release
           push: true
           tags: ${{ env.DOCKER_TAGS }}
           build-args: RELEASE_VERSION=${{ env.RELEASE_VERSION }}

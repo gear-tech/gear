@@ -39,6 +39,8 @@ runs:
           echo "cache-provider=github" >> $GITHUB_OUTPUT
         
           echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "SCCACHE_CACHE_SIZE=2G" >> $GITHUB_ENV
+          echo "SCCACHE_MULTILEVEL_CHAIN=disk,gha" >> $GITHUB_ENV
         else
           echo "cache-provider=s3" >> $GITHUB_OUTPUT
         
@@ -50,6 +52,8 @@ runs:
           echo "SCCACHE_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
           echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
           echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
+          echo "SCCACHE_CACHE_SIZE=10G" >> $GITHUB_ENV
+          echo "SCCACHE_MULTILEVEL_CHAIN=disk,s3" >> $GITHUB_ENV
         
           echo "RUNS_ON_S3_BUCKET_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
         fi
@@ -80,8 +84,8 @@ runs:
         key: ${{ inputs.key }}
         workspaces: |
           . -> target
-          utils/wasm-builder/test-program -> target
-          utils/cargo-gbuild/test-program -> target
+          sdk/wasm-builder/test-program -> target
+          sdk/cargo-gbuild/test-program -> target
         cache-provider: ${{ steps.env.outputs.cache-provider }}
         cache-all-crates: ${{ inputs.cache-all-crates }}
       env:
