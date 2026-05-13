@@ -417,23 +417,9 @@ impl BatchCommitmentManager {
             }
         };
 
-        let (aggregated_public_key, verifiable_secret_sharing_commitment) =
-            match crate::utils::generate_roast_keys(&elected_validators) {
-                Ok(keys) => keys,
-                Err(e) => {
-                    tracing::error!(
-                        error = %e,
-                        block = %block.hash,
-                        "Failed to generate ROAST keys for elected validators, skipping validators commitment"
-                    );
-
-                    return Ok(None);
-                }
-            };
-
         let commitment = ValidatorsCommitment {
-            aggregated_public_key,
-            verifiable_secret_sharing_commitment,
+            aggregated_public_key: Default::default(),
+            verifiable_secret_sharing_commitment: Vec::new(),
             validators: elected_validators,
             era_index: block_era + 1,
         };
