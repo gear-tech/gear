@@ -89,6 +89,8 @@ pub enum TpkeError {
     DuplicateShareIndex(u32),
     #[error("share index {0} is zero (validator ids start at 1)")]
     ZeroShareIndex(u32),
+    #[error("share #{index} bound to a different envelope id than the target")]
+    ShareEnvelopeMismatch { index: u32 },
     #[error("point serialization failed")]
     Serialization,
     #[error("hash-to-curve failed")]
@@ -148,9 +150,16 @@ pub struct EncryptedEnvelope {
 }
 
 /// Decryption share `Dᵢ = Sᵢ · Q_id ∈ G1`. Validator index is 1-based.
+///
+/// The `id` field binds the share to the envelope it was produced for. `verify`
+/// and `combine` reject shares whose id doesn't match the target envelope —
+/// this prevents accidental cross-envelope mixing from silently producing
+/// garbage plaintext (which would otherwise only surface as a cryptic AEAD
+/// failure downstream).
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DecryptionShare {
     pub index: u32,
+    pub id: [u8; 32],
     pub point: G1Affine,
 }
 
@@ -237,7 +246,7 @@ impl MasterSecretKey {
         coeffs.zeroize();
 
         Ok(DealerOutput {
-            master_secret: master,
+            master_secret: Some(master),
             master_pub,
             shares,
             share_pubs,
@@ -246,12 +255,41 @@ impl MasterSecretKey {
 }
 
 /// Output of the dealer ceremony.
+///
+/// The `master_secret` is held in an `Option` and is accessible only via
+/// [`take_master_secret`]. This makes the destruction step explicit: take it
+/// once to persist or hand off, then let it drop (zeroized on drop). Cloning
+/// `DealerOutput` clones the shares + pubs but does NOT clone the master
+/// secret — subsequent clones see `None`. A leftover `master_secret` inside
+/// `DealerOutput` is zeroized when the struct is dropped.
+///
+/// [`take_master_secret`]: DealerOutput::take_master_secret
 #[derive(Debug)]
 pub struct DealerOutput {
-    pub master_secret: MasterSecretKey,
+    master_secret: Option<MasterSecretKey>,
     pub master_pub: MasterPublicKey,
     pub shares: Vec<SecretKeyShare>,
     pub share_pubs: Vec<SharePublicKey>,
+}
+
+impl DealerOutput {
+    /// Take ownership of the master secret. Returns `None` if it has already
+    /// been taken or never existed. Subsequent calls return `None`.
+    pub fn take_master_secret(&mut self) -> Option<MasterSecretKey> {
+        self.master_secret.take()
+    }
+}
+
+impl Clone for DealerOutput {
+    fn clone(&self) -> Self {
+        // Deliberately drop the master secret on clone — see struct docs.
+        Self {
+            master_secret: None,
+            master_pub: self.master_pub.clone(),
+            shares: self.shares.clone(),
+            share_pubs: self.share_pubs.clone(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +432,7 @@ impl SecretKeyShare {
         let point = (q_id * self.scalar).into_affine();
         Ok(DecryptionShare {
             index: self.index,
+            id: envelope.id,
             point,
         })
     }
@@ -401,12 +440,15 @@ impl SecretKeyShare {
 
 impl SharePublicKey {
     /// Verify a decryption share: e(Dᵢ, g₂) ?= e(Q_id, PSᵢ).
+    ///
+    /// Returns `Ok(false)` when the share's validator index or envelope id
+    /// doesn't match what we're verifying against.
     pub fn verify(
         &self,
         envelope: &EncryptedEnvelope,
         share: &DecryptionShare,
     ) -> Result<bool, TpkeError> {
-        if share.index != self.index {
+        if share.index != self.index || share.id != envelope.id {
             return Ok(false);
         }
         let q_id = hash_to_g1(&envelope.id)?;
@@ -447,8 +489,14 @@ fn lagrange_coefficient(i: u32, indices: &[u32]) -> Option<Fr> {
 
 /// Combine `t` decryption shares into the plaintext.
 ///
-/// All shares must verify against their share-public-key (call `verify()`
-/// upstream). This function does no verification — it assumes honest shares.
+/// This function does NOT verify shares cryptographically — callers must run
+/// `SharePublicKey::verify` on each share they trust as honest. It DOES enforce:
+///   - share count ≥ threshold
+///   - every share's `id` matches `envelope.id`
+///   - no zero or duplicate validator indices
+///
+/// **Only the first `threshold` shares from `shares` are consumed.** Excess
+/// shares are ignored. To use a specific subset, slice the input yourself.
 pub fn combine(
     envelope: &EncryptedEnvelope,
     shares: &[DecryptionShare],
@@ -465,11 +513,14 @@ pub fn combine(
     // Use the first `threshold` shares.
     let used = &shares[..threshold as usize];
 
-    // Reject zero or duplicate indices.
+    // Reject zero/duplicate indices and envelope mismatches.
     let mut seen: Vec<u32> = Vec::with_capacity(used.len());
     for s in used {
         if s.index == 0 {
             return Err(TpkeError::ZeroShareIndex(0));
+        }
+        if s.id != envelope.id {
+            return Err(TpkeError::ShareEnvelopeMismatch { index: s.index });
         }
         if seen.contains(&s.index) {
             return Err(TpkeError::DuplicateShareIndex(s.index));
@@ -510,14 +561,19 @@ pub fn combine(
 // ---------------------------------------------------------------------------
 
 impl DecryptionShare {
-    pub fn to_bytes(&self) -> Result<(u32, [u8; G1_COMPRESSED_LEN]), TpkeError> {
-        Ok((self.index, serialize_g1(&self.point)?))
+    /// Serialize as `(index, id, compressed_point_bytes)`.
+    pub fn to_bytes(&self) -> Result<(u32, [u8; 32], [u8; G1_COMPRESSED_LEN]), TpkeError> {
+        Ok((self.index, self.id, serialize_g1(&self.point)?))
     }
 
-    pub fn from_bytes(index: u32, bytes: &[u8; G1_COMPRESSED_LEN]) -> Result<Self, TpkeError> {
+    pub fn from_bytes(
+        index: u32,
+        id: [u8; 32],
+        bytes: &[u8; G1_COMPRESSED_LEN],
+    ) -> Result<Self, TpkeError> {
         let point = G1Affine::deserialize_compressed(&bytes[..])
             .map_err(|_| TpkeError::MalformedCiphertext)?;
-        Ok(Self { index, point })
+        Ok(Self { index, id, point })
     }
 }
 
@@ -740,6 +796,96 @@ mod tests {
             let subset: Vec<_> = subset_indices.iter().map(|&i| all[i].clone()).collect();
             let pt = combine(&env, &subset, 1, 0, 3).unwrap();
             assert_eq!(pt, b"abc", "subset {subset_indices:?} failed");
+        }
+    }
+
+    #[test]
+    fn take_master_secret_is_one_shot() {
+        let mut d = deal(2, 3);
+        assert!(d.take_master_secret().is_some());
+        assert!(d.take_master_secret().is_none());
+        // Subsequent state is otherwise intact.
+        assert_eq!(d.shares.len(), 3);
+    }
+
+    #[test]
+    fn clone_dealer_output_drops_master_secret() {
+        let d = deal(2, 3);
+        let mut cloned = d.clone();
+        // Clone never carries the secret.
+        assert!(cloned.take_master_secret().is_none());
+        // Pubs/shares still cloned.
+        assert_eq!(cloned.shares.len(), 3);
+        assert_eq!(cloned.share_pubs.len(), 3);
+    }
+
+    #[test]
+    fn share_from_other_envelope_rejected_in_combine() {
+        let d = deal(2, 3);
+        let mut rng = fixed_rng();
+        let id_a = derive_id(1, 0, b"alpha", &[0xAAu8; 32]);
+        let id_b = derive_id(1, 0, b"beta", &[0xBBu8; 32]);
+        let env_a = encrypt(&d.master_pub, &id_a, 1, 0, b"alpha", &mut rng).unwrap();
+        let env_b = encrypt(&d.master_pub, &id_b, 1, 0, b"beta", &mut rng).unwrap();
+        // Take share #1 from envelope A and share #2 from envelope B.
+        let s_a = d.shares[0].decrypt_share(&env_a).unwrap();
+        let s_b = d.shares[1].decrypt_share(&env_b).unwrap();
+        // Try to combine for envelope A — share #2 has the wrong id.
+        let err = combine(&env_a, &[s_a, s_b], 1, 0, 2).unwrap_err();
+        assert!(matches!(err, TpkeError::ShareEnvelopeMismatch { index: 2 }));
+    }
+
+    #[test]
+    fn verify_rejects_wrong_envelope_id() {
+        let d = deal(2, 3);
+        let mut rng = fixed_rng();
+        let id_a = derive_id(1, 0, b"alpha", &[0xAAu8; 32]);
+        let id_b = derive_id(1, 0, b"beta", &[0xBBu8; 32]);
+        let env_a = encrypt(&d.master_pub, &id_a, 1, 0, b"alpha", &mut rng).unwrap();
+        let env_b = encrypt(&d.master_pub, &id_b, 1, 0, b"beta", &mut rng).unwrap();
+        // Share is for env_a but we verify against env_b — must return false.
+        let share = d.shares[0].decrypt_share(&env_a).unwrap();
+        assert!(!d.share_pubs[0].verify(&env_b, &share).unwrap());
+    }
+
+    // ----- to_bytes / from_bytes roundtrip property tests -----
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 16, .. ProptestConfig::default() })]
+
+        #[test]
+        fn proptest_decryption_share_roundtrip(plaintext in proptest::collection::vec(any::<u8>(), 0..200)) {
+            let d = deal(2, 3);
+            let mut rng = fixed_rng();
+            let id = derive_id(1, 0, &plaintext, &[7u8; 32]);
+            let env = encrypt(&d.master_pub, &id, 1, 0, &plaintext, &mut rng).unwrap();
+            let share = d.shares[0].decrypt_share(&env).unwrap();
+            let (idx, id_bytes, point_bytes) = share.to_bytes().unwrap();
+            let restored = DecryptionShare::from_bytes(idx, id_bytes, &point_bytes).unwrap();
+            prop_assert_eq!(share, restored);
+        }
+
+        #[test]
+        fn proptest_master_public_key_roundtrip(seed in any::<u64>()) {
+            let mut rng = StdRng::seed_from_u64(seed);
+            let mut d = MasterSecretKey::deal(2, 3, &mut rng).unwrap();
+            let _ = d.take_master_secret();
+            let bytes = d.master_pub.to_bytes().unwrap();
+            let restored = MasterPublicKey::from_bytes(&bytes).unwrap();
+            prop_assert_eq!(d.master_pub, restored);
+        }
+
+        #[test]
+        fn proptest_share_public_key_roundtrip(seed in any::<u64>()) {
+            let mut rng = StdRng::seed_from_u64(seed);
+            let d = MasterSecretKey::deal(3, 5, &mut rng).unwrap();
+            for ps in &d.share_pubs {
+                let (idx, bytes) = ps.to_bytes().unwrap();
+                let restored = SharePublicKey::from_bytes(idx, &bytes).unwrap();
+                prop_assert_eq!(ps, &restored);
+            }
         }
     }
 }
