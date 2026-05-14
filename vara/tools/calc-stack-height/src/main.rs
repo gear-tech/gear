@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Context, ensure};
 use gear_core::{
     code::{Code, SyscallKind, TryNewCodeConfig},
     gas_metering::Schedule,
@@ -24,9 +23,11 @@ use gear_core::{
 use gear_wasm_instrument::{STACK_HEIGHT_EXPORT_NAME, SystemBreakCode};
 use std::{env, fs};
 use tracing_subscriber::EnvFilter;
-use wasmtime::{Engine, Linker, Memory, MemoryType, Module, Store, Trap, ValType};
+use wasmtime::{
+    Engine, Linker, Memory, MemoryType, Module, Store, Trap, ValType, ensure, error::Context,
+};
 
-fn main() -> anyhow::Result<()> {
+fn main() -> wasmtime::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::builder()
@@ -81,7 +82,7 @@ fn main() -> anyhow::Result<()> {
         move |_caller, params, _results| -> Result<(), wasmtime::Error> {
             match SystemBreakCode::try_from(params[0].unwrap_i32()) {
                 Ok(SystemBreakCode::StackLimitExceeded) => {
-                    Err(anyhow::anyhow!("stack limit exceeded"))
+                    Err(wasmtime::format_err!("stack limit exceeded"))
                 }
                 _ => Ok(()),
             }

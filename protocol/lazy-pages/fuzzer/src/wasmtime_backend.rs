@@ -74,7 +74,9 @@ impl Runner for WasmtimeRunner {
             .strategy(Strategy::Winch)
             .cache(Some(cache))
             .macos_use_mach_ports(false);
-        let engine = Engine::new(&config).context("failed to create engine")?;
+        let engine = Engine::new(&config)
+            .map_err(anyhow::Error::from)
+            .context("failed to create engine")?;
         let mut store = Store::new(&engine, ());
 
         let wasmtime_module = WasmtimeModule::new(
@@ -83,7 +85,9 @@ impl Runner for WasmtimeRunner {
         )?;
 
         let ty = MemoryType::new(INITIAL_PAGES, None);
-        let m = Memory::new(&mut store, ty).context("memory allocated")?;
+        let m = Memory::new(&mut store, ty)
+            .map_err(anyhow::Error::from)
+            .context("memory allocated")?;
         let mem_ptr = m.data_ptr(&store) as usize;
         let mem_size = m.data_size(&store);
         let memory = Extern::Memory(m);
@@ -91,10 +95,11 @@ impl Runner for WasmtimeRunner {
         let mut linker = Linker::new(&engine);
         linker
             .define(&store, MODULE_ENV, "memory", memory.clone())
+            .map_err(anyhow::Error::from)
             .context("failed to define memory")?;
 
         let host_function = Func::wrap(&mut store, |_arg: i32| {
-            Err::<(), _>(anyhow::anyhow!("out of gas"))
+            Err::<(), _>(wasmtime::format_err!("out of gas"))
         });
 
         linker
@@ -104,6 +109,7 @@ impl Runner for WasmtimeRunner {
                 SyscallName::SystemBreak.to_str(),
                 host_function,
             )
+            .map_err(anyhow::Error::from)
             .context("failed to define func")?;
 
         let instance = linker.instantiate(&mut store, &wasmtime_module)?;
