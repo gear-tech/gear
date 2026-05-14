@@ -296,10 +296,26 @@ impl Clone for DealerOutput {
 // Hash to G1
 // ---------------------------------------------------------------------------
 
+// The hasher is constructed once per process and reused. DST_G1 is constant,
+// so `G1Hasher::new` only fails for malformed DSTs — which we control at
+// compile time — making the `.expect()` unreachable in practice.
+#[cfg(feature = "std")]
+fn g1_hasher() -> &'static G1Hasher {
+    use std::sync::OnceLock;
+    static HASHER: OnceLock<G1Hasher> = OnceLock::new();
+    HASHER.get_or_init(|| G1Hasher::new(DST_G1).expect("DST_G1 is a valid hash-to-curve DST"))
+}
+
 fn hash_to_g1(id: &[u8; 32]) -> Result<G1Affine, TpkeError> {
-    let hasher = G1Hasher::new(DST_G1).map_err(|_| TpkeError::HashToCurve)?;
-    let q = hasher.hash(id).map_err(|_| TpkeError::HashToCurve)?;
-    Ok(q)
+    #[cfg(feature = "std")]
+    {
+        g1_hasher().hash(id).map_err(|_| TpkeError::HashToCurve)
+    }
+    #[cfg(not(feature = "std"))]
+    {
+        let hasher = G1Hasher::new(DST_G1).map_err(|_| TpkeError::HashToCurve)?;
+        hasher.hash(id).map_err(|_| TpkeError::HashToCurve)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -318,22 +334,33 @@ fn build_aad(envelope_id: &[u8; 32], u_bytes: &[u8], chain_id: u64, key_epoch_id
     aad
 }
 
-fn serialize_g2(p: &G2Affine) -> Result<[u8; G2_COMPRESSED_LEN], TpkeError> {
-    let mut buf = [0u8; G2_COMPRESSED_LEN];
+/// Serialize an arkworks point/element to its fixed-size compressed bytes.
+fn serialize_compressed<P: CanonicalSerialize, const N: usize>(
+    p: &P,
+) -> Result<[u8; N], TpkeError> {
+    let mut buf = [0u8; N];
     p.serialize_compressed(&mut buf[..])
         .map_err(|_| TpkeError::Serialization)?;
     Ok(buf)
+}
+
+/// Deserialize a fixed-size compressed-bytes blob into an arkworks point.
+fn deserialize_compressed<P: CanonicalDeserialize, const N: usize>(
+    bytes: &[u8; N],
+) -> Result<P, TpkeError> {
+    P::deserialize_compressed(&bytes[..]).map_err(|_| TpkeError::MalformedCiphertext)
+}
+
+fn serialize_g2(p: &G2Affine) -> Result<[u8; G2_COMPRESSED_LEN], TpkeError> {
+    serialize_compressed::<_, G2_COMPRESSED_LEN>(p)
 }
 
 fn deserialize_g2(bytes: &[u8; G2_COMPRESSED_LEN]) -> Result<G2Affine, TpkeError> {
-    G2Affine::deserialize_compressed(&bytes[..]).map_err(|_| TpkeError::MalformedCiphertext)
+    deserialize_compressed::<G2Affine, G2_COMPRESSED_LEN>(bytes)
 }
 
 fn serialize_g1(p: &G1Affine) -> Result<[u8; G1_COMPRESSED_LEN], TpkeError> {
-    let mut buf = [0u8; G1_COMPRESSED_LEN];
-    p.serialize_compressed(&mut buf[..])
-        .map_err(|_| TpkeError::Serialization)?;
-    Ok(buf)
+    serialize_compressed::<_, G1_COMPRESSED_LEN>(p)
 }
 
 /// Encode the pairing-target element `z ∈ GT` deterministically for HKDF input.
@@ -571,8 +598,7 @@ impl DecryptionShare {
         id: [u8; 32],
         bytes: &[u8; G1_COMPRESSED_LEN],
     ) -> Result<Self, TpkeError> {
-        let point = G1Affine::deserialize_compressed(&bytes[..])
-            .map_err(|_| TpkeError::MalformedCiphertext)?;
+        let point = deserialize_compressed::<G1Affine, G1_COMPRESSED_LEN>(bytes)?;
         Ok(Self { index, id, point })
     }
 }
