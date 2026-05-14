@@ -17,7 +17,6 @@ ignored = ["libp2p-gossipsub"]
 # workspace members
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 ethexe-db.workspace = true
-ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
 gprimitives = { workspace = true, features = ["std", "codec"] }
 
@@ -38,11 +37,9 @@ async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 futures.workspace = true
 derive_more.workspace = true
-itertools = { workspace = true, features = ["use_std"] }
 nonempty.workspace = true
 auto_impl.workspace = true
 lru.workspace = true
-thiserror.workspace = true
 indexmap.workspace = true
 ip_network.workspace = true
 prometheus-client = "0.23.1" # specific version that lip2p uses
