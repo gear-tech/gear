@@ -44,7 +44,7 @@ use ethexe_db::Database;
 use gprimitives::H256;
 
 /// Cap on parent walks when verifying a peer's `AdvanceTillEthereumBlock`.
-const VERIFY_LOOKBACK_SLACK: u32 = 1024;
+const VERIFY_LOOKBACK_SLACK: u32 = 100_000;
 
 /// Youngest EB that has cleared quarantine. `Ok(None)` if the local chain is
 /// too short, `Err` on missing parent header.

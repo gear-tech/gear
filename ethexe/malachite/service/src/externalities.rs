@@ -328,45 +328,34 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
         let deadline = tokio::time::Instant::now() + VALIDATE_WAIT_BUDGET;
         let start_block_hash = self.db.globals().start_block_hash;
+        let mut error = anyhow!("validate: no chain-head event yet — abstaining from vote");
 
+        // Wait till ethereum block is locally pass quarantine
         loop {
-            let head_opt = *self.chain_head.read().expect("chain_head poisoned");
-            if let Some(head) = head_opt {
-                let quarantine_ok = quarantine::verify_passed(
+            if tokio::time::Instant::now() >= deadline {
+                warn!(
+                    error = %error,
+                    %advance,
+                    parent_advanced = %parent_advanced,
+                    "validate: advance still not locally synced within budget — rejecting",
+                );
+                return Ok(false);
+            }
+
+            if let Some(chain_head) = *self.chain_head.read().expect("chain_head poisoned") {
+                let res = quarantine::verify_passed(
                     &self.db,
-                    head,
+                    chain_head,
                     advance,
                     self.canonical_quarantine,
                     start_block_hash,
                 );
-                let sync_ok = self.advance_chain_locally_synced(advance, parent_advanced);
-                if quarantine_ok.is_ok() && sync_ok {
-                    return Ok(true);
+
+                match res {
+                    Ok(_) => return Ok(true),
+                    Err(e) => error = anyhow!(e),
                 }
-                // Past deadline: log the still-failing reason and give up.
-                if tokio::time::Instant::now() >= deadline {
-                    if let Err(e) = quarantine_ok {
-                        warn!(
-                            error = %e,
-                            %advance,
-                            head = %head.hash,
-                            head_height = head.header.height,
-                            "validate: quarantine still not satisfied within budget — abstaining",
-                        );
-                    } else {
-                        warn!(
-                            %advance,
-                            %parent_advanced,
-                            head = %head.hash,
-                            "validate: advance-chain not yet locally synced — abstaining",
-                        );
-                    }
-                    return Ok(false);
-                }
-            } else if tokio::time::Instant::now() >= deadline {
-                warn!("validate: no chain-head event yet — abstaining from vote");
-                return Ok(false);
-            }
+            };
 
             // Poll the local view periodically. The observer pumps
             // a fresh chain_head into us asynchronously, so within a
@@ -502,50 +491,6 @@ impl EthexeExternalities {
                 None
             }
         }
-    }
-
-    /// Return `true` iff every Eth block on the canonical walk from
-    /// `advance` (inclusive) back to `parent_advanced` (exclusive) has
-    /// both its header and its events present in the local DB.
-    ///
-    /// Mirrors the walk `ethexe_processor::Processor::collect_advance_chain`
-    /// performs at execution time, but bails early instead of erroring
-    /// — used by [`Self::validate_block_above`] to abstain from voting
-    /// on a proposal whose required Eth state we haven't fully synced.
-    /// Treated as a transient condition: subsequent rounds re-run this
-    /// check after the observer makes more progress.
-    fn advance_chain_locally_synced(&self, advance: H256, parent_advanced: H256) -> bool {
-        if advance == parent_advanced {
-            return true;
-        }
-        // Same safety cap as `Processor::collect_advance_chain`.
-        const MAX_STEPS: u32 = 1024;
-        let mut current = advance;
-        for _ in 0..MAX_STEPS {
-            let Some(header) = self.db.block_header(current) else {
-                return false;
-            };
-            // BlockSynced fires only after both header and events
-            // have landed; a missing events entry is the tightest
-            // signal that the observer hasn't finished syncing
-            // `current` yet.
-            if self.db.block_events(current).is_none() {
-                return false;
-            }
-            if current == parent_advanced {
-                return true;
-            }
-            let parent = header.parent_hash;
-            if parent.is_zero() {
-                // Genesis. If we haven't yet hit `parent_advanced`,
-                // either the parent chain doesn't reach it (proposal
-                // is on a different fork) or `parent_advanced` is
-                // also zero — handled at the top.
-                return parent_advanced.is_zero();
-            }
-            current = parent;
-        }
-        false
     }
 }
 
