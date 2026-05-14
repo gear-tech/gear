@@ -238,18 +238,21 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         };
 
         // Trial-fit this MB; bail if it pushes us past the batch size budget.
-        let mut trial = transitions.clone();
-        trial.extend(mb_transitions.iter().cloned());
+        let len_before = transitions.len();
+        transitions.extend(mb_transitions);
         let trial_commitment = ChainCommitment {
             head: *mb_hash,
-            transitions: trial,
+            transitions,
             last_advanced_eth_block: db.mb_meta(*mb_hash).last_advanced_eb,
         };
-        if !batch_filler.would_fit_chain_commitment(&trial_commitment) {
+        let would_fit = batch_filler.would_fit_chain_commitment(&trial_commitment);
+        transitions = trial_commitment.transitions;
+
+        if !would_fit {
+            let _ = transitions.split_off(len_before);
             break;
         }
 
-        transitions = trial_commitment.transitions;
         last_included = *mb_hash;
     }
 
