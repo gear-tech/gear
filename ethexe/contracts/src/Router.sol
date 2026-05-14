@@ -846,7 +846,6 @@ contract Router is
             _batch.blockTimestamp,
             _batch.previousCommittedBatchHash,
             _batch.expiry,
-            _batch.hasAggregatedPublicKey,
             _chainCommitmentHash,
             _codeCommitmentsHash,
             _rewardsCommitmentHash,
@@ -1011,7 +1010,7 @@ contract Router is
 
         _resetValidators(
             _validators,
-            _batch.hasAggregatedPublicKey,
+            _commitment.hasAggregatedPublicKey,
             _commitment.aggregatedPublicKey,
             _commitment.verifiableSecretSharingCommitment,
             _commitment.validators,

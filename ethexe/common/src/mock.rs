@@ -442,7 +442,6 @@ impl Arbitrary for BatchCommitment {
                     timestamp: 42,
                     previous_batch,
                     expiry: 10,
-                    has_aggregated_public_key: false,
                     chain_commitment: Some(chain_commitment),
                     code_commitments: vec![code_commitment_1, code_commitment_2],
                     validators_commitment: None,

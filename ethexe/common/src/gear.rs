@@ -188,8 +188,6 @@ pub struct BatchCommitment {
     /// if 2 - then valid in child and grandchild blocks
     /// ... etc.
     pub expiry: u8,
-    /// Does the batch have aggregated public key in validators commitment.
-    pub has_aggregated_public_key: bool,
 
     pub chain_commitment: Option<ChainCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
@@ -205,7 +203,6 @@ impl ToDigest for BatchCommitment {
             timestamp,
             previous_batch,
             expiry,
-            has_aggregated_public_key,
             chain_commitment,
             code_commitments,
             validators_commitment,
@@ -216,7 +213,6 @@ impl ToDigest for BatchCommitment {
         hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
         hasher.update(previous_batch);
         hasher.update(expiry.to_be_bytes());
-        hasher.update([*has_aggregated_public_key as u8]);
         hasher.update(chain_commitment.to_digest());
         hasher.update(code_commitments.to_digest());
         hasher.update(rewards_commitment.to_digest());
@@ -233,6 +229,8 @@ pub struct Timelines {
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ValidatorsCommitment {
+    /// Does the batch have aggregated public key in validators commitment.
+    pub has_aggregated_public_key: bool,
     pub aggregated_public_key: AggregatedPublicKey,
     pub verifiable_secret_sharing_commitment: Vec<u8>,
     pub validators: ValidatorsVec,
@@ -242,12 +240,14 @@ pub struct ValidatorsCommitment {
 impl ToDigest for ValidatorsCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let ValidatorsCommitment {
+            has_aggregated_public_key,
             aggregated_public_key,
             verifiable_secret_sharing_commitment: _, // TODO: add to digest
             validators,
             era_index,
         } = self;
 
+        hasher.update([*has_aggregated_public_key as u8]);
         hasher.update(<[u8; 32]>::from(aggregated_public_key.x));
         hasher.update(<[u8; 32]>::from(aggregated_public_key.y));
         hasher.update(
@@ -468,6 +468,7 @@ mod tests {
     #[test]
     fn validators_commitment_accepts_raw_vss_commitment_bytes() {
         let commitment = ValidatorsCommitment {
+            has_aggregated_public_key: false,
             aggregated_public_key: AggregatedPublicKey::default(),
             verifiable_secret_sharing_commitment: vec![],
             validators: nonempty::nonempty![crate::Address::default()].into(),

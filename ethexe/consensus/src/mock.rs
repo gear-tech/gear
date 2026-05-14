@@ -136,7 +136,6 @@ pub fn test_batch_commitment(block_hash: H256, seed: u64) -> BatchCommitment {
         timestamp: TEST_GENESIS_TIMESTAMP + seed,
         previous_batch: Digest::zero(),
         expiry: 10,
-        has_aggregated_public_key: false,
         chain_commitment: Some(test_chain_commitment(HashOf::zero(), seed)),
         code_commitments: vec![
             test_code_commitment(seed + 100),
@@ -290,7 +289,6 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
         timestamp: block3.header.timestamp,
         previous_batch: Digest::zero(),
         expiry: 1,
-        has_aggregated_public_key: false,
         chain_commitment: Some(ChainCommitment {
             transitions: [transitions1, transitions2].concat(),
             head_announce: db.top_announce_hash(block3.hash),

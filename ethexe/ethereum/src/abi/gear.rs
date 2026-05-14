@@ -55,6 +55,7 @@ impl From<CodeCommitment> for Gear::CodeCommitment {
 impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
     fn from(value: ValidatorsCommitment) -> Self {
         Self {
+            hasAggregatedPublicKey: value.has_aggregated_public_key,
             aggregatedPublicKey: value.aggregated_public_key.into(),
             verifiableSecretSharingCommitment: Bytes::copy_from_slice(
                 &value.verifiable_secret_sharing_commitment,
@@ -110,7 +111,6 @@ impl From<BatchCommitment> for Gear::BatchCommitment {
             blockTimestamp: u64_to_uint48_lossy(value.timestamp),
             previousCommittedBatchHash: value.previous_batch.0.into(),
             expiry: value.expiry,
-            hasAggregatedPublicKey: value.has_aggregated_public_key,
             chainCommitment: value.chain_commitment.into_iter().map(Into::into).collect(),
             codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
             rewardsCommitment: value

@@ -197,6 +197,7 @@ library Gear {
      * @dev Represents validators commitment.
      */
     struct ValidatorsCommitment {
+        bool hasAggregatedPublicKey;
         AggregatedPublicKey aggregatedPublicKey;
         bytes verifiableSecretSharingCommitment;
         address[] validators;
@@ -226,12 +227,6 @@ library Gear {
          *      ... etc.
          */
         uint8 expiry;
-
-        /**
-         *  @dev Whether aggregated public key is available or not.
-         *
-         */
-        bool hasAggregatedPublicKey;
 
         /**
          * @dev Chain commitment (contains one or zero commitments)
@@ -582,6 +577,7 @@ library Gear {
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
+                commitment.hasAggregatedPublicKey,
                 commitment.aggregatedPublicKey.x,
                 commitment.aggregatedPublicKey.y,
                 commitment.validators,
@@ -606,7 +602,6 @@ library Gear {
         uint48 _timestamp,
         bytes32 _prevCommittedBlock,
         uint8 _expiry,
-        bool _hasAggregatedPublicKey,
         bytes32 _chainCommitmentHash,
         bytes32 _codeCommitmentsHash,
         bytes32 _rewardsCommitmentHash,
@@ -618,7 +613,6 @@ library Gear {
                 _timestamp,
                 _prevCommittedBlock,
                 _expiry,
-                _hasAggregatedPublicKey,
                 _chainCommitmentHash,
                 _codeCommitmentsHash,
                 _rewardsCommitmentHash,
