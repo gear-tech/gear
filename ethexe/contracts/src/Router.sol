@@ -846,6 +846,7 @@ contract Router is
             _batch.blockTimestamp,
             _batch.previousCommittedBatchHash,
             _batch.expiry,
+            _batch.hasAggregatedPublicKey,
             _chainCommitmentHash,
             _codeCommitmentsHash,
             _rewardsCommitmentHash,
