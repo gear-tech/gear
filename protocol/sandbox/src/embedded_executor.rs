@@ -71,6 +71,7 @@ impl<T: Send + 'static> SandboxStore for Store<T> {
         let mut config = Config::new();
         config
             .max_wasm_stack(16 * 1024 * 1024) // make stack size bigger for fuzzer
+            .async_stack_size(16 * 1024 * 1024)
             .strategy(wasmtime::Strategy::Winch)
             .cache(Some(cache))
             .macos_use_mach_ports(false);
