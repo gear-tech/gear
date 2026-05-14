@@ -22,7 +22,7 @@
 #![allow(clippy::useless_conversion)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
 
@@ -92,9 +92,13 @@ use frame_system::{
 };
 use gear_core::{
     buffer::*,
-    code::{Code, CodeAndId, CodeError, CodeMetadata, InstrumentationStatus, InstrumentedCode},
+    code::{
+        Code, CodeAndId, CodeError, CodeMetadata, InstrumentationStatus, InstrumentedCode,
+        SyscallKind,
+    },
     env::MessageWaitedType,
     ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
+    limited::LimitedVecError,
     message::*,
     percent::Percent,
     tasks::VaraScheduledTask,
@@ -249,31 +253,6 @@ pub mod pallet {
 
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
-
-        /// The free of charge period of rent.
-        #[pallet::constant]
-        type ProgramRentFreePeriod: Get<BlockNumberFor<Self>>;
-
-        /// The minimal amount of blocks to resume.
-        #[pallet::constant]
-        type ProgramResumeMinimalRentPeriod: Get<BlockNumberFor<Self>>;
-
-        /// The program rent cost per block.
-        #[pallet::constant]
-        type ProgramRentCostPerBlock: Get<BalanceOf<Self>>;
-
-        /// The amount of blocks for processing resume session.
-        #[pallet::constant]
-        type ProgramResumeSessionDuration: Get<BlockNumberFor<Self>>;
-
-        /// The flag determines if program rent mechanism enabled.
-        #[pallet::constant]
-        type ProgramRentEnabled: Get<bool>;
-
-        /// The constant defines value that is added if the program
-        /// rent is disabled.
-        #[pallet::constant]
-        type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
 
         /// The builtin dispatcher factory.
         type BuiltinDispatcherFactory: BuiltinDispatcherFactory;
@@ -520,7 +499,7 @@ pub mod pallet {
 
     impl<T: Config> Pallet<T> {
         /// Getter for [`BlockNumberFor<T>`] (BlockNumberFor)
-        pub(crate) fn block_number() -> BlockNumberFor<T> {
+        pub fn block_number() -> BlockNumberFor<T> {
             BlockNumber::<T>::get()
         }
     }
@@ -575,10 +554,10 @@ pub mod pallet {
             let packet = InitPacket::new_from_user(
                 code_id,
                 salt.try_into()
-                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?,
                 init_payload
                     .try_into()
-                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1116,6 +1095,9 @@ pub mod pallet {
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
+                schedule.limits.type_section_len.into(),
+                schedule.limits.parameters.into(),
+                SyscallKind::Vara,
             ) {
                 Ok(code) => {
                     let instrumented_code_and_metadata = code.into_instrumented_code_and_metadata();
@@ -1155,6 +1137,9 @@ pub mod pallet {
                 |module| schedule.rules(module),
                 schedule.limits.stack_height,
                 schedule.limits.data_segments_amount.into(),
+                schedule.limits.type_section_len.into(),
+                schedule.limits.parameters.into(),
+                SyscallKind::Vara,
             )
             .map_err(|e| {
                 log::debug!("Code checking or instrumentation failed: {e}");
@@ -1191,10 +1176,10 @@ pub mod pallet {
             let packet = InitPacket::new_from_user(
                 code_id,
                 salt.try_into()
-                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?,
                 init_payload
                     .try_into()
-                    .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?,
+                    .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?,
                 gas_limit,
                 value.unique_saturated_into(),
             );
@@ -1219,6 +1204,7 @@ pub mod pallet {
             who: T::AccountId,
             packet: InitPacket,
             code_id: CodeId,
+            keep_alive: bool,
         ) -> Result<(), DispatchError> {
             let origin = who.clone().into_origin();
 
@@ -1240,7 +1226,11 @@ pub mod pallet {
                 &who,
                 &program_account,
                 ed,
-                ExistenceRequirement::AllowDeath,
+                if keep_alive {
+                    ExistenceRequirement::KeepAlive
+                } else {
+                    ExistenceRequirement::AllowDeath
+                },
             )?;
 
             // Set lock to avoid accidental account removal by the runtime.
@@ -1374,7 +1364,7 @@ pub mod pallet {
         /// has been removed.
         #[pallet::call_index(1)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_program((code.len() as u32) / 1024, salt.len() as u32)
+            <T as Config>::WeightInfo::upload_program((code.len() as u32) / 1024, salt.len() as u32, init_payload.len() as u32)
         )]
         pub fn upload_program(
             origin: OriginFor<T>,
@@ -1416,7 +1406,7 @@ pub mod pallet {
                 });
             }
 
-            Self::do_create_program(who, packet, code_id)?;
+            Self::do_create_program(who, packet, code_id, keep_alive)?;
 
             Ok(().into())
         }
@@ -1430,6 +1420,8 @@ pub mod pallet {
         /// - `init_payload`: encoded parameters of the wasm module `init` function.
         /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
         /// - `value`: balance to be transferred to the program once it's been created.
+        /// - `keep_alive`: whether to ensure that the original account balance will stay above
+        ///   the existential deposit.
         ///
         /// Emits the following events:
         /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
@@ -1438,7 +1430,7 @@ pub mod pallet {
         ///
         /// For the details of this extrinsic, see `upload_code`.
         #[pallet::call_index(2)]
-        #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32, init_payload.len() as u32))]
         pub fn create_program(
             origin: OriginFor<T>,
             code_id: CodeId,
@@ -1470,7 +1462,7 @@ pub mod pallet {
                 keep_alive,
             )?;
 
-            Self::do_create_program(who, packet, code_id)?;
+            Self::do_create_program(who, packet, code_id, keep_alive)?;
             Ok(().into())
         }
 
@@ -1794,7 +1786,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
-                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+                .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?;
 
             let who = origin;
             let origin = who.clone().into_origin();
@@ -1901,7 +1893,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let payload = payload
                 .try_into()
-                .map_err(|err: PayloadSizeError| DispatchError::Other(err.into()))?;
+                .map_err(|err: LimitedVecError| DispatchError::Other(err.as_str()))?;
 
             // Reason for reading from mailbox.
             let reason = UserMessageReadRuntimeReason::MessageReplied.into_reason();

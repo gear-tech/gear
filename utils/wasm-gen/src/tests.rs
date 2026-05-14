@@ -19,7 +19,7 @@
 use super::*;
 use arbitrary::Unstructured;
 use gear_core::{
-    code::Code,
+    code::{Code, SyscallKind},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     gas_metering::CustomConstantCostRules,
     ids::{ActorId, CodeId, prelude::*},
@@ -64,7 +64,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let _code = Code::try_new(original_code.clone(), 1, |_| CustomConstantCostRules::default(), None, None).unwrap();
+        let _code = Code::try_new(original_code.clone(), 1, |_| CustomConstantCostRules::default(), None, None, None, None, SyscallKind::Vara).unwrap();
     }
 
     #[test]
@@ -93,7 +93,7 @@ proptest! {
         let original_code = generate_gear_program_code(&mut u, configs_bundle)
             .expect("failed generating wasm");
 
-        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None);
+        let code_res = Code::try_new(original_code, 1, |_| CustomConstantCostRules::default(), None, None, None, None, SyscallKind::Vara);
         assert!(code_res.is_ok());
     }
 
@@ -119,6 +119,35 @@ proptest! {
             .expect("failed generating wasm");
 
         assert_eq!(first, second);
+    }
+}
+
+#[test]
+fn randomized_eth_config_omits_non_eth_syscall_imports() {
+    let mut rng = SmallRng::seed_from_u64(11);
+    let mut buf = vec![0; UNSTRUCTURED_SIZE];
+    rng.fill_bytes(&mut buf);
+    let mut unstructured = Unstructured::new(&buf);
+
+    let configs_bundle = RandomizedGearWasmConfigBundle::new_arbitrary_for_syscall_kind(
+        &mut unstructured,
+        SyscallKind::Eth,
+        Some("ethexe".into()),
+        Default::default(),
+    );
+
+    let code = generate_gear_program_code(&mut unstructured, configs_bundle)
+        .expect("failed generating wasm");
+    let imports = gear_imports(&code);
+
+    for syscall in
+        SyscallName::instrumentable(SyscallKind::Vara).filter(|syscall| !syscall.is_eth())
+    {
+        assert!(
+            !imports.contains(syscall.to_str()),
+            "generated ethexe code imports forbidden syscall {}",
+            syscall.to_str()
+        );
     }
 }
 
@@ -307,6 +336,22 @@ fn test_wait_stores_message_id() {
             TerminationReason::Actor(ActorTerminationReason::Wait(..))
         ));
     }
+}
+
+fn gear_imports(code: &[u8]) -> std::collections::BTreeSet<String> {
+    let mut imports = std::collections::BTreeSet::new();
+    for payload in wasmparser::Parser::new(0).parse_all(code) {
+        if let wasmparser::Payload::ImportSection(section) = payload.expect("valid wasm") {
+            for import in section {
+                let import = import.expect("valid import");
+                if import.module == "env" {
+                    imports.insert(import.name.to_owned());
+                }
+            }
+        }
+    }
+
+    imports
 }
 
 #[test]
@@ -803,7 +848,7 @@ fn error_processing_works_for_fallible_syscalls() {
     let mut unstructured = Unstructured::new(&buf);
     let mut unstructured2 = Unstructured::new(&buf);
 
-    let fallible_syscalls = SyscallName::instrumentable().filter_map(|syscall| {
+    let fallible_syscalls = SyscallName::instrumentable(SyscallKind::Vara).filter_map(|syscall| {
         let invocable_syscall = InvocableSyscall::Loose(syscall);
         invocable_syscall.is_fallible().then_some(invocable_syscall)
     });
@@ -877,7 +922,7 @@ fn precise_syscalls_works() {
     rng.fill_bytes(&mut buf);
     let mut unstructured = Unstructured::new(&buf);
 
-    let precise_syscalls = SyscallName::instrumentable().filter_map(|syscall| {
+    let precise_syscalls = SyscallName::instrumentable(SyscallKind::Vara).filter_map(|syscall| {
         InvocableSyscall::has_precise_variant(syscall).then_some(InvocableSyscall::Precise(syscall))
     });
 
@@ -1022,6 +1067,9 @@ fn execute_wasm_with_custom_configs(
         |_| CustomConstantCostRules::new(0, 0, 0),
         None,
         None,
+        None,
+        None,
+        SyscallKind::Vara,
     )
     .expect("Failed to create Code");
 
@@ -1062,6 +1110,7 @@ fn execute_wasm_with_custom_configs(
         DispatchKind::Init,
         vec![DispatchKind::Init].into_iter().collect(),
         (INITIAL_PAGES as u16).into(),
+        SyscallKind::Vara,
     )
     .expect("Failed to create environment");
 

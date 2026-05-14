@@ -16,15 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Parameters controlling the optional libp2p networking service.
+
 use super::MergeParams;
 use anyhow::{Context, Result};
 use clap::Parser;
+use ethexe_common::Address;
 use ethexe_network::{
-    NetworkConfig,
+    DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE, NetworkConfig,
     export::{Multiaddr, Protocol},
 };
+use gsigner::secp256k1::Signer;
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::{num::NonZeroU32, path::PathBuf};
 
 /// Parameters for the networking service to start.
 #[derive(Clone, Debug, Deserialize, Parser)]
@@ -59,23 +63,46 @@ pub struct NetworkParams {
     #[arg(long, alias = "no-net")]
     #[serde(default, rename = "no-network", alias = "no-net")]
     pub no_network: bool,
+
+    /// Maximum chain length allowed in announces responses.
+    #[arg(long, alias = "net-max-chain-len-for-announces-response")]
+    #[serde(rename = "max-chain-len-for-announces-response")]
+    pub max_chain_len_for_announces_response: Option<NonZeroU32>,
 }
 
 impl NetworkParams {
-    /// Default network port.
-    pub const DEFAULT_NETWORK_PORT: u16 = 20333;
-
-    /// Convert self into a proper `NetworkConfig` object, if network is enabled.
-    pub fn into_config(self, config_dir: PathBuf) -> Result<Option<NetworkConfig>> {
+    /// Converts networking parameters into an optional [`NetworkConfig`].
+    ///
+    /// When networking is enabled, the method either parses an explicit network key or
+    /// resolves one from the `net/` key store, generating it on first use.
+    pub fn into_config(
+        self,
+        config_dir: PathBuf,
+        router_address: Address,
+        is_dev: bool,
+    ) -> Result<Option<NetworkConfig>> {
         if self.no_network {
             return Ok(None);
         }
 
-        let public_key = self
-            .network_key
-            .map(|k| k.parse())
-            .transpose()
-            .with_context(|| "invalid `network-key`")?;
+        let public_key = if let Some(key) = self.network_key {
+            log::trace!("use network key from command-line arguments");
+            key.parse().context("invalid network key")?
+        } else {
+            let signer = Signer::fs(config_dir)?;
+            let keys = signer.list_keys()?;
+            match keys.as_slice() {
+                [] => {
+                    log::trace!("generate a new network key");
+                    signer.generate()?
+                }
+                [key] => {
+                    log::trace!("use network key saved on disk");
+                    *key
+                }
+                _ => anyhow::bail!("only one network key is expected"),
+            }
+        };
 
         let external_addresses = self
             .network_public_addr
@@ -91,7 +118,9 @@ impl NetworkParams {
 
         let network_listen_addr = self.network_listen_addr.unwrap_or_default();
 
-        let port = self.network_port.unwrap_or(Self::DEFAULT_NETWORK_PORT);
+        let port = self
+            .network_port
+            .unwrap_or(ethexe_network::DEFAULT_LISTEN_PORT);
 
         let listen_addresses = if network_listen_addr.is_empty() {
             [
@@ -110,12 +139,16 @@ impl NetworkParams {
         };
 
         Ok(Some(NetworkConfig {
-            config_dir,
             public_key,
+            router_address,
             external_addresses,
             bootstrap_addresses,
             listen_addresses,
             transport_type: Default::default(),
+            allow_non_global_addresses: is_dev,
+            max_chain_len_for_announces_response: self
+                .max_chain_len_for_announces_response
+                .unwrap_or(DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE),
         }))
     }
 }
@@ -129,6 +162,9 @@ impl MergeParams for NetworkParams {
             network_listen_addr: self.network_listen_addr.or(with.network_listen_addr),
             network_port: self.network_port.or(with.network_port),
             no_network: self.no_network || with.no_network,
+            max_chain_len_for_announces_response: self
+                .max_chain_len_for_announces_response
+                .or(with.max_chain_len_for_announces_response),
         }
     }
 }

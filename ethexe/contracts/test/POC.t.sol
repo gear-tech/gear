@@ -1,24 +1,35 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+pragma solidity ^0.8.33;
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {SigningKey, FROSTOffchain} from "frost-secp256k1-evm/FROSTOffchain.sol";
 import {Vm} from "forge-std/Vm.sol";
-
-import {Gear} from "../src/libraries/Gear.sol";
-import {Base} from "./Base.t.sol";
-import {IMirror} from "../src/Mirror.sol";
-import {IRouter} from "../src/IRouter.sol";
+import {FROSTOffchain, SigningKey} from "frost-secp256k1-evm/FROSTOffchain.sol";
+import {IRouter} from "src/IRouter.sol";
+import {IMirror} from "src/Mirror.sol";
+import {Gear} from "src/libraries/Gear.sol";
+import {Base} from "test/Base.t.sol";
 
 contract POCTest is Base {
     using MessageHashUtils for address;
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using FROSTOffchain for SigningKey;
 
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 private constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    bytes32 private constant REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH = keccak256(
+        "RequestCodeValidationOnBehalf(address requester,bytes32 codeId,bytes32[] blobHashes,uint256 nonce,uint256 deadline)"
+    );
+
     SigningKey signingKey;
     EnumerableMap.AddressToUintMap private operators;
     address[] private vaults;
+    address private sender;
+    uint256 private senderPrivateKey;
+    address private relayer;
+    uint256 private relayerPrivateKey;
 
     function setUp() public override {
         admin = 0x116B4369a90d2E9DA6BD7a924A23B164E10f6FE9;
@@ -26,6 +37,8 @@ contract POCTest is Base {
         electionDuration = 100;
         blockDuration = 12;
         maxValidators = 3;
+        (sender, senderPrivateKey) = makeAddrAndKey("Sender");
+        (relayer, relayerPrivateKey) = makeAddrAndKey("Relayer");
 
         setUpWrappedVara();
 
@@ -57,13 +70,31 @@ contract POCTest is Base {
     }
 
     function test_POC() public {
+        uint256 baseFee = router.requestCodeValidationBaseFee();
+
+        vm.startPrank(admin);
+        {
+            bool success = wrappedVara.transfer(sender, baseFee);
+            require(success, "Transfer failed");
+        }
+        vm.stopPrank();
+
+        vm.startPrank(sender);
+
+        uint256 deadline = vm.getBlockTimestamp() + 10;
+        bytes32 structHash = keccak256(
+            abi.encode(PERMIT_TYPEHASH, sender, address(router), baseFee, wrappedVara.nonces(sender), deadline)
+        );
+        bytes32 hash = MessageHashUtils.toTypedDataHash(wrappedVara.DOMAIN_SEPARATOR(), structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(senderPrivateKey, hash);
+
         bytes32 _codeId = bytes32(uint256(1));
 
         bytes32[] memory hashes = new bytes32[](1);
         hashes[0] = bytes32(uint256(1));
         vm.blobhashes(hashes);
 
-        router.requestCodeValidation(_codeId);
+        router.requestCodeValidation(_codeId, deadline, v, r, s);
 
         address[] memory _validators = router.validators();
         assertEq(_validators.length, maxValidators);
@@ -125,6 +156,57 @@ contract POCTest is Base {
         doPingPong(_privateKeys, _ping);
         assertEq(actor.stateHash(), bytes32(uint256(2)));
         assertEq(actor.nonce(), uint256(4));
+
+        vm.stopPrank();
+    }
+
+    function test_requestCodeValidationOnBehalf() public {
+        uint256 baseFee = router.requestCodeValidationBaseFee();
+        uint256 extraFee = router.requestCodeValidationExtraFee();
+
+        uint256 fee = baseFee + extraFee;
+
+        vm.startPrank(admin);
+        {
+            bool success = wrappedVara.transfer(sender, fee);
+            require(success, "Transfer failed");
+        }
+        vm.stopPrank();
+
+        assertEq(wrappedVara.balanceOf(sender), fee);
+
+        vm.startPrank(relayer);
+
+        bytes32 _codeId = bytes32(uint256(1));
+        bytes32[] memory blobHashes = new bytes32[](1);
+        blobHashes[0] = bytes32(uint256(1));
+        uint256 deadline = vm.getBlockTimestamp() + 10;
+
+        bytes32 structHash1 = keccak256(
+            abi.encode(
+                REQUEST_CODE_VALIDATION_ON_BEHALF_TYPEHASH,
+                sender,
+                _codeId,
+                keccak256(abi.encodePacked(blobHashes)),
+                router.nonces(sender),
+                deadline
+            )
+        );
+        bytes32 hash1 = MessageHashUtils.toTypedDataHash(router.DOMAIN_SEPARATOR(), structHash1);
+        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(senderPrivateKey, hash1);
+
+        bytes32 structHash2 =
+            keccak256(abi.encode(PERMIT_TYPEHASH, sender, address(router), fee, wrappedVara.nonces(sender), deadline));
+        bytes32 hash2 = MessageHashUtils.toTypedDataHash(wrappedVara.DOMAIN_SEPARATOR(), structHash2);
+        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(senderPrivateKey, hash2);
+
+        vm.blobhashes(blobHashes);
+
+        router.requestCodeValidationOnBehalf(sender, _codeId, blobHashes, deadline, v1, r1, s1, v2, r2, s2);
+
+        assertEq(wrappedVara.balanceOf(sender), 0);
+
+        vm.stopPrank();
     }
 
     function deployPing(uint256[] memory _privateKeys, bytes32 _codeId) private returns (address _ping) {
@@ -133,7 +215,7 @@ contract POCTest is Base {
             vm.expectEmit(true, false, false, false);
             emit IRouter.ProgramCreated(address(0), bytes32(uint256(1)));
             _ping = router.createProgram(_codeId, "salt", address(0));
-            IMirror(_ping).sendMessage("PING", 0, false);
+            IMirror(_ping).sendMessage("PING", false);
         }
         vm.stopPrank();
 
@@ -157,6 +239,7 @@ contract POCTest is Base {
             false, // exited
             address(0), // inheritor
             uint128(0), // value to receive
+            false, // value to receive negative sign
             new Gear.ValueClaim[](0), // value claims
             _outgoingMessages // messages
         );
@@ -169,10 +252,7 @@ contract POCTest is Base {
     function doPingPong(uint256[] memory _privateKeys, address _ping) internal {
         vm.startPrank(admin, admin);
         {
-            uint256 _allowanceBefore = wrappedVara.allowance(admin, _ping);
-            wrappedVara.approve(_ping, type(uint256).max);
-            IMirror(_ping).sendMessage("PING", 0, false);
-            wrappedVara.approve(_ping, _allowanceBefore);
+            IMirror(_ping).sendMessage("PING", false);
         }
         vm.stopPrank();
 
@@ -196,6 +276,7 @@ contract POCTest is Base {
             false, // exited
             address(0), // inheritor
             0, // value to receive
+            false, // value to receive negative sign
             new Gear.ValueClaim[](0), // value claims
             _outgoingMessages // messages
         );

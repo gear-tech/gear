@@ -57,7 +57,7 @@ impl KVDatabase for MemDb {
         self.inner.get(&key.to_vec()).map(|v| v.value().clone())
     }
 
-    fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
+    unsafe fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
         self.inner.remove(&key.to_vec()).map(|(_, value)| value)
     }
 
@@ -80,6 +80,10 @@ impl KVDatabase for MemDb {
                 .map(|refs| (refs.key().clone(), refs.value().clone())),
         )
     }
+
+    fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
 }
 
 // TODO: Join tests for MemDb and RocksDb, making general tests for dyn CASDatabase.
@@ -89,8 +93,8 @@ mod tests {
     use crate::tests;
 
     #[test]
-    fn is_clonable() {
-        tests::is_clonable(MemDb::default());
+    fn is_cloneable() {
+        tests::is_cloneable(MemDb::default());
     }
 
     #[test]

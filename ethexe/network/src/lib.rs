@@ -16,146 +16,212 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod custom_connection_limits;
-pub mod db_sync;
-pub mod peer_score;
-mod utils;
+//! Networking stack for `ethexe`.
+//!
+//! This crate wires together the libp2p swarm used by the execution layer and
+//! exposes it as a single [`NetworkService`] stream. The service combines:
+//!
+//! - peer management and connection caps;
+//! - Kademlia-backed validator discovery;
+//! - gossipsub topics for validator messages and public promises;
+//! - request/response database synchronization;
+//! - private injected-transaction delivery to validators;
+//! - peer scoring and temporary peer blocking.
+//!
+//! [`NetworkService`] is the main integration point used by higher-level
+//! services. It owns the swarm, emits validated [`NetworkEvent`] items, and
+//! hands out protocol-specific handles such as [`db_sync::Handle`] for
+//! database synchronization and a peer-scoring handle for internal use.
 
+pub mod db_sync;
+mod gossipsub;
+mod injected;
+mod kad;
+mod peer_score;
+mod slots;
+mod utils;
+mod validator;
+
+/// Small set of libp2p types re-exported for callers of this crate.
 pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
+pub use injected::Event as NetworkInjectedEvent;
+
+use crate::{
+    db_sync::DbSyncDatabase,
+    utils::MultiaddrExt,
+    validator::{ValidatorDatabase, list::ValidatorListSnapshot},
+};
 use anyhow::{Context, anyhow};
-use ethexe_common::ecdsa::PublicKey;
+use ethexe_common::{
+    Address, BlockHeader, ValidatorsVec,
+    db::ConfigStorageRO,
+    ecdsa::PublicKey,
+    injected::{AddressedInjectedTransaction, SignedCompactPromise},
+    network::{SignedValidatorMessage, VerifiedValidatorMessage},
+};
 use ethexe_db::Database;
-use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
-use gprimitives::utils::ByteSliceFormatter;
+use gprimitives::H256;
+use gsigner::secp256k1::Signer;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
-    core::{muxing::StreamMuxerBox, transport::ListenerId, upgrade},
+    core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
     futures::StreamExt,
-    gossipsub, identify, identity, kad, mdns,
+    identify, identity, mdns,
+    metrics::Recorder,
     multiaddr::Protocol,
     ping,
-    swarm::{
-        Config as SwarmConfig, NetworkBehaviour, SwarmEvent,
-        behaviour::toggle::Toggle,
-        dial_opts::{DialOpts, PeerCondition},
-    },
+    swarm::{Config as SwarmConfig, NetworkBehaviour, SwarmEvent, behaviour::toggle::Toggle},
     yamux,
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
 use std::{
-    collections::HashSet,
-    fmt, fs,
-    hash::{DefaultHasher, Hash, Hasher},
-    path::{Path, PathBuf},
-    pin::Pin,
-    str::FromStr,
-    task::Poll,
+    collections::HashSet, fmt::Write, num::NonZeroU32, pin::Pin, sync::Arc, task::Poll,
     time::Duration,
 };
+use validator::{list::ValidatorList, topic::ValidatorTopic};
 
+/// Default listen port.
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
+/// Protocol version string advertised through libp2p identify.
 pub const PROTOCOL_VERSION: &str = "ethexe/0.1.0";
+/// Agent version string advertised through libp2p identify.
 pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
-const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
-const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
+// limit could be 1, but we want to prevent connection churn when both peers dial each other
+const MAX_ESTABLISHED_PER_PEER_CONNECTIONS: u32 = 2;
+const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 500;
+const MAX_ESTABLISHED_OUTGOING_CONNECTIONS: u32 = 500;
+const MAX_PENDING_INCOMING_CONNECTIONS: u32 = 10;
+const MAX_PENDING_OUTGOING_CONNECTIONS: u32 = 10;
 
-#[derive(Eq, PartialEq)]
+/// Hard cap for the amount of announces that can be returned in one db-sync
+/// response.
+pub const DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
+
+/// High-level events produced by [`NetworkService`].
+#[derive(derive_more::Debug)]
 pub enum NetworkEvent {
-    DbResponse {
-        request_id: db_sync::RequestId,
-        result: Result<db_sync::Response, (db_sync::RetriableRequest, db_sync::RequestFailure)>,
-    },
-    Message {
-        data: Vec<u8>,
-        source: Option<PeerId>,
-    },
+    /// A validator-signed message from the validator gossipsub topic.
+    ValidatorMessage(VerifiedValidatorMessage),
+    /// A public promise observed on the promise gossipsub topic.
+    PromiseMessage(SignedCompactPromise),
+    /// Validator discovery learned or refreshed the network identity of the
+    /// given validator address.
+    ValidatorIdentityUpdated(Address),
+    /// Private injected-transaction protocol produced an event.
+    InjectedTransaction(NetworkInjectedEvent),
+    /// Peer scoring blocked a peer.
     PeerBlocked(PeerId),
+    /// Swarm established a connection with a peer.
     PeerConnected(PeerId),
 }
 
-impl fmt::Debug for NetworkEvent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NetworkEvent::DbResponse { request_id, result } => f
-                .debug_struct("DbResponse")
-                .field("request_id", request_id)
-                .field("result", result)
-                .finish(),
-            NetworkEvent::Message { data, source } => f
-                .debug_struct("Message")
-                .field(
-                    "data",
-                    &format_args!(
-                        "{:.8} ({} bytes)",
-                        ByteSliceFormatter::Dynamic(data),
-                        data.len()
-                    ),
-                )
-                .field("source", source)
-                .finish(),
-            NetworkEvent::PeerBlocked(peer_id) => {
-                f.debug_tuple("PeerBlocked").field(peer_id).finish()
-            }
-            NetworkEvent::PeerConnected(peer_id) => {
-                f.debug_tuple("PeerConnected").field(peer_id).finish()
-            }
-        }
-    }
-}
-
-#[derive(Default, Debug, Clone)]
+/// Selects which transport backend the swarm should use.
+#[derive(Default, Debug, Clone, Copy)]
 pub enum TransportType {
+    /// Production transport: QUIC and TCP, with optional mDNS on local
+    /// networks.
     #[default]
     Default,
+    /// In-memory transport used by tests.
     Test,
 }
 
+/// Static network configuration usually assembled from CLI flags.
 #[derive(Debug, Clone)]
 pub struct NetworkConfig {
-    pub config_dir: PathBuf,
-    pub public_key: Option<PublicKey>,
+    /// Public key corresponding to the libp2p networking identity.
+    ///
+    /// This is not the validator key. Validator identity is handled
+    /// separately and may be absent on non-validator nodes.
+    pub public_key: PublicKey,
+    /// Router address that namespaces network protocols and topics.
+    pub router_address: Address,
+    /// Addresses advertised to other peers.
     pub external_addresses: HashSet<Multiaddr>,
+    /// Peers we try to connect to proactively at startup.
     pub bootstrap_addresses: HashSet<Multiaddr>,
+    /// Addresses the local swarm listens on.
     pub listen_addresses: HashSet<Multiaddr>,
+    /// Transport backend to use.
     pub transport_type: TransportType,
+    /// Whether private and local addresses are allowed in discovery and
+    /// identify flows.
+    pub allow_non_global_addresses: bool,
+    /// Upper bound for `Announces` db-sync responses served by this node.
+    pub max_chain_len_for_announces_response: NonZeroU32,
 }
 
 impl NetworkConfig {
-    pub fn new_local(config_path: PathBuf) -> Self {
+    /// Build a local-development config that listens on localhost with the
+    /// default transport stack.
+    pub fn new_local(public_key: PublicKey, router_address: Address) -> Self {
         Self {
-            config_dir: config_path,
-            public_key: None,
+            public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: ["/ip4/127.0.0.1/udp/0/quic-v1".parse().unwrap()].into(),
             transport_type: TransportType::Default,
+            router_address,
+            allow_non_global_addresses: false,
+            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 
-    pub fn new_test(config_path: PathBuf) -> Self {
+    /// Build a test config backed by the in-memory transport.
+    pub fn new_test(public_key: PublicKey, router_address: Address) -> Self {
         Self {
-            config_dir: config_path,
-            public_key: None,
+            public_key,
             external_addresses: Default::default(),
             bootstrap_addresses: Default::default(),
             listen_addresses: Default::default(),
             transport_type: TransportType::Test,
+            router_address,
+            allow_non_global_addresses: true,
+            max_chain_len_for_announces_response: DEFAULT_MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE,
         }
     }
 }
 
+/// Runtime dependencies injected by other `ethexe` services.
+pub struct NetworkRuntimeConfig {
+    /// Latest known block header used to seed validator-era state.
+    pub latest_block_header: BlockHeader,
+    /// Validator set at [`Self::latest_block_header`].
+    pub latest_validators: ValidatorsVec,
+    /// Validator key when this node participates as a validator.
+    pub validator_key: Option<PublicKey>,
+    /// General-purpose signer used for validator-facing messages.
+    pub general_signer: Signer,
+    /// Signer used only to construct the libp2p networking keypair.
+    pub network_signer: Signer,
+    /// External lookups needed by db-sync request validation.
+    pub external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
+    /// Database backing validator discovery and db-sync responses.
+    pub db: Database,
+}
+
+type Libp2pMetrics = (libp2p::metrics::Registry, Arc<libp2p::metrics::Metrics>);
+
+/// Unified libp2p service used by `ethexe`.
+///
+/// The service owns the full swarm and implements [`Stream`], yielding
+/// validated high-level [`NetworkEvent`] values to its caller.
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
     listeners: Vec<ListenerId>,
+    bootstrap_peers: HashSet<PeerId>,
+    validator_list: ValidatorList,
+    validator_topic: ValidatorTopic,
+    metrics: Libp2pMetrics,
+    allow_non_global_addresses: bool,
 }
 
 impl Stream for NetworkService {
@@ -165,6 +231,10 @@ impl Stream for NetworkService {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
+        if let Some(message) = self.validator_topic.next_message() {
+            return Poll::Ready(Some(NetworkEvent::ValidatorMessage(message)));
+        }
+
         loop {
             let Some(event) = ready!(self.swarm.poll_next_unpin(cx)) else {
                 return Poll::Ready(None);
@@ -184,35 +254,82 @@ impl FusedStream for NetworkService {
 }
 
 impl NetworkService {
+    /// Construct a network service with all protocols enabled.
     pub fn new(
         config: NetworkConfig,
-        signer: &Signer,
-        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Database,
+        runtime_config: NetworkRuntimeConfig,
     ) -> anyhow::Result<NetworkService> {
-        fs::create_dir_all(&config.config_dir)
-            .context("failed to create network configuration directory")?;
+        let NetworkConfig {
+            public_key,
+            external_addresses,
+            bootstrap_addresses,
+            listen_addresses,
+            transport_type,
+            router_address,
+            allow_non_global_addresses,
+            max_chain_len_for_announces_response,
+        } = config;
 
-        let keypair =
-            NetworkService::generate_keypair(signer, &config.config_dir, config.public_key)?;
-        let mut swarm = NetworkService::create_swarm(
-            keypair,
+        let NetworkRuntimeConfig {
+            latest_block_header,
+            latest_validators,
+            validator_key,
+            general_signer,
+            network_signer,
             external_data_provider,
             db,
-            config.transport_type,
-        )?;
+        } = runtime_config;
 
-        for multiaddr in config.external_addresses {
+        let timelines = db.config().timelines;
+        let mut registry = libp2p::metrics::Registry::default();
+        let metrics = Arc::new(libp2p::metrics::Metrics::new(&mut registry));
+
+        let (validator_list, validator_list_snapshot) = ValidatorList::new(
+            ValidatorDatabase::clone_boxed(&db),
+            timelines,
+            latest_block_header,
+            latest_validators,
+        )
+        .context("failed to create validator list")?;
+
+        let keypair = Self::create_keypair(&network_signer, public_key)?;
+
+        let transport = Self::create_transport(&keypair, transport_type, &mut registry)?;
+
+        let behaviour_config = BehaviourConfig {
+            router_address,
+            keypair: keypair.clone(),
+            external_data_provider,
+            db: DbSyncDatabase::clone_boxed(&db),
+            transport_type,
+            validator_key,
+            general_signer,
+            validator_list_snapshot: validator_list_snapshot.clone(),
+            allow_non_global_addresses,
+            max_chain_len_for_announces_response,
+            metrics: (&mut registry, metrics.clone()),
+        };
+        let behaviour = Behaviour::new(behaviour_config)?;
+
+        let mut swarm = Self::create_swarm(keypair.clone(), transport, transport_type, behaviour)?;
+
+        let validator_topic = ValidatorTopic::new(
+            swarm.behaviour().peer_score.handle(),
+            validator_list_snapshot,
+        );
+
+        for multiaddr in external_addresses {
             swarm.add_external_address(multiaddr);
         }
 
         let mut listeners = Vec::new();
-        for multiaddr in config.listen_addresses {
+        for multiaddr in listen_addresses {
             let id = swarm.listen_on(multiaddr).context("`listen_on()` failed")?;
             listeners.push(id);
         }
 
-        for multiaddr in config.bootstrap_addresses {
+        let mut bootstrap_peers = HashSet::new();
+        for multiaddr in bootstrap_addresses {
             let peer_id = multiaddr
                 .iter()
                 .find_map(|p| {
@@ -224,85 +341,83 @@ impl NetworkService {
                 })
                 .context("bootstrap nodes are not allowed without peer ID")?;
 
-            swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
+            swarm.add_peer_address(peer_id, multiaddr.clone());
+            swarm.behaviour_mut().kad.add_address(peer_id, multiaddr);
+            bootstrap_peers.insert(peer_id);
         }
 
-        Ok(Self { swarm, listeners })
+        log::info!(
+            "NetworkService created with peer id: {}",
+            swarm.local_peer_id()
+        );
+
+        Ok(Self {
+            swarm,
+            listeners,
+            bootstrap_peers,
+            validator_list,
+            validator_topic,
+            metrics: (registry, metrics),
+            allow_non_global_addresses,
+        })
     }
 
-    fn generate_keypair(
-        signer: &Signer,
-        config_path: &Path,
-        public_key: Option<PublicKey>,
-    ) -> anyhow::Result<identity::Keypair> {
-        let key = if let Some(key) = public_key {
-            log::trace!("use networking key from command-line arguments");
-            key
-        } else {
-            let public_key_path = config_path.join("public_key");
-            if public_key_path.exists() {
-                log::trace!("use networking key saved on disk");
-                let key = fs::read_to_string(public_key_path)
-                    .context("failed to read networking public key")?;
-                PublicKey::from_str(&key)?
-            } else {
-                log::trace!("generate a new networking key");
-                let key = signer.generate_key()?;
-                fs::write(public_key_path, key.to_hex())
-                    .context("failed to write networking public key")?;
-                key
-            }
-        };
-
-        let key = signer.storage().get_private_key(key)?;
-        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
+    fn create_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
+        let mut key = signer.private_key(key)?.to_bytes();
+        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key)
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
         Ok(identity::Keypair::from(pair))
     }
 
-    fn create_swarm(
-        keypair: identity::Keypair,
-        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Database,
+    fn create_transport(
+        keypair: &identity::Keypair,
         transport_type: TransportType,
-    ) -> anyhow::Result<Swarm<Behaviour>> {
-        let transport = match transport_type {
+        registry: &mut libp2p::metrics::Registry,
+    ) -> anyhow::Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
+        match transport_type {
             TransportType::Default => {
                 let tcp = libp2p::tcp::tokio::Transport::default()
                     .upgrade(upgrade::Version::V1Lazy)
-                    .authenticate(libp2p::tls::Config::new(&keypair)?)
+                    .authenticate(libp2p::tls::Config::new(keypair)?)
                     .multiplex(yamux::Config::default())
                     .timeout(Duration::from_secs(20));
 
-                let quic_config = libp2p::quic::Config::new(&keypair);
+                let quic_config = libp2p::quic::Config::new(keypair);
                 let quic = libp2p::quic::tokio::Transport::new(quic_config);
 
-                quic.or_transport(tcp)
-                    .map(|either_output, _| match either_output {
-                        Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
-                        Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
-                    })
-                    .boxed()
+                let quic_or_tcp =
+                    quic.or_transport(tcp)
+                        .map(|either_output, _| match either_output {
+                            Either::Left((peer_id, muxer)) => (peer_id, Either::Left(muxer)),
+                            Either::Right((peer_id, muxer)) => (peer_id, Either::Right(muxer)),
+                        });
+                let dns = libp2p::dns::tokio::Transport::system(quic_or_tcp)?;
+
+                let bandwidth = libp2p::metrics::BandwidthTransport::new(dns, registry)
+                    .map(|(peer_id, conn), _| (peer_id, StreamMuxerBox::new(conn)));
+
+                Ok(bandwidth.boxed())
             }
-            TransportType::Test => libp2p::core::transport::MemoryTransport::default()
+            TransportType::Test => Ok(transport::MemoryTransport::default()
                 .or_transport(libp2p::tcp::tokio::Transport::default())
                 .upgrade(upgrade::Version::V1Lazy)
-                .authenticate(libp2p::plaintext::Config::new(&keypair))
+                .authenticate(libp2p::plaintext::Config::new(keypair))
                 .multiplex(yamux::Config::default())
                 .timeout(Duration::from_secs(20))
-                .boxed(),
-        };
+                .boxed()),
+        }
+    }
 
-        let enable_mdns = match transport_type {
-            TransportType::Default => true,
-            TransportType::Test => false,
-        };
-
-        let behaviour = Behaviour::new(&keypair, external_data_provider, db, enable_mdns)?;
+    fn create_swarm(
+        keypair: identity::Keypair,
+        transport: transport::Boxed<(PeerId, StreamMuxerBox)>,
+        transport_type: TransportType,
+        behaviour: Behaviour,
+    ) -> anyhow::Result<Swarm<Behaviour>> {
         let local_peer_id = keypair.public().to_peer_id();
-        let mut config = SwarmConfig::with_tokio_executor();
 
+        let mut config = SwarmConfig::with_tokio_executor();
         if let TransportType::Test = transport_type {
             config = config.with_idle_connection_timeout(Duration::from_secs(5));
         }
@@ -312,6 +427,8 @@ impl NetworkService {
 
     fn handle_swarm_event(&mut self, event: SwarmEvent<BehaviourEvent>) -> Option<NetworkEvent> {
         log::trace!("new swarm event: {event:?}");
+
+        self.metrics.1.record(&event);
 
         match event {
             SwarmEvent::Behaviour(e) => self.handle_behaviour_event(e),
@@ -324,163 +441,238 @@ impl NetworkService {
 
     fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
-            BehaviourEvent::CustomConnectionLimits(infallible) => match infallible {},
-            //
-            BehaviourEvent::ConnectionLimits(infallible) => match infallible {},
-            //
-            BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
-                peer_id,
-                last_reason: _,
-            }) => return Some(NetworkEvent::PeerBlocked(peer_id)),
-            BehaviourEvent::PeerScore(_) => {}
-            //
-            BehaviourEvent::Ping(ping::Event {
-                peer,
-                connection: _,
-                result,
-            }) => {
-                if let Err(e) = result {
-                    log::debug!("ping to {peer} failed: {e}. Disconnecting...");
-                    let _res = self.swarm.disconnect_peer_id(peer);
-                }
+            BehaviourEvent::ConnectionLimits(event) => match event {},
+            BehaviourEvent::Slots(event) => match event {},
+            BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
+            BehaviourEvent::Ping(event) => self.handle_ping_event(event),
+            BehaviourEvent::Identify(event) => self.handle_identify_event(event),
+            BehaviourEvent::Mdns4(_event) => {
+                // we use the `NewExternalAddrOfPeer` event produced by mDNS behaviour
             }
-            //
-            BehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
-                let behaviour = self.swarm.behaviour_mut();
-
-                if info.protocol_version != PROTOCOL_VERSION || info.agent_version != AGENT_VERSION
-                {
-                    log::debug!(
-                        "{peer_id} is not supported with `{}` protocol and `{}` agent",
-                        info.protocol_version,
-                        info.agent_version
-                    );
-                    behaviour.peer_score.handle().unsupported_protocol(peer_id);
-                }
-
-                // add listen addresses of new peers to KadDHT
-                // according to `identify` and `kad` protocols docs
-                for listen_addr in info.listen_addrs {
-                    behaviour.kad.add_address(&peer_id, listen_addr);
-                }
+            BehaviourEvent::Kad(event) => self.handle_kad_event(event),
+            BehaviourEvent::Gossipsub(event) => return self.handle_gossipsub_event(event),
+            BehaviourEvent::DbSync(_event) => {}
+            BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
+            BehaviourEvent::ValidatorDiscovery(event) => {
+                return self.handle_validator_discovery_event(event);
             }
-            BehaviourEvent::Identify(identify::Event::Error { peer_id, error, .. }) => {
-                log::debug!("{peer_id} is not identified: {error}");
-                self.swarm
-                    .behaviour()
-                    .peer_score
-                    .handle()
-                    .unsupported_protocol(peer_id);
-            }
-            BehaviourEvent::Identify(_) => {}
-            //
-            BehaviourEvent::Mdns4(mdns::Event::Discovered(peers)) => {
-                for (peer_id, multiaddr) in peers {
-                    if let Err(e) = self.swarm.dial(
-                        DialOpts::peer_id(peer_id)
-                            .condition(PeerCondition::Disconnected)
-                            .addresses(vec![multiaddr])
-                            .extend_addresses_through_behaviour()
-                            .build(),
-                    ) {
-                        log::error!("dialing failed for mDNS address: {e:?}");
-                    }
-                }
-            }
-            BehaviourEvent::Mdns4(mdns::Event::Expired(peers)) => {
-                for (peer_id, _multiaddr) in peers {
-                    let _res = self.swarm.disconnect_peer_id(peer_id);
-                }
-            }
-            //
-            BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
-                let behaviour = self.swarm.behaviour_mut();
-                if let Some(mdns4) = behaviour.mdns4.as_ref()
-                    && mdns4.discovered_nodes().any(|&p| p == peer)
-                {
-                    // we don't want local peers to appear in KadDHT.
-                    // event can be emitted few times in a row for
-                    // the same peer, so we just ignore `None`
-                    let _res = behaviour.kad.remove_peer(&peer);
-                }
-            }
-            BehaviourEvent::Kad(_) => {}
-            //
-            BehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                message:
-                    gossipsub::Message {
-                        source,
-                        data,
-                        sequence_number: _,
-                        topic,
-                    },
-                ..
-            }) if commitments_topic().hash() == topic || offchain_tx_topic().hash() == topic => {
-                return Some(NetworkEvent::Message { source, data });
-            }
-            BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
-                log::debug!("`gossipsub` protocol is not supported");
-                self.swarm
-                    .behaviour()
-                    .peer_score
-                    .handle()
-                    .unsupported_protocol(peer_id);
-            }
-            BehaviourEvent::Gossipsub(_) => {}
-            //
-            BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
-                request_id,
-                response,
-            }) => {
-                return Some(NetworkEvent::DbResponse {
-                    request_id,
-                    result: Ok(response),
-                });
-            }
-            BehaviourEvent::DbSync(db_sync::Event::RequestFailed { request, error }) => {
-                return Some(NetworkEvent::DbResponse {
-                    request_id: request.id(),
-                    result: Err((request, error)),
-                });
-            }
-            BehaviourEvent::DbSync(_) => {}
         }
 
         None
     }
 
+    fn handle_peer_score_event(&mut self, event: peer_score::Event) -> Option<NetworkEvent> {
+        match event {
+            peer_score::Event::PeerBlocked {
+                peer_id,
+                last_reason: _,
+            } => Some(NetworkEvent::PeerBlocked(peer_id)),
+            _ => None,
+        }
+    }
+
+    fn handle_ping_event(&mut self, event: ping::Event) {
+        self.metrics.1.record(&event);
+
+        let ping::Event {
+            peer,
+            connection: _,
+            result,
+        } = event;
+
+        if let Err(err) = result {
+            // NOTE: the unsupported protocol is an error too
+            log::debug!("disconnect peer {peer} on failed ping: {err}");
+            let _res = self.swarm.disconnect_peer_id(peer);
+        }
+    }
+
+    fn handle_identify_event(&mut self, event: identify::Event) {
+        self.metrics.1.record(&event);
+
+        match event {
+            identify::Event::Received { peer_id, info, .. } => {
+                let behaviour = self.swarm.behaviour_mut();
+
+                // add listen addresses of new peers to KadDHT
+                // according to `identify` and `kad` protocols docs
+                for listen_addr in info.listen_addrs {
+                    if self.allow_non_global_addresses || listen_addr.is_global() {
+                        behaviour.kad.add_address(peer_id, listen_addr);
+                    }
+                }
+
+                // NOTE: it means we have to trust bootstrap peers about our external address
+                if self.bootstrap_peers.contains(&peer_id) {
+                    self.swarm.add_external_address(info.observed_addr);
+                }
+            }
+            identify::Event::Error { peer_id, error, .. } => {
+                // NOTE: identify protocol is best effort metadata,
+                // so we should not penalize the peer for the error
+                // TODO: we may want to take the error into account,
+                // so other protocols are less likely to communicate with the peer
+
+                log::debug!("{peer_id} is not identified: {error}");
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_kad_event(&mut self, event: kad::Event) {
+        match event {
+            kad::Event::InboundPutRecord {
+                source: _,
+                validator,
+            } => {
+                let behaviour = self.swarm.behaviour_mut();
+                validator.validate(&mut behaviour.kad, |record| {
+                    let kad::Record::ValidatorIdentity(record) = record;
+                    match behaviour.validator_discovery.verify_record(record) {
+                        Ok(Some(_identity)) => true,
+                        Ok(None) => false,
+                        Err(err) => {
+                            log::trace!("failed to verify inbound identity: {err:?}");
+                            false
+                        }
+                    }
+                });
+            }
+            kad::Event::RoutingUpdated { peer: _ }
+            | kad::Event::GetRecordStarted { query_id: _ }
+            | kad::Event::GetRecordProgressed { query_id: _ }
+            | kad::Event::GetRecordEarlyFinished { query_id: _ }
+            | kad::Event::GetRecordFinished { query_id: _ }
+            | kad::Event::PutRecordStarted { query_id: _ }
+            | kad::Event::PutRecordEarlyFinished { query_id: _ } => {}
+        }
+    }
+
+    fn handle_gossipsub_event(&mut self, event: gossipsub::Event) -> Option<NetworkEvent> {
+        match event {
+            gossipsub::Event::Message { source, validator } => {
+                let behaviour = self.swarm.behaviour_mut();
+                let gossipsub = &mut behaviour.gossipsub;
+
+                validator.validate(gossipsub, |message| match message {
+                    gossipsub::Message::Commitments(message) => {
+                        let message = message.into_verified();
+                        let (acceptance, message) = self
+                            .validator_topic
+                            .verify_validator_message(source, message);
+                        (acceptance, message.map(NetworkEvent::ValidatorMessage))
+                    }
+                    gossipsub::Message::Promise(compact_promise) => {
+                        // FIXME: previous era validators are ignored
+                        let (acceptance, promise) =
+                            self.validator_topic.verify_promise(source, compact_promise);
+                        (acceptance, promise.map(NetworkEvent::PromiseMessage))
+                    }
+                })
+            }
+            gossipsub::Event::PublishFailure {
+                error,
+                message,
+                topic,
+            } => {
+                log::warn!(
+                    "failed to publish gossip `{message:?}` message to {topic} topic: {error}"
+                );
+                None
+            }
+        }
+    }
+
+    fn handle_injected_event(&mut self, event: injected::Event) -> Option<NetworkEvent> {
+        if let injected::Event::InboundTransaction {
+            peer,
+            transaction: _,
+            channel: _,
+        } = &event
+        {
+            self.swarm.behaviour_mut().slots.report_peer_action(peer);
+        }
+
+        Some(NetworkEvent::InjectedTransaction(event))
+    }
+
+    fn handle_validator_discovery_event(
+        &mut self,
+        event: validator::discovery::Event,
+    ) -> Option<NetworkEvent> {
+        match event {
+            validator::discovery::Event::GetIdentitiesStarted => {}
+            validator::discovery::Event::IdentityUpdated { address } => {
+                return Some(NetworkEvent::ValidatorIdentityUpdated(address));
+            }
+            validator::discovery::Event::PutIdentityStarted => {}
+            validator::discovery::Event::PutIdentityTicksAtMax => {}
+        }
+
+        None
+    }
+
+    /// Returns the local libp2p peer ID.
     pub fn local_peer_id(&self) -> PeerId {
         *self.swarm.local_peer_id()
     }
 
-    pub fn score_handle(&self) -> peer_score::Handle {
+    /// Encode the libp2p metrics registry in Prometheus text format.
+    pub fn render_libp2p_metrics(&self, writer: &mut impl Write) {
+        let (registry, _metrics) = &self.metrics;
+        prometheus_client::encoding::text::encode_registry(writer, registry)
+            .expect("failed to encode metrics");
+    }
+
+    /// Handle used by internal tests to report peer misbehaviour.
+    #[cfg(test)]
+    fn score_handle(&self) -> peer_score::Handle {
         self.swarm.behaviour().peer_score.handle()
     }
 
-    pub fn publish_message(&mut self, data: Vec<u8>) {
-        if let Err(e) = self
-            .swarm
-            .behaviour_mut()
-            .gossipsub
-            .publish(commitments_topic(), data)
-        {
-            log::error!("gossipsub publishing failed: {e}")
-        }
+    /// Handle used by external services to start db-sync requests.
+    pub fn db_sync_handle(&self) -> db_sync::Handle {
+        self.swarm.behaviour().db_sync.handle()
     }
 
-    pub fn publish_offchain_transaction(&mut self, data: Vec<u8>) {
-        if let Err(e) = self
-            .swarm
+    /// Refresh validator-era state after the chain head changes.
+    ///
+    /// This updates both validator-message verification and validator
+    /// discovery so they use the latest validator snapshot.
+    pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
+        let snapshot = self.validator_list.set_chain_head(chain_head)?;
+
+        self.validator_topic.on_new_snapshot(snapshot.clone());
+        self.swarm
             .behaviour_mut()
-            .gossipsub
-            .publish(offchain_tx_topic(), data)
-        {
-            log::error!("gossipsub publishing failed: {e}")
-        }
+            .validator_discovery
+            .on_new_snapshot(snapshot);
+
+        Ok(())
     }
 
-    pub fn db_sync(&mut self) -> &mut db_sync::Behaviour {
-        &mut self.swarm.behaviour_mut().db_sync
+    /// Publish a validator-signed message to the validator gossipsub topic.
+    pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {
+        self.swarm.behaviour_mut().gossipsub.publish(data.into())
+    }
+
+    /// Send an injected transaction privately to the destination validator.
+    pub fn send_injected_transaction(
+        &mut self,
+        data: AddressedInjectedTransaction,
+    ) -> Result<(), injected::SendTransactionError> {
+        let behaviour = self.swarm.behaviour_mut();
+        behaviour
+            .injected
+            .send_transaction(behaviour.validator_discovery.identities(), data)
+    }
+
+    /// Publish a signed promise to the public promise gossipsub topic.
+    pub fn publish_promise(&mut self, compact_promise: SignedCompactPromise) {
+        self.swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(compact_promise)
     }
 }
 
@@ -507,12 +699,29 @@ impl NetworkService {
     }
 }
 
+struct BehaviourConfig<'a> {
+    router_address: Address,
+    keypair: identity::Keypair,
+    external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
+    db: Box<dyn DbSyncDatabase>,
+    transport_type: TransportType,
+    validator_key: Option<PublicKey>,
+    general_signer: Signer,
+    validator_list_snapshot: Arc<ValidatorListSnapshot>,
+    allow_non_global_addresses: bool,
+    max_chain_len_for_announces_response: NonZeroU32,
+    metrics: (
+        &'a mut libp2p::metrics::Registry,
+        Arc<libp2p::metrics::Metrics>,
+    ),
+}
+
 #[derive(NetworkBehaviour)]
 pub(crate) struct Behaviour {
-    // custom options to limit connections
-    pub custom_connection_limits: custom_connection_limits::Behaviour,
-    // limit connections
+    // hard caps
     pub connection_limits: connection_limits::Behaviour,
+    // peer amount manager
+    pub slots: slots::Behaviour,
     // peer scoring system
     pub peer_score: peer_score::Behaviour,
     // fast peer liveliness check
@@ -522,41 +731,48 @@ pub(crate) struct Behaviour {
     // local discovery for IPv4 only
     pub mdns4: Toggle<mdns::tokio::Behaviour>,
     // global traversal discovery
-    // TODO: consider to cache records in fs
-    pub kad: kad::Behaviour<kad::store::MemoryStore>,
+    pub kad: kad::Behaviour,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
     // database synchronization protocol
     pub db_sync: db_sync::Behaviour,
+    // injected transaction shenanigans
+    pub injected: injected::Behaviour,
+    // validator discovery
+    pub validator_discovery: validator::discovery::Behaviour,
 }
 
 impl Behaviour {
-    fn new(
-        keypair: &identity::Keypair,
-        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Database,
-        enable_mdns: bool,
-    ) -> anyhow::Result<Self> {
+    fn new(config: BehaviourConfig) -> anyhow::Result<Self> {
+        let BehaviourConfig {
+            router_address,
+            keypair,
+            external_data_provider,
+            db,
+            transport_type,
+            validator_key,
+            general_signer,
+            validator_list_snapshot,
+            allow_non_global_addresses,
+            max_chain_len_for_announces_response,
+            metrics: (registry, metrics),
+        } = config;
+
         let peer_id = keypair.public().to_peer_id();
 
-        // we use custom behaviour because
-        // `libp2p::connection_limits::Behaviour` limits inbound & outbound
-        // connections per peer in total, so protocols may fail to establish
-        // at least 1 inbound & 1 outbound connection in specific circumstances
-        // (for example, active VPN connection + communication with mDNS discovered peers)
-        let custom_connection_limits = custom_connection_limits::Limits::default()
-            .with_max_established_incoming_per_peer(Some(
-                MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS,
-            ))
-            .with_max_established_outbound_per_peer(Some(
-                MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS,
-            ));
-        let custom_connection_limits =
-            custom_connection_limits::Behaviour::new(custom_connection_limits);
-
         let connection_limits = connection_limits::ConnectionLimits::default()
-            .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS));
+            .with_max_established_per_peer(Some(MAX_ESTABLISHED_PER_PEER_CONNECTIONS))
+            .with_max_established_incoming(Some(MAX_ESTABLISHED_INCOMING_CONNECTIONS))
+            .with_max_established_outgoing(Some(MAX_ESTABLISHED_OUTGOING_CONNECTIONS))
+            .with_max_pending_incoming(Some(MAX_PENDING_INCOMING_CONNECTIONS))
+            .with_max_pending_outgoing(Some(MAX_PENDING_OUTGOING_CONNECTIONS));
         let connection_limits = connection_limits::Behaviour::new(connection_limits);
+
+        let slots_config = match transport_type {
+            TransportType::Default => slots::Config::default(),
+            TransportType::Test => slots::Config::default().with_backoff_period(Duration::ZERO),
+        };
+        let slots = slots::Behaviour::new(slots_config);
 
         let peer_score = peer_score::Behaviour::new(peer_score::Config::default());
         let peer_score_handle = peer_score.handle();
@@ -568,48 +784,52 @@ impl Behaviour {
         let identify = identify::Behaviour::new(identify_config);
 
         let mdns4 = Toggle::from(
-            enable_mdns
-                .then(|| mdns::Behaviour::new(mdns::Config::default(), peer_id))
-                .transpose()?,
+            match transport_type {
+                TransportType::Default => {
+                    Some(mdns::Behaviour::new(mdns::Config::default(), peer_id))
+                }
+                TransportType::Test => None,
+            }
+            .transpose()?,
         );
 
-        let mut kad = kad::Behaviour::new(peer_id, kad::store::MemoryStore::new(peer_id));
-        kad.set_mode(Some(kad::Mode::Server));
+        let kad = kad::Behaviour::new(peer_id, peer_score_handle.clone(), metrics.clone());
+        let kad_handle = kad.handle();
 
-        let gossip_config = gossipsub::ConfigBuilder::default()
-            // dedup messages
-            .message_id_fn(|msg| {
-                let mut hasher = DefaultHasher::new();
-                msg.data.hash(&mut hasher);
-                gossipsub::MessageId::from(hasher.finish().to_be_bytes())
-            })
-            .build()
-            .map_err(|e| anyhow!("`gossipsub::ConfigBuilder::build()` error: {e}"))?;
-        let mut gossipsub = gossipsub::Behaviour::new(
-            gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-            gossip_config,
+        let gossipsub = gossipsub::Behaviour::new(
+            keypair.clone(),
+            peer_score_handle.clone(),
+            router_address,
+            registry,
+            metrics.clone(),
         )
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
-        gossipsub
-            .with_peer_score(
-                gossipsub::PeerScoreParams::default(),
-                gossipsub::PeerScoreThresholds::default(),
-            )
-            .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
-
-        gossipsub.subscribe(&commitments_topic())?;
-        gossipsub.subscribe(&offchain_tx_topic())?;
 
         let db_sync = db_sync::Behaviour::new(
-            db_sync::Config::default(),
-            peer_score_handle,
+            db_sync::Config {
+                max_chain_len_for_announces_response,
+                ..Default::default()
+            },
+            peer_score_handle.clone(),
             external_data_provider,
             db,
         );
 
+        let injected = injected::Behaviour::new();
+
+        let validator_discovery = validator::discovery::Config {
+            kad: kad_handle,
+            keypair,
+            validator_key,
+            signer: general_signer,
+            snapshot: validator_list_snapshot,
+            allow_non_global_addresses,
+        };
+        let validator_discovery = validator::discovery::Behaviour::new(validator_discovery);
+
         Ok(Self {
-            custom_connection_limits,
             connection_limits,
+            slots,
             peer_score,
             ping,
             identify,
@@ -617,17 +837,10 @@ impl Behaviour {
             kad,
             gossipsub,
             db_sync,
+            injected,
+            validator_discovery,
         })
     }
-}
-
-fn commitments_topic() -> gossipsub::IdentTopic {
-    // TODO: use router address in topic name to avoid obsolete router
-    gossipsub::IdentTopic::new("ethexe-commitments")
-}
-
-fn offchain_tx_topic() -> gossipsub::IdentTopic {
-    gossipsub::IdentTopic::new("ethexe-tx-pool")
 }
 
 #[cfg(test)]
@@ -635,19 +848,24 @@ mod tests {
     use super::*;
     use crate::{
         db_sync::{ExternalDataProvider, tests::fill_data_provider},
-        utils::tests::init_logger,
+        utils::tests::{arb_value, init_logger},
     };
+    use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use ethexe_common::gear::CodeState;
-    use ethexe_db::MemDb;
-    use ethexe_signer::{FSKeyStorage, Signer};
+    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState};
+    use ethexe_db::Database;
     use gprimitives::{ActorId, CodeId, H256};
+    use gsigner::secp256k1::Signer;
+    use nonempty::nonempty;
     use std::{
         collections::{BTreeSet, HashMap},
+        future,
+        num::NonZeroU64,
         sync::Arc,
     };
     use tokio::{
         sync::RwLock,
+        time,
         time::{Duration, timeout},
     };
 
@@ -714,15 +932,70 @@ mod tests {
         }
     }
 
-    fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
-        let key_storage = FSKeyStorage::tmp();
-        let config = NetworkConfig::new_test(key_storage.path.clone().join("network"));
-        let signer = Signer::new(key_storage);
-        NetworkService::new(config.clone(), &signer, Box::new(data_provider), db).unwrap()
+    struct NetworkServiceBuilder {
+        db: Database,
+        data_provider: DataProvider,
+        latest_validators: ValidatorsVec,
+        signer: Signer,
+        validator_key: Option<PublicKey>,
+    }
+
+    impl NetworkServiceBuilder {
+        fn new() -> Self {
+            Self {
+                db: Database::memory(),
+                data_provider: DataProvider::default(),
+                latest_validators: nonempty![Address::default()].into(),
+                signer: Signer::memory(),
+                validator_key: None,
+            }
+        }
+
+        fn build(self) -> NetworkService {
+            const GENESIS_BLOCK_HEADER: BlockHeader = BlockHeader {
+                height: 0,
+                timestamp: 0,
+                parent_hash: H256::zero(),
+            };
+            const TIMELINES: ProtocolTimelines = ProtocolTimelines {
+                genesis_ts: GENESIS_BLOCK_HEADER.timestamp,
+                era: NonZeroU64::new(1).unwrap(),
+                election: 1,
+                slot: NonZeroU64::new(1).unwrap(),
+            };
+
+            let Self {
+                db,
+                data_provider,
+                latest_validators,
+                signer,
+                validator_key,
+            } = self;
+
+            db.set_config(DBConfig {
+                timelines: TIMELINES,
+                ..arb_value::<DBConfig>(())
+            });
+
+            let key = signer.generate().unwrap();
+            let config = NetworkConfig::new_test(key, Address::default());
+
+            let runtime_config = NetworkRuntimeConfig {
+                latest_block_header: GENESIS_BLOCK_HEADER,
+                latest_validators,
+                validator_key,
+                general_signer: signer.clone(),
+                network_signer: signer,
+                external_data_provider: Box::new(data_provider),
+                db,
+            };
+
+            NetworkService::new(config, runtime_config).unwrap()
+        }
     }
 
     fn new_service() -> NetworkService {
-        new_service_with(Database::memory(), DataProvider::default())
+        NetworkServiceBuilder::new().build()
     }
 
     #[tokio::test]
@@ -740,34 +1013,30 @@ mod tests {
         init_logger();
 
         let mut service1 = new_service();
+        let service1_handle = service1.db_sync_handle();
 
         // second service
-        let db = Database::from_one(&MemDb::default());
+        let service2 = NetworkServiceBuilder::new();
 
-        let hello = db.write_hash(b"hello");
-        let world = db.write_hash(b"world");
+        let hello = service2.db.cas().write(b"hello");
+        let world = service2.db.cas().write(b"world");
 
-        let mut service2 = new_service_with(db, Default::default());
+        let mut service2 = service2.build();
 
         service1.connect(&mut service2).await;
+        tokio::spawn(service1.loop_on_next());
         tokio::spawn(service2.loop_on_next());
 
-        let request_id = service1
-            .db_sync()
-            .request(db_sync::Request::hashes([hello, world]));
-
-        let event = timeout(Duration::from_secs(5), service1.next())
+        let request = service1_handle.request(db_sync::Request::hashes([hello, world]));
+        let response = timeout(Duration::from_secs(5), request)
             .await
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(
-            event,
-            NetworkEvent::DbResponse {
-                request_id,
-                result: Ok(db_sync::Response::Hashes(
-                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-                ))
-            }
+            response,
+            db_sync::Response::Hashes(
+                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+            )
         );
     }
 
@@ -785,43 +1054,88 @@ mod tests {
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
-        peer_score_handle.unsupported_protocol(service2_peer_id);
+        for _ in 0..u8::MAX {
+            peer_score_handle.invalid_data(service2_peer_id);
+        }
 
         let event = timeout(Duration::from_secs(5), service1.next())
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
+        assert_matches!(event, NetworkEvent::PeerBlocked(peer_id) if peer_id == service2_peer_id);
     }
 
     #[tokio::test]
     async fn external_data_provider() {
         init_logger();
 
-        let alice_data_provider = DataProvider::default();
-        let mut alice = new_service_with(Database::memory(), alice_data_provider.clone());
-        let bob_db = Database::memory();
-        let mut bob = new_service_with(bob_db.clone(), DataProvider::default());
+        let alice = NetworkServiceBuilder::new();
+        let alice_data_provider = alice.data_provider.clone();
+        let mut alice = alice.build();
+        let alice_handle = alice.db_sync_handle();
+
+        let bob = NetworkServiceBuilder::new();
+        let bob_db = bob.db.clone();
+        let mut bob = bob.build();
 
         alice.connect(&mut bob).await;
+        tokio::spawn(alice.loop_on_next());
         tokio::spawn(bob.loop_on_next());
 
         let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
 
-        let request_id = alice
-            .db_sync()
-            .request(db_sync::Request::program_ids(H256::zero(), 2));
-
-        let event = timeout(Duration::from_secs(5), alice.next())
+        let request = alice_handle.request(db_sync::Request::program_ids(H256::zero(), 2));
+        let response = timeout(Duration::from_secs(5), request)
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_eq!(
-            event,
-            NetworkEvent::DbResponse {
-                request_id,
-                result: Ok(expected_response)
+        assert_eq!(response, expected_response);
+    }
+
+    #[tokio::test]
+    async fn validator_discovery() {
+        init_logger();
+
+        let signer = Signer::memory();
+
+        let alice_key = signer.generate().unwrap();
+        let bob_key = signer.generate().unwrap();
+
+        let latest_validators: ValidatorsVec =
+            nonempty![alice_key.to_address(), bob_key.to_address()].into();
+
+        let mut alice = NetworkServiceBuilder::new();
+        alice.latest_validators = latest_validators.clone();
+        alice.signer = signer.clone();
+        alice.validator_key = Some(alice_key);
+        let mut alice = alice.build();
+
+        let mut bob = NetworkServiceBuilder::new();
+        bob.latest_validators = latest_validators;
+        bob.signer = signer.clone();
+        bob.validator_key = Some(bob_key);
+        let mut bob = bob.build();
+
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let wait_for_identity = future::poll_fn(|cx| {
+            let _poll = alice.poll_next_unpin(cx);
+
+            if let Some(identity) = alice
+                .swarm
+                .behaviour()
+                .validator_discovery
+                .get_identity(bob_key.to_address())
+            {
+                assert_eq!(identity.address(), bob_key.to_address());
+                Poll::Ready(())
+            } else {
+                Poll::Pending
             }
-        );
+        });
+        time::timeout(Duration::from_secs(10), wait_for_identity)
+            .await
+            .unwrap();
     }
 }

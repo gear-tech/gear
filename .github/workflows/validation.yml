@@ -2,14 +2,6 @@ name: Live check on Vara Network Validator machine
 
 on:
   workflow_dispatch:
-  workflow_call:
-    secrets:
-      VARA_VALIDATOR_8:
-        required: true
-      SSH_VARA_USERNAME:
-        required: true
-      VARA_SSH_PRIVATE_KEY:
-        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +17,7 @@ jobs:
       image_name: ${{ steps.image.outputs.image_name }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get branch
         id: branch
@@ -50,24 +42,24 @@ jobs:
     needs: prepare
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Log in to the github container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           file: ./docker/Dockerfile
           push: true
           tags: ${{ needs.prepare.outputs.image_name }}
 
       - name: SSH into VM
-        uses: appleboy/ssh-action@v1.2.2
+        uses: appleboy/ssh-action@v1.2.5
         env:
           NEW_IMAGE: ${{ needs.prepare.outputs.image_name }}
         with:

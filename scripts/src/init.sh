@@ -32,7 +32,7 @@ wasm_init() {
 cargo_init() {
   if [ -z $CI ] ; then
     cargo install cargo-hack
-    cargo install cargo-nextest
+    cargo install --locked cargo-nextest
   elif [ "$RUNNER_OS" = "Linux" ] && [[ "$(uname -m)" =~ ^(x86_64|amd64)$ ]]; then
     curl -L "https://github.com/taiki-e/cargo-hack/releases/latest/download/cargo-hack-x86_64-unknown-linux-gnu.tar.gz" |
     tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin

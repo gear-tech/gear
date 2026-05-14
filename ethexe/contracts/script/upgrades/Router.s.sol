@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+pragma solidity ^0.8.33;
 
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {Script} from "forge-std/Script.sol";
-import {IRouter} from "../../src/IRouter.sol";
-import {Router} from "../../src/Router.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import {IRouter} from "src/IRouter.sol";
+import {Router} from "src/Router.sol";
 
 contract RouterScript is Script {
     function setUp() public {}
@@ -16,8 +16,12 @@ contract RouterScript is Script {
 
         vm.startBroadcast(privateKey);
 
-        bytes memory data =
-            reinitialize ? abi.encodeCall(Router.reinitialize, () /*Router.reinitialize arguments*/ ) : new bytes(0);
+        bytes memory data = reinitialize
+            ? abi.encodeCall(
+                Router.reinitialize,
+                () /*Router.reinitialize arguments*/
+            )
+            : new bytes(0);
         Upgrades.upgradeProxy(routerAddress, "Router.sol", data);
 
         if (reinitialize) {

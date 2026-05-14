@@ -12,15 +12,7 @@ gstd.workspace = true
 hashbrown.workspace = true
 parity-scale-codec.workspace = true
 scale-info.workspace = true
-
-[dev-dependencies]
-gstd = { workspace = true, features = ["debug"] }
-gear-core.workspace = true
-tokio.workspace = true
-gclient.workspace = true
-futures.workspace = true
-rand.workspace = true
-statrs = "0.17"
+gear-workspace-hack.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

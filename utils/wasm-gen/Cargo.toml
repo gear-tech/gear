@@ -18,6 +18,7 @@ wasmparser.workspace = true
 thiserror.workspace = true
 indexmap = { workspace = true, features = ["std"] }
 nonempty.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 rand = { workspace = true, features = ["small_rng"] }

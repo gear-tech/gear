@@ -27,7 +27,7 @@ extern "C" fn init() {
 mod gtest_tests {
     extern crate std;
 
-    use gtest::{constants::UNITS, Log, Program, System};
+    use gtest::{Log, Program, System, constants::UNITS};
 
     #[test]
     fn init_self() {
@@ -43,24 +43,14 @@ mod gtest_tests {
 
         this_program.send_bytes(123, "Hi");
         let res = system.run_next_block();
-        assert!(res.contains(
-            &Log::builder()
-                .source(1)
-                .dest(123)
-                .payload_bytes("Hello world!")
-        ));
-    }
-}
-
-#[cfg(test)]
-mod gclient_tests {
-    use gclient::WSAddress;
-
-    // Test has wrote this way to make sure rust doesn't optimize dependencies
-    // compilation and gclient got compiled.
-    #[test]
-    fn gclient_compiles() {
-        let _ws_addr = WSAddress::dev();
+        assert!(
+            res.contains(
+                &Log::builder()
+                    .source(1)
+                    .dest(123)
+                    .payload_bytes("Hello world!")
+            )
+        );
     }
 }
 

@@ -135,7 +135,7 @@ impl ReplyMessage {
 
     /// Message payload bytes.
     pub fn payload_bytes(&self) -> &[u8] {
-        self.payload.inner()
+        &self.payload
     }
 
     /// Message optional gas limit.
@@ -245,7 +245,7 @@ impl ReplyPacket {
 
 impl Packet for ReplyPacket {
     fn payload_bytes(&self) -> &[u8] {
-        self.payload.inner()
+        &self.payload
     }
 
     fn payload_len(&self) -> u32 {

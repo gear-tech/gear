@@ -747,7 +747,6 @@ mod tests {
     use super::*;
     use crate::{
         module::{ConstExpr, Global, Instruction::*},
-        test_gas_counter_injection,
         tests::parse_wat,
     };
     use wasmparser::{BlockType, GlobalType};

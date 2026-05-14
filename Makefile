@@ -3,9 +3,7 @@
 ethexe-pre-commit: ethexe-contracts-pre-commit ethexe-pre-commit-no-contracts
 
 .PHONY: ethexe-pre-commit-no-contracts
-ethexe-pre-commit-no-contracts:
-	@ echo " > Formatting ethexe" && cargo fmt --all
-	@ echo " >> Clippy checking ethexe" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
+ethexe-pre-commit-no-contracts: fmt clippy-gear
 	@ echo " >>> Testing ethexe" && cargo nextest run -p "ethexe-*" --no-fail-fast
 
 # Building ethexe contracts
@@ -15,19 +13,27 @@ ethexe-contracts-pre-commit:
 	@ echo " > Formatting contracts" && forge fmt --root ethexe/contracts
 	@ echo " > Building contracts" && forge build --root ethexe/contracts
 	@ echo " > Testing contracts" && forge test --root ethexe/contracts -vvv
-	@ echo " > Copying Middleware artifact" && cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum
-	@ echo " > Copying Mirror artifact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum
-	@ echo " > Copying Router artifact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum
-	@ echo " > Copying TransparentUpgradeableProxy artifact" && cp ./ethexe/contracts/out/TransparentUpgradeableProxy.sol/TransparentUpgradeableProxy.json ./ethexe/ethereum
-	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum
+	@ echo " > Copying Middleware artifact" && cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum/abi
+	@ echo " > Copying POAMiddleware artifact" && cp ./ethexe/contracts/out/POAMiddleware.sol/POAMiddleware.json ./ethexe/ethereum/abi
+	@ echo " > Copying Mirror artifact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum/abi
+	@ echo " > Copying Router artifact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum/abi
+	@ echo " > Copying ERC1967Proxy artifact" && cp ./ethexe/contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json ./ethexe/ethereum/abi
+	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
+	@ echo " > Copying BatchMulticall" && cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi
+	@ echo " > Copying DemoCaller" && cp ./ethexe/contracts/out/DemoCaller.sol/DemoCaller.json ./ethexe/ethereum/abi
+	@ echo " > Copying Gear" && cp ./ethexe/contracts/out/Gear.sol/Gear.json ./ethexe/ethereum/abi
 
 # Common section
 .PHONY: show
 show:
 	@ ./scripts/gear.sh show
 
+.PHONY: workspace-hack
+workspace-hack:
+	@ cargo hakari generate && ./scripts/hakari-post-process.sh
+
 .PHONY: pre-commit # Here should be no release builds to keep checks fast.
-pre-commit: fmt typos clippy test check-runtime-imports
+pre-commit: fmt typos workspace-hack clippy test check-runtime-imports
 
 .PHONY: check-spec
 check-spec:
@@ -203,8 +209,7 @@ test-gear: # Crates are excluded to significantly decrease time.
 		--exclude gear-authorship \
 		--exclude pallet-gear-staking-rewards \
 		--exclude gear-wasm-gen \
-		--exclude demo-stack-allocations \
-		--exclude gring
+		--exclude demo-stack-allocations
 
 .PHONY: test-gear-release
 test-gear-release:
@@ -274,3 +279,7 @@ install:
 .PHONY: typos
 typos:
 	@ ./scripts/gear.sh test typos
+
+.PHONY: ethexe-remappings
+ethexe-remappings:
+	@ cd ethexe/contracts && forge remappings > remappings.txt && cd ../..

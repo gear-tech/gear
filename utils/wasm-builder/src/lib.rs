@@ -18,13 +18,14 @@
 
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use gear_wasm_optimizer::{self as optimize, CargoCommand};
 pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};
 
 use crate::wasm_project::WasmProject;
 use anyhow::Result;
+use gear_core::code::SyscallKind;
 use regex::Regex;
 use std::{env, path::PathBuf, process};
 
@@ -36,6 +37,14 @@ mod smart_fs;
 mod wasm_project;
 
 pub const TARGET: &str = env!("TARGET");
+
+/// Syscall kind for executing syscalls in Gear protocol (Vara).
+#[cfg(not(feature = "ethexe"))]
+pub(crate) const SYSCALL_KIND: SyscallKind = SyscallKind::Vara;
+
+/// Syscall kind for executing syscalls in Gear protocol (Vara.ETH).
+#[cfg(feature = "ethexe")]
+pub(crate) const SYSCALL_KIND: SyscallKind = SyscallKind::Eth;
 
 /// WASM building tool.
 pub struct WasmBuilder {
@@ -112,7 +121,7 @@ impl WasmBuilder {
     }
 
     fn build_project(mut self) -> Result<Option<(PathBuf, PathBuf)>> {
-        self.wasm_project.generate()?;
+        let crate_info = self.wasm_project.generate()?;
 
         self.cargo
             .set_manifest_path(self.wasm_project.manifest_path());
@@ -123,7 +132,7 @@ impl WasmBuilder {
         self.cargo.set_features(&self.enabled_features()?);
 
         self.cargo.run()?;
-        self.wasm_project.postprocess()
+        self.wasm_project.postprocess(crate_info)
     }
 
     fn manifest_path(&self) -> Result<String> {

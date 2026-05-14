@@ -37,7 +37,7 @@ mod utils;
 mod wasm;
 
 pub use config::*;
-pub use gear_wasm_instrument::syscalls::SyscallName;
+pub use gear_wasm_instrument::syscalls::{SyscallKind, SyscallName};
 pub use generator::*;
 pub use wasm::{MemoryLayout, WasmModule};
 pub use wasm_gen_arbitrary::*;

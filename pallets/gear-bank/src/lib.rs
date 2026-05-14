@@ -23,7 +23,7 @@
 
 extern crate alloc;
 
-pub mod migrations;
+pub mod migrations {}
 
 #[cfg(test)]
 mod mock;

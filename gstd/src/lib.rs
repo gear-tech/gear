@@ -139,7 +139,7 @@
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc(test(attr(deny(warnings), allow(unused_variables, unused_assignments))))]
 
 extern crate alloc;
@@ -156,6 +156,7 @@ pub mod exec;
 mod macros;
 pub mod msg;
 pub mod prelude;
+#[cfg(not(feature = "ethexe"))]
 pub mod prog;
 #[cfg(not(feature = "ethexe"))]
 mod reservations;
@@ -169,6 +170,8 @@ pub use gcore::{
     ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
     Ss58Address, Value, debug, static_mut, static_ref,
 };
+#[cfg(target_arch = "wasm32")]
+pub use gcore::{ctor, dtor};
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;
 

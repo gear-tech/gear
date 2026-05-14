@@ -3,3 +3,16 @@ GEAR_WORKSPACE_DIR = { value = "", relative = true }
 
 [alias]
 gbuild = "run -p cargo-gbuild --"
+
+[net]
+# Use the system `git` binary (OpenSSL/curl) instead of libgit2 for git fetches.
+# libgit2 has periodic SSL handshake failures (`SSL error: unknown error; class=Ssl (16)`)
+# against modern TLS servers — see issue #5346.
+git-fetch-with-cli = true
+# Increase HTTP retry budget for crates.io/git fetches (default is 3).
+retry = 5
+
+[registries]
+# crates.io registry to hack `substrate-wasm-builder` patch section
+# so runtimes do not use `gear-workspace-hack`
+crates-io-patch-hack = { index = "sparse+https://index.crates.io/" }

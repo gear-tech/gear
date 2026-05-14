@@ -17,25 +17,25 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{IWrappedVara, utils::*};
-use ethexe_common::events::WVaraEvent;
+use ethexe_common::events::wvara::*;
 use gprimitives::U256;
 
-impl From<IWrappedVara::Approval> for WVaraEvent {
-    fn from(value: IWrappedVara::Approval) -> Self {
-        Self::Approval {
-            owner: address_to_actor_id(value.owner),
-            spender: address_to_actor_id(value.spender),
-            value: U256(value.value.into_limbs()),
+impl From<IWrappedVara::Transfer> for TransferEvent {
+    fn from(value: IWrappedVara::Transfer) -> Self {
+        Self {
+            from: address_to_actor_id(value.from),
+            to: address_to_actor_id(value.to),
+            value: uint256_to_u128_lossy(value.value),
         }
     }
 }
 
-impl From<IWrappedVara::Transfer> for WVaraEvent {
-    fn from(value: IWrappedVara::Transfer) -> Self {
-        Self::Transfer {
-            from: address_to_actor_id(value.from),
-            to: address_to_actor_id(value.to),
-            value: uint256_to_u128_lossy(value.value),
+impl From<IWrappedVara::Approval> for ApprovalEvent {
+    fn from(value: IWrappedVara::Approval) -> Self {
+        Self {
+            owner: address_to_actor_id(value.owner),
+            spender: address_to_actor_id(value.spender),
+            value: U256(value.value.into_limbs()),
         }
     }
 }

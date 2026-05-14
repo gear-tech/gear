@@ -11,8 +11,11 @@ repository.workspace = true
 rust-version.workspace = true
 
 [build-dependencies]
-cc = { version = "1.0", optional = true }
+cc = { workspace = true, optional = true }
 
 [features]
 compile-alloca = ["cc"]
 stack-clash-protection = []
+
+[dependencies]
+gear-workspace-hack.workspace = true

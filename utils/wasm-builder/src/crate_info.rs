@@ -18,7 +18,7 @@
 
 use crate::{builder_error::BuilderError, multiple_crate_versions};
 use anyhow::{Context, Result, ensure};
-use cargo_metadata::{CrateType, Metadata, MetadataCommand, Package};
+use cargo_metadata::{CrateType, Dependency, Metadata, MetadataCommand, Package};
 use std::{collections::BTreeMap, path::Path};
 
 /// Helper to get a crate info extracted from the `Cargo.toml`.
@@ -30,6 +30,8 @@ pub struct CrateInfo {
     pub snake_case_name: String,
     /// Crate version.
     pub version: String,
+    /// Crate dependencies.
+    pub dependencies: Vec<Dependency>,
     /// Crate features.
     pub features: BTreeMap<String, Vec<String>>,
     /// Crate custom profiles
@@ -80,12 +82,14 @@ impl CrateInfo {
         let name = root_package.name.clone().into_inner();
         let snake_case_name = name.replace('-', "_");
         let version = root_package.version.to_string();
+        let dependencies = root_package.dependencies.clone();
         let features = root_package.features.clone();
 
         Ok(Self {
             name,
             snake_case_name,
             version,
+            dependencies,
             features,
             profiles,
             patch,
@@ -115,19 +119,11 @@ impl CrateInfo {
         let validated_lib = |ty: &CrateType| matches!(ty, CrateType::Lib | CrateType::RLib);
         let pkg_snake_case_name = pkg.name.replace('-', "_");
 
-        // Check for rustc version. See https://github.com/rust-lang/cargo/pull/12783
-        let compatible = rustc_version::version()?.lt(&rustc_version::Version::parse("1.79.0")?);
-
         let _ = pkg
             .targets
             .iter()
             .find(|target| {
-                if compatible {
-                    target.name.eq(&*pkg.name) && target.crate_types.iter().any(validated_lib)
-                } else {
-                    target.name.eq(&pkg_snake_case_name)
-                        && target.crate_types.iter().any(validated_lib)
-                }
+                target.name.eq(&pkg_snake_case_name) && target.crate_types.iter().any(validated_lib)
             })
             .ok_or(BuilderError::CrateTypeInvalid)?;
 

@@ -16,763 +16,549 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ComputeError, Result, utils};
+use crate::{ComputeError, ComputeEvent, Result, service::SubService};
 use ethexe_common::{
-    SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, OnChainStorageRead},
-    events::{BlockEvent, RouterEvent},
+    BlockData,
+    db::{
+        BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, GlobalsStorageRW, OnChainStorageRO,
+        OnChainStorageRW,
+    },
+    events::{
+        BlockEvent, RouterEvent,
+        router::{
+            AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
+            CodeValidationRequestedEvent, ValidatorsCommittedForEraEvent,
+        },
+    },
 };
+use ethexe_db::Database;
 use gprimitives::{CodeId, H256};
-use std::collections::{HashSet, VecDeque};
+use metrics::Gauge;
+use std::{
+    collections::{HashSet, VecDeque},
+    task::{Context, Poll},
+};
 
-#[derive(Debug)]
-pub(crate) struct PrepareInfo {
-    pub chain: VecDeque<SimpleBlockData>,
-    pub missing_codes: HashSet<CodeId>,
-    pub missing_validated_codes: HashSet<CodeId>,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Event {
+    BlockPrepared(H256),
+    RequestCodes(HashSet<CodeId>),
 }
 
-pub(crate) fn prepare<
-    DB: OnChainStorageRead + BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
->(
-    db: &DB,
-    head: H256,
-) -> Result<PrepareInfo> {
-    let chain = utils::collect_chain(db, head, |meta| !meta.prepared)?;
+impl From<Event> for ComputeEvent {
+    fn from(event: Event) -> Self {
+        match event {
+            Event::BlockPrepared(hash) => ComputeEvent::BlockPrepared(hash),
+            Event::RequestCodes(codes) => ComputeEvent::RequestLoadCodes(codes),
+        }
+    }
+}
 
+enum State {
+    Start,
+    WaitingForBlock,
+    WaitingForCodes {
+        codes: HashSet<CodeId>,
+        not_prepared_blocks_chain: VecDeque<BlockData>,
+    },
+}
+
+/// Metrics for the [`PrepareSubService`].
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute_prepare")]
+struct Metrics {
+    /// Number of codes waiting for loading to advance block processing
+    pub waiting_codes_count: Gauge,
+    /// Number of blocks in the queue for processing
+    pub blocks_queue_len: Gauge,
+}
+
+pub struct PrepareSubService {
+    db: Database,
+    state: State,
+    input: VecDeque<H256>,
+    metrics: Metrics,
+}
+
+impl PrepareSubService {
+    pub fn new(db: Database) -> Self {
+        Self {
+            db,
+            state: State::Start,
+            input: VecDeque::new(),
+            metrics: Metrics::default(),
+        }
+    }
+
+    pub fn receive_block_to_prepare(&mut self, block: H256) {
+        self.input.push_back(block);
+        self.metrics.blocks_queue_len.set(self.input.len() as f64);
+    }
+
+    pub fn receive_processed_code(&mut self, code_id: CodeId) {
+        if let State::WaitingForCodes { codes, .. } = &mut self.state
+            && codes.remove(&code_id)
+        {
+            self.metrics.waiting_codes_count.set(codes.len() as f64);
+        }
+    }
+}
+
+impl SubService for PrepareSubService {
+    type Output = Event;
+
+    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
+        if matches!(&self.state, State::WaitingForBlock | State::Start) {
+            // Use pop_back to prepare the most recent blocks first,
+            // this is the most efficient way of preparing blocks in case of multiple pending blocks.
+            let Some(block_hash) = self.input.pop_back() else {
+                return Poll::Pending;
+            };
+            self.metrics.blocks_queue_len.set(self.input.len() as f64);
+
+            if !self.db.block_synced(block_hash) {
+                return Poll::Ready(Err(ComputeError::BlockNotSynced(block_hash)));
+            }
+
+            let not_prepared_blocks_chain =
+                collect_not_prepared_blocks_chain(&self.db, block_hash)?;
+
+            if not_prepared_blocks_chain.is_empty() {
+                // Block is already prepared
+                return Poll::Ready(Ok(Event::BlockPrepared(block_hash)));
+            }
+
+            log::trace!("Collected a chain to prepare {not_prepared_blocks_chain:?}");
+
+            let MissingData {
+                codes,
+                validated_codes,
+            } = missing_data(
+                &self.db,
+                &not_prepared_blocks_chain,
+                matches!(&self.state, State::Start),
+            )?;
+
+            self.metrics
+                .waiting_codes_count
+                .set(validated_codes.len() as f64);
+
+            self.state = State::WaitingForCodes {
+                codes: validated_codes,
+                not_prepared_blocks_chain,
+            };
+
+            if !codes.is_empty() {
+                return Poll::Ready(Ok(Event::RequestCodes(codes)));
+            }
+        }
+
+        if let State::WaitingForCodes {
+            codes,
+            not_prepared_blocks_chain,
+        } = &mut self.state
+            && codes.is_empty()
+        {
+            log::trace!("All validated codes are processed, start to prepare blocks");
+
+            let head = not_prepared_blocks_chain
+                .back()
+                .unwrap_or_else(|| unreachable!("chain must be non-empty"))
+                .hash;
+
+            for block in std::mem::take(not_prepared_blocks_chain) {
+                prepare_one_block(&self.db, block)?;
+            }
+
+            self.state = State::WaitingForBlock;
+
+            return Poll::Ready(Ok(Event::BlockPrepared(head)));
+        }
+
+        Poll::Pending
+    }
+}
+
+/// Collects a chain of blocks that are not yet prepared, starting from `block_hash`
+/// and going backwards through parent hashes until a prepared block is found.
+/// Returns the collected blocks in a `VecDeque`, ordered from oldest to newest.
+fn collect_not_prepared_blocks_chain(
+    db: &Database,
+    mut block_hash: H256,
+) -> Result<VecDeque<BlockData>> {
+    let mut chain = VecDeque::new();
+
+    loop {
+        if db.block_meta(block_hash).prepared {
+            break;
+        }
+
+        let header = db
+            .block_header(block_hash)
+            .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
+        let events = db
+            .block_events(block_hash)
+            .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
+
+        chain.push_front(BlockData {
+            hash: block_hash,
+            header,
+            events,
+        });
+
+        block_hash = header.parent_hash;
+    }
+
+    Ok(chain)
+}
+
+#[derive(Debug)]
+struct MissingData {
+    codes: HashSet<CodeId>,
+    validated_codes: HashSet<CodeId>,
+}
+
+/// Collect codes that does not have validation status in the database from the given chain of blocks.
+/// If `is_start` is true, also consider codes requested in the parent block of the first block in the chain.
+/// Note: consider code as "missing" even if its original bytes are present in the database,
+/// but its validation status is not known. Blob-loader wouldn't load such codes, but would emit event
+/// that code is loaded and then processing would start.
+fn missing_data(db: &Database, chain: &VecDeque<BlockData>, is_start: bool) -> Result<MissingData> {
     let mut missing_codes = HashSet::new();
     let mut missing_validated_codes = HashSet::new();
 
-    for block in chain.iter() {
-        let events = db
-            .block_events(block.hash)
-            .ok_or(ComputeError::BlockEventsNotFound(block.hash))?;
-        let (block_missing_codes, block_missing_validated_codes) =
-            propagate_data_from_parent(db, block.hash, block.header.parent_hash, events.iter())?;
-        missing_codes.extend(block_missing_codes);
-        missing_validated_codes.extend(block_missing_validated_codes);
+    if is_start {
+        // If this is the first call for collecting missing data, then we must take into account codes,
+        // that were requested in the parent block, but does not loaded in previous node execution.
+
+        // Note: fast_sync does not recover codes queue for start block, because codes queue is propagated information.
+        // This is not a big problem, because if this node starts with fast_sync then it means,
+        // that there are another nodes in the network, which soon or later will commit codes validation status,
+        // and this node will be able to load missing codes from them.
+
+        let Some(parent_block_hash) = chain.front().map(|b| b.header.parent_hash) else {
+            // no blocks
+            return Ok(MissingData {
+                codes: missing_codes,
+                validated_codes: missing_validated_codes,
+            });
+        };
+
+        missing_codes.extend(
+            db.block_meta(parent_block_hash)
+                .codes_queue
+                .ok_or(ComputeError::BlockNotPrepared(parent_block_hash))?
+                .into_iter()
+                .filter(|code_id| db.code_valid(*code_id).is_none()),
+        );
     }
 
-    Ok(PrepareInfo {
-        chain,
-        missing_codes,
-        missing_validated_codes,
+    for block in chain {
+        for event in &block.events {
+            match event {
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent { code_id, .. },
+                )) if db.code_valid(*code_id).is_none() => {
+                    missing_codes.insert(*code_id);
+                }
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                    code_id,
+                    ..
+                })) if db.code_valid(*code_id).is_none() => {
+                    missing_validated_codes.insert(*code_id);
+                    missing_codes.insert(*code_id);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(MissingData {
+        codes: missing_codes,
+        validated_codes: missing_validated_codes,
     })
 }
 
-/// # Return
-/// (all missing codes, missing codes that have been already validated)
-fn propagate_data_from_parent<
-    'a,
-    DB: BlockMetaStorageRead + BlockMetaStorageWrite + CodesStorageRead,
->(
+fn prepare_one_block<DB: BlockMetaStorageRW + OnChainStorageRW + GlobalsStorageRW>(
     db: &DB,
-    block: H256,
-    parent: H256,
-    events: impl Iterator<Item = &'a BlockEvent>,
-) -> Result<(HashSet<CodeId>, HashSet<CodeId>)> {
-    let parent_meta = db.block_meta(parent);
-
-    let mut missing_codes = HashSet::new();
-    let mut missing_validated_codes = HashSet::new();
+    block: BlockData,
+) -> Result<()> {
+    let parent = block.header.parent_hash;
     let mut requested_codes = HashSet::new();
     let mut validated_codes = HashSet::new();
+
+    let parent_meta = db.block_meta(parent);
     let mut last_committed_batch = parent_meta
         .last_committed_batch
         .ok_or(ComputeError::LastCommittedBatchNotFound(parent))?;
-    let mut last_committed_head = parent_meta
-        .last_committed_head
-        .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?;
+    let mut codes_queue = parent_meta
+        .codes_queue
+        .ok_or(ComputeError::CodesQueueNotFound(parent))?;
+    let mut latest_validators_committed_era = parent_meta
+        .latest_era_validators_committed
+        .ok_or(ComputeError::CommittedEraNotFound(parent))?;
 
-    for event in events {
+    let mut last_committed_announce_hash = None;
+
+    for event in block.events {
         match event {
-            BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
-                last_committed_batch = *digest;
+            BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent { digest })) => {
+                last_committed_batch = digest;
             }
-            BlockEvent::Router(RouterEvent::HeadCommitted(head)) => {
-                last_committed_head = *head;
+            BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                CodeValidationRequestedEvent { code_id, .. },
+            )) => {
+                requested_codes.insert(code_id);
             }
-            BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
-                requested_codes.insert(*code_id);
-                if db.code_valid(*code_id).is_none() {
-                    missing_codes.insert(*code_id);
+            BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                code_id,
+                ..
+            })) => {
+                validated_codes.insert(code_id);
+            }
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
+                last_committed_announce_hash = Some(head);
+            }
+
+            BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(
+                ValidatorsCommittedForEraEvent { era_index },
+            )) => {
+                // TODO !!! kuzmindev: here must be `if era_index != latest_validators_committed_era + 1`
+                if era_index < latest_validators_committed_era {
+                    return Err(ComputeError::ValidatorsCommittedForEarlierEra {
+                        previous_commitment_era_index: latest_validators_committed_era,
+                        commitment_era_index: era_index,
+                    });
                 }
-            }
-            BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid }) => {
-                validated_codes.insert(*code_id);
-                match db.code_valid(*code_id) {
-                    None => {
-                        missing_validated_codes.insert(*code_id);
-                        missing_codes.insert(*code_id);
-                    }
-                    Some(local_status) if local_status != *valid => {
-                        return Err(ComputeError::CodeValidationStatusMismatch {
-                            code_id: *code_id,
-                            local_status,
-                            remote_status: *valid,
-                        });
-                    }
-                    _ => {}
-                }
+
+                latest_validators_committed_era = era_index;
             }
             _ => {}
         }
     }
 
-    db.mutate_block_meta(block, |meta| {
-        meta.last_committed_batch = Some(last_committed_batch);
-        meta.last_committed_head = Some(last_committed_head);
-    });
-
-    // Propagate `wait for code validation` blocks queue
-    let mut codes_queue = db
-        .block_codes_queue(parent)
-        .ok_or(ComputeError::CodesQueueNotFound(parent))?;
     codes_queue.retain(|code_id| !validated_codes.contains(code_id));
     codes_queue.extend(requested_codes);
-    db.set_block_codes_queue(block, codes_queue);
 
-    Ok((missing_codes, missing_validated_codes))
+    let last_committed_announce_hash =
+        if let Some(AnnouncesCommittedEvent(hash)) = last_committed_announce_hash {
+            hash
+        } else {
+            parent_meta
+                .last_committed_announce
+                .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
+        };
+
+    db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_batch = Some(last_committed_batch);
+        meta.codes_queue = Some(codes_queue);
+        meta.last_committed_announce = Some(last_committed_announce_hash);
+        meta.prepared = true;
+        meta.latest_era_validators_committed = Some(latest_validators_committed_era);
+    });
+
+    db.globals_mutate(|globals| {
+        globals.latest_prepared_block_hash = block.hash;
+    });
+
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{
-        Address, BlockHeader, Digest,
-        db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
-        events::BlockEvent,
-    };
-    use ethexe_db::Database as DB;
-    use gprimitives::{CodeId, H256};
-    use nonempty::nonempty;
-    use std::collections::VecDeque;
+    use ethexe_common::{Announce, Digest, HashOf, events::BlockEvent, mock::*};
+    use ethexe_db::Database;
+    use gear_core::ids::prelude::CodeIdExt;
+    use gprimitives::H256;
 
-    /// Tests propagate_data_from_parent with empty events list
     #[test]
-    fn test_propagate_data_from_parent_empty_events() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
+    fn test_prepare_one_block() {
+        gear_utils::init_default_logger();
 
-        // Set initial data for parent block
-        let initial_digest = Digest([42; 32]);
-        let initial_head = H256::from([43; 32]);
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(initial_digest);
-            meta.last_committed_head = Some(initial_head);
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
+        let db = Database::memory();
+        let chain = BlockChain::mock(1).setup(&db);
 
-        let events = Vec::<BlockEvent>::new();
+        let code1_id = CodeId::from([1u8; 32]);
+        let code2_id = CodeId::from([2u8; 32]);
+        let batch_committed = Digest::random();
 
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
+        let block1_announce_hash = HashOf::<Announce>::random();
 
-        assert!(result.0.is_empty()); // missing_codes
-        assert!(result.1.is_empty()); // missing_validated_codes
+        let block = chain.blocks[1].to_simple().next_block();
+        let block = BlockData {
+            hash: block.hash,
+            header: block.header,
+            events: vec![
+                BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
+                    digest: batch_committed,
+                })),
+                BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
+                    block1_announce_hash,
+                ))),
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                    code_id: code1_id,
+                    valid: true,
+                })),
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent {
+                        code_id: code2_id,
+                        timestamp: 1000,
+                        tx_hash: H256::random(),
+                    },
+                )),
+            ],
+        }
+        .setup(&db);
 
-        // Verify that data was propagated from parent
-        assert_eq!(
-            db.block_meta(block_hash).last_committed_batch,
-            Some(initial_digest)
-        );
-        assert_eq!(
-            db.block_meta(block_hash).last_committed_head,
-            Some(initial_head)
-        );
-        assert_eq!(db.block_codes_queue(block_hash), Some(VecDeque::new()));
+        prepare_one_block(&db, block.clone()).unwrap();
+
+        let meta = db.block_meta(block.hash);
+        assert!(meta.prepared);
+        assert_eq!(meta.codes_queue, Some(vec![code2_id].into()),);
+        assert_eq!(meta.last_committed_batch, Some(batch_committed),);
+        assert_eq!(meta.last_committed_announce, Some(block1_announce_hash));
     }
 
-    /// Tests propagate_data_from_parent with BatchCommitted event
-    #[test]
-    fn test_propagate_data_from_parent_batch_committed() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn test_prepare_no_codes() {
+        gear_utils::init_default_logger();
 
-        // Set initial data for parent block
-        let initial_digest = Digest([42; 32]);
-        let initial_head = H256::from([43; 32]);
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(initial_digest);
-            meta.last_committed_head = Some(initial_head);
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
+        let db = Database::memory();
+        let mut service = PrepareSubService::new(db.clone());
+        let chain = BlockChain::mock(1).setup(&db);
+        let block = chain.blocks[1].to_simple().next_block().setup(&db);
 
-        let new_digest = Digest([99; 32]);
-        let events = [BlockEvent::Router(
-            ethexe_common::events::RouterEvent::BatchCommitted { digest: new_digest },
-        )];
+        service.receive_block_to_prepare(block.hash);
 
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
-
-        assert!(result.0.is_empty());
-        assert!(result.1.is_empty());
-
-        // Verify that last_committed_batch was updated
         assert_eq!(
-            db.block_meta(block_hash).last_committed_batch,
-            Some(new_digest)
-        );
-        assert_eq!(
-            db.block_meta(block_hash).last_committed_head,
-            Some(initial_head)
+            service.next().await.unwrap(),
+            Event::BlockPrepared(block.hash),
         );
     }
 
-    /// Tests propagate_data_from_parent with CodeValidationRequested for existing code
-    #[test]
-    fn test_propagate_data_from_parent_code_validation_requested_existing() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
-        let code_id = CodeId::from([3; 32]);
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn test_prepare_with_codes() {
+        gear_utils::init_default_logger();
 
-        // Set initial data for parent block
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
+        let db = Database::memory();
+        let mut service = PrepareSubService::new(db.clone());
+        let chain = BlockChain::mock(1).setup(&db);
 
-        // Add code to DB as valid
-        db.set_code_valid(code_id, true);
+        let code1_id = CodeId::from([1u8; 32]);
+        let code2_id = CodeId::from([2u8; 32]);
 
-        let events = [BlockEvent::Router(
-            ethexe_common::events::RouterEvent::CodeValidationRequested {
-                code_id,
-                timestamp: 1000,
-                tx_hash: H256::from([4; 32]),
-            },
-        )];
+        let block = chain.blocks[1].to_simple().next_block();
+        let block = BlockData {
+            hash: block.hash,
+            header: block.header,
+            events: vec![
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                    code_id: code1_id,
+                    valid: true,
+                })),
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent {
+                        code_id: code2_id,
+                        timestamp: 1000,
+                        tx_hash: H256::random(),
+                    },
+                )),
+            ],
+        }
+        .setup(&db);
 
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
+        service.receive_block_to_prepare(block.hash);
+        assert_eq!(
+            service.next().await.unwrap(),
+            Event::RequestCodes([code1_id, code2_id].into())
+        );
 
-        assert!(result.0.is_empty()); // missing_codes - code exists in DB
-        assert!(result.1.is_empty()); // missing_validated_codes
-
-        // Verify that code was added to queue
-        let codes_queue = db.block_codes_queue(block_hash).unwrap();
-        assert!(codes_queue.contains(&code_id));
+        service.receive_processed_code(code1_id);
+        assert_eq!(
+            service.next().await.unwrap(),
+            Event::BlockPrepared(block.hash),
+        );
     }
 
-    /// Tests propagate_data_from_parent with CodeValidationRequested for missing code
-    #[test]
-    fn test_propagate_data_from_parent_code_validation_requested_missing() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
-        let code_id = CodeId::from([3; 32]);
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn test_sub_service_start_with_codes() {
+        gear_utils::init_default_logger();
 
-        // Set initial data for parent block
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
+        let db = Database::memory();
+        let mut service = PrepareSubService::new(db.clone());
 
-        let events = [BlockEvent::Router(
-            ethexe_common::events::RouterEvent::CodeValidationRequested {
-                code_id,
-                timestamp: 1000,
-                tx_hash: H256::from([4; 32]),
-            },
-        )];
+        let validated_code_id = CodeId::from([1u8; 32]);
+        let requested_code_id = CodeId::from([2u8; 32]);
+        let parent_block_code_id = CodeId::from([3u8; 32]);
 
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
+        let code = b"1234";
+        let parent_block_loaded_code_id = CodeId::generate(code);
 
-        assert!(result.0.contains(&code_id)); // missing_codes
-        assert!(result.1.is_empty()); // missing_validated_codes
+        let chain = BlockChain::mock(1)
+            .tap_mut(|chain| {
+                chain.blocks[1].as_prepared_mut().codes_queue =
+                    [parent_block_code_id, parent_block_loaded_code_id].into();
+                chain.codes.insert(
+                    parent_block_loaded_code_id,
+                    CodeData {
+                        original_bytes: code.to_vec(),
+                        blob_info: Default::default(),
+                        instrumented: None,
+                    },
+                );
+            })
+            .setup(&db);
 
-        // Verify that code was added to queue
-        let codes_queue = db.block_codes_queue(block_hash).unwrap();
-        assert!(codes_queue.contains(&code_id));
-    }
+        let block2 = chain.blocks[1].to_simple().next_block();
+        let block3 = block2.next_block();
 
-    /// Tests propagate_data_from_parent with CodeGotValidated for missing code
-    #[test]
-    fn test_propagate_data_from_parent_code_got_validated_missing() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
-        let code_id = CodeId::from([3; 32]);
-
-        // Set initial data for parent block
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
-
-        let events = [BlockEvent::Router(
-            ethexe_common::events::RouterEvent::CodeGotValidated {
-                code_id,
-                valid: true,
-            },
-        )];
-
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
-
-        assert!(result.0.contains(&code_id)); // missing_codes
-        assert!(result.1.contains(&code_id)); // missing_validated_codes
-    }
-
-    /// Tests propagate_data_from_parent with CodeGotValidated for existing code with matching status
-    #[test]
-    fn test_propagate_data_from_parent_code_got_validated_matching_status() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
-        let code_id = CodeId::from([3; 32]);
-
-        // Set initial data for parent block
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
-
-        // Add code to DB as valid
-        db.set_code_valid(code_id, true);
-
-        let events = [BlockEvent::Router(
-            ethexe_common::events::RouterEvent::CodeGotValidated {
-                code_id,
-                valid: true,
-            },
-        )];
-
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
-
-        assert!(result.0.is_empty()); // missing_codes
-        assert!(result.1.is_empty()); // missing_validated_codes
-    }
-
-    /// Tests propagate_data_from_parent with CodeGotValidated for existing code with mismatched status
-    #[test]
-    fn test_propagate_data_from_parent_code_got_validated_mismatched_status() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
-        let code_id = CodeId::from([3; 32]);
-
-        // Set initial data for parent block
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-
-        // Add code to DB as valid
-        db.set_code_valid(code_id, true);
-
-        let events = [BlockEvent::Router(
-            ethexe_common::events::RouterEvent::CodeGotValidated {
-                code_id,
-                valid: false, // mismatched status
-            },
-        )];
-
-        let result = propagate_data_from_parent(&db, block_hash, parent_hash, events.iter());
-
-        // Should return CodeValidationStatusMismatch error
-        assert!(matches!(
-            result,
-            Err(ComputeError::CodeValidationStatusMismatch {
-                code_id: err_code_id,
-                local_status: true,
-                remote_status: false,
-            }) if err_code_id == code_id
-        ));
-    }
-
-    /// Tests propagate_data_from_parent with other events (which are ignored)
-    #[test]
-    fn test_propagate_data_from_parent_other_events() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
-
-        // Set initial data for parent block
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
-
-        let events = vec![
-            BlockEvent::Router(
-                ethexe_common::events::RouterEvent::ComputationSettingsChanged {
-                    threshold: 100,
-                    wvara_per_second: 200,
+        BlockData {
+            hash: block2.hash,
+            header: block2.header,
+            events: vec![BlockEvent::Router(RouterEvent::CodeGotValidated(
+                CodeGotValidatedEvent {
+                    code_id: validated_code_id,
+                    valid: true,
                 },
-            ),
-            BlockEvent::Router(ethexe_common::events::RouterEvent::ProgramCreated {
-                actor_id: gprimitives::ActorId::from([5; 32]),
-                code_id: CodeId::from([6; 32]),
-            }),
-        ];
+            ))],
+        }
+        .setup(&db);
 
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
-
-        assert!(result.0.is_empty()); // missing_codes
-        assert!(result.1.is_empty()); // missing_validated_codes
-    }
-
-    /// Tests propagate_data_from_parent with combination of events
-    #[test]
-    fn test_propagate_data_from_parent_combined_events() {
-        let db = DB::memory();
-        let block_hash = H256::from([2; 32]);
-        let parent_hash = H256::from([1; 32]);
-        let code_id1 = CodeId::from([3; 32]);
-        let code_id2 = CodeId::from([4; 32]);
-        let code_id3 = CodeId::from([5; 32]);
-
-        // Set initial data for parent block
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
-
-        // Code2 already exists in DB
-        db.set_code_valid(code_id2, true);
-
-        let new_digest = Digest([99; 32]);
-        let events = vec![
-            BlockEvent::Router(ethexe_common::events::RouterEvent::BatchCommitted {
-                digest: new_digest,
-            }),
-            BlockEvent::Router(
-                ethexe_common::events::RouterEvent::CodeValidationRequested {
-                    code_id: code_id1,
+        BlockData {
+            hash: block3.hash,
+            header: block3.header,
+            events: vec![BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                CodeValidationRequestedEvent {
+                    code_id: requested_code_id,
                     timestamp: 1000,
-                    tx_hash: H256::from([7; 32]),
+                    tx_hash: H256::random(),
                 },
-            ),
-            BlockEvent::Router(
-                ethexe_common::events::RouterEvent::CodeValidationRequested {
-                    code_id: code_id2,
-                    timestamp: 1001,
-                    tx_hash: H256::from([8; 32]),
-                },
-            ),
-            BlockEvent::Router(ethexe_common::events::RouterEvent::CodeGotValidated {
-                code_id: code_id3,
-                valid: true,
-            }),
-        ];
+            ))],
+        }
+        .setup(&db);
 
-        let result =
-            propagate_data_from_parent(&db, block_hash, parent_hash, events.iter()).unwrap();
-
-        // code_id1 - missing (requested but not found)
-        // code_id3 - missing and validated (got validation but not found)
-        assert_eq!(result.0.len(), 2); // missing_codes: code_id1, code_id3
-        assert!(result.0.contains(&code_id1));
-        assert!(result.0.contains(&code_id3));
-        assert_eq!(result.1.len(), 1); // missing_validated_codes: code_id3
-        assert!(result.1.contains(&code_id3));
-
-        // Verify updates
+        service.receive_block_to_prepare(block3.hash);
         assert_eq!(
-            db.block_meta(block_hash).last_committed_batch,
-            Some(new_digest)
+            service.next().await.unwrap(),
+            Event::RequestCodes(
+                [
+                    parent_block_code_id,
+                    parent_block_loaded_code_id,
+                    validated_code_id,
+                    requested_code_id
+                ]
+                .into()
+            )
         );
 
-        let codes_queue = db.block_codes_queue(block_hash).unwrap();
-        assert!(codes_queue.contains(&code_id1));
-        assert!(codes_queue.contains(&code_id2));
-        assert!(!codes_queue.contains(&code_id3)); // this code was removed from queue
-    }
-
-    /// Tests prepare with empty chain of blocks
-    #[test]
-    fn test_prepare_empty_chain() {
-        let db = DB::memory();
-        let head = H256::from([10; 32]);
-
-        // Create block as already prepared
-        db.mutate_block_meta(head, |m| {
-            m.synced = true;
-            m.prepared = true; // block is already prepared
-        });
-
-        let result = prepare(&db, head).unwrap();
-
-        assert!(result.chain.is_empty());
-        assert!(result.missing_codes.is_empty());
-        assert!(result.missing_validated_codes.is_empty());
-    }
-
-    /// Tests prepare with single block without events
-    #[test]
-    fn test_prepare_single_block_no_events() {
-        let db = DB::memory();
-        let parent_hash = H256::from([1; 32]);
-        let head = H256::from([10; 32]);
-
-        // Set initial data for parent block (required for propagate_data_from_parent)
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
-
-        // Configure parent as prepared
-        db.mutate_block_meta(parent_hash, |m| {
-            m.synced = true;
-            m.prepared = true;
-        });
-
-        // Configure head as unprepared
-        db.mutate_block_meta(head, |m| m.synced = true);
-
-        let header = BlockHeader {
-            height: 1,
-            parent_hash,
-            timestamp: 2000,
-        };
-        db.set_block_header(head, header);
-
-        // Empty events
-        db.set_block_events(head, &[]);
-
-        let result = prepare(&db, head).unwrap();
-
-        assert_eq!(result.chain.len(), 1);
-        assert_eq!(result.chain[0].hash, head);
-        assert_eq!(result.chain[0].header, header);
-        assert!(result.missing_codes.is_empty());
-        assert!(result.missing_validated_codes.is_empty());
-    }
-
-    /// Tests prepare with single block with events
-    #[test]
-    fn test_prepare_single_block_with_events() {
-        let db = DB::memory();
-        let parent_hash = H256::from([1; 32]);
-        let head = H256::from([10; 32]);
-        let code_id = CodeId::from([20; 32]);
-
-        // Set initial data for parent block (required for propagate_data_from_parent)
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
-
-        // Configure parent as prepared
-        db.mutate_block_meta(parent_hash, |m| {
-            m.synced = true;
-            m.prepared = true;
-        });
-
-        // Configure head as unprepared
-        db.mutate_block_meta(head, |m| m.synced = true);
-
-        let header = BlockHeader {
-            height: 2,
-            parent_hash,
-            timestamp: 2000,
-        };
-        db.set_block_header(head, header);
-
-        // Events with code validation request
-        let events = vec![BlockEvent::Router(
-            ethexe_common::events::RouterEvent::CodeValidationRequested {
-                code_id,
-                timestamp: 1000,
-                tx_hash: H256::from([30; 32]),
-            },
-        )];
-        db.set_block_events(head, &events);
-
-        let result = prepare(&db, head).unwrap();
-
-        assert_eq!(result.chain.len(), 1);
-        assert_eq!(result.chain[0].hash, head);
-        assert!(result.missing_codes.contains(&code_id));
-        assert!(result.missing_validated_codes.is_empty());
-    }
-
-    /// Tests prepare with multiple blocks
-    #[test]
-    fn test_prepare_multiple_blocks() {
-        let db = DB::memory();
-        let grandparent_hash = H256::from([0; 32]);
-        let parent_hash = H256::from([1; 32]);
-        let head = H256::from([10; 32]);
-        let code_id1 = CodeId::from([20; 32]);
-        let code_id2 = CodeId::from([21; 32]);
-
-        // Set initial data for grandparent block
-        db.mutate_block_meta(grandparent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(grandparent_hash, VecDeque::new());
-        db.set_validators(parent_hash, nonempty![Address::from([0u8; 20])]);
-
-        // Configure grandparent as prepared
-        db.mutate_block_meta(grandparent_hash, |m| {
-            m.synced = true;
-            m.prepared = true;
-        });
-
-        // Configure parent as unprepared
-        db.mutate_block_meta(parent_hash, |m| m.synced = true);
-
-        // Configure head as unprepared
-        db.mutate_block_meta(head, |m| m.synced = true);
-
-        let parent_header = BlockHeader {
-            height: 1,
-            parent_hash: grandparent_hash,
-            timestamp: 1500,
-        };
-        db.set_block_header(parent_hash, parent_header);
-
-        let head_header = BlockHeader {
-            height: 2,
-            parent_hash,
-            timestamp: 2000,
-        };
-        db.set_block_header(head, head_header);
-
-        // Events for parent block
-        let parent_events = vec![BlockEvent::Router(
-            ethexe_common::events::RouterEvent::CodeValidationRequested {
-                code_id: code_id1,
-                timestamp: 1000,
-                tx_hash: H256::from([30; 32]),
-            },
-        )];
-        db.set_block_events(parent_hash, &parent_events);
-
-        // Events for head block
-        let head_events = vec![BlockEvent::Router(
-            ethexe_common::events::RouterEvent::CodeGotValidated {
-                code_id: code_id2,
-                valid: true,
-            },
-        )];
-        db.set_block_events(head, &head_events);
-
-        let result = prepare(&db, head).unwrap();
-
-        assert_eq!(result.chain.len(), 2);
-        // Blocks should be sorted from old to new
-        assert_eq!(result.chain[0].hash, parent_hash);
-        assert_eq!(result.chain[1].hash, head);
-
-        // Check missing codes from both blocks
-        assert!(result.missing_codes.contains(&code_id1)); // from parent
-        assert!(result.missing_codes.contains(&code_id2)); // from head
-        assert!(result.missing_validated_codes.contains(&code_id2)); // only from head
-    }
-
-    /// Tests prepare when block events are not found in DB
-    #[test]
-    fn test_prepare_missing_block_events() {
-        let db = DB::memory();
-        let parent_hash = H256::from([1; 32]);
-        let head = H256::from([10; 32]);
-
-        // Configure parent as prepared
-        db.mutate_block_meta(parent_hash, |m| {
-            m.synced = true;
-            m.prepared = true;
-        });
-
-        // Configure head as unprepared
-        db.mutate_block_meta(head, |m| m.synced = true);
-
-        let header = BlockHeader {
-            height: 1,
-            parent_hash,
-            timestamp: 2000,
-        };
-        db.set_block_header(head, header);
-
-        // DO NOT set events for block
-
-        let result = prepare(&db, head);
-
-        // Should return BlockEventsNotFound error
-        assert!(matches!(
-            result,
-            Err(ComputeError::BlockEventsNotFound(block_hash)) if block_hash == head
-        ));
-    }
-
-    /// Tests prepare with error from propagate_data_from_parent
-    #[test]
-    fn test_prepare_propagation_error() {
-        let db = DB::memory();
-        let parent_hash = H256::from([1; 32]);
-        let head = H256::from([10; 32]);
-        let code_id = CodeId::from([20; 32]);
-
-        // Set initial data for parent block (required for propagate_data_from_parent)
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.last_committed_batch = Some(Digest([42; 32]));
-            meta.last_committed_head = Some(H256::from([43; 32]));
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
-
-        // Configure parent as prepared
-        db.mutate_block_meta(parent_hash, |m| {
-            m.synced = true;
-            m.prepared = true;
-        });
-
-        // Configure head as unprepared
-        db.mutate_block_meta(head, |m| m.synced = true);
-
-        let header = BlockHeader {
-            height: 1,
-            parent_hash,
-            timestamp: 2000,
-        };
-        db.set_block_header(head, header);
-
-        // Add code to DB as valid
-        db.set_code_valid(code_id, true);
-
-        // Events with mismatched validation status
-        let events = [BlockEvent::Router(
-            ethexe_common::events::RouterEvent::CodeGotValidated {
-                code_id,
-                valid: false, // mismatched status
-            },
-        )];
-        db.set_block_events(head, &events);
-
-        let result = prepare(&db, head);
-
-        // Should return error from propagate_data_from_parent
-        assert!(matches!(
-            result,
-            Err(ComputeError::CodeValidationStatusMismatch { .. })
-        ));
+        service.receive_processed_code(validated_code_id);
+        assert_eq!(
+            service.next().await.unwrap(),
+            Event::BlockPrepared(block3.hash),
+        );
     }
 }

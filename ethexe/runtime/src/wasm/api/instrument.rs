@@ -18,7 +18,7 @@
 
 use alloc::vec::Vec;
 use gear_core::{
-    code::{Code, CodeError, CodeMetadata, InstrumentedCode},
+    code::{Code, CodeError, CodeMetadata, InstrumentedCode, SyscallKind},
     gas_metering::Schedule,
 };
 
@@ -40,6 +40,9 @@ pub fn instrument_code(original_code: Vec<u8>) -> Option<(InstrumentedCode, Code
         |module| schedule.rules(module),
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
+        schedule.limits.type_section_len.into(),
+        schedule.limits.parameters.into(),
+        SyscallKind::Eth,
     )
     .map_err(|e: CodeError| {
         log::debug!("Failed to validate or instrument code: {e:?}");

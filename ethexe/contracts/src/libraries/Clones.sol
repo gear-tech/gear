@@ -1,45 +1,75 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+pragma solidity ^0.8.33;
 
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 
+/**
+ * @dev ERC-1167 (Minimal Proxy Contract) is a standard for
+ *      deploying minimal proxy contracts, also known as "clones":
+ *      https://eips.ethereum.org/EIPS/eip-1167.
+ *
+ *      > To simply and cheaply clone contract functionality in an immutable way, this standard specifies
+ *      > a minimal bytecode implementation that delegates all calls to a known, fixed address.
+ *
+ *      The library includes functions to deploy a proxy using `create2` (salted deterministic deployment).
+ *
+ *      However, it's worth noting that this is custom ERC-1167 implementation. All this library does is deploy
+ *      `MirrorProxy` smart contract, see its code for details.
+ * @dev https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/proxy/Clones.sol
+ */
 library Clones {
+    /**
+     * @dev Deploys and returns the address of clone that has the `MirrorProxy` behavior.
+     */
     function cloneDeterministic(address router, bytes32 salt) internal returns (address instance) {
         return cloneDeterministic(router, salt, 0);
     }
 
+    /**
+     * @dev Same as `cloneDeterministic(address router, bytes32 salt)`, but with
+     * `value` parameter to send native currency to the new contract.
+     */
     function cloneDeterministic(address router, bytes32 salt, uint256 value) internal returns (address instance) {
-        uint256 size = 0x02c4;
+        /**
+         * @dev Size is taken from second column: `forge build --sizes | grep "| MirrorProxy "`.
+         */
+        uint256 size = 0x02fb;
         uint256 memPtr = Memory.allocate(size);
 
-        /// @dev This bytecode is taken from `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r ".bytecode.object"`
-        Memory.writeWord(memPtr, 0x0000, 0x6080806040526102b290816100128239f3fe608060405260043610610268575f);
-        Memory.writeWord(memPtr, 0x0020, 0x3560e01c806329336f391461009b5780632a68e35d1461009657806336a52a18);
-        Memory.writeWord(memPtr, 0x0040, 0x14610091578063701da98e1461008c578063704ed5421461008757806391d5a6);
-        Memory.writeWord(memPtr, 0x0060, 0x4c146100825780639ce110d71461007d578063affed0e0146100785763e43f34);
-        Memory.writeWord(memPtr, 0x0080, 0x330361026857610253565b610236565b61020e565b6101f8565b6101df565b61);
-        Memory.writeWord(memPtr, 0x00a0, 0x01c2565b61019b565b610150565b346100dc5760603660031901126100dc5760);
-        Memory.writeWord(memPtr, 0x00c0, 0x243567ffffffffffffffff81116100dc576100cc9036906004016100e0565b50);
-        Memory.writeWord(memPtr, 0x00e0, 0x506100d661010e565b50610268565b5f80fd5b9181601f840112156100dc5782);
-        Memory.writeWord(memPtr, 0x0100, 0x359167ffffffffffffffff83116100dc57602083818601950101116100dc5756);
-        Memory.writeWord(memPtr, 0x0120, 0x5b604435906001600160801b03821682036100dc57565b602435906001600160);
-        Memory.writeWord(memPtr, 0x0140, 0x801b03821682036100dc57565b600435906001600160801b03821682036100dc);
-        Memory.writeWord(memPtr, 0x0160, 0x57565b346100dc5760603660031901126100dc5760043567ffffffffffffffff);
-        Memory.writeWord(memPtr, 0x0180, 0x81116100dc576101819036906004016100e0565b505061018b610124565b5060);
-        Memory.writeWord(memPtr, 0x01a0, 0x443580151514610268575f80fd5b346100dc575f3660031901126100dc575f54);
-        Memory.writeWord(memPtr, 0x01c0, 0x6040516001600160a01b039091168152602090f35b346100dc575f3660031901);
-        Memory.writeWord(memPtr, 0x01e0, 0x126100dc576020600254604051908152f35b346100dc57602036600319011261);
-        Memory.writeWord(memPtr, 0x0200, 0x00dc576100d661013a565b346100dc57602036600319011215610268575f80fd);
-        Memory.writeWord(memPtr, 0x0220, 0x5b346100dc575f3660031901126100dc576001546040516001600160a01b0390);
-        Memory.writeWord(memPtr, 0x0240, 0x91168152602090f35b346100dc575f3660031901126100dc5760206003546040);
-        Memory.writeWord(memPtr, 0x0260, 0x51908152f35b346100dc575f36600319011215610268575f80fd5b63e6fabc09);
+        /**
+         * @dev This bytecode is taken from: `cat out/MirrorProxy.sol/MirrorProxy.json | jq -r ".bytecode.object"`
+         */
+        Memory.writeWord(memPtr, 0x0000, 0x6080806040526102e990816100128239f3fe60806040526004361061029f575f);
+        Memory.writeWord(memPtr, 0x0020, 0x3560e01c806336a52a18146100bb57806342129d00146100b65780635ce6c327);
+        Memory.writeWord(memPtr, 0x0040, 0x146100b1578063701da98e146100ac578063704ed542146100a75780637a8e0c);
+        Memory.writeWord(memPtr, 0x0060, 0xdd146100a257806391d5a64c1461009d5780639ce110d714610098578063affe);
+        Memory.writeWord(memPtr, 0x0080, 0xd0e014610093578063c60496921461008e5763e43f34330361029f5761028a56);
+        Memory.writeWord(memPtr, 0x00a0, 0x5b610260565b610243565b61021b565b610205565b6101d2565b6101b3565b61);
+        Memory.writeWord(memPtr, 0x00c0, 0x0178565b610156565b610119565b346100e7575f3660031901126100e7576002);
+        Memory.writeWord(memPtr, 0x00e0, 0x5460405160089190911c6001600160a01b03168152602090f35b5f80fd5b9181);
+        Memory.writeWord(memPtr, 0x0100, 0x601f840112156100e75782359167ffffffffffffffff83116100e75760208381);
+        Memory.writeWord(memPtr, 0x0120, 0x8601950101116100e757565b60403660031901126100e75760043567ffffffff);
+        Memory.writeWord(memPtr, 0x0140, 0xffffffff81116100e7576101459036906004016100eb565b5050602435801515);
+        Memory.writeWord(memPtr, 0x0160, 0x1461029f575f80fd5b346100e7575f3660031901126100e757602060ff600254);
+        Memory.writeWord(memPtr, 0x0180, 0x166040519015158152f35b346100e7575f3660031901126100e75760205f5460);
+        Memory.writeWord(memPtr, 0x01a0, 0x4051908152f35b600435906fffffffffffffffffffffffffffffffff82168203);
+        Memory.writeWord(memPtr, 0x01c0, 0x6100e757565b346100e75760203660031901126100e7576101cc610194565b50);
+        Memory.writeWord(memPtr, 0x01e0, 0x61029f565b60403660031901126100e75760243567ffffffffffffffff811161);
+        Memory.writeWord(memPtr, 0x0200, 0x00e7576101fe9036906004016100eb565b505061029f565b346100e757602036);
+        Memory.writeWord(memPtr, 0x0220, 0x60031901121561029f575f80fd5b346100e7575f3660031901126100e7576003);
+        Memory.writeWord(memPtr, 0x0240, 0x546040516001600160a01b039091168152602090f35b346100e7575f36600319);
+        Memory.writeWord(memPtr, 0x0260, 0x01126100e7576020600154604051908152f35b346100e75760a0366003190112);
+        Memory.writeWord(memPtr, 0x0280, 0x6100e757610279610194565b5060443560ff81161461029f575f80fd5b346100);
+        Memory.writeWord(memPtr, 0x02a0, 0xe7575f3660031901121561029f575f80fd5b63e6fabc0960e01b5f5260205f60);
+        /**
+         * @dev Write `Router` address into the deployed bytecode.
+         */
         Memory.writeWord(
             memPtr,
-            0x0280,
-            (0x60e01b5f5260205f600481730000000000000000000000000000000000000000) | (uint256(uint160(router)))
+            0x02c0,
+            (0x04817300000000000000000000000000000000000000005afa156100e7575f80) | (uint256(uint160(router)) << 72)
         );
-        Memory.writeWord(memPtr, 0x02a0, 0x5afa156100dc575f808051368280378136915af43d5f803e156102ae573d5ff3);
-        Memory.writeWord(memPtr, 0x02c0, 0x5b3d5ffd00000000000000000000000000000000000000000000000000000000);
+        Memory.writeWord(memPtr, 0x02e0, 0x8051368280378136915af43d5f803e156102e5573d5ff35b3d5ffd0000000000);
 
         assembly ("memory-safe") {
             instance := create2(value, memPtr, size, salt)

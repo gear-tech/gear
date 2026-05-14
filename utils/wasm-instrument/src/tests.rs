@@ -20,7 +20,7 @@ use crate::{
     GLOBAL_NAME_GAS, InstrumentationBuilder, InstrumentationError, Module, Rules,
     gas_metering::ConstantCostRules,
     module::{Function, Global, Instruction, Instruction::*, ModuleBuilder},
-    syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallName},
+    syscalls::{ParamType::*, Ptr, RegularParamType::*, SyscallKind, SyscallName},
 };
 use alloc::format;
 use wasmparser::{BlockType, FuncType, ValType};
@@ -534,7 +534,7 @@ test_gas_counter_injection! {
 
 #[test]
 fn check_memory_array_pointers_definition_correctness() {
-    for syscall in SyscallName::instrumentable() {
+    for syscall in SyscallName::instrumentable(SyscallKind::Vara) {
         let signature = syscall.signature();
         let size_param_indexes = signature
             .params()
@@ -559,7 +559,7 @@ fn check_memory_array_pointers_definition_correctness() {
 /// signatures has occurred.
 #[test]
 fn check_syscall_err_ptr_position() {
-    for syscall in SyscallName::instrumentable() {
+    for syscall in SyscallName::instrumentable(SyscallKind::Vara) {
         if syscall.is_fallible() {
             let signature = syscall.signature();
             let err_ptr = signature
@@ -568,5 +568,73 @@ fn check_syscall_err_ptr_position() {
                 .expect("fallible syscall has at least err ptr");
             assert!(matches!(err_ptr, Error(_)));
         }
+    }
+}
+
+#[test]
+fn ethexe_syscall_availability_matches_gsys_cfg_gates() {
+    let unavailable = [
+        SyscallName::CreateProgramWGas,
+        SyscallName::CreateProgram,
+        SyscallName::ReplyDeposit,
+        SyscallName::SignalCode,
+        SyscallName::Random,
+        SyscallName::ReplyCommitWGas,
+        SyscallName::SignalFrom,
+        SyscallName::ReplyInputWGas,
+        SyscallName::ReplyWGas,
+        SyscallName::ReservationReplyCommit,
+        SyscallName::ReservationReply,
+        SyscallName::ReservationSendCommit,
+        SyscallName::ReservationSend,
+        SyscallName::ReserveGas,
+        SyscallName::SendCommitWGas,
+        SyscallName::SendInputWGas,
+        SyscallName::SendWGas,
+        SyscallName::SystemReserveGas,
+        SyscallName::UnreserveGas,
+        SyscallName::Wait,
+    ];
+
+    for syscall in SyscallName::instrumentable(SyscallKind::Vara) {
+        assert!(syscall.is_vara());
+        assert_eq!(
+            syscall.is_eth(),
+            !unavailable.contains(&syscall),
+            "unexpected ethexe availability for {}",
+            syscall.to_str()
+        );
+    }
+
+    let eth_syscalls = SyscallName::instrumentable(SyscallKind::Eth).collect::<Vec<_>>();
+    assert_eq!(
+        eth_syscalls,
+        SyscallKind::Eth.instrumentable().collect::<Vec<_>>()
+    );
+    assert!(!eth_syscalls.is_empty());
+    assert!(eth_syscalls.iter().all(|syscall| syscall.is_vara()));
+    assert!(eth_syscalls.iter().all(|syscall| syscall.is_eth()));
+    assert!(
+        unavailable
+            .iter()
+            .all(|syscall| !eth_syscalls.contains(syscall))
+    );
+
+    let vara_map = SyscallName::instrumentable_map(SyscallKind::Vara);
+    let eth_map = SyscallName::instrumentable_map(SyscallKind::Eth);
+    assert_eq!(vara_map, SyscallKind::Vara.instrumentable_map());
+    assert_eq!(eth_map, SyscallKind::Eth.instrumentable_map());
+
+    assert_eq!(
+        vara_map.len(),
+        SyscallName::instrumentable(SyscallKind::Vara).count()
+    );
+    assert_eq!(
+        eth_map.len(),
+        SyscallName::instrumentable(SyscallKind::Eth).count()
+    );
+    for syscall in unavailable {
+        assert!(!eth_map.contains_key(syscall.to_str()));
+        assert_eq!(vara_map.get(syscall.to_str()), Some(&syscall));
     }
 }

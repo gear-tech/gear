@@ -16,12 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, ensure};
 use gear_core::{
     code::{Code, CodeError, ExportError, ImportError},
     gas_metering::Schedule,
 };
-use gear_wasm_instrument::{Export, ExternalKind, FuncType, Module, SyscallName, TypeRef, ValType};
+use gear_wasm_instrument::{
+    Export, ExternalKind, FuncType, Module, SyscallKind, SyscallName, TypeRef, ValType,
+};
 use std::fmt;
 use thiserror::Error;
 
@@ -206,10 +208,12 @@ pub enum ImportErrorWithContext {
     UnexpectedImportKind { kind: String, name: String },
 }
 
-impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
+impl TryFrom<(Module, ImportError, SyscallKind)> for ImportErrorWithContext {
     type Error = anyhow::Error;
 
-    fn try_from((module, import_error): (Module, ImportError)) -> Result<Self, Self::Error> {
+    fn try_from(
+        (module, import_error, syscall_kind): (Module, ImportError, SyscallKind),
+    ) -> Result<Self, Self::Error> {
         use ImportError::*;
 
         let idx = match import_error {
@@ -237,7 +241,7 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
                 name: import_name,
             },
             InvalidImportFnSignature(_) => {
-                let syscalls = SyscallName::instrumentable_map();
+                let syscalls = SyscallName::instrumentable_map(syscall_kind);
                 let Some(syscall) = syscalls.get(&import_name) else {
                     bail!("failed to get syscall by name");
                 };
@@ -265,6 +269,12 @@ impl TryFrom<(Module, ImportError)> for ImportErrorWithContext {
     }
 }
 
+#[derive(Debug)]
+pub enum CodeKind {
+    Original,
+    Instrumented,
+}
+
 #[derive(Error, Debug)]
 #[error("code check failed: ")]
 pub enum CodeErrorWithContext {
@@ -273,20 +283,32 @@ pub enum CodeErrorWithContext {
     #[error("Import error: {0}")]
     Import(#[from] ImportErrorWithContext),
     Code(#[from] CodeError),
+    #[error(
+        "Code exceeds the limit {limit} bytes specified in the current schedule, code kind: {kind:?}"
+    )]
+    CodeTooLarge {
+        limit: u32,
+        kind: CodeKind,
+    },
 }
 
 impl CodeErrorWithContext {
-    fn new(module: Module, error: CodeError) -> Result<Self, anyhow::Error> {
+    fn new(
+        module: Module,
+        error: CodeError,
+        syscall_kind: SyscallKind,
+    ) -> Result<Self, anyhow::Error> {
         use CodeError::*;
         match error {
             Validation(_) | Module(_) | Section(_) | Memory(_) | StackEnd(_) | DataSection(_)
-            | Instrumentation(_) => Ok(Self::Code(error)),
+            | TypeSection(_) | Instrumentation(_) => Ok(Self::Code(error)),
             Export(error) => {
                 let error_with_context: ExportErrorWithContext = (module, error).try_into()?;
                 Ok(Self::Export(error_with_context))
             }
             Import(error) => {
-                let error_with_context: ImportErrorWithContext = (module, error).try_into()?;
+                let error_with_context: ImportErrorWithContext =
+                    (module, error, syscall_kind).try_into()?;
                 Ok(Self::Import(error_with_context))
             }
         }
@@ -295,17 +317,49 @@ impl CodeErrorWithContext {
 
 /// Validates wasm code in the same way as
 /// `pallet_gear::pallet::Pallet::upload_program(...)`.
-pub fn validate_program(code: Vec<u8>) -> anyhow::Result<()> {
+pub fn validate_program(
+    code: Vec<u8>,
+    check_len: bool,
+    syscall_kind: SyscallKind,
+) -> anyhow::Result<()> {
     let module = Module::new(&code)?;
     let schedule = Schedule::default();
-    match Code::try_new(
+
+    if check_len {
+        ensure!(
+            (code.len() as u32) <= schedule.limits.code_len,
+            CodeErrorWithContext::CodeTooLarge {
+                limit: schedule.limits.code_len,
+                kind: CodeKind::Original
+            }
+        );
+    }
+
+    let code = Code::try_new(
         code,
         schedule.instruction_weights.version,
         |module| schedule.rules(module),
         schedule.limits.stack_height,
         schedule.limits.data_segments_amount.into(),
-    ) {
-        Ok(_) => Ok(()),
-        Err(code_error) => Err(CodeErrorWithContext::new(module, code_error)?)?,
+        schedule.limits.type_section_len.into(),
+        schedule.limits.parameters.into(),
+        syscall_kind,
+    );
+
+    match code {
+        Ok(code) => {
+            if check_len {
+                ensure!(
+                    (code.instrumented_code().bytes().len() as u32) <= schedule.limits.code_len,
+                    CodeErrorWithContext::CodeTooLarge {
+                        limit: schedule.limits.code_len,
+                        kind: CodeKind::Instrumented
+                    }
+                );
+            }
+
+            Ok(())
+        }
+        Err(code_error) => Err(CodeErrorWithContext::new(module, code_error, syscall_kind)?)?,
     }
 }

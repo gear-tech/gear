@@ -16,19 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Database, ProcessorError, Result};
 use core_processor::common::JournalNote;
-use ethexe_common::gear::Origin;
-use ethexe_runtime_common::{ProgramJournals, unpack_i64_to_u32};
-use gear_core::{
-    code::{CodeMetadata, InstrumentedCode},
-    ids::ActorId,
-};
+use ethexe_common::gear::MessageType;
+use ethexe_db::CASDatabase;
+use ethexe_runtime_common::{ProcessQueueContext, ProgramJournals, unpack_i64_to_u32};
+use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 use sp_allocator::{AllocationStats, FreeingBumpHeapAllocator};
 use sp_wasm_interface::{HostState, IntoValue, MemoryWrapper, StoreData};
 use std::sync::Arc;
+
+use crate::BoundPromiseSink;
 
 pub mod api;
 pub mod runtime;
@@ -36,6 +35,45 @@ pub mod runtime;
 mod context;
 mod threads;
 
+#[derive(thiserror::Error, Debug)]
+pub enum InstanceError {
+    #[error("failed to write call input: {0}")]
+    CallInputWrite(String),
+    #[error("host state should be set before call and reset after")]
+    HostStateNotSet,
+    #[error("couldn't find 'memory' export")]
+    MemoryExportNotFound,
+    #[error("'memory' export is not a wasm memory")]
+    InvalidMemory,
+    #[error("couldn't find `__indirect_function_table` export")]
+    IndirectFunctionTableNotFound,
+    #[error("`__indirect_function_table` is not table")]
+    InvalidIndirectFunctionTable,
+    #[error("couldn't find `__heap_base` export")]
+    HeapBaseNotFound,
+    #[error("`__heap_base` is not global")]
+    HeapBaseIsNotGlobal,
+    #[error("`__heap_base` is not i32")]
+    HeapBaseIsNotI32,
+    #[error("allocator should be set after `set_host_state`")]
+    AllocatorNotSet,
+    #[error("wasmtime error: {0}")]
+    Wasmtime(#[from] wasmtime::Error),
+    #[error("decoding runtime call output error: {0}")]
+    CallOutput(#[from] parity_scale_codec::Error),
+    #[error("sp allocator error: {0}")]
+    SpAllocator(#[from] sp_allocator::Error),
+}
+
+pub(super) type Result<T, E = InstanceError> = std::result::Result<T, E>;
+
+/// Returns wasm runtime bytes.
+///
+/// The returned runtime is able to perform some functions
+/// related to executing programs in the context of the gear protocol.
+/// These functions are:
+/// - `instrument_code` - instrument the code of the program.
+/// - `run` - execute messages of the program in the context of the gear protocol.
 pub fn runtime() -> Vec<u8> {
     let mut runtime = runtime::Runtime::new();
     runtime.add_start_section();
@@ -48,14 +86,19 @@ pub type Store = wasmtime::Store<StoreData>;
 pub(crate) struct InstanceCreator {
     engine: wasmtime::Engine,
     instance_pre: Arc<wasmtime::InstancePre<StoreData>>,
-
-    /// Current chain head hash.
-    ///
-    /// NOTE: must be preset each time processor start to process new chain head.
-    chain_head: Option<H256>,
 }
 
 impl InstanceCreator {
+    /// Instantiates a wasm runtime instance creator.
+    ///
+    /// A wasm runtime here is a runtime for executing wasm programs
+    /// in the context of the gear protocol programs execution.
+    /// That actually brings some requirements for the wasm module
+    /// instantiation, like linking expected host functions to use
+    /// lazy pages, allocator or have an access to database.
+    ///
+    /// A wasm runtime modules is expected to use some runtime interface,
+    /// which calls linked host functions.
     pub fn new(runtime: Vec<u8>) -> Result<Self> {
         let mut config = wasmtime::Config::new();
         let cache = wasmtime::Cache::new(wasmtime::CacheConfig::default())?;
@@ -70,6 +113,7 @@ impl InstanceCreator {
         api::lazy_pages::link(&mut linker)?;
         api::logging::link(&mut linker)?;
         api::sandbox::link(&mut linker)?;
+        api::promise::link(&mut linker)?;
 
         let instance_pre = linker.instantiate_pre(&module)?;
         let instance_pre = Arc::new(instance_pre);
@@ -77,7 +121,6 @@ impl InstanceCreator {
         Ok(Self {
             engine,
             instance_pre,
-            chain_head: None,
         })
     }
 
@@ -86,11 +129,7 @@ impl InstanceCreator {
 
         let instance = self.instance_pre.instantiate(&mut store)?;
 
-        let mut instance_wrapper = InstanceWrapper {
-            instance,
-            store,
-            chain_head: self.chain_head,
-        };
+        let mut instance_wrapper = InstanceWrapper { instance, store };
 
         let memory = instance_wrapper.memory()?;
         let table = instance_wrapper.table()?;
@@ -100,16 +139,11 @@ impl InstanceCreator {
 
         Ok(instance_wrapper)
     }
-
-    pub fn set_chain_head(&mut self, chain_head: H256) {
-        self.chain_head = Some(chain_head);
-    }
 }
 
 pub(crate) struct InstanceWrapper {
     instance: wasmtime::Instance,
     store: Store,
-    chain_head: Option<H256>,
 }
 
 impl InstanceWrapper {
@@ -122,6 +156,7 @@ impl InstanceWrapper {
         self.store.data_mut()
     }
 
+    /// Call to the exported `instrument_code` function of the wasm module.
     pub fn instrument(
         &mut self,
         original_code: impl AsRef<[u8]>,
@@ -129,35 +164,33 @@ impl InstanceWrapper {
         self.call("instrument_code", original_code)
     }
 
+    /// Call to the exported `run` function of the wasm module.
+    ///
+    /// The `run` function actually executed program's queue in accordance to
+    /// the gear protocol. The returned sequence of `JournalNote`s is later
+    /// processed out of the wasm module.
     pub fn run(
         &mut self,
-        db: Database,
-        program_id: ActorId,
-        state_hash: H256,
-        maybe_instrumented_code: Option<InstrumentedCode>,
-        maybe_code_metadata: Option<CodeMetadata>,
-        gas_allowance: u64,
+        db: Box<dyn CASDatabase>,
+        ctx: ProcessQueueContext,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<(ProgramJournals, H256, u64)> {
-        let chain_head = self.chain_head.expect("chain head must be set before run");
-        threads::set(db, chain_head, state_hash);
+        threads::set(db, ctx.state_root, promise_sink.clone());
 
-        let arg = (
-            program_id,
-            state_hash,
-            maybe_instrumented_code,
-            maybe_code_metadata,
-            gas_allowance,
-        );
+        // Cleanup the `promise_sink` from thread-local to signal receiver that channel is closed.
+        let _cleanup = scopeguard::guard((), |()| {
+            threads::clear_promise_sink();
+        });
 
         // Pieces of resulting journal. Hack to avoid single allocation limit.
-        let (ptr_lens, gas_spent): (Vec<i64>, i64) = self.call("run", arg.encode())?;
+        let (ptr_lens, gas_spent): (Vec<i64>, i64) = self.call("run", ctx.encode())?;
 
         let mut mega_journal = Vec::with_capacity(ptr_lens.len());
 
         for ptr_len in ptr_lens {
-            let journal_and_origin: (Vec<JournalNote>, Origin, bool) =
+            let journal_and_message_type: (Vec<JournalNote>, MessageType, bool) =
                 self.get_call_output(ptr_len)?;
-            mega_journal.push(journal_and_origin);
+            mega_journal.push(journal_and_message_type);
         }
 
         let new_state_hash = threads::with_params(|params| params.state_hash);
@@ -165,6 +198,7 @@ impl InstanceWrapper {
         Ok((mega_journal, new_state_hash, gas_spent as u64))
     }
 
+    /// Low-level call to exported from the wasm module `name` function.
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {
         self.with_host_state(|instance_wrapper| {
             let func = instance_wrapper
@@ -203,7 +237,7 @@ impl InstanceWrapper {
         })?;
 
         sp_wasm_interface::util::write_memory_from(&mut self.store, ptr, bytes)
-            .map_err(ProcessorError::CallInputWrite)?;
+            .map_err(InstanceError::CallInputWrite)?;
 
         let ptr = ptr.into_value().as_i32().expect("must be i32");
 
@@ -239,7 +273,7 @@ impl InstanceWrapper {
             .data_mut()
             .host_state
             .take()
-            .ok_or(ProcessorError::HostStateNotSet)?;
+            .ok_or(InstanceError::HostStateNotSet)?;
 
         Ok(host_state.allocation_stats())
     }
@@ -253,7 +287,7 @@ impl InstanceWrapper {
             .host_state
             .as_mut()
             .and_then(|s| s.allocator.take())
-            .ok_or(ProcessorError::AllocatorNotSet)?;
+            .ok_or(InstanceError::AllocatorNotSet)?;
 
         let res = f(self, &mut allocator);
 
@@ -270,12 +304,11 @@ impl InstanceWrapper {
         let memory_export = self
             .instance
             .get_export(&mut self.store, "memory")
-            .ok_or(ProcessorError::MemoryExportNotFound)?;
+            .ok_or(InstanceError::MemoryExportNotFound)?;
 
         let memory = memory_export
             .into_memory()
-            .ok_or(ProcessorError::InvalidMemory)?;
-
+            .ok_or(InstanceError::InvalidMemory)?;
         Ok(memory)
     }
 
@@ -283,12 +316,11 @@ impl InstanceWrapper {
         let table_export = self
             .instance
             .get_export(&mut self.store, "__indirect_function_table")
-            .ok_or(ProcessorError::IndirectFunctionTableNotFound)?;
+            .ok_or(InstanceError::IndirectFunctionTableNotFound)?;
 
         let table = table_export
             .into_table()
-            .ok_or(ProcessorError::InvalidIndirectFunctionTable)?;
-
+            .ok_or(InstanceError::InvalidIndirectFunctionTable)?;
         Ok(table)
     }
 
@@ -296,16 +328,15 @@ impl InstanceWrapper {
         let heap_base_export = self
             .instance
             .get_export(&mut self.store, "__heap_base")
-            .ok_or(ProcessorError::HeapBaseNotFound)?;
+            .ok_or(InstanceError::HeapBaseNotFound)?;
 
         let heap_base_global = heap_base_export
             .into_global()
-            .ok_or(ProcessorError::HeapBaseIsNotGlobal)?;
-
+            .ok_or(InstanceError::HeapBaseIsNotGlobal)?;
         let heap_base = heap_base_global
             .get(&mut self.store)
             .i32()
-            .ok_or(ProcessorError::HeapBaseIsNoti32)?;
+            .ok_or(InstanceError::HeapBaseIsNotI32)?;
 
         Ok(heap_base as u32)
     }

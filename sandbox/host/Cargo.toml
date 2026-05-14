@@ -28,6 +28,8 @@ sp-wasm-interface-common = { workspace = true, features = ["std"] }
 gear-sandbox-env = { workspace = true, features = ["std"] }
 region.workspace = true
 
+gear-workspace-hack.workspace = true
+
 [features]
 # See wasmi/extra-checks for more information.
 wasmi-extra-checks = ["wasmi/extra-checks"]

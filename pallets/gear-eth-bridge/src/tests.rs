@@ -1,26 +1,29 @@
 use crate::{
-    Config, EthMessage, WeightInfo,
-    internal::EthMessageExt,
+    Config, EthMessage, QueueId, QueueOverflowedSince, QueuesInfo, WeightInfo,
+    internal::{EthMessageExt, QueueInfo},
     mock::{mock_builtin_id as builtin_id, *},
+};
+use builtins_common::{
+    BuiltinActorError,
+    eth_bridge::{Request, Response},
 };
 use common::Origin as _;
 use frame_support::{
     Blake2_256, StorageHasher, assert_noop, assert_ok, assert_storage_noop, traits::Get,
 };
-use gbuiltin_eth_bridge::{Request, Response};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use pallet_gear::Event as GearEvent;
-use pallet_gear_builtin::BuiltinActorError;
 use pallet_grandpa::Event as GrandpaEvent;
 use pallet_session::Event as SessionEvent;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::{H160, H256};
-use sp_runtime::traits::{BadOrigin, Keccak256};
+use sp_keystore::{KeystoreExt, testing::MemoryKeystore};
+use sp_runtime::traits::{BadOrigin, Keccak256, UniqueSaturatedInto};
 use utils::*;
 
-const EPOCH_BLOCKS: u64 = EpochDuration::get();
-const ERA_BLOCKS: u64 = EPOCH_BLOCKS * SessionsPerEra::get() as u64;
-const WHEN_INITIALIZED: u64 = 42;
+const EPOCH_BLOCKS: u32 = EpochDuration::get() as u32;
+const ERA_BLOCKS: u32 = EPOCH_BLOCKS * SessionsPerEra::get();
+const WHEN_INITIALIZED: u32 = 42;
 
 type AuthoritySetHash = crate::AuthoritySetHash<Test>;
 type MessageNonce = crate::MessageNonce<Test>;
@@ -93,12 +96,22 @@ fn bridge_got_initialized() {
         do_events_assertion(5, 36, []);
 
         run_to_block(ERA_BLOCKS + 1);
+
+        let authority_set = era_validators_authority_set(6);
+        let authority_set_ids_concat = authority_set
+            .clone()
+            .into_iter()
+            .flat_map(|(public, _)| public.into_inner().0)
+            .collect::<Vec<u8>>();
+        let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
+
         do_events_assertion(
             6,
             37,
             [
                 SessionEvent::NewSession { session_index: 6 }.into(),
                 Event::BridgeInitialized.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
             ],
         );
         assert_eq!(QueueMerkleRoot::get(), Some(H256::zero()));
@@ -227,6 +240,9 @@ fn bridge_send_eth_message_works() {
 
         queue.push(hash);
 
+        let block_number = <frame_system::Pallet<Test>>::block_number().unique_saturated_into();
+        let queue_id = QueueId::<Test>::get();
+
         let (response, _, _) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
@@ -242,7 +258,15 @@ fn bridge_send_eth_message_works() {
 
         let response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
 
-        assert_eq!(response, Response::EthMessageQueued { nonce, hash });
+        assert_eq!(
+            response,
+            Response::EthMessageQueued {
+                block_number,
+                hash,
+                nonce,
+                queue_id
+            }
+        );
 
         System::assert_has_event(Event::MessageQueued { message, hash }.into());
 
@@ -278,7 +302,13 @@ fn bridge_queue_root_changes() {
 
         on_finalize_gear_block(WHEN_INITIALIZED);
 
-        System::assert_last_event(Event::QueueMerkleRootChanged(expected_root).into());
+        System::assert_last_event(
+            Event::QueueMerkleRootChanged {
+                queue_id: 0,
+                root: expected_root,
+            }
+            .into(),
+        );
         assert!(!QueueChanged::get());
 
         on_initialize(WHEN_INITIALIZED + 1);
@@ -297,19 +327,28 @@ fn bridge_updates_authorities_and_clears() {
         do_events_assertion(6, 37, None::<[_; 0]>);
 
         on_finalize_gear_block(ERA_BLOCKS + 1);
+
+        let authority_set = era_validators_authority_set(6);
+        let authority_set_ids_concat = authority_set
+            .clone()
+            .into_iter()
+            .flat_map(|(public, _)| public.into_inner().0)
+            .collect::<Vec<u8>>();
+        let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
+
         do_events_assertion(
             6,
             37,
-            [GrandpaEvent::NewAuthorities {
-                authority_set: era_validators_authority_set(6),
-            }
-            .into()],
+            [GrandpaEvent::NewAuthorities { authority_set }.into()],
         );
 
         on_initialize(ERA_BLOCKS + 2);
         do_events_assertion(6, 38, []);
 
-        assert!(!AuthoritySetHash::exists());
+        assert_eq!(
+            AuthoritySetHash::get().expect("infallible"),
+            authority_set_hash
+        );
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
@@ -326,7 +365,7 @@ fn bridge_updates_authorities_and_clears() {
         assert_eq!(System::events().len(), 7);
         assert!(matches!(
             System::events().last().expect("infallible").event,
-            RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged(_))
+            RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged { .. })
         ));
         assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
 
@@ -357,23 +396,23 @@ fn bridge_updates_authorities_and_clears() {
         do_events_assertion(
             11,
             67,
-            [
-                SessionEvent::NewSession { session_index: 11 }.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
-            ],
+            [SessionEvent::NewSession { session_index: 11 }.into()],
         );
+        assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
+
+        run_to_block(ERA_BLOCKS * 2 + 1);
 
         assert_eq!(
             AuthoritySetHash::get().expect("infallible"),
             authority_set_hash
         );
-        assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
-
-        run_to_block(ERA_BLOCKS * 2 + 1);
         do_events_assertion(
             12,
             73,
-            [SessionEvent::NewSession { session_index: 12 }.into()],
+            [
+                SessionEvent::NewSession { session_index: 12 }.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+            ],
         );
 
         on_finalize_gear_block(ERA_BLOCKS * 2 + 1);
@@ -382,9 +421,8 @@ fn bridge_updates_authorities_and_clears() {
         System::reset_events();
 
         on_initialize(ERA_BLOCKS * 2 + 2);
-        do_events_assertion(12, 74, [Event::BridgeCleared.into()]);
+        do_events_assertion(12, 74, [Event::QueueReset.into()]);
 
-        assert!(!AuthoritySetHash::exists());
         assert!(QueueMerkleRoot::get().expect("infallible").is_zero());
 
         run_to_block(ERA_BLOCKS * 2 + EPOCH_BLOCKS * 5);
@@ -411,10 +449,7 @@ fn bridge_updates_authorities_and_clears() {
         do_events_assertion(
             17,
             103,
-            [
-                SessionEvent::NewSession { session_index: 17 }.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
-            ],
+            [SessionEvent::NewSession { session_index: 17 }.into()],
         );
 
         run_to_block(ERA_BLOCKS * 3 + 1);
@@ -424,12 +459,13 @@ fn bridge_updates_authorities_and_clears() {
             109,
             [
                 SessionEvent::NewSession { session_index: 18 }.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
                 GrandpaEvent::NewAuthorities { authority_set }.into(),
             ],
         );
 
         on_initialize(ERA_BLOCKS * 3 + 2);
-        do_events_assertion(18, 110, [Event::BridgeCleared.into()]);
+        do_events_assertion(18, 110, [Event::QueueReset.into()]);
     })
 }
 
@@ -478,7 +514,18 @@ fn bridge_queues_governance_messages_when_over_capacity() {
             0,
         );
 
-        assert_eq!(Queue::get().len(), msg_queue_len + 2);
+        // Queue wasn't reset yet.
+        assert!(QueuesInfo::<Test>::get(1).is_none());
+
+        let Some(QueueInfo::NonEmpty {
+            latest_nonce_used, ..
+        }) = QueuesInfo::<Test>::get(0)
+        else {
+            panic!("empty queue info for current id");
+        };
+
+        // Expected len is `msg_queue_len + 2`, so latest nonce (idx) used is -1.
+        assert_eq!(latest_nonce_used.as_usize(), msg_queue_len + 2 - 1);
     })
 }
 
@@ -536,10 +583,10 @@ fn bridge_max_payload_size_exceeded_err() {
 }
 
 #[test]
-fn bridge_queue_capacity_exceeded_err() {
+fn bridge_queue_capacity_exceeded_and_reset() {
     init_logger();
     new_test_ext().execute_with(|| {
-        const ERR: Error = Error::QueueCapacityExceeded;
+        const ERR: Error = Error::BridgeCleanupRequired;
 
         run_to_block(WHEN_INITIALIZED);
 
@@ -551,7 +598,16 @@ fn bridge_queue_capacity_exceeded_err() {
                 H160::zero(),
                 vec![]
             ));
+
+            // Due to not yet overflowed until the end of block.
+            assert_noop!(
+                GearEthBridge::reset_overflowed_queue(RuntimeOrigin::signed(SIGNER), vec![42]),
+                Error::InvalidQueueReset
+            );
         }
+
+        let block_number = <frame_system::Pallet<Test>>::block_number();
+        assert!(QueueOverflowedSince::<Test>::get().is_none());
 
         run_block_and_assert_messaging_error(
             Request::SendEthMessage {
@@ -560,6 +616,47 @@ fn bridge_queue_capacity_exceeded_err() {
             },
             ERR,
         );
+
+        System::assert_has_event(Event::QueueOverflowed.into());
+
+        assert_eq!(QueueOverflowedSince::<Test>::get(), Some(block_number));
+
+        // Due to wrong "finality proof".
+        assert_noop!(
+            GearEthBridge::reset_overflowed_queue(RuntimeOrigin::signed(SIGNER), vec![]),
+            Error::InvalidQueueReset
+        );
+
+        assert_eq!(QueueId::<Test>::get(), 0);
+
+        assert_ok!(GearEthBridge::reset_overflowed_queue(
+            RuntimeOrigin::signed(SIGNER),
+            vec![42]
+        ));
+        System::assert_last_event(Event::QueueReset.into());
+        assert!(QueueOverflowedSince::<Test>::get().is_none());
+
+        // Due to already reset => not overflowed.
+        assert_noop!(
+            GearEthBridge::reset_overflowed_queue(RuntimeOrigin::signed(SIGNER), vec![42]),
+            Error::InvalidQueueReset
+        );
+
+        assert_eq!(Queue::get().len(), 0);
+
+        let Some(QueueInfo::NonEmpty {
+            latest_nonce_used, ..
+        }) = QueuesInfo::<Test>::get(0)
+        else {
+            panic!("empty queue info for past id");
+        };
+
+        assert_eq!(QueueId::<Test>::get(), 1);
+
+        let capacity: u32 = <Test as crate::Config>::QueueCapacity::get();
+
+        // Expected len is eq `QueueCapacity`, so latest nonce (idx) used is -1.
+        assert_eq!(latest_nonce_used.as_usize(), capacity as usize - 1);
     })
 }
 
@@ -784,7 +881,7 @@ mod utils {
     #[track_caller]
     pub(crate) fn do_events_assertion<const N: usize>(
         session: u32,
-        block_number: u64,
+        block_number: u32,
         events: impl Into<Option<[RuntimeEvent; N]>>,
     ) {
         assert_eq!(Session::current_index(), session);
@@ -832,4 +929,242 @@ mod utils {
             spent
         }
     }
+}
+
+#[test]
+fn rotate_keys() {
+    init_logger();
+
+    let mut test_ext = new_test_ext();
+
+    let keystore = MemoryKeystore::new();
+    test_ext.register_extension(KeystoreExt::new(keystore));
+
+    test_ext.execute_with(|| {
+        run_to_block(1);
+        do_events_assertion(0, 1, []);
+        assert!(!Initialized::get());
+        assert!(!QueueMerkleRoot::exists());
+        assert!(Paused::get());
+        assert_eq!(Grandpa::current_set_id(), 0);
+
+        run_to_block(EPOCH_BLOCKS);
+        do_events_assertion(0, 6, []);
+
+        run_to_block(EPOCH_BLOCKS + 1);
+        do_events_assertion(1, 7, [SessionEvent::NewSession { session_index: 1 }.into()]);
+
+        let validators = era_validators(1, false);
+        // emulate the situation if a validator rotates its keys (i.e. calls "author_rotateKeys" on
+        // its node and then sends extrinsic pallet_session::setKeys).
+        //
+        // "author_rotateKeys" implementation calls "runtime_api.generate_session_keys" -
+        // https://github.com/gear-tech/polkadot-sdk/blob/e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e/substrate/client/rpc/src/author/mod.rs#L120
+        // Is is an implementation of sp_session::SessionKeys for a runtime and calls
+        // "SessionKeys::generate" - https://github.com/gear-tech/gear/blob/e6efd13ecc390e0e3a71e9160c4069b391b03c8f/runtime/common/src/apis.rs#L92
+        //
+        // To the sum "SessionKeys::generate" expands to the following -
+        // https://github.com/gear-tech/polkadot-sdk/blob/e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e/substrate/primitives/runtime/src/traits.rs#L2039
+        let session_keys_new = SessionKeys {
+            grandpa: <<Grandpa as sp_runtime::BoundToRuntimeAppPublic>::Public as sp_runtime::RuntimeAppPublic>::generate_pair(Some(b"//new_validator_keys".into())),
+        };
+
+        // validator changes its keys
+        assert_ok!(Session::set_keys(
+            RuntimeOrigin::signed(validators[0]),
+            session_keys_new.clone(),
+            vec![],
+        ));
+
+        // session doesn't end
+        run_to_block(EPOCH_BLOCKS * 2);
+        do_events_assertion(1, 12, []);
+
+        // sessions ends. "Changed" validator set will be used on the next rotation of the session.
+        run_to_block(EPOCH_BLOCKS * 2 + 1);
+        do_events_assertion(
+            2,
+            13,
+            [SessionEvent::NewSession { session_index: 2 }.into()],
+        );
+
+        // session doesn't end
+        run_to_block(EPOCH_BLOCKS * 3);
+        do_events_assertion(2, 18, []);
+
+        // session ends. We have changed validators because of the changed session keys.
+        // That triggers bridge initialization and grandpa::NewAuthorities logic.
+        run_to_block(EPOCH_BLOCKS * 3 + 1);
+
+        assert_eq!(Grandpa::current_set_id(), 1);
+
+        // the first validator changed its keys
+        let authority_set = era_validators_authority_set(3);
+        let authority_set = [(session_keys_new.grandpa, 1)]
+            .into_iter()
+            .chain(authority_set.clone().into_iter().skip(1))
+            .collect::<Vec<_>>();
+        let authority_set_ids_concat = authority_set
+            .clone()
+            .into_iter()
+            .flat_map(|(public, _)| public.into_inner().0)
+            .collect::<Vec<u8>>();
+        let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
+
+        do_events_assertion(
+            3,
+            19,
+            [
+                SessionEvent::NewSession { session_index: 3 }.into(),
+                Event::BridgeInitialized.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+            ],
+        );
+        assert_eq!(QueueMerkleRoot::get(), Some(H256::zero()));
+        assert!(Initialized::get());
+        assert!(Paused::get());
+
+        on_finalize_gear_block(EPOCH_BLOCKS * 3 + 1);
+        do_events_assertion(
+            3,
+            19,
+            [GrandpaEvent::NewAuthorities { authority_set }.into()],
+        );
+
+        // no changes on the next sessions
+        run_to_block(EPOCH_BLOCKS * 4);
+        do_events_assertion(3, 24, []);
+
+        run_to_block(EPOCH_BLOCKS * 4 + 1);
+        do_events_assertion(
+            4,
+            25,
+            [SessionEvent::NewSession { session_index: 4 }.into()],
+        );
+
+        run_to_block(EPOCH_BLOCKS * 5);
+        do_events_assertion(4, 30, []);
+
+        run_to_block(EPOCH_BLOCKS * 5 + 1);
+        do_events_assertion(
+            5,
+            31,
+            [SessionEvent::NewSession { session_index: 5 }.into()],
+        );
+
+        run_to_block(ERA_BLOCKS);
+        do_events_assertion(5, 36, []);
+
+        run_to_block(ERA_BLOCKS + 1);
+
+        assert_eq!(Grandpa::current_set_id(), 2);
+
+        // authority set is changed on the era end
+        let authority_set = era_validators_authority_set(6);
+        let authority_set_ids_concat = authority_set
+            .clone()
+            .into_iter()
+            .flat_map(|(public, _)| public.into_inner().0)
+            .collect::<Vec<u8>>();
+        let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
+
+        do_events_assertion(
+            6,
+            37,
+            [
+                SessionEvent::NewSession { session_index: 6 }.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+            ],
+        );
+
+        on_finalize_gear_block(ERA_BLOCKS + 1);
+        do_events_assertion(
+            6,
+            37,
+            [GrandpaEvent::NewAuthorities {
+                authority_set,
+            }
+            .into()],
+        );
+
+        run_to_block(ERA_BLOCKS + 2);
+        do_events_assertion(
+            6,
+            38,
+            [Event::QueueReset.into()],
+        );
+
+        System::reset_events();
+
+        let validators = era_validators(6, false);
+        let session_keys_new = SessionKeys {
+            grandpa: <<Grandpa as sp_runtime::BoundToRuntimeAppPublic>::Public as sp_runtime::RuntimeAppPublic>::generate_pair(Some(b"//new_validator_keys2".into())),
+        };
+
+        // validator changes its keys
+        assert_ok!(Session::set_keys(
+            RuntimeOrigin::signed(validators[1]),
+            session_keys_new.clone(),
+            vec![],
+        ));
+
+        // session doesn't end
+        run_to_block(ERA_BLOCKS + EPOCH_BLOCKS);
+        do_events_assertion(6, 42, []);
+
+        // sessions ends. "Changed" validator set will be used on the next rotation of the session.
+        run_to_block(ERA_BLOCKS + EPOCH_BLOCKS + 1);
+        do_events_assertion(
+            7,
+            43,
+            [SessionEvent::NewSession { session_index: 7 }.into()],
+        );
+
+        // session doesn't end
+        run_to_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS);
+        do_events_assertion(7, 48, []);
+
+        // session ends. We have changed validators because of the changed session keys.
+        // That triggers bridge initialization and grandpa::NewAuthorities logic.
+        run_to_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS + 1);
+
+        assert_eq!(Grandpa::current_set_id(), 3);
+
+        // the second validator changed its keys
+        let authority_set = era_validators_authority_set(6);
+        let authority_set = vec![authority_set[0].clone(), (session_keys_new.grandpa, 1), authority_set[2].clone()];
+        let authority_set_ids_concat = authority_set
+            .clone()
+            .into_iter()
+            .flat_map(|(public, _)| public.into_inner().0)
+            .collect::<Vec<u8>>();
+        let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
+
+        do_events_assertion(
+            8,
+            49,
+            [
+                SessionEvent::NewSession { session_index: 8 }.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+            ],
+        );
+
+        on_finalize_gear_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS + 1);
+        do_events_assertion(
+            8,
+            49,
+            [GrandpaEvent::NewAuthorities {
+                authority_set,
+            }
+            .into()],
+        );
+
+        // the queue should be cleared on the next block
+        run_to_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS + 2);
+        do_events_assertion(
+            8,
+            50,
+            [Event::QueueReset.into()],
+        );
+    })
 }

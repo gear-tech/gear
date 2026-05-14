@@ -16,10 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{IWrappedVara, decode_log};
-use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
+use crate::{IWrappedVara, decode_log, wvara::WVaraQuery};
+use alloy::{
+    contract::Event,
+    primitives::{Address as AlloyAddress, B256},
+    providers::{Provider, RootProvider},
+    rpc::types::{Filter, Log, Topic},
+    sol_types::{Error, SolEvent},
+};
 use anyhow::Result;
-use ethexe_common::events::{WVaraEvent, WVaraRequestEvent};
+use ethexe_common::{
+    Address,
+    events::{
+        WVaraEvent,
+        wvara::{ApprovalEvent, TransferEvent},
+    },
+};
+use futures::{Stream, StreamExt};
 use signatures::*;
 
 pub mod signatures {
@@ -40,22 +53,127 @@ pub fn try_extract_event(log: &Log) -> Result<Option<WVaraEvent>> {
     };
 
     let event = match *topic0 {
-        TRANSFER => decode_log::<IWrappedVara::Transfer>(log)?.into(),
-        APPROVAL => decode_log::<IWrappedVara::Approval>(log)?.into(),
+        TRANSFER => WVaraEvent::Transfer(decode_log::<IWrappedVara::Transfer>(log)?.into()),
+        APPROVAL => WVaraEvent::Approval(decode_log::<IWrappedVara::Approval>(log)?.into()),
         _ => unreachable!("filtered above"),
     };
 
     Ok(Some(event))
 }
 
-pub fn try_extract_request_event(log: &Log) -> Result<Option<WVaraRequestEvent>> {
-    if log.topic0().filter(|&v| REQUESTS.contains(v)).is_none() {
-        return Ok(None);
+pub struct AllEventsBuilder<'a> {
+    query: &'a WVaraQuery,
+}
+
+impl<'a> AllEventsBuilder<'a> {
+    pub(crate) fn new(query: &'a WVaraQuery) -> Self {
+        Self { query }
     }
 
-    let request_event = try_extract_event(log)?
-        .and_then(|v| v.to_request())
-        .expect("filtered above");
+    pub async fn subscribe(self) -> Result<impl Stream<Item = Result<WVaraEvent>> + Unpin + use<>> {
+        let filter = Filter::new()
+            .address(*self.query.0.address())
+            .event_signature(Topic::from_iter([
+                signatures::TRANSFER,
+                signatures::APPROVAL,
+            ]));
+        Ok(self
+            .query
+            .0
+            .provider()
+            .subscribe_logs(&filter)
+            .await?
+            .into_stream()
+            .map(|log| try_extract_event(&log).transpose().expect("infallible")))
+    }
+}
 
-    Ok(Some(request_event))
+pub struct TransferEventBuilder<'a> {
+    event: Event<&'a RootProvider, IWrappedVara::Transfer>,
+    from: Option<Address>,
+    to: Option<Address>,
+}
+
+impl<'a> TransferEventBuilder<'a> {
+    pub(crate) fn new(query: &'a WVaraQuery) -> Self {
+        Self {
+            event: query.0.Transfer_filter(),
+            from: None,
+            to: None,
+        }
+    }
+
+    pub fn from(mut self, from: Address) -> Self {
+        self.from = Some(from);
+        self
+    }
+
+    pub fn to(mut self, to: Address) -> Self {
+        self.to = Some(to);
+        self
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(TransferEvent, Log), Error>> + Unpin + use<>> {
+        let mut event = self.event;
+        if let Some(from) = self.from {
+            let from: AlloyAddress = from.into();
+            event = event.topic1(from);
+        }
+        if let Some(to) = self.to {
+            let to: AlloyAddress = to.into();
+            event = event.topic2(to);
+        }
+        Ok(event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct ApprovalEventBuilder<'a> {
+    event: Event<&'a RootProvider, IWrappedVara::Approval>,
+    owner: Option<Address>,
+    spender: Option<Address>,
+}
+
+impl<'a> ApprovalEventBuilder<'a> {
+    pub(crate) fn new(query: &'a WVaraQuery) -> Self {
+        Self {
+            event: query.0.Approval_filter(),
+            owner: None,
+            spender: None,
+        }
+    }
+
+    pub fn owner(mut self, owner: Address) -> Self {
+        self.owner = Some(owner);
+        self
+    }
+
+    pub fn spender(mut self, spender: Address) -> Self {
+        self.spender = Some(spender);
+        self
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(ApprovalEvent, Log), Error>> + Unpin + use<>> {
+        let mut event = self.event;
+        if let Some(owner) = self.owner {
+            let owner: AlloyAddress = owner.into();
+            event = event.topic1(owner);
+        }
+        if let Some(spender) = self.spender {
+            let spender: AlloyAddress = spender.into();
+            event = event.topic2(spender);
+        }
+        Ok(event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
 }

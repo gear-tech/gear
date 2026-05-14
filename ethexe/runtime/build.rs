@@ -34,6 +34,12 @@ fn main() {
         substrate_wasm_builder::WasmBuilder::new()
             .with_current_project()
             .disable_runtime_version_section_check()
+            .append_to_cargo_flags(
+                r#"--config=patch.crates-io.gear-workspace-hack.registry="crates-io-patch-hack""#,
+            )
+            .append_to_cargo_flags(
+                r#"--config=patch.crates-io.gear-workspace-hack.version="0.1.0""#,
+            )
             .build();
     }
 }

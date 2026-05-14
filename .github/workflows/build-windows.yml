@@ -20,7 +20,7 @@ env:
 
 jobs:
   build-windows:
-    runs-on: [kuberunner, github-runner-02]
+    runs-on: [kuberunner]
     strategy:
       matrix:
         profiles: ${{ fromJSON(inputs.profiles) }}
@@ -28,7 +28,7 @@ jobs:
     name: build-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "ACTIONS: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -43,13 +43,10 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-pc-windows-msvc
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
@@ -58,14 +55,13 @@ jobs:
         run: >-
           cargo nextest archive --archive-file=workspace.tar.zst 
           -p gsdk
-          -p gclient
           -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface
           --zstd-level=6
           --target=x86_64-pc-windows-msvc
           ${{ matrix.profiles.flags }}
 
       - name: "ACTIONS: Upload workspace"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
           path: workspace.tar.zst
@@ -81,7 +77,7 @@ jobs:
     name: test-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -95,14 +91,14 @@ jobs:
           $tmp | Remove-Item
 
       - name: "ACTIONS: Download workspace"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
 
       - name: "ACTIONS: Download node"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
-          name: node-and-runtime-release-x86_64-pc-windows-msvc
+          name: gear-cli-and-runtime-release-x86_64-pc-windows-msvc
           path: target/release
 
       - name: "Test: Lazy pages"
@@ -117,10 +113,4 @@ jobs:
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst
           -E 'platform(target) and package(gsdk)'
-          --workspace-remap=${{ github.workspace }}
-
-      - name: "Test: Client tests"
-        run: >-
-          cargo nextest run --archive-file=workspace.tar.zst
-          -E 'platform(target) and package(gclient)'
           --workspace-remap=${{ github.workspace }}

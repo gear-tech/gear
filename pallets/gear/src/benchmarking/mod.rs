@@ -75,10 +75,11 @@ use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
-    code::{Code, CodeAndId},
+    buffer::Payload,
+    code::{Code, CodeAndId, SyscallKind},
     ids::{ActorId, CodeId, MessageId, prelude::*},
     memory::Memory,
-    message::DispatchKind,
+    message::{DispatchKind, Salt},
     pages::{WasmPage, WasmPagesAmount},
     program::ActiveProgram,
     tasks::{ScheduledTask, TaskHandler},
@@ -91,9 +92,7 @@ use gear_core_backend::{
 };
 use gear_core_errors::*;
 use gear_sandbox::{SandboxMemory, SandboxStore, default_executor::Store};
-use gear_wasm_instrument::{
-    BlockType, BrTable, Instruction, MemArg, ValType, syscalls::SyscallName,
-};
+use gear_wasm_instrument::{BlockType, BrTable, Instruction, MemArg, SyscallName, ValType};
 use pallet_authorship::Pallet as AuthorshipPallet;
 use parity_scale_codec::Encode;
 use sp_consensus_babe::{
@@ -107,9 +106,9 @@ use sp_runtime::{
 };
 use sp_std::{num::NonZero, prelude::*};
 
-const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
+const MAX_PAYLOAD_LEN: u32 = Payload::MAX_LEN as u32;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
-const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
+const MAX_SALT_SIZE_BYTES: u32 = Salt::MAX_LEN as u32;
 const MAX_NUMBER_OF_DATA_SEGMENTS: u32 = 1024;
 const MAX_TABLE_ENTRIES: u32 = 10_000_000;
 
@@ -386,7 +385,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `d`: Size of the data section in kilobytes.
@@ -396,7 +395,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_data_section(d * 1024, MAX_NUMBER_OF_DATA_SEGMENTS);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `g`: Size of the global section in kilobytes.
@@ -406,7 +405,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_global_section(g * 1024);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `t`: Size of the memory allocated for the table after instantiation, in kilobytes.
@@ -416,7 +415,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024, None);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `e`: Size of the element section in kilobytes.
@@ -427,17 +426,17 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     // `t`: Size of the type section in kilobytes.
     instantiate_module_type_section_per_kb {
-        let t in 0 .. T::Schedule::get().limits.code_len / 1024;
+        let t in 0 .. T::Schedule::get().limits.type_section_len / 1024;
 
         let WasmModule { code, .. } = WasmModule::<T>::sized_type_section(t * 1024);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into(), SyscallKind::Vara).unwrap();
     }
 
     claim_value {
@@ -497,6 +496,7 @@ benchmarks! {
     // `s`: Size of the salt in bytes.
     create_program {
         let s in 0 .. MAX_SALT_SIZE_BYTES;
+        let p in 0 .. MAX_PAYLOAD_LEN;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -505,13 +505,14 @@ benchmarks! {
         Gear::<T>::upload_code(origin.into(), code).expect("submit code failed");
 
         let salt = vec![42u8; s as usize];
+        let init_payload = vec![42u8; p as usize];
         let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
-    }: _(origin, code_id, salt, vec![], 100_000_000_u64, value, false)
+    }: _(origin, code_id, salt, init_payload, 100_000_000_u64, value, false)
     verify {
         assert!(<T as pallet::Config>::CodeStorage::original_code_exists(code_id));
         assert!(<T as pallet::Config>::CodeStorage::instrumented_code_exists(code_id));
@@ -532,7 +533,9 @@ benchmarks! {
     upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
         let s in 0 .. MAX_SALT_SIZE_BYTES;
+        let p in 0 .. MAX_PAYLOAD_LEN;
         let salt = vec![42u8; s as usize];
+        let init_payload = vec![42u8; p as usize];
         let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
@@ -540,7 +543,7 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
-    }: _(origin, code, salt, vec![], 100_000_000_u64, value, false)
+    }: _(origin, code, salt, init_payload, 100_000_000_u64, value, false)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }

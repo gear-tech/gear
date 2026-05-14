@@ -3,33 +3,33 @@
 use crate::utils;
 use anyhow::{Result, anyhow};
 use futures::{Future, future::BoxFuture};
-use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{
     ClaimValueArgs, CreateProgramArgs, SendMessageArgs, SendReplyArgs, UploadCodeArgs,
     UploadProgramArgs,
 };
 use gear_core::ids::{ActorId, CodeId, MessageId};
-use primitive_types::H256;
+use gsdk::{Api, SignedApi, TxOutput};
 
 pub type UploadProgramBatchOutput = StandardBatchOutput;
 pub type CreateProgramBatchOutput = StandardBatchOutput;
 pub type SendMessageBatchOutput = StandardBatchOutput;
 pub type SendReplyBatchOutput = StandardBatchOutput;
-pub type UploadCodeBatchOutput = (Vec<GClientResult<CodeId>>, H256);
-pub type ClaimValueBatchOutput = (Vec<GClientResult<u128>>, H256);
-type StandardBatchOutput = (Vec<GClientResult<(MessageId, ActorId)>>, H256);
+pub type UploadCodeBatchOutput = TxOutput<Vec<gsdk::Result<CodeId>>>;
+pub type ClaimValueBatchOutput = TxOutput<Vec<gsdk::Result<u128>>>;
+type StandardBatchOutput = TxOutput<Vec<gsdk::Result<(MessageId, ActorId)>>>;
 
 mod nonce;
 
 #[derive(Clone)]
 pub struct GearApiFacade {
-    api: GearApi,
+    api: SignedApi,
 }
 
 impl GearApiFacade {
-    pub async fn try_new(endpoint: String, user: String) -> Result<Self> {
-        let api = GearApi::init_with(utils::str_to_wsaddr(endpoint), user).await?;
-        let available_nonce = api.rpc_nonce().await?;
+    pub async fn try_new(endpoint: &str, suri: &str, passwd: Option<&str>) -> Result<Self> {
+        let api = Api::new(endpoint).await?.signed(suri, passwd)?;
+
+        let available_nonce = api.account_nonce().await?;
 
         tracing::info!("Batch sender starts with nonce {available_nonce}");
 
@@ -38,13 +38,13 @@ impl GearApiFacade {
         Ok(Self { api })
     }
 
-    pub fn into_gear_api(self) -> GearApi {
+    pub fn into_gear_api(self) -> SignedApi {
         self.api
     }
 
     pub async fn raw_call<C, T>(&self, f: C) -> T
     where
-        C: Fn(&GearApi) -> BoxFuture<'_, T>,
+        C: Fn(&SignedApi) -> BoxFuture<'_, T>,
     {
         f(&self.api).await
     }
@@ -101,12 +101,13 @@ impl GearApiFacade {
             api.send_reply_bytes_batch(utils::convert_iter(args)).await
         })
         .await
-        .map(|(batch_results, block_hash)| {
-            let batch_results = batch_results
-                .into_iter()
-                .map(|res| res.map(|(mid, pid, ..)| (mid, pid)))
-                .collect();
-            (batch_results, block_hash)
+        .map(|batch_results| {
+            batch_results.map(|batch_results| {
+                batch_results
+                    .into_iter()
+                    .map(|res| res.map(|(message_id, program_id, _)| (message_id, program_id)))
+                    .collect()
+            })
         })
     }
 
@@ -120,10 +121,11 @@ impl GearApiFacade {
         .await
     }
 
-    async fn batch_call_impl<T, F: Future<Output = GClientResult<T>>>(
-        &mut self,
-        batch_call: impl FnOnce(GearApi) -> F,
-    ) -> Result<T> {
+    async fn batch_call_impl<T, Fut, F>(&mut self, batch_call: F) -> Result<T>
+    where
+        F: FnOnce(SignedApi) -> Fut,
+        Fut: Future<Output = gsdk::Result<T>>,
+    {
         let (api, nonce) = self.prepare_api_for_call();
 
         let r = utils::with_timeout(batch_call(api)).await.map_err(|_| {
@@ -135,7 +137,7 @@ impl GearApiFacade {
         r.map_err(Into::into)
     }
 
-    fn prepare_api_for_call(&self) -> (GearApi, u64) {
+    fn prepare_api_for_call(&self) -> (SignedApi, u64) {
         let nonce = self.call_nonce().expect("nonce storages are initialized");
         let mut api = self.api.clone();
         api.set_nonce(nonce);

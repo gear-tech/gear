@@ -30,9 +30,9 @@ use sp_runtime::{
 };
 
 pub type AccountId = u8;
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 pub type Balance = u128;
-type BlockNumber = u64;
+type BlockNumber = u32;
 
 mod consts {
     #![allow(unused)]

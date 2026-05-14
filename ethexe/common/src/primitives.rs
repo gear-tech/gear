@@ -16,19 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Digest, ToDigest, events::BlockEvent};
+use crate::{
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent,
+    injected::SignedInjectedTransaction,
+};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
-use gear_core::ids::prelude::CodeIdExt as _;
+use core::{num::NonZeroU64, ops::Not};
+use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
-#[derive(Debug, Clone, Copy, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
     pub height: u32,
@@ -65,53 +70,127 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(
+    Debug, derive_more::Display, Copy, Clone, PartialEq, Eq, Encode, Decode, TypeInfo, Default,
+)]
+#[display("Block(hash: {hash}, height: {}, parent: {}, ts: {})", header.height, header.parent_hash, header.timestamp)]
 pub struct SimpleBlockData {
     pub hash: H256,
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Copy, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct BlockMeta {
-    pub synced: bool,
-    pub prepared: bool,
-    pub computed: bool,
-    pub last_committed_batch: Option<Digest>,
-    pub last_committed_head: Option<H256>,
-}
-
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
-pub struct ProducerBlock {
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, derive_more::Display)]
+#[display(
+    "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})"
+)]
+pub struct Announce {
     pub block_hash: H256,
+    pub parent: HashOf<Self>,
     pub gas_allowance: Option<u64>,
-    pub off_chain_transactions: Vec<H256>,
+    // TODO kuzmindev: remove InjectedTransaction from Announce and store only its hashes.
+    // Need to implement `PublicAnnounce` struct which will contain full bodies of injected transactions.
+    pub injected_transactions: Vec<SignedInjectedTransaction>,
 }
 
-impl ToDigest for ProducerBlock {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        hasher.update(self.block_hash);
-        hasher.update(self.gas_allowance.encode());
-        hasher.update(self.off_chain_transactions.encode());
+impl Announce {
+    pub fn to_hash(&self) -> HashOf<Self> {
+        // # Safety because of implementation
+        let Announce {
+            block_hash,
+            parent,
+            gas_allowance,
+            injected_transactions,
+        } = self;
+
+        let transactions = injected_transactions
+            .iter()
+            .map(|tx| (tx.signature(), tx.data().to_hash()))
+            .collect::<Vec<_>>();
+
+        // NOTE: we use here the fact that None is encoding similar to empty vector:
+        // None -> 0x00
+        // vec![] -> 0x00
+        let maybe_transactions_hash = transactions
+            .is_empty()
+            .not()
+            .then(|| utils::hash(&transactions.encode()));
+
+        let announce_parts = (block_hash, parent, gas_allowance, maybe_transactions_hash);
+        unsafe { HashOf::new(H256(utils::hash(&announce_parts.encode()))) }
+    }
+
+    pub fn base(block_hash: H256, parent: HashOf<Self>) -> Self {
+        Self {
+            block_hash,
+            parent,
+            gas_allowance: None,
+            injected_transactions: Vec::new(),
+        }
+    }
+
+    pub fn with_default_gas(block_hash: H256, parent: HashOf<Self>) -> Self {
+        Self {
+            block_hash,
+            parent,
+            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+            injected_transactions: Vec::new(),
+        }
+    }
+
+    pub fn is_base(&self) -> bool {
+        self.gas_allowance.is_none() && self.injected_transactions.is_empty()
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]
+impl ToDigest for Announce {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        hasher.update(self.block_hash);
+        hasher.update(self.gas_allowance.encode());
+        hasher.update(self.injected_transactions.encode());
+    }
+}
+
+/// [`PromisePolicy`] tells processor whether should it emits promises or not.
+#[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Encode, Decode, derive_more::IsVariant)]
+pub enum PromisePolicy {
+    /// Emits promises in execution process.
+    Enabled,
+    // Do not emit promises in execution process.
+    #[default]
+    Disabled,
+}
+
+/// The [PromiseEmissionMode] configures the promise emission mode for the ethexe node
+#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::IsVariant, Default)]
+pub enum PromiseEmissionMode {
+    /// Node should always emit promises during announces execution.
+    /// Always set [`PromisePolicy::Enabled`].
+    AlwaysEmit,
+    /// [`PromisePolicy`] is set by consensus service.
+    #[default]
+    ConsensusDriven,
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,
-    pub cached_queue_size: u8,
+    pub canonical_queue_size: u8,
+    pub injected_queue_size: u8,
 }
 
 impl StateHashWithQueueSize {
     pub fn zero() -> Self {
         Self {
             hash: H256::zero(),
-            cached_queue_size: 0,
+            canonical_queue_size: 0,
+            injected_queue_size: 0,
         }
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct CodeBlobInfo {
     pub timestamp: u64,
     pub tx_hash: H256,
@@ -167,6 +246,69 @@ impl CodeAndId {
     }
 }
 
+/// GearExe network timelines configuration. Parameters fetched the Router contract.
+/// This struct stores in the database, because of using in the multiple places.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
+pub struct ProtocolTimelines {
+    // The genesis timestamp of the GearExe network in seconds.
+    pub genesis_ts: u64,
+    // The duration of an era in seconds.
+    pub era: NonZeroU64,
+    /// The election duration in seconds before the end of an era when the next set of validators elected.
+    ///  (start of era)[ - - - - - - - - - - - - + - - - - ] (end of era)
+    ///                                          ^ election
+    pub election: u64,
+    /// The slot duration in seconds.
+    pub slot: NonZeroU64,
+}
+
+impl ProtocolTimelines {
+    /// Returns the era index for the given timestamp. Eras starts from 0.
+    ///
+    /// Returns `None` if `ts < genesis_ts`
+    #[inline(always)]
+    pub fn era_from_ts(&self, ts: u64) -> Option<u64> {
+        ts.checked_sub(self.genesis_ts)
+            .map(|delta| delta / self.era.get())
+    }
+
+    /// Returns the timestamp since which the given era started.
+    ///
+    /// Returns `None` if overflows u64.
+    #[inline(always)]
+    pub fn era_start_ts(&self, era_index: u64) -> Option<u64> {
+        era_index
+            .checked_mul(self.era.get())?
+            .checked_add(self.genesis_ts)
+    }
+
+    /// Returns the timestamp when election starts in the given era.
+    /// NOTE: election starts for the next era validators.
+    ///
+    /// Returns `None` if overflows u64.
+    ///
+    /// # Panics
+    /// Panics if `era duration < election duration`
+    #[inline(always)]
+    pub fn era_election_start_ts(&self, era_index: u64) -> Option<u64> {
+        self.era_start_ts(era_index)?.checked_add(
+            self.era
+                .get()
+                .checked_sub(self.election)
+                .expect("Incorrect Timelines - era duration < election duration"),
+        )
+    }
+
+    /// Returns the slot index for the given timestamp. Slots starts from 0.
+    ///
+    /// Returns `None` if `ts < genesis_ts`
+    #[inline(always)]
+    pub fn slot_from_ts(&self, ts: u64) -> Option<u64> {
+        ts.checked_sub(self.genesis_ts)
+            .map(|delta| delta / self.slot.get())
+    }
+}
+
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
 pub type Rfm = (ActorId, ActorId);
 
@@ -181,3 +323,172 @@ pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
 /// Scheduler; (block height, scheduled task)
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::injected::InjectedTransaction;
+    use gsigner::PrivateKey;
+    use std::vec;
+
+    fn mock_timelines() -> ProtocolTimelines {
+        ProtocolTimelines {
+            genesis_ts: 10,
+            era: NonZeroU64::new(234).unwrap(),
+            election: 200,
+            slot: NonZeroU64::new(10).unwrap(),
+        }
+    }
+
+    #[test]
+    fn test_era_from_ts_calculation() {
+        let timelines = mock_timelines();
+
+        // For 0 era
+        assert_eq!(timelines.era_from_ts(10), Some(0));
+        assert_eq!(timelines.era_from_ts(45), Some(0));
+        assert_eq!(timelines.era_from_ts(243), Some(0));
+
+        // For 1 era
+        assert_eq!(timelines.era_from_ts(244), Some(1));
+        assert_eq!(timelines.era_from_ts(333), Some(1));
+    }
+
+    #[test]
+    fn era_from_ts_returns_none_before_genesis() {
+        let result = ProtocolTimelines {
+            genesis_ts: 100,
+            ..mock_timelines()
+        }
+        .era_from_ts(50);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_era_start_calculation() {
+        let timelines = mock_timelines();
+
+        // For 0 era
+        assert_eq!(timelines.era_start_ts(0), Some(10));
+        assert_eq!(timelines.era_start_ts(0), Some(10));
+        assert_eq!(timelines.era_start_ts(0), Some(10));
+
+        // For 1 era
+        assert_eq!(timelines.era_start_ts(1), Some(244));
+        assert_eq!(timelines.era_start_ts(1), Some(244));
+    }
+
+    // The possible future announce structure
+    #[derive(Encode)]
+    struct AnnounceV2 {
+        block_hash: H256,
+        parent: H256,
+        gas_allowance: Option<u64>,
+        injected_txs_hash: Option<H256>,
+    }
+
+    impl AnnounceV2 {
+        fn to_hash(&self) -> H256 {
+            H256(utils::hash(&self.encode()))
+        }
+    }
+
+    #[test]
+    fn test_announce_hash_no_injected() {
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: unsafe { HashOf::new(H256::random()) },
+            gas_allowance: Some(1_000_000),
+            injected_transactions: vec![],
+        };
+
+        let hash1 = announce.to_hash();
+        let hash2 = gear_core::utils::hash(&announce.encode());
+        assert_eq!(
+            hash1.inner().0,
+            hash2,
+            "Announce without injected transactions should have the same hash as its SCALE encoding"
+        );
+
+        let announce_v2 = AnnounceV2 {
+            block_hash: announce.block_hash,
+            parent: announce.parent.inner(),
+            gas_allowance: announce.gas_allowance,
+            injected_txs_hash: None,
+        };
+        let hash3 = announce_v2.to_hash();
+        assert_eq!(
+            hash1.inner().0,
+            hash3.0,
+            "Announce without injected transactions should have the same hash as its possible future announce structure"
+        );
+    }
+
+    #[test]
+    fn test_announce_hash_with_injected() {
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: unsafe { HashOf::new(H256::random()) },
+            gas_allowance: Some(1_000_000),
+            injected_transactions: vec![
+                SignedInjectedTransaction::create(
+                    PrivateKey::random(),
+                    InjectedTransaction {
+                        destination: ActorId::from([1; 32]),
+                        payload: vec![1, 2, 3].try_into().unwrap(),
+                        value: 100,
+                        reference_block: H256::random(),
+                        salt: vec![4, 5, 6].try_into().unwrap(),
+                    },
+                )
+                .unwrap(),
+            ],
+        };
+        let hash1 = announce.to_hash();
+        let hash2 = gear_core::utils::hash(&announce.encode());
+        assert_ne!(
+            hash1.inner().0,
+            hash2,
+            "Announce with injected transactions should have a different hash than its SCALE encoding, unfortunately ..."
+        );
+
+        // Just to be sure that hash is calculated from all fields of Announce
+        let Announce {
+            block_hash,
+            parent,
+            gas_allowance,
+            injected_transactions,
+        } = announce.clone();
+        let txs_hashes = injected_transactions
+            .into_iter()
+            .map(|tx| {
+                let (tx, signature) = tx.into_parts();
+                (signature, tx.to_hash())
+            })
+            .collect::<Vec<_>>();
+        let maybe_txs_hash = txs_hashes
+            .is_empty()
+            .not()
+            .then(|| utils::hash(&txs_hashes.encode()));
+        let announce_parts = (block_hash, parent, gas_allowance, maybe_txs_hash);
+        let hash3 = H256(utils::hash(&announce_parts.encode()));
+        assert_eq!(
+            hash1.inner().0,
+            hash3.0,
+            "Announce hash should be calculated from all fields of Announce"
+        );
+
+        let announce_v2 = AnnounceV2 {
+            block_hash: announce.block_hash,
+            parent: announce.parent.inner(),
+            gas_allowance: announce.gas_allowance,
+            injected_txs_hash: maybe_txs_hash.map(H256),
+        };
+
+        assert_eq!(
+            hash1.inner().0,
+            announce_v2.to_hash().0,
+            "Announce hash should be consistent with the possible future announce structure"
+        );
+    }
+}

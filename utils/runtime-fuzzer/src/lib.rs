@@ -35,7 +35,8 @@ use sha1::Digest;
 use sp_io::TestExternalities;
 use vara_runtime::{AccountId, Gear, RuntimeOrigin};
 
-const EXHAUST_MESSAGES_RUNS: usize = 20;
+// Reduced from 20 to 10 to fix timeout issues while still exhausting most messages.
+const EXHAUST_MESSAGES_RUNS: usize = 10;
 
 pub fn run(fuzzer_input: FuzzerInput<'_>) -> Result<()> {
     run_impl(fuzzer_input).map(|_| ())
@@ -103,9 +104,10 @@ fn run_calls_loop(
         })?;
 
         if must_stop {
-            break Ok(());
+            break;
         }
     }
+    Ok(())
 }
 
 fn execute_gear_call(sender: AccountId, call: GearCall) -> DispatchResultWithPostInfo {

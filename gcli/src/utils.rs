@@ -18,44 +18,50 @@
 
 //! Gear program utils
 
-use crate::result::Result;
-use anyhow::anyhow;
-use std::{fs, path::PathBuf};
+use hex::FromHexError;
+use std::str::FromStr;
 
-/// home directory of cli `gear`
-pub fn home() -> PathBuf {
-    let home = dirs::home_dir().unwrap_or_else(|| ".".into()).join(".gear");
+/// Bytes with hex string representation.
+#[derive(
+    derive_more::Debug,
+    Clone,
+    derive_more::AsRef,
+    derive_more::AsMut,
+    derive_more::Deref,
+    derive_more::DerefMut,
+    derive_more::Into,
+    derive_more::From,
+    derive_more::Display,
+)]
+#[as_ref(forward)]
+#[as_mut(forward)]
+#[deref(forward)]
+#[deref_mut(forward)]
+#[display("0x{}", hex::encode(self))]
+#[debug("0x{}", hex::encode(self))]
+pub struct HexBytes(Vec<u8>);
 
-    if !home.exists() {
-        fs::create_dir_all(&home).expect("Failed to create ~/.gear");
+impl HexBytes {
+    /// Returns reference to its bytes.
+    pub fn as_slice(&self) -> &[u8] {
+        self
     }
 
-    home
-}
-
-pub trait Hex {
-    fn to_vec(&self) -> Result<Vec<u8>>;
-    fn to_hash(&self) -> Result<[u8; 32]>;
-}
-
-impl<T> Hex for T
-where
-    T: AsRef<str>,
-{
-    fn to_vec(&self) -> Result<Vec<u8>> {
-        hex::decode(self.as_ref().trim_start_matches("0x")).map_err(Into::into)
+    /// Returns reference to its bytes.
+    pub fn as_slice_mut(&mut self) -> &mut [u8] {
+        self
     }
 
-    fn to_hash(&self) -> Result<[u8; 32]> {
-        let hex = self.to_vec()?;
+    /// Converts to its bytes.
+    pub fn into_vec(self) -> Vec<u8> {
+        self.into()
+    }
+}
 
-        if hex.len() != 32 {
-            return Err(anyhow!("Incorrect id length").into());
-        }
+impl FromStr for HexBytes {
+    type Err = FromHexError;
 
-        let mut arr = [0; 32];
-        arr.copy_from_slice(&hex);
-
-        Ok(arr)
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        hex::decode(s.trim_start_matches("0x")).map(Self)
     }
 }

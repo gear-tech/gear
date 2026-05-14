@@ -1,20 +1,18 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+pragma solidity ^0.8.33;
 
-import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import {Vm} from "forge-std/Vm.sol";
-
-import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
-import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
+import {IMiddleware} from "src/IMiddleware.sol";
+import {Middleware} from "src/Middleware.sol";
+import {MapWithTimeData} from "src/libraries/MapWithTimeData.sol";
 import {IVaultFactory} from "symbiotic-core/src/interfaces/IVaultFactory.sol";
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
-
-import {Middleware} from "../src/Middleware.sol";
-import {IMiddleware} from "../src/IMiddleware.sol";
-import {MapWithTimeData} from "../src/libraries/MapWithTimeData.sol";
-import {Base} from "./Base.t.sol";
+import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
+import {POCBaseTest} from "symbiotic-core/test/POCBase.t.sol";
+import {Base} from "test/Base.t.sol";
 
 contract MiddlewareTest is Base {
     using MessageHashUtils for address;
@@ -512,14 +510,10 @@ contract MiddlewareTest is Base {
 
         Middleware.SlashData[] memory slashes = new Middleware.SlashData[](2);
         slashes[0] = IMiddleware.SlashData({
-            operator: operator1,
-            ts: uint48(vm.getBlockTimestamp() - 1),
-            vaults: operator1Vaults
+            operator: operator1, ts: uint48(vm.getBlockTimestamp() - 1), vaults: operator1Vaults
         });
         slashes[1] = IMiddleware.SlashData({
-            operator: operator2,
-            ts: uint48(vm.getBlockTimestamp() - 1),
-            vaults: operator2Vaults
+            operator: operator2, ts: uint48(vm.getBlockTimestamp() - 1), vaults: operator2Vaults
         });
 
         requestSlash(slashes, 0);

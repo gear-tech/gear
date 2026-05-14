@@ -19,20 +19,19 @@
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
 use core::fmt;
-use ethexe_common::db::OnChainStorageRead;
-use ethexe_db::Database;
-use ethexe_runtime_common::{
-    BlockInfo,
-    state::{
-        ActiveProgram, HashOf, MemoryPages, MemoryPagesRegionInner, Program, ProgramState,
-        RegionIdx, Storage,
-    },
+use ethexe_common::HashOf;
+use ethexe_db::CASDatabase;
+use ethexe_runtime_common::state::{
+    ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState, QueryableStorage,
+    RegionIdx, Storage,
 };
 use gear_core::{ids::ActorId, memory::PageBuf, pages::GearPage};
 use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};
 use std::{cell::RefCell, collections::BTreeMap};
+
+use crate::BoundPromiseSink;
 
 const UNSET_PANIC: &str = "params should be set before query";
 const UNKNOWN_STATE: &str = "state should always be valid (must exist)";
@@ -42,9 +41,9 @@ thread_local! {
 }
 
 pub struct ThreadParams {
-    pub db: Database,
-    pub block_info: BlockInfo,
+    pub db: Box<dyn CASDatabase>,
     pub state_hash: H256,
+    pub promise_sink: Option<BoundPromiseSink>,
     pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
@@ -69,7 +68,7 @@ impl ThreadParams {
                 unreachable!("program that is currently running can't be inactive");
             };
 
-            pages_hash.query(&self.db).expect(UNKNOWN_STATE)
+            self.db.query(&pages_hash).expect(UNKNOWN_STATE)
         });
 
         let region_idx = MemoryPages::page_region(page);
@@ -106,15 +105,11 @@ impl PageKey {
     }
 }
 
-pub fn set(db: Database, chain_head: H256, state_hash: H256) {
-    let header = db.block_header(chain_head).expect("Block info not found");
+pub fn set(db: Box<dyn CASDatabase>, state_hash: H256, promise_sink: Option<BoundPromiseSink>) {
     PARAMS.set(Some(ThreadParams {
         db,
-        block_info: BlockInfo {
-            height: header.height,
-            timestamp: header.timestamp,
-        },
         state_hash,
+        promise_sink,
         pages_registry_cache: None,
         pages_regions_cache: None,
     }))
@@ -130,19 +125,11 @@ pub fn update_state_hash(state_hash: H256) {
     })
 }
 
-pub fn with_db<T>(f: impl FnOnce(&Database) -> T) -> T {
+pub fn with_db<T>(f: impl FnOnce(&dyn CASDatabase) -> T) -> T {
     PARAMS.with_borrow(|v| {
         let params = v.as_ref().expect(UNSET_PANIC);
 
-        f(&params.db)
-    })
-}
-
-pub fn chain_head_info() -> BlockInfo {
-    PARAMS.with_borrow(|v| {
-        let params = v.as_ref().expect(UNSET_PANIC);
-
-        params.block_info
+        f(params.db.as_ref())
     })
 }
 
@@ -151,6 +138,13 @@ pub fn with_params<T>(f: impl FnOnce(&mut ThreadParams) -> T) -> T {
         let params = v.as_mut().expect(UNSET_PANIC);
 
         f(params)
+    })
+}
+
+pub fn clear_promise_sink() {
+    PARAMS.with_borrow_mut(|maybe_params| {
+        let params = maybe_params.as_mut().expect(UNSET_PANIC);
+        let _ = params.promise_sink.take();
     })
 }
 

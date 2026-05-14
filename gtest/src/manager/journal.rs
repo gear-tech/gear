@@ -125,8 +125,10 @@ impl JournalHandler for ExtManager {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
-        let to_user = ProgramsStorageManager::is_user(dispatch.destination())
-            && !self.no_code_program.contains(&dispatch.destination());
+        let destination = dispatch.destination();
+        let to_user = !self.is_builtin(destination)
+            && ProgramsStorageManager::is_user(destination)
+            && !self.no_code_program.contains(&destination);
         if delay > 0 {
             log::debug!(
                 "[{message_id}] new delayed dispatch#{} with delay for {delay} blocks",
@@ -140,10 +142,7 @@ impl JournalHandler for ExtManager {
         log::debug!("[{message_id}] new dispatch#{}", dispatch.id());
 
         let source = dispatch.source();
-        let is_program = ProgramsStorageManager::is_program(dispatch.destination())
-            || self.no_code_program.contains(&dispatch.destination());
-
-        if is_program {
+        if !to_user {
             let gas_limit = dispatch.gas_limit();
             log::debug!(
                 "Sending message {:?} from {:?} with gas limit {:?}",
@@ -287,20 +286,24 @@ impl JournalHandler for ExtManager {
     ) {
         if self.instrumented_code(code_id).is_some() {
             for (init_message_id, candidate_id) in candidates {
-                if !ProgramsStorageManager::has_program(candidate_id) {
+                if !self.is_builtin(candidate_id)
+                    && !ProgramsStorageManager::has_program(candidate_id)
+                {
                     let expiration_block = self.block_height();
                     self.store_program(
                         candidate_id,
-                        GTestProgram::Default(Program::Active(ActiveProgram {
-                            allocations_tree_len: 0,
-                            code_id: code_id.cast(),
-                            state: ProgramState::Uninitialized {
-                                message_id: init_message_id,
-                            },
-                            expiration_block,
-                            memory_infix: Default::default(),
-                            gas_reservation_map: Default::default(),
-                        })),
+                        GTestProgram::Default {
+                            primary: Program::Active(ActiveProgram {
+                                allocations_tree_len: 0,
+                                code_id: code_id.cast(),
+                                state: ProgramState::Uninitialized {
+                                    message_id: init_message_id,
+                                },
+                                expiration_block,
+                                memory_infix: Default::default(),
+                                gas_reservation_map: Default::default(),
+                            }),
+                        },
                     );
 
                     // Transfer the ED from the program-creator to the new program

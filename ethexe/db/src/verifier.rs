@@ -21,13 +21,16 @@ use crate::{
     iterator::{ChainNode, DatabaseIteratorError, DatabaseIteratorStorage},
     visitor::{DatabaseVisitor, walk},
 };
-use ethexe_common::{BlockHeader, BlockMeta, ScheduledTask};
-use ethexe_runtime_common::state::{HashOf, MessageQueue, MessageQueueHashWithSize};
+use ethexe_common::{
+    Announce, BlockHeader, HashOf, ScheduledTask,
+    db::{AnnounceStorageRO, BlockMeta, OnChainStorageRO},
+};
+use ethexe_runtime_common::state::{MessageQueue, MessageQueueHashWithSize};
 use gear_core::code::CodeMetadata;
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap},
     hash::Hash,
 };
 
@@ -35,12 +38,21 @@ use std::{
 pub enum IntegrityVerifierError {
     DatabaseIterator(DatabaseIteratorError),
 
-    /* block meta */
-    BlockIsNotSynced,
-    BlockIsNotPrepared,
-    BlockIsNotComputed,
-    NoBlockLastCommittedBlock,
-    NoBlockLastCommittedHead,
+    /* block */
+    BlockIsNotSynced(H256),
+    BlockIsNotPrepared(H256),
+    BlockAnnouncesLenNotOne(H256),
+    NoBlockLastCommittedBatch(H256),
+    NoBlockLastCommittedAnnounce(H256),
+    NoBlockLatestEraValidatorsCommitted(H256),
+    BlockAnnouncesIsEmpty(H256),
+    NoBlockAnnounces(H256),
+    NoBlockHeader(H256),
+
+    /* announce */
+    AnnounceNotFound(HashOf<Announce>),
+    AnnounceIsNotComputed(HashOf<Announce>),
+    AnnounceIsNotIncluded(HashOf<Announce>),
 
     /* block header */
     NoParentBlockHeader(H256),
@@ -62,8 +74,8 @@ pub enum IntegrityVerifierError {
     },
 
     /* rest */
-    BlockScheduleHasExpiredTasks {
-        block: H256,
+    AnnounceScheduleHasExpiredTasks {
+        announce_hash: HashOf<Announce>,
         expiry: u32,
         tasks: usize,
     },
@@ -77,8 +89,7 @@ pub enum IntegrityVerifierError {
 pub struct IntegrityVerifier {
     db: Database,
     errors: Vec<IntegrityVerifierError>,
-    block_header: Option<BlockHeader>,
-    message_queue_size: Option<u8>,
+    cached_queue_sizes: HashMap<H256, u8>,
     original_code: Option<Vec<u8>>,
     bottom: Option<H256>,
 }
@@ -88,8 +99,7 @@ impl IntegrityVerifier {
         Self {
             db,
             errors: Vec::new(),
-            block_header: None,
-            message_queue_size: None,
+            cached_queue_sizes: Default::default(),
             original_code: None,
             bottom: None,
         }
@@ -105,6 +115,8 @@ impl IntegrityVerifier {
 
         #[cfg(debug_assertions)]
         {
+            use std::collections::HashSet;
+
             self.errors
                 .clone()
                 .into_iter()
@@ -119,6 +131,10 @@ impl IntegrityVerifier {
         } else {
             Err(self.errors)
         }
+    }
+
+    pub fn into_errors(self) -> Vec<IntegrityVerifierError> {
+        self.errors
     }
 }
 
@@ -136,29 +152,60 @@ impl DatabaseVisitor for IntegrityVerifier {
             .push(IntegrityVerifierError::DatabaseIterator(error));
     }
 
-    fn visit_block_meta(&mut self, _block: H256, meta: BlockMeta) {
-        if !meta.synced {
-            self.errors.push(IntegrityVerifierError::BlockIsNotSynced);
-        }
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn visit_block_meta(&mut self, block: H256, meta: BlockMeta) {
         if !meta.prepared {
-            self.errors.push(IntegrityVerifierError::BlockIsNotPrepared);
-        }
-        if !meta.computed {
-            self.errors.push(IntegrityVerifierError::BlockIsNotComputed);
+            self.errors
+                .push(IntegrityVerifierError::BlockIsNotPrepared(block));
         }
         if meta.last_committed_batch.is_none() {
             self.errors
-                .push(IntegrityVerifierError::NoBlockLastCommittedBlock);
+                .push(IntegrityVerifierError::NoBlockLastCommittedBatch(block));
         }
-        if meta.last_committed_head.is_none() {
+        if meta.last_committed_announce.is_none() {
             self.errors
-                .push(IntegrityVerifierError::NoBlockLastCommittedHead);
+                .push(IntegrityVerifierError::NoBlockLastCommittedAnnounce(block));
+        }
+        if meta.latest_era_validators_committed.is_none() {
+            self.errors
+                .push(IntegrityVerifierError::NoBlockLatestEraValidatorsCommitted(
+                    block,
+                ));
+        }
+        if let Some(announces) = self.db.block_announces(block) {
+            if announces.is_empty() {
+                self.errors
+                    .push(IntegrityVerifierError::BlockAnnouncesIsEmpty(block));
+            }
+        } else {
+            self.errors
+                .push(IntegrityVerifierError::NoBlockAnnounces(block));
         }
     }
 
-    fn visit_block_header(&mut self, block: H256, header: BlockHeader) {
-        self.block_header = Some(header);
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn visit_announce(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
+        if self
+            .db
+            .block_announces(announce.block_hash)
+            .map(|announces| announces.iter().all(|a| *a != announce_hash))
+            .unwrap_or(true)
+        {
+            self.errors
+                .push(IntegrityVerifierError::AnnounceIsNotIncluded(announce_hash));
+        }
+    }
 
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn visit_block_synced(&mut self, block: H256, block_synced: bool) {
+        if !block_synced {
+            self.errors
+                .push(IntegrityVerifierError::BlockIsNotSynced(block));
+        }
+    }
+
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn visit_block_header(&mut self, block: H256, header: BlockHeader) {
         let Some(parent_header) = self.db().block_header(header.parent_hash) else {
             if self.bottom == Some(block) {
                 // it's not guaranteed bottom parent block has header
@@ -189,16 +236,19 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_code_valid(&mut self, _code_id: CodeId, code_valid: bool) {
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn visit_code_valid(&mut self, code_id: CodeId, code_valid: bool) {
         if !code_valid {
             self.errors.push(IntegrityVerifierError::CodeIsNotValid);
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_original_code(&mut self, original_code: Vec<u8>) {
         self.original_code = Some(original_code.to_vec());
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_code_metadata(&mut self, code_id: CodeId, metadata: CodeMetadata) {
         let original_code = self.original_code.take();
         if let Some(original_code) = original_code
@@ -213,41 +263,51 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_block_schedule_tasks(
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn visit_announce_schedule_tasks(
         &mut self,
-        block: H256,
+        announce_hash: HashOf<Announce>,
         height: u32,
         tasks: BTreeSet<ScheduledTask>,
     ) {
-        let header = self
-            .block_header
-            .take()
-            .expect("`visit_block_header` must be called first");
+        let Some(announce) = self.db.announce(announce_hash) else {
+            self.errors
+                .push(IntegrityVerifierError::AnnounceNotFound(announce_hash));
+            return;
+        };
+        let Some(header) = self.db.block_header(announce.block_hash) else {
+            self.errors
+                .push(IntegrityVerifierError::NoBlockHeader(announce.block_hash));
+            return;
+        };
         if height <= header.height {
             self.errors
-                .push(IntegrityVerifierError::BlockScheduleHasExpiredTasks {
-                    block,
+                .push(IntegrityVerifierError::AnnounceScheduleHasExpiredTasks {
+                    announce_hash,
                     expiry: height,
                     tasks: tasks.len(),
                 });
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_message_queue_hash_with_size(
         &mut self,
         queue_hash_with_size: MessageQueueHashWithSize,
     ) {
-        if let Some(_hash) = queue_hash_with_size.hash.to_inner() {
-            self.message_queue_size = Some(queue_hash_with_size.cached_queue_size);
+        if let Some(hash) = queue_hash_with_size.hash.to_inner() {
+            self.cached_queue_sizes
+                .insert(hash.inner(), queue_hash_with_size.cached_queue_size);
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_message_queue(&mut self, queue: MessageQueue) {
         let encoded_queue = queue.encode();
         let hash = crate::hash(&encoded_queue);
         let hash = unsafe { HashOf::new(hash) };
 
-        let cached_queue_size = self.message_queue_size.take().expect(
+        let cached_queue_size = self.cached_queue_sizes.remove(&hash.inner()).expect(
             "`visit_message_queue_hash_with_size` must be called before `visit_message_queue`",
         );
         if cached_queue_size != queue.len() as u8 {
@@ -265,30 +325,27 @@ impl DatabaseVisitor for IntegrityVerifier {
 mod tests {
     use super::*;
     use crate::iterator::{
-        BlockNode, BlockScheduleTasksNode, CodeIdNode, MessageQueueHashWithSizeNode,
-        MessageQueueNode,
+        AnnounceScheduleTasksNode, BlockNode, CodeIdNode, MessageQueueHashWithSizeNode,
+        MessageQueueNode, tests::setup_db,
     };
     use ethexe_common::{
-        Digest, ProgramStates, Schedule,
-        db::{BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
+        Digest, MaybeHashOf, ProgramStates, Schedule,
+        db::{AnnounceStorageRW, BlockMetaStorageRW, CodesStorageRW, OnChainStorageRW},
     };
-    use ethexe_runtime_common::state::{MaybeHashOf, Storage};
+    use ethexe_runtime_common::state::Storage;
     use gear_core::{
         code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
         pages::WasmPagesAmount,
     };
-    use std::collections::VecDeque;
 
     #[test]
     fn test_block_meta_not_synced_error() {
-        let db = Database::memory();
+        let db = setup_db();
         let block = H256::random();
 
         // Insert block with not synced meta
         db.mutate_block_meta(block, |meta| {
-            meta.synced = false;
             meta.prepared = true;
-            meta.computed = true;
         });
 
         let mut verifier = IntegrityVerifier::new(db);
@@ -296,20 +353,18 @@ mod tests {
         assert!(
             verifier
                 .errors
-                .contains(&IntegrityVerifierError::BlockIsNotSynced)
+                .contains(&IntegrityVerifierError::BlockIsNotSynced(block))
         );
     }
 
     #[test]
     fn test_block_meta_not_prepared_error() {
-        let db = Database::memory();
+        let db = setup_db();
         let block = H256::random();
 
         // Insert block with not prepared meta
         db.mutate_block_meta(block, |meta| {
-            meta.synced = true;
             meta.prepared = false;
-            meta.computed = true;
         });
 
         let mut verifier = IntegrityVerifier::new(db);
@@ -317,42 +372,19 @@ mod tests {
         assert!(
             verifier
                 .errors
-                .contains(&IntegrityVerifierError::BlockIsNotPrepared)
-        );
-    }
-
-    #[test]
-    fn test_block_meta_not_computed_error() {
-        let db = Database::memory();
-        let block = H256::random();
-
-        // Insert block with not computed meta
-        db.mutate_block_meta(block, |meta| {
-            meta.synced = true;
-            meta.prepared = true;
-            meta.computed = false;
-        });
-
-        let mut verifier = IntegrityVerifier::new(db);
-        walk(&mut verifier, BlockNode { block });
-        assert!(
-            verifier
-                .errors
-                .contains(&IntegrityVerifierError::BlockIsNotComputed)
+                .contains(&IntegrityVerifierError::BlockIsNotPrepared(block))
         );
     }
 
     #[test]
     fn test_no_parent_block_header_error() {
-        let db = Database::memory();
+        let db = setup_db();
         let block = H256::random();
         let parent_hash = H256::random();
 
         // Insert valid meta but header with non-existent parent
         db.mutate_block_meta(block, |meta| {
-            meta.synced = true;
             meta.prepared = true;
-            meta.computed = true;
         });
 
         let header = BlockHeader {
@@ -373,15 +405,13 @@ mod tests {
 
     #[test]
     fn test_invalid_block_parent_height_error() {
-        let db = Database::memory();
+        let db = setup_db();
         let block = H256::random();
         let parent_hash = H256::random();
 
         // Setup parent block
         db.mutate_block_meta(parent_hash, |meta| {
-            meta.synced = true;
             meta.prepared = true;
-            meta.computed = true;
         });
 
         let parent_hash1 = H256::zero();
@@ -394,9 +424,7 @@ mod tests {
 
         // Setup child block with invalid height
         db.mutate_block_meta(block, |meta| {
-            meta.synced = true;
             meta.prepared = true;
-            meta.computed = true;
         });
 
         let header = BlockHeader {
@@ -420,15 +448,13 @@ mod tests {
 
     #[test]
     fn test_invalid_parent_timestamp_error() {
-        let db = Database::memory();
+        let db = setup_db();
         let block = H256::random();
         let parent_hash = H256::random();
 
         // Setup parent block
         db.mutate_block_meta(parent_hash, |meta| {
-            meta.synced = true;
             meta.prepared = true;
-            meta.computed = true;
         });
 
         let parent_hash1 = H256::zero();
@@ -441,9 +467,7 @@ mod tests {
 
         // Setup child block with earlier timestamp
         db.mutate_block_meta(parent_hash, |meta| {
-            meta.synced = true;
             meta.prepared = true;
-            meta.computed = true;
         });
         let header = BlockHeader {
             height: 6,
@@ -466,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_code_is_not_valid_error() {
-        let db = Database::memory();
+        let db = setup_db();
         let code_id = CodeId::from(1);
 
         // Set code as invalid
@@ -486,7 +510,7 @@ mod tests {
     fn test_invalid_code_len_in_metadata_error() {
         const ORIGINAL_CODE: &[u8] = &[1, 2, 3, 4];
 
-        let db = Database::memory();
+        let db = setup_db();
 
         let metadata = CodeMetadata::new(
             10,
@@ -524,8 +548,11 @@ mod tests {
 
     #[test]
     fn test_block_schedule_has_expired_tasks_error() {
-        let db = Database::memory();
+        let db = setup_db();
         let block_hash = H256::random();
+
+        let announce = Announce::base(block_hash, HashOf::zero());
+        let announce_hash = db.set_announce(announce);
 
         // Setup block with height 100
         let parent_hash = H256::zero();
@@ -534,33 +561,31 @@ mod tests {
             parent_hash,
             timestamp: 1000,
         };
+        db.set_block_header(block_hash, header);
 
         // Create tasks scheduled for height 50 (expired)
         let mut verifier = IntegrityVerifier::new(db);
-        verifier.visit_block_header(block_hash, header);
         walk(
             &mut verifier,
-            BlockScheduleTasksNode {
-                block: block_hash,
+            AnnounceScheduleTasksNode {
+                announce_hash,
                 height: 50,
                 tasks: BTreeSet::new(),
             },
         );
 
-        assert!(
-            verifier
-                .errors
-                .contains(&IntegrityVerifierError::BlockScheduleHasExpiredTasks {
-                    block: block_hash,
-                    expiry: 50,
-                    tasks: 0,
-                })
-        );
+        assert!(verifier.errors.contains(
+            &IntegrityVerifierError::AnnounceScheduleHasExpiredTasks {
+                announce_hash,
+                expiry: 50,
+                tasks: 0,
+            }
+        ));
     }
 
     #[test]
     fn test_visit_message_queue_invalid_cached_size() {
-        let db = Database::memory();
+        let db = setup_db();
         let mut verifier = IntegrityVerifier::new(db.clone());
 
         // Create a message queue with some messages
@@ -596,7 +621,7 @@ mod tests {
         expected = "`visit_message_queue_hash_with_size` must be called before `visit_message_queue`"
     )]
     fn test_visit_message_queue_without_hash_panics() {
-        let db = Database::memory();
+        let db = setup_db();
         let mut verifier = IntegrityVerifier::new(db);
 
         // Create a message queue
@@ -609,7 +634,7 @@ mod tests {
 
     #[test]
     fn test_visit_message_queue_success() {
-        let db = Database::memory();
+        let db = setup_db();
         let mut verifier = IntegrityVerifier::new(db.clone());
 
         let queue = MessageQueue::default();
@@ -627,33 +652,30 @@ mod tests {
             },
         );
 
-        assert_eq!(verifier.message_queue_size, None);
+        assert!(verifier.cached_queue_sizes.is_empty());
         assert_eq!(verifier.errors, []);
     }
 
     #[test]
     fn test_multiple_errors_collected() {
-        let db = Database::memory();
+        let db = setup_db();
         let block_hash = H256::random();
 
         // Insert block with multiple issues
         db.mutate_block_meta(block_hash, |meta| {
-            meta.synced = false;
             meta.prepared = false;
-            meta.computed = false;
         });
 
         let verifier = IntegrityVerifier::new(db);
         let errors = verifier.verify_chain(block_hash, block_hash).unwrap_err();
-        assert!(errors.contains(&IntegrityVerifierError::BlockIsNotSynced));
-        assert!(errors.contains(&IntegrityVerifierError::BlockIsNotPrepared));
-        assert!(errors.contains(&IntegrityVerifierError::BlockIsNotComputed));
-        assert!(errors.len() >= 3);
+        assert!(errors.contains(&IntegrityVerifierError::BlockIsNotSynced(block_hash)));
+        assert!(errors.contains(&IntegrityVerifierError::BlockIsNotPrepared(block_hash)));
+        assert!(errors.len() >= 2);
     }
 
     #[test]
     fn test_successful_verification_with_valid_data() {
-        let db = Database::memory();
+        let db = setup_db();
         let block_hash = H256::random();
         let parent_hash = H256::zero();
         let block_header = BlockHeader {
@@ -661,27 +683,27 @@ mod tests {
             parent_hash,
             timestamp: 1000,
         };
-        let parent_header = BlockHeader {
-            height: 99,
-            parent_hash: H256::zero(),
-            timestamp: 999,
-        };
 
-        db.mutate_block_meta(block_hash, |meta| {
-            meta.synced = true;
-            meta.prepared = true;
+        let announce = Announce::base(block_hash, HashOf::zero());
+        let announce_hash = db.set_announce(announce);
+        db.set_announce_program_states(announce_hash, ProgramStates::new());
+        db.set_announce_schedule(announce_hash, Schedule::new());
+        db.set_announce_outcome(announce_hash, Vec::new());
+        db.mutate_announce_meta(announce_hash, |meta| {
             meta.computed = true;
-            meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_head = Some(H256::random());
         });
+
         db.set_block_header(block_hash, block_header);
         db.set_block_events(block_hash, &[]);
-        db.set_block_codes_queue(block_hash, VecDeque::new());
-        db.set_block_program_states(block_hash, ProgramStates::new());
-        db.set_block_schedule(block_hash, Schedule::new());
-        db.set_block_outcome(block_hash, Vec::new());
-
-        db.set_block_header(parent_hash, parent_header);
+        db.set_block_announces(block_hash, [announce_hash].into());
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.prepared = true;
+            meta.last_committed_batch = Some(Digest::random());
+            meta.last_committed_announce = Some(announce_hash);
+            meta.codes_queue = Some(Default::default());
+            meta.latest_era_validators_committed = Some(10);
+        });
+        db.set_block_synced(block_hash);
 
         let verifier = IntegrityVerifier::new(db);
         verifier.verify_chain(block_hash, block_hash).unwrap();
@@ -689,7 +711,7 @@ mod tests {
 
     #[test]
     fn test_database_visitor_error_propagation() {
-        let db = Database::memory();
+        let db = setup_db();
         let verifier = IntegrityVerifier::new(db);
 
         // This should trigger DatabaseVisitorError due to missing block

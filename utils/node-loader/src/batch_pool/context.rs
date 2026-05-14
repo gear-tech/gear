@@ -1,7 +1,6 @@
+use super::report::{MailboxReport, Report};
 use gear_core::ids::{ActorId, CodeId, MessageId};
 use std::collections::BTreeSet;
-
-use super::report::{MailboxReport, Report};
 
 #[derive(Debug, Default)]
 pub struct ContextUpdate {

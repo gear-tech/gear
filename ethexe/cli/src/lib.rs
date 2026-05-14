@@ -16,16 +16,41 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Context, Ok, Result};
+//! Command-line entrypoint for operating Vara.eth nodes.
+//!
+//! The crate glues together the configuration model from the `params` module and the
+//! executable workflows from the `commands` module.
+//! At startup the binary:
+//! - parses the top-level CLI with [`Cli`]
+//! - optionally loads `./.ethexe.toml` or a custom file passed through `--cfg`
+//! - merges CLI flags over file-based configuration
+//! - dispatches to one of the supported command groups
+//!
+//! The main command groups are:
+//! - `RunCommand` for launching the service stack
+//! - `KeyCommand` for key-store management
+//! - `TxCommand` for Ethereum and injected transaction flows
+//! - `CheckCommand` for database verification
+
+use anyhow::{Context, Result};
 use clap::Parser;
 use commands::Command;
 use params::Params;
 use std::path::PathBuf;
+use tracing_subscriber::EnvFilter;
 
 mod commands;
 mod params;
+mod utils;
 
+/// Returns the crate version suffixed with the short git SHA injected by `build.rs`.
+fn version() -> &'static str {
+    concat!(env!("CARGO_PKG_VERSION"), "-", env!("GIT_SHA"))
+}
+
+/// Top-level command-line interface for the `ethexe` binary.
 #[derive(Debug, Parser)]
+#[command(name = "ethexe", version = version())]
 pub struct Cli {
     /// Path to the TOML config file. If not provided, the default path "./.ethexe.toml" is used. To disable parsing of the config file, use "none".
     #[arg(long)]
@@ -56,7 +81,7 @@ impl Cli {
             Some(path) => {
                 let path = PathBuf::from(path);
 
-                println!("📄 Using custom params file: {}", path.display());
+                eprintln!("📄 Using custom params file: {}", path.display());
 
                 Some(Params::from_file(path)?)
             }
@@ -64,7 +89,7 @@ impl Cli {
                 let default_cfg_path = PathBuf::from(Self::DEFAULT_PARAMS_PATH);
 
                 if default_cfg_path.exists() {
-                    println!(
+                    eprintln!(
                         "📄 Using default params file: {}",
                         default_cfg_path.display()
                     );
@@ -76,4 +101,22 @@ impl Cli {
             }
         })
     }
+}
+
+/// Initializes structured logging for command execution.
+///
+/// The caller provides the default level, while environment overrides from `RUST_LOG`
+/// still participate via [`EnvFilter::from_env_lossy`]. Verbose Cranelift logs are
+/// disabled unconditionally because they are too noisy for normal CLI use.
+fn enable_logging(logging_level_name: &str) -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(logging_level_name.parse()?)
+                .from_env_lossy()
+                .add_directive("wasmtime_cranelift=off".parse()?)
+                .add_directive("cranelift=off".parse()?),
+        )
+        .try_init()
+        .map_err(|e| anyhow::anyhow!("failed to initialize logger: {e}"))
 }

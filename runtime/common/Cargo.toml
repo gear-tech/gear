@@ -28,6 +28,7 @@ frame-system-benchmarking = { workspace = true, optional = true }
 runtime-primitives.workspace = true
 pallet-gear.workspace = true
 pallet-gear-bank.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]

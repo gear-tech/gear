@@ -21,17 +21,19 @@ use gear_wasm_builder::{
     code_validator::validate_program,
     optimize::{self, Optimizer},
 };
-use gear_wasm_instrument::{Module, TypeRef};
+use gear_wasm_instrument::{Module, SyscallKind, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
 use tracing_subscriber::EnvFilter;
 
-const RT_ALLOWED_IMPORTS: [&str; 76] = [
+const RT_ALLOWED_IMPORTS: [&str; 78] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
     // From `Crypto` (substrate/primitives/io/src/lib.rs)
     "ext_crypto_ed25519_generate_version_1",
     "ext_crypto_ed25519_verify_version_1",
+    "ext_crypto_ed25519_public_keys_version_1",
+    "ext_crypto_ed25519_sign_version_1",
     "ext_crypto_finish_batch_verify_version_1",
     "ext_crypto_secp256k1_ecdsa_recover_compressed_version_2",
     "ext_crypto_sr25519_generate_version_1",
@@ -288,7 +290,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             optimized_wasm_path.display()
         );
 
-        validate_program(code)?;
+        validate_program(code, false, SyscallKind::Vara)?;
     }
 
     Ok(())

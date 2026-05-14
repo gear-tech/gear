@@ -12,5 +12,9 @@ homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[dependencies]
+bytemuck = { workspace = true, features = ["derive"] }
+gear-workspace-hack.workspace = true
+
 [features]
 ethexe = []

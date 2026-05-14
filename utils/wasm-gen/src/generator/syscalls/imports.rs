@@ -28,7 +28,8 @@ use crate::{
 };
 use arbitrary::{Error as ArbitraryError, Result, Unstructured};
 use gear_wasm_instrument::{
-    Function, Import, Instruction, MemArg, ModuleBuilder, syscalls::SyscallName,
+    Function, Import, Instruction, MemArg, ModuleBuilder,
+    syscalls::{SyscallKind, SyscallName},
 };
 use gsys::{Handle, Hash, Length};
 use std::{collections::BTreeMap, num::NonZero};
@@ -144,26 +145,30 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
     /// Returns disabled syscalls imports generator and a proof that imports from config were generated.
     pub fn generate(
         mut self,
+        syscall_kind: SyscallKind,
     ) -> Result<(
         DisabledSyscallsImportsGenerator<'a, 'b>,
         SyscallsImportsGenerationProof,
     )> {
         log::trace!("Generating syscalls imports");
 
-        let syscalls_proof = self.generate_syscalls_imports()?;
-        self.generate_precise_syscalls()?;
+        let syscalls_proof = self.generate_syscalls_imports(syscall_kind)?;
+        self.generate_precise_syscalls(syscall_kind)?;
 
         Ok((self.disable(), syscalls_proof))
     }
 
     /// Generates syscalls imports from config, used to instantiate the generator.
-    pub fn generate_syscalls_imports(&mut self) -> Result<SyscallsImportsGenerationProof> {
+    pub fn generate_syscalls_imports(
+        &mut self,
+        syscall_kind: SyscallKind,
+    ) -> Result<SyscallsImportsGenerationProof> {
         log::trace!(
             "Random data before syscalls imports - {}",
             self.unstructured.len()
         );
 
-        for syscall in SyscallName::instrumentable() {
+        for syscall in SyscallName::instrumentable(syscall_kind) {
             let syscall_generation_data = self.generate_syscall_import(syscall)?;
             if let Some(syscall_generation_data) = syscall_generation_data {
                 self.syscalls_imports
@@ -175,7 +180,7 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
     }
 
     /// Generates precise syscalls and handles errors if any occurred during generation.
-    fn generate_precise_syscalls(&mut self) -> Result<()> {
+    fn generate_precise_syscalls(&mut self, syscall_kind: SyscallKind) -> Result<()> {
         use SyscallName::*;
 
         #[allow(clippy::type_complexity)]
@@ -185,12 +190,20 @@ impl<'a, 'b> SyscallsImportsGenerator<'a, 'b> {
         ); 5] = [
             (ReservationSend, Self::generate_send_from_reservation),
             (ReservationReply, Self::generate_reply_from_reservation),
+            // Available for both `SyscallKind::Vara` and `SyscallKind::Eth`
             (SendCommit, Self::generate_send_commit),
             (SendCommitWGas, Self::generate_send_commit_with_gas),
             (ReplyDeposit, Self::generate_reply_deposit),
         ];
 
         for (precise_syscall, generate_method) in precise_syscalls {
+            // Check if precise syscall is applicable for the current syscall kind. If not, skip it.
+            match syscall_kind {
+                SyscallKind::Vara if !precise_syscall.is_vara() => continue,
+                SyscallKind::Eth if !precise_syscall.is_eth() => continue,
+                _ => {}
+            }
+
             let syscall_injection_type = self
                 .config
                 .injection_type(InvocableSyscall::Precise(precise_syscall));

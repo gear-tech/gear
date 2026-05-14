@@ -27,7 +27,7 @@ use crate::{
 use alloc::collections::BTreeSet;
 use gear_wasm_instrument::{
     ConstExpr, ElementItems, Export, Global, Instruction, Module, STACK_END_EXPORT_NAME,
-    SyscallName,
+    SyscallKind, SyscallName,
 };
 use wasmparser::{ExternalKind, Payload, TypeRef, ValType};
 
@@ -148,7 +148,7 @@ pub fn check_exports(module: &Module) -> Result<(), CodeError> {
         .map_err(CodeError::Export)
 }
 
-pub fn check_imports(module: &Module) -> Result<(), CodeError> {
+pub fn check_imports(module: &Module, kind: SyscallKind) -> Result<(), CodeError> {
     let types = module
         .type_section
         .as_ref()
@@ -159,7 +159,7 @@ pub fn check_imports(module: &Module) -> Result<(), CodeError> {
         .as_ref()
         .ok_or(SectionError::NotFound(SectionName::Import))?;
 
-    let syscalls = SyscallName::instrumentable_map();
+    let syscalls = SyscallName::instrumentable_map(kind);
 
     let mut visited_imports = BTreeSet::new();
 
@@ -306,6 +306,27 @@ pub fn check_data_section(
                 data_segment_last_byte_offset,
                 static_pages.offset(),
             ))?;
+    }
+
+    Ok(())
+}
+
+/// Checks that the types in the type section do not exceed the limit on the number of parameters per type.
+pub fn check_type_section(
+    module: &Module,
+    type_section_params_per_type_limit: u32,
+) -> Result<(), CodeError> {
+    if let Some(type_section) = &module.type_section {
+        for ty in type_section.iter() {
+            // Check sum of parameters and results.
+            if (ty.params().len() + ty.results().len()) as u32 > type_section_params_per_type_limit
+            {
+                Err(TypeSectionError::ParametersPerTypeLimitExceeded {
+                    limit: type_section_params_per_type_limit,
+                    actual: ty.params().len() as u32,
+                })?;
+            }
+        }
     }
 
     Ok(())
@@ -477,7 +498,11 @@ pub struct CodeTypeSectionSizes {
 }
 
 // Calculate the size of the code and type sections in bytes.
-pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSectionSizes, CodeError> {
+// Also checks the type section length limit.
+pub fn get_code_type_sections_sizes(
+    code_bytes: &[u8],
+    type_section_len_limit: Option<u32>,
+) -> Result<CodeTypeSectionSizes, CodeError> {
     let mut code_section_size = 0;
     let mut type_section_size = 0;
 
@@ -490,10 +515,21 @@ pub fn get_code_type_sections_sizes(code_bytes: &[u8]) -> Result<CodeTypeSection
                 code_section_size = size;
             }
             Payload::TypeSection(t) => {
+                // Calculate the size of the type section.
                 type_section_size += t.range().len() as u32;
             }
             _ => {}
         }
+    }
+
+    // Check if the type section length exceeds the limit.
+    if let Some(type_section_len_limit) = type_section_len_limit
+        && type_section_size > type_section_len_limit
+    {
+        Err(TypeSectionError::LengthLimitExceeded {
+            limit: type_section_len_limit,
+            actual: type_section_size,
+        })?;
     }
 
     Ok(CodeTypeSectionSizes {

@@ -16,39 +16,34 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_blob_loader::local::LocalBlobStorage;
-use ethexe_common::CodeAndId;
-use gprimitives::{CodeId, H256};
+use ethexe_common::{Address, db::ConfigStorageRO};
+use ethexe_db::Database;
 use jsonrpsee::{
     core::{RpcResult, async_trait},
     proc_macros::rpc,
 };
-use sp_core::Bytes;
 
-#[rpc(server)]
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Dev {
-    #[method(name = "dev_setBlob")]
-    async fn set_blob(&self, tx_hash: H256, blob: Bytes) -> RpcResult<CodeId>;
+    /// This call is infallible and always return the protocol Router address.
+    #[method(name = "routerAddress")]
+    async fn router_address(&self) -> RpcResult<Address>;
 }
 
-#[derive(Clone)]
 pub struct DevApi {
-    blobs_storage: LocalBlobStorage,
+    db: Database,
 }
 
 impl DevApi {
-    pub fn new(blobs_storage: LocalBlobStorage) -> Self {
-        Self { blobs_storage }
+    pub fn new(db: Database) -> Self {
+        Self { db }
     }
 }
 
 #[async_trait]
 impl DevServer for DevApi {
-    async fn set_blob(&self, _tx_hash: H256, blob: Bytes) -> RpcResult<CodeId> {
-        let code_and_id = CodeAndId::new(blob.0);
-        let code_id = code_and_id.code_id();
-        self.blobs_storage.add_code(code_and_id).await;
-
-        Ok(code_id)
+    async fn router_address(&self) -> RpcResult<Address> {
+        Ok(self.db.config().router_address)
     }
 }

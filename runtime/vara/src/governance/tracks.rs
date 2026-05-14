@@ -295,7 +295,6 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 
 pub struct TracksInfo;
 
-#[cfg(feature = "dev")]
 impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
     type Id = u16;
     type RuntimeOrigin = <RuntimeOrigin as frame_support::traits::OriginTrait>::PalletsOrigin;
@@ -317,44 +316,6 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
                         Err(())
                     }
                 }
-                _ => Err(()),
-            }
-        } else if let Ok(custom_origin) = origins::Origin::try_from(id.clone()) {
-            match custom_origin {
-                origins::Origin::WhitelistedCaller => Ok(1),
-                // General admin
-                origins::Origin::StakingAdmin => Ok(10),
-                origins::Origin::Treasurer => Ok(11),
-                origins::Origin::FellowshipAdmin => Ok(12),
-                origins::Origin::GeneralAdmin => Ok(13),
-                // Referendum admins
-                origins::Origin::ReferendumCanceller => Ok(20),
-                origins::Origin::ReferendumKiller => Ok(21),
-                // Limited treasury spenders
-                origins::Origin::SmallTipper => Ok(30),
-                origins::Origin::BigTipper => Ok(31),
-                origins::Origin::SmallSpender => Ok(32),
-                origins::Origin::MediumSpender => Ok(33),
-                origins::Origin::BigSpender => Ok(34),
-                _ => Err(()),
-            }
-        } else {
-            Err(())
-        }
-    }
-}
-
-#[cfg(not(feature = "dev"))]
-impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
-    type Id = u16;
-    type RuntimeOrigin = <RuntimeOrigin as frame_support::traits::OriginTrait>::PalletsOrigin;
-    fn tracks() -> &'static [(Self::Id, pallet_referenda::TrackInfo<Balance, BlockNumber>)] {
-        &TRACKS_DATA[..]
-    }
-    fn track_for(id: &Self::RuntimeOrigin) -> Result<Self::Id, ()> {
-        if let Ok(system_origin) = frame_system::RawOrigin::try_from(id.clone()) {
-            match system_origin {
-                frame_system::RawOrigin::Root => Ok(0),
                 _ => Err(()),
             }
         } else if let Ok(custom_origin) = origins::Origin::try_from(id.clone()) {

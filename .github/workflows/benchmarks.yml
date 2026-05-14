@@ -48,7 +48,7 @@ jobs:
       available_region: ${{ steps.get-region.outputs.available_region }}
     steps:
     - name: AWS Login
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@v6
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -67,7 +67,7 @@ jobs:
         echo "::add-mask::$TOKEN"
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Check Capacity
       id: get-region
@@ -98,7 +98,7 @@ jobs:
         fi
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v4
 
     - name: Terraform Apply
       timeout-minutes: 30
@@ -129,7 +129,7 @@ jobs:
       pull-requests: write
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -157,7 +157,7 @@ jobs:
         id: upload-errors
         # This step will only run if the run-bench step failed
         if: ${{ failure() && steps.run-bench.conclusion == 'failure' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmarking-errors
           path: scripts/benchmarking/benchmarking_errors.txt
@@ -177,7 +177,7 @@ jobs:
         # This step will run if benchmarking finished with no errors (upload-errors step was skipped),
         # This runs even if baremetal patching was failed - in that case, make sure to handle it.
         if: ${{ !cancelled() && steps.upload-errors.conclusion == 'skipped'}}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: weights-output
           path: scripts/benchmarking/weights-output
@@ -188,7 +188,7 @@ jobs:
 
       - name: Create commit
         if: ${{ inputs.change-type == 'commit' }}
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(runtime): update weights"
           file_pattern: >-
@@ -198,7 +198,7 @@ jobs:
 
       - name: Create pull request
         if: ${{ inputs.change-type == 'pull_request' }}
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           add-paths: |
             core/src/gas_metering/schedule.rs
@@ -207,12 +207,15 @@ jobs:
           commit-message: update weights
           branch: weights/patch
           branch-suffix: short-commit-hash
-          title: "chore(runtime): update weights"
+          title: "chore(vara): update weights"
           body: |
             `run_all_benchmarks.sh` script is applied to update weights (branch: `${{ github.ref_name }}`, commit ${{ github.sha }})
 
             **Note:** If CI fails, try manually updating the heuristic tests: `runtime/vara/src/tests/mod.rs`
-          labels: A0-pleasereview
+          labels: |
+            type: chore
+            scope: vara
+            ai-friendly
 
   destroy-runner:
     if: always()
@@ -220,19 +223,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: AWS Login
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@v6
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-west-2
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         sparse-checkout: terraform
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v4
 
     - name: Terraform Destroy
       timeout-minutes: 60

@@ -17,15 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use ark_scale::HOST_CALL;
-use ark_serialize::{CanonicalDeserialize, Compress, Validate};
+use builtins_common::bls12_381::{self, Bls12_381Ops, BlsOpsGasCost};
 use core::marker::PhantomData;
-use gbuiltin_bls381::*;
-use parity_scale_codec::{Compact, Input};
-use sp_crypto_ec_utils::bls12_381;
-
-const IS_COMPRESSED: Compress = ark_scale::is_compressed(HOST_CALL);
-const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
+use gear_runtime_interface::gear_bls_12_381 as gear_ri_bls12_381;
+use sp_crypto_ec_utils::bls12_381::host_calls as sp_ri_sp_crypto_bls12_381;
 
 pub struct Actor<T: Config>(PhantomData<T>);
 
@@ -34,23 +29,10 @@ impl<T: Config> BuiltinActor for Actor<T> {
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
     ) -> Result<BuiltinReply, BuiltinActorError> {
-        let message = dispatch.message();
-        let payload = message.payload_bytes();
-        match payload.first().copied() {
-            Some(REQUEST_MULTI_MILLER_LOOP) => multi_miller_loop::<T>(&payload[1..], context),
-            Some(REQUEST_FINAL_EXPONENTIATION) => final_exponentiation::<T>(&payload[1..], context),
-            Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G1) => msm_g1::<T>(&payload[1..], context),
-            Some(REQUEST_MULTI_SCALAR_MULTIPLICATION_G2) => msm_g2::<T>(&payload[1..], context),
-            Some(REQUEST_PROJECTIVE_MULTIPLICATION_G1) => {
-                projective_multiplication_g1::<T>(&payload[1..], context)
-            }
-            Some(REQUEST_PROJECTIVE_MULTIPLICATION_G2) => {
-                projective_multiplication_g2::<T>(&payload[1..], context)
-            }
-            Some(REQUEST_AGGREGATE_G1) => aggregate_g1::<T>(&payload[1..], context),
-            Some(REQUEST_MAP_TO_G2AFFINE) => map_to_g2affine::<T>(&payload[1..], context),
-            _ => Err(BuiltinActorError::DecodingError),
-        }
+        bls12_381::execute_bls12_381_builtins::<BlsOpsGasCostsImpl<T>, Bls12_381OpsRi>(
+            dispatch.payload_bytes(),
+            context,
+        )
         .map(|response| BuiltinReply {
             payload: response.encode().try_into().unwrap_or_else(|err| {
                 let err_msg = format!(
@@ -71,307 +53,101 @@ impl<T: Config> BuiltinActor for Actor<T> {
     }
 }
 
-fn decode_vec<T: Config, I: Input>(
-    input: &mut I,
-    context: &mut BuiltinContext,
-) -> Result<Vec<u8>, BuiltinActorError> {
-    let len = Compact::<u32>::decode(input).map(u32::from).map_err(|_| {
-        log::debug!(
-            target: LOG_TARGET,
-            "Failed to scale-decode vector length"
-        );
-        BuiltinActorError::DecodingError
-    })?;
+struct BlsOpsGasCostsImpl<T: Config>(PhantomData<T>);
 
-    let to_spend = <T as Config>::WeightInfo::decode_bytes(len).ref_time();
-    context.try_charge_gas(to_spend)?;
-
-    let mut items = vec![0u8; len as usize];
-    let bytes_slice = items.as_mut_slice();
-
-    input.read(bytes_slice).map(|_| items).map_err(|_| {
-        log::debug!(
-            target: LOG_TARGET,
-            "Failed to scale-decode vector data",
-        );
-
-        BuiltinActorError::DecodingError
-    })
-}
-
-fn multi_miller_loop<T: Config>(
-    mut payload: &[u8],
-    context: &mut BuiltinContext,
-) -> Result<Response, BuiltinActorError> {
-    // TODO: do we need further refactorig here as per #3841?
-    let a = decode_vec::<T, _>(&mut payload, context)?;
-    let b = decode_vec::<T, _>(&mut payload, context)?;
-
-    // decode the items count
-    let mut slice = a.as_slice();
-    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
-    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
-        log::debug!(
-            target: LOG_TARGET,
-            "Failed to decode items count in a",
-        );
-
-        return Err(BuiltinActorError::DecodingError);
-    };
-
-    let mut slice = b.as_slice();
-    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
-    match u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) {
-        Ok(count_b) if count_b != count => {
-            return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                "Multi Miller loop: uneven item count",
-            )));
-        }
-        Err(_) => return Err(BuiltinActorError::DecodingError),
-        Ok(_) => (),
+impl<T: Config> BlsOpsGasCost for BlsOpsGasCostsImpl<T> {
+    fn decode_bytes(len: u32) -> u64 {
+        <T as Config>::WeightInfo::decode_bytes(len).ref_time()
     }
 
-    let to_spend = <T as Config>::WeightInfo::bls12_381_multi_miller_loop(count as u32).ref_time();
-    context.try_charge_gas(to_spend)?;
+    fn bls12_381_multi_miller_loop(count: u32) -> u64 {
+        <T as Config>::WeightInfo::bls12_381_multi_miller_loop(count).ref_time()
+    }
 
-    match bls12_381::host_calls::bls12_381_multi_miller_loop(a, b) {
-        Ok(result) => Ok(Response::MultiMillerLoop(result)),
-        Err(_) => Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-            "Multi Miller loop: computation error",
-        ))),
+    fn bls12_381_final_exponentiation() -> u64 {
+        <T as Config>::WeightInfo::bls12_381_final_exponentiation().ref_time()
+    }
+
+    fn bls12_381_msm_g1(count: u32) -> u64 {
+        <T as Config>::WeightInfo::bls12_381_msm_g1(count).ref_time()
+    }
+
+    fn bls12_381_msm_g2(count: u32) -> u64 {
+        <T as Config>::WeightInfo::bls12_381_msm_g2(count).ref_time()
+    }
+
+    fn bls12_381_mul_projective_g1(count: u32) -> u64 {
+        <T as Config>::WeightInfo::bls12_381_mul_projective_g1(count).ref_time()
+    }
+
+    fn bls12_381_mul_projective_g2(count: u32) -> u64 {
+        <T as Config>::WeightInfo::bls12_381_mul_projective_g2(count).ref_time()
+    }
+
+    fn bls12_381_aggregate_g1(count: u32) -> u64 {
+        <T as Config>::WeightInfo::bls12_381_aggregate_g1(count).ref_time()
+    }
+
+    fn bls12_381_map_to_g2affine(len: u32) -> u64 {
+        <T as Config>::WeightInfo::bls12_381_map_to_g2affine(len).ref_time()
     }
 }
 
-fn final_exponentiation<T: Config>(
-    mut payload: &[u8],
-    context: &mut BuiltinContext,
-) -> Result<Response, BuiltinActorError> {
-    let f = decode_vec::<T, _>(&mut payload, context)?;
+struct Bls12_381OpsRi;
 
-    let to_spend = <T as Config>::WeightInfo::bls12_381_final_exponentiation().ref_time();
-    context.try_charge_gas(to_spend)?;
-
-    match bls12_381::host_calls::bls12_381_final_exponentiation(f) {
-        Ok(result) => Ok(Response::FinalExponentiation(result)),
-        Err(_) => Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-            "Final exponentiation: computation error",
-        ))),
-    }
-}
-
-fn msm<T: Config>(
-    mut payload: &[u8],
-    context: &mut BuiltinContext,
-    gas_to_spend: impl FnOnce(u32) -> u64,
-    call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Response, ()>,
-) -> Result<Response, BuiltinActorError> {
-    let bases = decode_vec::<T, _>(&mut payload, context)?;
-    let scalars = decode_vec::<T, _>(&mut payload, context)?;
-
-    // decode the count of items
-    let mut slice = bases.as_slice();
-    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
-    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
-        log::debug!(
-            target: LOG_TARGET,
-            "Failed to decode items count in bases",
-        );
-
-        return Err(BuiltinActorError::DecodingError);
-    };
-
-    let mut slice = scalars.as_slice();
-    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
-    match u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) {
-        Ok(count_b) if count_b != count => {
-            return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-                "Multi scalar multiplication: uneven item count",
-            )));
-        }
-        Err(_) => {
-            log::debug!(
-                target: LOG_TARGET,
-                "Failed to decode items count in scalars",
-            );
-
-            return Err(BuiltinActorError::DecodingError);
-        }
-        Ok(_) => (),
-    }
-
-    let to_spend = gas_to_spend(count as u32);
-    context.try_charge_gas(to_spend)?;
-
-    match call(bases, scalars) {
-        Ok(result) => Ok(result),
-        Err(_) => Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
-            "Multi scalar multiplication: computation error",
-        ))),
-    }
-}
-
-fn msm_g1<T: Config>(
-    payload: &[u8],
-    context: &mut BuiltinContext,
-) -> Result<Response, BuiltinActorError> {
-    msm::<T>(
-        payload,
-        context,
-        |count| <T as Config>::WeightInfo::bls12_381_msm_g1(count).ref_time(),
-        |bases, scalars| {
-            bls12_381::host_calls::bls12_381_msm_g1(bases, scalars)
-                .map(Response::MultiScalarMultiplicationG1)
-        },
-    )
-}
-
-fn msm_g2<T: Config>(
-    payload: &[u8],
-    context: &mut BuiltinContext,
-) -> Result<Response, BuiltinActorError> {
-    msm::<T>(
-        payload,
-        context,
-        |count| <T as Config>::WeightInfo::bls12_381_msm_g2(count).ref_time(),
-        |bases, scalars| {
-            bls12_381::host_calls::bls12_381_msm_g2(bases, scalars)
-                .map(Response::MultiScalarMultiplicationG2)
-        },
-    )
-}
-
-fn projective_multiplication<T: Config>(
-    mut payload: &[u8],
-    context: &mut BuiltinContext,
-    gas_to_spend: impl FnOnce(u32) -> u64,
-    call: impl FnOnce(Vec<u8>, Vec<u8>) -> Result<Response, ()>,
-) -> Result<Response, BuiltinActorError> {
-    let base = decode_vec::<T, _>(&mut payload, context)?;
-    let scalar = decode_vec::<T, _>(&mut payload, context)?;
-
-    // decode the count of items
-    let mut slice = scalar.as_slice();
-    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
-    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
-        log::debug!(
-            target: LOG_TARGET,
-            "Failed to decode items count in scalar",
-        );
-
-        return Err(BuiltinActorError::DecodingError);
-    };
-
-    let to_spend = gas_to_spend(count as u32);
-    context.try_charge_gas(to_spend)?;
-
-    call(base, scalar).map_err(|_| {
-        BuiltinActorError::Custom(LimitedStr::from_small_str(
-            "Projective multiplication: computation error",
-        ))
-    })
-}
-
-fn projective_multiplication_g1<T: Config>(
-    payload: &[u8],
-    context: &mut BuiltinContext,
-) -> Result<Response, BuiltinActorError> {
-    projective_multiplication::<T>(
-        payload,
-        context,
-        |count| <T as Config>::WeightInfo::bls12_381_mul_projective_g1(count).ref_time(),
-        |base, scalar| {
-            bls12_381::host_calls::bls12_381_mul_projective_g1(base, scalar)
-                .map(Response::ProjectiveMultiplicationG1)
-        },
-    )
-}
-
-fn projective_multiplication_g2<T: Config>(
-    payload: &[u8],
-    context: &mut BuiltinContext,
-) -> Result<Response, BuiltinActorError> {
-    projective_multiplication::<T>(
-        payload,
-        context,
-        |count| <T as Config>::WeightInfo::bls12_381_mul_projective_g2(count).ref_time(),
-        |base, scalar| {
-            bls12_381::host_calls::bls12_381_mul_projective_g2(base, scalar)
-                .map(Response::ProjectiveMultiplicationG2)
-        },
-    )
-}
-
-fn aggregate_g1<T: Config>(
-    mut payload: &[u8],
-    context: &mut BuiltinContext,
-) -> Result<Response, BuiltinActorError> {
-    let points = decode_vec::<T, _>(&mut payload, context)?;
-
-    // decode the count of items
-    let mut slice = points.as_slice();
-    let mut reader = ark_scale::rw::InputAsRead(&mut slice);
-    let Ok(count) = u64::deserialize_with_mode(&mut reader, IS_COMPRESSED, IS_VALIDATED) else {
-        log::debug!(
-            target: LOG_TARGET,
-            "Failed to decode items count in points",
-        );
-
-        return Err(BuiltinActorError::DecodingError);
-    };
-
-    let to_spend = <T as Config>::WeightInfo::bls12_381_aggregate_g1(count as u32).ref_time();
-    context.try_charge_gas(to_spend)?;
-
-    gear_runtime_interface::gear_bls_12_381::aggregate_g1(&points)
-        .map(Response::AggregateG1)
-        .map_err(|e| {
-            log::debug!(
-                target: LOG_TARGET,
-                "Failed to aggregate G1-points: {e}"
-            );
-
+impl Bls12_381Ops for Bls12_381OpsRi {
+    fn multi_miller_loop(g1: Vec<u8>, g2: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        sp_ri_sp_crypto_bls12_381::bls12_381_multi_miller_loop(g1, g2).map_err(|_| {
             BuiltinActorError::Custom(LimitedStr::from_small_str(
-                "Aggregate G1-points: computation error",
+                "Multi Miller loop host-call failed",
             ))
         })
-}
-
-fn map_to_g2affine<T: Config>(
-    mut payload: &[u8],
-    context: &mut BuiltinContext,
-) -> Result<Response, BuiltinActorError> {
-    let len = Compact::<u32>::decode(&mut payload)
-        .map(u32::from)
-        .map_err(|_| {
-            log::debug!(
-                target: LOG_TARGET,
-                "Failed to scale-decode vector length"
-            );
-            BuiltinActorError::DecodingError
-        })?;
-
-    if len != payload.len() as u32 {
-        log::debug!(
-            target: LOG_TARGET,
-            "Failed to scale-decode vector length"
-        );
-
-        return Err(BuiltinActorError::DecodingError);
     }
 
-    let to_spend = <T as Config>::WeightInfo::bls12_381_map_to_g2affine(len).ref_time();
-    context.try_charge_gas(to_spend)?;
-
-    gear_runtime_interface::gear_bls_12_381::map_to_g2affine(payload)
-        .map(Response::MapToG2Affine)
-        .map_err(|e| {
-            log::debug!(
-                target: LOG_TARGET,
-                "Failed to map a message: {e}"
-            );
-
+    fn final_exponentiation(f: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        sp_ri_sp_crypto_bls12_381::bls12_381_final_exponentiation(f).map_err(|_| {
             BuiltinActorError::Custom(LimitedStr::from_small_str(
-                "Mapping message: computation error",
+                "Final exponentiation host-call failed",
             ))
         })
+    }
+
+    fn msm_g1(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        sp_ri_sp_crypto_bls12_381::bls12_381_msm_g1(bases, scalars).map_err(|_| {
+            BuiltinActorError::Custom(LimitedStr::from_small_str("MSM G1 computation failed"))
+        })
+    }
+
+    fn msm_g2(bases: Vec<u8>, scalars: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        sp_ri_sp_crypto_bls12_381::bls12_381_msm_g2(bases, scalars).map_err(|_| {
+            BuiltinActorError::Custom(LimitedStr::from_small_str("MSM G2 computation failed"))
+        })
+    }
+
+    fn projective_mul_g1(base: Vec<u8>, scalar: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        sp_ri_sp_crypto_bls12_381::bls12_381_mul_projective_g1(base, scalar).map_err(|_| {
+            BuiltinActorError::Custom(LimitedStr::from_small_str(
+                "Projective multiplication G1 failed",
+            ))
+        })
+    }
+
+    fn projective_mul_g2(base: Vec<u8>, scalar: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        sp_ri_sp_crypto_bls12_381::bls12_381_mul_projective_g2(base, scalar).map_err(|_| {
+            BuiltinActorError::Custom(LimitedStr::from_small_str(
+                "Projective multiplication G2 failed",
+            ))
+        })
+    }
+
+    fn aggregate_g1(points: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        gear_ri_bls12_381::aggregate_g1(points)
+            .map_err(|err_code| BuiltinActorError::from_u32(err_code, Some("Aggregate G1 failed")))
+    }
+
+    fn map_to_g2affine(message: Vec<u8>) -> Result<Vec<u8>, BuiltinActorError> {
+        gear_ri_bls12_381::map_to_g2affine(message).map_err(|err_code| {
+            BuiltinActorError::from_u32(err_code, Some("Map to G2 affine failed"))
+        })
+    }
 }

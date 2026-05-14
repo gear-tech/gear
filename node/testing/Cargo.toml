@@ -31,3 +31,4 @@ sp-io.workspace = true
 # Substrate Other
 frame-system.workspace = true
 frame-metadata-hash-extension.workspace = true
+gear-workspace-hack.workspace = true

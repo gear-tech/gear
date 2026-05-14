@@ -64,7 +64,7 @@ mod panic_handler {
         const MESSAGE: &str = const_format::formatcp!("{PANIC_PREFIX}'{UNKNOWN_REASON}'");
 
         #[cfg(feature = "debug")]
-        let _ = ext::debug(MESSAGE);
+        ext::debug(MESSAGE);
 
         ext::panic_str(MESSAGE)
     }

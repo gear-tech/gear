@@ -1,0 +1,37 @@
+[package]
+name = "gear-core-processor"
+description = "The core processor for Gear programs"
+documentation = "https://docs.rs/core-processor"
+keywords = ["gear", "wasm"]
+categories = ["wasm"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+gear-core.workspace = true
+gear-core-errors = { workspace = true, features = ["codec"] }
+gear-core-backend.workspace = true
+gear-wasm-instrument.workspace = true
+gear-lazy-pages-common.workspace = true
+gsys.workspace = true
+log.workspace = true
+derive_more.workspace = true
+actor-system-error.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"] }
+gear-workspace-hack.workspace = true
+
+[dev-dependencies]
+enum-iterator.workspace = true
+gear-core = { workspace = true, features = ["mock"] }
+
+[features]
+default = ["std"]
+std = ["gear-core-backend/std", "gear-wasm-instrument/std"]
+strict = []
+mock = ["gear-core/mock"]
+gtest = []

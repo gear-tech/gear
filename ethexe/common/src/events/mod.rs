@@ -18,23 +18,23 @@
 
 use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
-mod mirror;
-mod router;
-mod wvara;
+pub mod mirror;
+pub mod router;
+pub mod wvara;
 
 pub use mirror::{Event as MirrorEvent, RequestEvent as MirrorRequestEvent};
 pub use router::{Event as RouterEvent, RequestEvent as RouterRequestEvent};
-pub use wvara::{Event as WVaraEvent, RequestEvent as WVaraRequestEvent};
+pub use wvara::Event as WVaraEvent;
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub enum BlockEvent {
     Mirror {
         actor_id: ActorId,
         event: MirrorEvent,
     },
     Router(RouterEvent),
-    WVara(WVaraEvent),
 }
 
 impl BlockEvent {
@@ -49,7 +49,6 @@ impl BlockEvent {
                 event: event.to_request()?,
             },
             Self::Router(event) => BlockRequestEvent::Router(event.to_request()?),
-            Self::WVara(event) => BlockRequestEvent::WVara(event.to_request()?),
         })
     }
 }
@@ -66,12 +65,6 @@ impl From<RouterEvent> for BlockEvent {
     }
 }
 
-impl From<WVaraEvent> for BlockEvent {
-    fn from(value: WVaraEvent) -> Self {
-        Self::WVara(value)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BlockRequestEvent {
@@ -80,7 +73,6 @@ pub enum BlockRequestEvent {
         actor_id: ActorId,
         event: MirrorRequestEvent,
     },
-    WVara(WVaraRequestEvent),
 }
 
 impl BlockRequestEvent {
@@ -98,11 +90,5 @@ impl From<(ActorId, MirrorRequestEvent)> for BlockRequestEvent {
 impl From<RouterRequestEvent> for BlockRequestEvent {
     fn from(value: RouterRequestEvent) -> Self {
         Self::Router(value)
-    }
-}
-
-impl From<WVaraRequestEvent> for BlockRequestEvent {
-    fn from(value: WVaraRequestEvent) -> Self {
-        Self::WVara(value)
     }
 }

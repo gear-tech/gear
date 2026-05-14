@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::errors;
-use ethexe_common::db::CodesStorageRead;
+use ethexe_common::db::CodesStorageRO;
 use ethexe_db::Database;
 use gprimitives::H256;
 use jsonrpsee::{
@@ -27,7 +27,8 @@ use jsonrpsee::{
 use parity_scale_codec::Encode;
 use sp_core::Bytes;
 
-#[rpc(server)]
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Code {
     #[method(name = "code_getOriginal")]
     async fn get_original_code(&self, id: H256) -> RpcResult<Bytes>;

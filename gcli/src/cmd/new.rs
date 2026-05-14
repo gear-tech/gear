@@ -17,32 +17,56 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `new`
-use crate::{result::Result, template};
+use crate::template;
+use anyhow::Result;
 use clap::Parser;
+use colored::Colorize;
+use std::path::PathBuf;
 
-/// Create a new gear program
+/// Create a new project of Gear program from a template.
 #[derive(Clone, Debug, Parser)]
 pub struct New {
-    /// Create gear program from templates.
-    #[arg(short, long, default_value = "dapp-template")]
-    pub template: String,
+    /// List all available templates and do nothing.
+    #[arg(short, long)]
+    list: bool,
 
-    /// Create gear program in specified path.
-    pub path: Option<String>,
+    /// Template name.
+    #[arg(short, long, default_value = "dapp-template")]
+    template: String,
+
+    /// Path to create project at, defaults to the name of the template.
+    path: Option<PathBuf>,
 }
 
 impl New {
-    /// run command new
-    pub async fn exec(&self) -> Result<()> {
+    pub async fn exec(self) -> Result<()> {
         let templates = template::list().await?;
+        let list_templates = || {
+            println!("{}", "Available templates:".bold());
+            for template in &templates {
+                println!("- {template}")
+            }
+        };
 
-        let template = &self.template;
-        if templates.contains(template) {
-            let path = self.path.as_deref().unwrap_or(template);
-            template::download(template, path).await?;
-            println!("Successfully created {path}!");
+        if self.list {
+            list_templates();
+            return Ok(());
+        }
+
+        if templates.contains(&self.template) {
+            let path = self
+                .path
+                .as_deref()
+                .unwrap_or_else(|| self.template.as_ref());
+            template::download(&self.template, path).await?;
+            println!(
+                "Successfully created `{}`",
+                path.display().to_string().blue()
+            );
         } else {
-            println!("Template not found, available templates: {templates:#?}");
+            println!("Template `{}` is not found", self.template.purple());
+            println!();
+            list_templates();
         }
 
         Ok(())

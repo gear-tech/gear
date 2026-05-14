@@ -1,0 +1,235 @@
+use alloy::{
+    hex,
+    providers::{Provider, RootProvider},
+    rpc::types::Header,
+    signers::local::{MnemonicBuilder, coins_bip39::English},
+};
+use anyhow::Result;
+use ethexe_common::events::MirrorEvent;
+use futures::StreamExt;
+use gear_core::ids::prelude::MessageIdExt;
+use gear_wasm_gen::StandardGearWasmConfigsBundle;
+use gprimitives::MessageId;
+use rand::rngs::SmallRng;
+use std::str::FromStr;
+use tokio::{
+    fs::File,
+    io::AsyncWriteExt,
+    sync::{broadcast, watch},
+};
+use tracing::warn;
+
+use crate::batch::Event;
+
+const ANVIL_MNEMONIC: &str = "test test test test test test test test test test test junk";
+const MAX_PREBUILT_ANVIL_ACCOUNTS: u32 = 256;
+
+/// Minimal description of a prefunded Ethereum account known to local tooling.
+#[derive(Clone, Copy)]
+pub struct PrefundedAccount {
+    pub private_key: &'static str,
+}
+
+/// Default Anvil deployer account used when no explicit sender key is provided.
+pub const DEPLOYER_ACCOUNT: PrefundedAccount = PrefundedAccount {
+    private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+};
+
+/// Builds an in-memory signer and the corresponding address from a hex private key.
+pub fn signer_from_private_key(
+    private_key_hex: &str,
+) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
+    let private_key =
+        gsigner::secp256k1::PrivateKey::from_str(private_key_hex.trim_start_matches("0x"))?;
+    let signer = gsigner::secp256k1::Signer::memory();
+    let pubkey = signer.import(private_key)?;
+    let address = pubkey.to_address();
+
+    Ok((signer, address))
+}
+
+/// Derives one of Anvil's prebuilt accounts from the standard mnemonic.
+///
+/// This is used to allocate deterministic worker accounts without needing to
+/// pass private keys on the command line.
+pub fn signer_from_anvil_account(
+    account_index: u32,
+) -> Result<(gsigner::secp256k1::Signer, gsigner::secp256k1::Address)> {
+    let signer = MnemonicBuilder::<English>::default()
+        .phrase(ANVIL_MNEMONIC)
+        .index(account_index)?
+        .build()?;
+
+    let private_key_hex = format!("0x{}", hex::encode(signer.to_bytes()));
+    signer_from_private_key(&private_key_hex)
+}
+
+/// Returns the first Anvil account index reserved for loader workers.
+///
+/// Account `0` is the default deployer, and the next `ethexe_nodes.len()`
+/// accounts are expected to be used by validators in the common local setup.
+pub fn worker_account_start(ethexe_nodes: usize) -> Result<u32> {
+    let validator_count = u32::try_from(ethexe_nodes)?;
+    Ok(validator_count + 1)
+}
+
+/// Ensures the requested worker count fits within the prebuilt Anvil accounts.
+pub fn validate_worker_count(ethexe_nodes: usize, workers: usize) -> Result<()> {
+    let worker_account_start = worker_account_start(ethexe_nodes)?;
+    let workers = u32::try_from(workers)?;
+
+    if worker_account_start + workers > MAX_PREBUILT_ANVIL_ACCOUNTS {
+        return Err(anyhow::anyhow!(
+            "workers must not exceed {} for {} ethexe nodes (available prebuilt Anvil accounts: {})",
+            MAX_PREBUILT_ANVIL_ACCOUNTS - worker_account_start,
+            ethexe_nodes,
+            MAX_PREBUILT_ANVIL_ACCOUNTS
+        ));
+    }
+
+    Ok(())
+}
+
+/// Generates a Gear program for `seed` and writes it to `out.wasm`.
+///
+/// This is primarily used to preserve a failing generated program for manual
+/// inspection or deterministic replay.
+pub async fn dump_with_seed(seed: u64) -> Result<()> {
+    let code = gear_call_gen::generate_gear_program::<SmallRng, StandardGearWasmConfigsBundle>(
+        seed,
+        StandardGearWasmConfigsBundle::default(),
+    );
+
+    let mut file = File::create("out.wasm").await?;
+    file.write_all(&code).await?;
+
+    Ok(())
+}
+
+/// Streams new Ethereum block headers into the broadcast channel.
+///
+/// If the subscription drops, the function reconnects up to a fixed number of
+/// times before surfacing an error to the caller. A shutdown signal lets the
+/// caller stop the listener cleanly while draining in-flight work.
+pub async fn listen_blocks(
+    tx: broadcast::Sender<Header>,
+    provider: RootProvider,
+    mut shutdown: watch::Receiver<bool>,
+) -> Result<()> {
+    let mut retry_count = 0;
+    const MAX_RETRIES: usize = 10;
+
+    loop {
+        let mut sub = provider.subscribe_blocks().await?.into_stream();
+        loop {
+            tokio::select! {
+                maybe_block = sub.next() => match maybe_block {
+                    Some(block) => {
+                        if tx.send(block).is_err() {
+                            // all receivers dropped — pool has shut down
+                            return Ok(());
+                        }
+                    }
+                    None => break,
+                },
+                changed = shutdown.changed() => {
+                    match changed {
+                        Ok(()) if *shutdown.borrow() => return Ok(()),
+                        Ok(()) => {}
+                        Err(_) => return Ok(()),
+                    }
+                }
+            }
+        }
+
+        retry_count += 1;
+        if retry_count >= MAX_RETRIES {
+            return Err(anyhow::anyhow!(
+                "Block subscription ended after {} retries",
+                MAX_RETRIES
+            ));
+        }
+
+        warn!(
+            "Block subscription ended, retrying ({}/{})",
+            retry_count, MAX_RETRIES
+        );
+    }
+}
+
+/// Check whether processing batch of messages identified by corresponding
+/// `message_ids` resulted in errors or has been successful.
+///
+/// This function returns a vector of statuses with an associated message
+/// identifier ([`MessageId`]). Each status is `None` for a successful terminal
+/// event and `Some(...)` when an error payload or failure description was
+/// observed in mirror events.
+pub async fn err_waited_or_succeed_batch(
+    event_source: &mut [Event],
+    message_ids: impl IntoIterator<Item = MessageId>,
+) -> Vec<(MessageId, Option<String>)> {
+    let message_ids: Vec<MessageId> = message_ids.into_iter().collect();
+    let mut caught_ids = Vec::with_capacity(message_ids.len());
+
+    event_source
+        .iter_mut()
+        .filter_map(|e| match &e.event {
+            MirrorEvent::Reply(reply) => {
+                let replied_to = reply.reply_to;
+                let reply_mid = MessageId::generate_reply(replied_to);
+
+                let id = if message_ids.contains(&replied_to) {
+                    replied_to
+                } else if message_ids.contains(&reply_mid) {
+                    reply_mid
+                } else {
+                    return None;
+                };
+
+                caught_ids.push(id);
+                Some(vec![(
+                    id,
+                    (!reply.reply_code.is_success()).then(|| {
+                        String::from_utf8(reply.payload.clone())
+                            .unwrap_or_else(|_| "<non-utf8 reply payload>".to_string())
+                    }),
+                )])
+            }
+            MirrorEvent::MessageCallFailed(call) if message_ids.contains(&call.id) => Some(vec![(
+                call.id,
+                Some(format!(
+                    "Call to {} failed (value={})",
+                    call.destination, call.value
+                )),
+            )]),
+
+            MirrorEvent::ReplyCallFailed(call) => {
+                let replied_to = call.reply_to;
+                let reply_mid = MessageId::generate_reply(replied_to);
+
+                let id = if message_ids.contains(&replied_to) {
+                    replied_to
+                } else if message_ids.contains(&reply_mid) {
+                    reply_mid
+                } else {
+                    return None;
+                };
+
+                caught_ids.push(id);
+                Some(vec![(
+                    id,
+                    Some(format!("Reply failed with: '{}'", call.reply_code)),
+                )])
+            }
+
+            MirrorEvent::ValueClaimed(ev) if message_ids.contains(&ev.claimed_id) => {
+                let id = ev.claimed_id;
+                caught_ids.push(id);
+                Some(vec![(id, None)])
+            }
+
+            _ => None,
+        })
+        .flatten()
+        .collect()
+}

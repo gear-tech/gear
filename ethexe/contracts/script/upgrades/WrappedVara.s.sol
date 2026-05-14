@@ -1,9 +1,9 @@
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+pragma solidity ^0.8.33;
 
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {Script} from "forge-std/Script.sol";
-import {WrappedVara} from "../../src/WrappedVara.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import {WrappedVara} from "src/WrappedVara.sol";
 
 contract WrappedVaraScript is Script {
     function setUp() public {}
@@ -16,7 +16,10 @@ contract WrappedVaraScript is Script {
         vm.startBroadcast(privateKey);
 
         bytes memory data = reinitialize
-            ? abi.encodeCall(WrappedVara.reinitialize, () /*WrappedVara.reinitialize arguments*/ )
+            ? abi.encodeCall(
+                WrappedVara.reinitialize,
+                () /*WrappedVara.reinitialize arguments*/
+            )
             : new bytes(0);
         Upgrades.upgradeProxy(wrappedVaraAddress, "WrappedVara.sol", data);
 

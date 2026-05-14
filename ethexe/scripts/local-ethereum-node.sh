@@ -39,7 +39,7 @@ BROADCAST_PATH="ethexe/contracts/broadcast/Router.s.sol/31337/run-latest.json"
 ROUTER_ADDRESS=`cat $BROADCAST_PATH | jq '.transactions[] | select(.contractName == "Router") | .contractAddress' | tr -d '"'`
 PROXY_ADDRESS=`cat $BROADCAST_PATH | 
   jq ".transactions[] | \
-  select(.contractName == \"TransparentUpgradeableProxy\") | \
+  select(.contractName == \"ERC1967Proxy\") | \
   select(.transactionType == \"CREATE\") | \
   select(.arguments[] | ascii_downcase | contains(\"${ROUTER_ADDRESS}\")) | \
   .contractAddress" | 

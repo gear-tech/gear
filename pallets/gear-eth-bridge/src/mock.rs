@@ -20,7 +20,7 @@ use crate::{self as pallet_gear_eth_bridge};
 use common::Origin as _;
 use frame_support::{
     PalletId, construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
+    traits::{ConstU32, ConstU64, FindAuthor, Hooks, SortedMembers},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, EnsureSignedBy, pallet_prelude::BlockNumberFor};
@@ -35,9 +35,9 @@ use sp_runtime::{
 use sp_std::convert::{TryFrom, TryInto};
 
 pub type AccountId = u64;
-type BlockNumber = u64;
+type BlockNumber = u32;
 type Balance = u128;
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 pub type Moment = u64;
 
 pub(crate) const SIGNER: AccountId = 1;
@@ -140,7 +140,7 @@ mod grandpa_keys_handler {
 pub type VaraSessionHandler = (grandpa_keys_handler::GrandpaAndGearEthBridge,);
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
 
@@ -223,7 +223,7 @@ pub struct TestSessionRotator;
 impl ShouldEndSession<BlockNumber> for TestSessionRotator {
     fn should_end_session(now: BlockNumber) -> bool {
         if now > 1 {
-            (now - 1).is_multiple_of(EpochDuration::get())
+            (now - 1).is_multiple_of(EpochDuration::get() as BlockNumber)
         } else {
             false
         }
@@ -283,10 +283,20 @@ impl SessionManager<AccountId> for TestSessionManager {
     fn end_session(_: u32) {}
 }
 
+pub struct Convert;
+
+impl sp_runtime::traits::Convert<AccountId, Option<<Test as pallet_session::Config>::ValidatorId>>
+    for Convert
+{
+    fn convert(a: AccountId) -> Option<<Test as pallet_session::Config>::ValidatorId> {
+        a.try_into().ok()
+    }
+}
+
 impl pallet_session::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    type ValidatorIdOf = ();
+    type ValidatorIdOf = Convert;
     type ShouldEndSession = TestSessionRotator;
     type NextSessionRotation = ();
     type SessionManager = TestSessionManager;
@@ -303,18 +313,6 @@ parameter_types! {
     pub MockBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
 }
 
-pub struct MockBridgeControlAccounts;
-impl SortedMembers<AccountId> for MockBridgeControlAccounts {
-    fn sorted_members() -> Vec<AccountId> {
-        let mut members = vec![
-            MockBridgeAdminAccount::get(),
-            MockBridgePauserAccount::get(),
-        ];
-        members.sort();
-        members
-    }
-}
-
 pub struct MockBridgeAdminAccounts;
 impl SortedMembers<AccountId> for MockBridgeAdminAccounts {
     fn sorted_members() -> Vec<AccountId> {
@@ -323,14 +321,12 @@ impl SortedMembers<AccountId> for MockBridgeAdminAccounts {
 }
 
 impl pallet_gear_eth_bridge::Config for Test {
-    type ControlOrigin = EnsureSignedBy<MockBridgeControlAccounts, AccountId>;
     type AdminOrigin = EnsureSignedBy<MockBridgeAdminAccounts, AccountId>;
     type PalletId = GearEthBridgePalletId;
     type BuiltinAddress = MockBridgeBuiltinAddress;
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
-    type SessionsPerEra = SessionsPerEra;
     type BridgeAdmin = MockBridgeAdminAccount;
     type BridgePauser = MockBridgePauserAccount;
     type WeightInfo = ();
@@ -394,12 +390,16 @@ impl ExtBuilder {
     }
 }
 
-pub(crate) fn run_to_block(n: u64) {
+pub(crate) fn run_to_block(n: BlockNumber) {
     while System::block_number() < n {
         let current_blk = System::block_number();
 
         Gear::run(RuntimeOrigin::none(), None).unwrap();
         on_finalize(current_blk);
+
+        if crate::Initialized::<Test>::get() {
+            assert!(crate::AuthoritySetHash::<Test>::exists());
+        }
 
         let new_block_number = current_blk + 1;
         on_initialize(new_block_number);
@@ -410,14 +410,14 @@ pub(crate) fn run_to_next_block() {
     run_for_n_blocks(1)
 }
 
-pub(crate) fn run_for_n_blocks(n: u64) {
+pub(crate) fn run_for_n_blocks(n: BlockNumber) {
     run_to_block(System::block_number() + n);
 }
 
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new: BlockNumberFor<Test>) {
     System::set_block_number(new);
-    Timestamp::set_timestamp(new.saturating_mul(MILLISECS_PER_BLOCK));
+    Timestamp::set_timestamp(u64::from(new).saturating_mul(MILLISECS_PER_BLOCK));
     Authorship::on_initialize(new);
     Grandpa::on_initialize(new);
     Balances::on_initialize(new);

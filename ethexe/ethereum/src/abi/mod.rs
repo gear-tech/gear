@@ -16,21 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::sol;
-
 mod events;
 mod gear;
 
-pub use middleware_abi::*;
-pub use mirror_abi::*;
+use alloy::sol;
+pub use gear_abi::Gear as GearLib;
+pub use middleware_abi::IMiddleware;
+pub use mirror_abi::IMirror;
+pub use router_abi::{Gear, IRouter};
 
-// TODO (breathx): remove this dummy hack to avoid reentrancy issues with
-// the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
-mod mirror_abi {
+pub mod gear_abi {
     alloy::sol!(
         #[sol(rpc)]
-        IMirror,
-        "Mirror.json"
+        #[derive(Debug)]
+        Gear,
+        "abi/Gear.json"
     );
 }
 
@@ -38,28 +38,47 @@ pub mod middleware_abi {
     alloy::sol!(
         #[sol(rpc)]
         IMiddleware,
-        "Middleware.json"
+        "abi/Middleware.json"
+    );
+}
+
+// TODO (breathx): remove this dummy hack to avoid reentrancy issues with
+// the `sol!` macro, dealing with internal libraries (e.g. 'Gear').
+mod mirror_abi {
+    alloy::sol!(
+        #[sol(rpc)]
+        IMirror,
+        "abi/Mirror.json"
+    );
+}
+
+mod router_abi {
+    alloy::sol!(
+        #[allow(clippy::too_many_arguments)]
+        #[sol(rpc)]
+        #[derive(Debug)]
+        IRouter,
+        "abi/Router.json"
     );
 }
 
 sol!(
-    #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
-    IRouter,
-    "Router.json"
-);
-
-sol!(
-    #[sol(rpc)]
-    ITransparentUpgradeableProxy,
-    "TransparentUpgradeableProxy.json"
+    IERC1967Proxy,
+    "abi/ERC1967Proxy.json"
 );
 
 sol!(
     #[allow(clippy::too_many_arguments)]
     #[sol(rpc)]
     IWrappedVara,
-    "WrappedVara.json"
+    "abi/WrappedVara.json"
+);
+
+sol!(
+    #[sol(rpc)]
+    IDemoCaller,
+    "abi/DemoCaller.json"
 );
 
 /// Bindings for Symbiotic contracts.
@@ -111,6 +130,18 @@ pub mod symbiotic_abi {
         "../contracts/lib/symbiotic-rewards/out/DefaultOperatorRewards.sol/DefaultOperatorRewards.json"
     );
 
+    alloy::sol!(
+        #[sol(rpc)]
+        DelegatorFactory,
+        "../contracts/lib/symbiotic-core/out/DelegatorFactory.sol/DelegatorFactory.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        SlasherFactory,
+        "../contracts/lib/symbiotic-core/out/SlasherFactory.sol/SlasherFactory.json"
+    );
+
     pub mod staker_rewards_factory {
         alloy::sol!(
             #[sol(rpc)]
@@ -128,15 +159,31 @@ pub mod symbiotic_abi {
     }
 }
 
-pub(crate) mod utils {
-    use alloy::primitives::{FixedBytes, Uint};
+pub mod utils {
+    use alloy::{
+        primitives::{FixedBytes, Uint},
+        sol,
+    };
     use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
+    use serde::Serialize;
 
     pub use alloy::primitives::Bytes;
 
     pub type Bytes32 = FixedBytes<32>;
     pub type Uint256 = Uint<256, 4>;
     pub type Uint48 = Uint<48, 1>;
+
+    sol! {
+        #[allow(missing_docs)]
+        #[derive(Debug, Serialize)]
+        struct Permit {
+            address owner;
+            address spender;
+            uint256 value;
+            uint256 nonce;
+            uint256 deadline;
+        }
+    }
 
     pub fn actor_id_to_address_lossy(actor_id: ActorId) -> alloy::primitives::Address {
         actor_id.to_address_lossy().to_fixed_bytes().into()
@@ -172,6 +219,11 @@ pub(crate) mod utils {
 
     pub fn u64_to_uint48_lossy(value: u64) -> Uint48 {
         Uint48::try_from(value).unwrap_or(Uint48::MAX)
+    }
+
+    pub fn uint48_to_u64(value: Uint48) -> u64 {
+        let [limb] = value.into_limbs();
+        limb
     }
 
     pub fn uint256_to_u128_lossy(value: Uint256) -> u128 {

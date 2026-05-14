@@ -18,16 +18,13 @@
 
 // TODO (breathx): remove cloning of slices from wasm memory (unsafe casts).
 
-use crate::{
-    Result,
-    host::{api::MemoryWrap, threads::EthexeHostLazyPages},
-};
+use crate::host::{api::MemoryWrap, threads::EthexeHostLazyPages};
 use gear_lazy_pages::LazyPagesVersion;
 use gear_runtime_interface::{LazyPagesInitContext, lazy_pages_detail};
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
-pub fn link(linker: &mut Linker<StoreData>) -> Result<()> {
+pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     linker.func_wrap(
         "env",
         "ext_gear_ri_change_wasm_memory_addr_and_size_version_1",

@@ -16,15 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::VecDeque;
+
 use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
     subordinate::Subordinate,
 };
+use crate::announces::{self, DBAnnouncesExt};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, SimpleBlockData, db::OnChainStorageRead};
+use ethexe_common::{
+    SimpleBlockData,
+    db::OnChainStorageRO,
+    network::{AnnouncesRequest, AnnouncesResponse},
+};
 use gprimitives::H256;
-use nonempty::NonEmpty;
 
 /// [`Initial`] is the first state of the validator.
 /// It waits for the chain head and this block on-chain information sync.
@@ -33,13 +39,48 @@ use nonempty::NonEmpty;
 #[display("INITIAL in {:?}", self.state)]
 pub struct Initial {
     ctx: ValidatorContext,
-    state: State,
+    state: WaitingFor,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum State {
-    WaitingForChainHead,
-    WaitingForSyncedBlock(SimpleBlockData),
+/// State transition flow:
+///
+/// ```text
+/// ChainHead (waiting for new chain head)
+///   |
+///   ├─ receive new chain head
+///   |
+/// SyncedBlock (waiting block is synced)
+///   |
+///   ├─ receive block is synced
+///   |
+/// PreparedBlock (waiting block is prepared)
+///   |
+///   ├─ receive block is prepared
+///   |
+///   └─ check for missing announces
+///     |
+///     ├─ if any missing announces
+///     |   |
+///     |  MissingAnnounces (waiting for requested missing announces from network)
+///     |   |
+///     |   └─ receive announces response, then do propagation
+///     |       ├─ if is producer ─► Producer
+///     |       └─ if is subordinate ─► Subordinate
+///     |
+///     └─ if no missing, then do propagation
+///         ├─ if is producer ─► Producer
+///         └─ if is subordinate ─► Subordinate
+/// ```
+#[derive(Debug)]
+enum WaitingFor {
+    ChainHead,
+    SyncedBlock(SimpleBlockData),
+    PreparedBlock(SimpleBlockData),
+    MissingAnnounces {
+        block: SimpleBlockData,
+        chain: VecDeque<SimpleBlockData>,
+        announces: AnnouncesRequest,
+    },
 }
 
 impl StateHandler for Initial {
@@ -55,40 +96,107 @@ impl StateHandler for Initial {
         self.ctx
     }
 
-    fn process_synced_block(self, block_hash: H256) -> Result<ValidatorState> {
-        match &self.state {
-            State::WaitingForSyncedBlock(block) if block.hash == block_hash => {
-                let validators = self
-                    .ctx
-                    .db
-                    .validators(block_hash)
-                    .ok_or(anyhow!("validators not found for block({block_hash})"))?;
-                let producer = self.producer_for(block.header.timestamp, &validators);
-                let my_address = self.ctx.pub_key.to_address();
+    fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
+        // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
 
-                if my_address == producer {
-                    log::info!("👷 Start to work as a producer for block: {}", block.hash);
+        self.state = WaitingFor::SyncedBlock(block);
 
-                    Producer::create(self.ctx, block.clone(), validators)
-                } else {
-                    // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
-                    let is_validator_for_current_block = validators.contains(&my_address);
+        Ok(self.into())
+    }
 
-                    log::info!(
-                        "👷 Start to work as a subordinate for block: {}, producer is {producer}, \
-                        I'm validator for current block: {is_validator_for_current_block}",
-                        block.hash
-                    );
+    fn process_synced_block(mut self, block_hash: H256) -> Result<ValidatorState> {
+        if let WaitingFor::SyncedBlock(block) = &self.state
+            && block.hash == block_hash
+        {
+            self.state = WaitingFor::PreparedBlock(*block);
 
-                    Subordinate::create(
-                        self.ctx,
-                        block.clone(),
-                        producer,
-                        is_validator_for_current_block,
-                    )
+            Ok(self.into())
+        } else {
+            DefaultProcessing::synced_block(self, block_hash)
+        }
+    }
+
+    fn process_prepared_block(mut self, block_hash: H256) -> Result<ValidatorState> {
+        if let WaitingFor::PreparedBlock(block) = &self.state
+            && block.hash == block_hash
+        {
+            let chain = self
+                .ctx
+                .core
+                .db
+                .collect_blocks_without_announces(block_hash)?;
+
+            tracing::trace!(block = %block.hash, "Collected blocks without announces: {chain:?}");
+
+            if let Some(first_block) = chain.front()
+                && let Some(request) = announces::check_for_missing_announces(
+                    &self.ctx.core.db,
+                    block_hash,
+                    first_block.header.parent_hash,
+                    self.ctx.core.commitment_delay_limit,
+                )?
+            {
+                tracing::debug!(
+                    "Missing announces detected for block {block_hash}, send request: {request:?}"
+                );
+
+                self.ctx.output(request);
+
+                Ok(Self {
+                    ctx: self.ctx,
+                    state: WaitingFor::MissingAnnounces {
+                        block: *block,
+                        chain,
+                        announces: request,
+                    },
                 }
+                .into())
+            } else {
+                tracing::debug!(block = %block.hash, "No missing announces");
+
+                announces::propagate_announces(
+                    &self.ctx.core.db,
+                    chain,
+                    self.ctx.core.commitment_delay_limit,
+                    Default::default(),
+                )?;
+
+                self.ctx.switch_to_producer_or_subordinate(*block)
             }
-            _ => DefaultProcessing::synced_block(self, block_hash),
+        } else {
+            DefaultProcessing::prepared_block(self, block_hash)
+        }
+    }
+
+    fn process_announces_response(mut self, response: AnnouncesResponse) -> Result<ValidatorState> {
+        match self.state {
+            WaitingFor::MissingAnnounces {
+                block,
+                chain,
+                announces,
+            } if announces == *response.request() => {
+                tracing::debug!(block = %block.hash, "Received missing announces response");
+
+                let missing_announces = response
+                    .into_parts()
+                    .1
+                    .into_iter()
+                    .map(|a| (a.to_hash(), a))
+                    .collect();
+
+                announces::propagate_announces(
+                    &self.ctx.core.db,
+                    chain,
+                    self.ctx.core.commitment_delay_limit,
+                    missing_announces,
+                )?;
+
+                self.ctx.switch_to_producer_or_subordinate(block)
+            }
+            state => {
+                self.state = state;
+                DefaultProcessing::announces_response(self, response)
+            }
         }
     }
 }
@@ -97,98 +205,306 @@ impl Initial {
     pub fn create(ctx: ValidatorContext) -> Result<ValidatorState> {
         Ok(Self {
             ctx,
-            state: State::WaitingForChainHead,
+            state: WaitingFor::ChainHead,
         }
         .into())
     }
 
-    // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
     pub fn create_with_chain_head(
         ctx: ValidatorContext,
         block: SimpleBlockData,
     ) -> Result<ValidatorState> {
-        Ok(Self {
-            ctx,
-            state: State::WaitingForSyncedBlock(block),
-        }
-        .into())
+        Self::create(ctx)?.process_new_head(block)
     }
+}
 
-    fn producer_for(&self, timestamp: u64, validators: &NonEmpty<Address>) -> Address {
-        let slot = timestamp / self.ctx.slot_duration.as_secs();
-        let index = crate::block_producer_index(validators.len(), slot);
-        validators
-            .get(index)
-            .cloned()
-            .unwrap_or_else(|| unreachable!("index must be valid"))
+impl ValidatorContext {
+    fn switch_to_producer_or_subordinate(self, block: SimpleBlockData) -> Result<ValidatorState> {
+        let era_index = self
+            .core
+            .timelines
+            .era_from_ts(block.header.timestamp)
+            .ok_or_else(|| anyhow!("failed to calculate era for block {}", block.hash))?;
+        let validators = self
+            .core
+            .db
+            .validators(era_index)
+            .ok_or_else(|| anyhow!("validators not found for era {era_index}"))?;
+
+        let producer = self
+            .core
+            .timelines
+            .block_producer_at(&validators, block.header.timestamp)
+            .ok_or_else(|| {
+                anyhow!(
+                    "failed to calculate block producer for block {}",
+                    block.hash
+                )
+            })?;
+        let my_address = self.core.pub_key.to_address();
+
+        if my_address == producer {
+            tracing::info!(block = %block.hash, "👷 Start to work as a producer");
+
+            Producer::create(self, block, validators.clone())
+        } else {
+            // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
+            let is_validator_for_current_block = validators.contains(&my_address);
+
+            tracing::info!(
+                block = %block.hash,
+                "👷 Start to work as subordinate, producer is {producer}, \
+                I'm validator for current block: {is_validator_for_current_block}",
+            );
+
+            Subordinate::create(self, block, producer, is_validator_for_current_block)
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use super::*;
     use crate::{ConsensusEvent, mock::*, validator::mock::*};
-    use ethexe_common::db::OnChainStorageWrite;
+    use ethexe_common::{
+        Announce, HashOf, ValidatorsVec, db::*, mock::*, network::AnnouncesResponse,
+    };
     use gprimitives::H256;
     use nonempty::nonempty;
 
     #[test]
     fn create_initial_success() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
         let initial = Initial::create(ctx).unwrap();
         assert!(initial.is_initial());
     }
 
     #[test]
     fn create_with_chain_head_success() {
-        let (ctx, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(H256::random());
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let block = test_block_chain(1).setup(&ctx.core.db).blocks[1].to_simple();
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
     }
 
     #[tokio::test]
     async fn switch_to_producer() {
-        let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![
-            ctx.pub_key.to_address(),
+        gear_utils::init_default_logger();
+
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
+        let validators: ValidatorsVec = nonempty![
             keys[0].to_address(),
             keys[1].to_address(),
-        ];
+            ctx.core.pub_key.to_address(),
+        ]
+        .into();
 
-        let mut block = SimpleBlockData::mock(H256::random());
-        block.header.timestamp = 0;
+        let chain = test_block_chain_with_validators(2, validators).setup(&ctx.core.db);
+        ctx.core.timelines = chain.config.timelines;
+        let block = chain.blocks[2].to_simple();
 
-        ctx.db.set_validators(block.hash, validators.clone());
+        let state = Initial::create_with_chain_head(ctx, block).unwrap();
+        assert!(state.is_initial(), "got {:?}", state);
 
-        let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
-        let producer = initial.process_synced_block(block.hash).unwrap();
-        assert!(producer.is_producer());
+        let state = state.process_synced_block(block.hash).unwrap();
+        assert!(state.is_initial(), "got {:?}", state);
+
+        let state = state.process_prepared_block(block.hash).unwrap();
+        assert!(state.is_producer(), "got {:?}", state);
     }
 
     #[test]
     fn switch_to_subordinate() {
-        let (ctx, keys) = mock_validator_context();
-        let validators = nonempty![
-            ctx.pub_key.to_address(),
+        gear_utils::init_default_logger();
+
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
+        let validators: ValidatorsVec = nonempty![
+            ctx.core.pub_key.to_address(),
             keys[1].to_address(),
             keys[2].to_address(),
-        ];
+        ]
+        .into();
 
-        let mut block = SimpleBlockData::mock(H256::random());
-        block.header.timestamp = 1;
+        let chain = test_block_chain_with_validators(1, validators).setup(&ctx.core.db);
+        ctx.core.timelines = chain.config.timelines;
+        let block = chain.blocks[1].to_simple();
+        let state = Initial::create_with_chain_head(ctx, block).unwrap();
+        assert!(state.is_initial(), "got {:?}", state);
 
-        ctx.db.set_validators(block.hash, validators);
+        let state = state.process_synced_block(block.hash).unwrap();
+        assert!(state.is_initial(), "expected Initial, got {:?}", state);
 
-        let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
-        let producer = initial.process_synced_block(block.hash).unwrap();
-        assert!(producer.is_subordinate());
+        let state = state.process_prepared_block(block.hash).unwrap();
+        assert!(
+            state.is_subordinate(),
+            "expected Subordinate, got {:?}",
+            state
+        );
+    }
+
+    #[test]
+    fn missing_announces_request_response() {
+        gear_utils::init_default_logger();
+
+        let (mut ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let last = 9;
+
+        let mut chain = test_block_chain(last as u32);
+        chain.blocks[last].as_prepared_mut().announces = None;
+
+        // create 2 missing announces from blocks last - 2 and last - 1
+        let announce2 = Announce::with_default_gas(
+            chain.blocks[last - 2].hash,
+            chain.block_top_announce_hash(last - 3),
+        );
+        let announce1 =
+            Announce::with_default_gas(chain.blocks[last - 1].hash, announce2.to_hash());
+
+        chain.blocks[last].as_prepared_mut().last_committed_announce = announce1.to_hash();
+        let chain = chain.setup(&ctx.core.db);
+        ctx.core.timelines = chain.config.timelines;
+        let block = chain.blocks[last].to_simple();
+
+        let state = Initial::create_with_chain_head(ctx, block)
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap();
+        assert!(state.is_initial(), "got {:?}", state);
+
+        let tail = chain.block_top_announce_hash(last - 4);
+        let expected_request = AnnouncesRequest {
+            head: chain.blocks[last].as_prepared().last_committed_announce,
+            until: tail.into(),
+        };
+        assert_eq!(state.context().output, vec![expected_request.into()]);
+
+        let response = unsafe {
+            AnnouncesResponse::from_parts(
+                expected_request,
+                vec![
+                    chain
+                        .announces
+                        .get(&chain.block_top_announce_hash(last - 3))
+                        .unwrap()
+                        .announce
+                        .clone(),
+                    announce2.clone(),
+                    announce1.clone(),
+                ],
+            )
+        };
+
+        // In successful case no new events are produced
+        let state = state.process_announces_response(response).unwrap();
+        assert_eq!(state.context().output, vec![expected_request.into()]);
+    }
+
+    #[test]
+    fn announce_propagation_done() {
+        gear_utils::init_default_logger();
+
+        let (mut ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let last = 9;
+        let chain = test_block_chain(last as u32)
+            .tap_mut(|chain| {
+                // remove announces from 5 latest blocks
+                (last - 4..=last).for_each(|idx| {
+                    chain.blocks[idx].as_prepared_mut().announces = None;
+                });
+
+                // append one more announce to the block last - 5
+                let announce = Announce::with_default_gas(
+                    chain.blocks[last - 5].hash,
+                    chain.block_top_announce_hash(last - 6),
+                );
+                chain.blocks[last - 5]
+                    .as_prepared_mut()
+                    .announces
+                    .as_mut()
+                    .unwrap()
+                    .insert(announce.to_hash());
+                chain.announces.insert(
+                    announce.to_hash(),
+                    AnnounceData {
+                        announce,
+                        computed: None,
+                    },
+                );
+            })
+            .setup(&ctx.core.db);
+        ctx.core.timelines = chain.config.timelines;
+        let block = chain.blocks[last].to_simple();
+
+        let state = Initial::create_with_chain_head(ctx, block)
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap();
+
+        let ctx = state.into_context();
+        assert_eq!(ctx.output, vec![]);
+        for i in last - 5..last - 5 + ctx.core.commitment_delay_limit as usize {
+            let announces = ctx.core.db.block_announces(chain.blocks[i].hash);
+            assert_eq!(announces.unwrap().len(), 2);
+        }
+        for i in last - 5 + ctx.core.commitment_delay_limit as usize..=last {
+            let announces = ctx.core.db.block_announces(chain.blocks[i].hash);
+            assert_eq!(announces.unwrap().len(), 1);
+        }
+    }
+
+    #[test]
+    fn announce_propagation_many_missing_blocks() {
+        gear_utils::init_default_logger();
+
+        let (mut ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let last = 12;
+        let chain = test_block_chain(last as u32)
+            .tap_mut(|chain| {
+                // remove announces from 10 latest blocks
+                (last - 9..=last).for_each(|idx| {
+                    chain.blocks[idx].as_prepared_mut().announces = None;
+                });
+            })
+            .setup(&ctx.core.db);
+        ctx.core.timelines = chain.config.timelines;
+        let head = chain.blocks[last].to_simple();
+
+        let state = Initial::create_with_chain_head(ctx, head)
+            .unwrap()
+            .process_synced_block(head.hash)
+            .unwrap()
+            .process_prepared_block(head.hash)
+            .unwrap();
+
+        let ctx = state.into_context();
+        assert_eq!(ctx.output, vec![]);
+        (last - 9..=last).for_each(|idx| {
+            let block_hash = chain.blocks[idx].hash;
+            let announces = ctx.core.db.block_announces(block_hash);
+            assert!(
+                announces.is_some(),
+                "expected announces to be propagated for block {block_hash}"
+            );
+            assert_eq!(
+                announces.unwrap().len(),
+                1,
+                "unexpected announces count for block {block_hash}"
+            );
+        });
     }
 
     #[test]
     fn process_synced_block_rejected() {
-        let (ctx, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(H256::random());
+        gear_utils::init_default_logger();
+
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let block = test_block_chain(1).setup(&ctx.core.db).blocks[1].to_simple();
 
         let initial = Initial::create(ctx)
             .unwrap()
@@ -214,16 +530,140 @@ mod tests {
     }
 
     #[test]
-    fn producer_for_calculates_correct_producer() {
-        let (ctx, keys) = mock_validator_context();
-        let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect()).unwrap();
-        let timestamp = 10;
+    fn process_prepared_block_rejected() {
+        gear_utils::init_default_logger();
 
-        let producer = Initial {
-            ctx,
-            state: State::WaitingForChainHead,
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let block = test_block_chain(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let state = Initial::create_with_chain_head(ctx, block)
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(H256::random())
+            .unwrap();
+        assert!(state.is_initial(), "got {:?}", state);
+        assert_eq!(state.context().output.len(), 1);
+        assert!(matches!(
+            state.context().output[0],
+            ConsensusEvent::Warning(_)
+        ));
+    }
+
+    #[test]
+    fn process_announces_response_rejected() {
+        gear_utils::init_default_logger();
+
+        let (ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let block = test_block_chain(1)
+            .tap_mut(|chain| {
+                chain.blocks[1].as_prepared_mut().announces = None;
+                chain.blocks[1].as_prepared_mut().last_committed_announce = HashOf::random();
+            })
+            .setup(&ctx.core.db)
+            .blocks[1]
+            .to_simple();
+
+        let invalid_announce = Announce::base(H256::random(), HashOf::random());
+        let invalid_announce_hash = invalid_announce.to_hash();
+
+        let response = unsafe {
+            AnnouncesResponse::from_parts(
+                AnnouncesRequest {
+                    head: invalid_announce_hash,
+                    until: NonZeroU32::new(1).unwrap().into(),
+                },
+                vec![invalid_announce],
+            )
+        };
+
+        let state = Initial::create_with_chain_head(ctx, block)
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap()
+            .process_announces_response(response)
+            .unwrap();
+        assert!(state.is_initial(), "got {:?}", state);
+        assert_eq!(state.context().output.len(), 2);
+        assert!(matches!(
+            state.context().output[1],
+            ConsensusEvent::Warning(_)
+        ));
+    }
+
+    #[test]
+    fn commitment_with_delay() {
+        gear_utils::init_default_logger();
+
+        let (mut ctx, _, _) = mock_validator_context(ethexe_db::Database::memory());
+        let last = 10;
+        let mut chain = test_block_chain(last as u32);
+
+        // create unknown announce for block last - 6
+        let unknown_announce = Announce::with_default_gas(
+            chain.blocks[last - 6].hash,
+            chain.block_top_announce_hash(last - 7),
+        );
+        let unknown_announce_hash = unknown_announce.to_hash();
+
+        // remove announces from 5 latest blocks
+        for idx in last - 4..=last {
+            chain.blocks[idx]
+                .as_prepared_mut()
+                .announces
+                .iter()
+                .flatten()
+                .for_each(|ah| {
+                    chain.announces.remove(ah);
+                });
+            chain.blocks[idx].as_prepared_mut().announces = None;
+
+            // set unknown_announce as last committed announce
+            chain.blocks[idx].as_prepared_mut().last_committed_announce = unknown_announce_hash;
         }
-        .producer_for(timestamp, &validators);
-        assert_eq!(producer, validators[10 % validators.len()]);
+
+        let chain = chain.setup(&ctx.core.db);
+        ctx.core.timelines = chain.config.timelines;
+        let block = chain.blocks[last].to_simple();
+
+        let state = Initial::create_with_chain_head(ctx, block)
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap();
+
+        assert!(state.is_initial(), "got {:?}", state);
+
+        let expected_request = AnnouncesRequest {
+            head: chain.blocks[last].as_prepared().last_committed_announce,
+            until: chain.block_top_announce_hash(last - 8).into(),
+        };
+        assert_eq!(state.context().output, vec![expected_request.into()]);
+
+        let response = unsafe {
+            AnnouncesResponse::from_parts(
+                expected_request,
+                vec![
+                    chain
+                        .announces
+                        .get(&chain.block_top_announce_hash(last - 7))
+                        .unwrap()
+                        .announce
+                        .clone(),
+                    unknown_announce,
+                ],
+            )
+        };
+
+        let state = state.process_announces_response(response).unwrap();
+        assert!(state.is_subordinate(), "got {:?}", state);
+        assert_eq!(
+            state.context().output.len(),
+            1,
+            "No additional output expected, got {:?}",
+            state.context().output
+        );
     }
 }

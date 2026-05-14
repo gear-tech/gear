@@ -16,36 +16,55 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Prometheus integration for the ethexe node.
+//!
+//! This crate exposes the metrics endpoint used by the node and keeps a small
+//! set of liveness gauges in sync with the contents of the local database.
+//! It also acts as a bridge between the HTTP exporter and subsystems that own
+//! metrics registries outside of the global recorder, such as libp2p.
+//!
+//! [`PrometheusService`] runs an HTTP server and yields [`PrometheusEvent`]s to
+//! the parent service. When `/metrics` is requested, the service:
+//! - refreshes liveness gauges derived from the latest committed announce,
+//! - renders metrics from the global `metrics` recorder,
+//! - asks the parent service for extra registry dumps,
+//! - merges everything into a single Prometheus text response.
+
 use anyhow::{Context as _, Result};
-use futures::{FutureExt, Stream, ready, stream::FusedStream};
+use ethexe_common::db::{
+    AnnounceStorageRO, BlockMetaStorageRO, GlobalsStorageRO, OnChainStorageRO,
+};
+use ethexe_db::Database;
+use futures::{FutureExt, Stream, stream::FusedStream};
 use hyper::{
     Body, Request, Response, Server,
     http::StatusCode,
     server::conn::AddrIncoming,
     service::{make_service_fn, service_fn},
 };
+use metrics::Gauge;
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use prometheus::{
-    self, Encoder, Opts, Registry, TextEncoder,
-    core::{
-        AtomicU64 as U64, AtomicU64, Collector, GenericCounterVec, GenericGauge as Gauge,
-        GenericGaugeVec,
-    },
+    self, Opts,
+    core::{AtomicU64, GenericCounterVec, GenericGaugeVec},
 };
 use std::{
     net::SocketAddr,
     pin::Pin,
     sync::LazyLock,
     task::{Context, Poll},
-    time::{Duration, Instant, SystemTime},
 };
 use tokio::{
     net::TcpListener,
-    sync::oneshot,
+    sync::{mpsc, oneshot},
+    task,
     task::JoinHandle,
-    time::{self, Interval},
 };
 
-/// Global metric for the number of unbounded channels.
+/// Counts operations performed on tracked unbounded channels.
+///
+/// The `entity` label identifies the channel owner, while the `action` label
+/// distinguishes sent, received, and dropped messages.
 pub static UNBOUNDED_CHANNELS_COUNTER: LazyLock<GenericCounterVec<AtomicU64>> =
     LazyLock::new(|| {
         GenericCounterVec::new(
@@ -58,7 +77,9 @@ pub static UNBOUNDED_CHANNELS_COUNTER: LazyLock<GenericCounterVec<AtomicU64>> =
         .expect("Creating of statics doesn't fail. qed")
     });
 
-/// Global metric for the size of unbounded channels.
+/// Tracks the current backlog size of tracked unbounded channels.
+///
+/// The `entity` label identifies the channel whose queue length is reported.
 pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyLock::new(|| {
     GenericGaugeVec::new(
         Opts::new(
@@ -70,201 +91,127 @@ pub static UNBOUNDED_CHANNELS_SIZE: LazyLock<GenericGaugeVec<AtomicU64>> = LazyL
     .expect("Creating of statics doesn't fail. qed")
 });
 
-#[derive(Debug, Clone)]
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_liveness")]
+/// Liveness gauges derived from the latest committed announce in the database.
+pub struct LivenessMetrics {
+    /// Height of the block referenced by the latest committed announce.
+    pub latest_committed_block_number: Gauge,
+    /// Timestamp of the block referenced by the latest committed announce.
+    pub latest_committed_block_timestamp: Gauge,
+    /// Seconds between the latest synced block and the latest committed announce.
+    pub time_since_latest_committed_secs: Gauge,
+}
+
 /// Configuration for the Prometheus service.
+#[derive(Debug, Clone)]
 pub struct PrometheusConfig {
+    /// Value exported as the global `node` label on recorder-backed metrics.
     pub name: String,
+    /// Address the HTTP exporter listens on.
     pub addr: SocketAddr,
-    pub registry: Registry,
 }
 
-impl PrometheusConfig {
-    /// Create a new config using the default registry.
-    pub fn new(name: String, addr: SocketAddr) -> Self {
-        let labels = [("chain".into(), "ethexe-dev".into())].into();
-
-        let registry = Registry::new_custom(None, Some(labels))
-            .expect("this can only fail if prefix is empty string");
-
-        Self {
-            name,
-            addr,
-            registry,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug)]
+/// Events emitted by [`PrometheusService`] for integration with the parent node service.
 pub enum PrometheusEvent {
-    CollectMetrics,
+    /// Requests additional metrics text from another subsystem before responding.
+    CollectMetrics {
+        /// One-shot channel used to return metrics in Prometheus text format.
+        libp2p_metrics: oneshot::Sender<String>,
+    },
+    /// Signals that the background HTTP server task has terminated.
+    ServerClosed(Result<(), task::JoinError>),
 }
 
+/// Stream wrapper around the background Prometheus HTTP server task.
+///
+/// The stream yields [`PrometheusEvent`] values until the server task exits.
 pub struct PrometheusService {
-    metrics: PrometheusMetrics,
-    updated: Instant,
-
-    // to be used in stream impl.
     server: JoinHandle<()>,
-    interval: Pin<Box<Interval>>,
+    server_receiver: mpsc::Receiver<PrometheusEvent>,
+    server_closed_returned: bool,
 }
 
 impl Stream for PrometheusService {
     type Item = PrometheusEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let instant = ready!(self.interval.poll_tick(cx));
+        if let Poll::Ready(res) = self.server.poll_unpin(cx) {
+            self.server_closed_returned = true;
+            return Poll::Ready(Some(PrometheusEvent::ServerClosed(res)));
+        }
 
-        self.updated = instant.into();
+        if let Poll::Ready(Some(event)) = self.server_receiver.poll_recv(cx) {
+            return Poll::Ready(Some(event));
+        }
 
-        Poll::Ready(Some(PrometheusEvent::CollectMetrics))
+        Poll::Pending
     }
 }
 
 impl FusedStream for PrometheusService {
     fn is_terminated(&self) -> bool {
-        self.server.is_finished()
+        self.server_closed_returned
     }
 }
 
 impl PrometheusService {
-    pub fn new(config: PrometheusConfig) -> Result<Self> {
-        let metrics = PrometheusMetrics::setup(&config.registry, &config.name)
-            .context("Failed to setup Prometheus metrics")?;
+    /// Starts the Prometheus exporter and returns a stream of service events.
+    ///
+    /// This installs the global `metrics` recorder, initializes liveness gauges,
+    /// and spawns the HTTP server bound to [`PrometheusConfig::addr`].
+    pub fn new(config: PrometheusConfig, db: Database) -> Result<Self> {
+        let handle = PrometheusBuilder::new()
+            .add_global_label("node", config.name)
+            .install_recorder()
+            .context("Failed to install prometheus recorder")?;
+        let metrics = LivenessMetrics::default();
 
-        let server = tokio::spawn(init_prometheus(config.addr, config.registry).map(drop));
+        let (server_sender, server_receiver) = mpsc::channel(64);
 
-        let interval = Box::pin(time::interval(Duration::from_secs(6)));
-
+        let server = tokio::spawn(
+            start_prometheus_server(config.addr, server_sender, handle.clone(), metrics, db)
+                .map(drop),
+        );
         Ok(Self {
-            metrics,
-            updated: Instant::now(),
             server,
-            interval,
-        })
-    }
-
-    pub fn update_observer_metrics(&mut self, eth_best_height: u32, pending_codes: usize) {
-        self.metrics.eth_best_height.set(eth_best_height as u64);
-        self.metrics.pending_codes.set(pending_codes as u64);
-    }
-
-    pub fn update_compute_metrics(
-        &mut self,
-        blocks_queue_len: usize,
-        waiting_codes_count: usize,
-        process_codes_count: usize,
-    ) {
-        self.metrics
-            .compute_blocks_queue
-            .set(blocks_queue_len as u64);
-        self.metrics
-            .compute_waiting_codes
-            .set(waiting_codes_count as u64);
-        self.metrics
-            .compute_processing_codes
-            .set(process_codes_count as u64);
-    }
-}
-
-struct PrometheusMetrics {
-    eth_best_height: Gauge<U64>,
-    pending_codes: Gauge<U64>,
-    compute_blocks_queue: Gauge<U64>,
-    compute_waiting_codes: Gauge<U64>,
-    compute_processing_codes: Gauge<U64>,
-}
-
-impl PrometheusMetrics {
-    fn setup(registry: &Registry, name: &str) -> Result<Self> {
-        register(
-            Gauge::<U64>::with_opts(
-                Opts::new(
-                    "ethexe_build_info",
-                    "A metric with a constant '1' value labeled by name, version",
-                )
-                .const_label("name", name),
-            )?,
-            registry,
-        )?
-        .set(1);
-
-        registry.register(Box::new(UNBOUNDED_CHANNELS_COUNTER.clone()))?;
-        registry.register(Box::new(UNBOUNDED_CHANNELS_SIZE.clone()))?;
-
-        let start_time_since_epoch = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default();
-
-        register(
-            Gauge::<U64>::new(
-                "ethexe_start_time_since_epoch",
-                "Number of seconds between the UNIX epoch and the moment the process started",
-            )?,
-            registry,
-        )?
-        .set(start_time_since_epoch.as_secs());
-
-        Ok(Self {
-            eth_best_height: register(
-                Gauge::<U64>::new(
-                    "ethexe_eth_best_height",
-                    "Latest block height received by observer",
-                )?,
-                registry,
-            )?,
-
-            pending_codes: register(
-                Gauge::<U64>::new(
-                    "ethexe_pending_codes",
-                    "Pending codes for lookup by observer",
-                )?,
-                registry,
-            )?,
-
-            compute_blocks_queue: register(
-                Gauge::<U64>::new(
-                    "ethexe_compute_blocks_queue",
-                    "Number of blocks in the queue for processing",
-                )?,
-                registry,
-            )?,
-
-            compute_waiting_codes: register(
-                Gauge::<U64>::new(
-                    "ethexe_compute_waiting_codes",
-                    "Number of codes waiting for loading to advance block processing",
-                )?,
-                registry,
-            )?,
-
-            compute_processing_codes: register(
-                Gauge::<U64>::new(
-                    "ethexe_compute_processing_codes",
-                    "Number of processing codes",
-                )?,
-                registry,
-            )?,
+            server_receiver,
+            server_closed_returned: false,
         })
     }
 }
 
-pub fn register<T: Clone + Collector + 'static>(metric: T, registry: &Registry) -> Result<T> {
-    registry.register(Box::new(metric.clone()))?;
-    Ok(metric)
-}
-
-async fn init_prometheus(prometheus_addr: SocketAddr, registry: Registry) -> Result<()> {
+/// Runs the HTTP server that serves the Prometheus endpoint.
+///
+/// The server is shut down gracefully when its task is cancelled or finishes.
+async fn start_prometheus_server(
+    prometheus_addr: SocketAddr,
+    sender: mpsc::Sender<PrometheusEvent>,
+    handle: PrometheusHandle,
+    metrics: LivenessMetrics,
+    db: Database,
+) -> Result<()> {
     let listener = TcpListener::bind(&prometheus_addr).await?;
     let listener = AddrIncoming::from_listener(listener)?;
 
     let (signal, on_exit) = oneshot::channel::<()>();
 
     let service = make_service_fn(move |_| {
-        let registry = registry.clone();
+        let sender = sender.clone();
+        let handle = handle.clone();
+        let metrics = metrics.clone();
+        let db = db.clone();
 
         async move {
             Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-                request_metrics(req, registry.clone())
+                request_metrics(
+                    req,
+                    sender.clone(),
+                    handle.clone(),
+                    metrics.clone(),
+                    db.clone(),
+                )
             }))
         }
     });
@@ -285,21 +232,121 @@ async fn init_prometheus(prometheus_addr: SocketAddr, registry: Registry) -> Res
     result
 }
 
-async fn request_metrics(req: Request<Body>, registry: Registry) -> Result<Response<Body>> {
+/// Handles an incoming HTTP request for the Prometheus exporter.
+///
+/// Requests to `/metrics` return the merged metrics payload. Any other path
+/// receives a `404 Not Found` response.
+async fn request_metrics(
+    req: Request<Body>,
+    sender: mpsc::Sender<PrometheusEvent>,
+    handle: PrometheusHandle,
+    metrics: LivenessMetrics,
+    db: Database,
+) -> Result<Response<Body>> {
     if req.uri().path() == "/metrics" {
-        let metric_families = registry.gather();
-        let mut buffer = vec![];
-        let encoder = TextEncoder::new();
-        encoder.encode(&metric_families, &mut buffer).unwrap();
+        update_liveness_metrics(db, metrics);
+        let mut metrics = handle.render();
+
+        // we collect metrics from multiple registries
+        debug_assert!(metrics.ends_with('\n'));
+        debug_assert!(!metrics.ends_with("# EOF\n"));
+
+        let (tx, rx) = oneshot::channel();
+        sender
+            .send(PrometheusEvent::CollectMetrics { libp2p_metrics: tx })
+            .await
+            .expect("channel must never be closed");
+
+        // channel can be dropped if the network is disabled
+        if let Ok(libp2p_metrics) = rx.await {
+            metrics += &libp2p_metrics;
+        }
 
         Response::builder()
             .status(StatusCode::OK)
-            .header("Content-Type", encoder.format_type())
-            .body(Body::from(buffer))
+            .header(
+                hyper::header::CONTENT_TYPE,
+                hyper::header::HeaderValue::from_static("text/plain"),
+            )
+            .body(Body::from(metrics))
     } else {
         Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Body::from("Not found."))
     }
     .context("Failed to request metrics")
+}
+
+/// Refreshes liveness gauges from the latest committed announce stored in the database.
+///
+/// If the node has not committed any announce yet, the gauges are left unchanged.
+fn update_liveness_metrics(db: Database, metrics: LivenessMetrics) {
+    let Some(latest_committed_block_header) = db
+        .block_meta(db.globals().latest_prepared_block_hash)
+        .last_committed_announce
+        .and_then(|a| db.announce(a))
+        .and_then(|a| db.block_header(a.block_hash))
+    else {
+        return;
+    };
+
+    let time_since_latest_committed_secs = db
+        .globals()
+        .latest_synced_block
+        .header
+        .timestamp
+        .saturating_sub(latest_committed_block_header.timestamp);
+
+    metrics
+        .latest_committed_block_number
+        .set(latest_committed_block_header.height as f64);
+    metrics
+        .latest_committed_block_timestamp
+        .set(latest_committed_block_header.timestamp as f64);
+    metrics
+        .time_since_latest_committed_secs
+        .set(time_since_latest_committed_secs as f64);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures::StreamExt;
+    use std::{net::Ipv4Addr, time::Duration};
+    use tokio::{task, time};
+
+    #[tokio::test]
+    async fn fused_stream_works() {
+        let mut service = PrometheusService::new(
+            PrometheusConfig {
+                name: "".to_string(),
+                addr: (Ipv4Addr::LOCALHOST, 0).into(),
+            },
+            Database::memory(),
+        )
+        .unwrap();
+
+        assert!(!service.is_terminated());
+
+        // wait for the server to finish
+        time::timeout(Duration::from_secs(5), async {
+            service.server.abort();
+            while !service.server.is_finished() {
+                task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+
+        assert!(!service.is_terminated());
+
+        let event = service.select_next_some().await;
+        if let PrometheusEvent::ServerClosed(res) = event {
+            assert!(res.unwrap_err().is_cancelled());
+        } else {
+            unreachable!("unexpected event: {event:?}");
+        }
+
+        assert!(service.is_terminated());
+    }
 }

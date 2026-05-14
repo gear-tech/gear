@@ -16,13 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{common::block_header_at_or_latest, errors};
-use ethexe_common::db::{BlockMetaStorageRead, CodesStorageRead};
+use crate::{errors, utils};
+use ethexe_common::{
+    HashOf, SimpleBlockData,
+    db::{AnnounceStorageRO, CodesStorageRO, OnChainStorageRO},
+};
 use ethexe_db::Database;
-use ethexe_processor::Processor;
+use ethexe_processor::{ExecutableDataForReply, OverlaidProcessor};
 use ethexe_runtime_common::state::{
-    DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Storage,
-    Waitlist,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueryableStorage,
+    Storage, Waitlist,
 };
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
@@ -34,10 +37,11 @@ use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
 use sp_core::Bytes;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FullProgramState {
     pub program: Program,
-    pub queue: Option<MessageQueue>,
+    pub canonical_queue: Option<MessageQueue>,
+    pub injected_queue: Option<MessageQueue>,
     pub waitlist: Option<Waitlist>,
     pub stash: Option<DispatchStash>,
     pub mailbox: Option<Mailbox>,
@@ -45,7 +49,8 @@ pub struct FullProgramState {
     pub executable_balance: u128,
 }
 
-#[rpc(server)]
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Program {
     #[method(name = "program_calculateReplyForHandle")]
     async fn calculate_reply_for_handle(
@@ -90,11 +95,17 @@ pub trait Program {
 
 pub struct ProgramApi {
     db: Database,
+    processor: OverlaidProcessor,
+    gas_allowance: u64,
 }
 
 impl ProgramApi {
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn new(db: Database, processor: OverlaidProcessor, gas_allowance: u64) -> Self {
+        Self {
+            db,
+            processor,
+            gas_allowance,
+        }
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
@@ -124,32 +135,49 @@ impl ProgramServer for ProgramApi {
         payload: Bytes,
         value: u128,
     ) -> RpcResult<ReplyInfo> {
-        let block_hash = block_header_at_or_latest(&self.db, at)?.0;
+        let announce_hash = utils::announce_at_or_latest_computed(&self.db, at)?;
+
+        let announce = self
+            .db
+            .announce(announce_hash)
+            .ok_or_else(|| errors::db("Failed to get announce"))?;
+        let block_hash = announce.block_hash;
+
+        let executable = ExecutableDataForReply {
+            block: SimpleBlockData {
+                hash: block_hash,
+                header: self
+                    .db
+                    .block_header(block_hash)
+                    .ok_or_else(|| errors::db("Failed to get block header"))?,
+            },
+            program_states: self
+                .db
+                .announce_program_states(announce_hash)
+                .ok_or_else(|| errors::db("Failed to get program states"))?,
+            source: source.into(),
+            program_id: program_id.into(),
+            payload: payload.to_vec(),
+            value,
+            gas_allowance: self.gas_allowance,
+        };
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
         // TODO (breathx): optimize here instantiation if matches actual runtime.
-        let processor = Processor::new(self.db.clone()).map_err(|_| errors::internal())?;
 
-        let mut overlaid_processor = processor.overlaid();
-
-        overlaid_processor
-            .execute_for_reply(
-                block_hash,
-                source.into(),
-                program_id.into(),
-                payload.0,
-                value,
-            )
+        self.processor
+            .clone()
+            .execute_for_reply(executable)
             .await
             .map_err(errors::runtime)
     }
 
     async fn ids(&self) -> RpcResult<Vec<H160>> {
-        let block_hash = block_header_at_or_latest(&self.db, None)?.0;
+        let announce_hash = utils::announce_at_or_latest_computed(&self.db, None)?;
 
         Ok(self
             .db
-            .block_program_states(block_hash)
+            .announce_program_states(announce_hash)
             .ok_or_else(|| errors::db("Failed to get program states"))?
             .into_keys()
             .map(|id| id.try_into().unwrap())
@@ -192,7 +220,8 @@ impl ProgramServer for ProgramApi {
     async fn read_full_state(&self, hash: H256) -> RpcResult<FullProgramState> {
         let Some(ProgramState {
             program,
-            queue,
+            canonical_queue,
+            injected_queue,
             waitlist_hash,
             stash_hash,
             mailbox_hash,
@@ -203,14 +232,16 @@ impl ProgramServer for ProgramApi {
             return Err(errors::db("Failed to read state by hash"));
         };
 
-        let queue = queue.query(&self.db).ok();
-        let waitlist = waitlist_hash.query(&self.db).ok();
-        let stash = stash_hash.query(&self.db).ok();
-        let mailbox = mailbox_hash.query(&self.db).ok();
+        let canonical_queue = canonical_queue.query(&self.db).ok();
+        let injected_queue = injected_queue.query(&self.db).ok();
+        let waitlist = self.db.query(&waitlist_hash).ok();
+        let stash = self.db.query(&stash_hash).ok();
+        let mailbox = self.db.query(&mailbox_hash).ok();
 
         Ok(FullProgramState {
             program,
-            queue,
+            canonical_queue,
+            injected_queue,
             waitlist,
             stash,
             mailbox,

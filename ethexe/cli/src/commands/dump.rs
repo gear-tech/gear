@@ -1,0 +1,126 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2026 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::params::{MergeParams, Params};
+use anyhow::{Context, Result};
+use clap::{Parser, Subcommand};
+use ethexe_common::db::GlobalsStorageRO;
+use ethexe_db::{Database, RawDatabase, RocksDatabase, dump::StateDump};
+use gprimitives::H256;
+use std::path::{Path, PathBuf};
+
+/// State dump operations for re-genesis.
+#[derive(Debug, Parser)]
+pub struct DumpCommand {
+    #[clap(flatten)]
+    pub params: Params,
+
+    /// Override database location.
+    #[arg(long)]
+    pub db: Option<PathBuf>,
+
+    #[command(subcommand)]
+    pub command: DumpSubcommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DumpSubcommand {
+    /// Create a state dump from the database and write it to a file.
+    /// Use `.blob` extension for binary format or `.json` for JSON format.
+    /// If --block-hash is not provided, uses the latest committed block.
+    Create {
+        /// Block hash (hex-encoded, with or without 0x prefix).
+        /// If omitted, the latest committed block is used.
+        #[arg(long)]
+        block_hash: Option<H256>,
+
+        /// Output file path (.blob for binary, .json for JSON).
+        #[arg(long, short)]
+        output: PathBuf,
+    },
+    /// Read a state dump from a file (`.blob` or `.json`) and print it as JSON
+    /// to stdout. Useful for re-inspecting an exported dump.
+    Json {
+        /// Dump file path. Format is detected from the extension
+        /// (`.blob` for binary, `.json` for JSON).
+        #[arg(long, short)]
+        file: PathBuf,
+    },
+}
+
+impl DumpCommand {
+    pub fn with_params(mut self, params: Params) -> Self {
+        self.params = self.params.merge(params);
+        self
+    }
+
+    pub fn exec(self) -> Result<()> {
+        match &self.command {
+            DumpSubcommand::Create { block_hash, output } => self.exec_create(*block_hash, output),
+            DumpSubcommand::Json { file } => Self::exec_json(file),
+        }
+    }
+
+    fn exec_create(&self, block_hash: Option<H256>, output: &Path) -> Result<()> {
+        crate::enable_logging("info")?;
+
+        let rocks_db = RocksDatabase::open(
+            self.db
+                .clone()
+                .or_else(|| self.params.node.as_ref().map(|node| node.db_dir()))
+                .context("missing database path")?,
+        )
+        .context("failed to open database")?;
+
+        let raw_db = RawDatabase::from_one(&rocks_db);
+        let db = Database::try_from_raw(raw_db)?;
+
+        let block_hash = block_hash.unwrap_or_else(|| {
+            let latest_prepared_block = db.globals().latest_prepared_block_hash;
+            log::info!(
+                "No block hash provided, using latest committed block: {latest_prepared_block:?}"
+            );
+            latest_prepared_block
+        });
+
+        log::info!("Collecting state dump for block {block_hash:?}...");
+        let dump = StateDump::collect_from_storage(&db, block_hash)?;
+
+        log::info!(
+            "Dump collected: {} codes, {} programs, {} blobs",
+            dump.codes.len(),
+            dump.programs.len(),
+            dump.blobs.len(),
+        );
+
+        dump.write_to_file(output)?;
+        log::info!("Dump written to {}", output.display());
+        Ok(())
+    }
+
+    fn exec_json(file: &Path) -> Result<()> {
+        // Auto-detect the format from the file extension so passing either a
+        // `.blob` or a previously-exported `.json` produces a clear error
+        // instead of a raw deflate/SCALE decode failure.
+        let dump = StateDump::read_from_file(file)
+            .with_context(|| format!("failed to read dump file {}", file.display()))?;
+        let json = serde_json::to_string_pretty(&dump)?;
+        println!("{json}");
+        Ok(())
+    }
+}

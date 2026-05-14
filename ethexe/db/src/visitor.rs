@@ -18,8 +18,10 @@
 
 use crate::iterator::{DatabaseIterator, DatabaseIteratorError, DatabaseIteratorStorage, Node};
 use ethexe_common::{
-    BlockHeader, BlockMeta, ProgramStates, Schedule, ScheduledTask, db::BlockOutcome,
-    events::BlockEvent, gear::StateTransition,
+    Announce, BlockHeader, HashOf, ProgramStates, Schedule, ScheduledTask,
+    db::{AnnounceMeta, BlockMeta},
+    events::BlockEvent,
+    gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
@@ -31,7 +33,7 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::{ActorId, CodeId, H256};
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::BTreeSet;
 
 macro_rules! define_visitor {
     ($( $variant:ident($node:ident { $( $field:ident: $ty:ty, )* }) )*) => {
@@ -58,7 +60,7 @@ crate::iterator::for_each_node!(define_visitor);
 macro_rules! define_visit_node {
     ($( $variant:ident($node:ident { $( $field:ident: $ty:ty, )* }) )*) => {
         paste::paste! {
-            fn visit_node(visitor: &mut impl DatabaseVisitor, node: Node) {
+            pub fn visit_node(visitor: &mut impl DatabaseVisitor, node: Node) {
                 match node {
                     $(
                         Node::$variant(node) => {

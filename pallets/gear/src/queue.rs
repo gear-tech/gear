@@ -278,8 +278,14 @@ where
 
         core_processor::process::<Ext>(
             block_config,
-            ProcessExecutionContext::new
-            (context, InstrumentedCodeAndMetadata{instrumented_code, metadata: code_metadata}, balance),
+            ProcessExecutionContext::new(
+                context,
+                InstrumentedCodeAndMetadata {
+                    instrumented_code,
+                    metadata: code_metadata
+                },
+                balance, SyscallKind::Vara,
+            ),
             (random.encode(), bn.unique_saturated_into()),
         )
         .unwrap_or_else(|e| {

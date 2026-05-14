@@ -45,7 +45,7 @@ pub trait BuiltinDispatcher {
     type Error;
 
     /// Looks up a builtin actor by its actor id.
-    fn lookup(&self, id: &ActorId) -> Option<BuiltinInfo<Self::Context, Self::Error>>;
+    fn lookup(&self, id: &ActorId) -> Option<BuiltinInfo<'_, Self::Context, Self::Error>>;
 
     fn run(
         &self,

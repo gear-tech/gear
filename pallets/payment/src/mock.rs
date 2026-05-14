@@ -35,7 +35,7 @@ use primitive_types::H256;
 use sp_runtime::{
     BuildStorage,
     testing::TestXt,
-    traits::{BlakeTwo256, ConstBool, ConstU64, IdentityLookup},
+    traits::{BlakeTwo256, ConstU64, IdentityLookup},
 };
 use sp_std::{
     convert::{TryFrom, TryInto},

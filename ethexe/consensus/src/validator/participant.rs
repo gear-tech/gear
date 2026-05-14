@@ -20,25 +20,39 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    SignedValidationRequest, utils, validator::MAX_CHAIN_DEEPNESS,
-};
-use anyhow::{Result, anyhow, ensure};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::batch::ValidationStatus};
+
+use anyhow::{Context as _, Result};
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, SimpleBlockData, ToDigest, db::BlockMetaStorageRead};
-use std::collections::HashSet;
+use ethexe_common::{
+    Address, SimpleBlockData,
+    consensus::{BatchCommitmentValidationRequest, VerifiedValidationRequest},
+    network::ValidatorMessage,
+};
+use futures::{FutureExt, future::BoxFuture};
+use gsigner::secp256k1::Secp256k1SignerExt;
+use std::task::Poll;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
 /// which are sent by the current block producer (from the coordinator state).
 /// After replying to the request, it switches back to the [`Initial`] state
 /// and waits for the next block.
 #[derive(Debug, Display)]
-#[display("PARTICIPANT")]
+#[display("PARTICIPANT in state {state:?}")]
 pub struct Participant {
     ctx: ValidatorContext,
     block: SimpleBlockData,
     producer: Address,
+    state: State,
+}
+
+#[derive(Debug)]
+enum State {
+    WaitingForValidationRequest,
+    ProcessingValidationRequest {
+        #[debug(skip)]
+        future: BoxFuture<'static, Result<ValidationStatus>>,
+    },
 }
 
 impl StateHandler for Participant {
@@ -56,12 +70,70 @@ impl StateHandler for Participant {
 
     fn process_validation_request(
         self,
-        request: SignedValidationRequest,
+        request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         if request.address() == self.producer {
             self.process_validation_request(request.into_parts().0)
         } else {
             DefaultProcessing::validation_request(self, request)
+        }
+    }
+
+    fn poll_next_state(
+        mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> Result<(Poll<()>, ValidatorState)> {
+        if let State::ProcessingValidationRequest { future } = &mut self.state
+            && let Poll::Ready(res) = future.poll_unpin(cx)
+        {
+            match res {
+                Ok(ValidationStatus::Accepted(digest)) => {
+                    let signature = self.ctx.core.signer.sign_for_contract_digest(
+                        self.ctx.core.router_address,
+                        self.ctx.core.pub_key,
+                        digest,
+                        None,
+                    )?;
+                    self.ctx
+                        .core
+                        .metrics
+                        .last_signed_commitment_block_number
+                        .set(self.block.header.height);
+
+                    let reply = BatchCommitmentValidationReply { digest, signature };
+
+                    let era_index = self
+                        .ctx
+                        .core
+                        .timelines
+                        .era_from_ts(self.block.header.timestamp)
+                        .context("failed to calculate era from block timestamp")?;
+                    let reply = ValidatorMessage {
+                        era_index,
+                        payload: reply,
+                    };
+
+                    let reply =
+                        self.ctx
+                            .core
+                            .signer
+                            .signed_data(self.ctx.core.pub_key, reply, None)?;
+
+                    self.ctx
+                        .output(ConsensusEvent::PublishMessage(reply.into()));
+                }
+                Ok(ValidationStatus::Rejected { request, reason }) => {
+                    self.warning(format!("reject validation request {request:?} : {reason}"));
+                }
+                Err(err) => return Err(err),
+            }
+
+            // NOTE: In both cases it returns to the initial state,
+            // means - even if producer publish incorrect validation request,
+            // then participant does not wait for the next validation request from producer.
+            Initial::create(self.ctx).map(|s| (Poll::Ready(()), s))
+        } else {
+            Ok((Poll::Pending, self.into()))
         }
     }
 }
@@ -91,6 +163,7 @@ impl Participant {
             ctx,
             block,
             producer,
+            state: State::WaitingForValidationRequest,
         };
 
         let Some(validation_request) = earlier_validation_request else {
@@ -104,106 +177,61 @@ impl Participant {
         mut self,
         request: BatchCommitmentValidationRequest,
     ) -> Result<ValidatorState> {
-        match self.process_validation_request_inner(request) {
-            Ok(reply) => self.output(ConsensusEvent::PublishValidationReply(reply)),
-            Err(err) => self.warning(format!("reject validation request: {err}")),
-        }
-
-        // NOTE: In both cases it returns to the initial state,
-        // means - even if producer publish incorrect validation request,
-        // then participant does not wait for the next validation request from producer.
-        Initial::create(self.ctx)
-    }
-
-    fn process_validation_request_inner(
-        &self,
-        request: BatchCommitmentValidationRequest,
-    ) -> Result<BatchCommitmentValidationReply> {
-        let BatchCommitmentValidationRequest {
-            digest,
-            head,
-            codes,
-        } = request;
-
-        ensure!(
-            !(head.is_none() && codes.is_empty()),
-            "Empty batch (change when other commitments are supported)"
-        );
-
-        ensure!(
-            !utils::has_duplicates(codes.as_slice()),
-            "Duplicate codes in validation request"
-        );
-
-        // Check requested codes wait for commitment
-        let waiting_codes = self
-            .ctx
-            .db
-            .block_codes_queue(self.block.hash)
-            .ok_or_else(|| {
-                anyhow!(
-                    "Cannot get from db block codes queue for block {}",
-                    self.block.hash
-                )
-            })?
-            .into_iter()
-            .collect::<HashSet<_>>();
-        ensure!(
-            codes.iter().all(|code| waiting_codes.contains(code)),
-            "Not all requested codes are waiting for commitment"
-        );
-
-        let chain_commitment = if let Some(head) = head {
-            // TODO #4791: support head != current block hash, have to check head is predecessor of current block
-            ensure!(
-                head == self.block.hash,
-                "Head cannot be different from current block hash"
-            );
-
-            utils::aggregate_chain_commitment(&self.ctx.db, head, true, Some(MAX_CHAIN_DEEPNESS))?
-                .map(|(commitment, _)| commitment)
-        } else {
-            None
+        let State::WaitingForValidationRequest = self.state else {
+            self.warning("unexpected validation request".to_string());
+            return Ok(self.into());
         };
 
-        let code_commitments = utils::aggregate_code_commitments(&self.ctx.db, codes, true)?;
-        let batch = utils::create_batch_commitment(
-            &self.ctx.db,
-            &self.block,
-            chain_commitment,
-            code_commitments,
-        )?
-        .ok_or_else(|| anyhow!("Batch commitment is empty for current block"))?;
+        self.state = State::ProcessingValidationRequest {
+            future: self
+                .ctx
+                .core
+                .batch_manager
+                .clone()
+                .validate_batch_commitment(self.block, request)
+                .boxed(),
+        };
 
-        if batch.to_digest() != digest {
-            return Err(anyhow!(
-                "Requested and local batch commitment digests mismatch"
-            ));
-        }
-
-        self.ctx
-            .signer
-            .sign_for_contract(self.ctx.router_address, self.ctx.pub_key, digest)
-            .map(|signature| BatchCommitmentValidationReply { digest, signature })
+        Ok(self.into())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
+    use crate::{mock::*, validator::mock::*};
+    use ethexe_common::{
+        Announce, Digest, HashOf, ToDigest,
+        consensus::VerifiedAnnounce,
+        db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRW},
+        gear::BatchCommitment,
         mock::*,
-        utils::{SignedProducerBlock, SignedValidationRequest},
-        validator::mock::*,
     };
-    use ethexe_common::{Digest, gear::CodeCommitment};
     use gprimitives::H256;
+    use gsigner::PublicKey;
+
+    fn verified_request(
+        signer: &gsigner::secp256k1::Signer,
+        pub_key: PublicKey,
+        batch: &BatchCommitment,
+    ) -> VerifiedValidationRequest {
+        signer.verified_test_data(pub_key, BatchCommitmentValidationRequest::new(batch))
+    }
+
+    fn verified_announce(
+        signer: &gsigner::secp256k1::Signer,
+        pub_key: PublicKey,
+        block_hash: H256,
+        parent: HashOf<Announce>,
+    ) -> VerifiedAnnounce {
+        signer.verified_test_data(pub_key, test_announce(block_hash, parent))
+    }
 
     #[test]
     fn create() {
-        let (ctx, pub_keys) = mock_validator_context();
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random());
+        let block = test_simple_block_data(1);
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
 
@@ -211,180 +239,198 @@ mod tests {
         assert_eq!(participant.context().pending_events.len(), 0);
     }
 
-    #[test]
-    fn create_with_pending_events() {
-        let (mut ctx, keys) = mock_validator_context();
+    #[tokio::test]
+    async fn create_with_pending_events() {
+        gear_utils::init_default_logger();
+
+        let (mut ctx, keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = keys[0];
         let alice = keys[1];
-        let block = SimpleBlockData::mock(H256::random());
+        let block = test_block_chain(2).setup(&ctx.core.db).blocks[2].to_simple();
+        let request_batch = test_batch_commitment(block.hash, 1);
 
         // Validation request from alice - must be kept
-        ctx.pending(SignedValidationRequest::mock((
-            ctx.signer.clone(),
+        ctx.pending(PendingEvent::ValidationRequest(verified_request(
+            &ctx.core.signer,
             alice,
-            (),
+            &request_batch,
         )));
 
-        // Reply from producer - must be removed and processed
-        ctx.pending(SignedValidationRequest::mock((
-            ctx.signer.clone(),
+        // Validation request from producer - must be removed and processed
+        ctx.pending(PendingEvent::ValidationRequest(verified_request(
+            &ctx.core.signer,
             producer,
-            (),
+            &request_batch,
         )));
 
         // Block from producer - must be kept
-        ctx.pending(SignedProducerBlock::mock((
-            ctx.signer.clone(),
+        ctx.pending(PendingEvent::Announce(verified_announce(
+            &ctx.core.signer,
             producer,
-            H256::random(),
+            block.hash,
+            HashOf::zero(),
         )));
 
         // Block from alice - must be kept
-        ctx.pending(SignedProducerBlock::mock((
-            ctx.signer.clone(),
+        ctx.pending(PendingEvent::Announce(verified_announce(
+            &ctx.core.signer,
             alice,
-            H256::random(),
+            block.hash,
+            HashOf::zero(),
         )));
 
-        let initial = Participant::create(ctx, block, producer.to_address()).unwrap();
-        assert!(initial.is_initial());
-
-        let ctx = initial.into_context();
-        assert_eq!(ctx.pending_events.len(), 3);
-        assert!(matches!(
-            ctx.pending_events[0],
-            PendingEvent::ProducerBlock(_)
-        ));
-        assert!(matches!(
-            ctx.pending_events[1],
-            PendingEvent::ProducerBlock(_)
-        ));
-        assert!(matches!(
-            ctx.pending_events[2],
-            PendingEvent::ValidationRequest(_)
-        ));
+        let (state, event) = Participant::create(ctx, block, producer.to_address())
+            .unwrap()
+            .wait_for_event()
+            .await
+            .unwrap();
+        assert!(state.is_initial());
 
         // Pending validation request from producer was found and rejected
-        assert_eq!(ctx.output.len(), 1);
-        assert!(matches!(ctx.output[0], ConsensusEvent::Warning(_)));
+        assert!(event.is_warning());
+
+        let ctx = state.into_context();
+        assert_eq!(ctx.pending_events.len(), 3);
+        assert!(ctx.pending_events[0].is_announce());
+        assert!(ctx.pending_events[1].is_announce());
+        assert!(ctx.pending_events[2].is_validation_request());
     }
 
-    #[test]
-    fn process_validation_request_success() {
-        let (ctx, pub_keys) = mock_validator_context();
+    #[tokio::test]
+    async fn process_validation_request_success() {
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
-        let batch = prepared_mock_batch_commitment(&ctx.db);
-        let block = simple_block_data(&ctx.db, batch.block_hash);
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-        let signed_request = ctx
-            .signer
-            .signed_data(producer, BatchCommitmentValidationRequest::new(&batch))
+        let verified_request = verified_request(&ctx.core.signer, producer, &batch);
+
+        let state = Participant::create(ctx, block, producer.to_address()).unwrap();
+        assert!(state.is_participant());
+
+        let (state, event) = state
+            .process_validation_request(verified_request)
+            .unwrap()
+            .wait_for_event()
+            .await
             .unwrap();
+        assert!(state.is_initial());
 
-        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
-        let initial = participant
-            .process_validation_request(signed_request)
-            .unwrap();
-
-        assert!(initial.is_initial());
-
-        let ctx = initial.into_context();
-        assert_eq!(ctx.output.len(), 1);
-
-        let ConsensusEvent::PublishValidationReply(reply) = &ctx.output[0] else {
-            panic!(
-                "Expected PublishValidationReply event, got {:?}",
-                ctx.output[0]
-            );
-        };
+        let reply = event
+            .unwrap_publish_message()
+            .unwrap_approve_batch()
+            .into_data()
+            .payload;
         assert_eq!(reply.digest, batch.to_digest());
         reply
             .signature
-            .validate(ctx.router_address, reply.digest)
+            .validate(state.context().core.router_address, reply.digest)
             .unwrap();
     }
 
-    #[test]
-    fn process_validation_request_failure() {
-        let (ctx, pub_keys) = mock_validator_context();
+    #[tokio::test]
+    async fn process_validation_request_failure() {
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random());
-        let signed_request = SignedValidationRequest::mock((ctx.signer.clone(), producer, ()));
+        let block = test_simple_block_data(2);
+        let verified_request = verified_request(
+            &ctx.core.signer,
+            producer,
+            &test_batch_commitment(block.hash, 2),
+        );
 
-        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
-        let initial = participant
-            .process_validation_request(signed_request)
-            .unwrap();
+        let state = Participant::create(ctx, block, producer.to_address()).unwrap();
+        assert!(state.is_participant());
 
-        assert!(initial.is_initial());
-        assert_eq!(initial.context().output.len(), 1);
-        assert!(matches!(
-            initial.context().output[0],
-            ConsensusEvent::Warning(_)
-        ));
+        state
+            .process_validation_request(verified_request)
+            .unwrap()
+            .wait_for_event()
+            .await
+            .expect_err("database is empty - must fail");
     }
 
-    #[test]
-    fn test_codes_not_waiting_for_commitment() {
-        let (ctx, pub_keys) = mock_validator_context();
+    #[tokio::test]
+    async fn codes_not_waiting_for_commitment_error() {
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
-        let mut batch = prepared_mock_batch_commitment(&ctx.db);
-        let block = simple_block_data(&ctx.db, batch.block_hash);
+        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Add a code that's not in the waiting queue
-        let extra_code = CodeCommitment::mock(());
+        let extra_code = test_code_commitment(99);
         batch.code_commitments.push(extra_code);
 
         let request = BatchCommitmentValidationRequest::new(&batch);
-        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
+        let verified_request = ctx
+            .core
+            .signer
+            .signed_data(producer, request, None)
+            .unwrap()
+            .into_verified();
 
-        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
-        let initial = participant
-            .process_validation_request(signed_request)
+        let state = Participant::create(ctx, block, producer.to_address()).unwrap();
+        assert!(state.is_participant());
+
+        let (state, event) = state
+            .process_validation_request(verified_request)
+            .unwrap()
+            .wait_for_event()
+            .await
             .unwrap();
-
-        assert!(initial.is_initial());
-        assert_eq!(initial.context().output.len(), 1);
-        assert!(matches!(
-            initial.context().output[0],
-            ConsensusEvent::Warning(_)
-        ));
+        assert!(state.is_initial());
+        assert!(event.is_warning());
     }
 
-    #[test]
-    fn test_empty_codes_and_blocks() {
-        let (ctx, pub_keys) = mock_validator_context();
+    #[tokio::test]
+    async fn empty_batch_error() {
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
+        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.db, H256::random());
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-        // Create a request with empty blocks and codes
-        let request = BatchCommitmentValidationRequest {
-            digest: Digest::random(),
-            head: None,
-            codes: vec![],
-        };
+        let mut announce_hash = batch.chain_commitment.clone().unwrap().head_announce;
+        batch.code_commitments = Default::default();
+        let request = BatchCommitmentValidationRequest::new(&batch);
 
-        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
+        // Nullify the codes in database
+        ctx.core.db.mutate_block_meta(block.hash, |meta| {
+            meta.codes_queue = Some(Default::default())
+        });
+        // Nullify the transitions in database
+        for _ in 0..2 {
+            announce_hash = ctx.core.db.announce(announce_hash).unwrap().parent;
+            ctx.core
+                .db
+                .set_announce_outcome(announce_hash, Default::default());
+        }
 
-        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
-        let initial = participant
-            .process_validation_request(signed_request)
+        let verified_request = ctx
+            .core
+            .signer
+            .signed_data(producer, request, None)
+            .unwrap()
+            .into_verified();
+
+        let state = Participant::create(ctx, block, producer.to_address()).unwrap();
+        assert!(state.is_participant());
+
+        let (state, event) = state
+            .process_validation_request(verified_request)
+            .unwrap()
+            .wait_for_event()
+            .await
             .unwrap();
-
-        assert!(initial.is_initial());
-        assert_eq!(initial.context().output.len(), 1);
-        assert!(matches!(
-            initial.context().output[0],
-            ConsensusEvent::Warning(_)
-        ));
+        assert!(state.is_initial());
+        assert!(event.is_warning());
     }
 
-    #[test]
-    fn test_duplicate_codes_and_blocks() {
-        let (ctx, pub_keys) = mock_validator_context();
+    #[tokio::test]
+    async fn duplicate_codes_warning() {
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
-        let batch = prepared_mock_batch_commitment(&ctx.db);
-        let block = simple_block_data(&ctx.db, batch.block_hash);
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Create a request with duplicate codes
         let mut request = BatchCommitmentValidationRequest::new(&batch);
@@ -393,43 +439,54 @@ mod tests {
             request.codes.push(duplicate_code);
         }
 
-        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
+        let verified_request = ctx
+            .core
+            .signer
+            .signed_data(producer, request, None)
+            .unwrap()
+            .into_verified();
 
-        let participant = Participant::create(ctx, block.clone(), producer.to_address()).unwrap();
-        let initial = participant
-            .process_validation_request(signed_request)
+        let state = Participant::create(ctx, block, producer.to_address()).unwrap();
+        assert!(state.is_participant());
+
+        let (state, event) = state
+            .process_validation_request(verified_request)
+            .unwrap()
+            .wait_for_event()
+            .await
             .unwrap();
-
-        assert!(initial.is_initial());
-
-        let ctx = initial.into_context();
-        assert_eq!(ctx.output.len(), 1);
-        assert!(matches!(ctx.output[0], ConsensusEvent::Warning(_)));
+        assert!(state.is_initial());
+        assert!(event.is_warning());
     }
 
-    #[test]
-    fn test_digest_mismatch() {
-        let (ctx, pub_keys) = mock_validator_context();
+    #[tokio::test]
+    async fn digest_mismatch_warning() {
+        let (ctx, pub_keys, _) = mock_validator_context(ethexe_db::Database::memory());
         let producer = pub_keys[0];
-        let batch = prepared_mock_batch_commitment(&ctx.db);
-        let block = simple_block_data(&ctx.db, batch.block_hash);
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Create request with incorrect digest
         let mut request = BatchCommitmentValidationRequest::new(&batch);
-        request.digest = Digest::random(); // Set a different random digest
+        request.digest = Digest::random();
 
-        let signed_request = ctx.signer.signed_data(producer, request).unwrap();
+        let verified_request = ctx
+            .core
+            .signer
+            .signed_data(producer, request, None)
+            .unwrap()
+            .into_verified();
 
-        let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
-        let initial = participant
-            .process_validation_request(signed_request)
+        let state = Participant::create(ctx, block, producer.to_address()).unwrap();
+        assert!(state.is_participant());
+
+        let (state, event) = state
+            .process_validation_request(verified_request)
+            .unwrap()
+            .wait_for_event()
+            .await
             .unwrap();
-
-        assert!(initial.is_initial());
-        assert_eq!(initial.context().output.len(), 1);
-        assert!(matches!(
-            initial.context().output[0],
-            ConsensusEvent::Warning(_)
-        ));
+        assert!(state.is_initial());
+        assert!(event.is_warning());
     }
 }

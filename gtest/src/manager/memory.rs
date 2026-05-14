@@ -18,6 +18,7 @@
 
 use super::*;
 use crate::state::programs::GTestProgram;
+use gear_core::code::SyscallKind;
 
 impl ExtManager {
     /// Call non-void meta function from actor stored in manager.
@@ -33,12 +34,11 @@ impl ExtManager {
 
         if ProgramsStorageManager::is_mock_program(program_id) {
             ProgramsStorageManager::modify_program(program_id, |program| {
-                let Some(GTestProgram::Mock(mock_program)) = program else {
+                let Some(GTestProgram::Mock { handlers, .. }) = program else {
                     unreachable!("checked upper, that it's the case for a mock program");
                 };
 
-                mock_program
-                    .handlers_mut()
+                handlers
                     .state()
                     .map_err(|e| TestError::ReadStateError(e.to_string()))
             })
@@ -71,6 +71,7 @@ impl ExtManager {
                 payload,
                 MAX_USER_GAS_LIMIT,
                 self.blocks_manager.get(),
+                SyscallKind::Vara,
             )
             .map_err(TestError::ReadStateError)
         }

@@ -20,50 +20,21 @@ use gprimitives::{ActorId, U256};
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct TransferEvent {
+    pub from: ActorId,
+    pub to: ActorId,
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct ApprovalEvent {
+    pub owner: ActorId,
+    pub spender: ActorId,
+    pub value: U256,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
 pub enum Event {
-    Transfer {
-        from: ActorId,
-        to: ActorId,
-        value: u128,
-    },
-    Approval {
-        owner: ActorId,
-        spender: ActorId,
-        value: U256,
-    },
-}
-
-impl Event {
-    pub fn to_request(self) -> Option<RequestEvent> {
-        Some(match self {
-            Self::Transfer { from, to, value } => RequestEvent::Transfer { from, to, value },
-            Self::Approval { .. } => return None,
-        })
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub enum RequestEvent {
-    Transfer {
-        /// Never router, wvara or zero address.
-        from: ActorId,
-        /// Never router, wvara or zero address.
-        to: ActorId,
-        value: u128,
-    },
-}
-
-impl RequestEvent {
-    pub fn involves_address(&self, address: &ActorId) -> bool {
-        match self {
-            Self::Transfer { from, to, .. } => from == address || to == address,
-        }
-    }
-
-    pub fn involves_addresses(&self, addresses: &[ActorId]) -> bool {
-        match self {
-            Self::Transfer { from, to, .. } => addresses.contains(from) || addresses.contains(to),
-        }
-    }
+    Transfer(TransferEvent),
+    Approval(ApprovalEvent),
 }

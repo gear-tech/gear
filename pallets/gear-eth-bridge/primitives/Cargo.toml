@@ -24,6 +24,7 @@ gprimitives.workspace = true
 
 # Substrate deps.
 binary-merkle-tree.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]

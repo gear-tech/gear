@@ -27,11 +27,10 @@ use crate::{
     utils::AsRawPtr,
 };
 use core::mem::MaybeUninit;
-use gsys::BlockNumberWithHash;
 #[cfg(not(feature = "ethexe"))]
 use {
     crate::ReservationId,
-    gsys::{ErrorWithGas, ErrorWithHash},
+    gsys::{BlockNumberWithHash, ErrorWithGas, ErrorWithHash},
 };
 
 /// Get current version of environment variables.
@@ -135,6 +134,9 @@ pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
 /// `inheritor_id` specifies the address to which all available program value
 /// should be transferred.
 ///
+/// Note: All registered global destructors
+/// (via `gcore::dtor!()`/`gcore::ctor::atexit`) are invoked before termination.
+///
 /// # Examples
 ///
 /// Terminate the program and transfer the available value to the message
@@ -150,6 +152,10 @@ pub fn reply_deposit(message_id: MessageId, amount: u64) -> Result<()> {
 /// }
 /// ```
 pub fn exit(inheritor_id: ActorId) -> ! {
+    #[cfg(target_arch = "wasm32")]
+    unsafe {
+        crate::ctor::dtors()
+    }
     unsafe { gsys::gr_exit(inheritor_id.as_ptr()) }
 }
 
@@ -276,6 +282,9 @@ pub fn gas_available() -> u64 {
 /// Use this function to break the current message processing and save the
 /// state.
 ///
+/// Note: All registered global destructors
+/// (via `gcore::dtor!()`/`gcore::ctor::atexit`) are invoked before leaving.
+///
 /// # Examples
 ///
 /// ```
@@ -289,6 +298,10 @@ pub fn gas_available() -> u64 {
 /// }
 /// ```
 pub fn leave() -> ! {
+    #[cfg(target_arch = "wasm32")]
+    unsafe {
+        crate::ctor::dtors()
+    }
     unsafe { gsys::gr_leave() }
 }
 
@@ -338,11 +351,19 @@ pub fn value_available() -> u128 {
 ///     exec::wait();
 /// }
 /// ```
+#[cfg(not(feature = "ethexe"))]
 pub fn wait() -> ! {
     unsafe { gsys::gr_wait() }
 }
 
-/// Same as [`wait`], but delays handling for a specific number of blocks.
+#[cfg_attr(
+    not(feature = "ethexe"),
+    doc = "Same as [`wait`], but delays handling for a specific number of blocks."
+)]
+#[cfg_attr(
+    feature = "ethexe",
+    doc = "Same as `wait`, but delays handling for a specific number of blocks."
+)]
 ///
 /// # Panics
 ///
@@ -351,15 +372,21 @@ pub fn wait_for(duration: u32) -> ! {
     unsafe { gsys::gr_wait_for(duration) }
 }
 
-/// Same as [`wait`], but delays handling for the maximum number of blocks that
-/// can be paid for and doesn't exceed the given `duration`.
+#[cfg_attr(
+    not(feature = "ethexe"),
+    doc = "Same as [`wait`], but delays handling for the maximum number of blocks that can be paid for and doesn't exceed the given `duration`."
+)]
+#[cfg_attr(
+    feature = "ethexe",
+    doc = "Same as `wait`, but delays handling for the maximum number of blocks that can be paid for and doesn't exceed the given `duration`."
+)]
 pub fn wait_up_to(duration: u32) -> ! {
     unsafe { gsys::gr_wait_up_to(duration) }
 }
 
 /// Resume previously paused message handling.
 ///
-/// Suppose a message has been paused using the [`wait`] function. In that case,
+/// Suppose a message has been paused using the `wait` function. In that case,
 /// it is possible to continue its execution by calling this function.
 ///
 /// `message_id` specifies a particular message to be taken out of the *waiting
@@ -439,6 +466,7 @@ pub fn program_id() -> ActorId {
 ///     let (seed, block_number) = exec::random(subject).expect("Error in random");
 /// }
 /// ```
+#[cfg(not(feature = "ethexe"))]
 pub fn random(subject: [u8; 32]) -> Result<([u8; 32], u32)> {
     let mut res: BlockNumberWithHash = Default::default();
 

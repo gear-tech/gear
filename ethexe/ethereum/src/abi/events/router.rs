@@ -17,60 +17,63 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{IRouter, utils::*};
-use ethexe_common::{Digest, events::RouterEvent};
+use ethexe_common::{Digest, HashOf, events::router::*};
 
-impl From<IRouter::BatchCommitted> for RouterEvent {
+impl From<IRouter::BatchCommitted> for BatchCommittedEvent {
     fn from(value: IRouter::BatchCommitted) -> Self {
-        Self::BatchCommitted {
+        Self {
             digest: Digest(bytes32_to_h256(value.hash).0),
         }
     }
 }
 
-impl From<IRouter::HeadCommitted> for RouterEvent {
-    fn from(value: IRouter::HeadCommitted) -> Self {
-        Self::HeadCommitted(value.head.0.into())
+impl From<IRouter::AnnouncesCommitted> for AnnouncesCommittedEvent {
+    fn from(value: IRouter::AnnouncesCommitted) -> Self {
+        // # Safety because of implementation
+        Self(unsafe { HashOf::new(value.head.0.into()) })
     }
 }
 
-impl From<IRouter::CodeGotValidated> for RouterEvent {
+impl From<IRouter::CodeGotValidated> for CodeGotValidatedEvent {
     fn from(value: IRouter::CodeGotValidated) -> Self {
-        Self::CodeGotValidated {
+        Self {
             code_id: bytes32_to_code_id(value.codeId),
             valid: value.valid,
         }
     }
 }
 
-impl From<IRouter::ComputationSettingsChanged> for RouterEvent {
+impl From<IRouter::ComputationSettingsChanged> for ComputationSettingsChangedEvent {
     fn from(value: IRouter::ComputationSettingsChanged) -> Self {
-        Self::ComputationSettingsChanged {
+        Self {
             threshold: value.threshold,
             wvara_per_second: value.wvaraPerSecond,
         }
     }
 }
 
-impl From<IRouter::ProgramCreated> for RouterEvent {
+impl From<IRouter::ProgramCreated> for ProgramCreatedEvent {
     fn from(value: IRouter::ProgramCreated) -> Self {
-        Self::ProgramCreated {
+        Self {
             actor_id: address_to_actor_id(value.actorId),
             code_id: bytes32_to_code_id(value.codeId),
         }
     }
 }
 
-impl From<IRouter::StorageSlotChanged> for RouterEvent {
-    fn from(_value: IRouter::StorageSlotChanged) -> Self {
-        Self::StorageSlotChanged
+impl From<IRouter::StorageSlotChanged> for StorageSlotChangedEvent {
+    fn from(value: IRouter::StorageSlotChanged) -> Self {
+        Self {
+            slot: bytes32_to_h256(value.slot),
+        }
     }
 }
 
-impl From<IRouter::NextEraValidatorsCommitted> for RouterEvent {
-    fn from(value: IRouter::NextEraValidatorsCommitted) -> Self {
-        Self::NextEraValidatorsCommitted {
-            next_era_start: value
-                .startTimestamp
+impl From<IRouter::ValidatorsCommittedForEra> for ValidatorsCommittedForEraEvent {
+    fn from(value: IRouter::ValidatorsCommittedForEra) -> Self {
+        Self {
+            era_index: value
+                .eraIndex
                 .try_into()
                 .expect("next era start timestamp is too large"),
         }

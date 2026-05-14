@@ -21,7 +21,7 @@ use crate::queue::QueueStep;
 use core::convert::TryFrom;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
-    code::{InstrumentedCodeAndMetadata, TryNewCodeConfig},
+    code::{InstrumentedCodeAndMetadata, SyscallKind, TryNewCodeConfig},
     pages::{WasmPage, numerated::tree::IntervalsTree},
     program::{ActiveProgram, MemoryInfix},
     rpc::ReplyInfo,
@@ -348,7 +348,11 @@ where
                     }
 
                     // Burning gas from main messages chain.
-                    JournalNote::GasBurned { amount, message_id } => {
+                    JournalNote::GasBurned {
+                        amount,
+                        message_id,
+                        is_panic: _,
+                    } => {
                         if from_main_chain(message_id)? {
                             gas_info.burned = gas_info.burned.saturating_add(amount);
                         }
@@ -440,6 +444,7 @@ where
             payload,
             gas_allowance,
             block_info,
+            SyscallKind::Vara,
         )
     }
 
@@ -479,6 +484,7 @@ where
             payload,
             gas_allowance,
             block_info,
+            SyscallKind::Vara,
         )
     }
 
@@ -517,6 +523,7 @@ where
             Default::default(),
             gas_allowance,
             block_info,
+            SyscallKind::Vara,
         )
         .and_then(|bytes| {
             H256::decode(&mut bytes.as_ref()).map_err(|_| "Failed to decode hash".into())
@@ -595,7 +602,7 @@ where
         gas: u64,
         value: BalanceOf<T>,
     ) -> RawOrigin<AccountIdOf<T>> {
-        // Querying transferrable balance of the origin taking into account a possibility of
+        // Querying transferable balance of the origin taking into account a possibility of
         // a part of its `free` balance being `frozen`.
         let origin_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
             &origin,

@@ -16,43 +16,78 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(clippy::double_parens)] // produced by `derive_more::TryUnwrap`
+
 use crate::Event;
-use anyhow::Result;
+use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    SimpleBlockData, db::OnChainStorageRead, events::BlockEvent, tx_pool::SignedOffchainTransaction,
+    Address, Announce, HashOf, SimpleBlockData,
+    db::*,
+    events::BlockEvent,
+    injected::{
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
+        SignedCompactPromise, SignedInjectedTransaction,
+    },
+    network::VerifiedValidatorMessage,
 };
-use ethexe_compute::{BlockProcessed, ComputeEvent};
+use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_network::{NetworkEvent, db_sync, export::PeerId};
+use ethexe_network::{NetworkEvent, NetworkInjectedEvent, export::PeerId};
 use ethexe_observer::ObserverEvent;
-use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
+use futures::{Stream, StreamExt, future::Either, stream, stream::FusedStream};
 use gprimitives::H256;
-use tokio::sync::{
-    broadcast,
-    broadcast::{Receiver, Sender},
+use std::{
+    iter,
+    pin::Pin,
+    task::{Context, Poll, ready},
 };
 
-pub type TestingEventSender = Sender<TestingEvent>;
-pub type TestingEventReceiver = Receiver<TestingEvent>;
+pub type TestingEventSender = EventSender<TestingEvent>;
+pub type TestingEventReceiver = EventReceiver<TestingEvent>;
+pub type ObserverEventSender = EventSender<ObserverEvent>;
+pub type ObserverEventReceiver = EventReceiver<ObserverEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-#[allow(dead_code)]
-pub(crate) enum TestingNetworkEvent {
-    DbResponse {
-        request_id: db_sync::RequestId,
-        result: Result<db_sync::Response, db_sync::RequestFailure>,
+pub enum TestingNetworkInjectedEvent {
+    InboundTransaction {
+        transaction: SignedInjectedTransaction,
     },
-    DbExternalValidation {
-        request_id: db_sync::RequestId,
-        response: db_sync::Response,
+    OutboundAcceptance {
+        transaction_hash: HashOf<InjectedTransaction>,
+        acceptance: InjectedTransactionAcceptance,
     },
-    Message {
-        data: Vec<u8>,
-        source: Option<PeerId>,
-    },
+}
+
+impl TestingNetworkInjectedEvent {
+    fn new(event: &NetworkInjectedEvent) -> Self {
+        match event {
+            NetworkInjectedEvent::InboundTransaction {
+                peer: _,
+                transaction,
+                channel: _,
+            } => Self::InboundTransaction {
+                transaction: SignedInjectedTransaction::clone(transaction),
+            },
+            NetworkInjectedEvent::OutboundAcceptance {
+                transaction_hash,
+                acceptance,
+            } => Self::OutboundAcceptance {
+                transaction_hash: *transaction_hash,
+                acceptance: acceptance.clone(),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum TestingNetworkEvent {
+    ValidatorMessage(VerifiedValidatorMessage),
+    PromiseMessage(SignedCompactPromise),
+    ValidatorIdentityUpdated(Address),
+    InjectedTransaction(TestingNetworkInjectedEvent),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
 }
@@ -60,43 +95,42 @@ pub(crate) enum TestingNetworkEvent {
 impl TestingNetworkEvent {
     fn new(event: &NetworkEvent) -> Self {
         match event {
-            NetworkEvent::DbResponse { request_id, result } => Self::DbResponse {
-                request_id: *request_id,
-                result: result.as_ref().map_err(|(_req, err)| *err).cloned(),
-            },
-            NetworkEvent::Message { data, source } => Self::Message {
-                data: data.clone(),
-                source: *source,
-            },
-            NetworkEvent::PeerBlocked(peer) => Self::PeerBlocked(*peer),
-            NetworkEvent::PeerConnected(peer) => Self::PeerConnected(*peer),
+            NetworkEvent::ValidatorMessage(message) => Self::ValidatorMessage(message.clone()),
+            NetworkEvent::PromiseMessage(message) => Self::PromiseMessage(message.clone()),
+            NetworkEvent::ValidatorIdentityUpdated(address) => {
+                Self::ValidatorIdentityUpdated(*address)
+            }
+            NetworkEvent::InjectedTransaction(event) => {
+                Self::InjectedTransaction(TestingNetworkInjectedEvent::new(event))
+            }
+            NetworkEvent::PeerBlocked(peer_id) => Self::PeerBlocked(*peer_id),
+            NetworkEvent::PeerConnected(peer_id) => Self::PeerConnected(*peer_id),
         }
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
+    InjectedTransaction {
+        transaction: AddressedInjectedTransaction,
     },
 }
 
 impl TestingRpcEvent {
     fn new(event: &RpcEvent) -> Self {
         match event {
-            RpcEvent::OffchainTransaction {
+            RpcEvent::InjectedTransaction {
                 transaction,
                 response_sender: _,
-            } => Self::OffchainTransaction {
+            } => Self::InjectedTransaction {
                 transaction: transaction.clone(),
             },
         }
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-#[allow(dead_code)]
-pub(crate) enum TestingEvent {
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::TryUnwrap)]
+pub enum TestingEvent {
     // Fast sync done. Sent just once.
     FastSyncDone(H256),
     // Basic event to notify that service has started. Sent just once.
@@ -107,149 +141,227 @@ pub(crate) enum TestingEvent {
     Network(TestingNetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
-    Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
+    Prometheus,
+    Fetching,
 }
 
 impl TestingEvent {
-    pub(crate) fn new(event: &Event) -> Self {
+    pub fn new(event: &Event) -> Self {
         match event {
             Event::Compute(event) => Self::Compute(event.clone()),
             Event::Consensus(event) => Self::Consensus(event.clone()),
             Event::Network(event) => Self::Network(TestingNetworkEvent::new(event)),
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
-            Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
+            Event::Prometheus(_event) => Self::Prometheus,
+            Event::Fetching(_) => Self::Fetching,
         }
     }
 }
 
-pub struct ServiceEventsListener<'a> {
-    pub receiver: &'a mut TestingEventReceiver,
+#[derive(Debug, Default, Clone, Copy, derive_more::From)]
+pub enum AnnounceId {
+    /// Wait for any next computed announce
+    #[default]
+    Any,
+    /// Wait for announce computed with a specific hash
+    AnnounceHash(HashOf<Announce>),
+    /// Wait for announce computed with a specific block hash
+    BlockHash(H256),
 }
 
-impl ServiceEventsListener<'_> {
-    pub async fn next_event(&mut self) -> anyhow::Result<TestingEvent> {
-        self.receiver.recv().await.map_err(Into::into)
-    }
-
-    pub async fn wait_for(
-        &mut self,
-        f: impl Fn(TestingEvent) -> Result<bool>,
-    ) -> anyhow::Result<()> {
-        self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
-            .await
-    }
-
-    pub async fn wait_for_block_processed(&mut self, block_hash: H256) {
-        self.wait_for(|event| {
-            Ok(matches!(
-                event,
-                TestingEvent::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash: b })) if b == block_hash
-            ))
-        }).await.unwrap();
-    }
-
-    pub async fn apply_until<R: Sized>(
-        &mut self,
-        f: impl Fn(TestingEvent) -> Result<Option<R>>,
-    ) -> anyhow::Result<R> {
+pub trait InfiniteStreamExt: StreamExt + Sized + Unpin {
+    #[must_use]
+    async fn find_map<U>(&mut self, mut f: impl FnMut(Self::Item) -> Option<U>) -> U {
         loop {
-            let event = self.next_event().await?;
-            if let Some(res) = f(event)? {
-                return Ok(res);
+            let item = self.next().await.expect("always Some");
+            if let Some(res) = f(item) {
+                return res;
             }
         }
     }
-}
 
-pub struct ObserverEventsPublisher {
-    pub broadcaster: Sender<ObserverEvent>,
-    pub db: Database,
-}
-
-impl ObserverEventsPublisher {
-    pub async fn subscribe(&self) -> ObserverEventsListener {
-        ObserverEventsListener {
-            receiver: self.broadcaster.subscribe(),
-            db: self.db.clone(),
-        }
+    async fn find(&mut self, mut f: impl FnMut(&Self::Item) -> bool) -> Self::Item {
+        self.find_map(|item| if f(&item) { Some(item) } else { None })
+            .await
     }
 }
 
-pub struct ObserverEventsListener {
-    receiver: broadcast::Receiver<ObserverEvent>,
+impl<T: StreamExt + Sized + Unpin> InfiniteStreamExt for T {}
+
+pub fn channel<T>(db: Database) -> (EventSender<T>, EventReceiver<T>) {
+    let (mut tx, rx) = async_broadcast::broadcast(1024);
+    tx.set_overflow(true);
+    (EventSender { inner: tx }, EventReceiver { inner: rx, db })
+}
+
+#[derive(Debug, Clone)]
+pub struct EventSender<T> {
+    inner: Sender<T>,
+}
+
+impl<T: Clone> EventSender<T> {
+    pub async fn send(&self, event: T) {
+        self.inner.broadcast_direct(event).await.unwrap();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EventReceiver<T> {
+    inner: Receiver<T>,
     db: Database,
 }
 
-impl Clone for ObserverEventsListener {
-    fn clone(&self) -> Self {
-        Self {
-            receiver: self.receiver.resubscribe(),
-            db: self.db.clone(),
+impl<T: Clone> Stream for EventReceiver<T> {
+    type Item = T;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        loop {
+            let res = ready!(Pin::new(&mut self.inner).poll_recv(cx));
+            match res {
+                Some(Ok(event)) => break Poll::Ready(Some(event)),
+                None | Some(Err(RecvError::Closed)) => panic!("service unexpectedly closed"),
+                Some(Err(RecvError::Overflowed(skipped))) => {
+                    tracing::trace!("channel overflowed and skipped {skipped} events");
+                    continue;
+                }
+            }
         }
     }
 }
 
-impl ObserverEventsListener {
-    pub async fn next_event(&mut self) -> Result<ObserverEvent> {
-        self.receiver.recv().await.map_err(Into::into)
+impl<T: Clone> FusedStream for EventReceiver<T> {
+    fn is_terminated(&self) -> bool {
+        false
     }
+}
 
-    #[allow(unused)]
-    pub async fn apply_until<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(ObserverEvent) -> Result<Option<R>>,
-    ) -> Result<R> {
-        loop {
-            let event = self.next_event().await?;
-            if let Some(res) = f(event)? {
-                return Ok(res);
+impl<T: Clone> EventReceiver<T> {
+    pub fn new_receiver(&self) -> Self {
+        let inner = self.inner.new_receiver();
+        let db = self.db.clone();
+        Self { inner, db }
+    }
+}
+
+impl TestingEventReceiver {
+    async fn find_announce<F>(&mut self, id: AnnounceId, event_to_hash: F) -> HashOf<Announce>
+    where
+        F: Fn(TestingEvent) -> Option<HashOf<Announce>>,
+    {
+        let db = self.db.clone();
+        self.find_map(|event| {
+            let announce_hash = event_to_hash(event)?;
+
+            match id {
+                AnnounceId::Any => Some(announce_hash),
+                AnnounceId::AnnounceHash(waited_announce_hash) => {
+                    (waited_announce_hash == announce_hash).then_some(announce_hash)
+                }
+                AnnounceId::BlockHash(block_hash) => db
+                    .announce(announce_hash)
+                    .unwrap_or_else(|| {
+                        panic!("Accepted announce {announce_hash} not found in listener's node DB")
+                    })
+                    .block_hash
+                    .eq(&block_hash)
+                    .then_some(announce_hash),
             }
-        }
+        })
+        .await
     }
 
-    pub async fn apply_until_block_event<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
-    ) -> Result<R> {
-        self.apply_until_block_event_with_header(|e, _h| f(e)).await
+    pub async fn find_announce_computed(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
+        let id = id.into();
+        log::info!("📗 waiting for announce computed: {id:?}");
+        self.find_announce(id, |event| {
+            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(announce_hash)) = event {
+                Some(announce_hash)
+            } else {
+                None
+            }
+        })
+        .await
+    }
+
+    pub async fn find_announce_rejected(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
+        let id = id.into();
+        log::info!("📗 waiting for announce rejected: {id:?}");
+        self.find_announce(id, |event| {
+            if let TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(hash)) = event {
+                Some(hash)
+            } else {
+                None
+            }
+        })
+        .await
+    }
+
+    pub async fn find_announce_accepted(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
+        let id = id.into();
+        log::info!("📗 waiting for announce accepted: {id:?}");
+        self.find_announce(id, |event| {
+            if let TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(hash)) = event {
+                Some(hash)
+            } else {
+                None
+            }
+        })
+        .await
+    }
+
+    pub async fn find_block_synced(&mut self) -> H256 {
+        self.find_map(|event| {
+            if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {
+                Some(block_hash)
+            } else {
+                None
+            }
+        })
+        .await
+    }
+}
+
+impl ObserverEventReceiver {
+    pub fn filter_map_block(self) -> impl Stream<Item = SimpleBlockData> {
+        self.filter_map(|event| async move {
+            if let ObserverEvent::Block(block_data) = event {
+                Some(block_data)
+            } else {
+                None
+            }
+        })
     }
 
     // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
     // If your test depends on events in skipped blocks, you need to improve this method.
-    // TODO #4554: iterate thru skipped blocks.
-    pub async fn apply_until_block_event_with_header<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
-    ) -> Result<R> {
-        loop {
-            let event = self.next_event().await?;
-
+    pub fn filter_map_block_synced_with_header(
+        self,
+    ) -> impl Stream<Item = (BlockEvent, SimpleBlockData)> {
+        let db = self.db.clone();
+        self.flat_map(move |event| {
             let ObserverEvent::BlockSynced(block_hash) = event else {
-                continue;
+                return Either::Left(stream::empty());
             };
 
-            let header = self
-                .db
-                .block_header(block_hash)
-                .expect("Block header not found");
-            let events = self
-                .db
-                .block_events(block_hash)
-                .expect("Block events not found");
+            let header = db.block_header(block_hash).expect("Block header not found");
+            let events = db.block_events(block_hash).expect("Block events not found");
 
             let block_data = SimpleBlockData {
                 hash: block_hash,
                 header,
             };
 
-            for event in events {
-                if let Some(res) = f(event, &block_data)? {
-                    return Ok(res);
-                }
-            }
-        }
+            Either::Right(stream::iter(
+                events.into_iter().zip(iter::repeat(block_data)),
+            ))
+        })
+    }
+
+    pub fn filter_map_block_synced(self) -> impl Stream<Item = BlockEvent> {
+        self.filter_map_block_synced_with_header()
+            .map(|(event, _)| event)
     }
 }

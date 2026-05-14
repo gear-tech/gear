@@ -20,6 +20,8 @@
 
 use crate::{costs::CostToken, reservation::UnreservedReimbursement};
 use enum_iterator::Sequence;
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::scale::{Decode, Encode};
 
 /// The id of the gas lock.
@@ -41,8 +43,20 @@ pub enum LockId {
 pub enum ChargeResult {
     /// There was enough gas and it has been charged.
     Enough,
-    /// There was not enough gas and it hasn't been charged.
+    /// There was not enough gas.
     NotEnough,
+}
+
+impl ChargeResult {
+    /// Checks whether there was enough gas to charge.
+    pub const fn is_enough(&self) -> bool {
+        matches!(self, Self::Enough)
+    }
+
+    /// Checks whether there was not enough gas to charge.
+    pub const fn is_not_enough(self) -> bool {
+        matches!(self, Self::NotEnough)
+    }
 }
 
 /// Gas counter with some predefined maximum gas.
@@ -223,7 +237,7 @@ impl ValueCounter {
 }
 
 /// Gas allowance counter with some predefined maximum value.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct GasAllowanceCounter(u128);
 
 impl GasAllowanceCounter {
@@ -310,7 +324,7 @@ pub trait CountersOwner {
 }
 
 /// Enum representing current type of gas counter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType)]
 pub enum CounterType {
     /// Gas limit counter.
     GasLimit,
@@ -319,7 +333,7 @@ pub enum CounterType {
 }
 
 /// Gas limit and gas allowance left.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType)]
 pub struct GasLeft {
     /// Left gas from gas counter.
     pub gas: u64,
@@ -341,7 +355,7 @@ impl From<(i64, i64)> for GasLeft {
 
 #[cfg(test)]
 mod tests {
-    use super::{ChargeResult, GasCounter};
+    use super::GasCounter;
     use crate::gas::GasAllowanceCounter;
 
     #[test]
@@ -353,30 +367,30 @@ mod tests {
 
         let result = counter.charge_if_enough(100u64);
 
-        assert_eq!(result, ChargeResult::Enough);
+        assert!(result.is_enough());
         assert_eq!(counter.left(), 100);
 
         let result = counter.charge_if_enough(101u64);
 
-        assert_eq!(result, ChargeResult::NotEnough);
+        assert!(result.is_not_enough());
         assert_eq!(counter.left(), 100);
     }
 
     #[test]
     fn charge_fails() {
         let mut counter = GasCounter::new(100);
-        assert_eq!(counter.charge_if_enough(200u64), ChargeResult::NotEnough);
+        assert!(counter.charge_if_enough(200u64).is_not_enough());
     }
 
     #[test]
     fn charge_token_fails() {
         let mut counter = GasCounter::new(10);
-        assert_eq!(counter.charge(1000u64), ChargeResult::NotEnough);
+        assert!(counter.charge(1000u64).is_not_enough());
     }
 
     #[test]
     fn charge_allowance_token_fails() {
         let mut counter = GasAllowanceCounter::new(10);
-        assert_eq!(counter.charge(1000u64), ChargeResult::NotEnough);
+        assert!(counter.charge(1000u64).is_not_enough());
     }
 }

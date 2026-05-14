@@ -31,6 +31,8 @@ use alloc::{
 };
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
 use parity_scale_codec::{Decode, Encode};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 use super::{DispatchKind, IncomingDispatch, Packet};
@@ -153,7 +155,9 @@ pub struct OutgoingPayloads {
 }
 
 /// Store of previous message execution context.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContextStore {
     initialized: BTreeSet<ActorId>,
@@ -414,7 +418,7 @@ impl MessageContext {
         )
         .ok_or(Error::OutgoingMessagesBytesLimitExceeded)?;
 
-        data.try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
+        data.try_extend_from_slice(&self.current.payload()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed)?;
 
         self.outgoing_payloads.bytes_counter = new_outgoing_bytes;
@@ -427,7 +431,7 @@ impl MessageContext {
     /// `send_push_input`/`reply_push_input` and has the method `len`
     /// allowing to charge gas before the calls.
     pub fn check_input_range(&self, offset: u32, len: u32) -> Result<CheckedRange, Error> {
-        let input_len = self.current.payload().inner().len();
+        let input_len = self.current.payload().len();
         let offset = offset as usize;
         let len = len as usize;
 
@@ -517,7 +521,7 @@ impl MessageContext {
         self.outgoing_payloads
             .reply
             .get_or_insert_with(Default::default)
-            .try_extend_from_slice(&self.current.payload().inner()[offset..excluded_end])
+            .try_extend_from_slice(&self.current.payload()[offset..excluded_end])
             .map_err(|_| Error::MaxMessageSizeExceed.into())
     }
 
@@ -724,7 +728,7 @@ mod tests {
         // push 1 byte
         assert_ok!(message_context.send_push(handle, &[1]));
 
-        let payload = Payload::filled_with(2);
+        let payload = Payload::repeat(2);
         assert_err!(
             message_context.send_commit(
                 handle,
@@ -735,7 +739,7 @@ mod tests {
             Error::MaxMessageSizeExceed,
         );
 
-        let payload = Payload::try_from(vec![1; Payload::max_len() - 1]).unwrap();
+        let payload = Payload::try_from(vec![1; Payload::MAX_LEN - 1]).unwrap();
         assert_ok!(message_context.send_commit(
             handle,
             HandlePacket::new(Default::default(), payload, 0),
@@ -746,7 +750,7 @@ mod tests {
         let messages = message_context.drain().0.drain().outgoing_dispatches;
         assert_eq!(
             Payload::try_from(messages[0].0.payload_bytes().to_vec()).unwrap(),
-            Payload::filled_with(1)
+            Payload::repeat(1)
         );
     }
 
@@ -891,19 +895,19 @@ mod tests {
 
         assert_ok!(message_context.reply_push(&[1]));
 
-        let payload = Payload::filled_with(2);
+        let payload = Payload::repeat(2);
         assert_err!(
             message_context.reply_commit(ReplyPacket::new(payload, 0), None),
             Error::MaxMessageSizeExceed,
         );
 
-        let payload = Payload::try_from(vec![1; Payload::max_len() - 1]).unwrap();
+        let payload = Payload::try_from(vec![1; Payload::MAX_LEN - 1]).unwrap();
         assert_ok!(message_context.reply_commit(ReplyPacket::new(payload, 0), None));
 
         let messages = message_context.drain().0.drain().outgoing_dispatches;
         assert_eq!(
             Payload::try_from(messages[0].0.payload_bytes().to_vec()).unwrap(),
-            Payload::filled_with(1)
+            Payload::repeat(1)
         );
     }
 

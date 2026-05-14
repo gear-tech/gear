@@ -22,7 +22,10 @@ use crate::{
     log::{BlockRunResult, CoreLog},
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
-    state::{accounts::Accounts, mailbox::ActorMailbox, programs::ProgramsStorageManager},
+    state::{
+        accounts::Accounts, bridge::BridgeBuiltinStorage, mailbox::ActorMailbox,
+        programs::ProgramsStorageManager,
+    },
 };
 use core_processor::common::JournalNote;
 use gear_common::MessageId;
@@ -459,8 +462,10 @@ impl System {
             None,
         );
 
-        if !ProgramsStorageManager::is_active_program(destination) {
-            usage_panic!("Actor with {destination} id is not active");
+        if !manager_mut.is_builtin(destination)
+            && !ProgramsStorageManager::is_active_program(destination)
+        {
+            usage_panic!("Actor with {destination} id is not executable");
         }
 
         let dispatch = Dispatch::new(DispatchKind::Handle, message);
@@ -533,6 +538,9 @@ impl Drop for System {
         // Clear programs and accounts storages
         ProgramsStorageManager::clear();
         Accounts::clear();
+
+        // Clear bridge-builtins state
+        BridgeBuiltinStorage::clear();
     }
 }
 
@@ -617,7 +625,6 @@ mod tests {
     #[should_panic(expected = "Got message sent to incomplete user program")]
     fn panic_calculate_reply_no_actor() {
         let sys = System::new();
-        sys.init_logger();
 
         let origin = DEFAULT_USER_ALICE;
         let pid = 42;

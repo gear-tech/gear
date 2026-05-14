@@ -1,0 +1,25 @@
+[package]
+name = "gear-core-errors"
+description = "Shared errors for Gear core libraries"
+documentation = "https://docs.rs/gear-core-errors"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+enum-iterator.workspace = true
+parity-scale-codec = { workspace = true, features = ["derive"], optional = true }
+scale-info = { workspace = true, features = ["derive"], optional = true }
+scale-encode = { workspace = true, optional = true }
+scale-decode = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+thiserror.workspace = true
+gear-workspace-hack.workspace = true
+
+[features]
+codec = ["parity-scale-codec", "scale-info", "scale-encode", "scale-decode"]
+serde = ["dep:serde"]

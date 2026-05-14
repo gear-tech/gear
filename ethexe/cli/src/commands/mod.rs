@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2024-2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,14 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Executable command handlers for the `ethexe` CLI.
+//!
+//! Each submodule owns one command family and is responsible for merging file-backed
+//! configuration into its command-line arguments before execution.
+
 use crate::params::Params;
 use anyhow::Result;
 use clap::Subcommand;
 
+mod check;
+mod dump;
 mod key;
 mod run;
 mod tx;
 
+pub use check::CheckCommand;
+pub use dump::DumpCommand;
 pub use key::KeyCommand;
 pub use run::RunCommand;
 pub use tx::TxCommand;
@@ -34,9 +43,15 @@ pub enum Command {
     /// Keystore manipulations.
     Key(KeyCommand),
     /// Run the node.
-    Run(Box<RunCommand>),
+    Run(RunCommand),
     /// Submit a transaction.
     Tx(TxCommand),
+    /// Check ethexe database for integrity and/or computation correctness.
+    /// By default start all checks.
+    /// By default, progress bar is enabled, use `--verbose` to enable debug logging and disable progress bar.
+    Check(CheckCommand),
+    /// State dump operations for re-genesis.
+    Dump(DumpCommand),
 }
 
 impl Command {
@@ -44,8 +59,10 @@ impl Command {
     fn with_file_params(self, file_params: Params) -> Self {
         match self {
             Self::Key(key_cmd) => Self::Key(key_cmd.with_params(file_params)),
-            Self::Run(run_cmd) => Self::Run(Box::new(run_cmd.with_params(file_params))),
+            Self::Run(run_cmd) => Self::Run(run_cmd.with_params(file_params)),
             Self::Tx(tx_cmd) => Self::Tx(tx_cmd.with_params(file_params)),
+            Self::Check(check_cmd) => Self::Check(check_cmd.with_params(file_params)),
+            Self::Dump(dump_cmd) => Self::Dump(dump_cmd.with_params(file_params)),
         }
     }
 
@@ -57,14 +74,8 @@ impl Command {
             Command::Key(key_cmd) => key_cmd.exec(),
             Command::Tx(tx_cmd) => tx_cmd.exec(),
             Command::Run(run_cmd) => run_cmd.run(),
+            Command::Check(check_cmd) => check_cmd.exec(),
+            Command::Dump(dump_cmd) => dump_cmd.exec(),
         }
-    }
-}
-
-pub(crate) mod utils {
-    /// Parse a hex string into a byte vector.
-    pub fn hex_str_to_vec(s: String) -> anyhow::Result<Vec<u8>> {
-        let s = s.strip_prefix("0x").unwrap_or(&s);
-        hex::decode(s).map_err(|e| anyhow::anyhow!("Failed to parse hex: {e}"))
     }
 }

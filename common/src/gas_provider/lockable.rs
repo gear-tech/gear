@@ -88,7 +88,7 @@ pub trait LockableTree: Tree {
 
 #[test]
 fn lock_id_enum_discriminants_are_consistent() {
-    // Important for the [`gclient::api::GearApi`] implementation:
+    // Important for the [`gsdk::SignedApi`] implementation:
     // the function `migrate_program()` relies on `LockId::Reservation` having discriminant 2
     assert_eq!(0, LockId::Mailbox as usize);
     assert_eq!(1, LockId::Waitlist as usize);

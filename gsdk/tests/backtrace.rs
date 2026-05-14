@@ -16,20 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gsdk::{Api, Result, backtrace::BacktraceStatus, signer::Signer};
-use utils::{alice_account_id, dev_node};
+use gsdk::{AccountKeyring, Result, backtrace::BacktraceStatus};
+use utils::dev_node;
 
 mod utils;
 
 #[tokio::test]
 async fn transfer_backtrace() -> Result<()> {
-    let node = dev_node();
-    let api = Api::new(node.ws().as_str()).await?;
-    let signer = Signer::new(api, "//Alice", None)?;
-    let alice: [u8; 32] = *alice_account_id().as_ref();
+    let (_node, api) = dev_node().await;
+    let bob = AccountKeyring::Bob.to_account_id();
 
-    let tx = signer.calls.transfer_keep_alive(alice, 42).await?;
-    let backtrace = signer
+    let tx = api.transfer_keep_alive(bob, 42).await?;
+
+    let backtrace = api
         .backtrace()
         .get(tx.extrinsic_hash())
         .expect("Failed to get backtrace of transfer");

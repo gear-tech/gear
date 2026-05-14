@@ -16,12 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Params, params::MergeParams};
-use anyhow::{Context as _, Result, anyhow};
+//! Implementation of the `ethexe run` command.
+
+use crate::{
+    Params,
+    params::{MergeParams, NodeParams},
+};
+use anyhow::{Context as _, Result};
 use clap::Args;
 use ethexe_service::Service;
 use std::time::Duration;
-use tracing_subscriber::EnvFilter;
+use tokio::runtime::Builder;
 
 /// Run the node.
 #[derive(Debug, Args)]
@@ -36,6 +41,9 @@ pub struct RunCommand {
 }
 
 impl RunCommand {
+    /// Default block time (dev mode) in seconds.
+    const DEFAULT_DEV_BLOCK_TIME: u64 = 1;
+
     /// Merge the command with the provided params.
     pub fn with_params(mut self, params: Params) -> Self {
         self.params = self.params.merge(params);
@@ -43,29 +51,76 @@ impl RunCommand {
         self
     }
 
-    /// Run the ethexe service (node).
-    pub fn run(self) -> Result<()> {
+    /// Builds the final service config and starts the ethexe node.
+    ///
+    /// In development mode this command also provisions an Anvil-backed environment and
+    /// injects the generated validator key, session key, Router address, and RPC endpoints
+    /// into the effective configuration before the service starts.
+    pub fn run(mut self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
+        crate::enable_logging(default)?;
 
-        tracing_subscriber::fmt()
-            .with_env_filter(
-                EnvFilter::builder()
-                    .with_default_directive(default.parse()?)
-                    .from_env_lossy()
-                    .add_directive("wasmtime_cranlift=off".parse()?)
-                    .add_directive("cranelift=off".parse()?),
-            )
-            .try_init()
-            .map_err(|e| anyhow!("failed to initialize logger: {e}"))?;
+        let mut anvil_instance = None;
+        let is_dev_node = self.params.node.as_ref().map(|n| n.dev).unwrap_or_default();
 
-        let config = self
-            .params
-            .into_config()
-            .with_context(|| "invalid configuration")?;
+        if let Some(node) = self.params.node.as_mut()
+            && is_dev_node
+        {
+            // set block time to 1 second if not set explicitly
+            let block_time = Duration::from_secs(
+                self.params
+                    .ethereum
+                    .as_ref()
+                    .and_then(|ethereum| ethereum.block_time)
+                    .unwrap_or(Self::DEFAULT_DEV_BLOCK_TIME),
+            );
+            let pre_funded_accounts = node
+                .pre_funded_accounts
+                .unwrap_or(NodeParams::DEFAULT_PRE_FUNDED_ACCOUNTS)
+                .get();
+            let (anvil, validator_public_key, router_address) = Builder::new_multi_thread()
+                .enable_all()
+                .build()?
+                .block_on(Service::configure_dev_environment(
+                    node.keys_dir(),
+                    block_time,
+                    pre_funded_accounts,
+                ))?;
+
+            node.validator = Some(validator_public_key.to_string());
+            node.validator_session = Some(validator_public_key.to_string());
+            if node.canonical_quarantine.is_none() {
+                // disable quarantine in dev mode if not set explicitly
+                node.canonical_quarantine = Some(0);
+            }
+
+            let ethereum = self.params.ethereum.get_or_insert_with(Default::default);
+            ethereum.ethereum_rpc = Some(anvil.ws_endpoint());
+            ethereum.ethereum_beacon_rpc = Some(anvil.endpoint());
+            ethereum.ethereum_router = Some(router_address);
+            ethereum.block_time = Some(block_time.as_secs());
+
+            // make sure RPC is enabled as RPC is disabled by default
+            self.params.rpc.get_or_insert_with(Default::default);
+
+            anvil_instance = Some(anvil);
+        }
+
+        let config = {
+            let mut config = self
+                .params
+                .into_config()
+                .with_context(|| "invalid configuration")?;
+
+            if is_dev_node && let Some(rpc_config) = config.rpc.as_mut() {
+                rpc_config.with_dev_api = true
+            }
+            config
+        };
 
         config.log_info();
 
-        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        let mut builder = Builder::new_multi_thread();
 
         if let Some(worker_threads) = config.node.worker_threads {
             builder.worker_threads(worker_threads);

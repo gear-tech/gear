@@ -17,12 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MemoryWrap;
-use crate::Result;
 use log::Level;
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
-pub fn link(linker: &mut Linker<StoreData>) -> Result<()> {
+pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     linker.func_wrap("env", "ext_logging_log_v1", log)?;
     linker.func_wrap("env", "ext_logging_max_level_v1", max_level)?;
 
