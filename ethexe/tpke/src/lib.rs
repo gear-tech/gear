@@ -97,6 +97,8 @@ pub enum TpkeError {
     HashToCurve,
     #[error("invalid threshold: t={t}, n={n} (require 1 <= t <= n)")]
     InvalidThreshold { t: u32, n: u32 },
+    #[error("public key is the identity point — refusing to use it")]
+    IdentityPublicKey,
 }
 
 /// Master secret key produced by the dealer. Must be destroyed after splitting.
@@ -408,6 +410,12 @@ pub fn encrypt<R: RngCore + CryptoRng>(
     plaintext: &[u8],
     rng: &mut R,
 ) -> Result<EncryptedEnvelope, TpkeError> {
+    // Identity public key would make z = e(Q_id, 0) = 1_GT, derivable by anyone
+    // who sees the ciphertext — confidentiality fully bypassed. Reject.
+    if pk.0.is_zero() {
+        return Err(TpkeError::IdentityPublicKey);
+    }
+
     let q_id = hash_to_g1(id)?;
     // Reject the (negligibly likely) malformed id that hashes to the identity.
     if q_id.is_zero() {
@@ -531,6 +539,12 @@ pub fn combine(
     key_epoch_id: u32,
     threshold: u32,
 ) -> Result<Vec<u8>, TpkeError> {
+    // Match deal()'s invariant: threshold 0 would short-circuit to the G1
+    // identity for D and let anyone "decrypt" ciphertexts produced under an
+    // identity master pubkey. Reject up front.
+    if threshold == 0 {
+        return Err(TpkeError::InvalidThreshold { t: 0, n: 0 });
+    }
     if (shares.len() as u32) < threshold {
         return Err(TpkeError::InsufficientShares {
             got: shares.len(),
@@ -608,8 +622,15 @@ impl MasterPublicKey {
         serialize_g2(&self.0)
     }
 
+    /// Deserialize the master pubkey, rejecting the G2 identity point. An
+    /// identity-element master pubkey would make `e(Q_id, pk) = 1_GT`, letting
+    /// anyone with the ciphertext derive the DEM key without shares.
     pub fn from_bytes(bytes: &[u8; G2_COMPRESSED_LEN]) -> Result<Self, TpkeError> {
-        Ok(Self(deserialize_g2(bytes)?))
+        let point = deserialize_g2(bytes)?;
+        if point.is_zero() {
+            return Err(TpkeError::IdentityPublicKey);
+        }
+        Ok(Self(point))
     }
 }
 
@@ -618,11 +639,15 @@ impl SharePublicKey {
         Ok((self.index, serialize_g2(&self.point)?))
     }
 
+    /// Deserialize a share pubkey, rejecting the G2 identity point. An identity
+    /// share-pubkey would make share verification accept any honest share for
+    /// that index regardless of the underlying secret-share scalar.
     pub fn from_bytes(index: u32, bytes: &[u8; G2_COMPRESSED_LEN]) -> Result<Self, TpkeError> {
-        Ok(Self {
-            index,
-            point: deserialize_g2(bytes)?,
-        })
+        let point = deserialize_g2(bytes)?;
+        if point.is_zero() {
+            return Err(TpkeError::IdentityPublicKey);
+        }
+        Ok(Self { index, point })
     }
 }
 
@@ -843,6 +868,51 @@ mod tests {
         // Pubs/shares still cloned.
         assert_eq!(cloned.shares.len(), 3);
         assert_eq!(cloned.share_pubs.len(), 3);
+    }
+
+    // Regression tests for codex review findings (PR gear-tech/gear#5427).
+    //
+    // [P1] An identity G2 master pubkey makes `e(Q_id, pk) = 1_GT`, letting
+    // anyone derive the DEM key from the public envelope alone. Encryption
+    // and pubkey deserialization must reject it.
+    //
+    // [P2] `combine(.., threshold=0)` would slice to an empty share set and
+    // interpolate to the G1 identity, producing a usable D under an attacker-
+    // controlled identity master pubkey. Reject it to mirror deal()'s rule.
+
+    #[test]
+    fn identity_master_pubkey_rejected_at_encrypt() {
+        let identity_pk = MasterPublicKey(G2Affine::zero());
+        let mut rng = fixed_rng();
+        let id = derive_id(1, 0, b"x", &[0u8; 32]);
+        let err = encrypt(&identity_pk, &id, 1, 0, b"x", &mut rng).unwrap_err();
+        assert!(matches!(err, TpkeError::IdentityPublicKey));
+    }
+
+    #[test]
+    fn identity_master_pubkey_rejected_at_from_bytes() {
+        let mut buf = [0u8; G2_COMPRESSED_LEN];
+        G2Affine::zero().serialize_compressed(&mut buf[..]).unwrap();
+        let err = MasterPublicKey::from_bytes(&buf).unwrap_err();
+        assert!(matches!(err, TpkeError::IdentityPublicKey));
+    }
+
+    #[test]
+    fn identity_share_pubkey_rejected_at_from_bytes() {
+        let mut buf = [0u8; G2_COMPRESSED_LEN];
+        G2Affine::zero().serialize_compressed(&mut buf[..]).unwrap();
+        let err = SharePublicKey::from_bytes(1, &buf).unwrap_err();
+        assert!(matches!(err, TpkeError::IdentityPublicKey));
+    }
+
+    #[test]
+    fn zero_threshold_rejected_in_combine() {
+        let d = deal(2, 3);
+        let mut rng = fixed_rng();
+        let id = derive_id(1, 0, b"x", &[0u8; 32]);
+        let env = encrypt(&d.master_pub, &id, 1, 0, b"x", &mut rng).unwrap();
+        let err = combine(&env, &[], 1, 0, 0).unwrap_err();
+        assert!(matches!(err, TpkeError::InvalidThreshold { t: 0, n: 0 }));
     }
 
     #[test]
