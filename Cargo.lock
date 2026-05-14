@@ -2411,14 +2411,12 @@ dependencies = [
 name = "calc-stack-height"
 version = "1.10.0"
 dependencies = [
- "anyhow",
  "gear-core",
  "gear-wasm-instrument",
  "gear-workspace-hack",
  "log",
  "tracing-subscriber",
  "wasmtime",
- "wat",
 ]
 
 [[package]]
