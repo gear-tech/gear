@@ -418,7 +418,7 @@ impl BatchCommitmentManager {
         };
 
         let commitment = ValidatorsCommitment {
-            has_aggregated_public_key: false, 
+            has_aggregated_public_key: false,
             aggregated_public_key: Default::default(),
             verifiable_secret_sharing_commitment: Vec::new(),
             validators: elected_validators,
