@@ -153,3 +153,30 @@ pub trait MergeParams: Sized {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `deny_unknown_fields` is on every section, so any stale or
+    // misnamed knob in the shipped examples would fail at runtime
+    // the moment an operator uncomments it. Parse the bundled
+    // template directly to catch drift between code and example.
+    #[test]
+    fn example_toml_parses() {
+        let content = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../.ethexe.example.toml"
+        ));
+        toml::from_str::<Params>(content).expect(".ethexe.example.toml must stay parseable");
+    }
+
+    #[test]
+    fn example_local_toml_parses() {
+        let content = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../.ethexe.example.local.toml"
+        ));
+        toml::from_str::<Params>(content).expect(".ethexe.example.local.toml must stay parseable");
+    }
+}
