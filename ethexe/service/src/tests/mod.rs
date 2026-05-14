@@ -20,8 +20,6 @@
 
 pub(crate) mod utils;
 
-use std::{collections::HashSet, sync::Arc, time::Duration};
-
 use crate::tests::utils::{
     EnvNetworkConfig, InfiniteStreamExt, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
     TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, init_logger, stop_nodes, test_info,
@@ -39,12 +37,12 @@ use ethexe_common::{
     },
     gear::BatchCommitment,
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
+    mock::*,
 };
 use ethexe_consensus::BatchCommitter;
 use ethexe_ethereum::{EthereumBuilder, TryGetReceipt, router::Router};
 use ethexe_rpc::InjectedClient;
 use ethexe_runtime_common::state::Storage;
-use futures::StreamExt;
 use gear_core::{
     ids::prelude::MessageIdExt,
     message::{ReplyCode, SuccessReplyReason},
@@ -53,6 +51,7 @@ use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailable
 use gprimitives::{ActorId, H160, H256, MessageId};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
@@ -343,7 +342,7 @@ async fn uninitialized_program() {
 
     let code_id = res.code_id;
 
-    // Case #1: Init failed due to panic in init (decoding).
+    test_info!("Case #1: Init failed due to panic in init (decoding)");
     {
         let res = env
             .create_program(code_id, 500_000_000_000_000)
@@ -378,7 +377,7 @@ async fn uninitialized_program() {
         assert_eq!(res.code, expected_err);
     }
 
-    // Case #2: async init, replies are acceptable.
+    test_info!("Case #2: async init, replies are acceptable.");
     {
         let init_payload = demo_async_init::InputArgs {
             approver_first: env.sender_id,
@@ -402,11 +401,11 @@ async fn uninitialized_program() {
             .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id);
 
-        let msgs_for_reply: Vec<_> = receiver
-            .clone()
-            .filter_map_block_synced()
-            .filter_map(|event| async move {
-                match event {
+        let mut messages_stream = receiver.clone().filter_map_block_synced();
+        let mut msgs_for_reply = Vec::new();
+        for _ in 0..3 {
+            let msg_id = messages_stream
+                .find_map(|event| match event {
                     BlockEvent::Mirror {
                         actor_id,
                         event:
@@ -417,13 +416,12 @@ async fn uninitialized_program() {
                         Some(id)
                     }
                     _ => None,
-                }
-            })
-            .take(3)
-            .collect()
-            .await;
+                })
+                .await;
+            msgs_for_reply.push(msg_id);
+        }
 
-        // Handle message to uninitialized program.
+        test_info!("Handle message to uninitialized program.");
         let res = env
             .send_message(init_res.program_id, &[])
             .await
@@ -442,28 +440,12 @@ async fn uninitialized_program() {
             mirror.send_reply(mid, [], 0).await.unwrap();
         }
 
-        // Success end of initialization.
-        let code = receiver
-            .filter_map_block_synced()
-            .find_map(|event| match event {
-                BlockEvent::Mirror {
-                    actor_id,
-                    event:
-                        MirrorEvent::Reply(ReplyEvent {
-                            reply_code,
-                            reply_to,
-                            ..
-                        }),
-                } if actor_id == init_res.program_id && reply_to == init_reply.message_id => {
-                    Some(reply_code)
-                }
-                _ => None,
-            })
-            .await;
+        test_info!("Success end of initialization.");
+        init_reply.wait_for().await.unwrap().tap(|reply_info| {
+            assert!(reply_info.code.is_success());
+        });
 
-        assert!(code.is_success());
-
-        // Handle message handled, but panicked due to incorrect payload as expected.
+        test_info!("Handle message handled, but panicked due to incorrect payload as expected.");
         let res = env
             .send_message(init_res.program_id, &[])
             .await

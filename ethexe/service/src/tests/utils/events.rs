@@ -171,6 +171,7 @@ impl TestingEvent {
 
 pub trait KickExt {
     fn kick(&self) -> BoxFuture<'static, ()>;
+    fn take_kicks(&mut self) -> Option<(Duration, RootProvider)>;
 }
 
 #[derive(Debug, Clone)]
@@ -182,10 +183,6 @@ pub struct KickingStream<S> {
 impl<S> KickingStream<S> {
     pub fn new(inner: S, kicks: Option<(Duration, RootProvider)>) -> Self {
         Self { inner, kicks }
-    }
-
-    pub fn take_kicks(&mut self) -> Option<(Duration, RootProvider)> {
-        self.kicks.take()
     }
 }
 
@@ -217,6 +214,10 @@ impl<S> KickExt for KickingStream<S> {
         } else {
             future::pending().boxed()
         }
+    }
+
+    fn take_kicks(&mut self) -> Option<(Duration, RootProvider)> {
+        self.kicks.take()
     }
 }
 
