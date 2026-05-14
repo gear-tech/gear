@@ -137,3 +137,30 @@ impl BatchFiller {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gprimitives::H256;
+
+    /// Checkpoint chain commitments carry empty transitions but a
+    /// non-zero `last_advanced_eth_block` — they exist *specifically*
+    /// to push the on-chain Ethereum anchor forward when the chain has
+    /// been quiet for a long stretch. The filler must keep them.
+    #[test]
+    fn include_chain_commitment_keeps_checkpoint_with_no_transitions() {
+        let mut filler = BatchFiller::new(BatchLimits::default());
+        let checkpoint = ChainCommitment {
+            head: H256::from_low_u64_be(0xC0DE),
+            transitions: Vec::new(),
+            last_advanced_eth_block: H256::from_low_u64_be(0xEB),
+        };
+
+        filler.include_chain_commitment(checkpoint).unwrap();
+        assert!(
+            filler.has_chain_commitment(),
+            "checkpoint with empty transitions but a non-zero advanced anchor must \
+             be retained — dropping it strands the Ethereum-side anchor advance"
+        );
+    }
+}

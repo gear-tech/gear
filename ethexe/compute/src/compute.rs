@@ -545,6 +545,47 @@ mod tests {
         }
     }
 
+    /// `collect_advance_chain` must surface a missing intermediate header
+    /// instead of silently truncating the chain. A partial walk would let
+    /// validators with different DB completeness emit different advance
+    /// events for the same MB — a determinism break.
+    #[test]
+    fn collect_advance_chain_errors_on_missing_intermediate_header() {
+        let db = Database::memory();
+        let last_advanced = H256::from_low_u64_be(0xA0);
+        let parent_b = H256::from_low_u64_be(0xA1);
+        let parent_a = H256::from_low_u64_be(0xA2);
+        let target = H256::from_low_u64_be(0xA3);
+
+        // target -> parent_a -> parent_b -> last_advanced
+        // parent_b's header is intentionally missing.
+        db.set_block_header(
+            target,
+            BlockHeader {
+                height: 3,
+                timestamp: 3,
+                parent_hash: parent_a,
+            },
+        );
+        db.set_block_header(
+            parent_a,
+            BlockHeader {
+                height: 2,
+                timestamp: 2,
+                parent_hash: parent_b,
+            },
+        );
+
+        let result = collect_advance_chain(&db, target, last_advanced);
+        match result {
+            Err(ComputeError::AdvanceMissingHeader { hash }) => assert_eq!(hash, parent_b),
+            other => panic!(
+                "expected AdvanceMissingHeader for {parent_b:?}, got {other:?} — \
+                 a silent truncation here would non-determinise event replay across peers"
+            ),
+        }
+    }
+
     /// Re-queueing an already-computed MB is a no-op: receive_mb
     /// drops the request before it ever reaches `compute`, so the
     /// stream emits nothing (preventing a duplicate `MbComputed`
