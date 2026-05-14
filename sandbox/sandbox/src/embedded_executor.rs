@@ -22,13 +22,12 @@ use crate::{
     AsContextExt, Error, GlobalsSetError, HostError, HostFuncType, ReturnValue, SandboxStore, Value,
 };
 use alloc::string::String;
-use anyhow::{Context, anyhow};
 use gear_sandbox_env::GLOBAL_NAME_GAS;
 use sp_wasm_interface_common::HostPointer;
 use std::{collections::btree_map::BTreeMap, marker::PhantomData};
 use wasmtime::{
     Cache, CacheConfig, Config, Engine, ExternType, Global, Linker, MemoryType, Module,
-    StoreContext, StoreContextMut,
+    StoreContext, StoreContextMut, error::Context,
 };
 
 /// The target used for logging.
@@ -345,7 +344,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
 
                             let mut caller = Caller(caller);
                             let val = (func_ptr)(&mut caller, &params)
-                                .map_err(|HostError| anyhow!("function error"))?;
+                                .map_err(|HostError| wasmtime::format_err!("function error"))?;
 
                             let func_results: Vec<wasmtime::ValType> = func_ty.results().collect();
                             let return_val = match (val.inner, func_results.as_slice()) {
@@ -353,7 +352,7 @@ impl<State: Send + 'static> super::SandboxInstance<State> for Instance<State> {
                                 (ReturnValue::Value(val), [ret]) => {
                                     let val = to_wasmtime(val);
                                     let val_ty = val.ty(&caller).expect("GC is disabled");
-                                    anyhow::ensure!(
+                                    wasmtime::ensure!(
                                         wasmtime::ValType::eq(&val_ty, ret),
                                         "mismatching return types"
                                     );

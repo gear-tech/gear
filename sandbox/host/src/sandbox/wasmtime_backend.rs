@@ -304,7 +304,7 @@ pub fn instantiate(
                 };
 
                 // Filter out duplicate imports
-                if linker.get(&mut *store, module, name).is_none() {
+                if linker.get(&mut *store, module, name).is_err() {
                     linker
                         .define(&mut *store, module, name, function)
                         .map_err(|_| InstantiationError::ModuleDecoding)?;
