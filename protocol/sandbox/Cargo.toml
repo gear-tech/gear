@@ -27,6 +27,8 @@ gear-sandbox-env.workspace = true
 wasmtime = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 
+gear-workspace-hack.workspace = true
+
 [dev-dependencies]
 assert_matches.workspace = true
 wat.workspace = true

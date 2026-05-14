@@ -7009,6 +7009,7 @@ dependencies = [
  "assert_matches",
  "gear-sandbox-env",
  "gear-sandbox-interface",
+ "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "sp-core",
