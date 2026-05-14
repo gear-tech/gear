@@ -293,8 +293,7 @@ contract Router is
      * @return validatorsVerifiableSecretSharingCommitment The verifiable secret sharing commitment of the current validators.
      */
     function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory) {
-        address _pointer = Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer;
-        return SSTORE2.read(_pointer);
+        return SSTORE2.read(Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer);
     }
 
     /**

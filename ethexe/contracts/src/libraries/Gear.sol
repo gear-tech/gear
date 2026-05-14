@@ -227,7 +227,6 @@ library Gear {
          *      ... etc.
          */
         uint8 expiry;
-
         /**
          * @dev Chain commitment (contains one or zero commitments)
          */
