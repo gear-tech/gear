@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProtocolTimelines, Rfm,
-    Schedule, ScheduledTask, Sd, SimpleBlockData, StateHashWithQueueSize, Sum, ValidatorsVec,
+    Address, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    ProtocolTimelines, Rfm, Schedule, ScheduledTask, Sd, SimpleBlockData, StateHashWithQueueSize,
+    Sum, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
@@ -27,6 +28,7 @@ use crate::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, MessageType, StateTransition,
     },
     injected::{AddressedInjectedTransaction, InjectedTransaction, Promise},
+    malachite::Transactions,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -570,9 +572,57 @@ impl CodeData {
     }
 }
 
+/// Computed-side payload for an [`MbFullData`]. `None` on
+/// [`MbFullData::computed`] means `mb_meta.computed = false` and
+/// `mb_program_states` is left unwritten.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MockComputedMbData {
+    pub program_states: ProgramStates,
+}
+
+/// One MB entry in the [`BlockChain`] mock. Paralleled with
+/// [`BlockChain::blocks`]: `mbs[i]` corresponds to `blocks[i]`. The
+/// first entry (`mbs[0]`) is a sentinel with `hash = H256::zero()`
+/// (mirrors the `blocks[0]` genesis-parent placeholder) and is not
+/// written to the DB.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MbFullData {
+    pub hash: H256,
+    /// Parent MB hash. `H256::zero()` for the very first real MB.
+    pub parent: H256,
+    /// MB height. Set to the block index `i` so it monotonically
+    /// matches [`BlockChain::blocks`].
+    pub height: u64,
+    /// Computed-side data. `Some(default)` by default; setting to
+    /// `None` skips writing `mb_program_states` and `mb_meta.computed`.
+    pub computed: Option<MockComputedMbData>,
+    /// SCALE-encoded transactions blob to write under this MB.
+    /// Defaults to an empty list. Tests that need specific txs in the
+    /// dedup-window walk (e.g. tx_validity::Duplicate) can set this.
+    pub transactions: Transactions,
+}
+
+impl MbFullData {
+    #[track_caller]
+    pub fn as_computed(&self) -> &MockComputedMbData {
+        self.computed
+            .as_ref()
+            .expect("MB not marked computed in this mock chain")
+    }
+
+    #[track_caller]
+    pub fn as_computed_mut(&mut self) -> &mut MockComputedMbData {
+        self.computed
+            .as_mut()
+            .expect("MB not marked computed in this mock chain")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockChain {
     pub blocks: VecDeque<BlockFullData>,
+    /// One MB per `blocks[i]`. `mbs[0]` is a sentinel — see [`MbFullData`].
+    pub mbs: VecDeque<MbFullData>,
     pub codes: BTreeMap<CodeId, CodeData>,
     pub validators: ValidatorsVec,
     pub config: DBConfig,
@@ -580,13 +630,39 @@ pub struct BlockChain {
 }
 
 impl BlockChain {
+    /// `mbs[idx]` accessor. Panics on out-of-range — mirrors the
+    /// existing direct field access for `blocks[idx]`.
+    #[track_caller]
+    pub fn mb_at(&self, idx: usize) -> &MbFullData {
+        &self.mbs[idx]
+    }
+
+    #[track_caller]
+    pub fn mb_at_mut(&mut self, idx: usize) -> &mut MbFullData {
+        &mut self.mbs[idx]
+    }
+
+    /// Convenience for the common `mbs[idx].hash` pattern.
+    #[track_caller]
+    pub fn mb_hash_at(&self, idx: usize) -> H256 {
+        self.mbs[idx].hash
+    }
+}
+
+impl BlockChain {
     #[track_caller]
     pub fn setup<DB>(self, db: &DB) -> Self
     where
-        DB: BlockMetaStorageRW + OnChainStorageRW + CodesStorageRW + SetConfig + SetGlobals,
+        DB: BlockMetaStorageRW
+            + OnChainStorageRW
+            + CodesStorageRW
+            + MbStorageRW
+            + SetConfig
+            + SetGlobals,
     {
         let BlockChain {
             blocks,
+            mbs,
             codes,
             validators,
             config,
@@ -595,6 +671,30 @@ impl BlockChain {
 
         db.set_config(config.clone());
         db.set_globals(globals);
+
+        // Write MB rows in chronological order. Skip the index-0
+        // sentinel (zero hash). Empty-transactions MBs share one CAS
+        // entry naturally — `set_transactions` is content-addressed.
+        for mb in &mbs {
+            if mb.hash == H256::zero() {
+                continue;
+            }
+            let transactions_hash = db.set_transactions(mb.transactions.clone());
+            db.set_mb_compact_block(
+                mb.hash,
+                CompactMb {
+                    parent: mb.parent,
+                    height: mb.height,
+                    transactions_hash,
+                },
+            );
+            if let Some(computed) = &mb.computed {
+                db.set_mb_program_states(mb.hash, computed.program_states.clone());
+                db.mutate_mb_meta(mb.hash, |meta| {
+                    meta.computed = true;
+                });
+            }
+        }
 
         for BlockFullData {
             hash,
@@ -714,6 +814,42 @@ impl BlockChain {
             max_validators: 10,
         };
 
+        // Build a parallel MB chain. `mbs[0]` is a sentinel matching
+        // the `blocks[0]` genesis-parent placeholder; subsequent MBs
+        // link parent-to-parent in chronological order.
+        let mut mbs: VecDeque<MbFullData> = VecDeque::with_capacity(blocks.len());
+        let mut prev_mb_hash = H256::zero();
+        for i in 0..blocks.len() {
+            if i == 0 {
+                mbs.push_back(MbFullData {
+                    hash: H256::zero(),
+                    parent: H256::zero(),
+                    height: 0,
+                    computed: None,
+                    transactions: Transactions::new(vec![]),
+                });
+                continue;
+            }
+            // Synthetic but stable, non-zero hash distinct from block hashes.
+            let mut hb = [0u8; 32];
+            hb[0] = 0xCD;
+            hb[1..9].copy_from_slice(&(i as u64).to_be_bytes());
+            let hash = H256::from(hb);
+            mbs.push_back(MbFullData {
+                hash,
+                parent: prev_mb_hash,
+                height: i as u64,
+                computed: Some(MockComputedMbData::default()),
+                transactions: Transactions::new(vec![]),
+            });
+            prev_mb_hash = hash;
+        }
+
+        // NOTE: `latest_{finalized,computed}_mb_hash` default to zero
+        // so existing tests that only set up blocks (and not an MB
+        // chain) keep their old "no MBs committed yet" semantics.
+        // Tests that exercise the MB pipeline must explicitly
+        // `tap_mut(|c| c.globals.latest_computed_mb_hash = c.mb_hash_at(N))`.
         let globals = DBGlobals {
             start_block_hash: blocks[0].hash,
             latest_synced_eb: blocks.back().unwrap().to_simple(),
@@ -724,6 +860,7 @@ impl BlockChain {
 
         Self {
             blocks,
+            mbs,
             codes: Default::default(),
             validators,
             config,

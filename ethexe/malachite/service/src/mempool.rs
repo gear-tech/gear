@@ -72,6 +72,12 @@ pub enum MempoolInsertError {
     ExpiredRefBlock,
     #[error("mempool at capacity")]
     PoolFull,
+    /// Per #5083, non-zero-value injected transactions are not yet
+    /// supported. Reject at insert so the pool never holds one — the
+    /// proposer cannot accidentally select it and the runtime won't
+    /// charge a panicking program for an out-of-budget transfer.
+    #[error("non-zero value injected txs are not yet supported (#5083)")]
+    NonZeroValue,
 }
 
 impl MempoolInsertError {
@@ -278,6 +284,19 @@ impl Mempool for InjectedTxMempool {
         let tx_hash = tx_data.to_hash();
         let ref_block = tx_data.reference_block;
 
+        // Reject non-zero-value txs unconditionally (#5083 — value-bearing
+        // injected txs are not supported yet). Done first so a malicious
+        // sender can't burn pool capacity with txs that will never be
+        // selectable.
+        if tx_data.value != 0 {
+            info!(
+                %tx_hash,
+                value = tx_data.value,
+                "mempool: rejecting tx — non-zero value (#5083 not supported)",
+            );
+            return Err(MempoolInsertError::NonZeroValue);
+        }
+
         let mut inner = self.inner.lock().expect("poisoned mempool");
 
         if inner.seen.contains_key(&tx_hash) {
@@ -438,6 +457,7 @@ mod tests {
         for err in [
             MempoolInsertError::ExpiredRefBlock,
             MempoolInsertError::PoolFull,
+            MempoolInsertError::NonZeroValue,
         ] {
             assert!(
                 matches!(
@@ -447,6 +467,40 @@ mod tests {
                 "fatal variant must classify as Reject",
             );
         }
+    }
+
+    #[test]
+    fn insert_rejects_non_zero_value_before_pool_state_checks() {
+        // Verifies NonZeroValue fires *before* the pool is consulted —
+        // a tx with value != 0 must never reach the seen / duplicate /
+        // capacity gates. We seed the pool to capacity first to make
+        // sure those gates would fire if reached.
+        let db = Database::memory();
+        let chain = linear_chain(&db, 2);
+        let pool = InjectedTxMempool::with_capacity(db, 1);
+        let pk = PrivateKey::random();
+
+        // Fill to capacity with a valid tx so PoolFull would normally fire.
+        pool.insert(signed_tx(&pk, ActorId::zero(), chain[1].hash, 0))
+            .unwrap();
+
+        let value_tx = SignedMessage::create(
+            pk.clone(),
+            InjectedTransaction {
+                destination: ActorId::zero(),
+                payload: vec![1, 2, 3].try_into().unwrap(),
+                value: 42,
+                reference_block: chain[1].hash,
+                salt: vec![9; 32].try_into().unwrap(),
+            },
+        )
+        .unwrap();
+
+        assert!(matches!(
+            pool.insert(value_tx),
+            Err(MempoolInsertError::NonZeroValue),
+        ));
+        assert_eq!(pool.len(), 1, "non-zero-value tx must not enter the pool");
     }
 
     /// Persist a synthetic linear chain of length `len` into the DB.

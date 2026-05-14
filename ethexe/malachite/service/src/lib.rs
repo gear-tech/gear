@@ -35,6 +35,7 @@ mod externalities;
 mod mempool;
 mod quarantine;
 mod service;
+mod tx_validity;
 
 pub use crate::{
     config::{MalachiteConfig, ValidatorEntry},
@@ -43,6 +44,7 @@ pub use crate::{
         classify_insert_outcome,
     },
     service::MalachiteService,
+    tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
 
 /// libp2p peer-id derived from a validator secret.

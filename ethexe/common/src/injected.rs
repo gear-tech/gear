@@ -38,6 +38,13 @@ pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 126 * 1024;
 /// Maximum size of injected transaction salt.
 pub const MAX_INJECTED_TX_SALT_SIZE: usize = 32;
 
+/// Maximum cumulative SCALE-encoded size of [`SignedInjectedTransaction`]s
+/// that a single MB may carry. 127 KiB leaves ~1 KiB of headroom over the
+/// per-tx [`MAX_INJECTED_TX_PAYLOAD_SIZE`] for signature and other
+/// envelope bytes, so at least one tx of the maximum payload size is
+/// always admissible.
+pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB: usize = 127 * 1024;
+
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 pub enum InjectedTransactionAcceptance {
@@ -305,6 +312,17 @@ mod tests {
                 .expect("failed to recover message")
                 .to_address(),
             signed_tx.address()
+        );
+    }
+
+    /// Ported from master's `tx_pool::tests::validate_max_tx_size`.
+    /// One full-size [`SignedInjectedTransaction`] must always fit within
+    /// the per-MB cumulative size cap; otherwise the largest legal tx
+    /// could never be admitted.
+    #[test]
+    fn max_signed_injected_tx_fits_per_mb_cap() {
+        assert!(
+            SignedInjectedTransaction::max_encoded_len() <= MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB
         );
     }
 

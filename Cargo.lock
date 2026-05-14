@@ -5753,6 +5753,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-malachite-core",
+ "ethexe-runtime-common",
  "futures",
  "gear-workspace-hack",
  "gprimitives",

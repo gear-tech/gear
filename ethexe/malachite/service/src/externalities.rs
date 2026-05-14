@@ -58,11 +58,11 @@ use std::{
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
-    SimpleBlockData,
+    MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
     db::{
         CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRO,
     },
-    injected::SignedInjectedTransaction,
+    injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, SignedInjectedTransaction},
     malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
 };
 use ethexe_db::Database;
@@ -70,7 +70,11 @@ use gprimitives::H256;
 use tokio::sync::{Notify, mpsc};
 use tracing::{error, info, warn};
 
-use crate::{CommitCertificate, MalachiteEvent, Mempool, quarantine};
+use crate::{
+    CommitCertificate, MalachiteEvent, Mempool, quarantine,
+    tx_validity::{TxValidity, TxValidityChecker, eb_touched_programs},
+};
+use parity_scale_codec::Encode;
 
 /// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
 /// contract. Constructed by [`crate::MalachiteService::new`] and
@@ -253,17 +257,112 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             "build_block_above: proposable content resolved",
         );
 
+        // (a) Per-tx validity. Each candidate tx from the mempool is
+        // run through TxValidityChecker so we don't waste an MB
+        // round-trip on a tx the participant would reject.
+        let chain_head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
+        let valid: Vec<SignedInjectedTransaction> = match chain_head_snapshot {
+            Some(head) => {
+                let checker = TxValidityChecker::new_for_mb(self.db.clone(), head, parent_hash)?;
+                let mut accepted = Vec::with_capacity(injected.len());
+                for tx in injected {
+                    match checker.check_tx_validity(&tx)? {
+                        TxValidity::Valid => accepted.push(tx),
+                        reason => {
+                            warn!(
+                                tx_hash = %tx.data().to_hash(),
+                                ?reason,
+                                "build_block_above: dropping injected tx — fails TxValidity",
+                            );
+                        }
+                    }
+                }
+                accepted
+            }
+            // No chain head yet — we can't run TxValidity (no anchor
+            // for `is_reference_block_*`). Skip injected txs entirely
+            // rather than emit unvalidated ones.
+            None => {
+                if !injected.is_empty() {
+                    warn!(
+                        injected_count = injected.len(),
+                        "build_block_above: no chain head — dropping injected txs (unvalidated)",
+                    );
+                }
+                Vec::new()
+            }
+        };
+
+        // (b) Per-MB size + touched-programs caps. Adapted from
+        // master's `select_for_announce`:
+        //
+        // - size cap: cumulative `tx.encoded_size()` (with signature)
+        //   ≤ MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB; oversized tx is
+        //   skipped, smaller subsequent txs still get a chance.
+        // - touched-programs cap: starts with `eb_touched_programs`
+        //   over the EB range this MB is about to advance through;
+        //   a tx whose destination isn't already in the touched set
+        //   is dropped once the set reaches MAX_TOUCHED_PROGRAMS_PER_MB.
+        //
+        // If `advance` is `None`, no EB events are processed by this
+        // MB → the touched-set seed is empty.
+        let mut touched = match advance {
+            Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
+            None => std::collections::HashSet::new(),
+        };
+        let initial_touched_count = touched.len();
+        if initial_touched_count > MAX_TOUCHED_PROGRAMS_PER_MB as usize {
+            // Producer can't shrink this — the EB events themselves
+            // already exceed the cap. Drop injected txs and let the
+            // MB advance the EB anyway so the chain progresses.
+            warn!(
+                initial_touched_count,
+                limit = MAX_TOUCHED_PROGRAMS_PER_MB,
+                "build_block_above: EB events already exceed touched-programs cap; \
+                 dropping all injected txs from this MB",
+            );
+        }
+
+        let mut size_counter: usize = 0;
+        let mut capped: Vec<SignedInjectedTransaction> = Vec::with_capacity(valid.len());
+        for tx in valid {
+            // Skip the whole loop body once initial touched > limit —
+            // any injected tx would only push it further over.
+            if initial_touched_count > MAX_TOUCHED_PROGRAMS_PER_MB as usize {
+                break;
+            }
+
+            let tx_size = tx.encoded_size();
+            if size_counter + tx_size > MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB {
+                // Master's behaviour: skip oversized tx but keep
+                // trying smaller subsequent txs.
+                continue;
+            }
+
+            let destination = tx.data().destination;
+            if !touched.contains(&destination)
+                && touched.len() >= MAX_TOUCHED_PROGRAMS_PER_MB as usize
+            {
+                // Adding this destination would breach the cap; skip.
+                continue;
+            }
+
+            touched.insert(destination);
+            size_counter += tx_size;
+            capped.push(tx);
+        }
+
         // Producer pacing:
         //   1. AdvanceTillEthereumBlock first (if a fresh
         //      quarantine-passed EB exists),
         //   2. then injected user txs,
         //   3. finally the service-level ProgressTasks +
         //      ProcessQueues bookend.
-        let mut transactions = Vec::with_capacity(injected.len() + 3);
+        let mut transactions = Vec::with_capacity(capped.len() + 3);
         if let Some(block_hash) = advance {
             transactions.push(Transaction::AdvanceTillEthereumBlock { block_hash });
         }
-        for tx in injected {
+        for tx in capped {
             transactions.push(Transaction::Injected(tx));
         }
         transactions.push(Transaction::ProgressTasks {
@@ -299,9 +398,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             );
             return Ok(false);
         }
-        let Some(advance) = advances.first().copied() else {
-            return Ok(true);
-        };
+        let advance = advances.first().copied();
 
         // (2) Quarantine + local-sync — wait briefly for the local
         // observer to catch up if the proposer raced ahead.
@@ -318,54 +415,130 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         // protocol-level propose timeout: if we still can't validate
         // by then, the proposer's chain genuinely diverges from ours
         // and prevoting nil is the correct outcome.
+        if let Some(advance) = advance {
+            let parent_advanced = if parent_hash.is_zero() {
+                H256::zero()
+            } else {
+                self.db.mb_meta(parent_hash).last_advanced_eb
+            };
+
+            const VALIDATE_WAIT_BUDGET: std::time::Duration =
+                std::time::Duration::from_millis(2000);
+            const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+            let deadline = tokio::time::Instant::now() + VALIDATE_WAIT_BUDGET;
+            let start_block_hash = self.db.globals().start_block_hash;
+            let mut error = anyhow!("validate: no chain-head event yet — abstaining from vote");
+
+            // Wait till ethereum block is locally pass quarantine
+            'quarantine: loop {
+                if tokio::time::Instant::now() >= deadline {
+                    warn!(
+                        error = %error,
+                        %advance,
+                        parent_advanced = %parent_advanced,
+                        "validate: advance still not locally synced within budget — rejecting",
+                    );
+                    return Ok(false);
+                }
+
+                if let Some(chain_head) = *self.chain_head.read().expect("chain_head poisoned") {
+                    let res = quarantine::verify_passed(
+                        &self.db,
+                        chain_head,
+                        advance,
+                        self.canonical_quarantine,
+                        start_block_hash,
+                    );
+
+                    match res {
+                        Ok(_) => break 'quarantine,
+                        Err(e) => error = anyhow!(e),
+                    }
+                };
+
+                // Poll the local view periodically. The observer pumps
+                // a fresh chain_head into us asynchronously, so within a
+                // few hundred milliseconds the local DB is up-to-date
+                // and the next iteration of this loop succeeds. This
+                // avoids the older synchronous-prevote-nil path that
+                // forced rounds to time out at 13 s whenever the
+                // proposer was 1 Hoodi block ahead of us.
+                tokio::time::sleep(POLL_INTERVAL).await;
+            }
+        }
+
+        // (3) Injected-tx validity — every `Transaction::Injected` in
+        // the proposed MB must pass the same checker the producer
+        // applied in `build_block_above`. Reject the MB on the first
+        // non-`Valid` outcome so the participant doesn't sign an MB
+        // whose `compute_mb` would diverge from the proposer's.
+        let chain_head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
+        let Some(chain_head) = chain_head_snapshot else {
+            // No local chain head yet. If the MB carries no injected
+            // txs we can still accept it; otherwise we must abstain
+            // since the checker has no anchor to walk from.
+            let has_injected = payload
+                .iter()
+                .any(|tx| matches!(tx, Transaction::Injected(_)));
+            if has_injected {
+                warn!("validate: MB carries injected txs but no local chain head — abstaining");
+                return Ok(false);
+            }
+            return Ok(true);
+        };
+
+        let checker = TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_hash)?;
+        for tx in payload.iter() {
+            let Transaction::Injected(signed) = tx else {
+                continue;
+            };
+            match checker.check_tx_validity(signed)? {
+                TxValidity::Valid => {}
+                reason => {
+                    warn!(
+                        tx_hash = %signed.data().to_hash(),
+                        ?reason,
+                        "validate: injected tx fails TxValidity — rejecting MB",
+                    );
+                    return Ok(false);
+                }
+            }
+        }
+
+        // (4) Touched-programs cap (master's #6). Only enforced on
+        // the validator side — the proposer in `build_block_above`
+        // already shapes the MB to stay within the cap; this check
+        // is the participant's guard against a malicious proposer.
+        //
+        // Per master: `limit = max(initial_touched.len(), MAX_*)` —
+        // the proposer can't *avoid* programs already touched by EB
+        // events, so those set the floor for the cap. We add every
+        // `Transaction::Injected` destination on top of the EB-touched
+        // seed and reject if the union exceeds `limit`.
         let parent_advanced = if parent_hash.is_zero() {
             H256::zero()
         } else {
             self.db.mb_meta(parent_hash).last_advanced_eb
         };
-
-        const VALIDATE_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_millis(2000);
-        const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
-        let deadline = tokio::time::Instant::now() + VALIDATE_WAIT_BUDGET;
-        let start_block_hash = self.db.globals().start_block_hash;
-        let mut error = anyhow!("validate: no chain-head event yet — abstaining from vote");
-
-        // Wait till ethereum block is locally pass quarantine
-        loop {
-            if tokio::time::Instant::now() >= deadline {
-                warn!(
-                    error = %error,
-                    %advance,
-                    parent_advanced = %parent_advanced,
-                    "validate: advance still not locally synced within budget — rejecting",
-                );
-                return Ok(false);
+        let mut touched = match advance {
+            Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
+            None => std::collections::HashSet::new(),
+        };
+        let limit = touched.len().max(MAX_TOUCHED_PROGRAMS_PER_MB as usize);
+        for tx in payload.iter() {
+            if let Transaction::Injected(signed) = tx {
+                touched.insert(signed.data().destination);
             }
-
-            if let Some(chain_head) = *self.chain_head.read().expect("chain_head poisoned") {
-                let res = quarantine::verify_passed(
-                    &self.db,
-                    chain_head,
-                    advance,
-                    self.canonical_quarantine,
-                    start_block_hash,
-                );
-
-                match res {
-                    Ok(_) => return Ok(true),
-                    Err(e) => error = anyhow!(e),
-                }
-            };
-
-            // Poll the local view periodically. The observer pumps
-            // a fresh chain_head into us asynchronously, so within a
-            // few hundred milliseconds the local DB is up-to-date
-            // and the next iteration of this loop succeeds. This
-            // avoids the older synchronous-prevote-nil path that
-            // forced rounds to time out at 13 s whenever the
-            // proposer was 1 Hoodi block ahead of us.
-            tokio::time::sleep(POLL_INTERVAL).await;
         }
+        if touched.len() > limit {
+            warn!(
+                touched = touched.len(),
+                limit, "validate: MB touches too many programs — rejecting"
+            );
+            return Ok(false);
+        }
+
+        Ok(true)
     }
 }
 
@@ -946,5 +1119,406 @@ mod tests {
         );
         assert!(seen_hashes.contains(&tx_a.data().to_hash()));
         assert!(seen_hashes.contains(&tx_b.data().to_hash()));
+    }
+
+    // ------------------------------------------------------------------
+    // Integration tests for build_block_above / validate_block_above
+    // size + touched-programs caps. Adapted from master's
+    // `tx_pool::tests::*` and `announces::tests::*`.
+    // ------------------------------------------------------------------
+
+    /// Build a full `EthexeExternalities` wired to a real
+    /// `InjectedTxMempool` so we can exercise the producer-side filter
+    /// + caps end-to-end.
+    fn make_externalities_with_pool(
+        db: Database,
+        mempool: Arc<crate::InjectedTxMempool>,
+    ) -> (
+        EthexeExternalities,
+        mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
+    ) {
+        let (event_tx, event_rx) = mpsc::unbounded_channel();
+        let ext = EthexeExternalities {
+            db,
+            mempool: mempool as Arc<dyn Mempool>,
+            chain_head: Arc::new(RwLock::new(None)),
+            chain_head_notify: Arc::new(Notify::new()),
+            event_tx,
+            pending_events: Mutex::new(VecDeque::new()),
+            gas_allowance: 1_000_000,
+            canonical_quarantine: 0,
+        };
+        (ext, event_rx)
+    }
+
+    /// Adapted from master's `setup_announce`: creates a fresh
+    /// computed MB on top of `parent_mb` whose program-states map has
+    /// one entry per `destinations`, each pointing at an initialised
+    /// program with sufficient executable balance.
+    fn setup_mb_with_destinations(
+        db: &Database,
+        parent_mb: H256,
+        destinations: &[gprimitives::ActorId],
+    ) -> H256 {
+        use crate::tx_validity::MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES;
+        use ethexe_common::{
+            MaybeHashOf, StateHashWithQueueSize,
+            db::{CompactMb, MbStorageRW},
+        };
+        use ethexe_runtime_common::state::{
+            ActiveProgram, MessageQueueHashWithSize, Program, ProgramState, Storage,
+        };
+
+        let transactions_hash = db.set_transactions(Transactions::new(vec![]));
+        let mb_hash = H256::random();
+        db.set_mb_compact_block(
+            mb_hash,
+            CompactMb {
+                parent: parent_mb,
+                height: u64::MAX / 2,
+                transactions_hash,
+            },
+        );
+
+        let state = ProgramState {
+            program: Program::Active(ActiveProgram {
+                allocations_hash: MaybeHashOf::empty(),
+                pages_hash: MaybeHashOf::empty(),
+                memory_infix: ethexe_common::gear_core::program::MemoryInfix::new(0),
+                initialized: true,
+            }),
+            canonical_queue: MessageQueueHashWithSize {
+                hash: MaybeHashOf::empty(),
+                cached_queue_size: 0,
+            },
+            injected_queue: MessageQueueHashWithSize {
+                hash: MaybeHashOf::empty(),
+                cached_queue_size: 0,
+            },
+            waitlist_hash: MaybeHashOf::empty(),
+            stash_hash: MaybeHashOf::empty(),
+            mailbox_hash: MaybeHashOf::empty(),
+            balance: 0,
+            executable_balance: MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES * 100,
+        };
+        let state_hash = db.write_program_state(state);
+        let mut program_states = ethexe_common::ProgramStates::default();
+        for dest in destinations {
+            program_states.insert(
+                *dest,
+                StateHashWithQueueSize {
+                    hash: state_hash,
+                    canonical_queue_size: 0,
+                    injected_queue_size: 0,
+                },
+            );
+        }
+        db.set_mb_program_states(mb_hash, program_states);
+        db.mutate_mb_meta(mb_hash, |meta| meta.computed = true);
+        mb_hash
+    }
+
+    fn signed_injected_tx(
+        pk: &ethexe_common::PrivateKey,
+        destination: gprimitives::ActorId,
+        reference_block: H256,
+        salt: u8,
+    ) -> SignedInjectedTransaction {
+        ethexe_common::SignedMessage::create(
+            pk.clone(),
+            ethexe_common::injected::InjectedTransaction {
+                destination,
+                payload: vec![1, 2, 3].try_into().unwrap(),
+                value: 0,
+                reference_block,
+                salt: vec![salt; 32].try_into().unwrap(),
+            },
+        )
+        .unwrap()
+    }
+
+    /// Port of master's `tx_pool::tests::test_select_for_announce`
+    /// adapted to the MB world. A valid tx must surface in the
+    /// produced MB; a non-zero-value tx is rejected at insert and
+    /// never seen by `build_block_above`.
+    #[tokio::test]
+    async fn build_emits_valid_tx_and_drops_non_zero_value() {
+        use ethexe_common::{
+            injected::InjectedTransaction,
+            mock::{BlockChain, Mock},
+        };
+        use gprimitives::ActorId;
+
+        let db = Database::memory();
+        let chain = BlockChain::mock(10u32).setup(&db);
+        let dest = ActorId::from([1; 32]);
+        let head = chain.blocks[10].to_simple();
+
+        // Parent MB whose program_states snapshot includes `dest`.
+        let parent_mb = setup_mb_with_destinations(&db, chain.mb_hash_at(9), &[dest]);
+
+        let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
+        // Drive validity-window GC.
+        mempool.set_chain_head(head);
+
+        let pk = ethexe_common::PrivateKey::random();
+        let valid = signed_injected_tx(&pk, dest, chain.blocks[9].hash, 0);
+        let value_tx = ethexe_common::SignedMessage::create(
+            pk.clone(),
+            InjectedTransaction {
+                destination: dest,
+                payload: vec![].try_into().unwrap(),
+                value: 100,
+                reference_block: chain.blocks[9].hash,
+                salt: vec![1; 32].try_into().unwrap(),
+            },
+        )
+        .unwrap();
+
+        mempool.insert(valid.clone()).unwrap();
+        assert!(matches!(
+            mempool.insert(value_tx.clone()),
+            Err(crate::mempool::MempoolInsertError::NonZeroValue)
+        ));
+        assert_eq!(mempool.len(), 1);
+
+        let (ext, _rx) = make_externalities_with_pool(db, mempool);
+        *ext.chain_head.write().unwrap() = Some(head);
+
+        let payload = ext.build_block_above(parent_mb).await.unwrap();
+        let injected: Vec<_> = payload
+            .iter()
+            .filter_map(|tx| match tx {
+                Transaction::Injected(t) => Some(t.data().to_hash()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(injected, vec![valid.data().to_hash()]);
+    }
+
+    /// Port of master's `tx_pool::tests::max_touched_programs`. The
+    /// pool holds 50 txs to 50 distinct destinations; the parent MB's
+    /// `program_states` contains MAX+1 known programs, of which the
+    /// first MAX/2 + 1 are already "touched" by EB events on the
+    /// advance block. The producer can add at most `MAX - initial`
+    /// injected txs before hitting the cap.
+    #[tokio::test]
+    async fn build_caps_touched_programs() {
+        use ethexe_common::{
+            MAX_TOUCHED_PROGRAMS_PER_MB,
+            events::{BlockEvent, MirrorEvent, mirror::MessageQueueingRequestedEvent},
+            mock::{BlockChain, Mock},
+        };
+        use gprimitives::{ActorId, MessageId};
+
+        let db = Database::memory();
+        // Seed events on block index 10: half-plus-one programs touched.
+        let n_touched = (MAX_TOUCHED_PROGRAMS_PER_MB / 2 + 1) as u64;
+        let mut chain = BlockChain::mock(10u32);
+        chain.blocks[10].as_synced_mut().events = (0..n_touched)
+            .map(|i| BlockEvent::Mirror {
+                actor_id: ActorId::from(i),
+                event: MirrorEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: MessageId::zero(),
+                    source: ActorId::zero(),
+                    payload: vec![],
+                    value: 0,
+                    call_reply: false,
+                }),
+            })
+            .collect();
+        let chain = chain.setup(&db);
+
+        // All MAX+1 destinations exist in the latest computed snapshot.
+        let n_destinations = (MAX_TOUCHED_PROGRAMS_PER_MB + 1) as u64;
+        let destinations: Vec<ActorId> = (0..n_destinations).map(ActorId::from).collect();
+        let parent_mb = setup_mb_with_destinations(&db, chain.mb_hash_at(9), &destinations);
+        // eb_touched_programs needs latest_computed_mb_hash to find
+        // known programs. Point it at the parent MB.
+        db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
+
+        let head = chain.blocks[10].to_simple();
+        let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
+        mempool.set_chain_head(head);
+        let pk = ethexe_common::PrivateKey::random();
+        // Push 50 txs targeting the upper half of destinations (the ones
+        // NOT pre-touched by EB events).
+        let push_start = MAX_TOUCHED_PROGRAMS_PER_MB / 2 + 1;
+        let push_end = MAX_TOUCHED_PROGRAMS_PER_MB + 1;
+        for i in push_start..push_end {
+            mempool
+                .insert(signed_injected_tx(
+                    &pk,
+                    ActorId::from(i as u64),
+                    chain.blocks[9].hash,
+                    i as u8,
+                ))
+                .unwrap();
+        }
+
+        let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
+        *ext.chain_head.write().unwrap() = Some(head);
+        // Force AdvanceTillEthereumBlock so eb_touched_programs walks events.
+        // The producer reads chain_head_notify to pick its advance candidate;
+        // since canonical_quarantine = 0, head's parent (block 9) is a valid
+        // advance.
+        let payload = ext.build_block_above(parent_mb).await.unwrap();
+        let advance_present = payload
+            .iter()
+            .any(|tx| matches!(tx, Transaction::AdvanceTillEthereumBlock { .. }));
+        assert!(
+            advance_present,
+            "advance must be present for the EB-events touched seed to apply"
+        );
+        let injected_count = payload
+            .iter()
+            .filter(|tx| matches!(tx, Transaction::Injected(_)))
+            .count();
+        // Master's expectation: producer can add at most
+        // `MAX - already_touched` injected destinations.
+        let expected = (MAX_TOUCHED_PROGRAMS_PER_MB as usize).saturating_sub(n_touched as usize);
+        assert_eq!(
+            injected_count, expected,
+            "expected {expected} injected txs (MAX - initial_touched), got {injected_count}",
+        );
+    }
+
+    /// Port of master's `announces::tests::reject_announce_with_too_many_touched_programs`.
+    /// A participant must reject an MB whose injected destinations
+    /// push the touched-programs total over the cap.
+    #[tokio::test]
+    async fn validate_rejects_mb_with_too_many_touched_programs() {
+        use ethexe_common::{
+            MAX_TOUCHED_PROGRAMS_PER_MB,
+            events::{BlockEvent, MirrorEvent, mirror::MessageQueueingRequestedEvent},
+            mock::{BlockChain, Mock},
+        };
+        use gprimitives::{ActorId, MessageId};
+
+        let db = Database::memory();
+        let n_touched = (MAX_TOUCHED_PROGRAMS_PER_MB / 2 + 1) as u64;
+        let mut chain = BlockChain::mock(10u32);
+        chain.blocks[10].as_synced_mut().events = (0..n_touched)
+            .map(|i| BlockEvent::Mirror {
+                actor_id: ActorId::from(i),
+                event: MirrorEvent::MessageQueueingRequested(MessageQueueingRequestedEvent {
+                    id: MessageId::zero(),
+                    source: ActorId::zero(),
+                    payload: vec![],
+                    value: 0,
+                    call_reply: false,
+                }),
+            })
+            .collect();
+        let chain = chain.setup(&db);
+
+        let n_destinations = (MAX_TOUCHED_PROGRAMS_PER_MB + 1) as u64;
+        let destinations: Vec<ActorId> = (0..n_destinations).map(ActorId::from).collect();
+        let parent_mb = setup_mb_with_destinations(&db, chain.mb_hash_at(9), &destinations);
+        db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
+
+        let head = chain.blocks[10].to_simple();
+        let (ext, _rx) = make_externalities(db.clone());
+        *ext.chain_head.write().unwrap() = Some(head);
+
+        // Craft an MB payload that adds N/2 fresh destinations on top
+        // of the N/2+1 already touched by EB events → total > limit.
+        // Advance to block 10 so `eb_touched_programs` walks the
+        // events block we just seeded.
+        let advance_block = chain.blocks[10].hash;
+        let pk = ethexe_common::PrivateKey::random();
+        let extra_destinations = (MAX_TOUCHED_PROGRAMS_PER_MB / 2 + 1
+            ..MAX_TOUCHED_PROGRAMS_PER_MB + 1)
+            .map(|i| ActorId::from(i as u64));
+        let mut transactions = vec![Transaction::AdvanceTillEthereumBlock {
+            block_hash: advance_block,
+        }];
+        for (i, dest) in extra_destinations.enumerate() {
+            transactions.push(Transaction::Injected(signed_injected_tx(
+                &pk,
+                dest,
+                chain.blocks[9].hash,
+                i as u8,
+            )));
+        }
+        let payload = Transactions::new(transactions);
+        assert!(
+            !ext.validate_block_above(parent_mb, payload).await.unwrap(),
+            "MB must be rejected when touched destinations + EB-touched > cap"
+        );
+    }
+
+    /// Port of master's idea: a fully-sized batch of injected txs
+    /// must trip the per-MB size cap. We feed the pool enough txs that
+    /// their cumulative encoded size exceeds
+    /// `MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB`; the producer must
+    /// emit only as many as fit.
+    #[tokio::test]
+    async fn build_caps_total_encoded_size() {
+        use ethexe_common::{
+            injected::{
+                InjectedTransaction, MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB,
+                MAX_INJECTED_TX_PAYLOAD_SIZE,
+            },
+            mock::{BlockChain, Mock},
+        };
+        use gprimitives::ActorId;
+        use parity_scale_codec::Encode;
+
+        let db = Database::memory();
+        let chain = BlockChain::mock(2u32).setup(&db);
+        let head = chain.blocks[2].to_simple();
+        // Many destinations so the touched-programs cap can't be the
+        // limiting factor (one destination per tx).
+        let dests: Vec<ActorId> = (0..16u64).map(ActorId::from).collect();
+        let parent_mb = setup_mb_with_destinations(&db, chain.mb_hash_at(1), &dests);
+        db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
+
+        let mempool = Arc::new(crate::InjectedTxMempool::new(db.clone()));
+        mempool.set_chain_head(head);
+        let pk = ethexe_common::PrivateKey::random();
+        // Each tx carries the maximum-size payload; the pool is loaded
+        // with enough of them that two fit but three don't.
+        for (i, dest) in dests.iter().enumerate().take(3) {
+            let tx = ethexe_common::SignedMessage::create(
+                pk.clone(),
+                InjectedTransaction {
+                    destination: *dest,
+                    payload: vec![0u8; MAX_INJECTED_TX_PAYLOAD_SIZE / 2]
+                        .try_into()
+                        .unwrap(),
+                    value: 0,
+                    reference_block: chain.blocks[1].hash,
+                    salt: vec![i as u8; 32].try_into().unwrap(),
+                },
+            )
+            .unwrap();
+            mempool.insert(tx).unwrap();
+        }
+        assert_eq!(mempool.len(), 3);
+
+        let (ext, _rx) = make_externalities_with_pool(db.clone(), mempool);
+        *ext.chain_head.write().unwrap() = Some(head);
+
+        let payload = ext.build_block_above(parent_mb).await.unwrap();
+        let injected: Vec<_> = payload
+            .iter()
+            .filter_map(|tx| match tx {
+                Transaction::Injected(t) => Some(t.encoded_size()),
+                _ => None,
+            })
+            .collect();
+        let total: usize = injected.iter().sum();
+        assert!(
+            total <= MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB,
+            "cumulative encoded size ({total}) exceeds per-MB cap ({MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB})",
+        );
+        // With 3 half-payload txs each ~64 KiB, only the first two should
+        // fit under the 127 KiB cap. (Each encoded tx adds ~64 KiB + envelope.)
+        assert!(
+            injected.len() < 3,
+            "size cap must drop at least one tx, got {} retained",
+            injected.len()
+        );
     }
 }
