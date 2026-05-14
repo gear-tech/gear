@@ -40,11 +40,16 @@ use std::{
     mem,
     sync::Arc,
     task::{Context, Poll},
+    time::Duration,
 };
 use tokio::{
     sync::{mpsc, oneshot},
-    task,
+    task, time,
 };
+
+const BLAKE2B_CODE: u64 = 0xb220; // standard BLAKE2b multihash code
+const RAW_CODEC: u64 = 0x55; // standard CID raw codec
+const ANNOUNCES_CODEC: u64 = 0x300000; // user-defined CID codec
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
@@ -56,13 +61,12 @@ impl Request {
     fn into_cid(self) -> Cid {
         match self {
             Request::Hash(hash) => Cid::new_v1(
-                Blockstore::RAW_CODEC,
-                Multihash::wrap(Blockstore::BLAKE2B_CODE, hash.as_bytes())
-                    .expect("size is always correct"),
+                RAW_CODEC,
+                Multihash::wrap(BLAKE2B_CODE, hash.as_bytes()).expect("size is always correct"),
             ),
             Request::Announce(hash) => Cid::new_v1(
-                Blockstore::ANNOUNCES_CODEC,
-                Multihash::wrap(Blockstore::BLAKE2B_CODE, hash.inner().as_bytes())
+                ANNOUNCES_CODEC,
+                Multihash::wrap(BLAKE2B_CODE, hash.inner().as_bytes())
                     .expect("size is always correct"),
             ),
         }
@@ -84,15 +88,56 @@ pub enum Response {
     Announce(Announce),
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Config {
+    /// Restart stalled requests after some time.
+    ///
+    /// This is intended for test environment only, where a peer
+    /// can receive an announce request before it has caught up enough to serve
+    /// the corresponding data. Production environment is expected to have
+    /// enough peers to fulfill requests, so request scheduling is left to
+    /// Bitswap itself.
+    pub auto_retry: bool,
+}
+
+impl Config {
+    pub fn with_auto_retry(mut self, auto_retry: bool) -> Self {
+        self.auto_retry = auto_retry;
+        self
+    }
+}
+
 #[derive(Clone)]
-pub struct Handle(mpsc::UnboundedSender<(Request, oneshot::Sender<Response>)>);
+pub struct Handle {
+    inner: mpsc::UnboundedSender<(Request, oneshot::Sender<Response>)>,
+    auto_retry: bool,
+}
 
 impl Handle {
+    const RETRY_TIMEOUT: Duration = Duration::from_secs(5);
+
     pub async fn request(&self, request: impl Into<Request>) -> Response {
+        let request = request.into();
+
+        if !self.auto_retry {
+            return self.inner_request(request).await;
+        }
+
+        loop {
+            match time::timeout(Self::RETRY_TIMEOUT, self.inner_request(request)).await {
+                Ok(response) => return response,
+                Err(_) => {
+                    log::warn!("Bitswap request {request:?} timed out, retrying");
+                }
+            }
+        }
+    }
+
+    async fn inner_request(&self, request: Request) -> Response {
         let (tx, rx) = oneshot::channel();
 
-        self.0
-            .send((request.into(), tx))
+        self.inner
+            .send((request, tx))
             .expect("channel should never be closed");
 
         rx.await.expect("channel should never be closed")
@@ -117,17 +162,14 @@ pub struct Blockstore {
 
 impl Blockstore {
     const MAX_BLOCK_SIZE: u64 = 1024 * 1024; // 1MB
-    const BLAKE2B_CODE: u64 = 0xb220;
-    const RAW_CODEC: u64 = 0x55;
-    const ANNOUNCES_CODEC: u64 = 0x300000;
 
     fn convert_multihash<const S: usize>(multihash: &Multihash<S>) -> blockstore::Result<H256> {
         let hash: Multihash<32> =
             beetswap::utils::convert_multihash(multihash).ok_or(blockstore::Error::CidTooLarge)?;
-        if hash.code() != Self::BLAKE2B_CODE {
+        if hash.code() != BLAKE2B_CODE {
             return Err(blockstore::Error::CidError(CidError::InvalidMultihashCode(
                 hash.code(),
-                Self::BLAKE2B_CODE,
+                BLAKE2B_CODE,
             )));
         }
         if hash.size() as usize != mem::size_of::<H256>() {
@@ -150,7 +192,7 @@ impl blockstore::Blockstore for Blockstore {
         task::spawn_blocking(move || {
             let hash = Self::convert_multihash(&hash)?;
             match codec {
-                Self::RAW_CODEC => {
+                RAW_CODEC => {
                     let data = db.read_by_hash(hash);
 
                     if let Some(data) = &data
@@ -162,7 +204,7 @@ impl blockstore::Blockstore for Blockstore {
 
                     Ok(data)
                 }
-                Self::ANNOUNCES_CODEC => {
+                ANNOUNCES_CODEC => {
                     let hash = unsafe { HashOf::new(hash) };
                     let announce = db.announce(hash);
 
@@ -208,13 +250,12 @@ impl Multihasher<32> for Blake2b256Multihasher {
         multihash_code: u64,
         input: &[u8],
     ) -> Result<Multihash<32>, MultihasherError> {
-        if multihash_code != Blockstore::BLAKE2B_CODE {
+        if multihash_code != BLAKE2B_CODE {
             return Err(MultihasherError::UnknownMultihashCode);
         }
 
         let hash = ethexe_db::hash(input);
-        let hash = Multihash::wrap(Blockstore::BLAKE2B_CODE, hash.as_bytes())
-            .expect("size is always correct");
+        let hash = Multihash::wrap(BLAKE2B_CODE, hash.as_bytes()).expect("size is always correct");
         Ok(hash)
     }
 }
@@ -229,7 +270,7 @@ pub struct Behaviour {
 }
 
 impl Behaviour {
-    pub fn new(db: Box<dyn BlockstoreDatabase>) -> Self {
+    pub fn new(db: Box<dyn BlockstoreDatabase>, config: Config) -> Self {
         let (handle, rx) = mpsc::unbounded_channel();
         let blockstore = Arc::new(Blockstore { db });
 
@@ -239,7 +280,10 @@ impl Behaviour {
                 .protocol_prefix("/ethexe")
                 .expect("prefix is always correct")
                 .build(),
-            handle: Handle(handle),
+            handle: Handle {
+                inner: handle,
+                auto_retry: config.auto_retry,
+            },
             rx,
             requests: HashMap::new(),
         }
@@ -375,5 +419,154 @@ impl NetworkBehaviour for Behaviour {
         }
 
         Poll::Pending
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::tests::arb_value;
+    use assert_matches::assert_matches;
+    use blockstore::Blockstore as _;
+    use ethexe_common::db::AnnounceStorageRW;
+
+    #[test]
+    fn request_converts_to_expected_cid() {
+        let hash = H256::from([1; 32]);
+        let cid = Request::Hash(hash).into_cid();
+        assert_eq!(cid.codec(), RAW_CODEC);
+        assert_eq!(cid.hash().code(), BLAKE2B_CODE);
+        assert_eq!(cid.hash().digest(), hash.as_bytes());
+
+        let announce_hash = unsafe { HashOf::new(H256::from([2; 32])) };
+        let cid = Request::Announce(announce_hash).into_cid();
+        assert_eq!(cid.codec(), ANNOUNCES_CODEC);
+        assert_eq!(cid.hash().code(), BLAKE2B_CODE);
+        assert_eq!(cid.hash().digest(), announce_hash.inner().as_bytes());
+    }
+
+    #[test]
+    fn announce_request_decodes_response() {
+        let announce = arb_value::<Announce>(());
+        let response = Request::Announce(announce.to_hash()).into_response(announce.encode());
+
+        assert_eq!(response, Response::Announce(announce));
+    }
+
+    #[tokio::test]
+    async fn blockstore_reads_raw_data() {
+        let db = ethexe_db::Database::memory();
+        let hash = db.cas().write(b"hello");
+        let blockstore = Blockstore { db: Box::new(db) };
+        let cid = Request::Hash(hash).into_cid();
+
+        let data = blockstore.get(&cid).await.unwrap();
+
+        assert_eq!(data, Some(b"hello".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn blockstore_reads_announces() {
+        let db = ethexe_db::Database::memory();
+        let announce = arb_value::<Announce>(());
+        let announce_hash = db.set_announce(announce.clone());
+        let blockstore = Blockstore { db: Box::new(db) };
+        let cid = Request::Announce(announce_hash).into_cid();
+
+        let data = blockstore.get(&cid).await.unwrap();
+
+        assert_eq!(data, Some(announce.encode()));
+    }
+
+    #[tokio::test]
+    async fn blockstore_rejects_unknown_codec() {
+        let db = ethexe_db::Database::memory();
+        let blockstore = Blockstore { db: Box::new(db) };
+        let hash = H256::from([3; 32]);
+        let multihash = Multihash::wrap(BLAKE2B_CODE, hash.as_bytes()).unwrap();
+        let cid = Cid::new_v1(0x99, multihash);
+
+        let error = blockstore.get(&cid).await.unwrap_err();
+
+        assert_matches!(
+            error,
+            blockstore::Error::CidError(CidError::InvalidCidCodec(0x99))
+        );
+    }
+
+    #[tokio::test]
+    async fn blockstore_rejects_unknown_multihash_code() {
+        let db = ethexe_db::Database::memory();
+        let blockstore = Blockstore { db: Box::new(db) };
+        let hash = H256::from([4; 32]);
+        let multihash = Multihash::wrap(0x12, hash.as_bytes()).unwrap();
+        let cid = Cid::new_v1(RAW_CODEC, multihash);
+
+        let error = blockstore.get(&cid).await.unwrap_err();
+
+        assert_matches!(
+            error,
+            blockstore::Error::CidError(CidError::InvalidMultihashCode(0x12, BLAKE2B_CODE))
+        );
+    }
+
+    #[tokio::test]
+    async fn blockstore_rejects_oversized_raw_data() {
+        let db = ethexe_db::Database::memory();
+        let hash = db.cas().write(&vec![0; MAX_BLOCK_SIZE as usize + 1]);
+        let blockstore = Blockstore { db: Box::new(db) };
+        let cid = Request::Hash(hash).into_cid();
+
+        let error = blockstore.get(&cid).await.unwrap_err();
+
+        assert_matches!(error, blockstore::Error::ValueTooLarge);
+    }
+
+    #[tokio::test]
+    async fn blake2b_multihasher_hashes_known_code() {
+        let multihash = Blake2b256Multihasher
+            .hash(BLAKE2B_CODE, b"hello")
+            .await
+            .unwrap();
+
+        assert_eq!(multihash.code(), BLAKE2B_CODE);
+        assert_eq!(multihash.digest(), ethexe_db::hash(b"hello").as_bytes());
+    }
+
+    #[tokio::test]
+    async fn blake2b_multihasher_rejects_unknown_code() {
+        let error = Blake2b256Multihasher
+            .hash(0x12, b"hello")
+            .await
+            .unwrap_err();
+
+        assert_matches!(error, MultihasherError::UnknownMultihashCode);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn handle_retries_timed_out_requests() {
+        let (inner, mut rx) = mpsc::unbounded_channel();
+        let handle = Handle {
+            inner,
+            auto_retry: true,
+        };
+        let hash = H256::from([5; 32]);
+
+        let pending = tokio::spawn(async move { handle.request(hash).await });
+
+        let (request, first_response) = rx.recv().await.unwrap();
+        assert_eq!(request, Request::Hash(hash));
+
+        time::advance(Handle::RETRY_TIMEOUT).await;
+        let (request, second_response) = rx.recv().await.unwrap();
+        assert_eq!(request, Request::Hash(hash));
+        assert!(first_response.is_closed());
+
+        second_response
+            .send(Response::Hash(b"hello".to_vec()))
+            .unwrap();
+        let response = pending.await.unwrap();
+
+        assert_eq!(response, Response::Hash(b"hello".to_vec()));
     }
 }

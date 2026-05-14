@@ -789,7 +789,15 @@ impl Behaviour {
         )
         .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
 
-        let bitswap = bitswap::Behaviour::new(db);
+        // The test environment can start an announce request while the
+        // serving peer is still catching up and does not have the announce in
+        // its local DB yet. Retrying keeps those deterministic integration
+        // tests from waiting forever; the production environment is expected
+        // to have enough peers to fulfill requests, so scheduling is left to
+        // Bitswap itself.
+        let bitswap = bitswap::Config::default()
+            .with_auto_retry(matches!(transport_type, TransportType::Test));
+        let bitswap = bitswap::Behaviour::new(db, bitswap);
 
         let injected = injected::Behaviour::new();
 
