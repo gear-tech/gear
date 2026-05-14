@@ -342,12 +342,12 @@ fn collect_advance_chain(db: &Database, target: H256, last_advanced: H256) -> Re
                 last_advanced,
             });
         }
-        let Some(header) = db.block_header(current) else {
-            if chain.is_empty() {
-                return Err(ComputeError::AdvanceMissingHeader { hash: current });
-            }
-            break;
-        };
+        // Any missing intermediate header has to surface — a silent
+        // truncation would have validators with different sync depth
+        // emit different advance chains for the same MB.
+        let header = db
+            .block_header(current)
+            .ok_or(ComputeError::AdvanceMissingHeader { hash: current })?;
         chain.push(current);
         current = header.parent_hash;
     }

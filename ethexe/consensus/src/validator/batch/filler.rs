@@ -120,12 +120,16 @@ impl BatchFiller {
         Ok(())
     }
 
-    /// Include a freshly aggregated chain commitment in the batch. Empty
-    /// transitions lists are skipped silently — the next coordinator round
-    /// will re-walk and pick up the same MBs along with whatever new ones
-    /// have finalized in the meantime.
+    /// Include a freshly aggregated chain commitment in the batch.
+    ///
+    /// A commitment with neither transitions nor an Ethereum-anchor
+    /// advance carries no payload and is dropped — the next coordinator
+    /// round will re-walk and pick up whatever has finalized since.
+    /// Empty-transitions checkpoints **with** a non-zero
+    /// `last_advanced_eth_block` are kept: they exist specifically to push
+    /// the on-chain Ethereum anchor forward during long quiet stretches.
     pub fn include_chain_commitment(&mut self, commitment: ChainCommitment) -> FillerResult {
-        if commitment.transitions.is_empty() {
+        if commitment.transitions.is_empty() && commitment.last_advanced_eth_block.is_zero() {
             return Ok(());
         }
 
