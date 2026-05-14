@@ -142,6 +142,7 @@ blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
 cargo_metadata = "0.20.0"
+chacha20poly1305 = { version = "0.10.1", default-features = false }
 clap = "4.5.8"
 colored = "2.1.0"
 const-str = "0.5"
@@ -162,6 +163,7 @@ future-timing = "0.1.0" # measure the futures execution
 hashbrown = "0.14.5"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
+hkdf = { version = "0.12.4", default-features = false }
 impl-trait-for-tuples = "0.2.2"
 impl-serde = "0.4.0"
 indoc = "2.0.7"
@@ -227,6 +229,7 @@ ark-ec = { version = "0.4.2", default-features = false }
 ark-ff = { version = "0.4.2", default-features = false }
 ark-scale = { version = "0.0.12", default-features = false }
 sha2 = { version = "0.10.8", default-features = false }
+zeroize = { version = "1.8", default-features = false }
 sha3 = { version = "0.10.8", default-features = false }
 arrayvec = { version = "0.7.4", default-features = false }
 indexmap = { version = "2.2.6", default-features = false }
@@ -348,6 +351,7 @@ ethexe-compute = { path = "ethexe/compute", default-features = false }
 ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 ethexe-db-init = { path = "ethexe/db/init", default-features = false }
 ethexe-node-wrapper = {path = "ethexe/node-wrapper", default-features = false}
+ethexe-tpke = { path = "ethexe/tpke", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { version = "0.38" }
