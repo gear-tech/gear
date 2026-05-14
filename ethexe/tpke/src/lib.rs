@@ -102,8 +102,21 @@ pub enum TpkeError {
 }
 
 /// Master secret key produced by the dealer. Must be destroyed after splitting.
+///
+/// The scalar field is private — callers can construct via [`Self::new`] and
+/// read it via [`Self::scalar`], but cannot accidentally print or copy it
+/// through direct field access. `Debug` is implemented to elide the scalar.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
-pub struct MasterSecretKey(pub Fr);
+pub struct MasterSecretKey(Fr);
+
+impl MasterSecretKey {
+    pub fn new(scalar: Fr) -> Self {
+        Self(scalar)
+    }
+    pub fn scalar(&self) -> Fr {
+        self.0
+    }
+}
 
 impl core::fmt::Debug for MasterSecretKey {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -113,10 +126,22 @@ impl core::fmt::Debug for MasterSecretKey {
 }
 
 /// Per-validator secret share `Sᵢ = f(i)`. Index is 1-based.
+///
+/// `scalar` is private; use [`Self::new`] to construct and [`Self::scalar`]
+/// to read. The `index` is non-sensitive and stays public.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SecretKeyShare {
     pub index: u32,
-    pub scalar: Fr,
+    scalar: Fr,
+}
+
+impl SecretKeyShare {
+    pub fn new(index: u32, scalar: Fr) -> Self {
+        Self { index, scalar }
+    }
+    pub fn scalar(&self) -> Fr {
+        self.scalar
+    }
 }
 
 impl core::fmt::Debug for SecretKeyShare {
@@ -158,11 +183,83 @@ pub struct EncryptedEnvelope {
 /// this prevents accidental cross-envelope mixing from silently producing
 /// garbage plaintext (which would otherwise only surface as a cryptic AEAD
 /// failure downstream).
+///
+/// SCALE wire format: `index: u32` ‖ `id: [u8; 32]` ‖ `compressed_point: [u8; 48]`.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DecryptionShare {
     pub index: u32,
     pub id: [u8; 32],
     pub point: G1Affine,
+}
+
+// SCALE codec for wire types. Manual impls are needed because arkworks' point
+// types don't implement `Encode`/`Decode`/`TypeInfo`. The wire format uses
+// BLS12-381 compressed encodings (48 B for G1, 96 B for G2). Encode panics
+// only on serialization failure of an in-memory valid point, which cannot
+// happen for points produced by this crate; Decode validates and returns a
+// codec error on bad bytes.
+
+impl Encode for DecryptionShare {
+    fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+        self.index.encode_to(dest);
+        self.id.encode_to(dest);
+        let bytes =
+            serialize_g1(&self.point).expect("DecryptionShare always holds a valid G1 point");
+        bytes.encode_to(dest);
+    }
+}
+
+impl Decode for DecryptionShare {
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> Result<Self, parity_scale_codec::Error> {
+        let index = u32::decode(input)?;
+        let id = <[u8; 32]>::decode(input)?;
+        let bytes = <[u8; G1_COMPRESSED_LEN]>::decode(input)?;
+        let point = deserialize_compressed::<G1Affine, G1_COMPRESSED_LEN>(&bytes)
+            .map_err(|_| parity_scale_codec::Error::from("invalid G1 point in DecryptionShare"))?;
+        Ok(Self { index, id, point })
+    }
+}
+
+impl Encode for MasterPublicKey {
+    fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+        let bytes = serialize_g2(&self.0).expect("MasterPublicKey always holds a valid G2 point");
+        bytes.encode_to(dest);
+    }
+}
+
+impl Decode for MasterPublicKey {
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> Result<Self, parity_scale_codec::Error> {
+        let bytes = <[u8; G2_COMPRESSED_LEN]>::decode(input)?;
+        // Use from_bytes so identity-point rejection is centralized.
+        Self::from_bytes(&bytes).map_err(|_| {
+            parity_scale_codec::Error::from("invalid or identity G2 point in MasterPublicKey")
+        })
+    }
+}
+
+impl Encode for SharePublicKey {
+    fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+        self.index.encode_to(dest);
+        let bytes =
+            serialize_g2(&self.point).expect("SharePublicKey always holds a valid G2 point");
+        bytes.encode_to(dest);
+    }
+}
+
+impl Decode for SharePublicKey {
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> Result<Self, parity_scale_codec::Error> {
+        let index = u32::decode(input)?;
+        let bytes = <[u8; G2_COMPRESSED_LEN]>::decode(input)?;
+        Self::from_bytes(index, &bytes).map_err(|_| {
+            parity_scale_codec::Error::from("invalid or identity G2 point in SharePublicKey")
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -217,7 +314,7 @@ impl MasterSecretKey {
         // Sample polynomial coefficients: f(x) = a_0 + a_1·x + ... + a_{t-1}·x^{t-1}
         // where a_0 = S (master secret).
         let mut coeffs: Vec<Fr> = (0..t).map(|_| Fr::rand(rng)).collect();
-        let master = MasterSecretKey(coeffs[0]);
+        let master = MasterSecretKey::new(coeffs[0]);
 
         // Compute share Sᵢ = f(i) for i in 1..=n using Horner's rule.
         let mut shares = Vec::with_capacity(n as usize);
@@ -230,10 +327,7 @@ impl MasterSecretKey {
             for k in (0..t as usize - 1).rev() {
                 acc = acc * x + coeffs[k];
             }
-            let sk = SecretKeyShare {
-                index: i,
-                scalar: acc,
-            };
+            let sk = SecretKeyShare::new(i, acc);
             let pk = SharePublicKey {
                 index: i,
                 point: (g2 * acc).into_affine(),
@@ -242,7 +336,7 @@ impl MasterSecretKey {
             share_pubs.push(pk);
         }
 
-        let master_pub = MasterPublicKey((g2 * master.0).into_affine());
+        let master_pub = MasterPublicKey((g2 * master.scalar()).into_affine());
 
         // Wipe intermediate polynomial coefficients.
         coeffs.zeroize();
@@ -829,6 +923,47 @@ mod tests {
         let encoded = env.encode();
         let decoded = EncryptedEnvelope::decode(&mut &encoded[..]).unwrap();
         assert_eq!(env, decoded);
+    }
+
+    #[test]
+    fn decryption_share_scale_roundtrip() {
+        let d = deal(2, 3);
+        let mut rng = fixed_rng();
+        let id = derive_id(1, 0, b"abc", &[5u8; 32]);
+        let env = encrypt(&d.master_pub, &id, 1, 0, b"abc", &mut rng).unwrap();
+        let share = d.shares[0].decrypt_share(&env).unwrap();
+        let encoded = share.encode();
+        // 4 (index) + 32 (id) + 48 (G1 compressed) = 84 bytes.
+        assert_eq!(encoded.len(), 4 + 32 + 48);
+        let decoded = DecryptionShare::decode(&mut &encoded[..]).unwrap();
+        assert_eq!(share, decoded);
+    }
+
+    #[test]
+    fn master_pub_scale_roundtrip() {
+        let d = deal(2, 3);
+        let encoded = d.master_pub.encode();
+        assert_eq!(encoded.len(), G2_COMPRESSED_LEN);
+        let decoded = MasterPublicKey::decode(&mut &encoded[..]).unwrap();
+        assert_eq!(d.master_pub, decoded);
+    }
+
+    #[test]
+    fn share_pub_scale_roundtrip() {
+        let d = deal(2, 3);
+        let encoded = d.share_pubs[0].encode();
+        assert_eq!(encoded.len(), 4 + G2_COMPRESSED_LEN);
+        let decoded = SharePublicKey::decode(&mut &encoded[..]).unwrap();
+        assert_eq!(d.share_pubs[0], decoded);
+    }
+
+    #[test]
+    fn scale_decode_rejects_identity_master_pub() {
+        // Serialize the G2 identity and try to SCALE-decode as a MasterPublicKey.
+        let mut buf = [0u8; G2_COMPRESSED_LEN];
+        G2Affine::zero().serialize_compressed(&mut buf[..]).unwrap();
+        let encoded = buf.encode();
+        assert!(MasterPublicKey::decode(&mut &encoded[..]).is_err());
     }
 
     #[test]

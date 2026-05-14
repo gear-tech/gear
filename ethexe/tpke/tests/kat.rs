@@ -133,19 +133,18 @@ fn cross_check_one(v: &Vector) {
         for k in (0..coeffs.len() - 1).rev() {
             acc = acc * x + coeffs[k];
         }
-        rust_shares.push(SecretKeyShare {
-            index: i,
-            scalar: acc,
-        });
+        rust_shares.push(SecretKeyShare::new(i, acc));
     }
     // Sanity: secret_shares_hex matches our reconstruction.
     for (rust_s, py_s) in rust_shares.iter().zip(v.secret_shares_hex.iter()) {
         assert_eq!(rust_s.index, py_s.index);
         let py_scalar = fr_from_be_hex(&py_s.scalar_hex);
         assert_eq!(
-            rust_s.scalar, py_scalar,
+            rust_s.scalar(),
+            py_scalar,
             "{}: secret share #{} mismatch",
-            v.label, rust_s.index
+            v.label,
+            rust_s.index
         );
     }
 
@@ -163,7 +162,7 @@ fn cross_check_one(v: &Vector) {
     // (4) Share pubs: Sᵢ · g₂.
     for (rust_s, py_pub) in rust_shares.iter().zip(v.share_pubs_compressed_hex.iter()) {
         assert_eq!(rust_s.index, py_pub.index);
-        let pt = (g2 * rust_s.scalar).into_affine();
+        let pt = (g2 * rust_s.scalar()).into_affine();
         assert_eq!(
             g2_compressed_hex(&pt),
             py_pub.bytes_hex,
@@ -203,7 +202,7 @@ fn cross_check_one(v: &Vector) {
         .iter()
         .map(|s| SharePublicKey {
             index: s.index,
-            point: (g2 * s.scalar).into_affine(),
+            point: (g2 * s.scalar()).into_affine(),
         })
         .collect();
 
