@@ -197,7 +197,7 @@ impl TxValidityChecker {
 
         let chain_head_height = self.chain_head.header.height;
         Ok(reference_block_height <= chain_head_height
-            && reference_block_height + VALIDITY_WINDOW as u32 > chain_head_height)
+            && reference_block_height.saturating_add(VALIDITY_WINDOW as u32) > chain_head_height)
     }
 
     fn is_reference_block_on_current_branch(&self, reference_block: H256) -> Result<bool> {
@@ -280,6 +280,16 @@ impl TxValidityChecker {
 /// Returns an empty set when `advanced_eb == last_advanced_eb` (no
 /// new EB to walk) or when `advanced_eb` is `H256::zero()` (no advance
 /// in this MB).
+///
+/// # Best-effort approximation
+///
+/// This function is **not** a precise post-execution touched-set; it's
+/// an a-priori estimate of how many programs *will* be modified during
+/// the MB. Its sole job is to keep the per-MB touched-programs cap
+/// honest. False positives (an event that doesn't actually modify
+/// state) just make the cap stricter than necessary; false negatives
+/// are bounded by `MAX_TOUCHED_PROGRAMS_PER_MB` slack at the runtime
+/// layer. Do not rely on the returned set for anything beyond the cap.
 pub fn eb_touched_programs(
     db: &Database,
     last_advanced_eb: H256,
@@ -305,6 +315,16 @@ pub fn eb_touched_programs(
     };
 
     // Collect blocks in (last_advanced_eb, advanced_eb], newest-first.
+    //
+    // The walk is intentionally unbounded: `advanced_eb` has already
+    // passed `canonical_quarantine` (verified upstream of every caller),
+    // and `last_advanced_eb` is the parent MB's already-quarantine-passed
+    // anchor — so both points are weak-finalised on the canonical chain.
+    // Under any non-catastrophic reorg they share the same branch and
+    // the walk terminates at `last_advanced_eb` within a few EBs.
+    // The only divergent case is a chain reorg deeper than the
+    // quarantine — at that point the network has bigger problems and
+    // bailing at `start_block_hash` is the safe fallback.
     let mut chain = Vec::new();
     let start_block_hash = db.globals().start_block_hash;
     let mut current = advanced_eb;

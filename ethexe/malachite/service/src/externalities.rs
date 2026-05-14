@@ -487,11 +487,23 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             return Ok(true);
         };
 
+        // `?` here only fires on DB-invariant violations along the MB
+        // ancestor walk (missing `mb_compact_block` for a non-zero MB on
+        // the chain, or missing `mb_program_states` on an MB marked
+        // `computed`). The `parent_hash` comes from the Malachite engine,
+        // not the proposer, so malicious tx data can't reach this path.
+        // Propagating the error upward is the right call: it indicates
+        // local DB corruption, not a peer-side issue.
         let checker = TxValidityChecker::new_for_mb(self.db.clone(), chain_head, parent_hash)?;
         for tx in payload.iter() {
             let Transaction::Injected(signed) = tx else {
                 continue;
             };
+            // `?` inside `check_tx_validity` only fires on local DB
+            // inconsistency (a `latest_states` entry whose `state_hash`
+            // is absent from CAS). Every malicious-tx-data path returns
+            // `Ok(TxValidity::<reason>)` instead of `Err`, so this `?`
+            // can't be triggered by what the proposer placed in the MB.
             match checker.check_tx_validity(signed)? {
                 TxValidity::Valid => {}
                 reason => {
@@ -515,11 +527,24 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         // events, so those set the floor for the cap. We add every
         // `Transaction::Injected` destination on top of the EB-touched
         // seed and reject if the union exceeds `limit`.
+        //
+        // NOTE: there is no per-MB size cap on the validator side
+        // (master parity). We rely on the Malachite engine's 1 MiB
+        // hard cap on the encoded `Block` payload — anything larger
+        // never reaches `validate_block_above` in the first place.
         let parent_advanced = if parent_hash.is_zero() {
             H256::zero()
         } else {
             self.db.mb_meta(parent_hash).last_advanced_eb
         };
+        // `?` here only fires on local DB issues: missing
+        // `mb_program_states` for `latest_computed_mb_hash`, missing
+        // `block_header` on a canonical ancestor of `advance`, or
+        // missing `block_events` for one of them. After the quarantine
+        // gate above succeeded the observer has clearly synced
+        // `advance` and its ancestors, so any failure here is a local
+        // DB / sync race — not a proposer-controlled condition. Same
+        // reasoning as the other two `?`s in this function.
         let mut touched = match advance {
             Some(advanced_eb) => eb_touched_programs(&self.db, parent_advanced, advanced_eb)?,
             None => std::collections::HashSet::new(),

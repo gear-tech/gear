@@ -159,6 +159,13 @@ impl Mempool for EmptyMempool {
 /// Default cap on the number of pending TXs the in-memory pool holds.
 pub const DEFAULT_POOL_CAPACITY: usize = 10_000;
 
+// TODO +_+_+ : a single signer can fill `DEFAULT_POOL_CAPACITY` with
+// distinct-salt valid txs and starve out the rest of the network until
+// `VALIDITY_WINDOW` ages them out. Add per-sender quota (probably keyed
+// on the recovered ECDSA address) so one key can hold at most ~K slots,
+// where K is chosen to keep typical bot patterns admissible without
+// letting a single address monopolise the pool.
+
 /// Pool state behind a single mutex — operations are short, contention low.
 #[derive(Debug, Default)]
 struct Inner {
@@ -297,7 +304,7 @@ impl Mempool for InjectedTxMempool {
             return Err(MempoolInsertError::NonZeroValue);
         }
 
-        let mut inner = self.inner.lock().expect("poisoned mempool");
+        let inner = self.inner.lock().expect("poisoned mempool");
 
         if inner.seen.contains_key(&tx_hash) {
             info!(%tx_hash, "mempool: rejecting tx — hash already committed within validity window");
@@ -330,11 +337,33 @@ impl Mempool for InjectedTxMempool {
             return Err(MempoolInsertError::PoolFull);
         }
 
+        // Drop the lock around the DB write so concurrent inserts /
+        // fetches don't serialise behind disk I/O. After the write we
+        // re-acquire and re-run the duplicate / capacity gates: another
+        // concurrent insert could have landed the same tx hash, or
+        // filled the last capacity slot, while we were writing.
+        drop(inner);
+
         // Persist the tx so the local RPC's `injected_getTransactions`
         // can serve it to clients that look it up by hash later.
         // Done before inserting into the pool so a producer that
         // immediately picks the tx is guaranteed to find it in the DB.
+        // The DB row is content-addressed by tx_hash, so two racing
+        // writes converge on the same byte content.
         self.db.set_injected_transaction(tx.clone());
+
+        let mut inner = self.inner.lock().expect("poisoned mempool");
+
+        // Recheck dedup / capacity after the lock-free window.
+        if inner.seen.contains_key(&tx_hash) {
+            return Err(MempoolInsertError::AlreadyCommitted);
+        }
+        if inner.pool.contains_key(&tx_hash) {
+            return Err(MempoolInsertError::Duplicate);
+        }
+        if inner.pool.len() >= self.capacity {
+            return Err(MempoolInsertError::PoolFull);
+        }
 
         let pool_len_after = inner.pool.len() + 1;
         inner.pool.insert(tx_hash, tx);
