@@ -188,6 +188,8 @@ pub struct BatchCommitment {
     /// if 2 - then valid in child and grandchild blocks
     /// ... etc.
     pub expiry: u8,
+    /// Does the batch have aggregated public key in validators commitment.
+    pub has_aggregated_public_key: bool,
 
     pub chain_commitment: Option<ChainCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
@@ -203,6 +205,7 @@ impl ToDigest for BatchCommitment {
             timestamp,
             previous_batch,
             expiry,
+            has_aggregated_public_key,
             chain_commitment,
             code_commitments,
             validators_commitment,
@@ -213,6 +216,7 @@ impl ToDigest for BatchCommitment {
         hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
         hasher.update(previous_batch);
         hasher.update(expiry.to_be_bytes());
+        hasher.update([*has_aggregated_public_key as u8]);
         hasher.update(chain_commitment.to_digest());
         hasher.update(code_commitments.to_digest());
         hasher.update(rewards_commitment.to_digest());

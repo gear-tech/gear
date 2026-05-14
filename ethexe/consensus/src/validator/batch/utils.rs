@@ -101,6 +101,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + Annou
         timestamp: block.header.timestamp,
         previous_batch,
         expiry,
+        has_aggregated_public_key: false,
         chain_commitment,
         code_commitments,
         validators_commitment,

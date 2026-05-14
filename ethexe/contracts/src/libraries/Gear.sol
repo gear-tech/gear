@@ -226,6 +226,13 @@ library Gear {
          *      ... etc.
          */
         uint8 expiry;
+
+        /**
+         *  @dev Whether aggregated public key is available or not.
+         *
+         */
+        bool hasAggregatedPublicKey;
+
         /**
          * @dev Chain commitment (contains one or zero commitments)
          */
@@ -738,8 +745,7 @@ library Gear {
         bytes32 _dataHash,
         SignatureType _signatureType,
         bytes[] calldata _signatures,
-        uint256 ts,
-        bool _hasAggregatedPublicKey
+        uint256 ts
     ) internal returns (bool) {
         // forge-lint: disable-start(block-timestamp)
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
@@ -765,12 +771,10 @@ library Gear {
 
         if (_signatureType == SignatureType.FROST) {
             require(_signatures.length == 1, InvalidFrostSignatureCount());
-            if (_hasAggregatedPublicKey) {
-                require(
-                    validators.aggregatedPublicKey.x != 0 || validators.aggregatedPublicKey.y != 0,
-                    IRouter.InvalidFROSTAggregatedPublicKey()
-                );
-            }
+            require(
+                validators.aggregatedPublicKey.x != 0 || validators.aggregatedPublicKey.y != 0,
+                IRouter.InvalidFROSTAggregatedPublicKey()
+            );
 
             bytes memory _signature = _signatures[0];
             require(_signature.length == 96, InvalidFrostSignatureLength());

@@ -294,7 +294,7 @@ contract Router is
      */
     function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory) {
         address _pointer = Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer;
-        return _pointer == address(0) ? bytes("") : SSTORE2.read(_pointer);
+        return SSTORE2.read(_pointer);
     }
 
     /**
@@ -813,7 +813,6 @@ contract Router is
      * @param _signatures The signatures for the batch commitment.
      */
     function commitBatch(
-        bool _hasAggregatedPublicKey,
         Gear.BatchCommitment calldata _batch,
         Gear.SignatureType _signatureType,
         bytes[] calldata _signatures
@@ -840,7 +839,7 @@ contract Router is
         bytes32 _chainCommitmentHash = _commitChain(router, _batch);
         bytes32 _codeCommitmentsHash = _commitCodes(router, _batch);
         bytes32 _rewardsCommitmentHash = _commitRewards(router, _batch);
-        bytes32 _validatorsCommitmentHash = _commitValidators(router, _hasAggregatedPublicKey, _batch);
+        bytes32 _validatorsCommitmentHash = _commitValidators(router, _batch);
 
         bytes32 _batchHash = Gear.batchCommitmentHash(
             _batch.blockHash,
@@ -860,13 +859,7 @@ contract Router is
 
         require(
             Gear.validateSignaturesAt(
-                router,
-                TRANSIENT_STORAGE,
-                _batchHash,
-                _signatureType,
-                _signatures,
-                _batch.blockTimestamp,
-                _hasAggregatedPublicKey
+                router, TRANSIENT_STORAGE, _batchHash, _signatureType, _signatures, _batch.blockTimestamp
             ),
             SignatureVerificationFailed()
         );
@@ -988,11 +981,7 @@ contract Router is
     /**
      * @dev Set validators for the next era.
      */
-    function _commitValidators(
-        Storage storage router,
-        bool _hasAggregatedPublicKey,
-        Gear.BatchCommitment calldata _batch
-    ) private returns (bytes32) {
+    function _commitValidators(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
         require(_batch.validatorsCommitment.length <= 1, TooManyValidatorsCommitments());
 
         if (_batch.validatorsCommitment.length == 0) {
@@ -1021,7 +1010,7 @@ contract Router is
 
         _resetValidators(
             _validators,
-            _hasAggregatedPublicKey,
+            _batch.hasAggregatedPublicKey,
             _commitment.aggregatedPublicKey,
             _commitment.verifiableSecretSharingCommitment,
             _commitment.validators,

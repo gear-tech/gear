@@ -181,7 +181,7 @@ contract Base is POCBaseTest {
         if (revertExpected) {
             vm.expectRevert();
         }
-        router.commitBatch(false, _batch, Gear.SignatureType.FROST, signHash(_privateKeys, batchCommitmentHash(_batch)));
+        router.commitBatch(_batch, Gear.SignatureType.FROST, signHash(_privateKeys, batchCommitmentHash(_batch)));
     }
 
     function commitBlock(uint256[] memory _privateKeys, Gear.StateTransition[] memory _transactions) internal {
@@ -211,6 +211,7 @@ contract Base is POCBaseTest {
             blockTimestamp: _timestamp,
             previousCommittedBatchHash: router.latestCommittedBatchHash(),
             expiry: 3,
+            hasAggregatedPublicKey: false,
             chainCommitment: _chainCommitments,
             codeCommitments: new Gear.CodeCommitment[](0),
             rewardsCommitment: new Gear.RewardsCommitment[](0),
@@ -229,6 +230,7 @@ contract Base is POCBaseTest {
             blockTimestamp: uint48(vm.getBlockTimestamp()),
             previousCommittedBatchHash: router.latestCommittedBatchHash(),
             expiry: 3,
+            hasAggregatedPublicKey: false,
             chainCommitment: new Gear.ChainCommitment[](0),
             codeCommitments: _codeCommitments,
             rewardsCommitment: new Gear.RewardsCommitment[](0),
@@ -253,6 +255,7 @@ contract Base is POCBaseTest {
             blockTimestamp: uint48(vm.getBlockTimestamp()),
             previousCommittedBatchHash: router.latestCommittedBatchHash(),
             expiry: 3,
+            hasAggregatedPublicKey: _commitment.aggregatedPublicKey.x != 0 || _commitment.aggregatedPublicKey.y != 0,
             chainCommitment: new Gear.ChainCommitment[](0),
             codeCommitments: new Gear.CodeCommitment[](0),
             rewardsCommitment: new Gear.RewardsCommitment[](0),
@@ -261,16 +264,10 @@ contract Base is POCBaseTest {
 
         rollBlocks(1);
 
-        bool hasAggregatedPublicKey = _commitment.aggregatedPublicKey.x != 0 || _commitment.aggregatedPublicKey.y != 0;
         if (revertExpected) {
             vm.expectRevert();
         }
-        router.commitBatch(
-            hasAggregatedPublicKey,
-            _batch,
-            Gear.SignatureType.FROST,
-            signHash(_privateKeys, batchCommitmentHash(_batch))
-        );
+        router.commitBatch(_batch, Gear.SignatureType.FROST, signHash(_privateKeys, batchCommitmentHash(_batch)));
     }
 
     function batchCommitmentHash(Gear.BatchCommitment memory _batch) internal pure returns (bytes32) {

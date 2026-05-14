@@ -491,7 +491,6 @@ impl Router {
         signatures: Vec<ContractSignature>,
     ) -> Result<PendingTransactionBuilder<AlloyEthereum>> {
         let builder = self.instance.commitBatch(
-            false,
             commitment.clone().into(),
             SignatureType::ECDSA as u8,
             signatures
