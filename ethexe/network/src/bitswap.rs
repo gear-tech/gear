@@ -222,7 +222,10 @@ impl blockstore::Blockstore for Blockstore {
                 ))),
             }
         })
-        .map(|res| res.expect("database panicked"))
+        .map(|res| {
+            res.map_err(|err| blockstore::Error::FatalDatabaseError(err.to_string()))
+                .flatten()
+        })
     }
 
     async fn put_keyed<const S: usize>(
@@ -428,7 +431,59 @@ mod tests {
     use crate::utils::tests::arb_value;
     use assert_matches::assert_matches;
     use blockstore::Blockstore as _;
-    use ethexe_common::db::AnnounceStorageRW;
+    use ethexe_common::{
+        ProgramStates, Schedule,
+        db::{AnnounceMeta, AnnounceStorageRW},
+        gear::StateTransition,
+    };
+    use std::collections::BTreeSet;
+
+    #[derive(Clone)]
+    struct PanickingDatabase;
+
+    impl HashStorageRO for PanickingDatabase {
+        fn read_by_hash(&self, _hash: H256) -> Option<Vec<u8>> {
+            panic!("database read panic");
+        }
+    }
+
+    impl AnnounceStorageRO for PanickingDatabase {
+        fn announce(&self, _hash: HashOf<Announce>) -> Option<Announce> {
+            panic!("database announce panic");
+        }
+
+        fn announce_program_states(
+            &self,
+            _announce_hash: HashOf<Announce>,
+        ) -> Option<ProgramStates> {
+            unreachable!("not used in this test")
+        }
+
+        fn announce_outcome(
+            &self,
+            _announce_hash: HashOf<Announce>,
+        ) -> Option<Vec<StateTransition>> {
+            unreachable!("not used in this test")
+        }
+
+        fn announce_schedule(&self, _announce_hash: HashOf<Announce>) -> Option<Schedule> {
+            unreachable!("not used in this test")
+        }
+
+        fn announce_meta(&self, _announce_hash: HashOf<Announce>) -> AnnounceMeta {
+            unreachable!("not used in this test")
+        }
+
+        fn block_announces(&self, _block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>> {
+            unreachable!("not used in this test")
+        }
+    }
+
+    impl BlockstoreDatabase for PanickingDatabase {
+        fn clone_boxed(&self) -> Box<dyn BlockstoreDatabase> {
+            Box::new(self.clone())
+        }
+    }
 
     #[test]
     fn request_converts_to_expected_cid() {
@@ -513,13 +568,31 @@ mod tests {
     #[tokio::test]
     async fn blockstore_rejects_oversized_raw_data() {
         let db = ethexe_db::Database::memory();
-        let hash = db.cas().write(&vec![0; MAX_BLOCK_SIZE as usize + 1]);
+        let hash = db
+            .cas()
+            .write(&vec![0; Blockstore::MAX_BLOCK_SIZE as usize + 1]);
         let blockstore = Blockstore { db: Box::new(db) };
         let cid = Request::Hash(hash).into_cid();
 
         let error = blockstore.get(&cid).await.unwrap_err();
 
         assert_matches!(error, blockstore::Error::ValueTooLarge);
+    }
+
+    #[tokio::test]
+    async fn blockstore_maps_database_panic_to_fatal_database_error() {
+        let blockstore = Blockstore {
+            db: Box::new(PanickingDatabase),
+        };
+        let cid = Request::Hash(H256::from([6; 32])).into_cid();
+
+        let error = blockstore.get(&cid).await.unwrap_err();
+
+        assert_matches!(
+            error,
+            blockstore::Error::FatalDatabaseError(message)
+                if message.contains("database read panic")
+        );
     }
 
     #[tokio::test]
