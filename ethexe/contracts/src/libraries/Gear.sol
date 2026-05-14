@@ -98,7 +98,7 @@ library Gear {
 
     /**
      * @dev Represents an aggregated public key.
-     *      When present, it is checked with `FROST.isValidPublicKey(x, y)` in `Router._resetValidators(...)`,
+     *      When present (`hasAggregatedPublicKey` is `true`), it is checked with `FROST.isValidPublicKey(x, y)` in `Router._resetValidators(...)`,
      *      so we can be sure that it is valid.
      */
     struct AggregatedPublicKey {
