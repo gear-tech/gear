@@ -766,10 +766,6 @@ library Gear {
 
         if (_signatureType == SignatureType.FROST) {
             require(_signatures.length == 1, InvalidFrostSignatureCount());
-            require(
-                validators.aggregatedPublicKey.x != 0 || validators.aggregatedPublicKey.y != 0,
-                IRouter.InvalidFROSTAggregatedPublicKey()
-            );
 
             bytes memory _signature = _signatures[0];
             require(_signature.length == 96, InvalidFrostSignatureLength());
