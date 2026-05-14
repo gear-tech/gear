@@ -24,14 +24,14 @@
 //! - peer management and connection caps;
 //! - Kademlia-backed validator discovery;
 //! - gossipsub topics for validator messages and public promises;
-//! - request/response database synchronization;
+//! - bitswap-backed data fetching;
 //! - private injected-transaction delivery to validators;
 //! - peer scoring and temporary peer blocking.
 //!
 //! [`NetworkService`] is the main integration point used by higher-level
 //! services. It owns the swarm, emits validated [`NetworkEvent`] items, and
-//! hands out protocol-specific handles such as [`db_sync::Handle`] for
-//! database synchronization and a peer-scoring handle for internal use.
+//! hands out protocol-specific handles such as the bitswap handle for data
+//! fetching and a peer-scoring handle for internal use.
 
 mod bitswap;
 mod gossipsub;
@@ -195,7 +195,7 @@ pub struct NetworkRuntimeConfig {
     pub general_signer: Signer,
     /// Signer used only to construct the libp2p networking keypair.
     pub network_signer: Signer,
-    /// Database backing validator discovery and db-sync responses.
+    /// Database backing validator discovery and bitswap responses.
     pub db: Database,
 }
 
