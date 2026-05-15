@@ -112,6 +112,9 @@ impl Backend {
         config
             .strategy(wasmtime::Strategy::Winch)
             .cache(Some(cache))
+            // Gear lazy-pages chains Unix signal handlers. Disable Wasmtime's
+            // macOS Mach-port trap handler so sandbox traps stay delegatable
+            // through the signal-handler chain.
             .macos_use_mach_ports(false);
         let engine = Engine::new(&config).expect("invalid engine configuration");
         let store = Store::new(&engine, None);

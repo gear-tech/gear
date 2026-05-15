@@ -443,10 +443,15 @@ pub fn init_with_handler<H: UserSignalHandler, S: LazyPagesStorage + 'static>(
             })
     });
 
-    // TODO: remove after usage of `wasmtime::Store::set_trap_handler` for lazy-pages
-    // we capture executor signal handler first to call it later
-    // if our handler is not effective
-    let _engine = wasmtime::Engine::new(wasmtime::Config::new().macos_use_mach_ports(false));
+    // TODO: remove after usage of `wasmtime::Store::set_trap_handler` for lazy-pages.
+    let _engine = wasmtime::Engine::new(
+        wasmtime::Config::new()
+            // Wasmtime can use either Mach ports or Unix signal handlers on macOS.
+            // Lazy-pages chains Unix handlers through `sigaction`, so initialize
+            // Wasmtime in Unix-signal mode. Then faults outside lazy-pages can
+            // still be delegated back to Wasmtime.
+            .macos_use_mach_ports(false),
+    );
 
     unsafe { init_for_process::<H>()? }
 

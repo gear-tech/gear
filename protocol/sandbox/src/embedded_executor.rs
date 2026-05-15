@@ -73,6 +73,9 @@ impl<T: Send + 'static> SandboxStore for Store<T> {
             .async_stack_size(16 * 1024 * 1024)
             .strategy(wasmtime::Strategy::Winch)
             .cache(Some(cache))
+            // Keep sandbox traps on Unix signals on macOS: Gear lazy-pages
+            // installs and chains SIGSEGV handlers, which cannot delegate to
+            // Wasmtime's Mach-port trap handler.
             .macos_use_mach_ports(false);
         let engine = Engine::new(&config).expect("invalid engine configuration");
         let store = wasmtime::Store::new(&engine, InnerState::new(state));

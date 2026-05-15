@@ -56,6 +56,9 @@ fn main() -> wasmtime::Result<()> {
     let mut config = wasmtime::Config::default();
     config
         .strategy(wasmtime::Strategy::Winch)
+        // Match Gear's Wasmtime runtime configuration on macOS: use Unix
+        // signal handlers so traps follow the same path as lazy-pages-aware
+        // execution instead of Wasmtime's Mach-port handler.
         .macos_use_mach_ports(false);
     let engine = Engine::new(&config).context("invalid engine configuration")?;
     let mut store = Store::new(&engine, ());

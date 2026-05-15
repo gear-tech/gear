@@ -73,6 +73,8 @@ impl Runner for WasmtimeRunner {
         config
             .strategy(Strategy::Winch)
             .cache(Some(cache))
+            // The fuzzer exercises lazy-pages signal handling, so Wasmtime
+            // must use Unix signal handlers on macOS instead of Mach ports.
             .macos_use_mach_ports(false);
         let engine = Engine::new(&config)
             .map_err(anyhow::Error::from)
