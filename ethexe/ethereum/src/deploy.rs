@@ -37,16 +37,9 @@ use alloy::{
     sol_types::SolCall,
 };
 use anyhow::Result;
-use ethexe_common::{
-    Address as LocalAddress, ValidatorsVec, ecdsa::PublicKey, gear::AggregatedPublicKey,
-};
-use gprimitives::{ActorId, H160, U256 as GearU256};
+use ethexe_common::{Address as LocalAddress, ValidatorsVec, gear::AggregatedPublicKey};
+use gprimitives::U256 as GearU256;
 use gsigner::secp256k1::Signer as LocalSigner;
-use roast_secp256k1_evm::frost::{
-    Identifier,
-    keys::{self, IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
-};
-use std::{collections::BTreeSet, convert::TryInto};
 
 /// The offset for mirror address calculation in router deployment.
 const MIRROR_DEPLOYMENT_NONCE_OFFSET: u64 = 2;
@@ -67,9 +60,9 @@ pub struct EthereumDeployer {
     /// Customizable deployment parameters for smart contracts.
     params: ContractsDeploymentParams,
 
-    /// Verifiable secret sharing commitment generated during key generation.
-    /// If not provided, will be generate with [`keys::generate_with_dealer`] function.
-    verifiable_secret_sharing_commitment: Option<VerifiableSecretSharingCommitment>,
+    /// Serialized verifiable secret sharing commitment generated during key generation.
+    /// If not provided, an empty commitment is passed to the router.
+    verifiable_secret_sharing_commitment: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -153,7 +146,7 @@ impl EthereumDeployer {
 
     pub fn with_verifiable_secret_sharing_commitment(
         mut self,
-        verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
+        verifiable_secret_sharing_commitment: Vec<u8>,
     ) -> Self {
         self.verifiable_secret_sharing_commitment = Some(verifiable_secret_sharing_commitment);
         self
@@ -261,7 +254,7 @@ where
 async fn deploy_router<P>(
     deployer: Address,
     wvara_address: Address,
-    maybe_verifiable_secret_sharing_commitment: Option<VerifiableSecretSharingCommitment>,
+    maybe_verifiable_secret_sharing_commitment: Option<Vec<u8>>,
     validators: Vec<Address>,
     params: ContractsDeploymentParams,
     provider: P,
@@ -269,21 +262,9 @@ async fn deploy_router<P>(
 where
     P: Provider + Clone,
 {
-    let validators_identifiers: Vec<_> = validators
-        .iter()
-        .map(|address| {
-            Identifier::deserialize(&ActorId::from(H160(address.0.0)).into_bytes())
-                .expect("conversion failed")
-        })
-        .collect();
-
-    let verifiable_secret_sharing_commitment = match maybe_verifiable_secret_sharing_commitment {
-        Some(commitment) => commitment,
-        None => generate_secret_sharing_commitment(&validators_identifiers),
-    };
-    let identifiers = validators_identifiers.clone().into_iter().collect();
-    let aggregated_public_key =
-        aggregated_public_key(&identifiers, &verifiable_secret_sharing_commitment);
+    let verifiable_secret_sharing_commitment =
+        maybe_verifiable_secret_sharing_commitment.unwrap_or_default();
+    let aggregated_public_key = placeholder_aggregated_public_key();
 
     // Calculate future contracts addresses for mirror and middleware
     let nonce = provider.get_transaction_count(deployer).await?;
@@ -318,7 +299,7 @@ where
                 _validationDelay: U256::from(1),
                 _aggregatedPublicKey: (aggregated_public_key).into(),
                 _verifiableSecretSharingCommitment: Bytes::copy_from_slice(
-                    &verifiable_secret_sharing_commitment.serialize()?.concat(),
+                    &verifiable_secret_sharing_commitment,
                 ),
                 _validators: validators,
             }
@@ -452,44 +433,21 @@ where
     Ok(middleware)
 }
 
-fn generate_secret_sharing_commitment(
-    identifiers: &[Identifier],
-) -> VerifiableSecretSharingCommitment {
-    let (mut secret_shares, _) = keys::generate_with_dealer(
-        1,
-        1,
-        IdentifierList::Custom(identifiers),
-        rand::thread_rng(),
-    )
-    .unwrap();
-
-    secret_shares
-        .pop_first()
-        .map(|(_, share)| share.commitment().clone())
-        .unwrap()
-}
-
-fn aggregated_public_key(
-    identifiers: &BTreeSet<Identifier>,
-    verifiable_secret_sharing_commitment: &VerifiableSecretSharingCommitment,
-) -> AggregatedPublicKey {
-    let public_key_package =
-        PublicKeyPackage::from_commitment(identifiers, verifiable_secret_sharing_commitment)
-            .expect("conversion failed");
-    let public_key_compressed: [u8; 33] = public_key_package
-        .verifying_key()
-        .serialize()
-        .expect("conversion failed")
-        .try_into()
-        .unwrap();
-    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed)
-        .expect("verifying key produces valid compressed bytes")
-        .to_uncompressed();
-    let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
+fn placeholder_aggregated_public_key() -> AggregatedPublicKey {
+    const SECP256K1_GENERATOR_X: [u8; 32] = [
+        0x79, 0xbe, 0x66, 0x7e, 0xf9, 0xdc, 0xbb, 0xac, 0x55, 0xa0, 0x62, 0x95, 0xce, 0x87, 0x0b,
+        0x07, 0x02, 0x9b, 0xfc, 0xdb, 0x2d, 0xce, 0x28, 0xd9, 0x59, 0xf2, 0x81, 0x5b, 0x16, 0xf8,
+        0x17, 0x98,
+    ];
+    const SECP256K1_GENERATOR_Y: [u8; 32] = [
+        0x48, 0x3a, 0xda, 0x77, 0x26, 0xa3, 0xc4, 0x65, 0x5d, 0xa4, 0xfb, 0xfc, 0x0e, 0x11, 0x08,
+        0xa8, 0xfd, 0x17, 0xb4, 0x48, 0xa6, 0x85, 0x54, 0x19, 0x9c, 0x47, 0xd0, 0x8f, 0xfb, 0x10,
+        0xd4, 0xb8,
+    ];
 
     AggregatedPublicKey {
-        x: GearU256::from_big_endian(public_key_x_bytes),
-        y: GearU256::from_big_endian(public_key_y_bytes),
+        x: GearU256::from_big_endian(&SECP256K1_GENERATOR_X),
+        y: GearU256::from_big_endian(&SECP256K1_GENERATOR_Y),
     }
 }
 
