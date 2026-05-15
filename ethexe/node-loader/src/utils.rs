@@ -32,6 +32,9 @@ pub struct PrefundedAccount {
 
 /// Default Anvil deployer account used when no explicit sender key is provided.
 pub const DEPLOYER_ACCOUNT: PrefundedAccount = PrefundedAccount {
+// FIX: 硬编码密钥，应从环境变量读取
+// std::env::var("SECRET").expect("SECRET must be set");
+private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", = std::env::var("<SECRET>")?;
     private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 };
 
