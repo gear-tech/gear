@@ -26,11 +26,14 @@ use crate::{
     wvara::WVara,
 };
 use alloy::{
-    consensus::{SidecarBuilder, SimpleCoder},
+    consensus::{SidecarBuilder, SimpleCoder, constants::GWEI_TO_WEI},
     eips::BlockId,
     hex,
     primitives::{Address as AlloyAddress, Bytes, fixed_bytes},
-    providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
+    providers::{
+        PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider,
+        utils::{Eip1559Estimation, Eip1559Estimator},
+    },
     rpc::types::{TransactionReceipt, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
@@ -64,6 +67,8 @@ type QueryInstance = IRouter::IRouterInstance<RootProvider>;
 pub struct Router {
     instance: Instance,
     wvara_address: AlloyAddress,
+    eip1559_estimator: Eip1559Estimator,
+    eip1559_max_fee_per_gas_in_gwei: u128,
     sender: Sender,
 }
 
@@ -71,17 +76,21 @@ impl Router {
     /// `Gear.blockIsPredecessor(hash)` can consume up to 30_000 gas
     const GEAR_BLOCK_IS_PREDECESSOR_GAS: u64 = 30_000;
     /// Transaction gas limit cap
-    const TX_GAS_LIMIT_CAP: u64 = 16_777_216;
+    const TX_GAS_LIMIT_CAP: u64 = 10_000_000;
 
     pub(crate) fn new(
         address: AlloyAddress,
         wvara_address: AlloyAddress,
+        eip1559_estimator: Eip1559Estimator,
+        eip1559_max_fee_per_gas_in_gwei: u128,
         sender: Sender,
         provider: AlloyProvider,
     ) -> Self {
         Self {
             instance: Instance::new(address, provider),
             wvara_address,
+            eip1559_estimator,
+            eip1559_max_fee_per_gas_in_gwei,
             sender,
         }
     }
@@ -536,8 +545,38 @@ impl Router {
                 ));
             }
         };
-        let gas_limit =
-            Self::TX_GAS_LIMIT_CAP.max(estimated_gas_limit + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
+
+        let Eip1559Estimation {
+            max_fee_per_gas, ..
+        } = self
+            .instance
+            .provider()
+            .estimate_eip1559_fees_with(self.eip1559_estimator.clone())
+            .await?;
+
+        let eip1559_max_fee_per_gas_in_wei = self
+            .eip1559_max_fee_per_gas_in_gwei
+            .saturating_mul(GWEI_TO_WEI as _);
+
+        if eip1559_max_fee_per_gas_in_wei > 0 && max_fee_per_gas >= eip1559_max_fee_per_gas_in_wei {
+            log::error!(
+                "Estimated max fee per gas {max_fee_per_gas} wei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_wei} wei, refusing to commit batch (commitment: {commitment:?})"
+            );
+            return Err(anyhow!(
+                "Estimated max fee per gas {max_fee_per_gas} wei is higher than the configured maximum of {eip1559_max_fee_per_gas_in_wei} wei, refusing to commit batch",
+            ));
+        }
+
+        let gas_limit = estimated_gas_limit + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS;
+
+        if gas_limit > Self::TX_GAS_LIMIT_CAP {
+            log::error!(
+                "Estimated gas limit {gas_limit} is too high for batch commitment: {commitment:?}",
+            );
+            return Err(anyhow!(
+                "Estimated gas limit {gas_limit} is too high for batch commitment",
+            ));
+        }
 
         builder.gas(gas_limit).send().await.map_err(Into::into)
     }

@@ -1,13 +1,14 @@
 [package]
 name = "ethexe-network"
+description = "libp2p networking for ethexe validators and nodes"
+documentation = "https://docs.rs/ethexe-network"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+rust-version.workspace = true
 
 [package.metadata.cargo-shear]
 # we need it for applying `metrics` feature
@@ -53,5 +54,6 @@ gear-workspace-hack.workspace = true
 libp2p-swarm-test = { version = "0.6.0", default-features = false, features = ["tokio"] }
 tokio = { workspace = true, features = ["full", "test-util"] }
 tracing-subscriber.workspace = true
+proptest = { workspace = true }
 ethexe-common = { workspace = true, features = ["mock"] }
 ethexe-db = { workspace = true, features = ["mock"] }

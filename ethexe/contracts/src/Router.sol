@@ -64,8 +64,8 @@ contract Router is
      * @param _eraDuration The duration of an era in seconds.
      * @param _electionDuration The duration of an election in seconds.
      * @param _validationDelay The delay before validators can start validating in seconds.
-     * @param _aggregatedPublicKey The aggregated public key of the initial validators. Will be used in future.
-     * @param _verifiableSecretSharingCommitment The verifiable secret sharing commitment of the initial validators. Will be used in future.
+     * @param _aggregatedPublicKey The optional aggregated public key of the initial validators. Will be used in future.
+     * @param _verifiableSecretSharingCommitment The optional verifiable secret sharing commitment of the initial validators. Will be used in future.
      * @param _validators The list of initial validators' addresses. Currently `Router` batch commitments uses ECDSA signatures,
      *                    so the list of validators is used for signature verification.
      */
@@ -88,6 +88,7 @@ contract Router is
         __ReentrancyGuardTransient_init();
 
         // Because of validator storages impl we have to check, that current timestamp is greater than 0.
+        // forge-lint: disable-start(block-timestamp)
         require(block.timestamp > 0, InvalidTimestamp());
         require(_electionDuration > 0, InvalidElectionDuration());
         require(_eraDuration > _electionDuration, EraDurationTooShort());
@@ -113,11 +114,13 @@ contract Router is
         // Set validators for the era 0.
         _resetValidators(
             router.validationSettings.validators0,
+            true,
             _aggregatedPublicKey,
             _verifiableSecretSharingCommitment,
             _validators,
             block.timestamp
         );
+        // forge-lint: disable-end(block-timestamp)
     }
 
     /**
@@ -616,6 +619,7 @@ contract Router is
             require(_blobHashes[i] == expectedBlobHash, InvalidBlobHash(i, _blobHashes[i], expectedBlobHash));
         }
 
+        // forge-lint: disable-next-line(block-timestamp)
         require(block.timestamp <= _deadline, ExpiredSignature(_deadline));
 
         bytes32 structHash = keccak256(
@@ -820,6 +824,7 @@ contract Router is
         // to estimate gas excluding `Gear.blockIsPredecessor()`.
         if (router.reserved == 0) {
             require(Gear.blockIsPredecessor(_batch.blockHash, _batch.expiry), PredecessorBlockNotFound());
+            // forge-lint: disable-next-line(block-timestamp)
             require(block.timestamp > _batch.blockTimestamp, BatchTimestampNotInPast());
         }
 
@@ -989,6 +994,7 @@ contract Router is
 
         require(_commitment.validators.length > 0, EmptyValidatorsList());
 
+        // forge-lint: disable-start(block-timestamp)
         uint256 currentEraIndex = (block.timestamp - router.genesisBlock.timestamp) / router.timelines.era;
 
         require(_commitment.eraIndex == currentEraIndex + 1, CommitmentEraNotNext());
@@ -999,9 +1005,11 @@ contract Router is
         // Maybe free slot for new validators:
         Gear.Validators storage _validators = Gear.previousEraValidators(router);
         require(_validators.useFromTimestamp < block.timestamp, ValidatorsAlreadyScheduled());
+        // forge-lint: disable-end(block-timestamp)
 
         _resetValidators(
             _validators,
+            _commitment.hasAggregatedPublicKey,
             _commitment.aggregatedPublicKey,
             _commitment.verifiableSecretSharingCommitment,
             _commitment.validators,
@@ -1045,22 +1053,24 @@ contract Router is
 
     function _resetValidators(
         Gear.Validators storage _validators,
+        bool _hasAggregatedPublicKey,
         Gear.AggregatedPublicKey memory _newAggregatedPublicKey,
         bytes memory _verifiableSecretSharingCommitment,
         address[] memory _newValidators,
         uint256 _useFromTimestamp
     ) private {
-        // basic checks for aggregated public key
-        // but it probably should be checked with
-        // [`frost_core::keys::PublicKeyPackage::{from_commitment, from_dkg_commitments}`]
-        // https://docs.rs/frost-core/latest/frost_core/keys/struct.PublicKeyPackage.html#method.from_dkg_commitments
-        // ideally onchain
-        require(
-            FROST.isValidPublicKey(_newAggregatedPublicKey.x, _newAggregatedPublicKey.y),
-            InvalidFROSTAggregatedPublicKey()
-        );
-        _validators.aggregatedPublicKey = _newAggregatedPublicKey;
-        _validators.verifiableSecretSharingCommitmentPointer = SSTORE2.write(_verifiableSecretSharingCommitment);
+        if (_hasAggregatedPublicKey) {
+            // Basic checks for aggregated public key, but it probably should be checked with
+            // [`frost_core::keys::PublicKeyPackage::{from_commitment, from_dkg_commitments}`]
+            // https://docs.rs/frost-core/latest/frost_core/keys/struct.PublicKeyPackage.html#method.from_dkg_commitments
+            // ideally onchain.
+            require(
+                FROST.isValidPublicKey(_newAggregatedPublicKey.x, _newAggregatedPublicKey.y),
+                InvalidFROSTAggregatedPublicKey()
+            );
+            _validators.aggregatedPublicKey = _newAggregatedPublicKey;
+            _validators.verifiableSecretSharingCommitmentPointer = SSTORE2.write(_verifiableSecretSharingCommitment);
+        }
         for (uint256 i = 0; i < _validators.list.length; i++) {
             address _validator = _validators.list[i];
             _validators.map[_validator] = false;

@@ -98,12 +98,12 @@ jobs:
         fi
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v4
 
     - name: Terraform Apply
       timeout-minutes: 30
       run: |
-        cd terraform/bench-runner
+        cd .github/terraform/bench-runner
         terraform init
         terraform apply -auto-approve -var="aws_region=${{ env.AVAILABLE_REGION }}" -var="instance_type=${{ inputs.instance_type }}" -var="max_cpu_frequency=${{ inputs.instance_max_cpu_frequency }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
 
@@ -157,7 +157,7 @@ jobs:
         id: upload-errors
         # This step will only run if the run-bench step failed
         if: ${{ failure() && steps.run-bench.conclusion == 'failure' }}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: benchmarking-errors
           path: scripts/benchmarking/benchmarking_errors.txt
@@ -177,7 +177,7 @@ jobs:
         # This step will run if benchmarking finished with no errors (upload-errors step was skipped),
         # This runs even if baremetal patching was failed - in that case, make sure to handle it.
         if: ${{ !cancelled() && steps.upload-errors.conclusion == 'skipped'}}
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: weights-output
           path: scripts/benchmarking/weights-output
@@ -207,12 +207,15 @@ jobs:
           commit-message: update weights
           branch: weights/patch
           branch-suffix: short-commit-hash
-          title: "chore(runtime): update weights"
+          title: "chore(vara): update weights"
           body: |
             `run_all_benchmarks.sh` script is applied to update weights (branch: `${{ github.ref_name }}`, commit ${{ github.sha }})
 
             **Note:** If CI fails, try manually updating the heuristic tests: `runtime/vara/src/tests/mod.rs`
-          labels: A0-pleasereview
+          labels: |
+            type: chore
+            scope: vara
+            ai-friendly
 
   destroy-runner:
     if: always()
@@ -232,12 +235,12 @@ jobs:
         sparse-checkout: terraform
 
     - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
+      uses: hashicorp/setup-terraform@v4
 
     - name: Terraform Destroy
       timeout-minutes: 60
       run: |
-        cd terraform/bench-runner
+        cd .github/terraform/bench-runner
         terraform init
         terraform destroy -auto-approve -var="aws_region=${{ needs.provision-runner.outputs.available_region }}" -var="instance_type=${{ inputs.instance_type }}" -var="max_cpu_frequency=${{ inputs.instance_max_cpu_frequency }}" -var="instance_disk_size=${{ inputs.instance_disk_size }}" -var="registration_token=${{ env.REGISTER_TOKEN }}" -var="github_run_id=${{ github.run_id }}"
 

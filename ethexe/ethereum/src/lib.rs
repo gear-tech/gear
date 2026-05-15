@@ -89,6 +89,7 @@ pub struct EthereumBuilder {
     signer: Option<Signer>,
     sender_address: Option<Address>,
     eip1559_fee_increase_percentage: Option<u64>,
+    eip1559_max_fee_per_gas_in_gwei: Option<u128>,
     blob_gas_multiplier: Option<u128>,
     initialize_addresses: Option<bool>,
 }
@@ -144,6 +145,16 @@ impl EthereumBuilder {
         self.eip1559_fee_increase_percentage(Ethereum::INCREASED_EIP1559_FEE_INCREASE_PERCENTAGE)
     }
 
+    /// Sets the EIP-1559 max fee per gas in gwei to use for transaction fee estimation
+    /// (for batch commitments).
+    pub fn eip1559_max_fee_per_gas_in_gwei(
+        mut self,
+        eip1559_max_fee_per_gas_in_gwei: u128,
+    ) -> Self {
+        self.eip1559_max_fee_per_gas_in_gwei = Some(eip1559_max_fee_per_gas_in_gwei);
+        self
+    }
+
     /// Sets the blob gas multiplier to use for transaction fee estimation.
     pub fn blob_gas_multiplier_opt(mut self, blob_gas_multiplier: Option<u128>) -> Self {
         self.blob_gas_multiplier = blob_gas_multiplier;
@@ -188,6 +199,9 @@ impl EthereumBuilder {
         let eip1559_fee_increase_percentage = self
             .eip1559_fee_increase_percentage
             .unwrap_or(Ethereum::NO_EIP1559_FEE_INCREASE_PERCENTAGE);
+        let eip1559_max_fee_per_gas_in_gwei = self
+            .eip1559_max_fee_per_gas_in_gwei
+            .unwrap_or(Ethereum::NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI);
         let blob_gas_multiplier = self
             .blob_gas_multiplier
             .unwrap_or(Ethereum::NO_BLOB_GAS_MULTIPLIER);
@@ -199,6 +213,7 @@ impl EthereumBuilder {
             signer,
             sender_address,
             eip1559_fee_increase_percentage,
+            eip1559_max_fee_per_gas_in_gwei,
             blob_gas_multiplier,
             initialize_addresses,
         )
@@ -224,6 +239,8 @@ pub struct Ethereum {
     provider: AlloyProvider,
     signer: Signer,
     sender_address: Address,
+    eip1559_estimator: Eip1559Estimator,
+    eip1559_max_fee_per_gas_in_gwei: u128,
 }
 
 impl Ethereum {
@@ -235,6 +252,8 @@ impl Ethereum {
 
     /// Default EIP-1559 fee increase percentage for transaction fee estimation.
     pub const NO_EIP1559_FEE_INCREASE_PERCENTAGE: u64 = 0;
+    /// Default EIP-1559 max fee per gas in gwei for transaction fee estimation (for batch commitments).
+    pub const NO_EIP1559_MAX_FEE_PER_GAS_IN_GWEI: u128 = 0;
     /// EIP-1559 fee increase percentage for transaction fee estimation that increases the estimated fee
     /// by 15% compared to "medium" estimation.
     ///
@@ -249,18 +268,20 @@ impl Ethereum {
     pub const INCREASED_BLOB_GAS_MULTIPLIER: u128 = 3;
 
     /// Default offset for permit deadline from the current block timestamp.
-    pub const PERMIT_DEADLINE_OFFSET: u64 = 120; // 2 minutes
+    pub const PERMIT_DEADLINE_OFFSET: u64 = 300; // 5 minutes
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
         ethereum_rpc_url: &str,
         router_address: Address,
         signer: Signer,
         sender_address: Address,
         eip1559_fee_increase_percentage: u64,
+        eip1559_max_fee_per_gas_in_gwei: u128,
         blob_gas_multiplier: u128,
         initialize_addresses: bool,
     ) -> Result<Ethereum> {
-        let provider = create_provider(
+        let (provider, eip1559_estimator) = create_provider(
             ethereum_rpc_url,
             signer.clone(),
             sender_address,
@@ -285,6 +306,8 @@ impl Ethereum {
             provider,
             signer,
             sender_address,
+            eip1559_estimator,
+            eip1559_max_fee_per_gas_in_gwei,
         })
     }
 
@@ -402,7 +425,14 @@ impl Ethereum {
     }
 
     pub fn router(&self) -> Router {
-        Router::new(self.router, self.wvara, self.sender(), self.provider())
+        Router::new(
+            self.router,
+            self.wvara,
+            self.eip1559_estimator.clone(),
+            self.eip1559_max_fee_per_gas_in_gwei,
+            self.sender(),
+            self.provider(),
+        )
     }
 
     pub fn wrapped_vara(&self) -> WVara {
@@ -425,18 +455,22 @@ pub(crate) async fn create_provider(
     sender_address: Address,
     eip1559_fee_increase_percentage: u64,
     blob_gas_multiplier: u128,
-) -> Result<AlloyProvider> {
-    Ok(ProviderBuilder::default()
-        .with_eip1559_estimator(Eip1559Estimator::new(move |base_fee_per_gas, rewards| {
-            utils::eip1559_default_estimator(base_fee_per_gas, rewards)
-                .scaled_by_pct(eip1559_fee_increase_percentage)
-        }))
-        .with_blob_gas_estimator(BlobGasEstimator::scaled(blob_gas_multiplier))
-        .with_simple_nonce_management()
-        .fetch_chain_id()
-        .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
-        .connect(rpc_url)
-        .await?)
+) -> Result<(AlloyProvider, Eip1559Estimator)> {
+    let eip1559_estimator = Eip1559Estimator::new(move |base_fee_per_gas, rewards| {
+        utils::eip1559_default_estimator(base_fee_per_gas, rewards)
+            .scaled_by_pct(eip1559_fee_increase_percentage)
+    });
+    Ok((
+        ProviderBuilder::default()
+            .with_eip1559_estimator(eip1559_estimator.clone())
+            .with_blob_gas_estimator(BlobGasEstimator::scaled(blob_gas_multiplier))
+            .with_simple_nonce_management()
+            .fetch_chain_id()
+            .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
+            .connect(rpc_url)
+            .await?,
+        eip1559_estimator,
+    ))
 }
 
 #[derive(Debug, Clone)]

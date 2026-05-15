@@ -19,7 +19,7 @@
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
 use core::fmt;
-use ethexe_common::{HashOf, injected::Promise};
+use ethexe_common::HashOf;
 use ethexe_db::CASDatabase;
 use ethexe_runtime_common::state::{
     ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState, QueryableStorage,
@@ -30,7 +30,8 @@ use gear_lazy_pages::LazyPagesStorage;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};
 use std::{cell::RefCell, collections::BTreeMap};
-use tokio::sync::mpsc;
+
+use crate::BoundPromiseSink;
 
 const UNSET_PANIC: &str = "params should be set before query";
 const UNKNOWN_STATE: &str = "state should always be valid (must exist)";
@@ -42,7 +43,7 @@ thread_local! {
 pub struct ThreadParams {
     pub db: Box<dyn CASDatabase>,
     pub state_hash: H256,
-    pub promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+    pub promise_sink: Option<BoundPromiseSink>,
     pages_registry_cache: Option<MemoryPages>,
     pages_regions_cache: Option<BTreeMap<RegionIdx, MemoryPagesRegionInner>>,
 }
@@ -104,15 +105,11 @@ impl PageKey {
     }
 }
 
-pub fn set(
-    db: Box<dyn CASDatabase>,
-    state_hash: H256,
-    promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
-) {
+pub fn set(db: Box<dyn CASDatabase>, state_hash: H256, promise_sink: Option<BoundPromiseSink>) {
     PARAMS.set(Some(ThreadParams {
         db,
         state_hash,
-        promise_out_tx,
+        promise_sink,
         pages_registry_cache: None,
         pages_regions_cache: None,
     }))
@@ -144,10 +141,10 @@ pub fn with_params<T>(f: impl FnOnce(&mut ThreadParams) -> T) -> T {
     })
 }
 
-pub fn clear_promise_out_tx() {
+pub fn clear_promise_sink() {
     PARAMS.with_borrow_mut(|maybe_params| {
         let params = maybe_params.as_mut().expect(UNSET_PANIC);
-        let _ = params.promise_out_tx.take();
+        let _ = params.promise_sink.take();
     })
 }
 

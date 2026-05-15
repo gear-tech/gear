@@ -136,7 +136,6 @@ impl Stream for ObserverService {
             let Some(header) = res else {
                 log::warn!("Alloy headers stream ended. Creating a new one...");
 
-                // TODO #4568: test creating a new subscription in case when Receiver becomes invalid
                 let provider = self.provider().clone();
                 let _fut = provider.get_block_by_number(alloy::eips::BlockNumberOrTag::Earliest);
                 self.subscription_future = Some(provider.subscribe_blocks().into_future());

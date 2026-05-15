@@ -1,0 +1,26 @@
+name: Test
+description: Add or improve test coverage
+labels: ["type: test"]
+
+body:
+  - type: textarea
+    id: coverage
+    attributes:
+      label: What needs to be tested?
+      placeholder: Describe the behavior or component that lacks test coverage
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Test scenario
+      placeholder: Describe the test cases and approach (unit, integration, manual, etc.)
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Related code or issue
+      placeholder: Optional (links to code, related bugs, or PRs)

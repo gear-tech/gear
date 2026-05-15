@@ -279,10 +279,12 @@ impl TxCommand {
                     .and_then(|p| p.eip1559_fee_increase_percentage)
             });
 
-        self.blob_gas_multiplier = self
-            .blob_gas_multiplier
-            .take()
-            .or_else(|| params.ethereum.as_ref().and_then(|p| p.blob_gas_multiplier));
+        self.blob_gas_multiplier = self.blob_gas_multiplier.take().or_else(|| {
+            params
+                .ethereum
+                .as_ref()
+                .and_then(|p| p.blob_gas_multiplier.map(|v| v as u128))
+        });
 
         self
     }

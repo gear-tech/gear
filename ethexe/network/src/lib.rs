@@ -59,7 +59,7 @@ use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     db::ConfigStorageRO,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedPromise},
+    injected::{AddressedInjectedTransaction, SignedCompactPromise},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -110,7 +110,7 @@ pub enum NetworkEvent {
     /// A validator-signed message from the validator gossipsub topic.
     ValidatorMessage(VerifiedValidatorMessage),
     /// A public promise observed on the promise gossipsub topic.
-    PromiseMessage(SignedPromise),
+    PromiseMessage(SignedCompactPromise),
     /// Validator discovery learned or refreshed the network identity of the
     /// given validator address.
     ValidatorIdentityUpdated(Address),
@@ -562,10 +562,10 @@ impl NetworkService {
                             .verify_validator_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Promise(promise) => {
+                    gossipsub::Message::Promise(compact_promise) => {
                         // FIXME: previous era validators are ignored
                         let (acceptance, promise) =
-                            self.validator_topic.verify_promise(source, promise);
+                            self.validator_topic.verify_promise(source, compact_promise);
                         (acceptance, promise.map(NetworkEvent::PromiseMessage))
                     }
                 })
@@ -668,8 +668,11 @@ impl NetworkService {
     }
 
     /// Publish a signed promise to the public promise gossipsub topic.
-    pub fn publish_promise(&mut self, promise: SignedPromise) {
-        self.swarm.behaviour_mut().gossipsub.publish(promise)
+    pub fn publish_promise(&mut self, compact_promise: SignedCompactPromise) {
+        self.swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(compact_promise)
     }
 }
 
@@ -845,11 +848,11 @@ mod tests {
     use super::*;
     use crate::{
         db_sync::{ExternalDataProvider, tests::fill_data_provider},
-        utils::tests::init_logger,
+        utils::tests::{arb_value, init_logger},
     };
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState, mock::*};
+    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState};
     use ethexe_db::Database;
     use gprimitives::{ActorId, CodeId, H256};
     use gsigner::secp256k1::Signer;
@@ -971,7 +974,7 @@ mod tests {
 
             db.set_config(DBConfig {
                 timelines: TIMELINES,
-                ..DBConfig::mock(())
+                ..arb_value::<DBConfig>(())
             });
 
             let key = signer.generate().unwrap();

@@ -98,7 +98,7 @@ library Gear {
 
     /**
      * @dev Represents an aggregated public key.
-     *      It checked with `FROST.isValidPublicKey(x, y)` in `Router._resetValidators(...)`,
+     *      When present (`hasAggregatedPublicKey` is `true`), it is checked with `FROST.isValidPublicKey(x, y)` in `Router._resetValidators(...)`,
      *      so we can be sure that it is valid.
      */
     struct AggregatedPublicKey {
@@ -197,6 +197,7 @@ library Gear {
      * @dev Represents validators commitment.
      */
     struct ValidatorsCommitment {
+        bool hasAggregatedPublicKey;
         AggregatedPublicKey aggregatedPublicKey;
         bytes verifiableSecretSharingCommitment;
         address[] validators;
@@ -575,6 +576,7 @@ library Gear {
     function validatorsCommitmentHash(Gear.ValidatorsCommitment memory commitment) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
+                commitment.hasAggregatedPublicKey,
                 commitment.aggregatedPublicKey.x,
                 commitment.aggregatedPublicKey.y,
                 commitment.validators,
@@ -740,6 +742,7 @@ library Gear {
         bytes[] calldata _signatures,
         uint256 ts
     ) internal returns (bool) {
+        // forge-lint: disable-start(block-timestamp)
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
         if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
             require(ts >= router.genesisBlock.timestamp, ValidationBeforeGenesis());
@@ -756,6 +759,7 @@ library Gear {
 
             // Validation must be done using current era validators.
         }
+        // forge-lint: disable-end(block-timestamp)
 
         Validators storage validators = validatorsAt(router, ts);
         bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);
