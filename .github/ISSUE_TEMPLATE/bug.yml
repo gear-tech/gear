@@ -1,0 +1,37 @@
+name: Bug report
+description: Something is broken
+labels: ["type: fix"]
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What is broken?
+      placeholder: Describe the issue clearly
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      placeholder: Optional (logs, environment, etc.)

@@ -159,7 +159,7 @@ use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent, mirror::MessageQueueingRequestedEvent},
-    injected::{InjectedTransaction, Promise},
+    injected::InjectedTransaction,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -174,10 +174,12 @@ use gear_core::{
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
-use tokio::sync::mpsc;
 
 mod handling;
 mod host;
+mod promise;
+pub use promise::BoundPromiseSink;
+
 #[cfg(test)]
 mod tests;
 mod thread_pool;
@@ -312,7 +314,7 @@ impl Processor {
     pub async fn process_programs(
         &mut self,
         executable: ExecutableData,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!("{executable}");
 
@@ -338,7 +340,7 @@ impl Processor {
         // Third step: process queues until limits are exhausted or all queues are empty.
         if let Some(gas_allowance) = gas_allowance {
             transitions = self
-                .process_queues(transitions, block, gas_allowance, promise_out_tx)
+                .process_queues(transitions, block, gas_allowance, promise_sink)
                 .await?;
         }
 
@@ -378,7 +380,7 @@ impl Processor {
         transitions: InBlockTransitions,
         block: SimpleBlockData,
         gas_allowance: u64,
-        promise_out_tx: Option<mpsc::UnboundedSender<Promise>>,
+        promise_sink: Option<BoundPromiseSink>,
     ) -> Result<InBlockTransitions> {
         CommonRunContext::new(
             self.db.clone(),
@@ -387,7 +389,7 @@ impl Processor {
             gas_allowance,
             self.config.chunk_size,
             block.header,
-            promise_out_tx,
+            promise_sink,
         )
         .run()
         .await

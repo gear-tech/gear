@@ -1,5 +1,5 @@
 {
-  pins ? import ./npins,
+  pins ? import ./.github/npins,
   pkgs ? import pins.nixpkgs { },
   lib ? pkgs.lib,
 

@@ -1,11 +1,14 @@
 [package]
 name = "ethexe-ethereum"
+description = "Ethereum contract bindings and transaction helpers for ethexe"
+documentation = "https://docs.rs/ethexe-ethereum"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
@@ -31,7 +34,6 @@ futures.workspace = true
 log.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["process"] }
-roast-secp256k1-evm.workspace = true
 serde.workspace = true
 nonempty.workspace = true
 rand.workspace = true

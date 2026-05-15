@@ -58,7 +58,7 @@ use apis::{
     ProgramApi, ProgramServer,
 };
 use ethexe_common::injected::{
-    AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
+    AddressedInjectedTransaction, InjectedTransactionAcceptance, Promise, SignedCompactPromise,
 };
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -66,8 +66,9 @@ use futures::{Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{
     RpcModule as JsonrpcModule,
-    server::{PingConfig, Server, ServerHandle},
+    server::{PingConfig, RpcServiceBuilder, Server, ServerHandle},
 };
+use metrics::RpcMetricsLayer;
 use std::{
     net::SocketAddr,
     pin::Pin,
@@ -129,14 +130,8 @@ impl RpcServer {
 
         let cors_layer = self.cors_layer()?;
         let http_middleware = tower::ServiceBuilder::new().layer(cors_layer);
-
-        let server = Server::builder()
-            .set_http_middleware(http_middleware)
-            // Setup WebSocket pings to detect dead connections.
-            // Now it is set to default: ping_interval = 30s, inactive_limit = 40s
-            .enable_ws_ping(PingConfig::default())
-            .build(self.config.listen_addr)
-            .await?;
+        // Setup the default RPC metrics layer.
+        let rpc_middleware = RpcServiceBuilder::new().layer(RpcMetricsLayer);
 
         let processor = Processor::with_config(
             ProcessorConfig {
@@ -158,9 +153,17 @@ impl RpcServer {
         };
         let injected_api = server_apis.injected.clone();
 
-        let handle = server.start(server_apis.into_methods());
+        let server_handle = Server::builder()
+            .set_http_middleware(http_middleware)
+            .set_rpc_middleware(rpc_middleware)
+            // Setup WebSocket pings to detect dead connections.
+            // Now it is set to default: ping_interval = 30s, inactive_limit = 40s
+            .enable_ws_ping(PingConfig::default())
+            .build(self.config.listen_addr)
+            .await?
+            .start(server_apis.into_module());
 
-        Ok((handle, RpcService::new(rpc_receiver, injected_api)))
+        Ok((server_handle, RpcService::new(rpc_receiver, injected_api)))
     }
 
     fn cors_layer(&self) -> Result<CorsLayer> {
@@ -192,16 +195,12 @@ impl RpcService {
         }
     }
 
-    /// Provides a promise inside RPC service to be sent to subscribers.
-    pub fn provide_promise(&self, promise: SignedPromise) {
-        self.injected_api.send_promise(promise);
+    pub fn receive_computed_promise(&self, promise: Promise) {
+        self.injected_api.on_computed_promise(promise);
     }
 
-    /// Provides a bundle of promises inside RPC service to be sent to subscribers.
-    pub fn provide_promises(&self, promises: Vec<SignedPromise>) {
-        promises.into_iter().for_each(|promise| {
-            self.provide_promise(promise);
-        });
+    pub fn receive_compact_promise(&self, compact_promise: SignedCompactPromise) {
+        self.injected_api.on_compact_promise(compact_promise);
     }
 }
 
@@ -228,7 +227,7 @@ struct RpcServerApis {
 }
 
 impl RpcServerApis {
-    pub fn into_methods(self) -> jsonrpsee::server::RpcModule<()> {
+    pub fn into_module(self) -> jsonrpsee::server::RpcModule<()> {
         let mut module = JsonrpcModule::new(());
 
         module

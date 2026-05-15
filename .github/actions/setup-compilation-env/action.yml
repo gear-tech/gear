@@ -20,38 +20,44 @@ runs:
 
     - name: "Install: macOS aarch64 packages"
       if: runner.os == 'macOS'
-      run: brew install protobuf binaryen
-      shell: bash
-
-    - name: "Install: apt-fast on Linux"
-      if: ${{ runner.os == 'Linux' }}
-      run: |
-        sudo add-apt-repository ppa:apt-fast/stable
-        sudo apt-get update
-        sudo apt-get -y install apt-fast
-      shell: bash
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 5
+        retry_wait_seconds: 10
+        command: brew install protobuf binaryen
 
     - name: "Install: Linux packages"
       if: runner.os == 'Linux'
-      run: |
-        sudo apt-fast update
-        sudo apt-fast install -y protobuf-compiler binaryen
-      shell: bash
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 5
+        retry_wait_seconds: 10
+        command: |
+          set -e
+          sudo apt update
+          sudo apt install -y protobuf-compiler binaryen
 
     - name: "Install: LLVM on Linux"
       if: ${{ runner.os == 'Linux' }}
-      run: |
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 20
-        
-        sudo apt-fast update
-        sudo apt-fast install -y libclang-20-dev clang-tools-20
-        
-        sudo update-alternatives --install /usr/bin/clang-cl clang-cl /usr/bin/clang-cl-20 100
-        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
-        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
-      shell: bash
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 20
+        max_attempts: 5
+        retry_wait_seconds: 10
+        command: |
+          set -e
+          wget -O llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+
+          sudo apt update
+          sudo apt install -y libclang-20-dev clang-tools-20
+
+          sudo update-alternatives --install /usr/bin/clang-cl clang-cl /usr/bin/clang-cl-20 100
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
 
     - name: "Install: Linux compilers"
       if: runner.arch == 'X64' && runner.os == 'Linux'
@@ -62,47 +68,65 @@ runs:
 
     - name: "Install: Linux cross compilers and packages"
       if: runner.arch == 'ARM64' && runner.os == 'Linux' && inputs.target == 'x86_64-unknown-linux-gnu'
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 5
+        retry_wait_seconds: 10
+        command: |
+          set -e
+          sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
+          sudo dpkg --add-architecture amd64
+          sudo tee /etc/apt/sources.list.d/amd64.list >/dev/null <<EOF
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
+          deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
+          EOF
+
+          sudo apt update
+          sudo apt install -y \
+            gcc-x86-64-linux-gnu \
+            g++-x86-64-linux-gnu \
+            binutils-x86-64-linux-gnu \
+            pkg-config \
+            libssl-dev:amd64
+
+    - name: "Install: Linux cross-compiler env"
+      if: runner.arch == 'ARM64' && runner.os == 'Linux' && inputs.target == 'x86_64-unknown-linux-gnu'
       run: |
-        sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
-        sudo dpkg --add-architecture amd64
-        sudo tee /etc/apt/sources.list.d/amd64.list >/dev/null <<EOF
-        deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
-        deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
-        deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
-        deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
-        EOF
-
-        sudo apt-fast update
-        sudo apt-fast install -y \
-          gcc-x86-64-linux-gnu \
-          g++-x86-64-linux-gnu \
-          binutils-x86-64-linux-gnu \
-          pkg-config \
-          libssl-dev:amd64
-
-        echo "CC_x86_64-unknown-linux-gnu=x86_64-linux-gnu-gcc" >> $GITHUB_ENV
-        echo "CXX_x86_64-unknown-linux-gnu=x86_64-linux-gnu-g++" >> $GITHUB_ENV
+        echo "CC_x86_64_unknown_linux_gnu=x86_64-linux-gnu-gcc" >> $GITHUB_ENV
+        echo "CXX_x86_64_unknown_linux_gnu=x86_64-linux-gnu-g++" >> $GITHUB_ENV
         echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc" >> $GITHUB_ENV
 
         echo "PKG_CONFIG=/usr/bin/pkgconf" >> $GITHUB_ENV
         echo "HOST_PKG_CONFIG_PATH=/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
       shell: bash
 
-    - name: "Install: Windows packages"
+    - name: "Install: Windows packages (apt + openssl fetch)"
+      if: inputs.target == 'x86_64-pc-windows-msvc'
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 15
+        max_attempts: 5
+        retry_wait_seconds: 10
+        command: |
+          set -e
+          if ! [[ "${{ runner.os }}" == "Linux" ]]; then
+            echo "Linux runner expected for 'x86_64-pc-windows-msvc' target"
+            exit 1
+          fi
+
+          sudo apt update
+          sudo apt install -y protobuf-compiler binaryen innoextract
+
+          wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl-lts.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
+          innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
+          rm openssl_installer.exe
+
+    - name: "Install: Windows openssl env"
       if: inputs.target == 'x86_64-pc-windows-msvc'
       run: |
-        if ! [[ "${{ runner.os }}" == "Linux" ]]; then
-          echo "Linux runner expected for 'x86_64-pc-windows-msvc' target"
-          exit 1
-        fi
-
-        sudo apt-fast update
-        sudo apt-fast install -y protobuf-compiler binaryen innoextract
-
-        wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl-lts.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
-        innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
-        rm openssl_installer.exe
-        
         echo "X86_64_PC_WINDOWS_MSVC_OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
         echo "X86_64_PC_WINDOWS_MSVC_OPENSSL_INCLUDE_DIR=${{ runner.temp }}/openssl_extracted/app/include" >> $GITHUB_ENV
         echo "X86_64_PC_WINDOWS_MSVC_OPENSSL_LIB_DIR=${{ runner.temp }}/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
