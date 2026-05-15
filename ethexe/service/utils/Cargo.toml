@@ -12,6 +12,6 @@ rust-version.workspace = true
 
 [dependencies]
 log.workspace = true
-futures.workspace = true
+futures = { workspace = true, features = ["alloc"] }
 tokio = { workspace = true, features = ["time"] }
 gear-workspace-hack.workspace = true
