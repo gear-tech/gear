@@ -371,24 +371,59 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
     }
 
     async fn validate_block_above(&self, parent_hash: H256, payload: Transactions) -> Result<bool> {
-        // (1) At most one AdvanceTillEthereumBlock per MB. Zero is
-        // legal (chain still too close to genesis); two+ is a
-        // protocol violation.
-        let advances: Vec<H256> = payload
-            .iter()
-            .filter_map(|tx| match tx {
-                Transaction::AdvanceTillEthereumBlock { block_hash } => Some(*block_hash),
-                _ => None,
-            })
-            .collect();
-        if advances.len() > 1 {
+        // (1) Shape + ordering. Every honest MB has exactly the form:
+        //
+        //   [AdvanceTillEthereumBlock]?  Injected*  ProgressTasks  ProcessQueues
+        //
+        // This single walk catches: missing bookend, extra bookend,
+        // out-of-order tx, more than one Advance, and the
+        // `gas_allowance` cap. Everything else (TxValidity per injected
+        // tx, EB quarantine, touched-programs cap) runs below assuming
+        // the shape is sound.
+        let mut iter = payload.iter();
+        let mut next = iter.next();
+
+        let advance: Option<H256> =
+            if let Some(Transaction::AdvanceTillEthereumBlock { block_hash }) = next {
+                let h = *block_hash;
+                next = iter.next();
+                Some(h)
+            } else {
+                None
+            };
+
+        while let Some(Transaction::Injected(_)) = next {
+            next = iter.next();
+        }
+
+        let Some(Transaction::ProgressTasks { limits: _ }) = next else {
             warn!(
-                count = advances.len(),
-                "validate: more than one AdvanceTillEthereumBlock — rejecting"
+                "validate: MB shape violation — expected `ProgressTasks` bookend, got {:?}",
+                next.map(|t| t.tag())
+            );
+            return Ok(false);
+        };
+        // `ProgressTasksLimits` is empty today; when fields are added,
+        // bound them here.
+
+        let Some(Transaction::ProcessQueues { limits: pq_limits }) = iter.next() else {
+            warn!("validate: MB shape violation — expected `ProcessQueues` bookend");
+            return Ok(false);
+        };
+
+        if pq_limits.gas_allowance > crate::MalachiteConfig::DEFAULT_GAS_ALLOWANCE {
+            warn!(
+                allowance = pq_limits.gas_allowance,
+                cap = crate::MalachiteConfig::DEFAULT_GAS_ALLOWANCE,
+                "validate: ProcessQueues.gas_allowance exceeds protocol cap"
             );
             return Ok(false);
         }
-        let advance = advances.first().copied();
+
+        if iter.next().is_some() {
+            warn!("validate: MB has extra transactions after the `ProcessQueues` bookend");
+            return Ok(false);
+        }
 
         // (2) Quarantine + local-sync — wait briefly for the local
         // observer to catch up if the proposer raced ahead.
@@ -916,7 +951,8 @@ mod tests {
     }
 
     /// `validate_block_above` catches double-`AdvanceTillEthereumBlock`
-    /// proposals and enforces the chain-head presence requirement.
+    /// proposals. The second `Advance` lands where `Injected*` /
+    /// `ProgressTasks` would be expected, so the shape walk rejects it.
     #[tokio::test]
     async fn validate_rejects_two_advances() {
         let db = Database::memory();
@@ -928,6 +964,12 @@ mod tests {
             Transaction::AdvanceTillEthereumBlock {
                 block_hash: H256::repeat_byte(0xBB),
             },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
         ]);
         assert!(
             !ext.validate_block_above(H256::zero(), payload)
@@ -938,14 +980,22 @@ mod tests {
 
     #[tokio::test]
     async fn validate_abstains_without_chain_head() {
-        // One AdvanceTillEthereumBlock + no observer head yet — the
-        // application can't verify the candidate's quarantine status,
-        // so the vote is `Ok(false)` rather than `Err`.
+        // Full-shape MB with one AdvanceTillEthereumBlock + no observer
+        // head yet — the application can't verify the candidate's
+        // quarantine status, so the vote is `Ok(false)` rather than `Err`.
         let db = Database::memory();
         let (ext, _rx) = make_externalities(db.clone());
-        let payload = Transactions::new(vec![Transaction::AdvanceTillEthereumBlock {
-            block_hash: H256::repeat_byte(0xCC),
-        }]);
+        let payload = Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: H256::repeat_byte(0xCC),
+            },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+        ]);
         assert!(
             !ext.validate_block_above(H256::zero(), payload)
                 .await
@@ -988,9 +1038,17 @@ mod tests {
         let (ext, _rx) = make_externalities(db.clone());
         *ext.chain_head.write().unwrap() = Some(head);
 
-        let payload = Transactions::new(vec![Transaction::AdvanceTillEthereumBlock {
-            block_hash: chain_hashes[1].0,
-        }]);
+        let payload = Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: chain_hashes[1].0,
+            },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+        ]);
         assert!(
             ext.validate_block_above(H256::zero(), payload)
                 .await
@@ -1440,6 +1498,13 @@ mod tests {
                 i as u8,
             )));
         }
+        // Full shape — the shape walk must not be the reason for rejection.
+        transactions.push(Transaction::ProgressTasks {
+            limits: ProgressTasksLimits::default(),
+        });
+        transactions.push(Transaction::ProcessQueues {
+            limits: ProcessQueuesLimits::default(),
+        });
         let payload = Transactions::new(transactions);
         assert!(
             !ext.validate_block_above(parent_mb, payload).await.unwrap(),
@@ -1518,6 +1583,210 @@ mod tests {
             injected.len() < 3,
             "size cap must drop at least one tx, got {} retained",
             injected.len()
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Shape & ordering checks on `validate_block_above`.
+    //
+    // Every MB the producer emits has the strict shape
+    //   [AdvanceTillEthereumBlock]?  Injected*  ProgressTasks  ProcessQueues
+    // with `ProcessQueues.limits.gas_allowance <= DEFAULT_GAS_ALLOWANCE`.
+    // A malicious proposer must not be able to slip in a malformed MB
+    // (oversized gas, missing bookend, out-of-order tx).
+    // ------------------------------------------------------------------
+
+    /// Helper: build a tiny chain with one block past quarantine and an
+    /// `EthexeExternalities` whose chain_head points at it. Returns the
+    /// ext + the advance block hash to use for `AdvanceTillEthereumBlock`.
+    fn chain_with_one_advance(
+        db: Database,
+    ) -> (
+        EthexeExternalities,
+        mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
+        H256,
+    ) {
+        let mut parent = H256::zero();
+        let mut chain_hashes = Vec::new();
+        for i in 0..3u8 {
+            let mut hb = [0u8; 32];
+            hb[0] = 0x10 + i;
+            let hash = H256::from(hb);
+            let header = BlockHeader {
+                height: i as u32,
+                timestamp: i as u64,
+                parent_hash: parent,
+            };
+            db.set_block_header(hash, header);
+            db.set_block_events(hash, &[]);
+            db.mutate_block_meta(hash, |_| {});
+            chain_hashes.push((hash, header));
+            parent = hash;
+        }
+        let head = ethexe_common::SimpleBlockData {
+            hash: chain_hashes[2].0,
+            header: chain_hashes[2].1,
+        };
+        let advance_hash = chain_hashes[1].0;
+        let (ext, rx) = make_externalities(db);
+        *ext.chain_head.write().unwrap() = Some(head);
+        (ext, rx, advance_hash)
+    }
+
+    /// REPRODUCES: a malicious proposer can set `gas_allowance = u64::MAX`
+    /// in `ProcessQueues.limits` and force every participant to attempt
+    /// an unbounded queue drain. Validator must reject MBs whose
+    /// `gas_allowance` exceeds the protocol cap
+    /// (`MalachiteConfig::DEFAULT_GAS_ALLOWANCE`).
+    #[tokio::test]
+    async fn validate_rejects_gas_allowance_above_default() {
+        let db = Database::memory();
+        let (ext, _rx, advance) = chain_with_one_advance(db);
+        let payload = Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: advance,
+            },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits {
+                    gas_allowance: u64::MAX,
+                },
+            },
+        ]);
+        assert!(
+            !ext.validate_block_above(H256::zero(), payload)
+                .await
+                .unwrap(),
+            "MB with `gas_allowance > DEFAULT_GAS_ALLOWANCE` must be rejected"
+        );
+    }
+
+    /// REPRODUCES: MB without a `ProgressTasks` tx between injected txs
+    /// and `ProcessQueues` violates the protocol shape — scheduled
+    /// tasks would never be advanced.
+    #[tokio::test]
+    async fn validate_rejects_mb_missing_progress_tasks() {
+        let db = Database::memory();
+        let (ext, _rx, advance) = chain_with_one_advance(db);
+        let payload = Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: advance,
+            },
+            // No ProgressTasks here — straight to ProcessQueues.
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+        ]);
+        assert!(
+            !ext.validate_block_above(H256::zero(), payload)
+                .await
+                .unwrap(),
+            "MB missing `ProgressTasks` bookend must be rejected"
+        );
+    }
+
+    /// REPRODUCES: MB without a final `ProcessQueues` tx never drains
+    /// the message queues for this MB — compute pipeline would stall
+    /// on the next MB.
+    #[tokio::test]
+    async fn validate_rejects_mb_missing_process_queues() {
+        let db = Database::memory();
+        let (ext, _rx, advance) = chain_with_one_advance(db);
+        let payload = Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: advance,
+            },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            // No ProcessQueues here.
+        ]);
+        assert!(
+            !ext.validate_block_above(H256::zero(), payload)
+                .await
+                .unwrap(),
+            "MB missing `ProcessQueues` bookend must be rejected"
+        );
+    }
+
+    /// REPRODUCES: `AdvanceTillEthereumBlock` must be the very first tx
+    /// in the MB. Otherwise EB events are not the first action of the
+    /// MB and compute pipeline runs queues against stale state.
+    #[tokio::test]
+    async fn validate_rejects_advance_not_first() {
+        use ethexe_common::{
+            PrivateKey, SignedMessage,
+            injected::InjectedTransaction,
+            mock::{BlockChain, Mock},
+        };
+
+        let db = Database::memory();
+        let chain = BlockChain::mock(2u32).setup(&db);
+        let head = chain.blocks[2].to_simple();
+        let dest = gprimitives::ActorId::from([1; 32]);
+        let parent_mb = setup_mb_with_destinations(&db, chain.mb_hash_at(1), &[dest]);
+        db.globals_mutate(|g| g.latest_computed_mb_hash = parent_mb);
+
+        let (ext, _rx) = make_externalities(db.clone());
+        *ext.chain_head.write().unwrap() = Some(head);
+
+        let pk = PrivateKey::random();
+        let tx = SignedMessage::create(
+            pk.clone(),
+            InjectedTransaction {
+                destination: dest,
+                payload: vec![].try_into().unwrap(),
+                value: 0,
+                reference_block: chain.blocks[1].hash,
+                salt: vec![7; 32].try_into().unwrap(),
+            },
+        )
+        .unwrap();
+        let payload = Transactions::new(vec![
+            // Order swapped: Injected before Advance.
+            Transaction::Injected(tx),
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: chain.blocks[2].hash,
+            },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+        ]);
+        assert!(
+            !ext.validate_block_above(parent_mb, payload).await.unwrap(),
+            "MB where Advance is not the first tx must be rejected"
+        );
+    }
+
+    /// REPRODUCES: `ProcessQueues` must be the very last tx in the MB.
+    /// Otherwise later txs run *after* queues drain and the gas budget
+    /// is wrong.
+    #[tokio::test]
+    async fn validate_rejects_process_queues_not_last() {
+        let db = Database::memory();
+        let (ext, _rx, advance) = chain_with_one_advance(db);
+        let payload = Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: advance,
+            },
+            // Order swapped: ProcessQueues before ProgressTasks.
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+        ]);
+        assert!(
+            !ext.validate_block_above(H256::zero(), payload)
+                .await
+                .unwrap(),
+            "MB where `ProcessQueues` is not the last tx must be rejected"
         );
     }
 }
