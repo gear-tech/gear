@@ -224,6 +224,20 @@ where
                     } else if parts.height > state.current_height {
                         // Buffer until the engine catches up to
                         // that height.
+                        //
+                        // TODO +_+_+ : a peer can pump completed
+                        // `ProposalParts` at arbitrarily large heights
+                        // (`value_id` is content-addressed → every junk
+                        // payload is a fresh key) and the rows never get
+                        // pruned: `prune_engine_state` only sweeps
+                        // `height <= current_height`. RocksDB grows
+                        // without bound. Pinned by the (ignored) test
+                        // `store::tests::pending_proposal_parts_at_future_heights_persist_after_prune`.
+                        // Fix needs: height-window cap (refuse to persist
+                        // beyond `current_height + N`) plus per-peer rate
+                        // limit. See also the related validator-peer-id
+                        // allowlist mitigation in
+                        // `streaming.rs::PartStreamsMap` TODO.
                         let value_id = compute_value_id_from_parts(&parts);
                         state
                             .store

@@ -172,6 +172,17 @@ impl ProposalParts {
     }
 }
 
+// TODO +_+_+ : `PartStreamsMap` has no per-peer cap, no total cap, and no
+// eviction for streams that never receive a valid `Fin`. A single peer can
+// (a) open many distinct `stream_id`s and never close them, or
+// (b) send one `Fin` with `sequence = u64::MAX/2` so `total_messages` is
+// unreachable forever — either way the `(peer, stream)` slot lives until
+// process restart. Pinned by the (ignored) regression test
+// `streaming::tests::part_streams_map_grows_unbounded_under_fin_sequence_attack`.
+// Fix needs: per-peer slot cap + height/round-driven GC + bounded
+// `seen_sequences` and `buffer` per stream. Mitigation in deployment: set
+// `persistent_peers_only = true` in the inner Malachite P2pConfig +
+// add a validator peer_id allowlist on `ReceivedProposalPart` entry.
 #[derive(Default)]
 pub struct PartStreamsMap {
     streams: BTreeMap<(PeerId, StreamId), StreamState>,
@@ -307,5 +318,49 @@ mod tests {
         assert!(map.insert(p, fin_msg(s1.clone(), 2)).is_some());
         // Stream s2 still pending.
         assert!(map.insert(p, fin_msg(s2.clone(), 2)).is_none());
+    }
+
+    /// REPRODUCES: a single peer can grow `PartStreamsMap` without
+    /// bound by either (a) opening fresh `stream_id`s and never sending
+    /// `Fin`, or (b) sending a `Fin` with a `sequence` far above any
+    /// part it actually delivers so the `total_messages == buffer.len()`
+    /// gate is unreachable. Independently flagged by all three
+    /// reviewers in the 2026-05 audit.
+    ///
+    /// Ignored until the cap/GC `TODO +_+_+` on `PartStreamsMap` lands —
+    /// keep this test, remove `#[ignore]` once the fix is in place.
+    #[test]
+    #[ignore = "tracks TODO +_+_+ in streaming.rs: unbounded PartStreamsMap"]
+    fn part_streams_map_grows_unbounded_under_fin_sequence_attack() {
+        let mut map = PartStreamsMap::new();
+        let p = peer_id(1);
+
+        // Attack A: a peer opens many streams and never finalises.
+        // 100 distinct stream_ids, each with Init + Data but no Fin.
+        for stream_idx in 0..100u64 {
+            let s = sid(0xA000_0000 + stream_idx);
+            assert!(map.insert(p, msg(s.clone(), 0, init_part(1))).is_none());
+            assert!(map.insert(p, msg(s, 1, data_part(b"x"))).is_none());
+        }
+
+        // Attack B: cheaper still — one message per stream, Fin with a
+        // far-future sequence. `total_messages` becomes
+        // `u64::MAX as usize + 1` (wraps to 0 in release, panics in
+        // debug), but the `is_done` gate `buffer.len() == total_messages`
+        // is unreachable for any sane traffic. 100 more streams.
+        for stream_idx in 0..100u64 {
+            let s = sid(0xB000_0000 + stream_idx);
+            assert!(map.insert(p, fin_msg(s, u64::MAX / 2)).is_none());
+        }
+
+        // Desired behaviour: a single peer cannot hold > a bounded
+        // number of in-flight stream slots. The exact cap is up to the
+        // fix, but it must be much smaller than the 200 we just pushed.
+        assert!(
+            map.streams.len() < 200,
+            "PartStreamsMap grew to {} entries under a single-peer flood — \
+             needs per-peer cap + GC for never-finalised / bogus-Fin streams",
+            map.streams.len(),
+        );
     }
 }
