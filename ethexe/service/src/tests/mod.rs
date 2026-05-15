@@ -30,7 +30,7 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    Announce, HashOf, ScheduledTask, ToDigest,
+    Announce, HashOf, PromiseEmissionMode, ScheduledTask, ToDigest,
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -2103,8 +2103,7 @@ async fn validators_election() {
     }
 
     // Setup next validators to be elected for previous era
-    let (next_validators_configs, _commitment) =
-        TestEnv::define_session_keys(&signer, next_validators);
+    let next_validators_configs = TestEnv::define_session_keys(next_validators);
 
     let next_validators: Vec<_> = next_validators_configs
         .iter()
@@ -2199,8 +2198,12 @@ async fn validators_election() {
 async fn execution_with_canonical_events_quarantine() {
     init_logger();
 
+    let compute_config = ComputeConfig::builder()
+        .canonical_quarantine(CANONICAL_QUARANTINE)
+        .promises_mode(Default::default())
+        .build();
     let config = TestEnvConfig {
-        compute_config: ComputeConfig::new(CANONICAL_QUARANTINE),
+        compute_config,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
@@ -2645,7 +2648,6 @@ async fn injected_tx_fungible_token() {
 
     let env_config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
-        compute_config: ComputeConfig::without_quarantine(),
         ..Default::default()
     };
 
@@ -2876,7 +2878,10 @@ async fn injected_tx_fungible_token_over_network() {
 
     let env_config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
-        compute_config: ComputeConfig::without_quarantine(),
+        compute_config: ComputeConfig::builder()
+            .canonical_quarantine(Default::default())
+            .promises_mode(PromiseEmissionMode::AlwaysEmit)
+            .build(),
         ..Default::default()
     };
 

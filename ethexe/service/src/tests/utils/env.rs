@@ -36,7 +36,7 @@ use ethexe_common::{
     ValidatorsVec,
     consensus::{DEFAULT_BATCH_SIZE_LIMIT, DEFAULT_CHAIN_DEEPNESS_THRESHOLD},
     db::ConfigStorageRO,
-    ecdsa::{PrivateKey, PublicKey, SignedData},
+    ecdsa::{PublicKey, SignedData},
     events::{
         BlockEvent, MirrorEvent, RouterEvent,
         mirror::ReplyEvent,
@@ -67,11 +67,6 @@ use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use jsonrpsee::{
     http_client::HttpClient,
     ws_client::{WsClient, WsClientBuilder},
-};
-use rand::{SeedableRng, prelude::StdRng};
-use roast_secp256k1_evm::frost::{
-    Identifier, SigningKey, keys,
-    keys::{IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 use std::{
     fmt, mem,
@@ -208,8 +203,7 @@ impl TestEnv {
                 .collect(),
         };
 
-        let (validator_configs, verifiable_secret_sharing_commitment) =
-            Self::define_session_keys(&signer, validators.clone());
+        let validator_configs = Self::define_session_keys(validators.clone());
         let sender_address = wallets.next().to_address();
 
         let ethereum = if let Some(router_address) = router_address {
@@ -230,7 +224,6 @@ impl TestEnv {
                 .await
                 .unwrap()
                 .with_validators(validators_addresses.try_into().unwrap())
-                .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
                 .with_params(deploy_params)
                 .deploy()
                 .await?
@@ -683,62 +676,14 @@ impl TestEnv {
             .unwrap()
     }
 
-    pub fn define_session_keys(
-        signer: &Signer,
-        validators: Vec<PublicKey>,
-    ) -> (Vec<ValidatorConfig>, VerifiableSecretSharingCommitment) {
-        let max_signers: u16 = validators.len().try_into().expect("conversion failed");
-        let min_signers = max_signers
-            .checked_mul(2)
-            .expect("multiplication failed")
-            .div_ceil(3);
-
-        let maybe_validator_identifiers: anyhow::Result<Vec<_>, _> = validators
-            .iter()
-            .map(|public_key| {
-                Identifier::deserialize(&ActorId::from(public_key.to_address()).into_bytes())
+    pub fn define_session_keys(validators: Vec<PublicKey>) -> Vec<ValidatorConfig> {
+        validators
+            .into_iter()
+            .map(|public_key| ValidatorConfig {
+                public_key,
+                session_public_key: public_key,
             })
-            .collect();
-        let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
-        let identifiers = IdentifierList::Custom(&validator_identifiers);
-
-        let mut rng = StdRng::seed_from_u64(123);
-
-        let secret = SigningKey::deserialize(&[0x01; 32]).expect("conversion failed");
-
-        let (secret_shares, public_key_package1) =
-            keys::split(&secret, max_signers, min_signers, identifiers, &mut rng)
-                .expect("key split failed");
-
-        let verifiable_secret_sharing_commitment = secret_shares
-            .values()
-            .map(|secret_share| secret_share.commitment().clone())
-            .next()
-            .expect("conversion failed");
-
-        let identifiers = validator_identifiers.clone().into_iter().collect();
-        let public_key_package2 =
-            PublicKeyPackage::from_commitment(&identifiers, &verifiable_secret_sharing_commitment)
-                .expect("conversion failed");
-        assert_eq!(public_key_package1, public_key_package2);
-
-        (
-            validators
-                .into_iter()
-                .zip(validator_identifiers.iter())
-                .map(|(public_key, id)| {
-                    let signing_share = *secret_shares[id].signing_share();
-                    let seed: [u8; 32] = <[u8; 32]>::try_from(signing_share.serialize()).unwrap();
-                    let private_key =
-                        PrivateKey::from_seed(seed).expect("signing share must be valid seed");
-                    ValidatorConfig {
-                        public_key,
-                        session_public_key: signer.import(private_key).unwrap(),
-                    }
-                })
-                .collect(),
-            verifiable_secret_sharing_commitment,
-        )
+            .collect()
     }
 }
 
@@ -821,7 +766,10 @@ impl Default for TestEnvConfig {
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
-            compute_config: ComputeConfig::without_quarantine(),
+            compute_config: ComputeConfig::builder()
+                .canonical_quarantine(Default::default())
+                .promises_mode(Default::default())
+                .build(),
         }
     }
 }
@@ -1058,8 +1006,8 @@ impl Node {
 
         let rpc = self
             .service_rpc_config
-            .as_ref()
-            .map(|service_rpc_config| RpcServer::new(service_rpc_config.clone(), self.db.clone()));
+            .clone()
+            .map(|config| RpcServer::new(config, self.db.clone()));
 
         self.receiver = Some(receiver);
 
