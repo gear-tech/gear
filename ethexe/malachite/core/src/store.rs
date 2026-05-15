@@ -558,16 +558,6 @@ impl<P: BlockPayload> Store<P> {
         Ok(out)
     }
 
-    pub fn remove_pending_proposal_parts(
-        &self,
-        parts: &crate::streaming::ProposalParts,
-        value_id: &crate::context::ValueId,
-    ) -> Result<()> {
-        let key = Self::key_pending(parts.height, parts.round, value_id);
-        self.db.delete(key).context("deleting pending parts")?;
-        Ok(())
-    }
-
     /// Lowest finalized height, scanning the height index.
     pub fn min_finalized_height(&self) -> Result<Option<u64>> {
         let mut min: Option<u64> = None;

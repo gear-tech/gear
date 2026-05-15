@@ -115,13 +115,6 @@ where
             // TODO +_+_+ : two fragility issues here, flagged 2/3 in
             // the audit iter 2.
             //
-            // (1) `remove_pending_proposal_parts(&parts, ..)?` runs
-            // BEFORE `assemble_and_validate`. If validation later
-            // returns `Err` (e.g. a transient DB invariant miss in
-            // `eb_touched_programs` or the TxValidityChecker), the
-            // parts row is already gone — the proposal is permanently
-            // lost. Fix: remove only after a successful validate.
-            //
             // (2) The `?` on `remove_pending_proposal_parts` and
             // `store_undecided_proposal` propagates any RocksDB error
             // out of `handle_app_msg`, killing the app task BEFORE the
@@ -134,10 +127,6 @@ where
             // TODO captures the issue with the exact line refs.
             let pending = state.store.get_pending_proposal_parts(height, round)?;
             for parts in pending {
-                let value_id = compute_value_id_from_parts(&parts);
-                state
-                    .store
-                    .remove_pending_proposal_parts(&parts, &value_id)?;
                 match assemble_and_validate(state, externalities, &parts).await {
                     Ok(proposed) => {
                         state.store.store_undecided_proposal(&proposed)?;
