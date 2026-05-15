@@ -26,10 +26,11 @@ use wasmer::{AsStoreMut, RuntimeError, Store};
 use wasmer_types::TrapCode;
 
 use crate::{
+    context::{SupervisorContext, SupervisorContextDispatcher},
     error::{Error, Result},
     sandbox::{
         BackendInstanceBundle, GuestEnvironment, InstantiationError, Memory, SandboxInstance,
-        SupervisorContext, SupervisorFuncIndex,
+        SupervisorFuncIndex,
     },
     store_refcell,
     util::MemoryTransfer,
@@ -37,7 +38,7 @@ use crate::{
 
 pub type StoreRefCell = store_refcell::StoreRefCell<wasmer::Store>;
 
-environmental::environmental!(SupervisorContextStore: trait SupervisorContext);
+environmental::environmental!(SupervisorContextStore: trait SupervisorContextDispatcher);
 
 mod store_refcell_ctx {
     use std::rc::Rc;
@@ -102,7 +103,7 @@ pub fn invoke(
     store: &Rc<StoreRefCell>,
     export_name: &str,
     args: &[Value],
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
 ) -> std::result::Result<Option<Value>, Error> {
     let function = instance
         .exports
@@ -171,7 +172,7 @@ pub fn instantiate(
     context: &Backend,
     wasm: &[u8],
     guest_env: GuestEnvironment,
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
 ) -> std::result::Result<SandboxInstance, InstantiationError> {
     #[cfg(feature = "gear-wasmer-cache")]
     let module = gear_wasmer_cache::get(context.store().borrow().engine(), wasm, cache_base_path())
@@ -300,7 +301,7 @@ pub fn instantiate(
 
 fn dispatch_common(
     supervisor_func_index: SupervisorFuncIndex,
-    supervisor_context: &mut dyn SupervisorContext,
+    supervisor_context: &mut dyn SupervisorContextDispatcher,
     invoke_args_data: Vec<u8>,
 ) -> std::result::Result<Vec<u8>, RuntimeError> {
     // Move serialized arguments inside the memory, invoke dispatch thunk and
