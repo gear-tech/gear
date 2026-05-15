@@ -664,6 +664,17 @@ impl From<malachitebft_core_consensus::ProposedValue<MalachiteCtx>> for RawPropo
     }
 }
 
+// TODO +_+_+ : `From<RawProposedValue> for ProposedValue` silently
+// rewrites any out-of-range `round` / `valid_round` (anything outside
+// `-1..=u32::MAX`) into `Round::Nil` via `unwrap_or`. Every sibling
+// raw->typed conversion in this file is a fallible `TryFrom` that
+// returns a `CodecError` (see `RawSignature`, `RawAddress`,
+// `RawSignedConsensusMsg`, etc.). A peer can ship a `ProposedValue`
+// with `round = i64::MIN` and have it silently land in the engine's
+// undecided-proposals column at `(height, Round::Nil, value_id)`,
+// shadowing legitimate Nil-round entries. Convert to `TryFrom` and
+// propagate the codec error. Pinned by:
+// `codec::tests::raw_proposed_value_silently_aliases_invalid_round_to_nil`.
 impl From<RawProposedValue> for malachitebft_core_consensus::ProposedValue<MalachiteCtx> {
     fn from(p: RawProposedValue) -> Self {
         Self {
@@ -809,6 +820,46 @@ mod tests {
         let bytes = encode_value(&v);
         let back = decode_value(bytes).unwrap();
         assert_eq!(v, back);
+    }
+
+    /// REPRODUCES (audit iter 2, 3/3 votes): `From<RawProposedValue>`
+    /// at codec.rs:667-682 uses `i64_to_round(...).unwrap_or(Round::Nil)`
+    /// for both `round` and `valid_round`. Every other raw->typed
+    /// conversion in this file uses `TryFrom` and propagates a
+    /// `CodecError` on out-of-range input — this one silently aliases
+    /// `i64::MIN` (or any value outside `-1..=u32::MAX`) to
+    /// `Round::Nil`. A malicious sync responder can therefore stash a
+    /// peer-controlled `ProposedValue` at `(height, Round::Nil, ..)`
+    /// in the engine's undecided-proposals column, conflating it with
+    /// legitimate Nil-round entries.
+    ///
+    /// Ignored until the `TODO +_+_+` at the conversion site flips
+    /// `From` to a fallible `TryFrom`.
+    #[test]
+    #[ignore = "tracks TODO +_+_+ in codec.rs::From<RawProposedValue>: silent Round::Nil aliasing"]
+    fn raw_proposed_value_silently_aliases_invalid_round_to_nil() {
+        let raw = RawProposedValue {
+            height: 1,
+            round: i64::MIN,
+            valid_round: i64::MIN + 1,
+            proposer: RawAddress([0xAB; 20]),
+            value: Value::new(vec![]),
+            validity: true,
+        };
+        let pv: malachitebft_core_consensus::ProposedValue<MalachiteCtx> = raw.into();
+        // Desired behaviour: out-of-range round → `CodecError`, no
+        // `ProposedValue` produced. Currently `pv.round == Round::Nil`
+        // and the value silently enters the engine.
+        assert_ne!(
+            pv.round,
+            Round::Nil,
+            "round was silently aliased to Round::Nil — `From` must become `TryFrom` + CodecError",
+        );
+        assert_ne!(
+            pv.valid_round,
+            Round::Nil,
+            "valid_round was silently aliased to Round::Nil — same fix needed",
+        );
     }
 
     #[test]

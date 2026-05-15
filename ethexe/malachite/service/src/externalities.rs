@@ -447,6 +447,31 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
                 self.db.mb_meta(parent_hash).last_advanced_eb
             };
 
+            // TODO +_+_+ : the quarantine-wait loop below has two
+            // related fragility issues, both flagged 2/3 in the audit
+            // iter 3.
+            //
+            // (1) The whole `validate_block_above` call runs inline
+            // inside `app::handle_app_msg`, which is the single-thread
+            // consensus event loop. While we sit polling here for
+            // ≤ 2 s, the app task cannot consume any other `AppMsg`
+            // (votes, timeouts, sibling parts, Finalized cascades).
+            // A byzantine proposer who advances 1 EB ahead of victims
+            // can therefore stall every validator's consensus loop for
+            // up to 2 s per round — eroding the propose-timeout budget.
+            //
+            // (2) The loop uses bare `tokio::time::sleep(50ms)` and
+            // never awaits `self.chain_head_notify.notified()`. When
+            // the observer pushes a fresh head we miss the wake and
+            // sit out the rest of the current 50 ms slice; the
+            // matching producer-side `wait_for_proposable_content` does
+            // use the notify correctly. Replace `sleep` with
+            // `tokio::select!(notified, sleep)` (arming `notified()`
+            // before the gate read) for prompt wake-up, and consider
+            // moving the wait off the app task entirely.
+            //
+            // Reproducing in a unit test requires a full engine fake;
+            // TODO captures the precise lines and the desired shape.
             const VALIDATE_WAIT_BUDGET: std::time::Duration =
                 std::time::Duration::from_millis(2000);
             const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
@@ -454,7 +479,21 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             let start_block_hash = self.db.globals().start_block_hash;
             let mut error = anyhow!("validate: no chain-head event yet — abstaining from vote");
 
-            // Wait till ethereum block is locally pass quarantine
+            // TODO +_+_+ : validator-side strict-descendant check is
+            // missing (flagged 2/3 audit iter 8). The producer's
+            // `find_eb_candidate_for_advancing` requires
+            // `quarantine::is_strict_descendant_of(candidate, parent_advanced)`
+            // before emitting an `AdvanceTillEthereumBlock`, but the
+            // validator only runs `verify_passed` below — any
+            // quarantine-passed canonical ancestor of `head` (including
+            // an EB OLDER than `parent_advanced`) is accepted. A
+            // byzantine proposer can then regress `mb_meta.last_advanced_eb`
+            // by picking a stale-but-quarantine-passed EB; downstream
+            // `compute_mb` replays already-processed EB events. Fix:
+            // after the quarantine wait below succeeds, also require
+            // `quarantine::is_strict_descendant_of(advance, parent_advanced,
+            // start_block_hash) == Ok(true)`. Pinned by
+            // `validate_rejects_advance_that_regresses_last_advanced_eb`.
             'quarantine: loop {
                 if tokio::time::Instant::now() >= deadline {
                     warn!(
@@ -1787,6 +1826,92 @@ mod tests {
                 .await
                 .unwrap(),
             "MB where `ProcessQueues` is not the last tx must be rejected"
+        );
+    }
+
+    /// REPRODUCES (audit iter 8, 2/3 votes): the producer's
+    /// `find_eb_candidate_for_advancing` requires `is_strict_descendant_of(
+    /// candidate, parent.last_advanced_eb)`, but `validate_block_above` only
+    /// runs `verify_passed`. A malicious proposer can pick a quarantine-passed
+    /// EB that is OLDER than `parent.last_advanced_eb`, validators accept,
+    /// and `save_block` regresses `mb_meta.last_advanced_eb`. Downstream
+    /// `compute_mb` replays already-processed EB events.
+    ///
+    /// Ignored until the strict-descendant TODO+_+_+ lands.
+    #[tokio::test]
+    #[ignore = "tracks TODO +_+_+ in externalities::validate_block_above: missing strict-descendant check"]
+    async fn validate_rejects_advance_that_regresses_last_advanced_eb() {
+        let db = Database::memory();
+
+        // Build a 5-block chain.
+        let mut parent = H256::zero();
+        let mut chain = Vec::new();
+        for i in 0..5u8 {
+            let mut hb = [0u8; 32];
+            hb[0] = 0x10 + i;
+            let hash = H256::from(hb);
+            let header = BlockHeader {
+                height: i as u32,
+                timestamp: i as u64,
+                parent_hash: parent,
+            };
+            db.set_block_header(hash, header);
+            db.set_block_events(hash, &[]);
+            db.mutate_block_meta(hash, |_| {});
+            chain.push((hash, header));
+            parent = hash;
+        }
+        let head = ethexe_common::SimpleBlockData {
+            hash: chain[4].0,
+            header: chain[4].1,
+        };
+
+        // Seed a parent MB whose `last_advanced_eb` points at chain[3]
+        // (a relatively recent EB). The proposer's `advance` then points
+        // at chain[1] (regressing). Both pass quarantine (depth = 1+ vs.
+        // `canonical_quarantine = 0`), but chain[1] is a strict ancestor
+        // of chain[3], so the descendant check would reject — and that
+        // is exactly what we want validators to do.
+        let parent_mb = H256::from([0xCD; 32]);
+        let transactions_hash = db.set_transactions(Transactions::new(vec![]));
+        db.set_mb_compact_block(
+            parent_mb,
+            ethexe_common::db::CompactMb {
+                parent: H256::zero(),
+                height: 1,
+                transactions_hash,
+            },
+        );
+        db.set_mb_program_states(parent_mb, ethexe_common::ProgramStates::default());
+        db.mutate_mb_meta(parent_mb, |meta| {
+            meta.computed = true;
+            meta.last_advanced_eb = chain[3].0;
+        });
+
+        let (ext, _rx) = make_externalities(db.clone());
+        *ext.chain_head.write().unwrap() = Some(head);
+
+        // MB proposes Advance to chain[1] — strictly older than chain[3]
+        // (parent's last_advanced_eb). `verify_passed` accepts (chain[1]
+        // is a canonical ancestor of head); `is_strict_descendant_of`
+        // would reject (chain[1] does NOT descend from chain[3]).
+        let payload = Transactions::new(vec![
+            Transaction::AdvanceTillEthereumBlock {
+                block_hash: chain[1].0,
+            },
+            Transaction::ProgressTasks {
+                limits: ProgressTasksLimits::default(),
+            },
+            Transaction::ProcessQueues {
+                limits: ProcessQueuesLimits::default(),
+            },
+        ]);
+
+        assert!(
+            !ext.validate_block_above(parent_mb, payload).await.unwrap(),
+            "MB whose AdvanceTillEthereumBlock regresses parent.last_advanced_eb \
+             must be rejected — currently passes because validate_block_above \
+             skips the strict-descendant check the producer enforces",
         );
     }
 }

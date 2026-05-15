@@ -246,6 +246,23 @@ impl InjectedTxMempool {
 
     /// Evict pool entries and seen-hashes whose `reference_block` has
     /// aged out relative to `head_height`.
+    ///
+    /// TODO +_+_+ : pool retain rule is asymmetric with `seen` retain
+    /// (flagged 2/3 audit iter 5). Pool keeps txs whose `ref_block` is
+    /// not in our local DB indefinitely (`None => true` arm below),
+    /// `insert` likewise accepts unresolved ref_blocks. A peer that
+    /// can reach `MalachiteService::receive_injected_transaction` (a
+    /// public RPC) can fill `DEFAULT_POOL_CAPACITY = 10_000` slots
+    /// with valid-signed txs whose `reference_block = H256::random()`
+    /// — these never resolve, never get fetched, never age out, and
+    /// every legitimate user hits `MempoolInsertError::PoolFull`.
+    /// Per-sender quota (separate TODO+_+_+) doesn't help — a small
+    /// coalition with N keys gets the same outcome by submitting
+    /// `capacity / N` such txs each. Fix: track an
+    /// `inserted_at_head_height` per entry and evict when
+    /// `head_height - inserted_at >= VALIDITY_WINDOW`, mirroring
+    /// `seen`'s `_ => false` policy below.
+    /// Pinned by `pool_retains_unresolved_ref_block_indefinitely`.
     fn purge_expired(inner: &mut Inner, head_height: u32, db: &Database) {
         inner.pool.retain(|tx_hash, tx| {
             let ref_block = tx.data().reference_block;
@@ -622,6 +639,46 @@ mod tests {
             Err(MempoolInsertError::PoolFull),
         ));
         assert_eq!(pool.len(), 2, "third insert must hit the capacity cap");
+    }
+
+    /// REPRODUCES (audit iter 5, 2/3 votes): the pool's retain rule on
+    /// unresolved `reference_block` is `None => true` (keep forever),
+    /// while the `seen` table is `_ => false`. A peer can fill the
+    /// pool with `H256::random()` ref-blocks that will never resolve
+    /// or age out, locking out legitimate users until restart.
+    /// Ignored until the TODO +_+_+ on `purge_expired` lands.
+    #[test]
+    #[ignore = "tracks TODO +_+_+ in mempool::purge_expired: unresolved ref_block retention"]
+    fn pool_retains_unresolved_ref_block_indefinitely() {
+        let db = Database::memory();
+        // Use a real chain so set_chain_head can drive `head_height`
+        // forward beyond `VALIDITY_WINDOW`.
+        let chain = linear_chain(&db, (VALIDITY_WINDOW as usize) + 5);
+        let pool = InjectedTxMempool::with_capacity(db, 100);
+        let pk = PrivateKey::random();
+
+        // 100 txs each anchored at a random ref_block NOT in our DB.
+        for salt in 0..100u8 {
+            let bogus_ref_block = H256::random();
+            pool.insert(signed_tx(&pk, ActorId::zero(), bogus_ref_block, salt))
+                .unwrap();
+        }
+        assert_eq!(pool.len(), 100);
+
+        // Advance head far past any tx's lifetime.
+        let head_idx = (VALIDITY_WINDOW as usize) + 1;
+        pool.set_chain_head(chain[head_idx]);
+
+        // Desired behaviour: txs whose ref_block never resolved AND
+        // whose insert is older than VALIDITY_WINDOW should be evicted
+        // (mirroring the `seen` retain policy). Currently they all
+        // stay — capacity is permanently exhausted.
+        assert!(
+            pool.len() < 100,
+            "pool retains all {} unresolved-ref_block txs after head advanced past WINDOW — \
+             public RPC `injected_send` can permanently exhaust capacity",
+            pool.len(),
+        );
     }
 
     #[test]
