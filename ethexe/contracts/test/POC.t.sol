@@ -135,7 +135,7 @@ contract POCTest is Base {
         commitValidators(
             _privateKeys,
             Gear.ValidatorsCommitment(
-                Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 2
+                true, Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 2
             ),
             false
         );
