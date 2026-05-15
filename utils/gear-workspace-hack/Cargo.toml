@@ -215,7 +215,6 @@ features = ["test-helpers"]
 
 ### BEGIN HAKARI SECTION
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -257,7 +256,6 @@ byte-slice-cast = { version = "1", default-features = false, features = ["std"] 
 bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive", "min_const_generics", "must_cast"] }
 byteorder = { version = "1" }
 bytes = { version = "1", features = ["serde"] }
-cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
@@ -269,7 +267,6 @@ crossbeam-channel = { version = "0.5" }
 crossbeam-utils = { version = "0.8" }
 crunchy = { version = "0.2", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
-ctr = { version = "0.9", default-features = false, features = ["zeroize"] }
 curve25519-dalek = { version = "4", features = ["digest", "legacy_compatibility"] }
 data-encoding = { version = "2" }
 der = { version = "0.7", default-features = false, features = ["oid", "std", "zeroize"] }
@@ -281,7 +278,7 @@ ed25519 = { version = "2", default-features = false, features = ["alloc", "std"]
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 ed25519-zebra = { version = "4", default-features = false, features = ["std"] }
 either = { version = "1", features = ["serde", "use_std"] }
-elliptic-curve = { version = "0.13", default-features = false, features = ["hash2curve", "hazmat", "serde", "std"] }
+elliptic-curve = { version = "0.13", default-features = false, features = ["arithmetic", "digest", "hazmat", "serde", "std"] }
 enumflags2 = { version = "0.7", default-features = false, features = ["std"] }
 environmental = { version = "1" }
 event-listener = { version = "5" }
@@ -331,7 +328,7 @@ js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
 jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
 jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
-k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
+k256 = { version = "0.13", features = ["serde"] }
 keccak = { version = "0.1", default-features = false, features = ["asm"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
@@ -364,7 +361,6 @@ petgraph = { version = "0.6" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
-postcard = { version = "1", features = ["use-std"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
 predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
@@ -406,7 +402,6 @@ serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
-serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
 sha3 = { version = "0.10", features = ["asm"] }
@@ -485,8 +480,7 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
+wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
 wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["virtual_memory"] }
@@ -501,7 +495,6 @@ winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
-aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { version = "2", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth", "signer-mnemonic"] }
 alloy-chains = { version = "0.2" }
@@ -547,7 +540,6 @@ bytemuck = { version = "1", default-features = false, features = ["const_zeroed"
 byteorder = { version = "1" }
 bytes = { version = "1", features = ["serde"] }
 cc = { version = "1", default-features = false, features = ["parallel"] }
-cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
 clap = { version = "4", features = ["derive", "env", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "env", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
@@ -559,7 +551,6 @@ crossbeam-channel = { version = "0.5" }
 crossbeam-utils = { version = "0.8" }
 crunchy = { version = "0.2", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
-ctr = { version = "0.9", default-features = false, features = ["zeroize"] }
 curve25519-dalek = { version = "4", features = ["digest", "legacy_compatibility"] }
 darling = { version = "0.21" }
 darling_core = { version = "0.21", default-features = false, features = ["suggestions"] }
@@ -576,7 +567,7 @@ ed25519 = { version = "2", default-features = false, features = ["alloc", "std"]
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 ed25519-zebra = { version = "4", default-features = false, features = ["std"] }
 either = { version = "1", features = ["serde", "use_std"] }
-elliptic-curve = { version = "0.13", default-features = false, features = ["hash2curve", "hazmat", "serde", "std"] }
+elliptic-curve = { version = "0.13", default-features = false, features = ["arithmetic", "digest", "hazmat", "serde", "std"] }
 enumflags2 = { version = "0.7", default-features = false, features = ["std"] }
 environmental = { version = "1" }
 event-listener = { version = "5" }
@@ -627,7 +618,7 @@ js-sys = { version = "0.3" }
 jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
 jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
 jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
-k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
+k256 = { version = "0.13", features = ["serde"] }
 keccak = { version = "0.1", default-features = false, features = ["asm"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
@@ -661,7 +652,6 @@ petgraph = { version = "0.6" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
-postcard = { version = "1", features = ["use-std"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
 predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
@@ -704,7 +694,6 @@ serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
-serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
 sha3 = { version = "0.10", features = ["asm"] }
@@ -786,8 +775,7 @@ unsigned-varint-ca01ad9e24f5d932 = { package = "unsigned-varint", version = "0.7
 url = { version = "2", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 wasm-bindgen = { version = "0.2" }
-wasm-encoder-1a16dca237765f34 = { package = "wasm-encoder", version = "0.230", default-features = false, features = ["std", "wasmparser"] }
-wasm-encoder-3c4f6f7c21879200 = { package = "wasm-encoder", version = "0.246", features = ["wasmparser"] }
+wasm-encoder = { version = "0.230", default-features = false, features = ["std", "wasmparser"] }
 wasmi-3d9dd527f574b61f = { package = "wasmi", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", features = ["virtual_memory"] }
 wasmi-d585fab2519d2d1 = { package = "wasmi", version = "0.38", features = ["extra-checks"] }
 wasmi_core = { git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext", default-features = false, features = ["virtual_memory"] }
@@ -822,7 +810,6 @@ rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs",
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-spin = { version = "0.9", features = ["std"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
 
@@ -848,7 +835,6 @@ rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs",
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "aws_lc_rs", "logging", "ring", "std", "tls12"] }
 rustls-webpki = { version = "0.103", features = ["aws-lc-rs", "ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-spin = { version = "0.9", features = ["std"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "ring", "tls12"] }
 unicode-normalization = { version = "0.1" }
 
