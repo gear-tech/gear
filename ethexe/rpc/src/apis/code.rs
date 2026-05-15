@@ -23,9 +23,9 @@ use ethexe_common::db::CodesStorageRO;
 #[cfg(feature = "server")]
 use ethexe_db::Database;
 use gprimitives::H256;
-use jsonrpsee::proc_macros::rpc;
 #[cfg(feature = "server")]
 use jsonrpsee::core::async_trait;
+use jsonrpsee::proc_macros::rpc;
 #[cfg(feature = "server")]
 use parity_scale_codec::Encode;
 use sp_core::Bytes;

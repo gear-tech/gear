@@ -18,11 +18,7 @@
 
 #[cfg(feature = "server")]
 use crate::{errors, utils};
-use ethexe_common::{
-    BlockHeader,
-    events::BlockRequestEvent,
-    gear::StateTransition,
-};
+use ethexe_common::{BlockHeader, events::BlockRequestEvent, gear::StateTransition};
 #[cfg(feature = "server")]
 use ethexe_common::{
     SimpleBlockData,
@@ -31,9 +27,9 @@ use ethexe_common::{
 #[cfg(feature = "server")]
 use ethexe_db::Database;
 use gprimitives::H256;
-use jsonrpsee::proc_macros::rpc;
 #[cfg(feature = "server")]
 use jsonrpsee::core::async_trait;
+use jsonrpsee::proc_macros::rpc;
 
 #[cfg_attr(all(feature = "server", feature = "client"), rpc(server, client))]
 #[cfg_attr(all(feature = "server", not(feature = "client")), rpc(server))]

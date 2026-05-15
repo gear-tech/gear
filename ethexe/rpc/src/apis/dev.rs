@@ -21,9 +21,9 @@ use ethexe_common::Address;
 use ethexe_common::db::ConfigStorageRO;
 #[cfg(feature = "server")]
 use ethexe_db::Database;
-use jsonrpsee::proc_macros::rpc;
 #[cfg(feature = "server")]
 use jsonrpsee::core::async_trait;
+use jsonrpsee::proc_macros::rpc;
 
 #[cfg_attr(all(feature = "server", feature = "client"), rpc(server, client))]
 #[cfg_attr(all(feature = "server", not(feature = "client")), rpc(server))]

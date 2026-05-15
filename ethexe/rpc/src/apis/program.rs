@@ -34,9 +34,9 @@ use ethexe_runtime_common::state::{
 use ethexe_runtime_common::state::{QueryableStorage, Storage};
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
-use jsonrpsee::proc_macros::rpc;
 #[cfg(feature = "server")]
 use jsonrpsee::core::async_trait;
+use jsonrpsee::proc_macros::rpc;
 #[cfg(feature = "server")]
 use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};

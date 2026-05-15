@@ -96,7 +96,7 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "ethexe-consensus",
     "ethexe-blob-loader",
     "ethexe-prometheus",
-    "ethexe-rpc"
+    "ethexe-rpc",
 ];
 
 /// Packages need to be published.
