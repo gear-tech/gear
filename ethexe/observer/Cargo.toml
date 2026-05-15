@@ -1,14 +1,11 @@
 [package]
 name = "ethexe-observer"
-description = "Ethereum chain observer for the ethexe execution layer"
-documentation = "https://docs.rs/ethexe-observer"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
 
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }

@@ -1,14 +1,11 @@
 [package]
 name = "ethexe-runtime"
-description = "Wasm runtime for executing Gear programs in ethexe"
-documentation = "https://docs.rs/ethexe-runtime"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
 
 [dependencies]
 ## Gear deps.

@@ -91,62 +91,62 @@ pub mod symbiotic_abi {
     alloy::sol!(
         #[sol(rpc)]
         Vault,
-        "abi/Vault.json"
+        "../contracts/lib/symbiotic-core/out/Vault.sol/Vault.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         VaultFactory,
-        "abi/VaultFactory.json"
+        "../contracts/lib/symbiotic-core/out/VaultFactory.sol/VaultFactory.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         OperatorRegistry,
-        "abi/OperatorRegistry.json"
+        "../contracts/lib/symbiotic-core/out/OperatorRegistry.sol/OperatorRegistry.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         NetworkRegistry,
-        "abi/NetworkRegistry.json"
+        "../contracts/lib/symbiotic-core/out/NetworkRegistry.sol/NetworkRegistry.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         NetworkMiddlewareService,
-        "abi/NetworkMiddlewareService.json"
+        "../contracts/lib/symbiotic-core/out/NetworkMiddlewareService.sol/NetworkMiddlewareService.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         OptInService,
-        "abi/OptInService.json"
+        "../contracts/lib/symbiotic-core/out/OptInService.sol/OptInService.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         DefaultOperatorRewards,
-        "abi/DefaultOperatorRewards.json"
+        "../contracts/lib/symbiotic-rewards/out/DefaultOperatorRewards.sol/DefaultOperatorRewards.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         DelegatorFactory,
-        "abi/DelegatorFactory.json"
+        "../contracts/lib/symbiotic-core/out/DelegatorFactory.sol/DelegatorFactory.json"
     );
 
     alloy::sol!(
         #[sol(rpc)]
         SlasherFactory,
-        "abi/SlasherFactory.json"
+        "../contracts/lib/symbiotic-core/out/SlasherFactory.sol/SlasherFactory.json"
     );
 
     pub mod staker_rewards_factory {
         alloy::sol!(
             #[sol(rpc)]
             DefaultStakerRewardsFactory,
-            "abi/DefaultStakerRewardsFactory.json"
+            "../contracts/lib/symbiotic-rewards/out/DefaultStakerRewardsFactory.sol/DefaultStakerRewardsFactory.json"
         );
     }
 
@@ -154,7 +154,7 @@ pub mod symbiotic_abi {
         alloy::sol!(
             #[sol(rpc)]
             DefaultStakerRewards,
-            "abi/DefaultStakerRewards.json"
+            "../contracts/lib/symbiotic-rewards/out/DefaultStakerRewards.sol/DefaultStakerRewards.json"
         );
     }
 }

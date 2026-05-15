@@ -1,14 +1,13 @@
 [package]
 name = "ethexe-network"
-description = "libp2p networking for ethexe validators and nodes"
-documentation = "https://docs.rs/ethexe-network"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package.metadata.cargo-shear]
 # we need it for applying `metrics` feature

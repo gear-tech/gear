@@ -1,14 +1,11 @@
 [package]
 name = "ethexe-service-utils"
-description = "Testing and service utilities for ethexe"
-documentation = "https://docs.rs/ethexe-service-utils"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
 
 [dependencies]
 log.workspace = true

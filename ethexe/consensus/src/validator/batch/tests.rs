@@ -38,7 +38,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 
 use gear_core::ids::prelude::CodeIdExt;
-use gprimitives::{ActorId, CodeId, H256, U256};
+use gprimitives::{ActorId, CodeId, H256};
 use gsigner::ToDigest;
 
 fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
@@ -558,9 +558,6 @@ async fn test_aggregate_validators_commitment() {
         .expect("Validators commitment expected");
     assert_eq!(commitment.validators, validators1);
     assert_eq!(commitment.era_index, 1);
-    assert_eq!(commitment.aggregated_public_key.x, U256::zero());
-    assert_eq!(commitment.aggregated_public_key.y, U256::zero());
-    assert!(commitment.verifiable_secret_sharing_commitment.is_empty());
 
     // Inside election period
     let commitment = ctx
@@ -572,9 +569,6 @@ async fn test_aggregate_validators_commitment() {
         .expect("Validators commitment expected");
     assert_eq!(commitment.validators, validators1);
     assert_eq!(commitment.era_index, 1);
-    assert_eq!(commitment.aggregated_public_key.x, U256::zero());
-    assert_eq!(commitment.aggregated_public_key.y, U256::zero());
-    assert!(commitment.verifiable_secret_sharing_commitment.is_empty());
 
     // Inside election period validators already committed
     ctx.core.db.mutate_block_meta(chain.blocks[7].hash, |meta| {
@@ -603,9 +597,6 @@ async fn test_aggregate_validators_commitment() {
         .expect("Validators commitment expected");
     assert_eq!(commitment.validators, validators2);
     assert_eq!(commitment.era_index, 2);
-    assert_eq!(commitment.aggregated_public_key.x, U256::zero());
-    assert_eq!(commitment.aggregated_public_key.y, U256::zero());
-    assert!(commitment.verifiable_secret_sharing_commitment.is_empty());
 
     // Election for era 2 but validators for era 3 are already committed
     ctx.core

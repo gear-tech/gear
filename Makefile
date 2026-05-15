@@ -7,78 +7,21 @@ ethexe-pre-commit-no-contracts: fmt clippy-gear
 	@ echo " >>> Testing ethexe" && cargo nextest run -p "ethexe-*" --no-fail-fast
 
 # Building ethexe contracts
-.PHONY: ethexe-contracts-deps-check
-ethexe-contracts-deps-check:
-	@ echo " > Checking ethexe contract submodules are locked" && \
-		status="$$(git submodule status --recursive -- ethexe/contracts/lib)" && \
-		if printf '%s\n' "$$status" | grep -E '^[+-U]' >/dev/null; then \
-			printf '%s\n' "$$status"; \
-			echo "ethexe contract submodules must be initialized and checked out at the pinned revisions"; \
-			exit 1; \
-		fi
-	@ echo " > Checking ethexe contract submodules are clean" && \
-		(cd ethexe/contracts/lib && git submodule foreach --recursive 'git diff --quiet && git diff --cached --quiet || { echo "$$sm_path has uncommitted changes"; exit 1; }') >/dev/null
-	@ echo " > Checking ethexe ethereum ABI artifacts are present" && \
-		for artifact in \
-			BatchMulticall \
-			DefaultOperatorRewards \
-			DefaultStakerRewards \
-			DefaultStakerRewardsFactory \
-			DelegatorFactory \
-			DemoCaller \
-			ERC1967Proxy \
-			Gear \
-			Middleware \
-			Mirror \
-			NetworkMiddlewareService \
-			NetworkRegistry \
-			OperatorRegistry \
-			OptInService \
-			POAMiddleware \
-			Router \
-			SlasherFactory \
-			Vault \
-			VaultFactory \
-			WrappedVara; do \
-			test -f "./ethexe/ethereum/abi/$$artifact.json" || { \
-				echo "Missing ./ethexe/ethereum/abi/$$artifact.json"; \
-				exit 1; \
-			}; \
-		done
-
-.PHONY: ethexe-contracts-lock-artifacts
-ethexe-contracts-lock-artifacts:
-	@ mkdir -p ./ethexe/ethereum/abi
-	@ echo " > Locking Middleware artifact" && cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum/abi
-	@ echo " > Locking POAMiddleware artifact" && cp ./ethexe/contracts/out/POAMiddleware.sol/POAMiddleware.json ./ethexe/ethereum/abi
-	@ echo " > Locking Mirror artifact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum/abi
-	@ echo " > Locking Router artifact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum/abi
-	@ echo " > Locking ERC1967Proxy artifact" && cp ./ethexe/contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json ./ethexe/ethereum/abi
-	@ echo " > Locking WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
-	@ echo " > Locking BatchMulticall artifact" && cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi
-	@ echo " > Locking DemoCaller artifact" && cp ./ethexe/contracts/out/DemoCaller.sol/DemoCaller.json ./ethexe/ethereum/abi
-	@ echo " > Locking Gear artifact" && cp ./ethexe/contracts/out/Gear.sol/Gear.json ./ethexe/ethereum/abi
-	@ echo " > Locking Symbiotic core artifacts" && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/DelegatorFactory.sol/DelegatorFactory.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/NetworkMiddlewareService.sol/NetworkMiddlewareService.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/NetworkRegistry.sol/NetworkRegistry.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/OperatorRegistry.sol/OperatorRegistry.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/OptInService.sol/OptInService.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/SlasherFactory.sol/SlasherFactory.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/Vault.sol/Vault.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-core/out/VaultFactory.sol/VaultFactory.json ./ethexe/ethereum/abi
-	@ echo " > Locking Symbiotic rewards artifacts" && \
-		cp ./ethexe/contracts/lib/symbiotic-rewards/out/DefaultOperatorRewards.sol/DefaultOperatorRewards.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-rewards/out/DefaultStakerRewards.sol/DefaultStakerRewards.json ./ethexe/ethereum/abi && \
-		cp ./ethexe/contracts/lib/symbiotic-rewards/out/DefaultStakerRewardsFactory.sol/DefaultStakerRewardsFactory.json ./ethexe/ethereum/abi
-
 .PHONY: ethexe-contracts-pre-commit
-ethexe-contracts-pre-commit: ethexe-contracts-deps-check
+ethexe-contracts-pre-commit:
 	@ echo " > Cleaning contracts" && forge clean --root ethexe/contracts
 	@ echo " > Formatting contracts" && forge fmt --root ethexe/contracts
 	@ echo " > Building contracts" && forge build --root ethexe/contracts
 	@ echo " > Testing contracts" && forge test --root ethexe/contracts -vvv
-	@ $(MAKE) ethexe-contracts-lock-artifacts
+	@ echo " > Copying Middleware artifact" && cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum/abi
+	@ echo " > Copying POAMiddleware artifact" && cp ./ethexe/contracts/out/POAMiddleware.sol/POAMiddleware.json ./ethexe/ethereum/abi
+	@ echo " > Copying Mirror artifact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum/abi
+	@ echo " > Copying Router artifact" && cp ./ethexe/contracts/out/Router.sol/Router.json ./ethexe/ethereum/abi
+	@ echo " > Copying ERC1967Proxy artifact" && cp ./ethexe/contracts/out/ERC1967Proxy.sol/ERC1967Proxy.json ./ethexe/ethereum/abi
+	@ echo " > Copying WrappedVara artifact" && cp ./ethexe/contracts/out/WrappedVara.sol/WrappedVara.json ./ethexe/ethereum/abi
+	@ echo " > Copying BatchMulticall" && cp ./ethexe/contracts/out/BatchMulticall.sol/BatchMulticall.json ./ethexe/ethereum/abi
+	@ echo " > Copying DemoCaller" && cp ./ethexe/contracts/out/DemoCaller.sol/DemoCaller.json ./ethexe/ethereum/abi
+	@ echo " > Copying Gear" && cp ./ethexe/contracts/out/Gear.sol/Gear.json ./ethexe/ethereum/abi
 
 # Common section
 .PHONY: show

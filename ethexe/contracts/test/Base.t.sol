@@ -261,10 +261,7 @@ contract Base is POCBaseTest {
 
         rollBlocks(1);
 
-        if (revertExpected) {
-            vm.expectRevert();
-        }
-        router.commitBatch(_batch, Gear.SignatureType.FROST, signHash(_privateKeys, batchCommitmentHash(_batch)));
+        commitBatch(_privateKeys, _batch, revertExpected);
     }
 
     function batchCommitmentHash(Gear.BatchCommitment memory _batch) internal pure returns (bytes32) {

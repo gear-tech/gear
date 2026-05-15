@@ -1,14 +1,11 @@
 [package]
 name = "ethexe-processor"
-description = "Gear program processor for the ethexe runtime"
-documentation = "https://docs.rs/ethexe-processor"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-rust-version.workspace = true
 
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }

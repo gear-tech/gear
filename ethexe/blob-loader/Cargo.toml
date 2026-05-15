@@ -1,7 +1,5 @@
 [package]
 name = "ethexe-blob-loader"
-description = "Beacon blob loading for the ethexe execution layer"
-documentation = "https://docs.rs/ethexe-blob-loader"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

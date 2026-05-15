@@ -55,10 +55,13 @@ impl From<CodeCommitment> for Gear::CodeCommitment {
 impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
     fn from(value: ValidatorsCommitment) -> Self {
         Self {
-            hasAggregatedPublicKey: value.has_aggregated_public_key,
             aggregatedPublicKey: value.aggregated_public_key.into(),
             verifiableSecretSharingCommitment: Bytes::copy_from_slice(
-                &value.verifiable_secret_sharing_commitment,
+                &value
+                    .verifiable_secret_sharing_commitment
+                    .serialize()
+                    .expect("Could not serialize `VerifiableSecretSharingCommitment<C>`")
+                    .concat(),
             ),
             validators: value.validators.into_iter().map(|v| v.into()).collect(),
             eraIndex: Uint256::from(value.era_index),
