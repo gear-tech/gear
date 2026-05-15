@@ -94,7 +94,7 @@ mod ethexe_rpc {
         let mut default_features = Array::default();
         default_features.push("client");
 
-        features["default"] = toml_edit::value(default_features);
+        features.insert("default", toml_edit::value(default_features));
         features.remove("server");
     }
 }
