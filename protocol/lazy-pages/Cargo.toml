@@ -25,7 +25,7 @@ gear-lazy-pages-common.workspace = true
 gear-workspace-hack.workspace = true
 
 [target."cfg(target_vendor = \"apple\")".dependencies.mach2]
-version = "0.5.0"
+version = "0.6.0"
 
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true
