@@ -1,5 +1,7 @@
 [package]
 name = "ethexe-node-loader"
+description = "Node binary loader for ethexe integration tests and tooling"
+documentation = "https://docs.rs/ethexe-node-loader"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
