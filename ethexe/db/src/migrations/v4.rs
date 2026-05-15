@@ -29,7 +29,7 @@ pub const VERSION: u32 = 4;
 
 const _: () = const {
     assert!(
-        crate::VERSION == super::v5::VERSION,
+        crate::VERSION == VERSION,
         "Check migration code for types changing in case of version change: DBConfig, DBGlobals, Announce, BlockSmallData. \
          Also check AnnounceStorageRW, KVDatabase, dyn KVDatabase implementations"
     );

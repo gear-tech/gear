@@ -1285,7 +1285,7 @@ mod tests {
         let idl_payload: Vec<u8> = (0..64u8).collect();
         let module = gear_wasm_instrument::Module::new(&base_bytes).unwrap();
         let mut builder = gear_wasm_instrument::ModuleBuilder::from_module(module);
-        builder.push_custom_section("sails:idl", idl_payload.clone());
+        builder.push_custom_section("sails:idl", idl_payload);
         let original_with_idl = builder.build().serialize().unwrap();
 
         // Sanity: the constructed original actually carries the section.
@@ -1302,7 +1302,7 @@ mod tests {
         )
         .expect("valid gear program must instrument");
 
-        // OriginalCode preserves the section — IDL readers (RPC) rely on this.
+        // OriginalCode preserves the section; IDL readers (RPC) rely on this.
         assert!(
             has_custom_section(code.original_code(), "sails:idl"),
             "OriginalCode must retain sails:idl custom section"
@@ -1314,7 +1314,7 @@ mod tests {
             "InstrumentedCode must have sails:idl stripped"
         );
 
-        // Broader check: every custom section other than `name` is gone.
+        // Broader check: every non-name custom section is gone.
         // The WASM binary format stores the name section as a custom section
         // named "name"; we intentionally preserve it for readable trap
         // backtraces (see `Module::strip_custom_sections`).

@@ -69,8 +69,6 @@ enum Key {
     AnnounceMeta(HashOf<Announce>) = 6,
 
     ProgramToCodeId(ActorId) = 7,
-    /// `(instrumentation_version, code_id)`. Bumping
-    /// `ethexe_runtime_common::VERSION` invalidates every prior entry.
     InstrumentedCode(u32, CodeId) = 8,
     CodeMetadata(CodeId) = 9,
     CodeUploadInfo(CodeId) = 10,
@@ -97,9 +95,7 @@ impl Key {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        // Pre-allocate enough space for the largest possible key
-        // (InstrumentedCode carries a u32 prefix in addition to the
-        // discriminant and CodeId).
+        // Pre-allocate enough space for the largest possible key.
         let mut bytes = Vec::with_capacity(2 * size_of::<H256>() + size_of::<u32>());
         bytes.extend(self.prefix());
 
@@ -128,8 +124,8 @@ impl Key {
             | Self::CodeUploadInfo(code_id)
             | Self::CodeValid(code_id) => bytes.extend(code_id.as_ref()),
 
-            Self::InstrumentedCode(version, code_id) => {
-                bytes.extend(version.to_le_bytes());
+            Self::InstrumentedCode(runtime_id, code_id) => {
+                bytes.extend(runtime_id.to_le_bytes());
                 bytes.extend(code_id.as_ref());
             }
             Self::Globals | Self::Config => {
@@ -617,14 +613,14 @@ impl CodesStorageRO for RawDatabase {
             })
     }
 
-    fn instrumented_code_exists(&self, version: u32, code_id: CodeId) -> bool {
+    fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool {
         self.kv
-            .contains(&Key::InstrumentedCode(version, code_id).to_bytes())
+            .contains(&Key::InstrumentedCode(runtime_id, code_id).to_bytes())
     }
 
-    fn instrumented_code(&self, version: u32, code_id: CodeId) -> Option<InstrumentedCode> {
+    fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode> {
         self.kv
-            .get(&Key::InstrumentedCode(version, code_id).to_bytes())
+            .get(&Key::InstrumentedCode(runtime_id, code_id).to_bytes())
             .map(|data| {
                 Decode::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `InstrumentedCode`")
@@ -686,14 +682,14 @@ impl CodesStorageRW for RawDatabase {
         );
     }
 
-    fn set_instrumented_code(&self, version: u32, code_id: CodeId, code: InstrumentedCode) {
+    fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
         tracing::trace!(
             code_id = ?code_id,
-            version = %version,
+            runtime_id = %runtime_id,
             "Set instrumented code"
         );
         self.kv.put(
-            &Key::InstrumentedCode(version, code_id).to_bytes(),
+            &Key::InstrumentedCode(runtime_id, code_id).to_bytes(),
             code.encode(),
         );
     }
@@ -1005,8 +1001,8 @@ impl CodesStorageRO for Database {
         fn original_code_exists(&self, code_id: CodeId) -> bool;
         fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
         fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
-        fn instrumented_code_exists(&self, version: u32, code_id: CodeId) -> bool;
-        fn instrumented_code(&self, version: u32, code_id: CodeId) -> Option<InstrumentedCode>;
+        fn instrumented_code_exists(&self, runtime_id: u32, code_id: CodeId) -> bool;
+        fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
         fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
         fn code_valid(&self, code_id: CodeId) -> Option<bool>;
         fn valid_codes(&self) -> BTreeSet<CodeId>;
@@ -1017,7 +1013,7 @@ impl CodesStorageRW for Database {
     delegate!(to self.raw {
         fn set_original_code(&self, code: &[u8]) -> CodeId;
         fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
-        fn set_instrumented_code(&self, version: u32, code_id: CodeId, code: InstrumentedCode);
+        fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
         fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
         fn set_code_valid(&self, code_id: CodeId, valid: bool);
     });
@@ -1088,17 +1084,6 @@ mod tests {
         code::{InstantiatedSectionSizes, InstrumentationStatus},
         limited::LimitedVec,
     };
-
-    /// `migrations::v5` hardcodes discriminant `8`; this test pins it.
-    #[test]
-    fn instrumented_code_key_discriminant_is_stable() {
-        let bytes = Key::InstrumentedCode(0, CodeId::zero()).to_bytes();
-        assert_eq!(
-            &bytes[..size_of::<H256>()],
-            H256::from_low_u64_be(8).as_bytes(),
-            "Key::InstrumentedCode discriminant drifted; update ethexe/db/src/migrations/v5.rs"
-        );
-    }
 
     #[test]
     fn test_injected_transaction() {
@@ -1226,21 +1211,16 @@ mod tests {
     fn test_instrumented_code() {
         let db = Database::memory();
 
-        let version = 2;
+        let runtime_id = 1;
         let code_id = CodeId::default();
         let section_sizes = InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0);
         let instrumented_code = InstrumentedCode::new(vec![1, 2, 3, 4], section_sizes);
-        db.set_instrumented_code(version, code_id, instrumented_code.clone());
+        db.set_instrumented_code(runtime_id, code_id, instrumented_code.clone());
         assert_eq!(
-            db.instrumented_code(version, code_id)
+            db.instrumented_code(runtime_id, code_id)
                 .as_ref()
                 .map(|c| c.bytes()),
             Some(instrumented_code.bytes())
-        );
-
-        assert!(
-            db.instrumented_code(version + 1, code_id).is_none(),
-            "bumping version must invalidate prior entries"
         );
     }
 

@@ -35,17 +35,15 @@ mod v1;
 mod v2;
 mod v3;
 mod v4;
-mod v5;
 
 pub const OLDEST_SUPPORTED_VERSION: u32 = v0::VERSION;
-pub const LATEST_VERSION: u32 = v5::VERSION;
+pub const LATEST_VERSION: u32 = v4::VERSION;
 
 pub const MIGRATIONS: &[&dyn Migration] = &[
     &v1::migration_from_v0,
     &v2::migration_from_v1,
     &v3::migration_from_v2,
     &v4::migration_from_v3,
-    &v5::migration_from_v4,
 ];
 
 const _: () = assert!(

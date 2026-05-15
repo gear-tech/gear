@@ -68,10 +68,9 @@ mod schedule;
 mod transitions;
 
 // TODO: consider format.
-/// Instrumentation pipeline version. Used by `Code::try_new` and as the
-/// `InstrumentedCode` DB key discriminator; bumping it invalidates cached
-/// instrumented bytes.
-pub const VERSION: u32 = 2;
+/// Version of the runtime.
+pub const VERSION: u32 = 1;
+pub const RUNTIME_ID: u32 = 1;
 
 /// Maximum number of outgoing messages per execution of one dispatch.
 pub const MAX_OUTGOING_MESSAGES_PER_EXECUTION: u32 = 4;
@@ -479,19 +478,4 @@ pub const fn unpack_i64_to_u32(val: i64) -> (u32, u32) {
     let high = (val >> 32) as u32;
     let low = val as u32;
     (low, high)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Guards against drift between `ethexe-common`'s mock `MOCK_VERSION` and the
-    /// real `VERSION` exported here. The mock can't `use` this constant directly
-    /// because `ethexe-runtime-common` depends on `ethexe-common`, so a future
-    /// bump of `VERSION` would silently leave the mock stale. This test fails
-    /// loudly instead.
-    #[test]
-    fn mock_constants_match_runtime_constants() {
-        assert_eq!(VERSION, ethexe_common::mock::MOCK_VERSION);
-    }
 }

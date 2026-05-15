@@ -587,7 +587,7 @@ where
 
         if let Some(instrumented_code) = self
             .storage
-            .instrumented_code(ethexe_runtime_common::VERSION, code_id)
+            .instrumented_code(ethexe_runtime_common::RUNTIME_ID, code_id)
         {
             self.push_node(InstrumentedCodeNode {
                 code_id,

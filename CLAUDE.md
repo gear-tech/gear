@@ -263,7 +263,7 @@ KVDatabase:  get(key) → Vec<u8>, put(key, data)           (metadata)
 Key prefixes (enum):
   BlockSmallData(H256), BlockEvents(H256),
   AnnounceProgramStates(HashOf<Announce>), AnnounceSchedule(HashOf<Announce>),
-  ProgramToCodeId(ActorId), InstrumentedCode(runtime_id: u32, version: u32, CodeId),
+  ProgramToCodeId(ActorId), InstrumentedCode(u32, CodeId),
   CodeMetadata(CodeId), CodeValid(CodeId),
   InjectedTransaction(HashOf<Tx>),
   Config, Globals, LatestEraValidatorsCommitted(H256)

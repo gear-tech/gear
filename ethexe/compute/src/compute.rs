@@ -428,7 +428,7 @@ mod tests {
             injected::{InjectedTransaction, SignedInjectedTransaction},
         };
         use ethexe_processor::ValidCodeInfo;
-        use ethexe_runtime_common::VERSION;
+        use ethexe_runtime_common::RUNTIME_ID;
         use gear_core::ids::prelude::CodeIdExt;
         use gprimitives::{CodeId, MessageId};
 
@@ -454,7 +454,7 @@ mod tests {
                 .expect("code is invalid");
 
             db.set_original_code(&code);
-            db.set_instrumented_code(VERSION, code_id, instrumented_code);
+            db.set_instrumented_code(RUNTIME_ID, code_id, instrumented_code);
             db.set_code_metadata(code_id, code_metadata);
             db.set_code_valid(code_id, true);
 

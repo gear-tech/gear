@@ -35,9 +35,6 @@ proptest = { workspace = true, optional = true }
 ethexe-common = { workspace = true, features = ["mock"] }
 proptest.workspace = true
 
-[dev-dependencies]
-ethexe-common = { workspace = true, features = ["mock", "std"] }
-
 [features]
 default = ["std"]
 std = [

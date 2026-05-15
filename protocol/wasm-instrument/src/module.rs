@@ -1441,13 +1441,13 @@ impl Module {
         })
     }
 
-    /// Strips all WASM custom sections from the module.
+    /// Strips all non-name WASM custom sections from the module.
     ///
     /// The `name` section is **preserved** to keep Wasmer/Wasmtime trap
     /// backtraces readable in production logs. This differs from
     /// `wasm_optimizer::Optimizer::strip_custom_sections`, which clears both.
     ///
-    /// Custom sections (`sails:idl`, `producers`, etc.) are not consumed
+    /// Non-name custom sections (`sails:idl`, `producers`, etc.) are not consumed
     /// at sandbox execution time; IDL readers pull from `OriginalCode`.
     pub fn strip_custom_sections(&mut self) {
         self.custom_sections = None;
@@ -1458,17 +1458,17 @@ impl Module {
 
         if let Some(crate_section) = &self.type_section {
             let mut encoder_section = wasm_encoder::TypeSection::new();
-            for func_type in crate_section.clone() {
+            for func_type in crate_section {
                 encoder_section
                     .ty()
-                    .func_type(&RoundtripReencoder.func_type(func_type)?);
+                    .func_type(&RoundtripReencoder.func_type(func_type.clone())?);
             }
             module.section(&encoder_section);
         }
 
         if let Some(crate_section) = &self.import_section {
             let mut encoder_section = wasm_encoder::ImportSection::new();
-            for import in crate_section.clone() {
+            for import in crate_section {
                 import.reencode(&mut encoder_section)?;
             }
             module.section(&encoder_section);
@@ -1722,14 +1722,16 @@ mod tests {
             "name_section must be preserved across strip"
         );
 
-        // Round-trip through serialize/parse: custom sections must not
+        // Round-trip through serialize/parse: non-name custom sections must not
         // reappear in the serialized bytes.
         let bytes = module.serialize().unwrap();
         let reparsed = Module::new(&bytes).unwrap();
         assert!(
-            reparsed.custom_sections.is_none()
-                || reparsed.custom_sections.as_ref().unwrap().is_empty(),
-            "serialized module must not contain custom sections after strip"
+            reparsed
+                .custom_sections
+                .as_ref()
+                .is_none_or(|cs| cs.is_empty()),
+            "serialized module must not contain non-name custom sections after strip"
         );
     }
 

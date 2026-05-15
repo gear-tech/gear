@@ -29,7 +29,7 @@ use ethexe_common::{
     gear::{GenesisBlockInfo, Timelines},
 };
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_runtime_common::{ScheduleRestorer, VERSION, state::Storage};
+use ethexe_runtime_common::{RUNTIME_ID, ScheduleRestorer, state::Storage};
 use futures::{TryStreamExt, stream::FuturesUnordered};
 use gprimitives::{CodeId, H256};
 
@@ -297,7 +297,7 @@ async fn genesis_data_initialization(
             );
 
             db_clone.set_code_metadata(code_id, code_metadata);
-            db_clone.set_instrumented_code(VERSION, code_id, instrumented_code);
+            db_clone.set_instrumented_code(RUNTIME_ID, code_id, instrumented_code);
             db_clone.set_code_valid(code_id, true);
 
             Ok::<_, anyhow::Error>(())

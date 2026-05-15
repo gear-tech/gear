@@ -53,10 +53,7 @@ use ethexe_ethereum::{
 use ethexe_observer::ObserverEvent;
 use ethexe_processor::Processor;
 use ethexe_rpc::InjectedClient;
-use ethexe_runtime_common::{
-    VERSION,
-    state::{Expiring, MailboxMessage, PayloadLookup, Storage},
-};
+use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use futures::StreamExt;
 use gear_core::{
     ids::prelude::*,
@@ -167,7 +164,7 @@ async fn write_memory_to_last_byte() {
 
     let _ = node
         .db
-        .instrumented_code(VERSION, code_id)
+        .instrumented_code(1, code_id)
         .expect("After approval, instrumented code is guaranteed to be in the database");
     let res = env
         .create_program(code_id, 500_000_000_000_000)
@@ -222,7 +219,7 @@ async fn ping() {
 
     let _ = node
         .db
-        .instrumented_code(VERSION, code_id)
+        .instrumented_code(1, code_id)
         .expect("After approval, instrumented code is guaranteed to be in the database");
     let res = env
         .create_program(code_id, 500_000_000_000_000)
@@ -3702,7 +3699,7 @@ async fn reply_callback() {
 
     let _ = node
         .db
-        .instrumented_code(VERSION, code_id)
+        .instrumented_code(1, code_id)
         .expect("After approval, instrumented code is guaranteed to be in the database");
     let res = env
         .create_program(code_id, 500_000_000_000_000)
