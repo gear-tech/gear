@@ -17,17 +17,28 @@ ethexe-contracts-deps-check:
 			exit 1; \
 		fi
 	@ echo " > Checking ethexe contract submodules are clean" && \
-		git submodule foreach --recursive 'git diff --quiet && git diff --cached --quiet || { echo "$$sm_path has uncommitted changes"; exit 1; }' >/dev/null
+		(cd ethexe/contracts/lib && git submodule foreach --recursive 'git diff --quiet && git diff --cached --quiet || { echo "$$sm_path has uncommitted changes"; exit 1; }') >/dev/null
 	@ echo " > Checking ethexe ethereum ABI artifacts are present" && \
 		for artifact in \
 			BatchMulticall \
+			DefaultOperatorRewards \
+			DefaultStakerRewards \
+			DefaultStakerRewardsFactory \
+			DelegatorFactory \
 			DemoCaller \
 			ERC1967Proxy \
 			Gear \
 			Middleware \
 			Mirror \
+			NetworkMiddlewareService \
+			NetworkRegistry \
+			OperatorRegistry \
+			OptInService \
 			POAMiddleware \
 			Router \
+			SlasherFactory \
+			Vault \
+			VaultFactory \
 			WrappedVara; do \
 			test -f "./ethexe/ethereum/abi/$$artifact.json" || { \
 				echo "Missing ./ethexe/ethereum/abi/$$artifact.json"; \
@@ -37,6 +48,7 @@ ethexe-contracts-deps-check:
 
 .PHONY: ethexe-contracts-lock-artifacts
 ethexe-contracts-lock-artifacts:
+	@ mkdir -p ./ethexe/ethereum/abi
 	@ echo " > Locking Middleware artifact" && cp ./ethexe/contracts/out/Middleware.sol/Middleware.json ./ethexe/ethereum/abi
 	@ echo " > Locking POAMiddleware artifact" && cp ./ethexe/contracts/out/POAMiddleware.sol/POAMiddleware.json ./ethexe/ethereum/abi
 	@ echo " > Locking Mirror artifact" && cp ./ethexe/contracts/out/Mirror.sol/Mirror.json ./ethexe/ethereum/abi
