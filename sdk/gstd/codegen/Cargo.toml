@@ -23,8 +23,11 @@ gprimitives.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
-gstd = { path = "..", features = ["ethexe"] }
+gstd.workspace = true
 trybuild.workspace = true
 
 [features]
-ethexe = ["gprimitives/ethexe"]
+ethexe = [
+    "gprimitives/ethexe",
+    "gstd/ethexe"
+]
