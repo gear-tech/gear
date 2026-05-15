@@ -161,8 +161,8 @@ pub struct MasterPublicKey(pub G2Affine);
 /// verify a decryption share without knowing the secret.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct SharePublicKey {
-    pub index: u32,
-    pub point: G2Affine,
+    index: u32,
+    point: G2Affine,
 }
 
 /// Encrypted ciphertext envelope. Wire format is the SCALE encoding of this.
@@ -262,6 +262,26 @@ impl Decode for SharePublicKey {
     }
 }
 
+impl SharePublicKey {
+    pub fn new(index: u32, point: G2Affine) -> Result<Self, TpkeError> {
+        if index == 0 {
+            return Err(TpkeError::ZeroShareIndex(0));
+        }
+        if point.is_zero() {
+            return Err(TpkeError::IdentityPublicKey);
+        }
+        Ok(Self { index, point })
+    }
+
+    pub fn index(&self) -> u32 {
+        self.index
+    }
+
+    pub fn point(&self) -> &G2Affine {
+        &self.point
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Identity binding
 // ---------------------------------------------------------------------------
@@ -328,10 +348,7 @@ impl MasterSecretKey {
                 acc = acc * x + coeffs[k];
             }
             let sk = SecretKeyShare::new(i, acc);
-            let pk = SharePublicKey {
-                index: i,
-                point: (g2 * acc).into_affine(),
-            };
+            let pk = SharePublicKey::new(i, (g2 * acc).into_affine())?;
             shares.push(sk);
             share_pubs.push(pk);
         }
@@ -492,6 +509,15 @@ fn derive_dem_key_nonce(
     Ok((key, nonce))
 }
 
+fn random_nonzero_fr<R: RngCore + CryptoRng>(rng: &mut R) -> Fr {
+    loop {
+        let scalar = Fr::rand(rng);
+        if !scalar.is_zero() {
+            return scalar;
+        }
+    }
+}
+
 /// Encrypt `plaintext` for identity `id` under master public key `pk`.
 ///
 /// `chain_id` and `key_epoch_id` are bound into the AEAD's AAD so a ciphertext
@@ -516,7 +542,7 @@ pub fn encrypt<R: RngCore + CryptoRng>(
         return Err(TpkeError::HashToCurve);
     }
 
-    let u_scalar = Fr::rand(rng);
+    let u_scalar = random_nonzero_fr(rng);
     let u_point = (G2Affine::generator() * u_scalar).into_affine();
     let u_bytes = serialize_g2(&u_point)?;
 
@@ -577,6 +603,9 @@ impl SharePublicKey {
         envelope: &EncryptedEnvelope,
         share: &DecryptionShare,
     ) -> Result<bool, TpkeError> {
+        if self.index == 0 || share.index == 0 || self.point.is_zero() || share.point.is_zero() {
+            return Ok(false);
+        }
         if share.index != self.index || share.id != envelope.id {
             return Ok(false);
         }
@@ -738,21 +767,61 @@ impl SharePublicKey {
     /// that index regardless of the underlying secret-share scalar.
     pub fn from_bytes(index: u32, bytes: &[u8; G2_COMPRESSED_LEN]) -> Result<Self, TpkeError> {
         let point = deserialize_g2(bytes)?;
-        if point.is_zero() {
-            return Err(TpkeError::IdentityPublicKey);
-        }
-        Ok(Self { index, point })
+        Self::new(index, point)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ark_std::rand::{SeedableRng, rngs::StdRng};
+    use ark_std::rand::{CryptoRng, Error as RandError, RngCore, SeedableRng, rngs::StdRng};
 
     fn fixed_rng() -> StdRng {
         StdRng::seed_from_u64(0xDEADBEEF_CAFEBABE)
     }
+
+    struct ZeroThenRng {
+        zero_words: usize,
+        inner: StdRng,
+    }
+
+    impl ZeroThenRng {
+        fn new(zero_words: usize) -> Self {
+            Self {
+                zero_words,
+                inner: fixed_rng(),
+            }
+        }
+    }
+
+    impl RngCore for ZeroThenRng {
+        fn next_u32(&mut self) -> u32 {
+            self.next_u64() as u32
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            if self.zero_words > 0 {
+                self.zero_words -= 1;
+                0
+            } else {
+                self.inner.next_u64()
+            }
+        }
+
+        fn fill_bytes(&mut self, dest: &mut [u8]) {
+            for chunk in dest.chunks_mut(8) {
+                let bytes = self.next_u64().to_le_bytes();
+                chunk.copy_from_slice(&bytes[..chunk.len()]);
+            }
+        }
+
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), RandError> {
+            self.fill_bytes(dest);
+            Ok(())
+        }
+    }
+
+    impl CryptoRng for ZeroThenRng {}
 
     fn deal(t: u32, n: u32) -> DealerOutput {
         let mut rng = fixed_rng();
@@ -1038,6 +1107,69 @@ mod tests {
         G2Affine::zero().serialize_compressed(&mut buf[..]).unwrap();
         let err = SharePublicKey::from_bytes(1, &buf).unwrap_err();
         assert!(matches!(err, TpkeError::IdentityPublicKey));
+    }
+
+    #[test]
+    fn verify_rejects_zero_or_identity_share_public_key() {
+        let d = deal(2, 3);
+        let mut rng = fixed_rng();
+        let id = derive_id(1, 0, b"x", &[0u8; 32]);
+        let env = encrypt(&d.master_pub, &id, 1, 0, b"x", &mut rng).unwrap();
+        let share = d.shares[0].decrypt_share(&env).unwrap();
+
+        let zero_index_pk = SharePublicKey {
+            index: 0,
+            point: *d.share_pubs[0].point(),
+        };
+        assert!(!zero_index_pk.verify(&env, &share).unwrap());
+
+        let identity_pk = SharePublicKey {
+            index: share.index,
+            point: G2Affine::zero(),
+        };
+        assert!(!identity_pk.verify(&env, &share).unwrap());
+
+        assert!(matches!(
+            SharePublicKey::new(0, *d.share_pubs[0].point()).unwrap_err(),
+            TpkeError::ZeroShareIndex(0)
+        ));
+        assert!(matches!(
+            SharePublicKey::new(1, G2Affine::zero()).unwrap_err(),
+            TpkeError::IdentityPublicKey
+        ));
+    }
+
+    #[test]
+    fn verify_rejects_identity_decryption_share_point() {
+        let d = deal(2, 3);
+        let mut rng = fixed_rng();
+        let id = derive_id(1, 0, b"x", &[0u8; 32]);
+        let env = encrypt(&d.master_pub, &id, 1, 0, b"x", &mut rng).unwrap();
+        let mut share = d.shares[0].decrypt_share(&env).unwrap();
+
+        share.point = G1Affine::zero();
+
+        assert!(!d.share_pubs[0].verify(&env, &share).unwrap());
+    }
+
+    #[test]
+    fn encrypt_rejects_zero_ephemeral_by_resampling() {
+        let d = deal(2, 3);
+        let id = derive_id(1, 0, b"x", &[0u8; 32]);
+        let mut rng = ZeroThenRng::new(4);
+
+        let env = encrypt(&d.master_pub, &id, 1, 0, b"x", &mut rng).unwrap();
+        let u_point = deserialize_g2(&env.u).unwrap();
+
+        assert!(!u_point.is_zero());
+        let shares: Vec<_> = d
+            .shares
+            .iter()
+            .take(2)
+            .map(|s| s.decrypt_share(&env).unwrap())
+            .collect();
+        let pt = combine(&env, &shares, 1, 0, 2).unwrap();
+        assert_eq!(pt, b"x");
     }
 
     #[test]
