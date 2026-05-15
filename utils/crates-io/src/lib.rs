@@ -86,6 +86,16 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gear-core-backend",
     "gear-core-processor",
     "gear-lazy-pages-native-interface",
+    "gsigner",
+    "ethexe-common",
+    "ethexe-ethereum",
+    "ethexe-runtime-common",
+    "ethexe-db",
+    "ethexe-service-utils",
+    "ethexe-observer",
+    "ethexe-consensus",
+    "ethexe-blob-loader",
+    "ethexe-prometheus",
 ];
 
 /// Packages need to be published.
@@ -94,7 +104,6 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
 /// on the previous one, please be cautious about changing
 /// the order.
 pub const PACKAGES: &[&str] = &[
-    "gsigner",
     "gear-wasm-optimizer",
     "gear-wasm-builder",
     "gear-node-wrapper",
@@ -143,4 +152,94 @@ pub fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
         .args(["+stable", "owner", "--add", owner, package])
         .status()
         .map_err(Into::into)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn publish_index() -> Vec<&'static str> {
+        [SAFE_DEPENDENCIES, STACKED_DEPENDENCIES, PACKAGES].concat()
+    }
+
+    #[test]
+    fn publish_index_includes_publishable_ethexe_crates() {
+        let index = publish_index();
+
+        for package in [
+            "ethexe-common",
+            "ethexe-ethereum",
+            "ethexe-runtime-common",
+            "ethexe-db",
+            "ethexe-service-utils",
+            "ethexe-observer",
+            "ethexe-consensus",
+            "ethexe-blob-loader",
+            "ethexe-prometheus",
+        ] {
+            assert!(index.contains(&package), "{package} must be publishable");
+        }
+    }
+
+    #[test]
+    fn publish_index_orders_ethexe_dependencies_before_gtest() {
+        let index = publish_index();
+        let gsigner_position = index
+            .iter()
+            .position(|package| *package == "gsigner")
+            .expect("gsigner must be publishable");
+        let gtest_position = index
+            .iter()
+            .position(|package| *package == "gtest")
+            .expect("gtest must be publishable");
+
+        for package in [
+            "ethexe-common",
+            "ethexe-ethereum",
+            "ethexe-runtime-common",
+            "ethexe-db",
+            "ethexe-service-utils",
+            "ethexe-observer",
+            "ethexe-consensus",
+            "ethexe-blob-loader",
+            "ethexe-prometheus",
+        ] {
+            let package_position = index
+                .iter()
+                .position(|candidate| *candidate == package)
+                .unwrap_or_else(|| panic!("{package} must be publishable"));
+
+            assert!(
+                gsigner_position < package_position,
+                "gsigner must be published before {package}"
+            );
+            assert!(
+                package_position < gtest_position,
+                "{package} must be published before gtest"
+            );
+        }
+    }
+
+    #[test]
+    fn publish_index_excludes_ethexe_crates_that_depend_on_processor_or_runtime() {
+        let index = publish_index();
+
+        for package in [
+            "ethexe-processor",
+            "ethexe-runtime",
+            "ethexe-network",
+            "ethexe-rpc",
+            "ethexe-node-wrapper",
+            "ethexe-sdk",
+            "ethexe-compute",
+            "ethexe-service",
+            "ethexe-cli",
+            "ethexe-node-loader",
+        ] {
+            assert!(
+                !index.contains(&package),
+                "{package} must not be publishable"
+            );
+        }
+    }
 }
