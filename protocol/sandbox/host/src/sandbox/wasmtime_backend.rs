@@ -113,8 +113,7 @@ impl Backend {
             .strategy(wasmtime::Strategy::Winch)
             .cache(Some(cache))
             .macos_use_mach_ports(false);
-        // TODO: return, don't unwrap
-        let engine = Engine::new(&config).expect("TODO");
+        let engine = Engine::new(&config).expect("invalid engine configuration");
         let store = Store::new(&engine, None);
 
         Backend {

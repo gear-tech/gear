@@ -65,8 +65,7 @@ impl<T> Store<T> {
 
 impl<T: Send + 'static> SandboxStore for Store<T> {
     fn new(state: T) -> Self {
-        // TODO: return, don't unwrap
-        let cache = Cache::new(CacheConfig::new()).expect("Failed to create cache memory");
+        let cache = Cache::new(CacheConfig::new()).expect("invalid cache configuration");
 
         let mut config = Config::new();
         config
@@ -75,8 +74,7 @@ impl<T: Send + 'static> SandboxStore for Store<T> {
             .strategy(wasmtime::Strategy::Winch)
             .cache(Some(cache))
             .macos_use_mach_ports(false);
-        // TODO: return, don't unwrap
-        let engine = Engine::new(&config).expect("TODO");
+        let engine = Engine::new(&config).expect("invalid engine configuration");
         let store = wasmtime::Store::new(&engine, InnerState::new(state));
 
         Self { inner: store }

@@ -57,7 +57,7 @@ fn main() -> wasmtime::Result<()> {
     config
         .strategy(wasmtime::Strategy::Winch)
         .macos_use_mach_ports(false);
-    let engine = Engine::new(&config).context("Failed to create engine")?;
+    let engine = Engine::new(&config).context("invalid engine configuration")?;
     let mut store = Store::new(&engine, ());
     let module = Module::new(store.engine(), code.instrumented_code().bytes())
         .context("Failed to create initial module")?;
