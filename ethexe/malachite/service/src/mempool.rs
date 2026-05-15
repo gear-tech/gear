@@ -118,9 +118,8 @@ pub trait Mempool: Send + Sync + 'static {
     /// Drives validity-window GC.
     fn set_chain_head(&self, head: SimpleBlockData);
 
-    /// Txs whose `reference_block` is an ancestor of `head` and fit `gas_budget`.
-    async fn fetch(&self, head: SimpleBlockData, gas_budget: u64)
-    -> Vec<SignedInjectedTransaction>;
+    /// Txs whose `reference_block` is an ancestor of `head`.
+    async fn fetch(&self, head: SimpleBlockData) -> Vec<SignedInjectedTransaction>;
 
     /// Drop committed txs and remember their hashes for dedup.
     async fn forget(&self, committed: &[SignedInjectedTransaction]);
@@ -141,11 +140,7 @@ impl Mempool for EmptyMempool {
 
     fn set_chain_head(&self, _head: SimpleBlockData) {}
 
-    async fn fetch(
-        &self,
-        _head: SimpleBlockData,
-        _gas_budget: u64,
-    ) -> Vec<SignedInjectedTransaction> {
+    async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
         Vec::new()
     }
 
@@ -251,11 +246,6 @@ impl InjectedTxMempool {
 
     /// Evict pool entries and seen-hashes whose `reference_block` has
     /// aged out relative to `head_height`.
-    ///
-    /// Txs whose `reference_block` is *not yet in the local DB* are
-    /// kept (they may belong to a Hoodi block we're about to receive
-    /// via the observer). They become eligible for eviction only once
-    /// the ref_block resolves and is past the validity window.
     fn purge_expired(inner: &mut Inner, head_height: u32, db: &Database) {
         inner.pool.retain(|tx_hash, tx| {
             let ref_block = tx.data().reference_block;
@@ -374,18 +364,10 @@ impl Mempool for InjectedTxMempool {
             pool_len = pool_len_after,
             "mempool: insert accepted",
         );
+
         // Drop the lock before signaling so a waiter resumed
         // immediately doesn't have to bounce on the mutex.
         drop(inner);
-        // `notify_one` (vs `notify_waiters`) keeps a permit if no
-        // waiter is currently parked on `.notified()`. The producer's
-        // `wait_for_proposable_content` runs `fetch()` *before* it
-        // calls `.notified()` inside `select!`, so a tx that lands in
-        // the pool between those two steps must not lose its
-        // wakeup — otherwise the producer falls back to the
-        // 2-second `chain_head_notify` and the loader's
-        // round-trip latency picks up an extra ETH-block of
-        // jitter for every tx that races the loop boundary.
         self.new_tx_notify.notify_one();
         Ok(())
     }
@@ -402,11 +384,7 @@ impl Mempool for InjectedTxMempool {
         Self::purge_expired(&mut inner, h, &self.db);
     }
 
-    async fn fetch(
-        &self,
-        head: SimpleBlockData,
-        _gas_budget: u64,
-    ) -> Vec<SignedInjectedTransaction> {
+    async fn fetch(&self, head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
         let ancestors = self.recent_ancestors(&head);
 
         let inner = self.inner.lock().expect("poisoned mempool");
@@ -606,7 +584,7 @@ mod tests {
         // The pool fetches when ref_block is on the canonical chain
         // of the head we hand it.
         let head = chain[2];
-        let fetched = futures::executor::block_on(pool.fetch(head, 1_000_000));
+        let fetched = futures::executor::block_on(pool.fetch(head));
         assert_eq!(fetched.len(), 1);
         assert_eq!(fetched[0].data().to_hash(), tx_hash);
     }
@@ -725,7 +703,7 @@ mod tests {
 
         // Fetching for canonical branch (chain[1]) — alt tx must NOT
         // surface.
-        let fetched = futures::executor::block_on(pool.fetch(chain[1], 1_000_000));
+        let fetched = futures::executor::block_on(pool.fetch(chain[1]));
         assert!(
             fetched.is_empty(),
             "tx on alt branch must not be fetched against canonical head"
@@ -944,7 +922,7 @@ mod tests {
             }
 
             let head = chain[3];
-            let fetched = futures::executor::block_on(pool.fetch(head, 1_000_000));
+            let fetched = futures::executor::block_on(pool.fetch(head));
             for tx in &fetched {
                 prop_assert_ne!(
                     tx.data().reference_block, alt_hash,

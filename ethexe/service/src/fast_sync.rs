@@ -22,6 +22,7 @@
 use crate::Service;
 use anyhow::{Result, bail};
 
+// TODO: +_+_+ implement the actual fast-sync logic.
 pub(crate) async fn sync(_service: &mut Service) -> Result<()> {
     bail!(
         "fast-sync is not implemented for the MB-driven recovery path yet; \

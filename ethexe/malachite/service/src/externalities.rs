@@ -50,11 +50,10 @@
 //! [`EthexeExternalities::mark_block_as_finalized`] reads both back
 //! via the same key the consensus layer hands in.
 
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
+use crate::{
+    CommitCertificate, MalachiteEvent, Mempool, quarantine,
+    tx_validity::{TxValidity, TxValidityChecker, eb_touched_programs},
 };
-
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
@@ -67,14 +66,13 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use gprimitives::H256;
+use parity_scale_codec::Encode;
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex, RwLock},
+};
 use tokio::sync::{Notify, mpsc};
 use tracing::{error, info, warn};
-
-use crate::{
-    CommitCertificate, MalachiteEvent, Mempool, quarantine,
-    tx_validity::{TxValidity, TxValidityChecker, eb_touched_programs},
-};
-use parity_scale_codec::Encode;
 
 /// Inputs the externalities need to satisfy the [`ethexe_malachite_core::Externalities`]
 /// contract. Constructed by [`crate::MalachiteService::new`] and
@@ -126,15 +124,11 @@ pub(crate) struct PendingEvent {
 impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities {
     async fn save_block(
         &self,
-        block_hash: H256,
-        block: ethexe_malachite_core::Block<Transactions>,
+        mb_hash: H256,
+        mb: ethexe_malachite_core::Block<Transactions>,
     ) -> Result<()> {
-        // The DB is keyed by the consensus envelope hash (Blake2b
-        // over `Block`), passed in `block_hash`. Parent linkage lives
-        // in [`CompactMb::parent`]; the transactions list itself
-        // lives in CAS keyed by [`CompactMb::transactions_hash`].
-        let parent = block.parent_hash;
-        let payload = block.payload;
+        let parent = mb.parent_hash;
+        let payload = mb.payload;
 
         // Propagate `last_advanced_eb` forward — the latest
         // `AdvanceTillEthereumBlock` in this MB wins; otherwise we
@@ -158,21 +152,21 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         // unconditionally.
         let transactions_hash = self.db.set_transactions(payload.clone());
         self.db.set_mb_compact_block(
-            block_hash,
+            mb_hash,
             CompactMb {
                 parent,
-                height: block.height,
+                height: mb.height,
                 transactions_hash,
             },
         );
-        self.db.mutate_mb_meta(block_hash, |meta| {
+        self.db.mutate_mb_meta(mb_hash, |meta| {
             meta.last_advanced_eb = last_advanced;
         });
 
         self.try_emit_or_queue(
             MalachiteEvent::BlockProposal {
-                height: block.height,
-                block_hash,
+                height: mb.height,
+                mb_hash,
             },
             last_advanced,
         );
@@ -181,18 +175,18 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
 
     async fn mark_block_as_finalized(
         &self,
-        block_hash: H256,
+        mb_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
     ) -> Result<()> {
-        let compact = self.db.mb_compact_block(block_hash).ok_or_else(|| {
-            anyhow!("mark_finalized: no CompactMb for {block_hash} (save_block must run first)")
+        let compact = self.db.mb_compact_block(mb_hash).ok_or_else(|| {
+            anyhow!("mark_finalized: no CompactMb for {mb_hash} (save_block must run first)")
         })?;
         let payload = self
             .db
             .transactions(compact.transactions_hash)
             .ok_or_else(|| {
                 anyhow!(
-                    "mark_finalized: transactions blob {} missing for block {block_hash}",
+                    "mark_finalized: transactions blob {} missing for block {mb_hash}",
                     compact.transactions_hash
                 )
             })?;
@@ -215,42 +209,42 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         // (compute, batch commitment) walk to find the last
         // BFT-finalized MB.
         self.db
-            .globals_mutate(|g| g.latest_finalized_mb_hash = block_hash);
+            .globals_mutate(|g| g.latest_finalized_mb_hash = mb_hash);
 
         let app_cert = CommitCertificate {
             height: cert.height,
-            block_hash,
+            mb_hash,
             signatures: cert.signatures,
         };
         // Same prerequisite as the matching BlockProposal — by the
         // time `mark_block_as_finalized` runs, `save_block` has
         // already populated `mb_meta(block_hash).last_advanced_eb`.
-        let last_advanced = self.db.mb_meta(block_hash).last_advanced_eb;
+        let last_advanced = self.db.mb_meta(mb_hash).last_advanced_eb;
         self.try_emit_or_queue(
             MalachiteEvent::BlockFinalized {
                 cert: app_cert,
                 height: cert.height,
-                block_hash,
+                mb_hash,
             },
             last_advanced,
         );
         Ok(())
     }
 
-    async fn build_block_above(&self, parent_hash: H256) -> Result<Transactions> {
+    async fn build_block_above(&self, parent_mb_hash: H256) -> Result<Transactions> {
         // `parent_hash` is the consensus envelope hash of the parent
         // (zero for genesis). Use it directly to seed the producer's
         // `last_advanced_eb` lookup.
-        let parent_advanced = if parent_hash.is_zero() {
+        let parent_advanced = if parent_mb_hash.is_zero() {
             H256::zero()
         } else {
-            self.db.mb_meta(parent_hash).last_advanced_eb
+            self.db.mb_meta(parent_mb_hash).last_advanced_eb
         };
 
         let (advance, injected) = self.wait_for_proposable_content(parent_advanced).await;
 
         info!(
-            %parent_hash,
+            %parent_mb_hash,
             %parent_advanced,
             advance = ?advance,
             injected_count = injected.len(),
@@ -263,7 +257,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         let chain_head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
         let valid: Vec<SignedInjectedTransaction> = match chain_head_snapshot {
             Some(head) => {
-                let checker = TxValidityChecker::new_for_mb(self.db.clone(), head, parent_hash)?;
+                let checker = TxValidityChecker::new_for_mb(self.db.clone(), head, parent_mb_hash)?;
                 let mut accepted = Vec::with_capacity(injected.len());
                 for tx in injected {
                     match checker.check_tx_validity(&tx)? {
@@ -377,10 +371,6 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
     }
 
     async fn validate_block_above(&self, parent_hash: H256, payload: Transactions) -> Result<bool> {
-        // Parent linkage and height progression are validated by
-        // ethexe-malachite-core itself; here we only check the
-        // payload-level invariants.
-
         // (1) At most one AdvanceTillEthereumBlock per MB. Zero is
         // legal (chain still too close to genesis); two+ is a
         // protocol violation.
@@ -613,37 +603,25 @@ impl EthexeExternalities {
         }
     }
 
-    /// Block until either a quarantine-passed EB advance is available
-    /// or the mempool has injected txs whose `reference_block` is on
-    /// the local canonical chain. Returns the (advance, injected)
-    /// pair already pre-resolved so the caller doesn't double-fetch.
-    ///
-    /// Re-evaluates on every chain-head update or mempool insert so
-    /// the producer never waits on stale state.
+    // Wait for either a new EB candidate past quarantine
+    // or any suitable injected tx to include in the next proposal.
     async fn wait_for_proposable_content(
         &self,
-        parent_advanced: H256,
+        prev_advanced_eb_hash: H256,
     ) -> (Option<H256>, Vec<SignedInjectedTransaction>) {
         loop {
-            // Arm the chain-head notification BEFORE checking conditions.
-            // `Notify::notify_waiters()` only wakes futures that are already
-            // registered as waiters; without pre-arming, a wake fired
-            // between `compute_advance_candidate` and `select!` is lost
-            // and the producer hangs until `propose_timeout` (12s) — a
-            // showstopper for tests that mine one block at a time.
             let chain_head_notified = self.chain_head_notify.notified();
             tokio::pin!(chain_head_notified);
             chain_head_notified.as_mut().enable();
 
-            let advance = self.compute_advance_candidate(parent_advanced);
-            // Snapshot the chain head and drop the guard before the
-            // mempool's async fetch — the guard is `!Send`, so any
-            // await across the lock would poison the impl Trait future.
+            let advance = self.find_eb_candidate_for_advancing(prev_advanced_eb_hash);
+
             let head_snapshot = *self.chain_head.read().expect("chain_head poisoned");
             let injected = match head_snapshot {
-                Some(head) => self.mempool.fetch(head, self.gas_allowance).await,
+                Some(head) => self.mempool.fetch(head).await,
                 None => Vec::new(),
             };
+
             if advance.is_some() || !injected.is_empty() {
                 return (advance, injected);
             }
@@ -656,12 +634,8 @@ impl EthexeExternalities {
         }
     }
 
-    /// Resolve the next `AdvanceTillEthereumBlock` candidate given
-    /// the parent MB's `last_advanced_eb`. Returns `Some` only for
-    /// a strict descendant of `parent_advanced`; everything else
-    /// (no candidate, same EB, or a misconfigured walk) is treated
-    /// as "no advance this round" and logged.
-    fn compute_advance_candidate(&self, parent_advanced: H256) -> Option<H256> {
+    // Candidate EB must be anchored in the quarantine and a strict descendant of the previously advanced EB.
+    fn find_eb_candidate_for_advancing(&self, prev_advanced_eb_hash: H256) -> Option<H256> {
         let head = (*self.chain_head.read().expect("chain_head poisoned"))?;
         let start = self.db.globals().start_block_hash;
         let candidate = match quarantine::anchor(&self.db, head, self.canonical_quarantine, start) {
@@ -672,17 +646,18 @@ impl EthexeExternalities {
                 return None;
             }
         };
-        if candidate == parent_advanced {
+        if candidate == prev_advanced_eb_hash {
             return None;
         }
-        match quarantine::is_strict_descendant_of(&self.db, candidate, parent_advanced, start) {
+        match quarantine::is_strict_descendant_of(&self.db, candidate, prev_advanced_eb_hash, start)
+        {
             Ok(true) => Some(candidate),
             Ok(false) => None,
             Err(e) => {
                 error!(
                     error = %e,
                     candidate = %candidate,
-                    parent_advanced = %parent_advanced,
+                    parent_advanced = %prev_advanced_eb_hash,
                     "quarantine-passed EB is not a canonical descendant of \
                      parent's last_advanced_eb — skipping AdvanceTillEthereumBlock"
                 );
@@ -791,9 +766,12 @@ mod tests {
         assert_eq!(txs, p);
 
         match rx.try_recv().expect("event").expect("ok") {
-            MalachiteEvent::BlockProposal { height, block_hash } => {
+            MalachiteEvent::BlockProposal {
+                height,
+                mb_hash: proposed,
+            } => {
                 assert_eq!(height, 1);
-                assert_eq!(block_hash, mb_hash);
+                assert_eq!(proposed, mb_hash);
                 let _ = p;
             }
             other => panic!("expected BlockProposal, got {other:?}"),
@@ -825,12 +803,12 @@ mod tests {
             MalachiteEvent::BlockFinalized {
                 cert,
                 height,
-                block_hash,
+                mb_hash: finalized,
             } => {
                 assert_eq!(height, 1);
-                assert_eq!(block_hash, mb_hash);
+                assert_eq!(mb_hash, finalized);
                 assert_eq!(cert.height, 1);
-                assert_eq!(cert.block_hash, mb_hash);
+                assert_eq!(cert.mb_hash, mb_hash);
                 let _ = p;
             }
             other => panic!("expected BlockFinalized, got {other:?}"),
@@ -1036,11 +1014,7 @@ mod tests {
             Ok(())
         }
         fn set_chain_head(&self, _head: SimpleBlockData) {}
-        async fn fetch(
-            &self,
-            _head: SimpleBlockData,
-            _gas_budget: u64,
-        ) -> Vec<SignedInjectedTransaction> {
+        async fn fetch(&self, _head: SimpleBlockData) -> Vec<SignedInjectedTransaction> {
             Vec::new()
         }
         async fn forget(&self, committed: &[SignedInjectedTransaction]) {

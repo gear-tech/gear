@@ -935,26 +935,26 @@ impl Service {
                     }
                 },
                 Event::Malachite(event) => match event {
-                    MalachiteEvent::BlockProposal { height, block_hash } => {
+                    MalachiteEvent::BlockProposal { height, mb_hash } => {
                         tracing::info!(
                             height,
-                            mb_hash = %block_hash,
+                            mb_hash = %mb_hash,
                             "Malachite: BlockProposal",
                         );
                         // Validators are interested in this MB's
                         // promises so they can gossip them; the
                         // service's `PromiseEmissionMode` can still
                         // force the policy to `Enabled` regardless.
-                        compute.compute_mb(block_hash, ethexe_common::PromisePolicy::Enabled);
+                        compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                     MalachiteEvent::BlockFinalized {
                         cert,
                         height,
-                        block_hash,
+                        mb_hash,
                     } => {
                         tracing::info!(
                             height,
-                            mb_hash = %block_hash,
+                            mb_hash = %mb_hash,
                             sigs = cert.signatures.len(),
                             "Malachite: BlockFinalized",
                         );
@@ -968,7 +968,7 @@ impl Service {
                         // idempotent: a proposer that already computed via
                         // `BlockProposal` short-circuits on
                         // `mb_meta.computed`.
-                        compute.compute_mb(block_hash, ethexe_common::PromisePolicy::Enabled);
+                        compute.compute_mb(mb_hash, ethexe_common::PromisePolicy::Enabled);
                     }
                 },
                 Event::Prometheus(event) => match event {

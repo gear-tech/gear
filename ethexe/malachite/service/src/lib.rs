@@ -46,13 +46,11 @@ pub use crate::{
     service::MalachiteService,
     tx_validity::{MIN_EXECUTABLE_BALANCE_FOR_INJECTED_MESSAGES, TxValidity, TxValidityChecker},
 };
-
-/// libp2p peer-id derived from a validator secret.
-pub use ethexe_malachite_core::libp2p_peer_id as malachite_libp2p_peer_id;
-pub use ethexe_malachite_core::{Multiaddr, PeerId, derive_libp2p_secret};
-
 pub use ethexe_common::malachite::{
     ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions,
+};
+pub use ethexe_malachite_core::{
+    Multiaddr, PeerId, derive_libp2p_secret, libp2p_peer_id as malachite_libp2p_peer_id,
 };
 pub use gprimitives::H256;
 
@@ -60,42 +58,39 @@ pub use gprimitives::H256;
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct CommitCertificate {
     pub height: u64,
-    pub block_hash: H256,
+    pub mb_hash: H256,
     pub signatures: Vec<Vec<u8>>,
 }
 
 /// Output event stream of the Malachite service.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MalachiteEvent {
-    /// New sequencer block persisted; `block_hash` is the Blake2b envelope hash.
-    BlockProposal { height: u64, block_hash: H256 },
+    /// New sequencer block persisted; `mb_hash` is the Blake2b envelope hash.
+    BlockProposal { height: u64, mb_hash: H256 },
 
     /// BFT-committed block; `globals.latest_finalized_mb_hash` now points at it.
     BlockFinalized {
         cert: CommitCertificate,
         height: u64,
-        block_hash: H256,
+        mb_hash: H256,
     },
 }
 
 impl std::fmt::Display for MalachiteEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BlockProposal { height, block_hash } => {
-                write!(
-                    f,
-                    "BlockProposal(height: {height}, block_hash: {block_hash})"
-                )
+            Self::BlockProposal { height, mb_hash } => {
+                write!(f, "BlockProposal(height: {height}, mb_hash: {mb_hash})")
             }
             Self::BlockFinalized {
                 cert,
                 height,
-                block_hash,
+                mb_hash,
             } => write!(
                 f,
-                "BlockFinalized(height: {}, block_hash: {}, sigs: {})",
+                "BlockFinalized(height: {}, mb_hash: {}, sigs: {})",
                 height,
-                block_hash,
+                mb_hash,
                 cert.signatures.len()
             ),
         }

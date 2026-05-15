@@ -365,16 +365,16 @@ impl TestingEventReceiver {
     #[allow(dead_code)]
     pub async fn wait_till_eth_block_finalized_in_mb(&mut self, target_eth_block: H256) {
         self.find_map_with_db(|db, event| {
-            let TestingEvent::Malachite(MalachiteEvent::BlockFinalized { block_hash, .. }) = event
+            let TestingEvent::Malachite(MalachiteEvent::BlockFinalized { mb_hash, .. }) = event
             else {
                 return None;
             };
-            let last_advanced = db.mb_meta(block_hash).last_advanced_eb;
+            let last_advanced = db.mb_meta(mb_hash).last_advanced_eb;
             if last_advanced.is_zero() {
                 return None;
             }
             // Anchor: previous MB's `last_advanced_eb` (genesis if none).
-            let prev_advanced = match db.mb_compact_block(block_hash) {
+            let prev_advanced = match db.mb_compact_block(mb_hash) {
                 Some(c) if !c.parent.is_zero() => db.mb_meta(c.parent).last_advanced_eb,
                 _ => H256::zero(),
             };
