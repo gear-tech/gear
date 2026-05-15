@@ -1,6 +1,5 @@
 name: Refactor
 description: Improve existing code
-title: ""
 labels: ["type: refactor"]
 
 body:
