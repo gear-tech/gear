@@ -80,8 +80,8 @@ pub fn patch_workspace(name: &str, table: &mut toml_edit::InlineTable) {
 mod ethexe_rpc {
     use toml_edit::{Array, DocumentMut};
 
-    /// Publish `ethexe-rpc` as a client-only crate, because its server API
-    /// depends on `ethexe-processor`, which is not part of the crates.io set.
+    /// Remove the `ethexe-processor` dependency from the crates.io manifest,
+    /// because it is not part of the crates.io set.
     pub fn patch(manifest: &mut DocumentMut) {
         if let Some(deps) = manifest["dependencies"].as_table_like_mut() {
             deps.remove("ethexe-processor");
@@ -95,7 +95,14 @@ mod ethexe_rpc {
         default_features.push("client");
 
         features.insert("default", toml_edit::value(default_features));
-        features.remove("server");
+
+        let Some(server_features) = features
+            .get_mut("server")
+            .and_then(toml_edit::Item::as_array_mut)
+        else {
+            return;
+        };
+        server_features.retain(|feature| feature.as_str() != Some("dep:ethexe-processor"));
     }
 }
 
