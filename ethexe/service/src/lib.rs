@@ -56,7 +56,8 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, gear::CodeState, network::VerifiedValidatorMessage,
+    COMMITMENT_DELAY_LIMIT, CodeAndIdUnchecked, PromiseEmissionMode, gear::CodeState,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -159,15 +160,21 @@ impl Service {
     /// Number of reserved dev accounts (deployer, validator).
     const RESERVED_DEV_ACCOUNTS: u32 = 2;
     /// Expected Foundry toolchain commit sha.
-    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f1abb2ca347187bb6dea8c3881ca44ce50aab1e7";
+    const FOUNDRY_TOOLCHAIN_COMMIT_SHA: &str = "f83bad912a9dba7bf0371def1e70bb1896048356";
+    /// Expected Foundry toolchain version.
+    const FOUNDRY_TOOLCHAIN_VERSION: &str = "1.7.0";
 
     fn check_foundry_toolchain_version(client_commit_sha: Option<String>) -> Result<()> {
         if let Some(client_commit_sha) = client_commit_sha
             && client_commit_sha != Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA
         {
+            // bail!(
+            //     "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install nightly-{commit_sha} --force`.",
+            //     commit_sha = Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA,
+            // );
             bail!(
-                "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install nightly-{commit_sha} --force`.",
-                commit_sha = Self::FOUNDRY_TOOLCHAIN_COMMIT_SHA,
+                "Commit hash mismatch in Foundry toolchain! Please use: `foundryup --install {version} --force`.",
+                version = Self::FOUNDRY_TOOLCHAIN_VERSION,
             );
         }
 
@@ -313,6 +320,11 @@ impl Service {
             None
         };
 
+        let rpc = config
+            .rpc
+            .clone()
+            .map(|config| RpcServer::new(config, db.clone()));
+
         let observer = ObserverService::new(
             db.clone(),
             ObserverConfig {
@@ -386,6 +398,9 @@ impl Service {
                     .eip1559_fee_increase_percentage(
                         config.ethereum.eip1559_fee_increase_percentage,
                     )
+                    .eip1559_max_fee_per_gas_in_gwei(
+                        config.ethereum.eip1559_max_fee_per_gas_in_gwei,
+                    )
                     .blob_gas_multiplier(config.ethereum.blob_gas_multiplier)
                     .build()
                     .await?;
@@ -446,12 +461,15 @@ impl Service {
             None
         };
 
-        let rpc = config
-            .rpc
-            .as_ref()
-            .map(|config| RpcServer::new(config.clone(), db.clone()));
-
-        let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
+        // RPC-node always requires promises
+        let promises_mode = match rpc.is_some() {
+            true => PromiseEmissionMode::AlwaysEmit,
+            false => PromiseEmissionMode::ConsensusDriven,
+        };
+        let compute_config = ComputeConfig::builder()
+            .canonical_quarantine(config.node.canonical_quarantine)
+            .promises_mode(promises_mode)
+            .build();
         let processor_config = ProcessorConfig {
             chunk_size: config.node.chunk_processing_threads,
         };
@@ -630,6 +648,10 @@ impl Service {
                         // Nothing
                     }
                     ComputeEvent::Promise(promise, announce_hash) => {
+                        if let Some(ref rpc) = rpc {
+                            rpc.receive_computed_promise(promise.clone());
+                        }
+
                         consensus.receive_promise_for_signing(promise, announce_hash)?;
                     }
                 },
@@ -677,9 +699,9 @@ impl Service {
                                 let _res = response_sender.send(acceptance);
                             }
                         },
-                        NetworkEvent::PromiseMessage(promise) => {
+                        NetworkEvent::PromiseMessage(compact_promise) => {
                             if let Some(rpc) = &rpc {
-                                rpc.provide_promise(promise);
+                                rpc.receive_compact_promise(compact_promise);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
@@ -727,17 +749,17 @@ impl Service {
                     ConsensusEvent::ComputeAnnounce(announce, promise_policy) => {
                         compute.compute_announce(announce, promise_policy)
                     }
-                    ConsensusEvent::PublishPromise(signed_promise) => {
+                    ConsensusEvent::PublishPromise(compact_promise) => {
                         if rpc.is_none() && network.is_none() {
                             panic!("Promise without network or rpc");
                         }
 
                         if let Some(rpc) = &rpc {
-                            rpc.provide_promise(signed_promise.clone());
+                            rpc.receive_compact_promise(compact_promise.clone());
                         }
 
                         if let Some(network) = &mut network {
-                            network.publish_promise(signed_promise);
+                            network.publish_promise(compact_promise);
                         }
                     }
                     ConsensusEvent::PublishMessage(message) => {

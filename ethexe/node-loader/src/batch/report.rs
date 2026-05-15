@@ -1,4 +1,7 @@
-use crate::batch::context::{Context, ContextTotals, ContextUpdate};
+use crate::batch::{
+    context::{Context, ContextTotals, ContextUpdate},
+    value::{BudgetExhaustion, ValuePolicy, format_wei, format_wvara},
+};
 use std::fmt::{self, Write};
 
 /// Final status of one load-generator run.
@@ -7,6 +10,7 @@ pub enum RunEndedBy {
     Completed,
     Interrupted,
     Failed,
+    BudgetExhausted,
 }
 
 impl RunEndedBy {
@@ -15,6 +19,7 @@ impl RunEndedBy {
             Self::Completed => "completed",
             Self::Interrupted => "interrupted",
             Self::Failed => "failed",
+            Self::BudgetExhausted => "budget exhausted",
         }
     }
 }
@@ -62,6 +67,18 @@ impl BatchRunReport {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValueRunStats {
+    pub policy: Option<ValuePolicy>,
+    pub spent_msg_value: u128,
+    pub spent_top_up_value: u128,
+    pub msg_value_budget: Option<u128>,
+    pub top_up_budget: Option<u128>,
+    pub msg_value_overshoot: u128,
+    pub top_up_overshoot: u128,
+    pub exhausted: Option<BudgetExhaustion>,
+}
+
 /// Summary of a whole load-generator run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadRunReport {
@@ -69,6 +86,7 @@ pub struct LoadRunReport {
     pub ended_by: RunEndedBy,
     pub context: Context,
     pub batch_stats: BatchExecutionStats,
+    pub value_stats: Option<ValueRunStats>,
 }
 
 impl LoadRunReport {
@@ -115,7 +133,75 @@ impl LoadRunReport {
             "top-ups: {} executable, {} owned",
             stats.executable_topups, stats.owned_topups
         );
-        let _ = write!(out, "failures observed: {}", stats.failures);
+        let _ = writeln!(out, "failures observed: {}", stats.failures);
+
+        if let Some(value_stats) = &self.value_stats {
+            let _ = writeln!(out, "value accounting: planned reservations");
+            let _ = writeln!(
+                out,
+                "value profile: {}",
+                value_stats
+                    .policy
+                    .as_ref()
+                    .and_then(|policy| policy.profile)
+                    .map(|profile| profile.to_string())
+                    .unwrap_or_else(|| "custom".to_string())
+            );
+            let _ = writeln!(
+                out,
+                "planned msg.value: {} ({})",
+                value_stats.spent_msg_value,
+                format_wei(value_stats.spent_msg_value)
+            );
+            let _ = writeln!(
+                out,
+                "planned top-up: {} ({})",
+                value_stats.spent_top_up_value,
+                format_wvara(value_stats.spent_top_up_value)
+            );
+
+            if let Some(budget) = value_stats.msg_value_budget {
+                let _ = writeln!(
+                    out,
+                    "planned msg.value budget: {} ({})",
+                    budget,
+                    format_wei(budget)
+                );
+            }
+            if let Some(budget) = value_stats.top_up_budget {
+                let _ = writeln!(
+                    out,
+                    "planned top-up budget: {} ({})",
+                    budget,
+                    format_wvara(budget)
+                );
+            }
+
+            let _ = writeln!(
+                out,
+                "planned msg.value overshoot: {} ({})",
+                value_stats.msg_value_overshoot,
+                format_wei(value_stats.msg_value_overshoot)
+            );
+            let _ = writeln!(
+                out,
+                "planned top-up overshoot: {} ({})",
+                value_stats.top_up_overshoot,
+                format_wvara(value_stats.top_up_overshoot)
+            );
+
+            if let Some(exhausted) = value_stats.exhausted {
+                let _ = write!(
+                    out,
+                    "planned budget exhaustion flags: msg.value={}, top-up={}",
+                    exhausted.msg_value_exhausted, exhausted.top_up_exhausted
+                );
+            } else {
+                out.pop();
+            }
+        } else {
+            out.pop();
+        }
 
         out
     }
@@ -129,7 +215,7 @@ impl fmt::Display for LoadRunReport {
 
 #[cfg(test)]
 mod tests {
-    use super::{BatchExecutionStats, LoadRunMetadata, LoadRunReport, RunEndedBy};
+    use super::{BatchExecutionStats, LoadRunMetadata, LoadRunReport, RunEndedBy, ValueRunStats};
     use crate::batch::context::{Context, ContextUpdate};
     use gprimitives::{ActorId, CodeId, MessageId};
 
@@ -174,6 +260,7 @@ mod tests {
                 completed_batches: 12,
                 failed_batches: 2,
             },
+            value_stats: None,
         };
 
         let summary = report.render_pretty();
@@ -200,11 +287,67 @@ mod tests {
             ended_by: RunEndedBy::Completed,
             context: Context::new(),
             batch_stats: BatchExecutionStats::default(),
+            value_stats: None,
         };
 
         let summary = report.render_pretty();
         assert!(summary.contains("status: completed"));
         assert!(summary.contains("programs: 0 total, 0 active, 0 exited"));
         assert!(summary.contains("claims: 0 requested, 0 succeeded, 0 failed"));
+    }
+
+    #[test]
+    fn pretty_summary_renders_budget_exhausted_value_stats() {
+        use crate::batch::value::{
+            BudgetExhaustion, ValuePolicy, ValueProfile, format_wei, format_wvara,
+        };
+
+        let report = LoadRunReport {
+            metadata: LoadRunMetadata {
+                seed: 42,
+                workers: 1,
+                batch_size: 1,
+            },
+            ended_by: RunEndedBy::BudgetExhausted,
+            context: Context::new(),
+            batch_stats: BatchExecutionStats::default(),
+            value_stats: Some(ValueRunStats {
+                policy: Some(ValuePolicy {
+                    profile: Some(ValueProfile::Mainnet),
+                    max_msg_value: Some(100_000_000_000_000),
+                    max_top_up_value: Some(1_000_000_000_000),
+                    total_msg_value_budget: Some(2_000_000_000_000_000),
+                    total_top_up_budget: Some(10_000_000_000_000),
+                }),
+                spent_msg_value: 2_100_000_000_000_000,
+                spent_top_up_value: 10_000_000_000_000,
+                msg_value_budget: Some(2_000_000_000_000_000),
+                top_up_budget: Some(10_000_000_000_000),
+                msg_value_overshoot: 100_000_000_000_000,
+                top_up_overshoot: 0,
+                exhausted: Some(BudgetExhaustion {
+                    msg_value_exhausted: true,
+                    top_up_exhausted: true,
+                }),
+            }),
+        };
+
+        let summary = report.render_pretty();
+        assert!(summary.contains("status: budget exhausted"));
+        assert!(summary.contains("value accounting: planned reservations"));
+        assert!(summary.contains("value profile: mainnet"));
+        assert!(summary.contains("planned msg.value: 2100000000000000"));
+        assert!(summary.contains("planned top-up: 10000000000000"));
+        assert!(summary.contains("planned msg.value budget: 2000000000000000"));
+        assert!(summary.contains("planned top-up budget: 10000000000000"));
+        assert!(summary.contains("planned msg.value overshoot: 100000000000000"));
+        assert!(summary.contains("planned top-up overshoot: 0"));
+        assert!(summary.contains("planned budget exhaustion flags: msg.value=true, top-up=true"));
+        assert!(summary.contains(&format!("({})", format_wei(2_100_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wvara(10_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wei(2_000_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wvara(10_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wei(100_000_000_000_000))));
+        assert!(summary.contains(&format!("({})", format_wvara(0))));
     }
 }

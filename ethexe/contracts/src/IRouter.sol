@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
-import {Gear} from "./libraries/Gear.sol";
+import {Gear} from "src/libraries/Gear.sol";
 
 /**
  * @dev Interface for the `Router` contract.
@@ -56,6 +56,16 @@ interface IRouter {
          * @notice Maximum number of validators for era.
          */
         uint16 maxValidators;
+        /**
+         * @notice The base fee of `Router.requestCodeValidation(...)` method.
+         *         This base fee is paid in WVARA ERC20 token.
+         */
+        uint256 requestCodeValidationBaseFee;
+        /**
+         * @notice The extra fee of `Router.requestCodeValidationOnBehalf(...)` method.
+         *         This extra fee is paid in WVARA ERC20 token.
+         */
+        uint256 requestCodeValidationExtraFee;
     }
 
     /**
@@ -209,7 +219,7 @@ interface IRouter {
     error GenesisHashNotFound();
 
     /**
-     * @dev Thrown when the tx is not in EIP-7594 format,
+     * @dev Thrown when the tx is not in EIP-4844/EIP-7594 format,
      *      so it doesn't have blobhashes.
      */
     error BlobNotFound();
@@ -226,9 +236,31 @@ interface IRouter {
     error CodeAlreadyOnValidationOrValidated();
 
     /**
+     * @dev Thrown when the provided blob hashes length doesn't match the actual blob hashes length in transaction.
+     */
+    error InvalidBlobHashesLength(uint256 providedLength, uint256 expectedLength);
+
+    /**
+     * @dev Thrown when the blobhash for code validation request is invalid.
+     */
+    error InvalidBlobHash(uint256 index, bytes32 providedBlobHash, bytes32 expectedBlobHash);
+
+    /**
+     * @dev Thrown when deadline for code validation request has expired.
+     */
+    error ExpiredSignature(uint256 deadline);
+
+    /**
+     * @dev Thrown when the signer of the code validation request is not the requester.
+     */
+    error InvalidSigner(address signer, address requester);
+
+    /**
      * @dev Thrown when the code is not validated and someone tries to create program with it.
      */
     error CodeNotValidated();
+
+    error TransferFromFailed();
 
     error PredecessorBlockNotFound();
 
@@ -418,10 +450,28 @@ interface IRouter {
     function validatedCodesCount() external view returns (uint256);
 
     /**
+     * @dev Returns the base fee for requesting code validation in WVARA ERC20 token.
+     * @return requestCodeValidationBaseFee The base fee for requesting code validation.
+     */
+    function requestCodeValidationBaseFee() external view returns (uint256);
+
+    /**
+     * @dev Returns the extra fee for requesting code validation on behalf of someone else in WVARA ERC20 token.
+     * @return requestCodeValidationExtraFee The extra fee for requesting code validation on behalf of someone else.
+     */
+    function requestCodeValidationExtraFee() external view returns (uint256);
+
+    /**
      * @dev Returns the timelines.
      * @return timelines The timelines.
      */
     function timelines() external view returns (Gear.Timelines memory);
+
+    /**
+     * @dev Returns the EIP-712 domain separator for `IRouter.requestCodeValidationOnBehalf(...)`.
+     * @return domainSeparator The domain separator.
+     */
+    function DOMAIN_SEPARATOR() external view returns (bytes32);
 
     /* # Owner calls */
 
@@ -430,6 +480,18 @@ interface IRouter {
      * @param newMirror The new mirror implementation address.
      */
     function setMirror(address newMirror) external;
+
+    /**
+     * @dev Sets the base fee for requesting code validation in WVARA ERC20 token.
+     * @param newBaseFee The new base fee for requesting code validation.
+     */
+    function setRequestCodeValidationBaseFee(uint256 newBaseFee) external;
+
+    /**
+     * @dev Sets the extra fee for requesting code validation on behalf of someone else in WVARA ERC20 token.
+     * @param newExtraFee The new extra fee for requesting code validation on behalf of someone else.
+     */
+    function setRequestCodeValidationExtraFee(uint256 newExtraFee) external;
 
     /**
      * @dev Pauses the contract.
@@ -450,13 +512,52 @@ interface IRouter {
 
     /**
      * @dev Requests code validation for the given code ID.
-     *      This method is expected to be called within EIP-7594 transaction and will have sidecar
+     *      This method is expected to be called within EIP-4844/EIP-7594 transaction and will have sidecar
      *      attached to it containing WASM bytecode. On EVM, we can only verify that there was
      *      at least 1 blobhash in a transaction.
+     *      Note that this function charges fee equal to `IRouter(router).requestCodeValidationBaseFee()`
+     *      in the WVARA ERC20 token.
      * @param codeId The expected code ID for which the validation is requested.
      *               It's calculated as `gprimitives::CodeId::generate(wasm_code)` (blake2b hash).
+     * @param deadline Deadline for the transaction to be executed.
+     * @param v ECDSA signature parameter.
+     * @param r ECDSA signature parameter.
+     * @param s ECDSA signature parameter.
      */
-    function requestCodeValidation(bytes32 codeId) external;
+    function requestCodeValidation(bytes32 codeId, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
+
+    /**
+     * @dev Requests code validation for the given code ID on behalf of someone else.
+     *      This method is expected to be called within EIP-4844/EIP-7594 transaction and will have sidecar
+     *      attached to it containing WASM bytecode. On EVM, we can only verify that there was
+     *      at least 1 blobhash in a transaction.
+     *      Note that this function charges fee equal to `IRouter(router).requestCodeValidationBaseFee() + IRouter(router).requestCodeValidationExtraFee()`
+     *      in the WVARA ERC20 token.
+     * @param requester The address of the requester on behalf of whom the code validation is requested.
+     * @param codeId The expected code ID for which the validation is requested.
+     *               It's calculated as `gprimitives::CodeId::generate(wasm_code)` (blake2b hash).
+     * @param blobHashes The array of blob hashes. `blobhash(i)` must be equal to `_blobHashes[i]`.
+     *                   This is needed to verify that the transaction has expected blobs attached.
+     * @param deadline Deadline for the transaction to be executed.
+     * @param v1 ECDSA signature parameter (for requestCodeValidation).
+     * @param r1 ECDSA signature parameter (for requestCodeValidation).
+     * @param s1 ECDSA signature parameter (for requestCodeValidation).
+     * @param v2 ECDSA signature parameter (for permit).
+     * @param r2 ECDSA signature parameter (for permit).
+     * @param s2 ECDSA signature parameter (for permit).
+     */
+    function requestCodeValidationOnBehalf(
+        address requester,
+        bytes32 codeId,
+        bytes32[] calldata blobHashes,
+        uint256 deadline,
+        uint8 v1,
+        bytes32 r1,
+        bytes32 s1,
+        uint8 v2,
+        bytes32 r2,
+        bytes32 s2
+    ) external;
 
     /**
      * @dev Creates new program (`Mirror`) with the given code ID, salt, and initializer.
@@ -472,6 +573,36 @@ interface IRouter {
      * @return mirror The address of the created program (`Mirror`).
      */
     function createProgram(bytes32 codeId, bytes32 salt, address overrideInitializer) external returns (address);
+
+    /**
+     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer and initial executable balance
+     *      in WVARA ERC20 token.
+     *      Note that the program creation is deterministic, so if you try to create program with the same code ID and salt,
+     *      you will get the same program address.
+     *      Also note that the `Mirror` will be created with `isSmall = true` without "Solidity ABI Interface" support,
+     *      so it will be more gas efficient, but services like Etherscan won't be able to encode some calls and decode some events.
+     *      As result of execution, the `ProgramCreated` event will be emitted.
+     * @param codeId The code ID of the program to create. Must be in `CodeState.Validated` state.
+     * @param salt The salt for the program creation.
+     * @param overrideInitializer The initializer address for the program that can send the first (init) message to the program.
+     *                            If set to `address(0)`, `msg.sender` will be used as the initializer.
+     * @param initialExecutableBalance The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
+     * @param deadline Deadline for the transaction to be executed.
+     * @param v ECDSA signature parameter.
+     * @param r ECDSA signature parameter.
+     * @param s ECDSA signature parameter.
+     * @return mirror The address of the created program (`Mirror`).
+     */
+    function createProgramWithExecutableBalance(
+        bytes32 codeId,
+        bytes32 salt,
+        address overrideInitializer,
+        uint128 initialExecutableBalance,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (address);
 
     /**
      * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer and ABI interface.
@@ -492,6 +623,38 @@ interface IRouter {
         bytes32 salt,
         address overrideInitializer,
         address abiInterface
+    ) external returns (address);
+
+    /**
+     * @dev Creates new program (`Mirror`) with the given code ID, salt, initializer, ABI interface and initial executable balance
+     *      in WVARA ERC20 token.
+     *      Note that the program creation is deterministic, so if you try to create program with the same code ID and salt,
+     *      you will get the same program address.
+     *      Also note that the `Mirror` will be created with `isSmall = false` WITH "Solidity ABI Interface" support,
+     *      so it will be less gas efficient, but services like Etherscan will be able to encode some calls and decode some events.
+     *      As result of execution, the `ProgramCreated` event will be emitted.
+     * @param codeId The code ID of the program to create. Must be in `CodeState.Validated` state.
+     * @param salt The salt for the program creation.
+     * @param overrideInitializer The initializer address for the program that can send the first (init) message to the program.
+     *                            If set to `address(0)`, `msg.sender` will be used as the initializer.
+     * @param abiInterface The ABI interface address for the program.
+     * @param initialExecutableBalance The value in WVARA ERC20 token to transfer to executable balance to `Mirror` after creation.
+     * @param deadline Deadline for the transaction to be executed.
+     * @param v ECDSA signature parameter.
+     * @param r ECDSA signature parameter.
+     * @param s ECDSA signature parameter.
+     * @return mirror The address of the created program (`Mirror`).
+     */
+    function createProgramWithAbiInterfaceAndExecutableBalance(
+        bytes32 codeId,
+        bytes32 salt,
+        address overrideInitializer,
+        address abiInterface,
+        uint128 initialExecutableBalance,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
     ) external returns (address);
 
     /**

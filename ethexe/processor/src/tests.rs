@@ -19,8 +19,8 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, OUTGOING_MESSAGES_SOFT_LIMIT, PROGRAM_MODIFICATIONS_SOFT_LIMIT,
-    PrivateKey, ScheduledTask, SignedMessage, SimpleBlockData,
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, OUTGOING_MESSAGES_SOFT_LIMIT,
+    PROGRAM_MODIFICATIONS_SOFT_LIMIT, PrivateKey, ScheduledTask, SignedMessage, SimpleBlockData,
     db::*,
     events::{
         BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent,
@@ -973,7 +973,8 @@ async fn overlay_execution() {
 async fn injected_ping_pong() {
     init_logger();
 
-    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
+    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
+    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::random());
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
@@ -1043,7 +1044,7 @@ async fn injected_ping_pong() {
             handler.transitions,
             block1,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(promise_out_tx.clone()),
+            Some(promise_sink.clone()),
         )
         .await
         .unwrap();
@@ -1051,7 +1052,8 @@ async fn injected_ping_pong() {
     let promise = promise_receiver
         .recv()
         .await
-        .expect("promise must be sent after processing");
+        .expect("promise must be sent after processing")
+        .1;
 
     assert_eq!(promise.tx_hash, injected_tx.to_hash());
     assert_eq!(promise.reply.payload, b"PONG");
@@ -1084,7 +1086,9 @@ async fn injected_prioritized_over_canonical() {
 
     init_logger();
 
-    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
+    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
+    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::random());
+
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
@@ -1162,7 +1166,7 @@ async fn injected_prioritized_over_canonical() {
             handler.transitions,
             block1,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(promise_out_tx.clone()),
+            Some(promise_sink.clone()),
         )
         .await
         .unwrap();
@@ -1171,7 +1175,8 @@ async fn injected_prioritized_over_canonical() {
         let promise = promise_receiver
             .recv()
             .await
-            .expect("promise for injected transaction");
+            .expect("promise for injected transaction")
+            .1;
 
         assert_eq!(promise.tx_hash, tx_hash);
         assert_eq!(promise.reply.value, 0);
@@ -1284,7 +1289,9 @@ async fn executable_balance_injected_panic_not_charged() {
 
     init_logger();
 
-    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
+    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
+    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::random());
+
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]).await;
     let block1 = chain.blocks[1].to_simple();
@@ -1333,7 +1340,7 @@ async fn executable_balance_injected_panic_not_charged() {
             handler.transitions,
             block1,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(promise_out_tx.clone()),
+            Some(promise_sink.clone()),
         )
         .await
         .unwrap();
@@ -1350,7 +1357,7 @@ async fn executable_balance_injected_panic_not_charged() {
             handler.transitions,
             block1,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(promise_out_tx.clone()),
+            Some(promise_sink.clone()),
         )
         .await
         .unwrap();
@@ -1359,7 +1366,9 @@ async fn executable_balance_injected_panic_not_charged() {
     let panic_promise = promise_receiver
         .recv()
         .await
-        .expect("promise for injected transaction");
+        .expect("promise for injected transaction")
+        .1;
+
     assert_eq!(panic_promise.tx_hash, panic_tx.to_hash());
     assert_eq!(panic_promise.reply.value, 0);
     assert_eq!(
@@ -1397,7 +1406,7 @@ async fn executable_balance_injected_panic_not_charged() {
             handler.transitions,
             block1,
             DEFAULT_BLOCK_GAS_LIMIT,
-            Some(promise_out_tx.clone()),
+            Some(promise_sink.clone()),
         )
         .await
         .unwrap();
@@ -1475,34 +1484,6 @@ async fn insufficient_executable_balance_still_charged() {
     // Check that executable balance decreased
     let exec_balance_after = handler.program_state(actor_id).executable_balance;
     assert!(exec_balance_after < INSUFFICIENT_EXECUTABLE_BALANCE);
-}
-
-#[tokio::test]
-async fn call_gr_wait_is_forbidden() {
-    init_logger();
-
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 0))
-            (import "env" "gr_wait" (func $wait))
-            (export "init" (func $init))
-            (func $init call $wait)
-        )
-        "#;
-
-    let transitions = simple_init_test(wat_to_wasm(wat).1).await;
-    let reply_code = transitions.current_messages()[0]
-        .1
-        .reply_details
-        .expect("must be reply")
-        .to_reply_code();
-    assert_eq!(
-        reply_code,
-        ReplyCode::Error(ErrorReplyReason::Execution(
-            SimpleExecutionError::BackendError
-        )),
-        "Forbidden syscall should return backend error"
-    );
 }
 
 #[tokio::test]
@@ -1704,7 +1685,8 @@ async fn injected_and_events_then_tasks_then_queues() {
         }),
     }];
 
-    let (promise_out_tx, mut promise_receiver) = mpsc::unbounded_channel();
+    let (promise_sender, mut promise_receiver) = mpsc::unbounded_channel();
+    let promise_sink = BoundPromiseSink::new(promise_sender, HashOf::random());
 
     let executable = ExecutableData {
         block: block3,
@@ -1715,7 +1697,7 @@ async fn injected_and_events_then_tasks_then_queues() {
         gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
     };
     let FinalizedBlockTransitions { transitions, .. } = processor
-        .process_programs(executable, Some(promise_out_tx))
+        .process_programs(executable, Some(promise_sink))
         .await
         .unwrap();
 
@@ -1751,7 +1733,8 @@ async fn injected_and_events_then_tasks_then_queues() {
     let promise = promise_receiver
         .recv()
         .await
-        .expect("promise must be sent for injected transaction");
+        .expect("promise must be sent for injected transaction")
+        .1;
     assert_eq!(promise.reply.payload, b"DONE");
     assert_eq!(
         promise.reply.code,

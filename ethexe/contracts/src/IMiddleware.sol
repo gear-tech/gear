@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
-import {Gear} from "./libraries/Gear.sol";
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {Gear} from "src/libraries/Gear.sol";
 
 /**
  * @dev Interface for the Middleware contract.

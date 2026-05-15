@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 pragma solidity ^0.8.33;
 
-import {Base} from "./Base.t.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Vm} from "forge-std/Test.sol";
 import {FROSTOffchain, SigningKey} from "frost-secp256k1-evm/FROSTOffchain.sol";
 import {Gear} from "src/libraries/Gear.sol";
+import {Base} from "test/Base.t.sol";
 
 contract RouterTest is Base {
     using MessageHashUtils for address;
@@ -63,7 +63,7 @@ contract RouterTest is Base {
         Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
 
         Gear.ValidatorsCommitment memory commitment = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
+            true, Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
         );
 
         // Revert - election is not yet started
@@ -76,7 +76,7 @@ contract RouterTest is Base {
         rollOneBlockAndWarp(uint256(router.genesisTimestamp() + eraDuration - electionDuration));
 
         Gear.ValidatorsCommitment memory commitment2 = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 2
+            true, Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 2
         );
         // Revert - election started, but wrong era index in commitment
         commitValidators(commitment2, true);
@@ -131,7 +131,7 @@ contract RouterTest is Base {
         Vm.Wallet memory _publicKey = vm.createWallet(_signingKey.asScalar());
 
         Gear.ValidatorsCommitment memory commitment = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
+            true, Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
         );
 
         rollOneBlockAndWarp(uint256(router.genesisTimestamp() + eraDuration - electionDuration) - 2 * blockDuration);
@@ -155,7 +155,7 @@ contract RouterTest is Base {
         uint256[] memory _privateKeys = new uint256[](1);
 
         Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
+            true, Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
         );
         Gear.StateTransition[] memory _transitions = new Gear.StateTransition[](0);
 
@@ -200,7 +200,7 @@ contract RouterTest is Base {
         uint256[] memory _privateKeys = new uint256[](1);
 
         Gear.ValidatorsCommitment memory _commitment = Gear.ValidatorsCommitment(
-            Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
+            true, Gear.AggregatedPublicKey(_publicKey.publicKeyX, _publicKey.publicKeyY), "", _validators, 1
         );
         Gear.StateTransition[] memory _transitions = new Gear.StateTransition[](0);
 

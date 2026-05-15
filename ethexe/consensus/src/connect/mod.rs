@@ -43,6 +43,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+use tracing::trace;
 
 /// Maximum number of pending announces to store
 const MAX_PENDING_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
@@ -292,14 +293,10 @@ impl ConsensusService for ConnectService {
         promise: Promise,
         announce_hash: HashOf<Announce>,
     ) -> Result<()> {
-        tracing::error!(
-            "Connected consensus node receives the promise for signing, but it not responsible for promises providing: \
-            promise={promise:?}, announce_hash={announce_hash}"
-        );
-        debug_assert!(
-            false,
-            "Connect node received the promise for signing, this should never happen"
-        );
+        // Nothing to do.
+        // This case is not error because connect node can be also RPC node that produce promises,
+        // to send them for external users.
+        trace!(?promise, %announce_hash, "connect node received the promise for signing, skipping...");
         Ok(())
     }
 

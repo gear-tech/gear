@@ -36,7 +36,10 @@ use ethexe_common::{
 };
 use ext::Ext;
 use gear_core::{
-    code::{CodeMetadata, InstrumentedCode, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT},
+    code::{
+        CodeMetadata, InstrumentedCode, InstrumentedCodeAndMetadata, MAX_WASM_PAGES_AMOUNT,
+        SyscallKind,
+    },
     gas::GasAllowanceCounter,
     gas_metering::Schedule,
     ids::ActorId,
@@ -55,6 +58,8 @@ pub use journal::{NativeJournalHandler as JournalHandler, WAIT_UP_TO_SAFE_DURATI
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
+#[cfg(any(test, feature = "mock"))]
+pub mod proptest;
 pub mod state;
 
 mod ext;
@@ -184,29 +189,26 @@ where
     let block_config = BlockConfig {
         block_info: ctx.block_info,
         forbidden_funcs: [
-            // Deprecated
-            SyscallName::CreateProgramWGas,
-            SyscallName::ReplyCommitWGas,
-            SyscallName::ReplyDeposit,
-            SyscallName::ReplyInputWGas,
-            SyscallName::ReplyWGas,
-            SyscallName::ReservationReplyCommit,
-            SyscallName::ReservationReply,
-            SyscallName::ReservationSendCommit,
-            SyscallName::ReservationSend,
-            SyscallName::ReserveGas,
-            SyscallName::SendCommitWGas,
-            SyscallName::SendInputWGas,
-            SyscallName::SendWGas,
-            SyscallName::SystemReserveGas,
-            SyscallName::UnreserveGas,
-            SyscallName::Wait,
-            // TBD about deprecation
-            SyscallName::SignalCode,
-            SyscallName::SignalFrom,
-            // Temporary forbidden (unimplemented)
-            SyscallName::CreateProgram,
-            SyscallName::Random,
+            SyscallName::CreateProgramWGas,      // Deprecated
+            SyscallName::CreateProgram,          // Unimplemented
+            SyscallName::ReplyDeposit,           // Deprecated
+            SyscallName::SignalCode,             // TBD about deprecation
+            SyscallName::Random,                 // Unimplemented
+            SyscallName::ReplyCommitWGas,        // Deprecated
+            SyscallName::SignalFrom,             // TBD about deprecation
+            SyscallName::ReplyInputWGas,         // Deprecated
+            SyscallName::ReplyWGas,              // Deprecated
+            SyscallName::ReservationReplyCommit, // Deprecated
+            SyscallName::ReservationReply,       // Deprecated
+            SyscallName::ReservationSendCommit,  // Deprecated
+            SyscallName::ReservationSend,        // Deprecated
+            SyscallName::ReserveGas,             // Deprecated
+            SyscallName::SendCommitWGas,         // Deprecated
+            SyscallName::SendInputWGas,          // Deprecated
+            SyscallName::SendWGas,               // Deprecated
+            SyscallName::SystemReserveGas,       // Deprecated
+            SyscallName::UnreserveGas,           // Deprecated
+            SyscallName::Wait,                   // Deprecated
         ]
         .into(),
         gas_multiplier: GasMultiplier::from_value_per_gas(100),
@@ -456,6 +458,7 @@ where
             metadata: code_metadata.clone(),
         },
         program_state.balance,
+        SyscallKind::Eth,
     );
 
     let random_data = ri.random_data();
