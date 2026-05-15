@@ -88,5 +88,6 @@ runs:
           sdk/cargo-gbuild/test-program -> target
         cache-provider: ${{ steps.env.outputs.cache-provider }}
         cache-all-crates: ${{ inputs.cache-all-crates }}
+        cache-bin: ${{ runner.os != 'macOS' }} # https://github.com/Swatinem/rust-cache/issues/341
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
