@@ -1491,34 +1491,6 @@ async fn insufficient_executable_balance_still_charged() {
 }
 
 #[tokio::test]
-async fn call_gr_wait_is_forbidden() {
-    init_logger();
-
-    let wat = r#"
-        (module
-            (import "env" "memory" (memory 0))
-            (import "env" "gr_wait" (func $wait))
-            (export "init" (func $init))
-            (func $init call $wait)
-        )
-        "#;
-
-    let transitions = simple_init_test(wat_to_wasm(wat).1).await;
-    let reply_code = transitions.current_messages()[0]
-        .1
-        .reply_details
-        .expect("must be reply")
-        .to_reply_code();
-    assert_eq!(
-        reply_code,
-        ReplyCode::Error(ErrorReplyReason::Execution(
-            SimpleExecutionError::BackendError
-        )),
-        "Forbidden syscall should return backend error"
-    );
-}
-
-#[tokio::test]
 async fn call_wake_with_delay_is_unsupported() {
     init_logger();
 

@@ -1,6 +1,5 @@
-name: Bug
+name: Bug report
 description: Something is broken
-title: ""
 labels: ["type: fix"]
 
 body:
