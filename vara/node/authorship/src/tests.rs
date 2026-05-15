@@ -60,8 +60,10 @@ use sp_runtime::{
 use sp_state_machine::Backend;
 use sp_timestamp::Timestamp;
 use std::{
+    env, fs,
     ops::Deref,
-    sync::{Arc, LazyLock},
+    path::PathBuf,
+    sync::{Arc, OnceLock},
     time::{self, SystemTime, UNIX_EPOCH},
 };
 use testing::{
@@ -77,10 +79,40 @@ use vara_runtime::{
 
 type TestProposal = sp_consensus::Proposal<TestBlock, ()>;
 
-static EXECUTOR: LazyLock<RuntimeExecutor> = LazyLock::new(|| RuntimeExecutor::builder().build());
-
 const SOURCE: TransactionSource = TransactionSource::External;
 const DEFAULT_GAS_LIMIT: u64 = 10_000_000_000;
+
+fn cache_base_path() -> PathBuf {
+    static CACHE_DIR: OnceLock<PathBuf> = OnceLock::new();
+    CACHE_DIR
+        .get_or_init(|| {
+            // We acquire workspace root dir during runtime and compile-time.
+            //
+            // During development, runtime workspace dir equals to compile-time one,
+            // so all compiled WASMs are cached in the usual ` OUT_DIR `
+            // like we don't rewrite it.
+            //
+            // During cross-compilation, the runtime workspace dir differs from the compile-time one,
+            // and accordingly, `OUT_DIR` beginning differs too,
+            // so we change its beginning to successfully run tests.
+            //
+            // `OUT_DIR` is used for caching instead of some platform-specific project folder to
+            // not maintain the ever-growing number of cached WASMs
+
+            let out_dir = PathBuf::from(env!("OUT_DIR"));
+
+            let runtime_workspace_dir = PathBuf::from(env::var_os("GEAR_WORKSPACE_DIR").unwrap());
+            let compiled_workspace_dir = PathBuf::from(env!("GEAR_WORKSPACE_DIR"));
+
+            let out_dir = pathdiff::diff_paths(out_dir, compiled_workspace_dir).unwrap();
+            let out_dir = runtime_workspace_dir.join(out_dir);
+
+            let cache = out_dir.join("wasmtime-cache");
+            fs::create_dir_all(&cache).unwrap();
+            cache
+        })
+        .into()
+}
 
 fn chain_event<B: BlockT>(header: B::Header) -> ChainEvent<B>
 where
@@ -225,9 +257,18 @@ pub fn init() -> (
     sp_core::testing::TaskExecutor,
     [u8; 32],
 ) {
+    static EXECUTOR: OnceLock<RuntimeExecutor> = OnceLock::new();
+
     let client_builder = TestClientBuilder::new();
     let backend = client_builder.backend();
-    let client = Arc::new(client_builder.build(Some(EXECUTOR.clone())));
+    let executor = EXECUTOR
+        .get_or_init(|| {
+            RuntimeExecutor::builder()
+                .with_cache_path(cache_base_path())
+                .build()
+        })
+        .clone();
+    let client = Arc::new(client_builder.build(Some(executor)));
     let spawner = sp_core::testing::TaskExecutor::new();
     let txpool = BasicPool::new_full(
         Default::default(),
@@ -300,33 +341,8 @@ where
 }
 
 #[test]
-fn run_all_tests() {
-    use basic_tests::*;
-
-    const TESTS: &[fn()] = &[
-        test_pseudo_inherent_placed_in_each_block,
-        test_queue_remains_intact_if_processing_fails,
-        test_block_max_gas_works,
-        test_pseudo_inherent_discarded_from_txpool,
-        test_block_builder_cloned_ok,
-        test_proposal_timing_consistent,
-        test_building_block_ceased_when_deadline_is_reached,
-        test_no_panic_when_deadline_is_reached,
-        test_proposed_storage_changes_match_execute_block_storage_changes,
-        test_invalid_transactions_not_removed_when_skipping,
-        test_building_block_ceased_when_block_limit_is_reached,
-        test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline,
-        test_skipping_only_up_to_some_limit_after_soft_deadline,
-    ];
-
-    init_logger();
-
-    for &test in TESTS {
-        test();
-    }
-}
-
 fn test_pseudo_inherent_placed_in_each_block() {
+    init_logger();
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
     let extrinsics = sign_extrinsics(
@@ -358,7 +374,9 @@ fn test_pseudo_inherent_placed_in_each_block() {
     assert_eq!(block.extrinsics().len(), 3);
 }
 
+#[test]
 fn test_queue_remains_intact_if_processing_fails() {
+    init_logger();
     use sp_state_machine::IterArgs;
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
@@ -468,7 +486,9 @@ fn test_queue_remains_intact_if_processing_fails() {
     assert_eq!(queue_len, 8);
 }
 
+#[test]
 fn test_block_max_gas_works() {
+    init_logger();
     use pallet_gear_builtin::WeightInfo;
     use sp_state_machine::IterArgs;
 
@@ -583,7 +603,9 @@ fn test_block_max_gas_works() {
     assert_eq!(inited_count, 2);
 }
 
+#[test]
 fn test_pseudo_inherent_discarded_from_txpool() {
+    init_logger();
     let (client, backend, txpool, spawner, genesis_hash) = init();
 
     // Create Gear::run() extrinsic - both unsigned and signed
@@ -640,7 +662,9 @@ fn test_pseudo_inherent_discarded_from_txpool() {
     assert_eq!(block.extrinsics().len(), 3);
 }
 
+#[test]
 fn test_block_builder_cloned_ok() {
+    init_logger();
     let (client, _, _, _, genesis_hash) = init();
 
     let extrinsics = sign_extrinsics(
@@ -710,7 +734,9 @@ fn test_block_builder_cloned_ok() {
     );
 }
 
+#[test]
 fn test_proposal_timing_consistent() {
+    init_logger();
     use sp_state_machine::IterArgs;
 
     let (client, backend, txpool, spawner, genesis_hash) = init();
@@ -910,7 +936,9 @@ mod basic_tests {
         .clone()
     }
 
-    pub(super) fn test_building_block_ceased_when_deadline_is_reached() {
+    #[test]
+    fn test_building_block_ceased_when_deadline_is_reached() {
+        init_logger();
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let mut extrinsics = vec![disable_gear_run(0, genesis_hash)];
@@ -962,7 +990,9 @@ mod basic_tests {
         assert_eq!(txpool.ready().count(), 3);
     }
 
-    pub(super) fn test_no_panic_when_deadline_is_reached() {
+    #[test]
+    fn test_no_panic_when_deadline_is_reached() {
+        init_logger();
         let (client, backend, txpool, spawner, _) = init();
 
         let cell = Mutex::new((false, time::Instant::now()));
@@ -992,7 +1022,9 @@ mod basic_tests {
         .block;
     }
 
-    pub(super) fn test_proposed_storage_changes_match_execute_block_storage_changes() {
+    #[test]
+    fn test_proposed_storage_changes_match_execute_block_storage_changes() {
+        init_logger();
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let extrinsics = sign_extrinsics(
@@ -1040,7 +1072,9 @@ mod basic_tests {
         assert!(state.storage(&queue_head_key[..]).unwrap().is_none());
     }
 
-    pub(super) fn test_invalid_transactions_not_removed_when_skipping() {
+    #[test]
+    fn test_invalid_transactions_not_removed_when_skipping() {
+        init_logger();
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let alice = alice();
@@ -1098,7 +1132,9 @@ mod basic_tests {
         assert_eq!(block.extrinsics().len(), 5);
     }
 
-    pub(super) fn test_building_block_ceased_when_block_limit_is_reached() {
+    #[test]
+    fn test_building_block_ceased_when_block_limit_is_reached() {
+        init_logger();
         let (client, _, txpool, spawner, genesis_hash) = init();
 
         let block_id = BlockId::number(0);
@@ -1208,8 +1244,9 @@ mod basic_tests {
         assert_eq!(block.extrinsics().len(), extrinsics_num - 2 + 2);
     }
 
-    pub(super) fn test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline()
-    {
+    #[test]
+    fn test_transactions_keep_being_added_after_exhaust_resources_before_soft_deadline() {
+        init_logger();
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let alice = alice();
@@ -1249,7 +1286,9 @@ mod basic_tests {
         assert_eq!(block.extrinsics().len(), MAX_SKIPPED_TRANSACTIONS + 3);
     }
 
-    pub(super) fn test_skipping_only_up_to_some_limit_after_soft_deadline() {
+    #[test]
+    fn test_skipping_only_up_to_some_limit_after_soft_deadline() {
+        init_logger();
         let (client, backend, txpool, spawner, genesis_hash) = init();
 
         let alice = alice();
