@@ -37,7 +37,7 @@ pub use crate::{
 pub use sp_wasm_interface_common::{HostPointer, Pointer, ReturnValue, Value, WordSize};
 
 static SANDBOX_BACKEND_TYPE: sandbox_env::AtomicSandboxBackend =
-    sandbox_env::AtomicSandboxBackend::new(sandbox_env::SandboxBackend::Wasmer);
+    sandbox_env::AtomicSandboxBackend::new(sandbox_env::SandboxBackend::Wasmtime);
 
 const DEFAULT_SANDBOX_STORE_CLEAR_COUNTER_LIMIT: u32 = 50;
 
