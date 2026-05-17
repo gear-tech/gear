@@ -30,6 +30,13 @@ region.workspace = true
 
 gear-workspace-hack.workspace = true
 
+[dev-dependencies]
+criterion.workspace = true
+
 [features]
 # See wasmi/extra-checks for more information.
 wasmi-extra-checks = ["wasmi/extra-checks"]
+
+[[bench]]
+name = "wasmtime_store_growth"
+harness = false
