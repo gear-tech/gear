@@ -2154,7 +2154,9 @@ benchmarks! {
     }
 
     // Binary numeric instructions.
-    // All use w = w_bench - 2 * w_i64const
+    // Most use w = w_bench - 2 * w_i64const. Wasmtime Winch's x86-64 backend
+    // embeds the second const as an immediate for selected operations, so
+    // the schedule subtracts only the first materialized const for those cases.
 
     instr_i64eq {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
