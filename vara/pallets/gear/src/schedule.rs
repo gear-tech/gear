@@ -236,8 +236,8 @@ pub struct Limits {
 /// 2. The following instructions cannot be benchmarked because they are removed by any
 ///    real world execution engine as a preprocessing step and therefore don't yield a
 ///    meaningful benchmark result. However, in contrast to the instructions mentioned in
-///    1. they can be spammed. We price them with the same weight as the "default"
-///    instruction (i64.const): Block, Loop, Nop
+///    1 they can be spammed. We price them with the same weight as
+///    the "default" instruction (i64.const): Block, Loop, Nop
 /// 3. We cannot benchmark i64.const or i32.const on their own, but we need a const
 ///    weight to derive other instruction weights by subtracting supporting instructions
 ///    used to push benchmark arguments. Drops are inserted only to keep benchmark
