@@ -477,15 +477,7 @@ pub fn memory_new(context: &mut dyn FunctionContext, initial: u32, maximum: u32)
 
         let data_ptr: *const _ = caller.data();
         method_result = SANDBOXES.with(|sandboxes| {
-            // HACK: It was discovered that starting with version 4.0, Wasmtime experiences a slowdown
-            // when creating a large number of memory/instances beyond a certain threshold.
-            // The usual method to clear the store doesn't work for benchmarks (see `Sandboxes::get`)
-            // or when too many instances/memories are created **within a single block**, as the store
-            // is only cleared at the start of a new block.
-            // This is a temporary solution to reset the store after reaching a certain limit
-            // (see `SANDBOX_STORE_CLEAR_COUNTER_LIMIT`) for memory/instances.
-            // Otherwise, the store grows too large, leading to performance degradation during
-            // normal node execution and benchmarks.
+            // TODO: remove clear counter <https://github.com/gear-tech/gear/issues/5465>
             sandboxes.borrow_mut().clear();
 
             sandboxes
