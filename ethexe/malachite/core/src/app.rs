@@ -951,4 +951,136 @@ mod tests {
             "parts at height current + FUTURE_HEIGHT_WINDOW (boundary inside window) must be buffered",
         );
     }
+
+    /// `Externalities` impl whose finalize-side callback always
+    /// fails, so we can drive [`AppMsgHandler::process_finalized`]
+    /// down the fatal path. `process_mb_proposal` must succeed so
+    /// the prerequisite save cascade leaves the block in
+    /// `saved=true` state — only then does `ingest_finalized`
+    /// reach the finalize callback.
+    struct FailingFinalizeExt;
+
+    #[async_trait]
+    impl Externalities<TestPayload> for FailingFinalizeExt {
+        async fn process_mb_proposal(&self, _: H256, _: Block<TestPayload>) -> Result<()> {
+            Ok(())
+        }
+        async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
+            Err(anyhow!("application: finalize-side store write failed"))
+        }
+        async fn build_block_above(&self, _: H256) -> Result<TestPayload> {
+            Ok(TestPayload)
+        }
+        async fn validate_block_above(&self, _: H256, _: TestPayload) -> Result<bool> {
+            Ok(true)
+        }
+    }
+
+    /// Same shape as [`make_handler`] but with a caller-supplied
+    /// externalities impl. Used by the [`FinalizationError`] tests
+    /// below that need to inject a failing callback.
+    fn make_handler_with<EXT: Externalities<TestPayload>>(
+        current_height: u64,
+        ext: EXT,
+    ) -> (AppMsgHandler<TestPayload, EXT>, TempDir, Address) {
+        let dir = TempDir::new().unwrap();
+        let store = Store::<TestPayload>::open(dir.path()).unwrap();
+        let signer = test_signer(1);
+        let address = Address::from_public_key(&signer.public_key());
+        let validator_set = SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(
+            signer.public_key(),
+            1,
+        )]));
+        let mut state = State::<TestPayload>::new(
+            signer,
+            validator_set,
+            address,
+            store,
+            Duration::from_secs(1),
+        )
+        .unwrap();
+        state.current_height = Height::new(current_height);
+
+        let (_consensus_tx, consensus_rx) = mpsc::channel::<AppMsg<MalachiteCtx>>(1);
+        let (network_tx, _network_rx) = mpsc::channel::<NetworkMsg<MalachiteCtx>>(1);
+        let (requests_tx, _requests_rx) = mpsc::channel::<ConsensusRequest<MalachiteCtx>>(1);
+        let (net_requests_tx, _net_requests_rx) = mpsc::channel::<NetworkRequest>(1);
+        let channels = Channels {
+            consensus: consensus_rx,
+            network: network_tx,
+            events: TxEvent::new(),
+            requests: requests_tx,
+            net_requests: net_requests_tx,
+        };
+
+        let handler = AppMsgHandler {
+            state,
+            channels,
+            externalities: Arc::new(ext),
+        };
+        (handler, dir, address)
+    }
+
+    /// Regression: an error returned by
+    /// [`Externalities::process_mb_finalized`] MUST surface as
+    /// [`FinalizationError::Fatal`] from
+    /// [`AppMsgHandler::process_finalized`], so the dispatcher tears
+    /// the app task down (`run` returns `Err`) instead of silently
+    /// advancing the engine past a height the application never
+    /// observed as finalized.
+    ///
+    /// The contract: a `NonFatal` mapping here would let the engine
+    /// continue while the application is missing one or more
+    /// `process_mb_finalized` calls — the strict-ordering invariant
+    /// on [`Externalities`] would then be impossible to recover.
+    #[tokio::test]
+    async fn process_mb_finalized_error_propagates_as_fatal() {
+        use malachitebft_core_types::Value as _;
+
+        let height = 1u64;
+        let (mut handler, _dir, _address) = make_handler_with(height, FailingFinalizeExt);
+
+        // Locally-build a value so `state.commit` can resolve the cert
+        // below. The genesis parent (`H256::zero()`) means the
+        // ancestor walk inside `ingest_finalized` only inspects this
+        // single block.
+        let block = Block::<TestPayload>::new(H256::zero(), height, TestPayload);
+        let block_bytes = block.encode();
+        let proposed = handler
+            .state
+            .build_locally_proposed_value(Height::new(height), Round::new(0), block_bytes)
+            .expect("build_locally_proposed_value");
+        let value_id = proposed.value.id();
+
+        // Run the proposal-assembly hook so the BlockEntry exists with
+        // `saved=true` — the precondition for `ingest_finalized` to
+        // reach the failing finalize callback (otherwise
+        // `all_ancestors_saved` returns false and the debug-build
+        // assertion fires before the cascade).
+        handler
+            .record_assembled_block(block)
+            .await
+            .expect("record_assembled_block must succeed under NoopFinalize proposal-side");
+
+        // Forge a CommitCertificate carrying the matching `value_id`.
+        // Signature bytes are irrelevant — `ingest_finalized` just
+        // mirrors them into a `Vec<Vec<u8>>`.
+        let cert = malachitebft_core_types::CommitCertificate {
+            height: Height::new(height),
+            round: Round::new(0),
+            value_id,
+            commit_signatures: Vec::new(),
+        };
+
+        match handler.process_finalized(cert).await {
+            Err(FinalizationError::Fatal(_)) => {
+                // Expected: app::run propagates the error and the
+                // service tears down rather than silently moving on.
+            }
+            Err(FinalizationError::NonFatal(e)) => {
+                panic!("expected FinalizationError::Fatal — got NonFatal: {e:?}")
+            }
+            Ok(()) => panic!("expected FinalizationError::Fatal — got Ok(())"),
+        }
+    }
 }
