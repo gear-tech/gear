@@ -23,20 +23,27 @@ use ethexe_common::{
         SignedInjectedTransaction, SignedTxReceipt,
     },
 };
-use jsonrpsee::{
-    core::{RpcResult, SubscriptionResult},
-    proc_macros::rpc,
-};
+use jsonrpsee::proc_macros::rpc;
 
-#[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
-#[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
+#[cfg_attr(
+    all(feature = "server", feature = "client"),
+    rpc(server, client, namespace = "injected")
+)]
+#[cfg_attr(
+    all(feature = "server", not(feature = "client")),
+    rpc(server, namespace = "injected")
+)]
+#[cfg_attr(
+    all(not(feature = "server"), feature = "client"),
+    rpc(client, namespace = "injected")
+)]
 pub trait Injected {
     /// Just sends an injected transaction.
     #[method(name = "sendTransaction")]
     async fn send_transaction(
         &self,
         transaction: AddressedInjectedTransaction,
-    ) -> RpcResult<InjectedTransactionAcceptance>;
+    ) -> jsonrpsee::core::RpcResult<InjectedTransactionAcceptance>;
 
     /// Sends an injected transaction and subscribes to its promise.
     #[subscription(
@@ -47,18 +54,18 @@ pub trait Injected {
     async fn send_transaction_and_watch(
         &self,
         transaction: AddressedInjectedTransaction,
-    ) -> SubscriptionResult;
+    ) -> jsonrpsee::core::SubscriptionResult;
 
     #[method(name = "getTransactionReceipt")]
     async fn get_transaction_receipt(
         &self,
         tx_hash: HashOf<InjectedTransaction>,
-    ) -> RpcResult<Option<SignedTxReceipt>>;
+    ) -> jsonrpsee::core::RpcResult<Option<SignedTxReceipt>>;
 
     /// Retrieves injected transactions by the provided IDs
     #[method(name = "getTransactions")]
     async fn get_transactions(
         &self,
         transaction_ids: Vec<HashOf<InjectedTransaction>>,
-    ) -> RpcResult<Vec<Option<SignedInjectedTransaction>>>;
+    ) -> jsonrpsee::core::RpcResult<Vec<Option<SignedInjectedTransaction>>>;
 }

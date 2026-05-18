@@ -30,8 +30,13 @@ pub use crate::apis::{
     injected::InjectedClient,
     program::{FullProgramState, ProgramClient},
 };
+#[cfg(feature = "server")]
 pub use block::{BlockApi, BlockServer};
+#[cfg(feature = "server")]
 pub use code::{CodeApi, CodeServer};
+#[cfg(feature = "server")]
 pub use dev::{DevApi, DevServer};
+#[cfg(feature = "server")]
 pub use injected::{InjectedApi, InjectedServer};
+#[cfg(feature = "server")]
 pub use program::{ProgramApi, ProgramServer};
