@@ -26,13 +26,13 @@ use malachitebft_app_channel::{
         metrics::SharedRegistry,
     },
 };
-use malachitebft_core_types::{Height as _HeightTrait, ValidatorProof};
+use malachitebft_core_types::ValidatorProof;
 
 use crate::{
     app,
     codec::ScaleCodec,
     config::{MalachiteConfig, NodeRole},
-    context::{Height, MalachiteCtx, Validator, ValidatorSet},
+    context::{MalachiteCtx, Validator, ValidatorSet},
     externalities::{BlockPayload, Externalities},
     signing::{
         MalachiteSigner, libp2p_keypair_from, private_key_from_gsigner, public_key_from_gsigner,
@@ -192,21 +192,13 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
 
         // ---- store + state ----
         let store = Store::<P>::open(&store_path).context("opening Store")?;
-        // Resume from the next height after the highest finalized
-        // block we already have.
-        let start_height = store
-            .max_finalized_height()?
-            .map(|h| Height::new(h).increment())
-            .unwrap_or_else(|| Height::INITIAL);
-
         let state = State::<P>::new(
             signer,
             validator_set.clone(),
             address,
-            start_height,
             store,
             config.propose_timeout,
-        );
+        )?;
 
         // ---- spawn app task ----
         let (events_tx, events_rx) = mpsc::unbounded_channel();

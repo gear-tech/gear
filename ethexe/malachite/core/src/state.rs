@@ -21,7 +21,7 @@ use malachitebft_app_channel::app::{
     streaming::{StreamContent, StreamId, StreamMessage},
     types::{
         LocallyProposedValue, PeerId,
-        core::{LinearTimeouts, Round, Validity},
+        core::{Height as _HeightTrait, LinearTimeouts, Round, Validity},
     },
 };
 
@@ -88,11 +88,14 @@ impl<P: BlockPayload> State<P> {
         signer: MalachiteSigner,
         validator_set: SharedValidatorSet,
         address: Address,
-        start_height: Height,
         store: Store<P>,
         propose_timeout: Duration,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let start_height = store
+            .max_finalized_height()?
+            .map(|h| Height::new(h).increment())
+            .unwrap_or_else(|| Height::INITIAL);
+        Ok(Self {
             signer,
             validator_set,
             address,
@@ -103,7 +106,7 @@ impl<P: BlockPayload> State<P> {
             current_proposer: None,
             propose_timeout,
             _phantom: PhantomData,
-        }
+        })
     }
 
     pub fn get_validator_set(&self, _height: Height) -> ValidatorSet {
