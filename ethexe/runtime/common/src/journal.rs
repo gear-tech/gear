@@ -479,6 +479,93 @@ impl<S: Storage + ?Sized> JournalHandler for NativeJournalHandler<'_, S> {
 }
 
 // Handles unprocessed journal notes during message processing in the runtime.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RuntimeQueueReport {
+    pub dispatched: Vec<RuntimeDispatchReport>,
+    pub gas_burned: Vec<RuntimeGasBurnReport>,
+}
+
+impl RuntimeQueueReport {
+    pub fn extend(&mut self, other: Self) {
+        self.dispatched.extend(other.dispatched);
+        self.gas_burned.extend(other.gas_burned);
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RuntimeDispatchReport {
+    pub message_id: MessageId,
+    pub source: ActorId,
+    pub outcome: DispatchOutcome,
+}
+
+impl PartialEq for RuntimeDispatchReport {
+    fn eq(&self, other: &Self) -> bool {
+        self.message_id == other.message_id
+            && self.source == other.source
+            && dispatch_outcome_eq(&self.outcome, &other.outcome)
+    }
+}
+
+impl Eq for RuntimeDispatchReport {}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeGasBurnReport {
+    pub message_id: MessageId,
+    pub amount: u64,
+    pub charged_to_executable_balance: bool,
+}
+
+fn dispatch_outcome_eq(left: &DispatchOutcome, right: &DispatchOutcome) -> bool {
+    match (left, right) {
+        (
+            DispatchOutcome::Exit {
+                program_id: left_program_id,
+            },
+            DispatchOutcome::Exit {
+                program_id: right_program_id,
+            },
+        )
+        | (
+            DispatchOutcome::InitSuccess {
+                program_id: left_program_id,
+            },
+            DispatchOutcome::InitSuccess {
+                program_id: right_program_id,
+            },
+        ) => left_program_id == right_program_id,
+        (
+            DispatchOutcome::InitFailure {
+                program_id: left_program_id,
+                origin: left_origin,
+                reason: left_reason,
+            },
+            DispatchOutcome::InitFailure {
+                program_id: right_program_id,
+                origin: right_origin,
+                reason: right_reason,
+            },
+        ) => {
+            left_program_id == right_program_id
+                && left_origin == right_origin
+                && left_reason == right_reason
+        }
+        (
+            DispatchOutcome::MessageTrap {
+                program_id: left_program_id,
+                trap: left_trap,
+            },
+            DispatchOutcome::MessageTrap {
+                program_id: right_program_id,
+                trap: right_trap,
+            },
+        ) => left_program_id == right_program_id && left_trap == right_trap,
+        (DispatchOutcome::Success, DispatchOutcome::Success)
+        | (DispatchOutcome::NoExecution, DispatchOutcome::NoExecution) => true,
+        _ => false,
+    }
+}
+
 pub struct RuntimeJournalHandler<'s, S>
 where
     S: Storage,
@@ -499,7 +586,22 @@ where
     S: Storage,
 {
     // Returns unhandled journal notes and new program state hash
+    // Retained as a compatibility wrapper for callers that do not need queue reports.
+    #[allow(dead_code)]
     pub fn handle_journal<I>(&mut self, journal: I) -> (Vec<JournalNote>, Option<H256>)
+    where
+        I: IntoIterator<Item = JournalNote>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let (filtered, maybe_state_hash, _) = self.handle_journal_with_report(journal);
+        (filtered, maybe_state_hash)
+    }
+
+    // Returns unhandled journal notes, new program state hash, and runtime queue report
+    pub fn handle_journal_with_report<I>(
+        &mut self,
+        journal: I,
+    ) -> (Vec<JournalNote>, Option<H256>, RuntimeQueueReport)
     where
         I: IntoIterator<Item = JournalNote>,
         I::IntoIter: ExactSizeIterator,
@@ -509,6 +611,7 @@ where
         let mut allocations_update = BTreeMap::new();
         let notes_count = journal.len();
         let mut skipped_notes = 0;
+        let mut report = RuntimeQueueReport::default();
 
         // The set of panic injected messages for which we do not charge executable balance.
         // Dispatches for these messages will not be include into filtered journal notes.
@@ -521,7 +624,14 @@ where
                         message_id,
                         source,
                         outcome,
-                    } => self.message_dispatched(message_id, source, outcome),
+                    } => {
+                        report.dispatched.push(RuntimeDispatchReport {
+                            message_id,
+                            source,
+                            outcome: outcome.clone(),
+                        });
+                        self.message_dispatched(message_id, source, outcome);
+                    }
                     JournalNote::UpdatePage {
                         program_id,
                         page_number,
@@ -544,12 +654,20 @@ where
                         self.gas_allowance_counter.charge(amount);
 
                         // Special case for panicked `Injected` messages with gas spent less than the threshold.
-                        match (is_panic, self.should_charge_exec_balance_on_panic(amount)) {
-                            (true, false) => {
-                                // Message panic and we do not charge exec balance - do not include to journal.
-                                messages_to_skip.insert(message_id);
-                            }
-                            _ => self.charge_exec_balance(amount),
+                        let charged_to_executable_balance =
+                            !is_panic || self.should_charge_exec_balance_on_panic(amount);
+
+                        report.gas_burned.push(RuntimeGasBurnReport {
+                            message_id,
+                            amount,
+                            charged_to_executable_balance,
+                        });
+
+                        if charged_to_executable_balance {
+                            self.charge_exec_balance(amount);
+                        } else {
+                            // Message panic and we do not charge exec balance - do not include to journal.
+                            messages_to_skip.insert(message_id);
                         }
                     }
                     note @ JournalNote::StopProcessing {
@@ -610,7 +728,7 @@ where
         let maybe_state_hash = (notes_count != skipped_notes)
             .then(|| self.storage.write_program_state(*self.program_state));
 
-        (filtered, maybe_state_hash)
+        (filtered, maybe_state_hash, report)
     }
 
     fn message_dispatched(
@@ -841,6 +959,65 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn runtime_journal_handler_reports_dispatches_and_gas() {
+        const INITIAL_EXEC_BALANCE: u128 = 500_000_000_000;
+
+        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Canonical, true);
+        let message_id = MessageId::from(42);
+        let source = ActorId::from(7);
+
+        let (filtered, _hash, report) = handler.handle_journal_with_report(vec![
+            JournalNote::MessageDispatched {
+                message_id,
+                source,
+                outcome: DispatchOutcome::Success,
+            },
+            JournalNote::GasBurned {
+                message_id,
+                amount: 123,
+                is_panic: false,
+            },
+        ]);
+
+        assert!(filtered.is_empty());
+        assert_eq!(report.dispatched.len(), 1);
+        assert_eq!(report.dispatched[0].message_id, message_id);
+        assert!(matches!(
+            report.dispatched[0].outcome,
+            DispatchOutcome::Success
+        ));
+        assert_eq!(report.gas_burned.len(), 1);
+        assert_eq!(report.gas_burned[0].message_id, message_id);
+        assert_eq!(report.gas_burned[0].amount, 123);
+        assert!(report.gas_burned[0].charged_to_executable_balance);
+    }
+
+    #[test]
+    fn runtime_journal_handler_reports_injected_panic_charge_exception() {
+        const INITIAL_EXEC_BALANCE: u128 = 500_000_000_000;
+
+        let message_id = MessageId::from(42);
+        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Injected, true);
+
+        let (_filtered, _hash, report) = handler.handle_journal_with_report(vec![
+            JournalNote::GasBurned {
+                message_id,
+                amount: INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
+                is_panic: true,
+            },
+            JournalNote::GasBurned {
+                message_id,
+                amount: INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD + 1,
+                is_panic: true,
+            },
+        ]);
+
+        assert_eq!(report.gas_burned.len(), 2);
+        assert!(!report.gas_burned[0].charged_to_executable_balance);
+        assert!(report.gas_burned[1].charged_to_executable_balance);
     }
 
     #[test]
