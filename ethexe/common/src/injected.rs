@@ -19,6 +19,10 @@
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
+use ethexe_tpke::{
+    DecryptionShare, MasterPublicKey, TpkeError,
+    rand::{CryptoRng, RngCore},
+};
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
 use gsigner::{PrivateKey, secp256k1::signature::SignResult};
@@ -80,7 +84,7 @@ pub struct InjectedTransaction {
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
     pub value: u128,
-    /// Reference block number.
+    /// Reference block hash.
     pub reference_block: H256,
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
@@ -125,6 +129,27 @@ impl InjectedTransaction {
     /// Creates [`MessageId`] from [`InjectedTransaction`].
     pub fn to_message_id(&self) -> MessageId {
         MessageId::new(self.to_hash().inner().0)
+    }
+
+    /// Converts [InjectedTransaction] into its shadowed version ([ShadowedTransaction]).
+    pub fn shadowed<R>(
+        self,
+        pk: &MasterPublicKey,
+        rng: &mut R,
+    ) -> Result<ShadowedTransaction, TpkeError>
+    where
+        R: CryptoRng + RngCore,
+    {
+        let original_tx_hash = self.to_hash();
+        let shadowed_fields = (self.destination, self.value, self.payload);
+        let encrypted = ethexe_tpke::encrypt(&shadowed_fields, pk, rng)?;
+
+        Ok(ShadowedTransaction {
+            shadowed_fields: encrypted,
+            original_tx_hash,
+            reference_block: self.reference_block,
+            salt: self.salt,
+        })
     }
 }
 
@@ -220,6 +245,38 @@ impl SignedCompactPromise {
     /// Tries to restore the [SignedPromise] with provided [Promise] body.
     pub fn restore(&self, promise: Promise) -> Result<SignedPromise, &'static str> {
         SignedMessage::try_from_parts(promise, *self.0.signature(), self.0.address())
+    }
+}
+
+pub type ShadowedFields = (ActorId, u128, LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>);
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct ShadowedTransaction {
+    /// Shadowed fields of base [InjectedTransaction]: destination, value, payload.
+    pub shadowed_fields: ethexe_tpke::Encrypted<ShadowedFields>,
+    /// Hash of original [InjectedTransaction]. Used to verify transaction correctness after decoding.
+    pub original_tx_hash: HashOf<InjectedTransaction>,
+    /// Reference block hash.
+    pub reference_block: H256,
+    #[cfg_attr(feature = "std", serde(with = "serde_hex"))]
+    pub salt: LimitedVec<u8, MAX_INJECTED_TX_SALT_SIZE>,
+}
+
+impl ShadowedTransaction {
+    pub fn unshadow(
+        self,
+        shares: &[DecryptionShare<ShadowedFields>],
+    ) -> Result<InjectedTransaction, TpkeError> {
+        let (destination, value, payload) = ethexe_tpke::decrypt(&self.shadowed_fields, shares)?;
+
+        Ok(InjectedTransaction {
+            destination,
+            payload,
+            value,
+            reference_block: self.reference_block,
+            salt: self.salt,
+        })
     }
 }
 /// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
