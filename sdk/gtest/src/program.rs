@@ -25,7 +25,9 @@ use crate::{
 };
 use gear_common::Origin;
 use gear_core::{
-    code::{Code, CodeAndId, InstrumentedCodeAndMetadata, SyscallKind},
+    code::{
+        Code, CodeAndId, CodeMetadata, InstrumentedCode, InstrumentedCodeAndMetadata, SyscallKind,
+    },
     gas_metering::Schedule,
     ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{Dispatch, DispatchKind, Message},
@@ -229,26 +231,25 @@ impl ProgramBuilder {
 
     /// Build program with set parameters.
     pub fn build(self, system: &System) -> Program<'_> {
-        let id = self
-            .id
-            .unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
+        let Self { code, meta, id } = self;
+        let id = id.unwrap_or_else(|| system.0.borrow_mut().free_id_nonce().into());
 
-        let code_id = CodeId::generate(&self.code);
-        system.0.borrow_mut().store_code(code_id, self.code);
-        if let Some(metadata) = self.meta {
+        let code_id = CodeId::generate(&code);
+        system.0.borrow_mut().store_code(code_id, code);
+        if let Some(metadata) = meta {
             system
                 .0
                 .borrow_mut()
                 .meta_binaries
                 .insert(code_id, metadata);
         }
-
         // Expiration block logic isn't yet fully implemented in Gear protocol,
         // so we set it to the current block height.
         let expiration_block = system.block_height();
         Program::program_with_id(
             system,
             id,
+            Some(code_id),
             GTestProgram::Default {
                 primary: PrimaryProgram::Active(ActiveProgram {
                     allocations_tree_len: 0,
@@ -284,6 +285,26 @@ impl ProgramBuilder {
 
         (code_id, code.into())
     }
+
+    fn build_ethexe_instrumented_code(
+        original_code: Vec<u8>,
+    ) -> (InstrumentedCode, CodeMetadata) {
+        let schedule = Schedule::default();
+        let code = Code::try_new(
+            original_code,
+            ethexe_runtime_common::VERSION,
+            |module| schedule.rules(module),
+            schedule.limits.stack_height,
+            schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
+            SyscallKind::Eth,
+        )
+        .expect("Failed to create ethexe Program from provided code");
+
+        let (_, instrumented_code, code_metadata) = code.into_parts();
+        (instrumented_code, code_metadata)
+    }
 }
 
 /// Gear program instance.
@@ -310,6 +331,7 @@ impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
+        ethexe_code_id: Option<CodeId>,
         program: GTestProgram,
     ) -> Self {
         let program_id = id.clone().into().0;
@@ -326,6 +348,27 @@ impl<'a> Program<'a> {
                 "Can't create program with id {id:?}, because Program with this id already exists. \
                 Please, use another id."
             )
+        }
+
+        if let Some(code_id) = ethexe_code_id
+            && system.0.borrow().is_ethexe()
+        {
+            let (instrumented_code, code_metadata) = {
+                let manager = system.0.borrow();
+                let code = manager
+                    .original_code(code_id)
+                    .unwrap_or_else(|| panic!("missing original ethexe code {code_id:?}"))
+                    .to_vec();
+
+                ProgramBuilder::build_ethexe_instrumented_code(code)
+            };
+
+            system.0.borrow_mut().ethexe_mut().register_program(
+                program_id,
+                code_id,
+                instrumented_code,
+                code_metadata,
+            );
         }
 
         Self {
@@ -412,6 +455,7 @@ impl<'a> Program<'a> {
         Self::program_with_id(
             system,
             id,
+            None,
             GTestProgram::Mock {
                 primary: primary_program,
                 handlers: Box::new(mock),
@@ -499,21 +543,36 @@ impl<'a> Program<'a> {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
+        let payload = payload.into();
+
+        if system.is_ethexe() && gas_limit != MAX_USER_GAS_LIMIT {
+            usage_panic!("Explicit gas limits are not supported in ethexe gtest mode");
+        }
 
         // The current block number is always a block number of the "executed" block.
         // So before sending any messages and triggering a block run the block number
         // equals to 0 (curr). So any new message sent by user goes to a new block,
         // that will be executed, i.e. block with number curr + 1.
         let block_number = system.block_height() + 1;
+        let message_id = MessageId::generate_from_user(
+            block_number,
+            source,
+            system.fetch_inc_message_nonce() as u128,
+        );
+
+        if system.is_ethexe() {
+            system
+                .ethexe_mut()
+                .queue_canonical(self.id, message_id, source, payload, value);
+
+            return message_id;
+        }
+
         let message = Message::new(
-            MessageId::generate_from_user(
-                block_number,
-                source,
-                system.fetch_inc_message_nonce() as u128,
-            ),
+            message_id,
             source,
             self.id,
-            payload.into().try_into().unwrap(),
+            payload.try_into().unwrap(),
             Some(gas_limit),
             value,
             None,
@@ -553,7 +612,13 @@ impl Program<'_> {
 
     /// Reads the program’s state as a byte vector.
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
-        self.manager.borrow_mut().read_state_bytes(payload, self.id)
+        let mut manager = self.manager.borrow_mut();
+
+        if manager.is_ethexe() {
+            usage_panic!("Program state reads are not supported in `System::new_ethexe()` mode");
+        }
+
+        manager.read_state_bytes(payload, self.id)
     }
 
     /// Reads and decodes the program's state .
@@ -564,7 +629,24 @@ impl Program<'_> {
 
     /// Returns the balance of the account.
     pub fn balance(&self) -> Value {
-        self.manager.borrow().balance_of(self.id())
+        let manager = self.manager.borrow();
+
+        if manager.is_ethexe() {
+            return manager.ethexe().balance_of(self.id);
+        }
+
+        manager.balance_of(self.id())
+    }
+
+    /// Returns the executable balance of the ethexe program.
+    pub fn executable_balance(&self) -> Value {
+        let manager = self.manager.borrow();
+
+        if !manager.is_ethexe() {
+            usage_panic!("Executable balance exists only in `System::new_ethexe()` mode");
+        }
+
+        manager.ethexe().executable_balance_of(self.id)
     }
 
     /// Save the program's memory to path.

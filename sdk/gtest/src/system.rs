@@ -131,6 +131,31 @@ impl System {
         })
     }
 
+    /// Create a new testing environment in Ethexe execution mode.
+    ///
+    /// # Panics
+    /// Only one instance in the current thread of the `System` is possible to
+    /// create. Instantiation of the other one leads to runtime panic.
+    pub fn new_ethexe() -> Self {
+        SYSTEM_INITIALIZED.with_borrow_mut(|initialized| {
+            if *initialized {
+                panic!("Impossible to have multiple instances of the `System`.");
+            }
+
+            let ext_manager = ExtManager::new_ethexe();
+            gear_lazy_pages::init(
+                LazyPagesVersion::Version1,
+                LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
+                PagesStorage,
+            )
+            .expect("Failed to init lazy-pages");
+
+            *initialized = true;
+
+            Self(RefCell::new(ext_manager))
+        })
+    }
+
     /// Init logger with "gwasm" target set to `debug` level.
     pub fn init_logger(&self) {
         self.init_logger_with_default_filter("gwasm=debug");
@@ -157,7 +182,13 @@ impl System {
 
     /// Returns amount of dispatches in the queue.
     pub fn queue_len(&self) -> usize {
-        self.0.borrow().dispatches.len()
+        let manager = self.0.borrow();
+
+        if manager.is_ethexe() {
+            return manager.ethexe().queue_len();
+        }
+
+        manager.dispatches.len()
     }
 
     /// Run next block.
@@ -199,7 +230,18 @@ impl System {
             );
         }
 
-        self.0.borrow_mut().run_new_block(allowance)
+        let mut manager = self.0.borrow_mut();
+
+        if manager.is_ethexe() {
+            let block_info = manager.blocks_manager.next_block();
+            return manager.ethexe_mut().run_new_block(
+                block_info.height,
+                block_info.timestamp,
+                allowance,
+            );
+        }
+
+        manager.run_new_block(allowance)
     }
 
     /// Runs blocks same as [`Self::run_next_block`], but executes blocks to
@@ -214,7 +256,16 @@ impl System {
 
         let mut ret = Vec::with_capacity((bn - current_block) as usize);
         while current_block != bn {
-            let res = manager.run_new_block(GAS_ALLOWANCE);
+            let res = if manager.is_ethexe() {
+                let block_info = manager.blocks_manager.next_block();
+                manager.ethexe_mut().run_new_block(
+                    block_info.height,
+                    block_info.timestamp,
+                    GAS_ALLOWANCE,
+                )
+            } else {
+                manager.run_new_block(GAS_ALLOWANCE)
+            };
             ret.push(res);
 
             current_block = manager.block_height();
@@ -232,6 +283,12 @@ impl System {
         (block_height..block_height + amount)
             .map(|_| {
                 let block_info = manager.blocks_manager.next_block();
+                if manager.is_ethexe() {
+                    return manager
+                        .ethexe_mut()
+                        .run_scheduled_block(block_info.height, block_info.timestamp);
+                }
+
                 let next_block_number = block_info.height;
                 manager.process_tasks(next_block_number);
 
@@ -394,6 +451,64 @@ impl System {
         self.0.borrow_mut().mint_to(id, value);
     }
 
+    /// Top up an ethexe program's executable balance.
+    pub fn top_up_executable_balance(&self, program: impl Into<ProgramIdWrapper>, value: Value) {
+        let program = program.into().0;
+        let mut manager = self.0.borrow_mut();
+
+        if !manager.is_ethexe() {
+            usage_panic!("Executable balance exists only in `System::new_ethexe()` mode");
+        }
+
+        manager
+            .ethexe_mut()
+            .top_up_executable_balance(program, value);
+    }
+
+    /// Top up an ethexe program's reducible balance.
+    pub fn top_up_balance(&self, program: impl Into<ProgramIdWrapper>, value: Value) {
+        let program = program.into().0;
+        let mut manager = self.0.borrow_mut();
+
+        if !manager.is_ethexe() {
+            usage_panic!("`top_up_balance` is available only in `System::new_ethexe()` mode");
+        }
+
+        manager.ethexe_mut().top_up_balance(program, value);
+    }
+
+    /// Inject a message into an initialized ethexe program.
+    pub fn inject_message(
+        &self,
+        destination: impl Into<ProgramIdWrapper>,
+        source: impl Into<ProgramIdWrapper>,
+        payload: impl Into<Vec<u8>>,
+        value: Value,
+    ) -> MessageId {
+        let destination = destination.into().0;
+        let source = source.into().0;
+        let mut manager = self.0.borrow_mut();
+
+        if !manager.is_ethexe() {
+            usage_panic!("Injected messages are available only in `System::new_ethexe()` mode");
+        }
+
+        manager.ethexe().ensure_can_queue_injected(destination);
+
+        let block_number = manager.block_height() + 1;
+        let message_id = MessageId::generate_from_user(
+            block_number,
+            source,
+            manager.fetch_inc_message_nonce() as u128,
+        );
+
+        manager
+            .ethexe_mut()
+            .queue_injected(destination, message_id, source, payload.into(), value);
+
+        message_id
+    }
+
     /// Transfer balance from user with given `from` id to user with given `to`
     /// id.
     pub fn transfer(
@@ -418,7 +533,13 @@ impl System {
     /// Returns balance of user with given `id`.
     pub fn balance_of<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Value {
         let actor_id = id.into().0;
-        self.0.borrow().balance_of(actor_id)
+        let manager = self.0.borrow();
+
+        if manager.is_ethexe() && ProgramsStorageManager::is_program(actor_id) {
+            return manager.ethexe().balance_of(actor_id);
+        }
+
+        manager.balance_of(actor_id)
     }
 
     /// Calculate reply that would be received when sending

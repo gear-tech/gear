@@ -22,6 +22,7 @@ use crate::{
     builtins::{BLS12_381_ID, ETH_BRIDGE_ID},
     constants::{BlockNumber, Gas, Value},
     error::usage_panic,
+    ethexe::EthexeBackend,
     log::{BlockRunResult, CoreLog},
     state::{
         self,
@@ -81,6 +82,19 @@ const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 pub(crate) const CUSTOM_WASM_PROGRAM_CODE_ID: CodeId =
     CodeId::new(*b"CUSTOM_WASM_PROGRAM_CODE_ID\0\0\0\0\0");
 
+#[derive(Debug)]
+#[allow(dead_code)]
+pub(crate) enum ExecutionMode {
+    Vara,
+    Ethexe(EthexeBackend),
+}
+
+impl Default for ExecutionMode {
+    fn default() -> Self {
+        Self::Vara
+    }
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct ExtManager {
     // State with possible overlay
@@ -103,6 +117,7 @@ pub(crate) struct ExtManager {
     pub(crate) messages_processing_enabled: bool,
     pub(crate) first_incomplete_tasks_block: Option<u32>,
     pub(crate) builtins: BTreeSet<ActorId>,
+    pub(crate) execution_mode: ExecutionMode,
 
     // Last block execution info
     pub(crate) succeed: BTreeSet<MessageId>,
@@ -120,7 +135,32 @@ impl ExtManager {
             blocks_manager: BlocksManager,
             messages_processing_enabled: true,
             builtins,
+            execution_mode: ExecutionMode::Vara,
             ..Default::default()
+        }
+    }
+
+    pub(crate) fn new_ethexe() -> Self {
+        let mut manager = Self::new();
+        manager.execution_mode = ExecutionMode::Ethexe(EthexeBackend::new());
+        manager
+    }
+
+    pub(crate) fn is_ethexe(&self) -> bool {
+        matches!(self.execution_mode, ExecutionMode::Ethexe(_))
+    }
+
+    pub(crate) fn ethexe(&self) -> &EthexeBackend {
+        match &self.execution_mode {
+            ExecutionMode::Ethexe(backend) => backend,
+            ExecutionMode::Vara => unreachable!("ethexe backend requested in Vara mode"),
+        }
+    }
+
+    pub(crate) fn ethexe_mut(&mut self) -> &mut EthexeBackend {
+        match &mut self.execution_mode {
+            ExecutionMode::Ethexe(backend) => backend,
+            ExecutionMode::Vara => unreachable!("ethexe backend requested in Vara mode"),
         }
     }
 
