@@ -286,9 +286,7 @@ impl ProgramBuilder {
         (code_id, code.into())
     }
 
-    fn build_ethexe_instrumented_code(
-        original_code: Vec<u8>,
-    ) -> (InstrumentedCode, CodeMetadata) {
+    fn build_ethexe_instrumented_code(original_code: Vec<u8>) -> (InstrumentedCode, CodeMetadata) {
         let schedule = Schedule::default();
         let code = Code::try_new(
             original_code,
