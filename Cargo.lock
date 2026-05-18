@@ -5774,6 +5774,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-tpke"
+version = "1.10.0"
+dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-ff 0.4.2",
+ "ark-serialize 0.4.2",
+ "ark-std 0.4.0",
+ "blake2 0.10.6",
+ "chacha20poly1305",
+ "gear-workspace-hack",
+ "hex",
+ "hex-literal",
+ "hkdf",
+ "parity-scale-codec",
+ "proptest",
+ "rand 0.8.5",
+ "scale-info",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.17",
+ "zeroize",
+]
+
+[[package]]
 name = "event-listener"
 version = "2.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

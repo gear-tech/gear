@@ -239,6 +239,9 @@ ntest = "0.9.3"
 dashmap = "5.5.3"
 delegate = "0.13.5"
 bon = "3.9.1"
+chacha20poly1305 = "0.10"
+hkdf = { version = "0.12.4", default-features = false }
+zeroize = "1.8"
 
 # metrics
 metrics = "0.24.0"
@@ -347,6 +350,7 @@ ethexe-compute = { path = "ethexe/compute", default-features = false }
 ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 ethexe-db-init = { path = "ethexe/db/init", default-features = false }
 ethexe-node-wrapper = {path = "ethexe/node-wrapper", default-features = false}
+ethexe-tpke = { path = "ethexe/tpke", default-features = false }
 
 # Common executor between `sandbox-host` and `lazy-pages-fuzzer`
 wasmi = { version = "0.38" }
