@@ -565,10 +565,6 @@ mod tests {
         let db = Database::memory();
         let pool = InjectedTxMempool::new(db);
         let pk = PrivateKey::random();
-        // ref_block points at a hash that's not in the DB. Mempool accepts
-        // unconditionally at insert time and filters at fetch time once
-        // the ref_block resolves locally — keeps the RPC fan-out arm alive
-        // on validators a few ms behind the producer.
         let tx = signed_tx(&pk, ActorId::zero(), H256::random(), 1);
         pool.insert(tx).unwrap();
         assert_eq!(pool.len(), 1);

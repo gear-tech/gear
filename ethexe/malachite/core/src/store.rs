@@ -645,12 +645,7 @@ fn encode_round(round: malachitebft_core_types::Round) -> [u8; 8] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        context::{ProposalInit, ProposalPart, ValueId},
-        streaming::ProposalParts,
-        types::{Address, CommitCertificate, H256},
-    };
-    use malachitebft_core_types::Round;
+    use crate::types::{CommitCertificate, H256};
     use parity_scale_codec::{Decode, Encode};
     use proptest::prelude::*;
     use std::sync::Mutex;
@@ -696,87 +691,6 @@ mod tests {
             .build()
             .unwrap()
             .block_on(f)
-    }
-
-    fn mk_proposer() -> Address {
-        let mut bytes = [0u8; 32];
-        bytes[31] = 1;
-        let signer = crate::signing::MalachiteSigner::new(
-            crate::signing::private_key_from_bytes(&bytes).unwrap(),
-        );
-        Address::from_public_key(&signer.public_key())
-    }
-
-    fn mk_pending_parts(height: u64) -> ProposalParts {
-        ProposalParts {
-            height: Height::new(height),
-            round: Round::new(0),
-            proposer: mk_proposer(),
-            parts: vec![ProposalPart::Init(ProposalInit::new(
-                Height::new(height),
-                Round::new(0),
-                Round::Nil,
-                mk_proposer(),
-            ))],
-        }
-    }
-
-    /// REPRODUCES: a peer can pump `ProposalParts` at arbitrary far-future
-    /// heights through `ReceivedProposalPart` and the store's pending-parts
-    /// column accumulates without bound. `prune_engine_state` only sweeps
-    /// rows whose height is **at or below** the local `current_height`, so
-    /// future-height entries permanently occupy disk. Flagged by reviewers
-    /// 1 and 3 in the 2026-05 audit.
-    ///
-    /// Ignored until the height-window cap `TODO +_+_+` lands in
-    /// `app.rs::ReceivedProposalPart`. Keep this test, remove `#[ignore]`
-    /// once the fix is in place.
-    #[test]
-    #[ignore = "tracks TODO +_+_+ in app.rs: future-height pending parts grow unbounded"]
-    fn pending_proposal_parts_at_future_heights_persist_after_prune() {
-        let (_d, store) = open_store();
-
-        // Honest local height is way below the heights we feed.
-        let local_current_height: u64 = 100;
-        let n_future_parts: u64 = 50;
-        let future_height_base: u64 = 1_000_000_000;
-
-        for i in 0..n_future_parts {
-            let parts = mk_pending_parts(future_height_base + i);
-            // Vary `value_id` across i so the keys differ — a peer can
-            // trivially do this via random block_bytes (value_id is a
-            // content hash).
-            let mut vid = [0u8; 32];
-            vid[..8].copy_from_slice(&i.to_be_bytes());
-            store
-                .store_pending_proposal_parts(&parts, &ValueId(vid))
-                .unwrap();
-        }
-
-        // Local consensus progresses well past `local_current_height`,
-        // calling prune. The future-height rows are untouched because
-        // the prune predicate is `height ≤ current_height`.
-        store.prune_engine_state(local_current_height).unwrap();
-
-        // Desired behaviour: a peer cannot force unbounded pending-parts
-        // growth in the store. The exact cap is up to the fix (e.g.
-        // refuse to persist above current_height + window), but the
-        // count after a sane prune must be much smaller than what we
-        // pushed.
-        let mut still_present = 0u64;
-        for i in 0..n_future_parts {
-            let got = store
-                .get_pending_proposal_parts(Height::new(future_height_base + i), Round::new(0))
-                .unwrap();
-            if !got.is_empty() {
-                still_present += 1;
-            }
-        }
-        assert!(
-            still_present < n_future_parts,
-            "pending parts at far-future heights ({still_present}/{n_future_parts}) \
-             accumulate indefinitely — needs a height-window cap or fresh peer-rate quota",
-        );
     }
 
     // --- basic round-trip ------------------------------------------------

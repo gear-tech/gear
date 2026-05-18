@@ -44,10 +44,14 @@ use malachitebft_app_channel::{
         },
     },
 };
+use malachitebft_core_types::Height as _;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
+
+/// Max allowed distance into the future for pending proposal parts.
+const FUTURE_HEIGHT_WINDOW: u64 = 4;
 
 type EngineCert = malachitebft_core_types::CommitCertificate<MalachiteCtx>;
 
@@ -402,29 +406,23 @@ where
             info!(parts.height = %parts.height, "Dropping outdated proposal");
             return Ok(None);
         }
+        if parts.height > self.state.current_height.increment_by(FUTURE_HEIGHT_WINDOW) {
+            info!(parts.height = %parts.height, "Dropping proposal too far in the future");
+            return Ok(None);
+        }
+
         if parts.height > self.state.current_height {
             // Buffer until the engine catches up to that height.
-            //
-            // TODO +_+_+ : a peer can pump completed `ProposalParts`
-            // at arbitrarily large heights (`value_id` is content-
-            // addressed → every junk payload is a fresh key) and the
-            // rows never get pruned: `prune_engine_state` only sweeps
-            // `height <= current_height`. RocksDB grows without
-            // bound. Pinned by the (ignored) test
-            // `store::tests::pending_proposal_parts_at_future_heights_persist_after_prune`.
-            // Fix needs: height-window cap (refuse to persist beyond
-            // `current_height + N`) plus per-peer rate limit. See
-            // also the related validator-peer-id allowlist mitigation
-            // in `streaming.rs::PartStreamsMap` TODO.
             let value_id = compute_value_id_from_parts(&parts);
             self.state
                 .store
                 .store_pending_proposal_parts(&parts, &value_id)?;
-            return Ok(None);
+            Ok(None)
+        } else {
+            let proposed = self.assemble_and_validate(&parts).await?;
+            self.state.store.store_undecided_proposal(&proposed)?;
+            Ok(Some(proposed))
         }
-        let proposed = self.assemble_and_validate(&parts).await?;
-        self.state.store.store_undecided_proposal(&proposed)?;
-        Ok(Some(proposed))
     }
 
     fn process_decided(&self, certificate: &EngineCert) {
@@ -678,4 +676,205 @@ fn compute_value_id_from_parts(parts: &ProposalParts) -> ValueId {
         h.update(bytes);
     }
     ValueId(h.finalize().into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        context::{ProposalData, ProposalInit, Validator, ValidatorSet},
+        signing::{MalachiteSigner, libp2p_peer_id, private_key_from_bytes},
+        state::SharedValidatorSet,
+        store::Store,
+    };
+    use async_trait::async_trait;
+    use malachitebft_app_channel::{
+        ConsensusRequest, NetworkRequest,
+        app::{events::TxEvent, streaming::StreamId},
+    };
+    use std::time::Duration;
+    use tempfile::TempDir;
+    use tokio::sync::mpsc;
+
+    #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+    struct TestPayload;
+
+    struct NoopExt;
+
+    #[async_trait]
+    impl Externalities<TestPayload> for NoopExt {
+        async fn save_block(&self, _: H256, _: Block<TestPayload>) -> Result<()> {
+            Ok(())
+        }
+        async fn mark_block_as_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
+            Ok(())
+        }
+        async fn build_block_above(&self, _: H256) -> Result<TestPayload> {
+            Ok(TestPayload)
+        }
+        async fn validate_block_above(&self, _: H256, _: TestPayload) -> Result<bool> {
+            Ok(true)
+        }
+    }
+
+    fn test_signer(byte: u8) -> MalachiteSigner {
+        let mut k = [0u8; 32];
+        k[31] = byte;
+        MalachiteSigner::new(private_key_from_bytes(&k).unwrap())
+    }
+
+    fn test_peer(byte: u8) -> PeerId {
+        let mut bytes = [0u8; 32];
+        bytes[31] = byte;
+        let lp = libp2p_peer_id(&bytes);
+        PeerId::from_bytes(&lp.to_bytes()).expect("valid multihash")
+    }
+
+    /// Init + Data + Fin for a fully-formed stream at `height`. The
+    /// proposer field is filled in so [`ProposalParts`] assembles
+    /// without complaint.
+    fn complete_stream(
+        proposer: Address,
+        height: u64,
+        payload: &[u8],
+    ) -> Vec<StreamMessage<ProposalPart>> {
+        let stream_id = StreamId::new(height.to_be_bytes().to_vec().into());
+        vec![
+            StreamMessage::new(
+                stream_id.clone(),
+                0,
+                StreamContent::Data(ProposalPart::Init(ProposalInit::new(
+                    Height::new(height),
+                    Round::new(0),
+                    Round::Nil,
+                    proposer,
+                ))),
+            ),
+            StreamMessage::new(
+                stream_id.clone(),
+                1,
+                StreamContent::Data(ProposalPart::Data(ProposalData::new(payload.to_vec()))),
+            ),
+            StreamMessage::new(stream_id, 2, StreamContent::Fin),
+        ]
+    }
+
+    /// Build an [`AppMsgHandler`] with the given `current_height` and
+    /// a fresh on-disk store. Channels are dummy senders/receivers
+    /// — `process_received_proposal_part` never touches them on the
+    /// future-height paths under test.
+    fn make_handler(
+        current_height: u64,
+    ) -> (AppMsgHandler<TestPayload, NoopExt>, TempDir, Address) {
+        let dir = TempDir::new().unwrap();
+        let store = Store::<TestPayload>::open(dir.path()).unwrap();
+        let signer = test_signer(1);
+        let address = Address::from_public_key(&signer.public_key());
+        let validator_set =
+            SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(signer.public_key(), 1)]));
+        let mut state = State::<TestPayload>::new(
+            signer,
+            validator_set,
+            address,
+            store,
+            Duration::from_secs(1),
+        )
+        .unwrap();
+        state.current_height = Height::new(current_height);
+
+        let (_consensus_tx, consensus_rx) = mpsc::channel::<AppMsg<MalachiteCtx>>(1);
+        let (network_tx, _network_rx) = mpsc::channel::<NetworkMsg<MalachiteCtx>>(1);
+        let (requests_tx, _requests_rx) = mpsc::channel::<ConsensusRequest<MalachiteCtx>>(1);
+        let (net_requests_tx, _net_requests_rx) = mpsc::channel::<NetworkRequest>(1);
+        let channels = Channels {
+            consensus: consensus_rx,
+            network: network_tx,
+            events: TxEvent::new(),
+            requests: requests_tx,
+            net_requests: net_requests_tx,
+        };
+        let (event_tx, _event_rx) = mpsc::unbounded_channel();
+
+        let handler = AppMsgHandler {
+            state,
+            channels,
+            externalities: Arc::new(NoopExt),
+            event_tx,
+        };
+        (handler, dir, address)
+    }
+
+    /// Replays a (peer, complete-stream) sequence through
+    /// `process_received_proposal_part`, returning the final reply
+    /// value (`Some(proposed)` on the same-height happy path, `None`
+    /// when the parts were dropped or buffered).
+    async fn run_stream(
+        handler: &mut AppMsgHandler<TestPayload, NoopExt>,
+        peer: PeerId,
+        stream: Vec<StreamMessage<ProposalPart>>,
+    ) -> Option<ProposedValue<MalachiteCtx>> {
+        let mut last = None;
+        for msg in stream {
+            last = handler
+                .process_received_proposal_part(peer, msg)
+                .await
+                .expect("process_received_proposal_part should not error");
+        }
+        last
+    }
+
+    /// A peer pumping completed proposals at heights beyond
+    /// `current_height + FUTURE_HEIGHT_WINDOW` MUST be rejected at
+    /// ingest time — otherwise an attacker can grow
+    /// `store.pending_proposal_parts` indefinitely (every junk
+    /// `value_id` is a fresh key, and `prune_engine_state` only
+    /// sweeps `height ≤ current_height`).
+    #[tokio::test]
+    async fn far_future_proposal_parts_are_rejected_not_buffered() {
+        let current = 10u64;
+        let (mut handler, _dir, addr) = make_handler(current);
+        let peer = test_peer(2);
+
+        let far = current + FUTURE_HEIGHT_WINDOW + 1;
+        let value = run_stream(&mut handler, peer, complete_stream(addr, far, b"junk")).await;
+        assert!(value.is_none());
+
+        let pending = handler
+            .state
+            .store
+            .get_pending_proposal_parts(Height::new(far), Round::new(0))
+            .unwrap();
+        assert!(
+            pending.is_empty(),
+            "parts at height > current + FUTURE_HEIGHT_WINDOW must be dropped, \
+             found {} pending entries at height {far}",
+            pending.len(),
+        );
+    }
+
+    /// Boundary case: `current + FUTURE_HEIGHT_WINDOW` is inside the
+    /// allowed window (`>` not `>=`) and MUST be buffered. This pins
+    /// the boundary so the inequality doesn't silently regress to
+    /// off-by-one.
+    #[tokio::test]
+    async fn near_future_proposal_parts_within_window_are_buffered() {
+        let current = 10u64;
+        let (mut handler, _dir, addr) = make_handler(current);
+        let peer = test_peer(2);
+
+        let near = current + FUTURE_HEIGHT_WINDOW;
+        let value = run_stream(&mut handler, peer, complete_stream(addr, near, b"hello")).await;
+        assert!(value.is_none());
+
+        let pending = handler
+            .state
+            .store
+            .get_pending_proposal_parts(Height::new(near), Round::new(0))
+            .unwrap();
+        assert_eq!(
+            pending.len(),
+            1,
+            "parts at height current + FUTURE_HEIGHT_WINDOW (boundary inside window) must be buffered",
+        );
+    }
 }
