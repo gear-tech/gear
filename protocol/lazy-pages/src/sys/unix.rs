@@ -46,7 +46,7 @@ cfg_if! {
             // Use second bit from err reg. See https://git.io/JEQn3
             Some(error_code & 0b10 == 0b10)
         }
-    } else if #[cfg(all(target_os = "linux", target_arch = "aarch64"))] {
+    } else if #[cfg(all(any(target_os = "linux", target_os = "android"), target_arch = "aarch64"))] {
         unsafe fn ucontext_get_write(ucontext: *mut nix::libc::ucontext_t) -> Option<bool> {
             let esr = linux_aarch64::get_esr(&unsafe { &*ucontext }.uc_mcontext).expect("Failed to get ESR");
             // Use the WNR bit to determine if it was a write access.
@@ -266,7 +266,10 @@ unsafe fn old_sig_handler(sig: i32, info: *mut siginfo_t, ucontext: *mut c_void)
     }
 }
 
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+#[cfg(all(
+    any(target_os = "linux", target_os = "android"),
+    target_arch = "aarch64"
+))]
 mod linux_aarch64 {
     use std::{ptr, slice};
 
