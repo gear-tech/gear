@@ -10,8 +10,6 @@
 //! identity-bound: every ciphertext carries an `id` and a decryption share
 //! produced for `id` only decrypts that one ciphertext.
 //!
-//! See `~/.claude/plans/prancy-nibbling-pony.md` for the locked design.
-//!
 //! Pairing orientation (Type-3 on BLS12-381):
 //!   - `Q_id ∈ G1` via hash-to-curve (DST below)
 //!   - master pubkey, share pubkeys, ephemeral U  ∈ G2
@@ -35,12 +33,10 @@ mod r#trait;
 pub use r#trait::Encryptable;
 
 pub use aead::HKDF_DEM_INFO;
-pub use bls12_381::{
-    DST_G1, G1_COMPRESSED_LEN, G2_COMPRESSED_LEN, ID_DOMAIN, combine, encrypt, hash_to_g1,
-};
+pub use bls12_381::{DST_G1, G1_COMPRESSED_LEN, G2_COMPRESSED_LEN, ID_DOMAIN, combine};
 pub use keys::{
-    DealerOutput, DecryptionShare, EncryptedEnvelope, MasterPublicKey, MasterSecretKey,
-    SecretKeyShare, SharePublicKey,
+    DealerOutput, DecryptionShare, Encrypted, MasterPublicKey, MasterSecretKey, SecretKeyShare,
+    SharePublicKey,
 };
 use parity_scale_codec::{Decode, Encode};
 
@@ -73,6 +69,7 @@ pub enum TpkeError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bls12_381::hash_to_g1;
     use ark_bls12_381::G2Affine;
     use ark_ec::AffineRepr;
     use ark_serialize::CanonicalSerialize;
@@ -88,9 +85,13 @@ mod tests {
         MasterSecretKey::deal(t, n, &mut rng).unwrap()
     }
 
-    impl Encryptable for &str {
+    impl Encryptable for String {
         type Id = [u8; 32];
-        type EncryptedFields = &str;
+        type EncryptedFields = Self;
+
+        fn encryptable_fields(&self) -> &Self::EncryptedFields {
+            &self
+        }
 
         fn derive_id(&self) -> Self::Id {
             return [0u8; 32];
@@ -101,20 +102,21 @@ mod tests {
     fn roundtrip_4_of_7() {
         let d = deal(4, 7);
         let mut rng = fixed_rng();
-        let text = "hello world";
-        let env = text.encrypt(&k, &mut rng).unwrap();
-        let shares: Vec<DecryptionShare> = d
+        let text = String::from("hello world");
+        let env = text.encrypt(&d.master_pub, &mut rng).unwrap();
+        let shares = d
             .shares
             .iter()
             .take(4)
             .map(|s| s.decrypt_share(&env).unwrap())
-            .collect();
+            .collect::<Vec<_>>();
+
         // Verify each share.
         for (s, ps) in shares.iter().zip(d.share_pubs.iter()) {
             assert!(ps.verify(&env, s).unwrap());
         }
-        let pt = combine(&env, &shares, 42, 1, 4).unwrap();
-        assert_eq!(pt, b"hello world");
+        let pt = combine(&env, &shares, 4).unwrap();
+        assert_eq!(pt, String::from("hello world"));
     }
 
     // #[test]

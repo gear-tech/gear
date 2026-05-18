@@ -231,7 +231,7 @@ fn cross_check_one(v: &Vector) {
         shares.push(d);
     }
 
-    let recovered = combine(&env, &shares, v.chain_id, v.key_epoch_id, v.threshold).unwrap();
+    let recovered = combine(&env, &shares, v.threshold).unwrap();
     assert_eq!(
         recovered, plaintext,
         "{}: roundtrip decrypt mismatch",

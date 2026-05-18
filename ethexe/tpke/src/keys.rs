@@ -73,9 +73,25 @@ pub struct SharePublicKey {
 // TODO: move to another module
 
 /// Ciphertext over encryptable object [Encryptable::EncryptedFields].
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ciphertext<T> {
     inner: Vec<u8>,
-    _data: PhantomData<T>,
+    _data: PhantomData<fn() -> T>,
+}
+
+impl<T> Ciphertext<T> {
+    pub fn new(inner: Vec<u8>) -> Ciphertext<T> {
+        Self {
+            inner,
+            _data: PhantomData,
+        }
+    }
+}
+
+impl<T> AsRef<[u8]> for Ciphertext<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.inner.as_ref()
+    }
 }
 
 /// Encrypted ciphertext envelope. Wire format is the SCALE encoding of this.
@@ -99,9 +115,9 @@ pub struct Encrypted<T: Encryptable> {
 ///
 /// SCALE wire format: `index: u32` ‖ `id: [u8; 32]` ‖ `compressed_point: [u8; 48]`.
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct DecryptionShare {
+pub struct DecryptionShare<T: Encryptable> {
     pub index: u32,
-    pub id: [u8; 32],
+    pub id: T::Id,
     pub point: G1Affine,
 }
 
@@ -138,28 +154,28 @@ impl DealerOutput {
 // happen for points produced by this crate; Decode validates and returns a
 // codec error on bad bytes.
 
-impl Encode for DecryptionShare {
-    fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
-        self.index.encode_to(dest);
-        self.id.encode_to(dest);
-        let bytes =
-            serialize_g1(&self.point).expect("DecryptionShare always holds a valid G1 point");
-        bytes.encode_to(dest);
-    }
-}
+// impl Encode for DecryptionShare {
+//     fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+//         self.index.encode_to(dest);
+//         self.id.encode_to(dest);
+//         let bytes =
+//             serialize_g1(&self.point).expect("DecryptionShare always holds a valid G1 point");
+//         bytes.encode_to(dest);
+//     }
+// }
 
-impl Decode for DecryptionShare {
-    fn decode<I: parity_scale_codec::Input>(
-        input: &mut I,
-    ) -> Result<Self, parity_scale_codec::Error> {
-        let index = u32::decode(input)?;
-        let id = <[u8; 32]>::decode(input)?;
-        let bytes = <[u8; G1_COMPRESSED_LEN]>::decode(input)?;
-        let point = deserialize_compressed::<G1Affine, G1_COMPRESSED_LEN>(&bytes)
-            .map_err(|_| parity_scale_codec::Error::from("invalid G1 point in DecryptionShare"))?;
-        Ok(Self { index, id, point })
-    }
-}
+// impl Decode for DecryptionShare {
+//     fn decode<I: parity_scale_codec::Input>(
+//         input: &mut I,
+//     ) -> Result<Self, parity_scale_codec::Error> {
+//         let index = u32::decode(input)?;
+//         let id = <[u8; 32]>::decode(input)?;
+//         let bytes = <[u8; G1_COMPRESSED_LEN]>::decode(input)?;
+//         let point = deserialize_compressed::<G1Affine, G1_COMPRESSED_LEN>(&bytes)
+//             .map_err(|_| parity_scale_codec::Error::from("invalid G1 point in DecryptionShare"))?;
+//         Ok(Self { index, id, point })
+//     }
+// }
 
 impl Encode for MasterPublicKey {
     fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
@@ -201,15 +217,15 @@ impl Decode for SharePublicKey {
     }
 }
 
-impl DecryptionShare {
+impl<T: Encryptable> DecryptionShare<T> {
     /// Serialize as `(index, id, compressed_point_bytes)`.
-    pub fn to_bytes(&self) -> Result<(u32, [u8; 32], [u8; G1_COMPRESSED_LEN]), TpkeError> {
-        Ok((self.index, self.id, serialize_g1(&self.point)?))
+    pub fn to_bytes(&self) -> Result<(u32, &[u8], [u8; G1_COMPRESSED_LEN]), TpkeError> {
+        Ok((self.index, self.id.as_ref(), serialize_g1(&self.point)?))
     }
 
     pub fn from_bytes(
         index: u32,
-        id: [u8; 32],
+        id: T::Id,
         bytes: &[u8; G1_COMPRESSED_LEN],
     ) -> Result<Self, TpkeError> {
         let point = deserialize_compressed::<G1Affine, G1_COMPRESSED_LEN>(bytes)?;

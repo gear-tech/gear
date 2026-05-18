@@ -3,22 +3,23 @@ use crate::{
     bls12_381::{hash_to_g1, serialize_g2},
     keys::{Encrypted, MasterPublicKey},
 };
-use ark_bls12_381::G2Affine;
-use ark_ec::AffineRepr;
-use ark_std::rand::{CryptoRng, RngCore};
+use ark_bls12_381::{Bls12_381, Fr, G2Affine, G2Projective};
+use ark_ec::{AffineRepr, CurveGroup, pairing::Pairing};
+use ark_std::{
+    UniformRand,
+    rand::{CryptoRng, RngCore},
+};
 use parity_scale_codec::{Decode, Encode};
 
-pub trait Encryptable {
-    type Id: AsRef<[u8; 32]>;
+pub trait Encryptable: Sized {
+    type Id: AsRef<[u8]> + Copy + PartialEq + Eq;
     type EncryptedFields: Encode + Decode;
 
     fn derive_id(&self) -> Self::Id;
 
-    pub fn encrypt<R>(
-        &self,
-        pk: &MasterPublicKey,
-        rng: &mut R,
-    ) -> Result<Encrypted<Self>, TpkeError>
+    fn encryptable_fields(&self) -> &Self::EncryptedFields;
+
+    fn encrypt<R>(&self, pk: &MasterPublicKey, rng: &mut R) -> Result<Encrypted<Self>, TpkeError>
     where
         R: RngCore + CryptoRng,
     {
@@ -27,6 +28,8 @@ pub trait Encryptable {
         if pk.0.is_zero() {
             return Err(TpkeError::IdentityPublicKey);
         }
+
+        let id = self.derive_id();
 
         let q_id = hash_to_g1(id)?;
         // Reject the (negligibly likely) malformed id that hashes to the identity.
@@ -41,12 +44,12 @@ pub trait Encryptable {
         // z = e(Q_id, AggPub)^u = e(Q_id, g₂)^(S·u)
         let z_base = Bls12_381::pairing(q_id, pk.0);
         let z = z_base * u_scalar;
-        let body = aead::encrypt_body(&z, id, &u_bytes, plaintext)?;
+        let ciphertext = aead::encrypt_body::<Self>(&z, &id, &u_bytes, self.encryptable_fields())?;
 
         Ok(Encrypted {
             u: u_bytes,
-            id: *id,
-            body,
+            id,
+            ciphertext,
         })
     }
 }

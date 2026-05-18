@@ -19,8 +19,8 @@ use blake2::{Blake2b, Digest, digest::consts::U32};
 use sha2::Sha256;
 
 use crate::{
-    DecryptionShare, EncryptedEnvelope, MasterPublicKey, SecretKeyShare, SharePublicKey, TpkeError,
-    aead, shamir::lagrange_coefficient,
+    DecryptionShare, Encryptable, Encrypted, MasterPublicKey, SecretKeyShare, SharePublicKey,
+    TpkeError, aead, shamir::lagrange_coefficient,
 };
 
 /// Hash-to-curve domain separation tag, version-locked. Changing this string
@@ -76,15 +76,17 @@ fn g1_hasher() -> &'static G1Hasher {
     HASHER.get_or_init(|| G1Hasher::new(DST_G1).expect("DST_G1 is a valid hash-to-curve DST"))
 }
 
-pub(crate) fn hash_to_g1(id: &[u8; 32]) -> Result<G1Affine, TpkeError> {
+pub(crate) fn hash_to_g1(id: impl AsRef<[u8]>) -> Result<G1Affine, TpkeError> {
     #[cfg(feature = "std")]
     {
-        g1_hasher().hash(id).map_err(|_| TpkeError::HashToCurve)
+        g1_hasher()
+            .hash(id.as_ref())
+            .map_err(|_| TpkeError::HashToCurve)
     }
     #[cfg(not(feature = "std"))]
     {
         let hasher = G1Hasher::new(DST_G1).map_err(|_| TpkeError::HashToCurve)?;
-        hasher.hash(id).map_err(|_| TpkeError::HashToCurve)
+        hasher.hash(id.as_ref()).map_err(|_| TpkeError::HashToCurve)
     }
 }
 
@@ -117,58 +119,23 @@ pub(crate) fn serialize_g1(p: &G1Affine) -> Result<[u8; G1_COMPRESSED_LEN], Tpke
     serialize_compressed::<_, G1_COMPRESSED_LEN>(p)
 }
 
-/// Encrypt `plaintext` for identity `id` under master public key `pk`.
-///
-/// `chain_id` and `key_epoch_id` are bound into the AEAD's AAD so a ciphertext
-/// can only be decrypted within its intended chain+epoch context.
-pub fn encrypt<R: RngCore + CryptoRng>(
-    pk: &MasterPublicKey,
-    id: &[u8; 32],
-    plaintext: &[u8],
-    rng: &mut R,
-) -> Result<EncryptedEnvelope, TpkeError> {
-    // Identity public key would make z = e(Q_id, 0) = 1_GT, derivable by anyone
-    // who sees the ciphertext — confidentiality fully bypassed. Reject.
-    if pk.0.is_zero() {
-        return Err(TpkeError::IdentityPublicKey);
-    }
-
-    let q_id = hash_to_g1(id)?;
-    // Reject the (negligibly likely) malformed id that hashes to the identity.
-    if q_id.is_zero() {
-        return Err(TpkeError::HashToCurve);
-    }
-
-    let u_scalar = Fr::rand(rng);
-    let u_point = (G2Affine::generator() * u_scalar).into_affine();
-    let u_bytes = serialize_g2(&u_point)?;
-
-    // z = e(Q_id, AggPub)^u = e(Q_id, g₂)^(S·u)
-    let z_base = Bls12_381::pairing(q_id, pk.0);
-    let z = z_base * u_scalar;
-    let body = aead::encrypt_body(&z, id, &u_bytes, plaintext)?;
-
-    Ok(EncryptedEnvelope {
-        u: u_bytes,
-        id: *id,
-        body,
-    })
-}
-
 impl SecretKeyShare {
     /// Validator-side: produce `Dᵢ = Sᵢ · Q_id` for the ciphertext's id.
-    pub fn decrypt_share(
+    pub fn decrypt_share<T>(
         &self,
-        envelope: &EncryptedEnvelope,
-    ) -> Result<DecryptionShare, TpkeError> {
+        encrypted: &Encrypted<T>,
+    ) -> Result<DecryptionShare<T>, TpkeError>
+    where
+        T: Encryptable,
+    {
         if self.index == 0 {
             return Err(TpkeError::ZeroShareIndex(0));
         }
-        let q_id = hash_to_g1(&envelope.id)?;
+        let q_id = hash_to_g1(&encrypted.id)?;
         let point = (q_id * self.scalar()).into_affine();
         Ok(DecryptionShare {
             index: self.index,
-            id: envelope.id,
+            id: encrypted.id,
             point,
         })
     }
@@ -179,11 +146,14 @@ impl SharePublicKey {
     ///
     /// Returns `Ok(false)` when the share's validator index or envelope id
     /// doesn't match what we're verifying against.
-    pub fn verify(
+    pub fn verify<T>(
         &self,
-        envelope: &EncryptedEnvelope,
-        share: &DecryptionShare,
-    ) -> Result<bool, TpkeError> {
+        envelope: &Encrypted<T>,
+        share: &DecryptionShare<T>,
+    ) -> Result<bool, TpkeError>
+    where
+        T: Encryptable,
+    {
         if share.index != self.index || share.id != envelope.id {
             return Ok(false);
         }
@@ -205,13 +175,14 @@ impl SharePublicKey {
 ///
 /// **Only the first `threshold` shares from `shares` are consumed.** Excess
 /// shares are ignored. To use a specific subset, slice the input yourself.
-pub fn combine(
-    envelope: &EncryptedEnvelope,
-    shares: &[DecryptionShare],
-    chain_id: u64,
-    key_epoch_id: u32,
+pub fn combine<T>(
+    envelope: &Encrypted<T>,
+    shares: &[DecryptionShare<T>],
     threshold: u32,
-) -> Result<Vec<u8>, TpkeError> {
+) -> Result<T::EncryptedFields, TpkeError>
+where
+    T: Encryptable,
+{
     // Match deal()'s invariant: threshold 0 would short-circuit to the G1
     // identity for D and let anyone "decrypt" ciphertexts produced under an
     // identity master pubkey. Reject up front.
@@ -255,14 +226,7 @@ pub fn combine(
     let u_point = deserialize_g2(&envelope.u)?;
     let z = Bls12_381::pairing(d, u_point);
 
-    aead::decrypt_body(
-        &z,
-        &envelope.id,
-        &envelope.u,
-        chain_id,
-        key_epoch_id,
-        &envelope.body,
-    )
+    aead::decrypt_body::<T>(&z, &envelope.id, &envelope.u, &envelope.ciphertext)
 }
 
 impl MasterPublicKey {
