@@ -28,6 +28,7 @@ use ethexe_common::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
     },
 };
+use core::num::NonZero;
 use gprimitives::{ActorId, CodeId, H256};
 use std::collections::{HashMap, hash_map::Entry};
 
@@ -151,12 +152,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
 
     let block_hash = block.hash;
 
-    // Empty-transition MB on its own doesn't justify a chain commitment.
-    let chain_has_transitions = chain_commitment
-        .as_ref()
-        .is_some_and(|c| !c.transitions.is_empty());
-
-    if !chain_has_transitions
+    if chain_commitment.is_none()
         && code_commitments.is_empty()
         && validators_commitment.is_none()
         && rewards_commitment.is_none()
@@ -164,8 +160,6 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
         tracing::debug!("No commitments for block {block_hash} - skip batch commitment");
         return Ok(None);
     }
-
-    let chain_commitment = chain_commitment.filter(|c| !c.transitions.is_empty());
 
     let previous_batch = db
         .block_meta(block.hash)
@@ -256,14 +250,20 @@ pub fn try_include_chain_commitment<DB: BlockMetaStorageRO + MbStorageRO>(
         last_included = *mb_hash;
     }
 
+    // Skip the commitment entirely when there are no state transitions
+    // to carry on-chain. Pushing the Ethereum anchor forward on every
+    // idle round would spam pointless batches; the dedicated checkpoint
+    // path ([`try_include_checkpoint_chain_commitment`]) gates that on
+    // `uncommitted_chain_len_threshold` and emits the empty-transitions
+    // commitment only after a long quiet stretch.
+    if transitions.is_empty() {
+        return Ok(last_committed_mb);
+    }
+
     let commitment = ChainCommitment {
         head: last_included,
         transitions,
-        last_advanced_eth_block: if last_included == last_committed_mb {
-            H256::zero()
-        } else {
-            db.mb_meta(last_included).last_advanced_eb
-        },
+        last_advanced_eth_block: db.mb_meta(last_included).last_advanced_eb,
     };
 
     if let Err(err) = batch_filler.include_chain_commitment(commitment) {
@@ -285,7 +285,7 @@ pub fn try_include_checkpoint_chain_commitment<
     db: &DB,
     at_block: H256,
     mb_head: H256,
-    threshold: u32,
+    threshold: NonZero<u32>,
     batch_filler: &mut BatchFiller,
 ) -> Result<()> {
     let advanced = db.mb_meta(mb_head).last_advanced_eb;
@@ -314,7 +314,7 @@ pub fn try_include_checkpoint_chain_commitment<
     };
 
     let gap = advanced_header.height.saturating_sub(last_committed_height);
-    if gap <= threshold {
+    if gap <= threshold.get() {
         return Ok(());
     }
 
@@ -333,7 +333,7 @@ pub fn try_include_checkpoint_chain_commitment<
             %mb_head,
             %advanced,
             gap,
-            threshold,
+            threshold = threshold.get(),
             "emitting checkpoint chain commitment"
         );
     }

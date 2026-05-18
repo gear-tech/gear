@@ -36,8 +36,8 @@ pub struct BatchLimits {
     pub batch_size_limit: u64,
     /// Force a checkpoint chain commitment when the producer's view of
     /// `last_advanced_eth_block` is more than this many blocks ahead of the
-    /// last committed advanced block. Zero disables the gate.
-    pub uncommitted_chain_len_threshold: u32,
+    /// last committed advanced block.
+    pub uncommitted_chain_len_threshold: NonZero<u32>,
 }
 
 impl Default for BatchLimits {
@@ -45,7 +45,7 @@ impl Default for BatchLimits {
         BatchLimits {
             commitment_delay_limit: DEFAULT_COMMITMENT_DELAY_LIMIT,
             batch_size_limit: DEFAULT_BATCH_SIZE_LIMIT,
-            uncommitted_chain_len_threshold: 500,
+            uncommitted_chain_len_threshold: NonZero::new(500).expect("500 != 0"),
         }
     }
 }

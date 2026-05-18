@@ -101,8 +101,8 @@ pub struct ValidatorConfig {
     pub coordinator_aggregation_delay: Duration,
     /// Force a checkpoint chain commitment when the producer's view of
     /// `last_advanced_eth_block` runs ahead of `last_committed_eb`
-    /// by more than this many Eth blocks (zero disables the gate).
-    pub uncommitted_chain_len_threshold: u32,
+    /// by more than this many Eth blocks.
+    pub uncommitted_chain_len_threshold: std::num::NonZero<u32>,
 }
 
 impl ValidatorService {

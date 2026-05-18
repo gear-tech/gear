@@ -102,8 +102,7 @@
 # Force a checkpoint chain commitment when the producer's view of
 # `last_advanced_eth_block` runs ahead of the on-chain
 # `last_committed_eb` by more than this many Ethereum blocks.
-# Zero disables the gate.
-# (optional, default: 500).
+# (optional, must be non-zero u32, default: 500).
 # uncommitted-chain-len-threshold = 500
 
 # Coordinator-local: how many Ethereum blocks the resulting

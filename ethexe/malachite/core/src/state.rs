@@ -24,6 +24,7 @@ use malachitebft_app_channel::app::{
         core::{Height as _HeightTrait, LinearTimeouts, Round, Validity},
     },
 };
+use malachitebft_core_types::CommitCertificate;
 
 use crate::{
     context::{
@@ -47,7 +48,7 @@ pub(crate) const NON_PROPOSER_PROPOSE_MARGIN: Duration = Duration::from_secs(1);
 #[derive(Clone, Debug)]
 pub struct DecidedValue {
     pub value: Value,
-    pub certificate: malachitebft_core_types::CommitCertificate<MalachiteCtx>,
+    pub certificate: CommitCertificate<MalachiteCtx>,
 }
 
 /// Shared validator set handle — an external writer swaps the set
@@ -248,11 +249,8 @@ impl<P: BlockPayload> State<P> {
     /// [`crate::store::BlockEntry`] layer.
     pub fn commit(
         &mut self,
-        certificate: malachitebft_core_types::CommitCertificate<MalachiteCtx>,
-    ) -> Result<(
-        Vec<u8>,
-        malachitebft_core_types::CommitCertificate<MalachiteCtx>,
-    )> {
+        certificate: CommitCertificate<MalachiteCtx>,
+    ) -> Result<(Vec<u8>, CommitCertificate<MalachiteCtx>)> {
         let height = certificate.height;
         let value_id = certificate.value_id;
 

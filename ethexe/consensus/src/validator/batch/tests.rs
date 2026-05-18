@@ -38,7 +38,7 @@ use ethexe_db::Database;
 use ethexe_ethereum::middleware::{ElectionProvider, MockElectionProvider};
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, CodeId, H256};
-use std::num::NonZeroU64;
+use std::num::{NonZero, NonZeroU64};
 
 const BLOCK_GAS_LIMIT: u64 = ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
 
@@ -459,7 +459,8 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
         BatchLimits {
             commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
             batch_size_limit: BLOCK_GAS_LIMIT, // large
-            uncommitted_chain_len_threshold: 0,
+            // Large enough that the checkpoint path doesn't fire in this size-limit scenario.
+            uncommitted_chain_len_threshold: NonZero::new(u32::MAX).unwrap(),
         },
     );
     let batch = big_manager
@@ -474,7 +475,8 @@ async fn batch_size_limit_exceeded_is_rejected_on_validation() {
         BatchLimits {
             commitment_delay_limit: std::num::NonZero::new(100).unwrap(),
             batch_size_limit: 256, // intentionally tiny
-            uncommitted_chain_len_threshold: 0,
+            // Large enough that the checkpoint path doesn't fire in this size-limit scenario.
+            uncommitted_chain_len_threshold: NonZero::new(u32::MAX).unwrap(),
         },
     );
     let status = strict_manager
@@ -553,6 +555,110 @@ async fn squash_orders_negative_value_transitions_first() {
         ValidationStatus::Accepted(d) => assert_eq!(d, expected),
         ValidationStatus::Rejected { reason, .. } => panic!("rejected: {reason:?}"),
     }
+}
+
+/// Idle network: all MBs in the uncommitted range have empty
+/// outcomes, no codes/validators/rewards are due, and the head MB's
+/// `last_advanced_eb` is only a small number of Eth blocks past the
+/// on-chain anchor. Below the configured threshold there's nothing
+/// worth pinning to L1 — `create_batch_commitment` MUST return `None`.
+/// Without this gate a bug would let the producer emit a vacuous
+/// empty-transitions batch every round and pay gas for nothing.
+#[tokio::test]
+async fn idle_chain_below_threshold_yields_no_batch_commitment() {
+    let db = Database::memory();
+    let chain = test_block_chain(6).setup(&db);
+    let block = chain.blocks[6].to_simple();
+
+    let mb_hashes = setup_mb_chain(&db, vec![vec![], vec![]]);
+    let head_mb = *mb_hashes.last().expect("non-empty");
+
+    // Anchor advance lands 2 Eth heights past the last committed anchor.
+    let advanced = chain.blocks[4].hash;
+    let last_committed_eb = chain.blocks[2].hash;
+    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = advanced);
+    db.mutate_block_meta(block.hash, |m| m.last_committed_eb = Some(last_committed_eb));
+
+    // gap = height(blocks[4]) - height(blocks[2]) = 2; threshold is much larger.
+    let manager = mock_batch_manager_with_limits(
+        db,
+        BatchLimits {
+            commitment_delay_limit: std::num::NonZero::new(16).unwrap(),
+            batch_size_limit: BLOCK_GAS_LIMIT,
+            uncommitted_chain_len_threshold: NonZero::new(10).unwrap(),
+        },
+    );
+
+    let result = manager
+        .create_batch_commitment(block)
+        .await
+        .expect("create_batch_commitment must not error");
+    assert!(
+        result.is_none(),
+        "below-threshold idle chain must produce no batch commitment, got {result:?}",
+    );
+}
+
+/// Idle network as above, but the gap between the head MB's
+/// `last_advanced_eb` and the on-chain anchor now strictly exceeds the
+/// threshold. The coordinator MUST emit a checkpoint batch with an
+/// empty-transitions `ChainCommitment` that pins the new Ethereum
+/// anchor — otherwise long quiet stretches strand the anchor and
+/// downstream `compute_mb` keeps re-walking the same EB events.
+#[tokio::test]
+async fn idle_chain_above_threshold_emits_checkpoint_batch_commitment() {
+    let db = Database::memory();
+    let chain = test_block_chain(6).setup(&db);
+    let block = chain.blocks[6].to_simple();
+
+    let mb_hashes = setup_mb_chain(&db, vec![vec![], vec![]]);
+    let head_mb = *mb_hashes.last().expect("non-empty");
+
+    // gap = height(blocks[5]) - height(blocks[1]) = 4
+    let advanced = chain.blocks[5].hash;
+    let last_committed_eb = chain.blocks[1].hash;
+    db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = advanced);
+    db.mutate_block_meta(block.hash, |m| m.last_committed_eb = Some(last_committed_eb));
+
+    let threshold = NonZero::new(2).unwrap();
+    let manager = mock_batch_manager_with_limits(
+        db,
+        BatchLimits {
+            commitment_delay_limit: std::num::NonZero::new(16).unwrap(),
+            batch_size_limit: BLOCK_GAS_LIMIT,
+            uncommitted_chain_len_threshold: threshold,
+        },
+    );
+
+    let batch = manager
+        .create_batch_commitment(block)
+        .await
+        .expect("create_batch_commitment must not error")
+        .expect("above-threshold idle chain must produce a checkpoint batch commitment");
+
+    let chain_commitment = batch
+        .chain_commitment
+        .as_ref()
+        .expect("checkpoint batch must carry a chain commitment");
+    assert!(
+        chain_commitment.transitions.is_empty(),
+        "checkpoint chain commitment must carry no state transitions, got {} transitions",
+        chain_commitment.transitions.len(),
+    );
+    assert_eq!(
+        chain_commitment.last_advanced_eth_block, advanced,
+        "checkpoint must pin the head MB's last_advanced_eb on-chain",
+    );
+    assert_eq!(
+        chain_commitment.head, head_mb,
+        "checkpoint must reference the latest finalized MB",
+    );
+    assert!(
+        batch.code_commitments.is_empty()
+            && batch.validators_commitment.is_none()
+            && batch.rewards_commitment.is_none(),
+        "checkpoint scenario should only carry the chain commitment",
+    );
 }
 
 #[tokio::test]

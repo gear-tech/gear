@@ -106,9 +106,7 @@ impl BatchCommitmentManager {
             // Checkpoint: if no chain commitment fits but the producer's
             // `last_advanced_eth_block` is far ahead of `last_committed_eb`,
             // emit an empty chain commitment that just bumps the on-chain anchor.
-            if !batch_filler.has_chain_commitment()
-                && self.limits.uncommitted_chain_len_threshold > 0
-            {
+            if !batch_filler.has_chain_commitment() {
                 super::utils::try_include_checkpoint_chain_commitment(
                     &self.db,
                     block.hash,

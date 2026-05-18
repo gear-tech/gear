@@ -38,7 +38,7 @@ use tempfile::TempDir;
 const DEFAULT_COORDINATOR_AGGREGATION_DELAY_MS: u64 = 0;
 
 /// Default threshold for the coordinator to force a checkpoint commitment when the uncommitted chain gets too long.
-const DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD: u32 = 500;
+const DEFAULT_UNCOMMITTED_CHAIN_LEN_THRESHOLD: NonZero<u32> = NonZero::new(500).unwrap();
 
 #[static_init::dynamic(drop, lazy)]
 static mut TMP_DB: Option<TempDir> = None;
@@ -126,10 +126,9 @@ pub struct NodeParams {
     /// Force a checkpoint chain commitment when the producer's
     /// `last_advanced_eth_block` runs ahead of the on-chain
     /// `last_committed_eb` by more than this many Eth blocks.
-    /// Zero disables.
     #[arg(long)]
     #[serde(default, rename = "uncommitted-chain-len-threshold")]
-    pub uncommitted_chain_len_threshold: Option<u32>,
+    pub uncommitted_chain_len_threshold: Option<NonZero<u32>>,
 
     /// Coordinator-local: how many Ethereum blocks the resulting
     /// `BatchCommitment` stays valid past its target block. Encoded into
