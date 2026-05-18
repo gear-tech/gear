@@ -136,6 +136,7 @@ impl System {
     /// # Panics
     /// Only one instance in the current thread of the `System` is possible to
     /// create. Instantiation of the other one leads to runtime panic.
+    #[cfg(feature = "ethexe")]
     pub fn new_ethexe() -> Self {
         SYSTEM_INITIALIZED.with_borrow_mut(|initialized| {
             if *initialized {
@@ -143,12 +144,7 @@ impl System {
             }
 
             let ext_manager = ExtManager::new_ethexe();
-            gear_lazy_pages::init(
-                LazyPagesVersion::Version1,
-                LazyPagesInitContext::new(Self::PAGE_STORAGE_PREFIX),
-                PagesStorage,
-            )
-            .expect("Failed to init lazy-pages");
+            crate::ethexe::init_lazy_pages();
 
             *initialized = true;
 
@@ -184,6 +180,7 @@ impl System {
     pub fn queue_len(&self) -> usize {
         let manager = self.0.borrow();
 
+        #[cfg(feature = "ethexe")]
         if manager.is_ethexe() {
             return manager.ethexe().queue_len();
         }
@@ -232,6 +229,7 @@ impl System {
 
         let mut manager = self.0.borrow_mut();
 
+        #[cfg(feature = "ethexe")]
         if manager.is_ethexe() {
             let block_info = manager.blocks_manager.next_block();
             return manager.ethexe_mut().run_new_block(
@@ -256,6 +254,7 @@ impl System {
 
         let mut ret = Vec::with_capacity((bn - current_block) as usize);
         while current_block != bn {
+            #[cfg(feature = "ethexe")]
             let res = if manager.is_ethexe() {
                 let block_info = manager.blocks_manager.next_block();
                 manager.ethexe_mut().run_new_block(
@@ -266,6 +265,8 @@ impl System {
             } else {
                 manager.run_new_block(GAS_ALLOWANCE)
             };
+            #[cfg(not(feature = "ethexe"))]
+            let res = manager.run_new_block(GAS_ALLOWANCE);
             ret.push(res);
 
             current_block = manager.block_height();
@@ -283,6 +284,7 @@ impl System {
         (block_height..block_height + amount)
             .map(|_| {
                 let block_info = manager.blocks_manager.next_block();
+                #[cfg(feature = "ethexe")]
                 if manager.is_ethexe() {
                     return manager
                         .ethexe_mut()
@@ -452,6 +454,7 @@ impl System {
     }
 
     /// Top up an ethexe program's executable balance.
+    #[cfg(feature = "ethexe")]
     pub fn top_up_executable_balance(&self, program: impl Into<ProgramIdWrapper>, value: Value) {
         let program = program.into().0;
         let mut manager = self.0.borrow_mut();
@@ -466,6 +469,7 @@ impl System {
     }
 
     /// Top up an ethexe program's reducible balance.
+    #[cfg(feature = "ethexe")]
     pub fn top_up_balance(&self, program: impl Into<ProgramIdWrapper>, value: Value) {
         let program = program.into().0;
         let mut manager = self.0.borrow_mut();
@@ -478,6 +482,7 @@ impl System {
     }
 
     /// Inject a message into an initialized ethexe program.
+    #[cfg(feature = "ethexe")]
     pub fn inject_message(
         &self,
         destination: impl Into<ProgramIdWrapper>,
@@ -535,6 +540,7 @@ impl System {
         let actor_id = id.into().0;
         let manager = self.0.borrow();
 
+        #[cfg(feature = "ethexe")]
         if manager.is_ethexe() && ProgramsStorageManager::is_program(actor_id) {
             return manager.ethexe().balance_of(actor_id);
         }

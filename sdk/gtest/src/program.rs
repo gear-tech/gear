@@ -24,10 +24,10 @@ use crate::{
     system::System,
 };
 use gear_common::Origin;
+#[cfg(feature = "ethexe")]
+use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gear_core::{
-    code::{
-        Code, CodeAndId, CodeMetadata, InstrumentedCode, InstrumentedCodeAndMetadata, SyscallKind,
-    },
+    code::{Code, CodeAndId, InstrumentedCodeAndMetadata, SyscallKind},
     gas_metering::Schedule,
     ids::{ActorId, CodeId, MessageId, prelude::*},
     message::{Dispatch, DispatchKind, Message},
@@ -286,6 +286,7 @@ impl ProgramBuilder {
         (code_id, code.into())
     }
 
+    #[cfg(feature = "ethexe")]
     fn build_ethexe_instrumented_code(original_code: Vec<u8>) -> (InstrumentedCode, CodeMetadata) {
         let schedule = Schedule::default();
         let code = Code::try_new(
@@ -348,25 +349,31 @@ impl<'a> Program<'a> {
             )
         }
 
-        if let Some(code_id) = ethexe_code_id
-            && system.0.borrow().is_ethexe()
+        #[cfg(not(feature = "ethexe"))]
+        let _ = ethexe_code_id;
+
+        #[cfg(feature = "ethexe")]
         {
-            let (instrumented_code, code_metadata) = {
-                let manager = system.0.borrow();
-                let code = manager
-                    .original_code(code_id)
-                    .unwrap_or_else(|| panic!("missing original ethexe code {code_id:?}"))
-                    .to_vec();
+            if let Some(code_id) = ethexe_code_id
+                && system.0.borrow().is_ethexe()
+            {
+                let (instrumented_code, code_metadata) = {
+                    let manager = system.0.borrow();
+                    let code = manager
+                        .original_code(code_id)
+                        .unwrap_or_else(|| panic!("missing original ethexe code {code_id:?}"))
+                        .to_vec();
 
-                ProgramBuilder::build_ethexe_instrumented_code(code)
-            };
+                    ProgramBuilder::build_ethexe_instrumented_code(code)
+                };
 
-            system.0.borrow_mut().ethexe_mut().register_program(
-                program_id,
-                code_id,
-                instrumented_code,
-                code_metadata,
-            );
+                system.0.borrow_mut().ethexe_mut().register_program(
+                    program_id,
+                    code_id,
+                    instrumented_code,
+                    code_metadata,
+                );
+            }
         }
 
         Self {
@@ -543,8 +550,11 @@ impl<'a> Program<'a> {
         let source = from.into().0;
         let payload = payload.into();
 
-        if system.is_ethexe() && gas_limit != MAX_USER_GAS_LIMIT {
-            usage_panic!("Explicit gas limits are not supported in ethexe gtest mode");
+        #[cfg(feature = "ethexe")]
+        {
+            if system.is_ethexe() && gas_limit != MAX_USER_GAS_LIMIT {
+                usage_panic!("Explicit gas limits are not supported in ethexe gtest mode");
+            }
         }
 
         // The current block number is always a block number of the "executed" block.
@@ -558,12 +568,15 @@ impl<'a> Program<'a> {
             system.fetch_inc_message_nonce() as u128,
         );
 
-        if system.is_ethexe() {
-            system
-                .ethexe_mut()
-                .queue_canonical(self.id, message_id, source, payload, value);
+        #[cfg(feature = "ethexe")]
+        {
+            if system.is_ethexe() {
+                system
+                    .ethexe_mut()
+                    .queue_canonical(self.id, message_id, source, payload, value);
 
-            return message_id;
+                return message_id;
+            }
         }
 
         let message = Message::new(
@@ -612,8 +625,13 @@ impl Program<'_> {
     pub fn read_state_bytes(&self, payload: Vec<u8>) -> Result<Vec<u8>> {
         let mut manager = self.manager.borrow_mut();
 
-        if manager.is_ethexe() {
-            usage_panic!("Program state reads are not supported in `System::new_ethexe()` mode");
+        #[cfg(feature = "ethexe")]
+        {
+            if manager.is_ethexe() {
+                usage_panic!(
+                    "Program state reads are not supported in `System::new_ethexe()` mode"
+                );
+            }
         }
 
         manager.read_state_bytes(payload, self.id)
@@ -629,14 +647,18 @@ impl Program<'_> {
     pub fn balance(&self) -> Value {
         let manager = self.manager.borrow();
 
-        if manager.is_ethexe() {
-            return manager.ethexe().balance_of(self.id);
+        #[cfg(feature = "ethexe")]
+        {
+            if manager.is_ethexe() {
+                return manager.ethexe().balance_of(self.id);
+            }
         }
 
         manager.balance_of(self.id())
     }
 
     /// Returns the executable balance of the ethexe program.
+    #[cfg(feature = "ethexe")]
     pub fn executable_balance(&self) -> Value {
         let manager = self.manager.borrow();
 

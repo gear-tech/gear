@@ -439,7 +439,7 @@ impl<S: Storage + ?Sized> JournalHandler for NativeJournalHandler<'_, S> {
         _code_id: CodeId,
         _candidates: Vec<(MessageId, ActorId)>,
     ) {
-        todo!()
+        unreachable!("program-from-program creation is not supported in the ethexe gtest backend")
     }
 
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
@@ -585,18 +585,6 @@ impl<S> RuntimeJournalHandler<'_, S>
 where
     S: Storage,
 {
-    // Returns unhandled journal notes and new program state hash
-    // Retained as a compatibility wrapper for callers that do not need queue reports.
-    #[allow(dead_code)]
-    pub fn handle_journal<I>(&mut self, journal: I) -> (Vec<JournalNote>, Option<H256>)
-    where
-        I: IntoIterator<Item = JournalNote>,
-        I::IntoIter: ExactSizeIterator,
-    {
-        let (filtered, maybe_state_hash, _) = self.handle_journal_with_report(journal);
-        (filtered, maybe_state_hash)
-    }
-
     // Returns unhandled journal notes, new program state hash, and runtime queue report
     pub fn handle_journal_with_report<I>(
         &mut self,
@@ -915,7 +903,7 @@ mod tests {
 
         // Special case: Injected message first execution with panic and gas burned less than threshold
         let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Injected, true);
-        handler.handle_journal(vec![JournalNote::GasBurned {
+        handler.handle_journal_with_report(vec![JournalNote::GasBurned {
             message_id: MessageId::new([0u8; 32]),
             amount: INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
             is_panic: true,
@@ -944,7 +932,7 @@ mod tests {
 
                         let mut handler =
                             init_setup(INITIAL_EXEC_BALANCE, message_type, is_first_execution);
-                        handler.handle_journal(vec![JournalNote::GasBurned {
+                        handler.handle_journal_with_report(vec![JournalNote::GasBurned {
                             message_id: MessageId::new([0u8; 32]),
                             amount,
                             is_panic,
@@ -1025,54 +1013,57 @@ mod tests {
         let mut handler = init_setup(500_000_000_000, MessageType::Canonical, true);
 
         // Note unhandled (not processed in RuntimeJournalHandler)
-        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::SendDispatch {
-            message_id: MessageId::new([1u8; 32]),
-            dispatch: CoreDispatch::new(
-                DispatchKind::Handle,
-                CoreMessage::new(
-                    MessageId::new([2u8; 32]),
-                    ActorId::new([1u8; 32]),
-                    ActorId::new([2u8; 32]),
-                    Default::default(),
-                    None,
-                    0,
-                    None,
+        let (unhandled, state_hash, _) =
+            handler.handle_journal_with_report(vec![JournalNote::SendDispatch {
+                message_id: MessageId::new([1u8; 32]),
+                dispatch: CoreDispatch::new(
+                    DispatchKind::Handle,
+                    CoreMessage::new(
+                        MessageId::new([2u8; 32]),
+                        ActorId::new([1u8; 32]),
+                        ActorId::new([2u8; 32]),
+                        Default::default(),
+                        None,
+                        0,
+                        None,
+                    ),
                 ),
-            ),
-            delay: 0,
-            reservation: None,
-        }]);
+                delay: 0,
+                reservation: None,
+            }]);
 
         assert_eq!(unhandled.len(), 1);
         assert!(state_hash.is_none());
 
         // Note will be processed in here (in RuntimeJournalHandler) and also forwarded to `NativeJournalHandler`
         // and produce state hash update.
-        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::StopProcessing {
-            dispatch: StoredDispatch::new(
-                DispatchKind::Handle,
-                StoredMessage::new(
-                    MessageId::new([2u8; 32]),
-                    ActorId::new([3u8; 32]),
-                    ActorId::new([4u8; 32]),
-                    Default::default(),
-                    0,
+        let (unhandled, state_hash, _) =
+            handler.handle_journal_with_report(vec![JournalNote::StopProcessing {
+                dispatch: StoredDispatch::new(
+                    DispatchKind::Handle,
+                    StoredMessage::new(
+                        MessageId::new([2u8; 32]),
+                        ActorId::new([3u8; 32]),
+                        ActorId::new([4u8; 32]),
+                        Default::default(),
+                        0,
+                        None,
+                    ),
                     None,
                 ),
-                None,
-            ),
-            gas_burned: 1000,
-        }]);
+                gas_burned: 1000,
+            }]);
 
         assert_eq!(unhandled.len(), 1);
         assert!(state_hash.is_some());
 
         // Note only processed in here (in RuntimeJournalHandler) and produce state hash update.
-        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::UpdatePage {
-            program_id: ActorId::new([1u8; 32]),
-            page_number: 16.into(),
-            data: PageBuf::new_zeroed(),
-        }]);
+        let (unhandled, state_hash, _) =
+            handler.handle_journal_with_report(vec![JournalNote::UpdatePage {
+                program_id: ActorId::new([1u8; 32]),
+                page_number: 16.into(),
+                data: PageBuf::new_zeroed(),
+            }]);
         assert!(unhandled.is_empty());
         assert!(state_hash.is_some());
     }

@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(feature = "ethexe")]
+use crate::ethexe::EthexeBackend;
 use crate::{
     EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
     ProgramBuilder, RESERVE_FOR, Result, TestError, VALUE_PER_GAS,
     builtins::{BLS12_381_ID, ETH_BRIDGE_ID},
     constants::{BlockNumber, Gas, Value},
     error::usage_panic,
-    ethexe::EthexeBackend,
     log::{BlockRunResult, CoreLog},
     state::{
         self,
@@ -82,17 +83,13 @@ const OUTGOING_BYTES_LIMIT: u32 = 64 * 1024 * 1024;
 pub(crate) const CUSTOM_WASM_PROGRAM_CODE_ID: CodeId =
     CodeId::new(*b"CUSTOM_WASM_PROGRAM_CODE_ID\0\0\0\0\0");
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[allow(dead_code)]
+#[cfg(feature = "ethexe")]
 pub(crate) enum ExecutionMode {
+    #[default]
     Vara,
     Ethexe(EthexeBackend),
-}
-
-impl Default for ExecutionMode {
-    fn default() -> Self {
-        Self::Vara
-    }
 }
 
 #[derive(Debug, Default)]
@@ -117,6 +114,7 @@ pub(crate) struct ExtManager {
     pub(crate) messages_processing_enabled: bool,
     pub(crate) first_incomplete_tasks_block: Option<u32>,
     pub(crate) builtins: BTreeSet<ActorId>,
+    #[cfg(feature = "ethexe")]
     pub(crate) execution_mode: ExecutionMode,
 
     // Last block execution info
@@ -135,21 +133,25 @@ impl ExtManager {
             blocks_manager: BlocksManager,
             messages_processing_enabled: true,
             builtins,
+            #[cfg(feature = "ethexe")]
             execution_mode: ExecutionMode::Vara,
             ..Default::default()
         }
     }
 
+    #[cfg(feature = "ethexe")]
     pub(crate) fn new_ethexe() -> Self {
         let mut manager = Self::new();
         manager.execution_mode = ExecutionMode::Ethexe(EthexeBackend::new());
         manager
     }
 
+    #[cfg(feature = "ethexe")]
     pub(crate) fn is_ethexe(&self) -> bool {
         matches!(self.execution_mode, ExecutionMode::Ethexe(_))
     }
 
+    #[cfg(feature = "ethexe")]
     pub(crate) fn ethexe(&self) -> &EthexeBackend {
         match &self.execution_mode {
             ExecutionMode::Ethexe(backend) => backend,
@@ -157,6 +159,7 @@ impl ExtManager {
         }
     }
 
+    #[cfg(feature = "ethexe")]
     pub(crate) fn ethexe_mut(&mut self) -> &mut EthexeBackend {
         match &mut self.execution_mode {
             ExecutionMode::Ethexe(backend) => backend,

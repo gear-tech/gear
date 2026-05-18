@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use ethexe_common::{HashOf, injected::Promise};
 use ethexe_runtime_common::{
     RuntimeInterface,
@@ -14,20 +12,25 @@ use gear_lazy_pages::{LazyPagesStorage, LazyPagesVersion};
 use gear_lazy_pages_common::LazyPagesInitContext;
 use gprimitives::H256;
 use parity_scale_codec::{Decode, DecodeAll};
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, ptr};
 
 const PAGE_STORAGE_PREFIX: [u8; 32] = *b"gtestethexe_lazy_pages_prefix000";
 
+thread_local! {
+    static LAZY_PAGES_STORAGE: Cell<*const MemStorage> = const { Cell::new(ptr::null()) };
+    static LAZY_PAGES_STATE_HASH: Cell<H256> = const { Cell::new(H256::zero()) };
+}
+
 pub(crate) struct GTestEthexeRuntime {
     storage: *const MemStorage,
-    state_hash: Rc<Cell<H256>>,
+    state_hash: Cell<H256>,
 }
 
 impl GTestEthexeRuntime {
     pub(crate) fn new(storage: &MemStorage, state_hash: H256) -> Self {
         Self {
             storage,
-            state_hash: Rc::new(Cell::new(state_hash)),
+            state_hash: Cell::new(state_hash),
         }
     }
 
@@ -47,23 +50,18 @@ impl RuntimeInterface for GTestEthexeRuntime {
     type LazyPages = gear_lazy_pages_native_interface::LazyPagesNative;
 
     fn init_lazy_pages(&self) {
-        gear_lazy_pages::init(
-            LazyPagesVersion::Version1,
-            LazyPagesInitContext::new(PAGE_STORAGE_PREFIX),
-            EthexePagesStorage {
-                storage: self.storage,
-                state_hash: Rc::clone(&self.state_hash),
-            },
-        )
-        .expect("Failed to init ethexe lazy-pages");
+        LAZY_PAGES_STORAGE.set(self.storage);
+        LAZY_PAGES_STATE_HASH.set(self.state_hash());
     }
 
     fn random_data(&self) -> (Vec<u8>, u32) {
+        // Deterministic test entropy; wire this to BlocksManager when a test needs variability.
         (vec![42; 32], 0)
     }
 
     fn update_state_hash(&self, state_hash: &H256) {
         self.state_hash.set(*state_hash);
+        LAZY_PAGES_STATE_HASH.set(*state_hash);
     }
 
     fn publish_promise(&self, _promise: &Promise) {}
@@ -163,21 +161,23 @@ impl Storage for GTestEthexeRuntime {
 }
 
 #[derive(Debug)]
-struct EthexePagesStorage {
-    storage: *const MemStorage,
-    state_hash: Rc<Cell<H256>>,
-}
+struct EthexePagesStorage;
 
 impl EthexePagesStorage {
     fn storage(&self) -> &MemStorage {
-        // SAFETY: see GTestEthexeRuntime::storage. The lazy-pages storage is
-        // registered during synchronous gtest execution and points at the same
-        // backend-owned MemStorage for that execution window.
-        unsafe { &*self.storage }
+        let storage = LAZY_PAGES_STORAGE.get();
+        assert!(
+            !storage.is_null(),
+            "ethexe lazy-pages storage requested outside of gtest execution"
+        );
+        // SAFETY: the pointer is set from the backend-owned MemStorage before
+        // synchronous runtime execution and cleared only by replacing it for a
+        // later execution in the same gtest System lifetime.
+        unsafe { &*storage }
     }
 
     fn state_hash(&self) -> H256 {
-        self.state_hash.get()
+        LAZY_PAGES_STATE_HASH.get()
     }
 
     fn page_data_hash(&self, page: GearPage) -> Option<HashOf<PageBuf>> {
@@ -229,6 +229,15 @@ impl LazyPagesStorage for EthexePagesStorage {
     }
 }
 
+pub(crate) fn init_lazy_pages() {
+    gear_lazy_pages::init(
+        LazyPagesVersion::Version1,
+        LazyPagesInitContext::new(PAGE_STORAGE_PREFIX),
+        EthexePagesStorage,
+    )
+    .expect("Failed to init ethexe lazy-pages");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,10 +265,8 @@ mod tests {
         let old_hash = state_with_page(&storage, page, 1);
         let new_hash = state_with_page(&storage, page, 2);
         let runtime = GTestEthexeRuntime::new(&storage, old_hash);
-        let mut pages_storage = EthexePagesStorage {
-            storage: runtime.storage,
-            state_hash: Rc::clone(&runtime.state_hash),
-        };
+        runtime.init_lazy_pages();
+        let mut pages_storage = EthexePagesStorage;
         let key = (PAGE_STORAGE_PREFIX, ActorId::from(99), 0u32, page).encode();
         let mut buffer = vec![0; GearPage::SIZE as usize];
 

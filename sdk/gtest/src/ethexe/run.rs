@@ -9,8 +9,10 @@ use ethexe_common::{
     gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
 };
 use ethexe_runtime_common::{
-    BlockInfo, InBlockTransitions, JournalHandler, ProcessQueueContext, RuntimeQueueReport,
-    ScheduleHandler, TransitionController, process_queue_with_report, state::Storage,
+    BlockInfo, InBlockTransitions, JournalHandler, MAX_CALL_REPLIES_PER_RUN,
+    MAX_OUTGOING_MESSAGES_BYTES_PER_RUN, MAX_OUTGOING_MESSAGES_PER_RUN, ProcessQueueContext,
+    RuntimeQueueReport, ScheduleHandler, TransitionController, process_queue_with_report,
+    state::Storage,
 };
 use gear_core::{gas::GasAllowanceCounter, ids::ActorId};
 
@@ -145,6 +147,7 @@ impl EthexeBackend {
                             code_metadata,
                             gas_allowance: GasAllowanceCounter::new(chunk_allowance),
                             block_info,
+                            // gtest currently models promise syscalls as unavailable in ethexe mode.
                             promise_policy: PromisePolicy::Disabled,
                         },
                         &runtime,
@@ -169,9 +172,9 @@ impl EthexeBackend {
                 }
 
                 let mut out_of_gas = false;
-                let mut outgoing_messages_limiter = u32::MAX;
-                let mut outgoing_messages_bytes_limiter = u32::MAX;
-                let mut call_reply_limiter = u32::MAX;
+                let mut outgoing_messages_limiter = MAX_OUTGOING_MESSAGES_PER_RUN;
+                let mut outgoing_messages_bytes_limiter = MAX_OUTGOING_MESSAGES_BYTES_PER_RUN;
+                let mut call_reply_limiter = MAX_CALL_REPLIES_PER_RUN;
 
                 for (program_id, program_journals) in chunk_journals {
                     for (journal, message_type, call_reply) in program_journals {
@@ -259,6 +262,7 @@ fn execution_chunks(
     let mut chunks = vec![Vec::new(); chunks_len];
 
     for (program_id, state) in states {
+        // Programs with larger queues are placed in earlier chunks to be processed first.
         let chunk_idx = usize::from(queue_size(state, queue_type))
             .min(chunks_len)
             .saturating_sub(1);

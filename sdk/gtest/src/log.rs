@@ -44,6 +44,7 @@ pub struct CoreLog {
 }
 
 impl CoreLog {
+    #[cfg(feature = "ethexe")]
     pub(crate) fn from_ethexe_message(
         source: ActorId,
         message: ethexe_common::gear::Message,
