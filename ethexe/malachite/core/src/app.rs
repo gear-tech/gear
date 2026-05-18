@@ -326,25 +326,14 @@ where
 
         // Promote any pending parts buffered for this (height, round)
         // into proper undecided proposals.
-        //
-        // TODO +_+_+ : two fragility issues here, flagged 2/3 in the
-        // audit iter 2.
-        //
-        // (2) [mitigated by this refactor] The `?` on store calls
-        // below no longer kills the app task — `handle_app_msg` now
-        // catches the error and sends an empty `Vec<ProposedValue>`
-        // reply, so the engine proceeds rather than awaiting forever.
-        // A targeted unit reproduce still needs a full engine fake;
-        // TODO captures the issue with the exact line refs.
         let pending = self.state.store.get_pending_proposal_parts(height, round)?;
         for parts in pending {
-            match self.assemble_and_validate(&parts).await {
-                Ok(proposed) => {
-                    self.state.store.store_undecided_proposal(&proposed)?;
-                }
-                Err(e) => {
-                    error!(?e, "rejecting invalid pending proposal");
-                }
+            if let Err(e) = self
+                .assemble_and_validate(&parts)
+                .await
+                .and_then(|proposed| self.state.store.store_undecided_proposal(&proposed))
+            {
+                error!(?e, "rejecting invalid pending proposal");
             }
         }
 
