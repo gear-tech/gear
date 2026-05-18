@@ -6,14 +6,14 @@
 //! Each test boots a fixed-size validator set on `127.0.0.1`, drives
 //! the engines for a fixed wall-clock budget, and asserts that the
 //! [`Externalities`] callbacks land in the contractual order
-//! (`save_block` strictly before `mark_block_as_finalized`, both
-//! ascending and gap-free in `height`).
+//! (`process_mb_proposal` strictly before `process_mb_finalized`
+//! on the finalized chain).
 //!
 //! Tests are gated behind `#[tokio::test(flavor = "multi_thread")]`
 //! because the malachite libp2p stack assumes a multi-thread runtime.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     net::{SocketAddr, TcpListener},
     sync::{Arc, Mutex, Once},
     time::Duration,
@@ -36,8 +36,8 @@ fn init_tracing() {
 use anyhow::Result;
 use async_trait::async_trait;
 use ethexe_malachite_core::{
-    Block, CommitCertificate, Externalities, H256, MalachiteConfig, MalachiteEvent,
-    MalachiteService, Multiaddr, NodeRole, ValidatorEntry, libp2p_peer_id,
+    Block, CommitCertificate, Externalities, H256, MalachiteConfig, MalachiteService, Multiaddr,
+    NodeRole, ValidatorEntry, libp2p_peer_id,
 };
 use parity_scale_codec::{Decode, Encode};
 use proptest::prelude::*;
@@ -56,25 +56,29 @@ struct TestPayload {
 }
 
 // --------------------------------------------------------------------
-// TestExt — records every save / finalize call AND validates each
-// `Externalities` contract guarantee in-line. Every violation gets
-// pushed into `state.violations`; tests assert the vector is empty
-// at the end.
+// TestExt — records every process_mb_proposal / process_mb_finalized
+// call AND validates each `Externalities` contract guarantee in-line.
+// Every violation gets pushed into `state.violations`; tests assert
+// the vector is empty at the end.
 //
 // The contract checks (per the docs on `Externalities`):
 //
-// * `save_block(hash, block)`:
+// * `process_mb_proposal(hash, block)`:
 //     - `hash == block.hash()`;
-//     - `block.height` is contiguous with the previous save (no gaps);
-//     - `block.parent_hash` matches the previous save's `block_hash`
-//       (or `H256::zero()` when this is the first save AND it's
-//       genesis at height 1);
-//     - the same `hash` is never saved twice.
-// * `mark_block_as_finalized(hash, cert)`:
+//     - `block.parent_hash` is `H256::zero()` (genesis) OR a
+//       previously-seen `process_mb_proposal` hash (cascade_save
+//       guarantees ancestor-first ordering);
+//     - the same `hash` is never delivered twice.
+//   Sibling proposals at the same height ARE allowed: when a round
+//   times out and a new proposer steps in, the local node sees one
+//   `process_mb_proposal` per assembled proposal, only one of which
+//   ultimately finalizes.
+// * `process_mb_finalized(hash, cert)`:
 //     - `cert.block_hash == hash`;
-//     - the matching block was previously saved (in this `TestExt`);
-//     - finalize order matches save order — we finalize a strict
-//       prefix of the saved chain.
+//     - the matching block was previously processed as a proposal;
+//     - finalize chain is gap-free and matches each block's
+//       `parent_hash` chain (we finalize a strict linear sequence —
+//       no sibling finalizes possible by construction).
 // * `build_block_above(parent_hash)` / `validate_block_above(block)`:
 //     - `parent_hash` (or `block.parent_hash`) equals our last
 //       finalized block (or zero if we haven't seen any finalize yet —
@@ -86,21 +90,12 @@ struct TestPayload {
 
 #[derive(Default)]
 struct TestState {
-    saved: Vec<H256>,
     saved_blocks: HashMap<H256, Block<TestPayload>>,
-    saved_first_height: Option<u64>,
+    /// Linear finalized chain, ordered by `process_mb_finalized`
+    /// arrival. Used to check gap-free finalize ordering and to
+    /// detect duplicates.
     finalized: Vec<H256>,
     violations: Vec<String>,
-}
-
-impl TestState {
-    fn next_save_height(&self) -> Option<u64> {
-        self.saved_first_height.map(|h| h + self.saved.len() as u64)
-    }
-    fn next_finalize_height(&self) -> Option<u64> {
-        self.saved_first_height
-            .map(|h| h + self.finalized.len() as u64)
-    }
 }
 
 #[derive(Default)]
@@ -116,103 +111,62 @@ impl TestExt {
     fn violations(&self) -> Vec<String> {
         self.state.lock().unwrap().violations.clone()
     }
-
-    fn is_saved(&self, hash: H256) -> bool {
-        self.state.lock().unwrap().saved_blocks.contains_key(&hash)
-    }
-
-    fn is_finalized(&self, hash: H256) -> bool {
-        self.state.lock().unwrap().finalized.contains(&hash)
-    }
-
-    fn block_height(&self, hash: H256) -> Option<u64> {
-        self.state
-            .lock()
-            .unwrap()
-            .saved_blocks
-            .get(&hash)
-            .map(|b| b.height)
-    }
 }
 
 #[async_trait]
 impl Externalities<TestPayload> for TestExt {
-    async fn save_block(&self, hash: H256, block: Block<TestPayload>) -> Result<()> {
+    async fn process_mb_proposal(&self, hash: H256, block: Block<TestPayload>) -> Result<()> {
         let mut s = self.state.lock().unwrap();
         if block.hash() != hash {
             s.violations
-                .push("save_block: hash arg does not match block.hash()".into());
+                .push("process_mb_proposal: hash arg does not match block.hash()".into());
         }
-        match s.next_save_height() {
-            Some(expected) => {
-                if block.height != expected {
-                    s.violations.push(format!(
-                        "save_block: expected height {}, got {}",
-                        expected, block.height
-                    ));
-                }
-                let expected_parent = *s
-                    .saved
-                    .last()
-                    .expect("saved is non-empty when next_save_height is Some");
-                if block.parent_hash != expected_parent {
-                    s.violations.push(format!(
-                        "save_block: parent_hash mismatch — expected {:?}, got {:?}",
-                        expected_parent, block.parent_hash
-                    ));
-                }
-            }
-            None => {
-                s.saved_first_height = Some(block.height);
-                if block.height == 1 && block.parent_hash != H256::zero() {
-                    s.violations
-                        .push("save_block: genesis parent_hash != zero".into());
-                }
-            }
+        if block.parent_hash != H256::zero() && !s.saved_blocks.contains_key(&block.parent_hash) {
+            s.violations.push(format!(
+                "process_mb_proposal: parent_hash {:?} not previously saved (cascade_save \
+                 ancestor-first invariant violated)",
+                block.parent_hash
+            ));
         }
         if s.saved_blocks.contains_key(&hash) {
             s.violations
-                .push(format!("save_block: duplicate hash {hash:?}"));
+                .push(format!("process_mb_proposal: duplicate hash {hash:?}"));
         }
-        s.saved.push(hash);
         s.saved_blocks.insert(hash, block);
         Ok(())
     }
 
-    async fn mark_block_as_finalized(&self, hash: H256, cert: CommitCertificate) -> Result<()> {
+    async fn process_mb_finalized(&self, hash: H256, cert: CommitCertificate) -> Result<()> {
         let mut s = self.state.lock().unwrap();
         if cert.block_hash != hash {
             s.violations
-                .push("finalize: cert.block_hash != hash arg".into());
+                .push("process_mb_finalized: cert.block_hash != hash arg".into());
         }
-        let pos = s.finalized.len();
-        if pos >= s.saved.len() {
+        if s.finalized.contains(&hash) {
             s.violations
-                .push("finalize: no saved block at this position".into());
-        } else {
-            let expected = s.saved[pos];
-            if expected != hash {
-                s.violations.push(format!(
-                    "finalize: out-of-order — expected {:?}, got {:?}",
-                    expected, hash
-                ));
-            }
-            let saved_height = s.saved_blocks.get(&hash).map(|blk| blk.height);
-            if let Some(saved_height) = saved_height
-                && cert.height != saved_height
-            {
-                s.violations.push(format!(
-                    "finalize: cert.height {} != saved height {}",
-                    cert.height, saved_height
-                ));
-            }
+                .push(format!("process_mb_finalized: duplicate hash {hash:?}"));
         }
-        if let Some(expected) = s.next_finalize_height()
-            && cert.height != expected
-        {
+        let Some(block) = s.saved_blocks.get(&hash).cloned() else {
             s.violations.push(format!(
-                "finalize: expected height {}, got {}",
-                expected, cert.height
+                "process_mb_finalized: block {hash:?} was never delivered as a proposal"
+            ));
+            s.finalized.push(hash);
+            return Ok(());
+        };
+        if cert.height != block.height {
+            s.violations.push(format!(
+                "process_mb_finalized: cert.height {} != saved height {}",
+                cert.height, block.height
+            ));
+        }
+        // Finalize chain must be linear and gap-free: each finalize's
+        // parent_hash equals the previous finalize hash (or H256::zero
+        // for the very first one).
+        let expected_parent = s.finalized.last().copied().unwrap_or_else(H256::zero);
+        if block.parent_hash != expected_parent {
+            s.violations.push(format!(
+                "process_mb_finalized: parent_hash mismatch — expected {:?}, got {:?}",
+                expected_parent, block.parent_hash
             ));
         }
         s.finalized.push(hash);
@@ -525,8 +479,8 @@ async fn restart_one_validator_mid_run() {
 
 /// Three validators run consensus; one full-node sits on the side.
 /// The full-node must learn each finalized block via the
-/// `save_block` / `mark_block_as_finalized` callbacks (delivered
-/// through the sync path) without ever signing a vote.
+/// `process_mb_proposal` / `process_mb_finalized` callbacks
+/// (delivered through the sync path) without ever signing a vote.
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn full_node_syncs_from_validators() {
     let setups = make_validators(4);
@@ -570,121 +524,6 @@ async fn full_node_syncs_from_validators() {
         let count = ext.finalized_count();
         assert!(count >= 3, "validator {i} only finalized {count}");
     }
-}
-
-// --------------------------------------------------------------------
-// MalachiteEvent stream guarantees:
-//
-// * `BlockProposal` only surfaces *after* `Externalities::save_block`
-//   for that block returned `Ok`;
-// * `BlockFinalized` only surfaces *after*
-//   `Externalities::mark_block_as_finalized` for that block returned
-//   `Ok`;
-// * `BlockProposal` heights are observed in non-decreasing order;
-// * `BlockFinalized` heights are observed in non-decreasing order.
-//
-// We boot a real 3-validator network on `TestExt` so the
-// save/finalize side-effects are visible, then poll the v0 stream and
-// check the above invariants hold for every event we see.
-// --------------------------------------------------------------------
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 6)]
-async fn event_stream_guarantees_hold() {
-    use futures::StreamExt;
-    init_tracing();
-    let setups = make_validators(3);
-    let exts: Vec<Arc<TestExt>> = (0..3).map(|_| Arc::new(TestExt::default())).collect();
-
-    let peers0 = build_multiaddrs_excluding(&setups, 0);
-    let cfg0 = build_config(&setups[0], &setups, peers0);
-    let mut svc0 = MalachiteService::<TestPayload, TestExt>::new(cfg0, Arc::clone(&exts[0]))
-        .await
-        .expect("service0");
-    // Boot the other two as black boxes; we don't poll their streams.
-    let mut others = Vec::new();
-    for i in 1..3 {
-        let peers = build_multiaddrs_excluding(&setups, i);
-        let cfg = build_config(&setups[i], &setups, peers);
-        let svc = MalachiteService::<TestPayload, TestExt>::new(cfg, Arc::clone(&exts[i]))
-            .await
-            .expect("service");
-        others.push(svc);
-    }
-
-    // Drain v0's stream until we've observed a healthy mix of both
-    // event kinds, then assert the four guarantees on every event we
-    // saw. We require >= 3 of each kind so the height-monotonicity
-    // assertion is meaningful.
-    let ext0 = Arc::clone(&exts[0]);
-    let collected = tokio::time::timeout(Duration::from_secs(60), async {
-        let mut proposals: Vec<(H256, u64)> = Vec::new();
-        let mut finalized: Vec<(H256, u64)> = Vec::new();
-        loop {
-            match svc0.next().await {
-                Some(Ok(MalachiteEvent::BlockProposal { block_hash })) => {
-                    assert!(
-                        ext0.is_saved(block_hash),
-                        "BlockProposal {block_hash:?} surfaced before save_block returned"
-                    );
-                    let h = ext0
-                        .block_height(block_hash)
-                        .expect("block_height present once saved");
-                    if let Some(&(_, last)) = proposals.last() {
-                        assert!(
-                            h >= last,
-                            "BlockProposal heights not non-decreasing: {last} → {h}"
-                        );
-                    }
-                    proposals.push((block_hash, h));
-                }
-                Some(Ok(MalachiteEvent::BlockFinalized { block_hash })) => {
-                    assert!(
-                        ext0.is_finalized(block_hash),
-                        "BlockFinalized {block_hash:?} surfaced before mark_block_as_finalized returned"
-                    );
-                    let h = ext0
-                        .block_height(block_hash)
-                        .expect("block_height present once saved");
-                    if let Some(&(_, last)) = finalized.last() {
-                        assert!(
-                            h >= last,
-                            "BlockFinalized heights not non-decreasing: {last} → {h}"
-                        );
-                    }
-                    finalized.push((block_hash, h));
-                }
-                Some(Err(e)) => panic!("service error: {e}"),
-                None => panic!("stream ended"),
-            }
-            if proposals.len() >= 3 && finalized.len() >= 3 {
-                return (proposals, finalized);
-            }
-        }
-    })
-    .await
-    .expect("collecting event samples within budget");
-
-    let (proposals, finalized) = collected;
-
-    // Every observed BlockFinalized hash must also have been seen as
-    // BlockProposal first (the stream is one-shot and per-validator,
-    // so save precedes finalize on the same node).
-    let proposal_hashes: HashSet<H256> = proposals.iter().map(|(h, _)| *h).collect();
-    for (hash, _) in &finalized {
-        assert!(
-            proposal_hashes.contains(hash),
-            "BlockFinalized {hash:?} was never observed as BlockProposal"
-        );
-    }
-
-    assert!(
-        exts[0].violations().is_empty(),
-        "TestExt contract violations: {:?}",
-        exts[0].violations()
-    );
-
-    drop(svc0);
-    drop(others);
 }
 
 // --------------------------------------------------------------------

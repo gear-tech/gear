@@ -495,7 +495,7 @@ mod tests {
         ])
     }
 
-    /// Mimics malachite `save_block` + executor's `meta.computed` flip.
+    /// Mimics malachite `process_mb_proposal` + executor's `meta.computed` flip.
     fn write_mb(
         db: &Database,
         parent_mb: H256,

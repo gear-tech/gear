@@ -39,15 +39,17 @@ use crate::{
     },
     state::{SharedValidatorSet, State},
     store::Store,
-    types::{Address, MalachiteEvent},
+    types::Address,
 };
 
-/// Trait-object-friendly facade for the service.
-pub trait MService: Stream<Item = Result<MalachiteEvent>> + Send + Unpin {}
+/// Trait-object-friendly facade for the service. The stream carries
+/// only fatal app-task errors — successful events reach the
+/// application through [`Externalities`] callbacks instead.
+pub trait MService: Stream<Item = anyhow::Error> + Send + Unpin {}
 
 /// Application-agnostic Malachite BFT consensus service.
 pub struct MalachiteService<P: BlockPayload, EXT: Externalities<P>> {
-    events_rx: mpsc::UnboundedReceiver<Result<MalachiteEvent>>,
+    errors_rx: mpsc::UnboundedReceiver<anyhow::Error>,
     engine: EngineHandle,
     app_handle: JoinHandle<()>,
     /// Shared with the inner app loop; [`Self::update_validators`]
@@ -201,24 +203,24 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
         )?;
 
         // ---- spawn app task ----
-        let (events_tx, events_rx) = mpsc::unbounded_channel();
+        let (errors_tx, errors_rx) = mpsc::unbounded_channel();
         let externalities_for_task = Arc::clone(&externalities);
         let span = tracing::error_span!("ethexe-malachite-core::app", %moniker);
         let app_handle = tokio::spawn(
             async move {
                 if let Err(e) =
-                    app::run::<P, EXT>(state, channels, externalities_for_task, events_tx.clone())
+                    app::run::<P, EXT>(state, channels, externalities_for_task, errors_tx.clone())
                         .await
                 {
                     tracing::error!(target: "ethexe-malachite-core", error = %e, "app task terminated");
-                    let _ = events_tx.send(Err(e));
+                    let _ = errors_tx.send(e);
                 }
             }
             .instrument(span),
         );
 
         Ok(Self {
-            events_rx,
+            errors_rx,
             engine,
             app_handle,
             validator_set,
@@ -255,16 +257,16 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
 }
 
 impl<P: BlockPayload, EXT: Externalities<P>> Stream for MalachiteService<P, EXT> {
-    type Item = Result<MalachiteEvent>;
+    type Item = anyhow::Error;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
-        self.events_rx.poll_recv(cx)
+        self.errors_rx.poll_recv(cx)
     }
 }
 
 impl<P: BlockPayload, EXT: Externalities<P>> FusedStream for MalachiteService<P, EXT> {
     fn is_terminated(&self) -> bool {
-        self.events_rx.is_closed()
+        self.errors_rx.is_closed()
     }
 }
 

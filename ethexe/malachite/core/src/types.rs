@@ -97,33 +97,3 @@ pub struct CommitCertificate {
     pub block_hash: H256,
     pub signatures: Vec<Vec<u8>>,
 }
-
-/// Outbound stream from the service.
-///
-/// Both variants are emitted **strictly after** the corresponding
-/// application callback returned `Ok`, and both follow the
-/// height-non-decreasing order guaranteed by
-/// [`Externalities::save_block`] / [`Externalities::mark_block_as_finalized`]:
-///
-/// - [`MalachiteEvent::BlockProposal`] — fired only after a successful
-///   [`Externalities::save_block`] for `block_hash`. A cascading save
-///   (a chain of ancestors becoming saveable on the same step) yields
-///   one event per block in chronological (parent-first) order, so the
-///   sequence of `BlockProposal` heights observed on the stream is
-///   non-decreasing.
-/// - [`MalachiteEvent::BlockFinalized`] — fired only after a successful
-///   [`Externalities::mark_block_as_finalized`] for `block_hash`. Same
-///   cascading and ordering guarantees as above.
-///
-/// Errors (build / validate failures from the application, internal
-/// service errors) flow through the outer `Result<MalachiteEvent>`
-/// envelope on the service's stream — there is no in-band error
-/// variant.
-///
-/// [`Externalities::save_block`]: crate::Externalities::save_block
-/// [`Externalities::mark_block_as_finalized`]: crate::Externalities::mark_block_as_finalized
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MalachiteEvent {
-    BlockProposal { block_hash: H256 },
-    BlockFinalized { block_hash: H256 },
-}

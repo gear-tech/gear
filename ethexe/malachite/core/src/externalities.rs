@@ -26,43 +26,52 @@ impl<T> BlockPayload for T where T: Clone + Encode + Decode + Send + Sync + 'sta
 /// callbacks below — the application never has to maintain its own
 /// synchronization barrier:
 ///
-/// 1. [`Self::save_block`] for `block_hash` is called **only after**
-///    every ancestor of `block_hash` has already returned successfully
-///    from a previous `save_block` call.
-/// 2. [`Self::mark_block_as_finalized`] for `block_hash` is called
-///    **only after** `save_block` for that same `block_hash` returned
+/// 1. [`Self::process_mb_proposal`] for `mb_hash` is called as soon
+///    as a proposal carrying that hash has been assembled and
+///    validated locally (regardless of whether this node is the
+///    proposer, a participant that received the proposal over the
+///    network, or a full node that received a synced decided value),
+///    but **only after** every ancestor of `mb_hash` has already
+///    returned successfully from a previous `process_mb_proposal`
+///    call. Sibling proposals at the same height are possible (one
+///    per fork-causing round) and each is delivered exactly once
+///    per `mb_hash`.
+/// 2. [`Self::process_mb_finalized`] for `mb_hash` is called **only
+///    after** `process_mb_proposal` for that same `mb_hash` returned
 ///    successfully **and** every ancestor has already been finalized
-///    i.e. marked finalized via previous `mark_block_as_finalized` calls.
+///    via previous `process_mb_finalized` calls.
 /// 3. [`Self::build_block_above`] / [`Self::validate_block_above`]
 ///    are called only after the parent has been finalized (or
 ///    `parent_hash == H256::zero()` when building / validating the
 ///    genesis block).
 ///
 /// All methods are async; the service `await`s them inline.
-/// Returning `Err` from `save_block` / `mark_block_as_finalized` is
-/// treated as a fatal application error (the service propagates it
-/// as a terminating error on its event stream).
+/// Returning `Err` from `process_mb_proposal` / `process_mb_finalized`
+/// is treated as a fatal application error: the failed block stays
+/// `saved=false` in the service's store and the service surfaces the
+/// error on its [`crate::MalachiteService`] stream. A subsequent
+/// `process_mb_finalized` for any descendant of that block will be
+/// gated by a debug-assert (the strict ordering invariant) — failure
+/// to handle the surfaced error therefore causes the consensus loop
+/// to abort, not to skip the missing callback silently.
 #[async_trait]
 pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
-    /// Persist `block` indexed by `block_hash`. Called exactly once
-    /// per `block_hash` over the lifetime of an application instance,
-    /// and only after every ancestor has already been saved.
-    async fn save_block(&self, block_hash: H256, block: Block<P>) -> Result<()>;
+    /// Persist `block` indexed by `mb_hash`. Called exactly once
+    /// per `mb_hash` over the lifetime of an application instance,
+    /// at proposal-assembly time, after every ancestor's
+    /// `process_mb_proposal` has already returned `Ok`.
+    async fn process_mb_proposal(&self, mb_hash: H256, block: Block<P>) -> Result<()>;
 
-    /// Mark `block_hash` as finalized and durable.
+    /// Mark `mb_hash` as finalized and durable.
     ///
     /// `cert` is the BFT commit certificate for the height of
-    /// `block_hash`. The application typically forwards `cert` to
+    /// `mb_hash`. The application typically forwards `cert` to
     /// downstream layers (on-chain commits, light clients, etc.).
-    async fn mark_block_as_finalized(
-        &self,
-        block_hash: H256,
-        cert: CommitCertificate,
-    ) -> Result<()>;
+    async fn process_mb_finalized(&self, mb_hash: H256, cert: CommitCertificate) -> Result<()>;
 
     /// Build a fresh block payload whose parent has hash
-    /// `parent_hash`. Called only when this node has been elected
-    /// proposer. The new block's height is derivable from `parent_hash`
+    /// `parent_mb_hash`. Called only when this node has been elected
+    /// proposer. The new block's height is derivable from `parent_mb_hash`
     /// (parent.height + 1, or 1 for genesis), so it isn't passed
     /// explicitly here.
     ///
@@ -75,16 +84,16 @@ pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
     ///
     /// `parent_hash == H256::zero()` is passed when building the
     /// genesis block.
-    async fn build_block_above(&self, parent_hash: H256) -> Result<P>;
+    async fn build_block_above(&self, parent_mb_hash: H256) -> Result<P>;
 
     /// Application-side validation of an incoming proposal's
     /// **payload only**.
     ///
     /// Parent linkage and height progression are validated inside
     /// the consensus layer before this hook fires; the caller still
-    /// passes `parent_hash` for context (e.g. to read ancestor state
+    /// passes `parent_mb_hash` for context (e.g. to read ancestor state
     /// from an application-side store) but is not expected to
-    /// re-check `block.parent_hash`. `parent_hash == H256::zero()`
+    /// re-check `block.parent_mb_hash`. `parent_mb_hash == H256::zero()`
     /// signals the genesis block.
     ///
     /// Typical responsibilities:
@@ -100,5 +109,5 @@ pub trait Externalities<P: BlockPayload>: Send + Sync + 'static {
     ///
     /// Not called on the sync path — sync values come with a quorum
     /// commit certificate and are accepted on that basis alone.
-    async fn validate_block_above(&self, parent_hash: H256, payload: P) -> Result<bool>;
+    async fn validate_block_above(&self, parent_mb_hash: H256, payload: P) -> Result<bool>;
 }

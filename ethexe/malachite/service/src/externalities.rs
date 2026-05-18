@@ -24,11 +24,14 @@
 //! lives behind this trait.
 //!
 //! ## Map of responsibilities
-//! - [`EthexeExternalities::save_block`] — once ethexe-malachite-core agrees an MB
-//!   is saveable (parent already saved), persist it to the ethexe
+//! - [`EthexeExternalities::process_mb_proposal`] — once
+//!   ethexe-malachite-core has assembled and validated a proposal
+//!   (parent already processed), persist the MB to the ethexe
 //!   `mb_*` keyspace, propagate `last_advanced_eb`, and fire
-//!   [`MalachiteEvent::BlockProposal`].
-//! - [`EthexeExternalities::mark_block_as_finalized`] — flush the
+//!   [`MalachiteEvent::BlockProposal`]. Called for sibling
+//!   proposals too (one per round that produced an assembled MB) —
+//!   only the finalized one ever flows through `process_mb_finalized`.
+//! - [`EthexeExternalities::process_mb_finalized`] — flush the
 //!   committed injected txs out of the mempool, advance
 //!   `globals.latest_finalized_mb_hash`, and fire
 //!   [`MalachiteEvent::BlockFinalized`].
@@ -44,11 +47,11 @@
 //! All MB-keyed storage in the ethexe DB is keyed by the
 //! `ethexe_malachite_core::Block` envelope hash (Blake2b over
 //! `(parent_hash, height, payload_hash, reserved)`).
-//! [`EthexeExternalities::save_block`] writes a [`CompactMb`] under
-//! that key (carrying parent + height + the Blake2b hash of the
-//! [`Transactions`] payload) and CAS-stores the `Transactions` blob;
-//! [`EthexeExternalities::mark_block_as_finalized`] reads both back
-//! via the same key the consensus layer hands in.
+//! [`EthexeExternalities::process_mb_proposal`] writes a [`CompactMb`]
+//! under that key (carrying parent + height + the Blake2b hash of
+//! the [`Transactions`] payload) and CAS-stores the `Transactions`
+//! blob; [`EthexeExternalities::process_mb_finalized`] reads both
+//! back via the same key the consensus layer hands in.
 
 use crate::{
     CommitCertificate, MalachiteEvent, Mempool, quarantine,
@@ -58,13 +61,12 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
     MAX_TOUCHED_PROGRAMS_PER_MB, SimpleBlockData,
-    db::{
-        CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW, OnChainStorageRO,
-    },
+    db::{CompactMb, GlobalsStorageRO, GlobalsStorageRW, MbStorageRO, MbStorageRW},
     injected::{MAX_INJECTED_TRANSACTIONS_SIZE_PER_MB, SignedInjectedTransaction},
     malachite::{ProcessQueuesLimits, ProgressTasksLimits, Transaction, Transactions},
 };
 use ethexe_db::Database;
+use ethexe_malachite_core::{Block, Externalities};
 use gprimitives::H256;
 use parity_scale_codec::Encode;
 use std::{
@@ -121,12 +123,8 @@ pub(crate) struct PendingEvent {
 }
 
 #[async_trait]
-impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities {
-    async fn save_block(
-        &self,
-        mb_hash: H256,
-        mb: ethexe_malachite_core::Block<Transactions>,
-    ) -> Result<()> {
+impl Externalities<Transactions> for EthexeExternalities {
+    async fn process_mb_proposal(&self, mb_hash: H256, mb: Block<Transactions>) -> Result<()> {
         let parent = mb.parent_hash;
         let payload = mb.payload;
 
@@ -173,13 +171,16 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
         Ok(())
     }
 
-    async fn mark_block_as_finalized(
+    async fn process_mb_finalized(
         &self,
         mb_hash: H256,
         cert: ethexe_malachite_core::CommitCertificate,
     ) -> Result<()> {
         let compact = self.db.mb_compact_block(mb_hash).ok_or_else(|| {
-            anyhow!("mark_finalized: no CompactMb for {mb_hash} (save_block must run first)")
+            anyhow!(
+                "process_mb_finalized: no CompactMb for {mb_hash} \
+                 (process_mb_proposal must run first)"
+            )
         })?;
         let payload = self
             .db
@@ -217,7 +218,7 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             signatures: cert.signatures,
         };
         // Same prerequisite as the matching BlockProposal — by the
-        // time `mark_block_as_finalized` runs, `save_block` has
+        // time `process_mb_finalized` runs, `process_mb_proposal` has
         // already populated `mb_meta(block_hash).last_advanced_eb`.
         let last_advanced = self.db.mb_meta(mb_hash).last_advanced_eb;
         self.try_emit_or_queue(
@@ -642,13 +643,22 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
 
 impl EthexeExternalities {
     /// True iff `prerequisite.is_zero()` (no prerequisite — genesis
-    /// or pre-advance) or its events are already in the local DB.
-    /// Observer-side `BlockSynced` populates `block_events` after
-    /// the full ancestor chain is in place, so this is exactly the
-    /// "downstream `compute_mb` won't trip on a missing header"
-    /// condition.
+    /// or pre-advance) or the prerequisite Eth block has been fully
+    /// **prepared** locally.
+    ///
+    /// "Prepared" (vs. merely observed via `block_events`) is the
+    /// stronger condition we need: `prepare_block`'s pipeline
+    /// transitions through `WaitingForCodes` and only flips
+    /// `block_meta.prepared = true` once every code referenced by
+    /// the block (and its ancestors) has been loaded and validated.
+    /// Releasing the BlockProposal event on merely-observed (but not
+    /// yet prepared) EBs would let downstream `compute_mb` race the
+    /// code-validation pipeline and fail with `MissingCode` when an
+    /// MB's advance chain contains a `ProgramCreated` event for a
+    /// not-yet-validated code.
     fn prerequisite_satisfied(&self, prerequisite: H256) -> bool {
-        prerequisite.is_zero() || self.db.block_events(prerequisite).is_some()
+        use ethexe_common::db::BlockMetaStorageRO;
+        prerequisite.is_zero() || self.db.block_meta(prerequisite).prepared
     }
 
     /// Forward `event` to the outbound channel right away when its
@@ -759,7 +769,6 @@ mod tests {
         db::{BlockMetaStorageRW, OnChainStorageRW},
         malachite::{ProcessQueuesLimits, ProgressTasksLimits},
     };
-    use ethexe_malachite_core::Externalities as _;
 
     /// Build a small ethexe `Database`-backed externalities + the
     /// matching event receiver. No ethexe-malachite-core or libp2p involved —
@@ -822,23 +831,23 @@ mod tests {
     fn fake_cert(height: u64) -> ethexe_malachite_core::CommitCertificate {
         ethexe_malachite_core::CommitCertificate {
             height,
-            block_hash: H256::zero(), // unused by mark_block_as_finalized
+            block_hash: H256::zero(), // unused by process_mb_finalized
             signatures: vec![vec![0u8; 64]],
         }
     }
 
-    /// `save_block` populates `mb_block`, `mb_meta` (height,
+    /// `process_mb_proposal` populates `mb_block`, `mb_meta` (height,
     /// parent_mb_hash, last_advanced_eb, synced=true) and the
     /// height index, then emits a `BlockProposal`.
     #[tokio::test]
-    async fn save_block_populates_db_and_emits_event() {
+    async fn process_mb_proposal_populates_db_and_emits_event() {
         use ethexe_common::db::{GlobalsStorageRO, MbStorageRO};
         let db = Database::memory();
         let (ext, mut rx) = make_externalities(db.clone());
         let p = payload(None, 1);
         let block = wrap(p.clone(), 1, H256::zero());
         let mb_hash = block.hash();
-        ext.save_block(mb_hash, block).await.unwrap();
+        ext.process_mb_proposal(mb_hash, block).await.unwrap();
 
         let compact = db.mb_compact_block(mb_hash).expect("CompactMb saved");
         assert_eq!(compact.height, 1);
@@ -864,7 +873,7 @@ mod tests {
         assert!(db.globals().latest_finalized_mb_hash.is_zero());
     }
 
-    /// `mark_block_as_finalized` reads the [`CompactMb`] +
+    /// `process_mb_finalized` reads the [`CompactMb`] +
     /// transactions blob keyed by the consensus envelope hash,
     /// advances `globals.latest_finalized_mb_hash`, and emits a
     /// `BlockFinalized`.
@@ -876,9 +885,9 @@ mod tests {
         let p = payload(None, 5);
         let block = wrap(p.clone(), 1, H256::zero());
         let mb_hash = block.hash();
-        ext.save_block(mb_hash, block).await.unwrap();
+        ext.process_mb_proposal(mb_hash, block).await.unwrap();
         let _ = rx.recv().await; // BlockProposal
-        ext.mark_block_as_finalized(mb_hash, fake_cert(1))
+        ext.process_mb_finalized(mb_hash, fake_cert(1))
             .await
             .unwrap();
         assert_eq!(db.globals().latest_finalized_mb_hash, mb_hash);
@@ -901,7 +910,7 @@ mod tests {
     /// Crash-recovery: build externalities A on a fresh DB, save +
     /// finalize K MBs, drop A, build externalities B on the same DB.
     /// B sees the persisted globals and `CompactMb` chain; the
-    /// next `save_block` correctly chains off the previous head.
+    /// next `process_mb_proposal` correctly chains off the previous head.
     #[tokio::test]
     async fn restart_continues_from_persisted_chain() {
         use ethexe_common::db::{GlobalsStorageRO, MbStorageRO};
@@ -914,9 +923,9 @@ mod tests {
             let p = payload(None, i as u8);
             let block = wrap(p.clone(), i, parent);
             let mb_hash = block.hash();
-            ext_a.save_block(mb_hash, block).await.unwrap();
+            ext_a.process_mb_proposal(mb_hash, block).await.unwrap();
             ext_a
-                .mark_block_as_finalized(mb_hash, fake_cert(i))
+                .process_mb_finalized(mb_hash, fake_cert(i))
                 .await
                 .unwrap();
             chain.push((mb_hash, p));
@@ -946,12 +955,9 @@ mod tests {
         let p4 = payload(None, 99);
         let block4 = wrap(p4.clone(), 4, last_pre);
         let mb4 = block4.hash();
-        ext_b.save_block(mb4, block4).await.unwrap();
+        ext_b.process_mb_proposal(mb4, block4).await.unwrap();
         let _ = rx_b.recv().await; // proposal
-        ext_b
-            .mark_block_as_finalized(mb4, fake_cert(4))
-            .await
-            .unwrap();
+        ext_b.process_mb_finalized(mb4, fake_cert(4)).await.unwrap();
         assert_eq!(db.mb_compact_block(mb4).unwrap().parent, last_pre);
         assert_eq!(db.globals().latest_finalized_mb_hash, mb4);
     }
@@ -976,8 +982,8 @@ mod tests {
             let height = (i + 1) as u64;
             let block = wrap(p.clone(), height, parent);
             let mb_hash = block.hash();
-            ext.save_block(mb_hash, block).await.unwrap();
-            ext.mark_block_as_finalized(mb_hash, fake_cert(height))
+            ext.process_mb_proposal(mb_hash, block).await.unwrap();
+            ext.process_mb_finalized(mb_hash, fake_cert(height))
                 .await
                 .unwrap();
             chain.push(mb_hash);
@@ -1131,7 +1137,7 @@ mod tests {
         }
     }
 
-    /// `mark_block_as_finalized` must hand exactly the
+    /// `process_mb_finalized` must hand exactly the
     /// [`Transaction::Injected`] subset of the committed block to
     /// [`Mempool::forget`] (and nothing else — service txs like
     /// `ProcessQueues` stay out of the mempool round trip).
@@ -1201,10 +1207,10 @@ mod tests {
         ]);
         let block = ethexe_malachite_core::Block::new(H256::zero(), 1, payload);
         let mb_hash = block.hash();
-        ext.save_block(mb_hash, block).await.unwrap();
+        ext.process_mb_proposal(mb_hash, block).await.unwrap();
         // Drain the BlockProposal event the save emits.
         let _ = event_rx.recv().await;
-        ext.mark_block_as_finalized(
+        ext.process_mb_finalized(
             mb_hash,
             ethexe_malachite_core::CommitCertificate {
                 height: 1,

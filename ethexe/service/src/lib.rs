@@ -755,6 +755,14 @@ impl Service {
                         if let Some(c) = consensus.as_mut() {
                             c.receive_prepared_block(block_hash)?;
                         }
+                        // Malachite's BlockProposal events are gated
+                        // on the EB they advance over being prepared
+                        // (so downstream compute_mb doesn't race the
+                        // code-validation pipeline). Wake the gate
+                        // here so pending events get drained.
+                        if let Some(m) = malachite.as_ref() {
+                            m.receive_eb_prepared(block_hash);
+                        }
                     }
                     ComputeEvent::CodeProcessed(_) => {
                         // Nothing

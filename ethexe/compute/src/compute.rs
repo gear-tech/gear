@@ -487,7 +487,7 @@ mod tests {
         ])
     }
 
-    /// Mimics malachite `save_block`: CAS write + `CompactMb`.
+    /// Mimics malachite `process_mb_proposal`: CAS write + `CompactMb`.
     fn seed_mb(db: &Database, mb_hash: H256, parent: H256, height: u64, txs: Transactions) {
         let transactions_hash = db.set_transactions(txs);
         db.set_mb_compact_block(

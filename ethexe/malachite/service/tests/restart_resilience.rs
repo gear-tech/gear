@@ -49,11 +49,19 @@ use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 /// return blocks oldest-first. Headers are deterministic per `seed`,
 /// so two test runs see the same hashes.
 ///
-/// Empty `block_events` are also populated for every block, since
-/// [`crate::EthexeExternalities::validate_block_above`] requires
-/// every Eth block in the advance walk to be locally synced (header
-/// AND events). Without the events entry the validator would
-/// abstain from voting on its own proposals.
+/// For every block we also populate:
+/// - empty `block_events` —
+///   [`crate::EthexeExternalities::validate_block_above`] requires
+///   every Eth block in the advance walk to be locally synced
+///   (header AND events). Without the events entry the validator
+///   would abstain from voting on its own proposals.
+/// - `block_meta.prepared = true` —
+///   [`crate::EthexeExternalities::prerequisite_satisfied`] gates
+///   the outbound BlockProposal / BlockFinalized events on the
+///   `last_advanced_eb` block being **prepared** (codes loaded +
+///   ancestors prepared). In production this flag is set by the
+///   compute service's `prepare_block` pipeline; tests that don't
+///   run that pipeline must seed it manually.
 fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
     let mut chain = Vec::with_capacity(len);
     let mut parent = H256::zero();
@@ -73,7 +81,7 @@ fn seed_chain(db: &Database, len: usize, seed: u32) -> Vec<SimpleBlockData> {
         };
         db.set_block_header(hash, header);
         db.set_block_events(hash, &[]);
-        db.mutate_block_meta(hash, |_| {});
+        db.mutate_block_meta(hash, |m| m.prepared = true);
         chain.push(SimpleBlockData { hash, header });
         parent = hash;
     }

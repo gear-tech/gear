@@ -3,14 +3,22 @@
 
 //! Channel-app event loop. Translates malachite [`AppMsg`]s into:
 //!
-//! - calls into [`crate::Externalities`] (build / validate / save /
-//!   finalize),
-//! - outbound [`crate::MalachiteEvent`]s to the service stream,
+//! - calls into [`crate::Externalities`] (build / validate /
+//!   process proposal / finalize),
 //! - storage operations against the [`crate::store::Store`].
 //!
-//! The strict ordering of `save_block` / `mark_block_as_finalized`
-//! callbacks documented on [`crate::Externalities`] is enforced by
-//! [`Store::cascade_save`] / [`Store::cascade_finalize`].
+//! `process_mb_proposal` is invoked as soon as a proposal is
+//! assembled and validated (in [`AppMsgHandler::process_get_value`]
+//! for the local proposer, in
+//! [`AppMsgHandler::process_received_proposal_part`] for peer
+//! proposals, and in [`AppMsgHandler::process_synced_value`] for
+//! sync-path values). `process_mb_finalized` runs only when the
+//! engine commits a height, and assumes its block has already been
+//! processed. The strict ordering documented on
+//! [`crate::Externalities`] is enforced by
+//! [`Store::cascade_save`] / [`Store::cascade_finalize`]; fatal
+//! callback errors are surfaced through
+//! [`crate::MalachiteService`]'s error stream.
 //!
 //! Each [`AppMsg`] variant is paired with a `process_*` method on
 //! [`AppMsgHandler`] that performs the work and returns the value the
@@ -27,7 +35,7 @@ use crate::{
     state::State,
     store::BlockEntry,
     streaming::ProposalParts,
-    types::{Address, Block, CommitCertificate, H256, MalachiteEvent},
+    types::{Address, Block, CommitCertificate, H256},
 };
 use anyhow::{Context as _, Result, anyhow};
 use bytes::Bytes;
@@ -56,12 +64,14 @@ const FUTURE_HEIGHT_WINDOW: u64 = 4;
 type EngineCert = malachitebft_core_types::CommitCertificate<MalachiteCtx>;
 
 /// Run the channel-app event loop. Terminates when the consensus
-/// channel closes (engine shut down).
+/// channel closes (engine shut down). Non-terminating errors raised
+/// by individual `process_*` steps are forwarded to `errors_tx`;
+/// terminating errors propagate out of this future.
 pub async fn run<P, EXT>(
     state: State<P>,
     channels: Channels<MalachiteCtx>,
     externalities: Arc<EXT>,
-    event_tx: mpsc::UnboundedSender<Result<MalachiteEvent>>,
+    errors_tx: mpsc::UnboundedSender<anyhow::Error>,
 ) -> Result<()>
 where
     P: BlockPayload,
@@ -71,7 +81,7 @@ where
         state,
         channels,
         externalities,
-        event_tx,
+        errors_tx,
     }
     .run()
     .await
@@ -85,7 +95,10 @@ struct AppMsgHandler<P: BlockPayload, EXT: Externalities<P>> {
     state: State<P>,
     channels: Channels<MalachiteCtx>,
     externalities: Arc<EXT>,
-    event_tx: mpsc::UnboundedSender<Result<MalachiteEvent>>,
+    /// Outbound channel for non-terminating app errors (e.g. a
+    /// failed `process_mb_finalized` inside [`Self::ingest_finalized`]).
+    /// Drained by [`crate::MalachiteService`]'s error stream.
+    errors_tx: mpsc::UnboundedSender<anyhow::Error>,
 }
 
 impl<P, EXT> AppMsgHandler<P, EXT>
@@ -382,8 +395,14 @@ where
         };
         let block = Block::<P>::new(parent_hash, height.as_u64(), payload);
         let block_bytes = block.encode();
-        self.state
-            .build_locally_proposed_value(height, round, block_bytes)
+        let locally = self
+            .state
+            .build_locally_proposed_value(height, round, block_bytes)?;
+        // Hook process_mb_proposal at proposal-assembly time on the
+        // proposer side. cascade_save guarantees ancestor-first
+        // ordering against the application.
+        self.record_assembled_block(block).await?;
+        Ok(locally)
     }
 
     fn process_extend_vote(&self) -> Option<Bytes> {
@@ -421,6 +440,9 @@ where
         } else {
             let proposed = self.assemble_and_validate(&parts).await?;
             self.state.store.store_undecided_proposal(&proposed)?;
+            let block = Block::<P>::decode(&mut &proposed.value.block_bytes[..])
+                .map_err(|e| anyhow!("decoding Block from received proposal: {e}"))?;
+            self.record_assembled_block(block).await?;
             Ok(Some(proposed))
         }
     }
@@ -440,18 +462,16 @@ where
     //
     // `state.commit()` succeeds (engine certificate persisted,
     // `prune_engine_state` ran, `state.current_height` advanced to
-    // h+1) but `ingest_finalized` then fails partway through
-    // `cascade_save` / `cascade_finalize`. We swallow the error and
-    // return `Ok(())`, so the dispatch in `handle_app_msg` sends
+    // h+1) but `ingest_finalized` then fails inside `cascade_finalize`.
+    // We swallow the error (forwarded onto `errors_tx`) and return
+    // `Ok(())`, so the dispatch in `handle_app_msg` sends
     // `Next::Start(h+1, ...)` — the engine moves forward.
     //
-    // Result: the application side (`Externalities::save_block` /
-    // `mark_block_as_finalized`) never observed the block, but
-    // `BlockEntry` may sit in the store with `saved=false,
-    // finalized=false`; engine certificates exist for heights the app
-    // has not been told about. From the engine's perspective height h
-    // is fully decided; from the app's perspective the cascade is
-    // half-applied and no `BlockFinalized` event was emitted.
+    // Result: the application's `process_mb_finalized` was never
+    // observed (or partway through a cascade), but engine certificates
+    // exist for the height. From the engine's perspective height h is
+    // fully decided; from the app's perspective the finalize cascade
+    // is half-applied.
     //
     // Fix needs splitting `state.commit()` into a read-only phase
     // (pull undecided proposal + decode block_bytes) and a write
@@ -465,7 +485,7 @@ where
         let (block_bytes, _cert) = self.state.commit(certificate.clone())?;
         if let Err(e) = self.ingest_finalized(certificate, block_bytes).await {
             error!(?e, "ingest_finalized failed");
-            let _ = self.event_tx.send(Err(e));
+            let _ = self.errors_tx.send(e);
         }
         Ok(())
     }
@@ -487,6 +507,14 @@ where
         });
         if let Some(ref proposed) = parsed {
             self.state.store.store_undecided_proposal(proposed)?;
+            // Sync-path: the engine delivers raw decided values in
+            // ancestor-first order, so by the time
+            // `record_assembled_block` runs the parent has already
+            // been processed (cascade_save would be a no-op on a
+            // missing ancestor anyway — see `Store::save_chain`).
+            let block = Block::<P>::decode(&mut &proposed.value.block_bytes[..])
+                .map_err(|e| anyhow!("decoding Block from synced value: {e}"))?;
+            self.record_assembled_block(block).await?;
         }
         Ok(parsed)
     }
@@ -604,12 +632,54 @@ where
         Ok(proposed)
     }
 
-    /// Insert the freshly-finalized block into [`BlockEntry`] and run
-    /// the strict-ordering save / finalize cascades against the
-    /// application. Emits [`MalachiteEvent::BlockFinalized`] after
-    /// every successful `mark_block_as_finalized` call (one event per
-    /// block in chronological order, including any ancestors that
-    /// became finalizable on this cascade).
+    /// Drive the strict-ordering save cascade against the application
+    /// for a freshly-assembled block. Inserts a `saved=false,
+    /// finalized=false, cert=None` [`BlockEntry`] and runs
+    /// [`Store::cascade_save`] from this hash — the cascade flushes
+    /// every ancestor that is now connected in chronological
+    /// (parent-first) order. If an ancestor is still missing the
+    /// cascade is a no-op; it will pick up when the gap closes via a
+    /// later assembled block at the missing height.
+    ///
+    /// Called from [`Self::process_get_value`] (we are proposer),
+    /// [`Self::process_received_proposal_part`] (peer proposal), and
+    /// [`Self::process_synced_value`] (sync path). Multiple callers
+    /// can race for the same `block_hash` — `Store::insert_block`
+    /// dedup is idempotent and `cascade_save` skips already-saved
+    /// entries, so the application's `process_mb_proposal` runs at
+    /// most once per `block_hash`.
+    async fn record_assembled_block(&self, block: Block<P>) -> Result<()> {
+        let block_hash = block.hash();
+        self.state.store.insert_block(BlockEntry::<P> {
+            block_hash,
+            parent_hash: block.parent_hash,
+            height: block.height,
+            payload: block.payload,
+            reserved: block.reserved,
+            saved: false,
+            finalized: false,
+            cert: None,
+        })?;
+        self.state
+            .store
+            .cascade_save(vec![block_hash], |hash, blk| {
+                let ext = Arc::clone(&self.externalities);
+                async move { ext.process_mb_proposal(hash, blk).await }
+            })
+            .await
+    }
+
+    /// Attach the engine's quorum certificate to the
+    /// already-processed [`BlockEntry`] and run the finalize cascade.
+    ///
+    /// Contract: the block (and every ancestor) must have already been
+    /// processed by [`Self::record_assembled_block`] earlier — the
+    /// strict-ordering guarantee documented on
+    /// [`crate::Externalities::process_mb_proposal`]. A debug-build
+    /// assertion catches a violation; in release builds
+    /// [`Store::cascade_finalize`] silently no-ops on an unsaved
+    /// ancestor (the `finalize_chain` walk returns `None`), and the
+    /// `errors_tx` channel surfaces the contract breach upstream.
     async fn ingest_finalized(&self, cert: EngineCert, block_bytes: Vec<u8>) -> Result<()> {
         let block = Block::<P>::decode(&mut &block_bytes[..])
             .map_err(|e| anyhow!("decoding Block at finalize: {e}"))?;
@@ -626,6 +696,11 @@ where
                 .collect(),
         };
 
+        // Idempotent: when the entry already exists (the common case
+        // because record_assembled_block ran first) `insert_block`
+        // promotes the cert into it. The remaining fields are picked
+        // for the rare "we never saw the proposal" recovery path —
+        // the debug_assert below catches it.
         self.state.store.insert_block(BlockEntry::<P> {
             block_hash,
             parent_hash: block.parent_hash,
@@ -637,31 +712,48 @@ where
             cert: Some(app_cert),
         })?;
 
-        self.state
-            .store
-            .cascade_save(vec![block_hash], |hash, blk| {
-                let ext = Arc::clone(&self.externalities);
-                let tx = self.event_tx.clone();
-                async move {
-                    ext.save_block(hash, blk).await?;
-                    let _ = tx.send(Ok(MalachiteEvent::BlockProposal { block_hash: hash }));
-                    Ok(())
-                }
-            })
-            .await?;
+        // Contract check: every block reachable from `block_hash`
+        // through the unfinalized parent chain must have already
+        // been processed via record_assembled_block. The
+        // process_mb_proposal cascade for ancestors must have
+        // completed before we reach finalization, otherwise our
+        // strict-ordering invariant is broken.
+        debug_assert!(
+            self.all_ancestors_saved(block_hash)?,
+            "ingest_finalized: block {block_hash} (or an unfinalized ancestor) is not saved — \
+             record_assembled_block must have run before finalize",
+        );
+
         self.state
             .store
             .cascade_finalize(vec![block_hash], |hash, cert| {
                 let ext = Arc::clone(&self.externalities);
-                let tx = self.event_tx.clone();
-                async move {
-                    ext.mark_block_as_finalized(hash, cert).await?;
-                    let _ = tx.send(Ok(MalachiteEvent::BlockFinalized { block_hash: hash }));
-                    Ok(())
-                }
+                async move { ext.process_mb_finalized(hash, cert).await }
             })
             .await?;
         Ok(())
+    }
+
+    /// True iff every block on the unfinalized parent chain rooted at
+    /// `leaf_hash` is `saved=true`. Used as a debug-build invariant
+    /// check inside [`Self::ingest_finalized`] — see its contract.
+    fn all_ancestors_saved(&self, leaf_hash: H256) -> Result<bool> {
+        let mut current = leaf_hash;
+        loop {
+            let Some(entry) = self.state.store.get_block(current)? else {
+                return Ok(false);
+            };
+            if entry.finalized {
+                return Ok(true);
+            }
+            if !entry.saved {
+                return Ok(false);
+            }
+            if entry.parent_hash == H256::zero() {
+                return Ok(true);
+            }
+            current = entry.parent_hash;
+        }
     }
 }
 
@@ -703,10 +795,10 @@ mod tests {
 
     #[async_trait]
     impl Externalities<TestPayload> for NoopExt {
-        async fn save_block(&self, _: H256, _: Block<TestPayload>) -> Result<()> {
+        async fn process_mb_proposal(&self, _: H256, _: Block<TestPayload>) -> Result<()> {
             Ok(())
         }
-        async fn mark_block_as_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
+        async fn process_mb_finalized(&self, _: H256, _: CommitCertificate) -> Result<()> {
             Ok(())
         }
         async fn build_block_above(&self, _: H256) -> Result<TestPayload> {
@@ -770,8 +862,10 @@ mod tests {
         let store = Store::<TestPayload>::open(dir.path()).unwrap();
         let signer = test_signer(1);
         let address = Address::from_public_key(&signer.public_key());
-        let validator_set =
-            SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(signer.public_key(), 1)]));
+        let validator_set = SharedValidatorSet::new(ValidatorSet::new(vec![Validator::new(
+            signer.public_key(),
+            1,
+        )]));
         let mut state = State::<TestPayload>::new(
             signer,
             validator_set,
@@ -793,13 +887,13 @@ mod tests {
             requests: requests_tx,
             net_requests: net_requests_tx,
         };
-        let (event_tx, _event_rx) = mpsc::unbounded_channel();
+        let (errors_tx, _errors_rx) = mpsc::unbounded_channel();
 
         let handler = AppMsgHandler {
             state,
             channels,
             externalities: Arc::new(NoopExt),
-            event_tx,
+            errors_tx,
         };
         (handler, dir, address)
     }

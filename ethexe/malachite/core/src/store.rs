@@ -69,7 +69,7 @@ pub(crate) struct BlockEntry<P: BlockPayload> {
 
 impl<P: BlockPayload> BlockEntry<P> {
     /// Reconstruct the [`Block`] form expected by
-    /// [`crate::Externalities::save_block`] /
+    /// [`crate::Externalities::process_mb_proposal`] /
     /// [`crate::Externalities::validate_block_above`].
     pub fn block(&self) -> Block<P> {
         Block {
@@ -273,7 +273,7 @@ impl<P: BlockPayload> Store<P> {
     /// points.
     ///
     /// The returned chain is in chronological order
-    /// (oldest-first), ready for sequential `save_block` calls.
+    /// (oldest-first), ready for sequential `process_mb_proposal` calls.
     pub fn save_chain(&self, leaf_hash: H256) -> Result<Option<Vec<BlockEntry<P>>>> {
         let mut chain_rev: Vec<BlockEntry<P>> = Vec::new();
         let mut current = leaf_hash;
@@ -347,8 +347,8 @@ impl<P: BlockPayload> Store<P> {
         }
     }
 
-    /// Drive the application's `save_block` callback over every
-    /// ancestor that is now ready, starting from each seed. Cascades
+    /// Drive the application's `process_mb_proposal` callback over
+    /// every ancestor that is now ready, starting from each seed. Cascades
     /// to children: when a block becomes saveable, its descendants are
     /// re-tried so a chain that was waiting on a missing middle gets
     /// flushed once the gap closes.

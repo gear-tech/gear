@@ -27,8 +27,8 @@
 //! the producer.
 //!
 //! Outputs (`Stream<Item = Result<MalachiteEvent>>`): `BlockProposal` fires
-//! after `save_block` persists, `BlockFinalized` after `mark_block_as_finalized`.
-//! Both are emitted ancestor-first.
+//! after `process_mb_proposal` persists, `BlockFinalized` after
+//! `process_mb_finalized`. Both are emitted ancestor-first.
 
 mod config;
 mod externalities;

@@ -46,6 +46,7 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
+use gprimitives::H256;
 use gsigner::{Signer, schemes::secp256k1::Secp256k1};
 use tokio::sync::{Notify, mpsc};
 
@@ -251,6 +252,20 @@ impl MalachiteService {
         self.externalities.drain_pending_events();
     }
 
+    /// Forward a `ComputeEvent::BlockPrepared` notification so any
+    /// pending [`MalachiteEvent`] whose `last_advanced_eb` was the
+    /// freshly-prepared block can be released. Prepared blocks are
+    /// the prerequisite for downstream `compute_mb` not racing the
+    /// code-validation pipeline (see
+    /// [`EthexeExternalities::prerequisite_satisfied`]).
+    pub fn receive_eb_prepared(&self, _eb_hash: H256) {
+        // Drain inspects each queued entry's prerequisite against the
+        // current `block_meta.prepared` flag, so we don't need to use
+        // `_eb_hash` here — the FIFO drain releases everything that
+        // newly satisfies its prerequisite.
+        self.externalities.drain_pending_events();
+    }
+
     /// Push the on-chain validators for `head`'s era into the engine,
     /// if the era moved. Skips on missing DB data or unknown pub keys
     /// (wait-and-retry: the next `BlockSynced` re-evaluates).
@@ -311,19 +326,6 @@ impl MalachiteService {
         );
     }
 
-    /// Swap the active validator set used by the BFT engine.
-    /// Forwards to [`ethexe_malachite_core::MalachiteService::update_validators`];
-    /// new set takes effect at the next height boundary, in-flight
-    /// heights keep what they started with. Local pub key must stay
-    /// in the list and the list non-empty.
-    pub fn update_validators(&self, validators: Vec<ValidatorEntry>) -> Result<()> {
-        let inner = self
-            .inner
-            .as_ref()
-            .ok_or_else(|| anyhow!("MalachiteService::update_validators after shutdown"))?;
-        inner.update_validators(validators)
-    }
-
     /// Shut the inner ethexe-malachite-core service down deterministically.
     ///
     /// Unlike `Drop` (which is fire-and-forget), this future awaits
@@ -344,21 +346,17 @@ impl Stream for MalachiteService {
     type Item = Result<MalachiteEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // Drain any pending Err from the inner stream so engine-side
-        // failures surface here. The inner Ok items are intentionally
-        // dropped — our visible events are emitted exclusively from
-        // the externalities into `events_rx`.
+        // The inner stream is errors-only (since ethexe-malachite-core
+        // no longer emits events — events flow exclusively through
+        // EthexeExternalities into our own `events_rx`). Forward each
+        // inner error onto our outer stream.
         if let Some(inner) = self.inner.as_mut() {
-            loop {
-                match Pin::new(&mut *inner).poll_next(cx) {
-                    Poll::Ready(Some(Ok(_))) => continue,
-                    Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
-                    Poll::Ready(None) => {
-                        self.inner = None;
-                        break;
-                    }
-                    Poll::Pending => break,
+            match Pin::new(&mut *inner).poll_next(cx) {
+                Poll::Ready(Some(e)) => return Poll::Ready(Some(Err(e))),
+                Poll::Ready(None) => {
+                    self.inner = None;
                 }
+                Poll::Pending => {}
             }
         }
         self.events_rx.poll_recv(cx)

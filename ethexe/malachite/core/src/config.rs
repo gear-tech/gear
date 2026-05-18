@@ -24,8 +24,8 @@ pub struct ValidatorEntry {
 ///
 /// A `FullNode` doesn't propose or vote — it joins the gossip mesh,
 /// receives proposals + sync responses, and surfaces them to the
-/// application via [`crate::Externalities::save_block`] /
-/// [`crate::Externalities::mark_block_as_finalized`] just like a
+/// application via [`crate::Externalities::process_mb_proposal`] /
+/// [`crate::Externalities::process_mb_finalized`] just like a
 /// validator would. Use this for read-only observers,
 /// quarantine workers, light clients, etc.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
