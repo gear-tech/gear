@@ -448,6 +448,32 @@ where
         );
     }
 
+    // TODO +_+_+ : semantic mismatch between engine and app on a
+    // partial finalize.
+    //
+    // `state.commit()` succeeds (engine certificate persisted,
+    // `prune_engine_state` ran, `state.current_height` advanced to
+    // h+1) but `ingest_finalized` then fails partway through
+    // `cascade_save` / `cascade_finalize`. We swallow the error and
+    // return `Ok(())`, so the dispatch in `handle_app_msg` sends
+    // `Next::Start(h+1, ...)` — the engine moves forward.
+    //
+    // Result: the application side (`Externalities::save_block` /
+    // `mark_block_as_finalized`) never observed the block, but
+    // `BlockEntry` may sit in the store with `saved=false,
+    // finalized=false`; engine certificates exist for heights the app
+    // has not been told about. From the engine's perspective height h
+    // is fully decided; from the app's perspective the cascade is
+    // half-applied and no `BlockFinalized` event was emitted.
+    //
+    // Fix needs splitting `state.commit()` into a read-only phase
+    // (pull undecided proposal + decode block_bytes) and a write
+    // phase (persist engine_certificate, prune, advance current_height
+    // / current_round), with `ingest_finalized` in between. If
+    // `ingest_finalized` fails, abort before the write phase, return
+    // Err, and let the dispatch send `Next::Restart(h, ...)`. The
+    // engine then retries the same height with consistent state on
+    // both sides.
     async fn process_finalized(&mut self, certificate: EngineCert) -> Result<()> {
         let (block_bytes, _cert) = self.state.commit(certificate.clone())?;
         if let Err(e) = self.ingest_finalized(certificate, block_bytes).await {
