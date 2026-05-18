@@ -3,9 +3,6 @@
 // Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-
 use ark_bls12_381::{Bls12_381, G1Affine, G1Projective, G2Affine};
 use ark_ec::{
     AffineRepr, CurveGroup,
@@ -39,52 +36,9 @@ type G1Hasher = MapToCurveBasedHasher<
     WBMap<ark_bls12_381::g1::Config>,
 >;
 
-/// Derive the 32-byte identity that binds a ciphertext to its plaintext,
-/// chain, and key epoch.
-///
-/// `user_nonce` MUST be high-entropy randomness chosen at encryption time.
-/// Without it, an attacker who can guess plaintext (e.g. known token-trade
-/// templates) can verify the guess by recomputing `id` and matching the
-/// ciphertext's id — a known-plaintext attack on the identity.
-// pub fn derive_id(
-//     chain_id: u64,
-//     key_epoch_id: u32,
-//     canonical_plaintext: &[u8],
-//     user_nonce: &[u8; 32],
-// ) -> [u8; 32] {
-//     let mut h = Blake2b256::new();
-//     h.update(ID_DOMAIN);
-//     h.update(chain_id.to_le_bytes());
-//     h.update(key_epoch_id.to_le_bytes());
-//     h.update(canonical_plaintext);
-//     h.update(user_nonce);
-//     let mut out = [0u8; 32];
-//     out.copy_from_slice(&h.finalize());
-//     out
-// }
-
-// The hasher is constructed once per process and reused. DST_G1 is constant,
-// so `G1Hasher::new` only fails for malformed DSTs — which we control at
-// compile time — making the `.expect()` unreachable in practice.
-#[cfg(feature = "std")]
-fn g1_hasher() -> &'static G1Hasher {
-    use std::sync::OnceLock;
-    static HASHER: OnceLock<G1Hasher> = OnceLock::new();
-    HASHER.get_or_init(|| G1Hasher::new(DST_G1).expect("DST_G1 is a valid hash-to-curve DST"))
-}
-
 pub(crate) fn hash_to_g1(id: impl AsRef<[u8]>) -> TpkeResult<G1Affine> {
-    #[cfg(feature = "std")]
-    {
-        g1_hasher()
-            .hash(id.as_ref())
-            .map_err(|_| TpkeError::HashToCurve)
-    }
-    #[cfg(not(feature = "std"))]
-    {
-        let hasher = G1Hasher::new(DST_G1).map_err(|_| TpkeError::HashToCurve)?;
-        hasher.hash(id.as_ref()).map_err(|_| TpkeError::HashToCurve)
-    }
+    let hasher = G1Hasher::new(DST_G1).map_err(|_| TpkeError::HashToCurve)?;
+    hasher.hash(id.as_ref()).map_err(|_| TpkeError::HashToCurve)
 }
 
 /// Serialize an arkworks point/element to its fixed-size compressed bytes.

@@ -31,22 +31,3 @@ hex-literal = { workspace = true }
 proptest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-
-[features]
-default = ["std"]
-std = [
-    "ark-bls12-381/std",
-    "ark-ec/std",
-    "ark-ff/std",
-    "ark-serialize/std",
-    "ark-std/std",
-    "blake2/std",
-    "chacha20poly1305/std",
-    "hkdf/std",
-    "parity-scale-codec/std",
-    "rand/std",
-    "scale-info/std",
-    "sha2/std",
-    "thiserror/std",
-    "zeroize/std",
-]

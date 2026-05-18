@@ -3,9 +3,6 @@
 // Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::PairingOutput;
 use ark_serialize::CanonicalSerialize;

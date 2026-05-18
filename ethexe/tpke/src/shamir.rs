@@ -3,9 +3,6 @@
 // Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-
 use ark_bls12_381::{Fr, G2Affine};
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{Field, UniformRand, Zero};
@@ -26,11 +23,7 @@ impl MasterSecretKey {
     ///
     /// The returned `MasterSecretKey` SHOULD be zeroized by the caller as soon
     /// as the shares are persisted off-machine (`drop` does this on Drop).
-    pub fn deal<R: RngCore + CryptoRng>(
-        t: u32,
-        n: u32,
-        rng: &mut R,
-    ) -> TpkeResult<DealerOutput> {
+    pub fn deal<R: RngCore + CryptoRng>(t: u32, n: u32, rng: &mut R) -> TpkeResult<DealerOutput> {
         if t == 0 || n == 0 || t > n {
             return Err(TpkeError::InvalidThreshold { t, n });
         }

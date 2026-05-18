@@ -5,9 +5,6 @@
 
 use std::marker::PhantomData;
 
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-
 use ark_bls12_381::{Fr, G1Affine, G2Affine};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -94,12 +91,31 @@ impl<T> AsRef<[u8]> for Ciphertext<T> {
     }
 }
 
+impl<T> AsMut<[u8]> for Ciphertext<T> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.inner.as_mut()
+    }
+}
+
+impl<T> Encode for Ciphertext<T> {
+    fn encode_to<O: parity_scale_codec::Output + ?Sized>(&self, dest: &mut O) {
+        self.inner.encode_to(dest);
+    }
+}
+
+impl<T> Decode for Ciphertext<T> {
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> Result<Self, parity_scale_codec::Error> {
+        Ok(Self::new(Vec::<u8>::decode(input)?))
+    }
+}
+
 /// Encrypted ciphertext envelope. Wire format is the SCALE encoding of this.
 #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, TypeInfo)]
 pub struct Encrypted<T: Encryptable> {
     /// `U = u · g₂ ∈ G2`, compressed 96-byte serialization.
     pub u: [u8; G2_COMPRESSED_LEN],
-    /// 32-byte identity binding (see `derive_id`).
     pub id: T::Id,
     /// ChaCha20-Poly1305 ciphertext incl. 16-byte Poly1305 tag.
     pub ciphertext: Ciphertext<T::Payload>,
@@ -154,28 +170,36 @@ impl DealerOutput {
 // happen for points produced by this crate; Decode validates and returns a
 // codec error on bad bytes.
 
-// impl Encode for DecryptionShare {
-//     fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
-//         self.index.encode_to(dest);
-//         self.id.encode_to(dest);
-//         let bytes =
-//             serialize_g1(&self.point).expect("DecryptionShare always holds a valid G1 point");
-//         bytes.encode_to(dest);
-//     }
-// }
+impl<T> Encode for DecryptionShare<T>
+where
+    T: Encryptable,
+    T::Id: Encode,
+{
+    fn encode_to<O: parity_scale_codec::Output + ?Sized>(&self, dest: &mut O) {
+        self.index.encode_to(dest);
+        self.id.encode_to(dest);
+        let bytes =
+            serialize_g1(&self.point).expect("DecryptionShare always holds a valid G1 point");
+        bytes.encode_to(dest);
+    }
+}
 
-// impl Decode for DecryptionShare {
-//     fn decode<I: parity_scale_codec::Input>(
-//         input: &mut I,
-//     ) -> Result<Self, parity_scale_codec::Error> {
-//         let index = u32::decode(input)?;
-//         let id = <[u8; 32]>::decode(input)?;
-//         let bytes = <[u8; G1_COMPRESSED_LEN]>::decode(input)?;
-//         let point = deserialize_compressed::<G1Affine, G1_COMPRESSED_LEN>(&bytes)
-//             .map_err(|_| parity_scale_codec::Error::from("invalid G1 point in DecryptionShare"))?;
-//         Ok(Self { index, id, point })
-//     }
-// }
+impl<T> Decode for DecryptionShare<T>
+where
+    T: Encryptable,
+    T::Id: Decode,
+{
+    fn decode<I: parity_scale_codec::Input>(
+        input: &mut I,
+    ) -> Result<Self, parity_scale_codec::Error> {
+        let index = u32::decode(input)?;
+        let id = T::Id::decode(input)?;
+        let bytes = <[u8; G1_COMPRESSED_LEN]>::decode(input)?;
+        let point = deserialize_compressed::<G1Affine, G1_COMPRESSED_LEN>(&bytes)
+            .map_err(|_| parity_scale_codec::Error::from("invalid G1 point in DecryptionShare"))?;
+        Ok(Self { index, id, point })
+    }
+}
 
 impl Encode for MasterPublicKey {
     fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
