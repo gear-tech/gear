@@ -29,12 +29,10 @@ const DEM_NONCE_LEN: usize = 12;
 /// Additional Authenticated Data layout (input to ChaCha20-Poly1305 MAC).
 ///
 /// Format: id ‖ U_bytes ‖ chain_id_le ‖ key_epoch_id_le
-fn build_aad(envelope_id: &[u8; 32], u_bytes: &[u8], chain_id: u64, key_epoch_id: u32) -> Vec<u8> {
-    let mut aad = Vec::with_capacity(32 + u_bytes.len() + 8 + 4);
+fn build_aad(envelope_id: &[u8; 32], u_bytes: &[u8]) -> Vec<u8> {
+    let mut aad = Vec::with_capacity(32 + u_bytes.len());
     aad.extend_from_slice(envelope_id);
     aad.extend_from_slice(u_bytes);
-    aad.extend_from_slice(&chain_id.to_le_bytes());
-    aad.extend_from_slice(&key_epoch_id.to_le_bytes());
     aad
 }
 
@@ -75,13 +73,11 @@ pub(crate) fn encrypt_body(
     z: &PairingOutput<Bls12_381>,
     envelope_id: &[u8; 32],
     u_bytes: &[u8],
-    chain_id: u64,
-    key_epoch_id: u32,
     plaintext: &[u8],
 ) -> Result<Vec<u8>, TpkeError> {
     let (key_bytes, nonce_bytes) = derive_dem_key_nonce(z, envelope_id, u_bytes)?;
     let cipher = ChaCha20Poly1305::new(Key::from_slice(&key_bytes));
-    let aad = build_aad(envelope_id, u_bytes, chain_id, key_epoch_id);
+    let aad = build_aad(envelope_id, u_bytes);
     cipher
         .encrypt(
             Nonce::from_slice(&nonce_bytes),

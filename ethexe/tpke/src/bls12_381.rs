@@ -49,22 +49,22 @@ type G1Hasher = MapToCurveBasedHasher<
 /// Without it, an attacker who can guess plaintext (e.g. known token-trade
 /// templates) can verify the guess by recomputing `id` and matching the
 /// ciphertext's id — a known-plaintext attack on the identity.
-pub fn derive_id(
-    chain_id: u64,
-    key_epoch_id: u32,
-    canonical_plaintext: &[u8],
-    user_nonce: &[u8; 32],
-) -> [u8; 32] {
-    let mut h = Blake2b256::new();
-    h.update(ID_DOMAIN);
-    h.update(chain_id.to_le_bytes());
-    h.update(key_epoch_id.to_le_bytes());
-    h.update(canonical_plaintext);
-    h.update(user_nonce);
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&h.finalize());
-    out
-}
+// pub fn derive_id(
+//     chain_id: u64,
+//     key_epoch_id: u32,
+//     canonical_plaintext: &[u8],
+//     user_nonce: &[u8; 32],
+// ) -> [u8; 32] {
+//     let mut h = Blake2b256::new();
+//     h.update(ID_DOMAIN);
+//     h.update(chain_id.to_le_bytes());
+//     h.update(key_epoch_id.to_le_bytes());
+//     h.update(canonical_plaintext);
+//     h.update(user_nonce);
+//     let mut out = [0u8; 32];
+//     out.copy_from_slice(&h.finalize());
+//     out
+// }
 
 // The hasher is constructed once per process and reused. DST_G1 is constant,
 // so `G1Hasher::new` only fails for malformed DSTs — which we control at
@@ -76,7 +76,7 @@ fn g1_hasher() -> &'static G1Hasher {
     HASHER.get_or_init(|| G1Hasher::new(DST_G1).expect("DST_G1 is a valid hash-to-curve DST"))
 }
 
-fn hash_to_g1(id: &[u8; 32]) -> Result<G1Affine, TpkeError> {
+pub(crate) fn hash_to_g1(id: &[u8; 32]) -> Result<G1Affine, TpkeError> {
     #[cfg(feature = "std")]
     {
         g1_hasher().hash(id).map_err(|_| TpkeError::HashToCurve)
@@ -124,8 +124,6 @@ pub(crate) fn serialize_g1(p: &G1Affine) -> Result<[u8; G1_COMPRESSED_LEN], Tpke
 pub fn encrypt<R: RngCore + CryptoRng>(
     pk: &MasterPublicKey,
     id: &[u8; 32],
-    chain_id: u64,
-    key_epoch_id: u32,
     plaintext: &[u8],
     rng: &mut R,
 ) -> Result<EncryptedEnvelope, TpkeError> {
@@ -148,7 +146,7 @@ pub fn encrypt<R: RngCore + CryptoRng>(
     // z = e(Q_id, AggPub)^u = e(Q_id, g₂)^(S·u)
     let z_base = Bls12_381::pairing(q_id, pk.0);
     let z = z_base * u_scalar;
-    let body = aead::encrypt_body(&z, id, &u_bytes, chain_id, key_epoch_id, plaintext)?;
+    let body = aead::encrypt_body(&z, id, &u_bytes, plaintext)?;
 
     Ok(EncryptedEnvelope {
         u: u_bytes,

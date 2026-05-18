@@ -3,6 +3,8 @@
 // Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
+use std::marker::PhantomData;
+
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
@@ -12,7 +14,7 @@ use scale_info::TypeInfo;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    TpkeError,
+    Encryptable, TpkeError,
     bls12_381::{
         G1_COMPRESSED_LEN, G2_COMPRESSED_LEN, deserialize_compressed, serialize_g1, serialize_g2,
     },
@@ -68,15 +70,23 @@ pub struct SharePublicKey {
     pub point: G2Affine,
 }
 
+// TODO: move to another module
+
+/// Ciphertext over encryptable object [Encryptable::EncryptedFields].
+pub struct Ciphertext<T> {
+    inner: Vec<u8>,
+    _data: PhantomData<T>,
+}
+
 /// Encrypted ciphertext envelope. Wire format is the SCALE encoding of this.
 #[derive(Clone, PartialEq, Eq, Debug, Encode, Decode, TypeInfo)]
-pub struct EncryptedEnvelope {
+pub struct Encrypted<T: Encryptable> {
     /// `U = u · g₂ ∈ G2`, compressed 96-byte serialization.
     pub u: [u8; G2_COMPRESSED_LEN],
     /// 32-byte identity binding (see `derive_id`).
-    pub id: [u8; 32],
+    pub id: T::Id,
     /// ChaCha20-Poly1305 ciphertext incl. 16-byte Poly1305 tag.
-    pub body: Vec<u8>,
+    pub ciphertext: Ciphertext<T::EncryptedFields>,
 }
 
 /// Decryption share `Dᵢ = Sᵢ · Q_id ∈ G1`. Validator index is 1-based.
