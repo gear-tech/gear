@@ -479,21 +479,6 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
             let start_block_hash = self.db.globals().start_block_hash;
             let mut error = anyhow!("validate: no chain-head event yet — abstaining from vote");
 
-            // TODO +_+_+ : validator-side strict-descendant check is
-            // missing (flagged 2/3 audit iter 8). The producer's
-            // `find_eb_candidate_for_advancing` requires
-            // `quarantine::is_strict_descendant_of(candidate, parent_advanced)`
-            // before emitting an `AdvanceTillEthereumBlock`, but the
-            // validator only runs `verify_passed` below — any
-            // quarantine-passed canonical ancestor of `head` (including
-            // an EB OLDER than `parent_advanced`) is accepted. A
-            // byzantine proposer can then regress `mb_meta.last_advanced_eb`
-            // by picking a stale-but-quarantine-passed EB; downstream
-            // `compute_mb` replays already-processed EB events. Fix:
-            // after the quarantine wait below succeeds, also require
-            // `quarantine::is_strict_descendant_of(advance, parent_advanced,
-            // start_block_hash) == Ok(true)`. Pinned by
-            // `validate_rejects_advance_that_regresses_last_advanced_eb`.
             'quarantine: loop {
                 if tokio::time::Instant::now() >= deadline {
                     warn!(
@@ -506,16 +491,40 @@ impl ethexe_malachite_core::Externalities<Transactions> for EthexeExternalities 
                 }
 
                 if let Some(chain_head) = *self.chain_head.read().expect("chain_head poisoned") {
-                    let res = quarantine::verify_passed(
+                    match quarantine::verify_passed(
                         &self.db,
                         chain_head,
                         advance,
                         self.canonical_quarantine,
                         start_block_hash,
-                    );
-
-                    match res {
-                        Ok(_) => break 'quarantine,
+                    ) {
+                        Ok(_) => {
+                            match quarantine::is_strict_descendant_of(
+                                &self.db,
+                                advance,
+                                parent_advanced,
+                                start_block_hash,
+                            ) {
+                                Ok(true) => break 'quarantine,
+                                Ok(false) => {
+                                    warn!(
+                                        %advance,
+                                        parent_advanced = %parent_advanced,
+                                        "validate: advance is quarantine-passed but not a strict descendant of parent.last_advanced_eb — rejecting",
+                                    );
+                                    return Ok(false);
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        error = %e,
+                                        %advance,
+                                        parent_advanced = %parent_advanced,
+                                        "validate: is_strict_descendant_of failed — rejecting",
+                                    );
+                                    return Ok(false);
+                                }
+                            }
+                        }
                         Err(e) => error = anyhow!(e),
                     }
                 };
@@ -1829,17 +1838,7 @@ mod tests {
         );
     }
 
-    /// REPRODUCES (audit iter 8, 2/3 votes): the producer's
-    /// `find_eb_candidate_for_advancing` requires `is_strict_descendant_of(
-    /// candidate, parent.last_advanced_eb)`, but `validate_block_above` only
-    /// runs `verify_passed`. A malicious proposer can pick a quarantine-passed
-    /// EB that is OLDER than `parent.last_advanced_eb`, validators accept,
-    /// and `save_block` regresses `mb_meta.last_advanced_eb`. Downstream
-    /// `compute_mb` replays already-processed EB events.
-    ///
-    /// Ignored until the strict-descendant TODO+_+_+ lands.
     #[tokio::test]
-    #[ignore = "tracks TODO +_+_+ in externalities::validate_block_above: missing strict-descendant check"]
     async fn validate_rejects_advance_that_regresses_last_advanced_eb() {
         let db = Database::memory();
 
