@@ -14,7 +14,7 @@ use scale_info::TypeInfo;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    Encryptable, TpkeError,
+    Encryptable, TpkeResult,
     bls12_381::{
         G1_COMPRESSED_LEN, G2_COMPRESSED_LEN, deserialize_compressed, serialize_g1, serialize_g2,
     },
@@ -72,7 +72,7 @@ pub struct SharePublicKey {
 
 // TODO: move to another module
 
-/// Ciphertext over encryptable object [Encryptable::EncryptedFields].
+/// Ciphertext over encryptable object [Encryptable::Payload].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ciphertext<T> {
     inner: Vec<u8>,
@@ -102,7 +102,7 @@ pub struct Encrypted<T: Encryptable> {
     /// 32-byte identity binding (see `derive_id`).
     pub id: T::Id,
     /// ChaCha20-Poly1305 ciphertext incl. 16-byte Poly1305 tag.
-    pub ciphertext: Ciphertext<T::EncryptedFields>,
+    pub ciphertext: Ciphertext<T::Payload>,
 }
 
 /// Decryption share `Dᵢ = Sᵢ · Q_id ∈ G1`. Validator index is 1-based.
@@ -219,15 +219,11 @@ impl Decode for SharePublicKey {
 
 impl<T: Encryptable> DecryptionShare<T> {
     /// Serialize as `(index, id, compressed_point_bytes)`.
-    pub fn to_bytes(&self) -> Result<(u32, &[u8], [u8; G1_COMPRESSED_LEN]), TpkeError> {
+    pub fn to_bytes(&self) -> TpkeResult<(u32, &[u8], [u8; G1_COMPRESSED_LEN])> {
         Ok((self.index, self.id.as_ref(), serialize_g1(&self.point)?))
     }
 
-    pub fn from_bytes(
-        index: u32,
-        id: T::Id,
-        bytes: &[u8; G1_COMPRESSED_LEN],
-    ) -> Result<Self, TpkeError> {
+    pub fn from_bytes(index: u32, id: T::Id, bytes: &[u8; G1_COMPRESSED_LEN]) -> TpkeResult<Self> {
         let point = deserialize_compressed::<G1Affine, G1_COMPRESSED_LEN>(bytes)?;
         Ok(Self { index, id, point })
     }

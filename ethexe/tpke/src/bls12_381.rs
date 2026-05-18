@@ -6,21 +6,19 @@
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
-use ark_bls12_381::{Bls12_381, Fr, G1Affine, G1Projective, G2Affine};
+use ark_bls12_381::{Bls12_381, G1Affine, G1Projective, G2Affine};
 use ark_ec::{
     AffineRepr, CurveGroup,
     hashing::{HashToCurve, curve_maps::wb::WBMap, map_to_curve_hasher::MapToCurveBasedHasher},
     pairing::Pairing,
 };
-use ark_ff::{UniformRand, Zero, field_hashers::DefaultFieldHasher};
+use ark_ff::{Zero, field_hashers::DefaultFieldHasher};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::rand::{CryptoRng, RngCore};
-use blake2::{Blake2b, Digest, digest::consts::U32};
 use sha2::Sha256;
 
 use crate::{
     DecryptionShare, Encryptable, Encrypted, MasterPublicKey, SecretKeyShare, SharePublicKey,
-    TpkeError, aead, shamir::lagrange_coefficient,
+    TpkeError, TpkeResult, aead, shamir::lagrange_coefficient,
 };
 
 /// Hash-to-curve domain separation tag, version-locked. Changing this string
@@ -35,7 +33,6 @@ pub const G2_COMPRESSED_LEN: usize = 96;
 /// Compressed G1 point byte length on BLS12-381.
 pub const G1_COMPRESSED_LEN: usize = 48;
 
-type Blake2b256 = Blake2b<U32>;
 type G1Hasher = MapToCurveBasedHasher<
     G1Projective,
     DefaultFieldHasher<Sha256, 128>,
@@ -76,7 +73,7 @@ fn g1_hasher() -> &'static G1Hasher {
     HASHER.get_or_init(|| G1Hasher::new(DST_G1).expect("DST_G1 is a valid hash-to-curve DST"))
 }
 
-pub(crate) fn hash_to_g1(id: impl AsRef<[u8]>) -> Result<G1Affine, TpkeError> {
+pub(crate) fn hash_to_g1(id: impl AsRef<[u8]>) -> TpkeResult<G1Affine> {
     #[cfg(feature = "std")]
     {
         g1_hasher()
@@ -93,7 +90,7 @@ pub(crate) fn hash_to_g1(id: impl AsRef<[u8]>) -> Result<G1Affine, TpkeError> {
 /// Serialize an arkworks point/element to its fixed-size compressed bytes.
 pub(crate) fn serialize_compressed<P: CanonicalSerialize, const N: usize>(
     p: &P,
-) -> Result<[u8; N], TpkeError> {
+) -> TpkeResult<[u8; N]> {
     let mut buf = [0u8; N];
     p.serialize_compressed(&mut buf[..])
         .map_err(|_| TpkeError::Serialization)?;
@@ -103,28 +100,25 @@ pub(crate) fn serialize_compressed<P: CanonicalSerialize, const N: usize>(
 /// Deserialize a fixed-size compressed-bytes blob into an arkworks point.
 pub(crate) fn deserialize_compressed<P: CanonicalDeserialize, const N: usize>(
     bytes: &[u8; N],
-) -> Result<P, TpkeError> {
+) -> TpkeResult<P> {
     P::deserialize_compressed(&bytes[..]).map_err(|_| TpkeError::MalformedCiphertext)
 }
 
-pub(crate) fn serialize_g2(p: &G2Affine) -> Result<[u8; G2_COMPRESSED_LEN], TpkeError> {
+pub(crate) fn serialize_g2(p: &G2Affine) -> TpkeResult<[u8; G2_COMPRESSED_LEN]> {
     serialize_compressed::<_, G2_COMPRESSED_LEN>(p)
 }
 
-fn deserialize_g2(bytes: &[u8; G2_COMPRESSED_LEN]) -> Result<G2Affine, TpkeError> {
+fn deserialize_g2(bytes: &[u8; G2_COMPRESSED_LEN]) -> TpkeResult<G2Affine> {
     deserialize_compressed::<G2Affine, G2_COMPRESSED_LEN>(bytes)
 }
 
-pub(crate) fn serialize_g1(p: &G1Affine) -> Result<[u8; G1_COMPRESSED_LEN], TpkeError> {
+pub(crate) fn serialize_g1(p: &G1Affine) -> TpkeResult<[u8; G1_COMPRESSED_LEN]> {
     serialize_compressed::<_, G1_COMPRESSED_LEN>(p)
 }
 
 impl SecretKeyShare {
     /// Validator-side: produce `Dᵢ = Sᵢ · Q_id` for the ciphertext's id.
-    pub fn decrypt_share<T>(
-        &self,
-        encrypted: &Encrypted<T>,
-    ) -> Result<DecryptionShare<T>, TpkeError>
+    pub fn decrypt_share<T>(&self, encrypted: &Encrypted<T>) -> TpkeResult<DecryptionShare<T>>
     where
         T: Encryptable,
     {
@@ -146,11 +140,7 @@ impl SharePublicKey {
     ///
     /// Returns `Ok(false)` when the share's validator index or envelope id
     /// doesn't match what we're verifying against.
-    pub fn verify<T>(
-        &self,
-        envelope: &Encrypted<T>,
-        share: &DecryptionShare<T>,
-    ) -> Result<bool, TpkeError>
+    pub fn verify<T>(&self, envelope: &Encrypted<T>, share: &DecryptionShare<T>) -> TpkeResult<bool>
     where
         T: Encryptable,
     {
@@ -179,7 +169,7 @@ pub fn combine<T>(
     envelope: &Encrypted<T>,
     shares: &[DecryptionShare<T>],
     threshold: u32,
-) -> Result<T::EncryptedFields, TpkeError>
+) -> TpkeResult<T::Payload>
 where
     T: Encryptable,
 {
@@ -226,18 +216,18 @@ where
     let u_point = deserialize_g2(&envelope.u)?;
     let z = Bls12_381::pairing(d, u_point);
 
-    aead::decrypt_body::<T>(&z, &envelope.id, &envelope.u, &envelope.ciphertext)
+    aead::decrypt_payload::<T>(&z, &envelope.id, &envelope.u, &envelope.ciphertext)
 }
 
 impl MasterPublicKey {
-    pub fn to_bytes(&self) -> Result<[u8; G2_COMPRESSED_LEN], TpkeError> {
+    pub fn to_bytes(&self) -> TpkeResult<[u8; G2_COMPRESSED_LEN]> {
         serialize_g2(&self.0)
     }
 
     /// Deserialize the master pubkey, rejecting the G2 identity point. An
     /// identity-element master pubkey would make `e(Q_id, pk) = 1_GT`, letting
     /// anyone with the ciphertext derive the DEM key without shares.
-    pub fn from_bytes(bytes: &[u8; G2_COMPRESSED_LEN]) -> Result<Self, TpkeError> {
+    pub fn from_bytes(bytes: &[u8; G2_COMPRESSED_LEN]) -> TpkeResult<Self> {
         let point = deserialize_g2(bytes)?;
         if point.is_zero() {
             return Err(TpkeError::IdentityPublicKey);
@@ -247,14 +237,14 @@ impl MasterPublicKey {
 }
 
 impl SharePublicKey {
-    pub fn to_bytes(&self) -> Result<(u32, [u8; G2_COMPRESSED_LEN]), TpkeError> {
+    pub fn to_bytes(&self) -> TpkeResult<(u32, [u8; G2_COMPRESSED_LEN])> {
         Ok((self.index, serialize_g2(&self.point)?))
     }
 
     /// Deserialize a share pubkey, rejecting the G2 identity point. An identity
     /// share-pubkey would make share verification accept any honest share for
     /// that index regardless of the underlying secret-share scalar.
-    pub fn from_bytes(index: u32, bytes: &[u8; G2_COMPRESSED_LEN]) -> Result<Self, TpkeError> {
+    pub fn from_bytes(index: u32, bytes: &[u8; G2_COMPRESSED_LEN]) -> TpkeResult<Self> {
         let point = deserialize_g2(bytes)?;
         if point.is_zero() {
             return Err(TpkeError::IdentityPublicKey);

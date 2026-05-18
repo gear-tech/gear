@@ -38,7 +38,6 @@ pub use keys::{
     DealerOutput, DecryptionShare, Encrypted, MasterPublicKey, MasterSecretKey, SecretKeyShare,
     SharePublicKey,
 };
-use parity_scale_codec::{Decode, Encode};
 
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 pub enum TpkeError {
@@ -64,17 +63,16 @@ pub enum TpkeError {
     InvalidThreshold { t: u32, n: u32 },
     #[error("public key is the identity point — refusing to use it")]
     IdentityPublicKey,
+    #[error("payload decode failed: {0}")]
+    PayloadDecode(parity_scale_codec::Error),
 }
+
+pub type TpkeResult<T> = Result<T, TpkeError>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bls12_381::hash_to_g1;
-    use ark_bls12_381::G2Affine;
-    use ark_ec::AffineRepr;
-    use ark_serialize::CanonicalSerialize;
     use ark_std::rand::{SeedableRng, rngs::StdRng};
-    use parity_scale_codec::{Decode, Encode};
 
     fn fixed_rng() -> StdRng {
         StdRng::seed_from_u64(0xDEADBEEF_CAFEBABE)
@@ -87,13 +85,13 @@ mod tests {
 
     impl Encryptable for String {
         type Id = [u8; 32];
-        type EncryptedFields = Self;
+        type Payload = Self;
 
-        fn encryptable_fields(&self) -> &Self::EncryptedFields {
+        fn payload(&self) -> &Self::Payload {
             &self
         }
 
-        fn derive_id(&self) -> Self::Id {
+        fn tpke_id(&self) -> Self::Id {
             return [0u8; 32];
         }
     }

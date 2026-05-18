@@ -17,7 +17,7 @@ use hkdf::Hkdf;
 use parity_scale_codec::{Decode, Encode};
 use sha2::Sha256;
 
-use crate::{Encryptable, TpkeError, keys::Ciphertext};
+use crate::{Encryptable, TpkeError, TpkeResult, keys::Ciphertext};
 
 /// HKDF info prefix for the KEM-derived DEM key/nonce.
 pub const HKDF_DEM_INFO: &[u8] = b"ethexe-tpke-dem-v1";
@@ -38,7 +38,7 @@ fn build_aad(id: impl AsRef<[u8]>, u_bytes: &[u8]) -> Vec<u8> {
 }
 
 /// Encode the pairing-target element `z ∈ GT` deterministically for HKDF input.
-fn serialize_gt(z: &PairingOutput<Bls12_381>) -> Result<Vec<u8>, TpkeError> {
+fn serialize_gt(z: &PairingOutput<Bls12_381>) -> TpkeResult<Vec<u8>> {
     let mut buf = Vec::with_capacity(576);
     z.serialize_compressed(&mut buf)
         .map_err(|_| TpkeError::Serialization)?;
@@ -51,7 +51,7 @@ fn derive_dem_key_nonce(
     z: &PairingOutput<Bls12_381>,
     id: impl AsRef<[u8]>,
     u_bytes: &[u8],
-) -> Result<([u8; DEM_KEY_LEN], [u8; DEM_NONCE_LEN]), TpkeError> {
+) -> TpkeResult<([u8; DEM_KEY_LEN], [u8; DEM_NONCE_LEN])> {
     let z_bytes = serialize_gt(z)?;
     let mut info = Vec::with_capacity(HKDF_DEM_INFO.len() + 32 + u_bytes.len());
     info.extend_from_slice(HKDF_DEM_INFO);
@@ -70,16 +70,16 @@ fn derive_dem_key_nonce(
     Ok((key, nonce))
 }
 
-pub(crate) fn encrypt_body<T: Encryptable>(
+pub(crate) fn encrypt_payload<T: Encryptable>(
     z: &PairingOutput<Bls12_381>,
     id: &T::Id,
     u_bytes: &[u8],
-    encryptable_fields: &T::EncryptedFields,
-) -> Result<Ciphertext<T::EncryptedFields>, TpkeError> {
+    payload: &T::Payload,
+) -> TpkeResult<Ciphertext<T::Payload>> {
     let (key_bytes, nonce_bytes) = derive_dem_key_nonce(z, id, u_bytes)?;
     let cipher = ChaCha20Poly1305::new(Key::from_slice(&key_bytes));
     let aad = build_aad(&id, u_bytes);
-    let msg = encryptable_fields.encode();
+    let msg = payload.encode();
     cipher
         .encrypt(
             Nonce::from_slice(&nonce_bytes),
@@ -92,12 +92,12 @@ pub(crate) fn encrypt_body<T: Encryptable>(
         .map_err(|_| TpkeError::AeadAuth)
 }
 
-pub(crate) fn decrypt_body<T: Encryptable>(
+pub(crate) fn decrypt_payload<T: Encryptable>(
     z: &PairingOutput<Bls12_381>,
     envelope_id: &T::Id,
     u_bytes: &[u8],
-    ciphertext: &Ciphertext<T::EncryptedFields>,
-) -> Result<T::EncryptedFields, TpkeError> {
+    ciphertext: &Ciphertext<T::Payload>,
+) -> TpkeResult<T::Payload> {
     let (key_bytes, nonce_bytes) = derive_dem_key_nonce(z, envelope_id, u_bytes)?;
     let cipher = ChaCha20Poly1305::new(Key::from_slice(&key_bytes));
     let aad = build_aad(envelope_id, u_bytes);
@@ -110,6 +110,5 @@ pub(crate) fn decrypt_body<T: Encryptable>(
             },
         )
         .map_err(|_| TpkeError::AeadAuth)?;
-    let fields = <T::EncryptedFields as Decode>::decode(&mut data.as_slice()).unwrap();
-    Ok(fields)
+    <T::Payload as Decode>::decode(&mut data.as_slice()).map_err(TpkeError::PayloadDecode)
 }

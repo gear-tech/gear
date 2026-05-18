@@ -14,6 +14,7 @@ use zeroize::Zeroize;
 
 use crate::{
     DealerOutput, MasterPublicKey, MasterSecretKey, SecretKeyShare, SharePublicKey, TpkeError,
+    TpkeResult,
 };
 
 impl MasterSecretKey {
@@ -29,7 +30,7 @@ impl MasterSecretKey {
         t: u32,
         n: u32,
         rng: &mut R,
-    ) -> Result<DealerOutput, TpkeError> {
+    ) -> TpkeResult<DealerOutput> {
         if t == 0 || n == 0 || t > n {
             return Err(TpkeError::InvalidThreshold { t, n });
         }
