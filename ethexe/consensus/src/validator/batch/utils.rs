@@ -21,6 +21,7 @@ use crate::validator::batch::{filler::BatchFiller, types::BatchParts};
 use super::types::CodeNotValidatedError;
 
 use anyhow::{Result, anyhow, bail};
+use core::num::NonZero;
 use ethexe_common::{
     SimpleBlockData,
     db::{BlockMetaStorageRO, CodesStorageRO, MbStorageRO, OnChainStorageRO},
@@ -28,7 +29,6 @@ use ethexe_common::{
         BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition, ValueClaim,
     },
 };
-use core::num::NonZero;
 use gprimitives::{ActorId, CodeId, H256};
 use std::collections::{HashMap, hash_map::Entry};
 

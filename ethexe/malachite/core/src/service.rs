@@ -3,31 +3,6 @@
 
 //! [`MalachiteService`] — the public entry point.
 
-use anyhow::{Context as _, Result};
-use bytes::Bytes;
-use futures::{Stream, stream::FusedStream};
-use std::{
-    marker::PhantomData,
-    pin::Pin,
-    sync::Arc,
-    task::{Context as TaskContext, Poll},
-};
-use tokio::{sync::mpsc, task::JoinHandle};
-use tracing::Instrument;
-
-use malachitebft_app_channel::{
-    ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
-    SigningProviderExt, SyncContext, WalContext,
-    app::{
-        config::{
-            ConsensusConfig, DiscoveryConfig, LoggingConfig, MetricsConfig, NodeConfig, P2pConfig,
-            PubSubProtocol, RuntimeConfig, TransportProtocol, ValuePayload, ValueSyncConfig,
-        },
-        metrics::SharedRegistry,
-    },
-};
-use malachitebft_core_types::ValidatorProof;
-
 use crate::{
     app,
     codec::ScaleCodec,
@@ -41,6 +16,28 @@ use crate::{
     store::Store,
     types::Address,
 };
+use anyhow::{Context as _, Result};
+use bytes::Bytes;
+use futures::{Stream, stream::FusedStream};
+use malachitebft_app_channel::{
+    ConsensusContext, EngineBuilder, EngineHandle, NetworkContext, NetworkIdentity, RequestContext,
+    SigningProviderExt, SyncContext, WalContext,
+    app::{
+        config::{
+            ConsensusConfig, DiscoveryConfig, LoggingConfig, MetricsConfig, NodeConfig, P2pConfig,
+            PubSubProtocol, RuntimeConfig, TransportProtocol, ValuePayload, ValueSyncConfig,
+        },
+        metrics::SharedRegistry,
+    },
+};
+use malachitebft_core_types::ValidatorProof;
+use std::{
+    marker::PhantomData,
+    pin::Pin,
+    sync::Arc,
+    task::{Context as TaskContext, Poll},
+};
+use tokio::{sync::mpsc, task::JoinHandle};
 
 /// Trait-object-friendly facade for the service. The stream carries
 /// only fatal app-task errors — successful events reach the
@@ -205,19 +202,12 @@ impl<P: BlockPayload, EXT: Externalities<P>> MalachiteService<P, EXT> {
         // ---- spawn app task ----
         let (errors_tx, errors_rx) = mpsc::unbounded_channel();
         let externalities_for_task = Arc::clone(&externalities);
-        let span = tracing::error_span!("ethexe-malachite-core::app", %moniker);
-        let app_handle = tokio::spawn(
-            async move {
-                if let Err(e) =
-                    app::run::<P, EXT>(state, channels, externalities_for_task, errors_tx.clone())
-                        .await
-                {
-                    tracing::error!(target: "ethexe-malachite-core", error = %e, "app task terminated");
-                    let _ = errors_tx.send(e);
-                }
+        let app_handle = tokio::spawn(async move {
+            if let Err(e) = app::run::<P, EXT>(state, channels, externalities_for_task).await {
+                tracing::error!(target: "ethexe-malachite-core", error = %e, "app task terminated");
+                let _ = errors_tx.send(e);
             }
-            .instrument(span),
-        );
+        });
 
         Ok(Self {
             errors_rx,

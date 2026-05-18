@@ -55,7 +55,6 @@ use malachitebft_app_channel::{
 use malachitebft_core_types::Height as _;
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::RangeInclusive, sync::Arc};
-use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 /// Max allowed distance into the future for pending proposal parts.
@@ -71,7 +70,6 @@ pub async fn run<P, EXT>(
     state: State<P>,
     channels: Channels<MalachiteCtx>,
     externalities: Arc<EXT>,
-    errors_tx: mpsc::UnboundedSender<anyhow::Error>,
 ) -> Result<()>
 where
     P: BlockPayload,
@@ -81,10 +79,14 @@ where
         state,
         channels,
         externalities,
-        errors_tx,
     }
     .run()
     .await
+}
+
+enum FinalizationError {
+    Fatal(anyhow::Error),
+    NonFatal(anyhow::Error),
 }
 
 /// Owns the channel-app event-loop state and dispatches each
@@ -95,10 +97,6 @@ struct AppMsgHandler<P: BlockPayload, EXT: Externalities<P>> {
     state: State<P>,
     channels: Channels<MalachiteCtx>,
     externalities: Arc<EXT>,
-    /// Outbound channel for non-terminating app errors (e.g. a
-    /// failed `process_mb_finalized` inside [`Self::ingest_finalized`]).
-    /// Drained by [`crate::MalachiteService`]'s error stream.
-    errors_tx: mpsc::UnboundedSender<anyhow::Error>,
 }
 
 impl<P, EXT> AppMsgHandler<P, EXT>
@@ -237,7 +235,7 @@ where
                             ),
                         )
                     }
-                    Err(e) => {
+                    Err(FinalizationError::NonFatal(e)) => {
                         let h = self.state.current_height;
                         error!(?e, height = %h, "Finalized: commit failed — restarting height");
                         Next::Restart(
@@ -248,6 +246,9 @@ where
                                 None,
                             ),
                         )
+                    }
+                    Err(FinalizationError::Fatal(e)) => {
+                        return Err(anyhow!("Fatal error during finalization: {e:?}"));
                     }
                 };
                 if reply.send(next).is_err() {
@@ -457,37 +458,18 @@ where
         );
     }
 
-    // TODO +_+_+ : semantic mismatch between engine and app on a
-    // partial finalize.
-    //
-    // `state.commit()` succeeds (engine certificate persisted,
-    // `prune_engine_state` ran, `state.current_height` advanced to
-    // h+1) but `ingest_finalized` then fails inside `cascade_finalize`.
-    // We swallow the error (forwarded onto `errors_tx`) and return
-    // `Ok(())`, so the dispatch in `handle_app_msg` sends
-    // `Next::Start(h+1, ...)` — the engine moves forward.
-    //
-    // Result: the application's `process_mb_finalized` was never
-    // observed (or partway through a cascade), but engine certificates
-    // exist for the height. From the engine's perspective height h is
-    // fully decided; from the app's perspective the finalize cascade
-    // is half-applied.
-    //
-    // Fix needs splitting `state.commit()` into a read-only phase
-    // (pull undecided proposal + decode block_bytes) and a write
-    // phase (persist engine_certificate, prune, advance current_height
-    // / current_round), with `ingest_finalized` in between. If
-    // `ingest_finalized` fails, abort before the write phase, return
-    // Err, and let the dispatch send `Next::Restart(h, ...)`. The
-    // engine then retries the same height with consistent state on
-    // both sides.
-    async fn process_finalized(&mut self, certificate: EngineCert) -> Result<()> {
-        let (block_bytes, _cert) = self.state.commit(certificate.clone())?;
-        if let Err(e) = self.ingest_finalized(certificate, block_bytes).await {
-            error!(?e, "ingest_finalized failed");
-            let _ = self.errors_tx.send(e);
-        }
-        Ok(())
+    async fn process_finalized(
+        &mut self,
+        certificate: EngineCert,
+    ) -> Result<(), FinalizationError> {
+        let (block_bytes, _cert) = self
+            .state
+            .commit(certificate.clone())
+            .map_err(FinalizationError::NonFatal)?;
+        self.ingest_finalized(certificate, block_bytes)
+            .await
+            .context("ingest finalized")
+            .map_err(FinalizationError::Fatal)
     }
 
     async fn process_synced_value(
@@ -887,13 +869,11 @@ mod tests {
             requests: requests_tx,
             net_requests: net_requests_tx,
         };
-        let (errors_tx, _errors_rx) = mpsc::unbounded_channel();
 
         let handler = AppMsgHandler {
             state,
             channels,
             externalities: Arc::new(NoopExt),
-            errors_tx,
         };
         (handler, dir, address)
     }

@@ -577,7 +577,9 @@ async fn idle_chain_below_threshold_yields_no_batch_commitment() {
     let advanced = chain.blocks[4].hash;
     let last_committed_eb = chain.blocks[2].hash;
     db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = advanced);
-    db.mutate_block_meta(block.hash, |m| m.last_committed_eb = Some(last_committed_eb));
+    db.mutate_block_meta(block.hash, |m| {
+        m.last_committed_eb = Some(last_committed_eb)
+    });
 
     // gap = height(blocks[4]) - height(blocks[2]) = 2; threshold is much larger.
     let manager = mock_batch_manager_with_limits(
@@ -618,7 +620,9 @@ async fn idle_chain_above_threshold_emits_checkpoint_batch_commitment() {
     let advanced = chain.blocks[5].hash;
     let last_committed_eb = chain.blocks[1].hash;
     db.mutate_mb_meta(head_mb, |m| m.last_advanced_eb = advanced);
-    db.mutate_block_meta(block.hash, |m| m.last_committed_eb = Some(last_committed_eb));
+    db.mutate_block_meta(block.hash, |m| {
+        m.last_committed_eb = Some(last_committed_eb)
+    });
 
     let threshold = NonZero::new(2).unwrap();
     let manager = mock_batch_manager_with_limits(
