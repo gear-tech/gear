@@ -18,10 +18,9 @@
 
 #[cfg(feature = "server")]
 use crate::{errors, utils};
+use ethexe_common::{BlockHeader, events::BlockRequestEvent};
 #[cfg(feature = "server")]
-use ethexe_common::{
-    BlockHeader, SimpleBlockData, db::OnChainStorageRO, events::BlockRequestEvent,
-};
+use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};
 #[cfg(feature = "server")]
 use ethexe_db::Database;
 use gprimitives::H256;
