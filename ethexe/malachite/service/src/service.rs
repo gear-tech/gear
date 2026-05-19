@@ -257,8 +257,8 @@ impl MalachiteService {
     /// pending [`MalachiteEvent`] whose `last_advanced_eb` was the
     /// freshly-prepared block can be released. Prepared blocks are
     /// the prerequisite for downstream `compute_mb` not racing the
-    /// code-validation pipeline (see
-    /// [`EthexeExternalities::prerequisite_satisfied`]).
+    /// code-validation pipeline — see the prerequisite check inside
+    /// the externalities impl.
     pub fn receive_eb_prepared(&self, _eb_hash: H256) {
         // Drain inspects each queued entry's prerequisite against the
         // current `block_meta.prepared` flag, so we don't need to use
